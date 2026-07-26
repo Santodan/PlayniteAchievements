@@ -110,6 +110,9 @@ namespace PlayniteAchievements.Models.Achievements
         [IgnoreDataMember]
         public Dictionary<string, CategoryImageOverrideData> AchievementCategoryImageOverrides { get; set; }
 
+        [IgnoreDataMember]
+        public GameSummaryCategoryData GameSummaryCategory { get; set; }
+
         /// <summary>
         /// Runtime-only exclusion flag for summary surfaces such as the overview/theme views.
         /// Not persisted in cache/database.

@@ -148,6 +148,9 @@ namespace PlayniteAchievements.Providers.Manual
 
             await EnsureManualSourceAuthenticatedAsync(source, link, cancel).ConfigureAwait(false);
 
+            // Null when the source cannot resolve a platform; the game then displays as Manual.
+            var providerPlatformKey = source.ResolveProviderPlatformKey(link.SourceGameId);
+
             // Fetch achievements directly as AchievementDetail list
             var achievements = await source.GetAchievementsAsync(link.SourceGameId, language, cancel);
             if (achievements == null || achievements.Count == 0)
@@ -157,6 +160,7 @@ namespace PlayniteAchievements.Providers.Manual
                 {
                     LastUpdatedUtc = DateTime.UtcNow,
                     ProviderKey = ProviderKey,
+                    ProviderPlatformKey = providerPlatformKey,
                     LibrarySourceName = game.PluginId.ToString(),
                     HasAchievements = false,
                     GameName = game.Name,
@@ -168,42 +172,15 @@ namespace PlayniteAchievements.Providers.Manual
 
             _manualSourceRegistry.GetPostProcessorByKey(link.SourceKey)?.Invoke(link, achievements);
 
-            var unlockStateLookup = BuildCaseInsensitiveLookup(link.UnlockStates);
-            var unlockTimeLookup = BuildCaseInsensitiveLookup(link.UnlockTimes);
-
-            // Apply unlock times from link to each achievement
-            foreach (var detail in achievements)
-            {
-                if (detail == null || string.IsNullOrWhiteSpace(detail.ApiName))
-                {
-                    continue;
-                }
-
-                var lookupKeys = BuildUnlockLookupKeys(link, detail);
-
-                var unlockedState = false;
-                var hasState = TryGetLookupValue(unlockStateLookup, lookupKeys, out unlockedState);
-
-                DateTime? unlockTime = null;
-                var hasTime = TryGetLookupValue(unlockTimeLookup, lookupKeys, out unlockTime);
-
-                var isUnlocked = hasState
-                    ? unlockedState
-                    : (hasTime && unlockTime.HasValue);
-
-                if (isUnlocked)
-                {
-                    detail.Unlocked = true;
-                    detail.UnlockTimeUtc = hasTime && unlockTime.HasValue
-                        ? unlockTime
-                        : null;
-                }
-            }
+            // Apply stored unlock state to each achievement via the shared resolver so the
+            // manual-tracking window and this refresh path agree on flexible key matching.
+            new ManualUnlockResolver(link).ApplyUnlockState(achievements);
 
             return new GameAchievementData
             {
                 LastUpdatedUtc = DateTime.UtcNow,
                 ProviderKey = ProviderKey,
+                ProviderPlatformKey = providerPlatformKey,
                 LibrarySourceName = game.PluginId.ToString(),
                 HasAchievements = true,
                 GameName = game.Name,
@@ -325,14 +302,14 @@ namespace PlayniteAchievements.Providers.Manual
         {
             if (link == null)
             {
-                return L("LOCPlayAch_ManageAchievements_Manual_LinkSummary_None", "No manual link configured.");
+                return L("LOCPlayAch_ManageAchievements_Manual_LinkSummary_None");
             }
 
             return string.Format(
-                L("LOCPlayAch_ManageAchievements_Manual_LinkSummary", "{0} ({1})"),
+                L("LOCPlayAch_ManageAchievements_Manual_LinkSummary"),
                 string.IsNullOrWhiteSpace(link.SourceKey) ? "Manual" : link.SourceKey,
                 string.IsNullOrWhiteSpace(link.SourceGameId)
-                    ? L("LOCPlayAch_ManageAchievements_Value_NotAvailable", "N/A")
+                    ? L("LOCPlayAch_ManageAchievements_Value_NotAvailable")
                     : link.SourceGameId);
         }
 
@@ -348,8 +325,8 @@ namespace PlayniteAchievements.Providers.Manual
             }
 
             var result = playniteApi?.Dialogs?.ShowMessage(
-                string.Format(L("LOCPlayAch_Menu_UnlinkAchievements_Confirm", "Remove the manual achievement link for \"{0}\"?"), gameName),
-                L("LOCPlayAch_Title_PluginName", "Playnite Achievements"),
+                string.Format(L("LOCPlayAch_Menu_UnlinkAchievements_Confirm"), gameName),
+                L("LOCPlayAch_Title_PluginName"),
                 System.Windows.MessageBoxButton.YesNo,
                 System.Windows.MessageBoxImage.Question) ?? System.Windows.MessageBoxResult.None;
             if (result != System.Windows.MessageBoxResult.Yes)
@@ -365,103 +342,17 @@ namespace PlayniteAchievements.Providers.Manual
             achievementOverridesService.ClearGameData(gameId, gameName);
 
             playniteApi?.Dialogs?.ShowMessage(
-                L("LOCPlayAch_Status_Succeeded", "Success!"),
-                L("LOCPlayAch_Title_PluginName", "Playnite Achievements"),
+                L("LOCPlayAch_Status_Succeeded"),
+                L("LOCPlayAch_Title_PluginName"),
                 System.Windows.MessageBoxButton.OK,
                 System.Windows.MessageBoxImage.Information);
 
             return true;
         }
 
-        private static string L(string key, string fallback)
+        private static string L(string key)
         {
-            var value = ResourceProvider.GetString(key);
-            return string.IsNullOrWhiteSpace(value) ? fallback : value;
-        }
-
-        private static Dictionary<string, T> BuildCaseInsensitiveLookup<T>(IReadOnlyDictionary<string, T> source)
-        {
-            if (source == null || source.Count == 0)
-            {
-                return null;
-            }
-
-            var lookup = new Dictionary<string, T>(StringComparer.OrdinalIgnoreCase);
-            foreach (var pair in source)
-            {
-                var key = pair.Key?.Trim();
-                if (string.IsNullOrWhiteSpace(key))
-                {
-                    continue;
-                }
-
-                lookup[key] = pair.Value;
-            }
-
-            return lookup;
-        }
-
-        private static bool TryGetLookupValue<T>(
-            IDictionary<string, T> lookup,
-            IReadOnlyList<string> keys,
-            out T value)
-        {
-            value = default(T);
-            if (lookup == null || keys == null || keys.Count == 0)
-            {
-                return false;
-            }
-
-            for (var i = 0; i < keys.Count; i++)
-            {
-                if (lookup.TryGetValue(keys[i], out value))
-                {
-                    return true;
-                }
-            }
-
-            return false;
-        }
-
-        private static List<string> BuildUnlockLookupKeys(ManualAchievementLink link, AchievementDetail detail)
-        {
-            var keys = new List<string>(5);
-            AddLookupKey(keys, detail?.ApiName);
-
-            if (string.Equals(link?.SourceKey, "Exophase", StringComparison.OrdinalIgnoreCase))
-            {
-                AddLookupKey(keys, ExophaseApiClient.NormalizeLegacyManualApiName(detail?.ApiName));
-                AddLookupKey(keys, detail?.DisplayName);
-                AddLookupKey(keys, ExophaseApiClient.NormalizeLegacyManualApiName(detail?.DisplayName));
-
-                var apiName = detail?.ApiName?.Trim();
-                if (!string.IsNullOrWhiteSpace(apiName) &&
-                    apiName.StartsWith(ExophaseApiClient.ExophaseApiNamePrefix, StringComparison.OrdinalIgnoreCase))
-                {
-                    AddLookupKey(keys, apiName.Substring(ExophaseApiClient.ExophaseApiNamePrefix.Length));
-                }
-            }
-
-            return keys;
-        }
-
-        private static void AddLookupKey(IList<string> keys, string value)
-        {
-            var normalized = value?.Trim();
-            if (string.IsNullOrWhiteSpace(normalized))
-            {
-                return;
-            }
-
-            for (var i = 0; i < keys.Count; i++)
-            {
-                if (string.Equals(keys[i], normalized, StringComparison.OrdinalIgnoreCase))
-                {
-                    return;
-                }
-            }
-
-            keys.Add(normalized);
+            return ResourceProvider.GetString(key);
         }
     }
 }

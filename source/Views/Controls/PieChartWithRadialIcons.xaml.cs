@@ -13,6 +13,7 @@ using System.Windows.Media.Animation;
 using LiveCharts;
 using LiveCharts.Wpf;
 using LiveCharts.Wpf.Points;
+using PlayniteAchievements.Common;
 using PlayniteAchievements.Models;
 
 namespace PlayniteAchievements.Views.Controls
@@ -658,7 +659,7 @@ namespace PlayniteAchievements.Views.Controls
             unlockedCount = Math.Max(0, Math.Min(unlockedCount, totalCount));
             var roundedPercent = (int)Math.Round(unlockedCount * 100d / totalCount, MidpointRounding.AwayFromZero);
 
-            CenterPercentageText = $"{roundedPercent}%";
+            CenterPercentageText = PercentFormatter.FormatWhole(roundedPercent);
             CenterPercentageFontSize = Math.Max(11, Math.Min(18, controlSize * 0.13));
             CenterPercentageVisibility = Visibility.Visible;
         }

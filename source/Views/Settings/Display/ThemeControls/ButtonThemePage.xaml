@@ -45,7 +45,7 @@
                     <Border Style="{StaticResource SettingGroupCardStyle}"
                             Visibility="{Binding Persisted.EnableAchievementButtonControl, Converter={StaticResource BoolToVis}}">
                         <StackPanel>
-                            <TextBlock Text="PREVIEW"
+                            <TextBlock Text="{DynamicResource LOCPlayAch_Settings_Context_Preview}"
                                        Style="{StaticResource ContextLabelStyle}"/>
                             <StackPanel Orientation="Horizontal">
                                 <modern:AchievementButtonControl Width="40" DisplayDetails="False" Margin="0,0,16,0"

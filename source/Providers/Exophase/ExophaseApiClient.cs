@@ -24,8 +24,25 @@ namespace PlayniteAchievements.Providers.Exophase
         private const string SearchUrl = "https://api.exophase.com/public/archive/games";
         private const string AchievementPageBaseUrl = "https://www.exophase.com/game/{0}/achievements/";
         internal const string ExophaseApiNamePrefix = "exophase_";
+        // Stable-id key format keyed on the award's master id (the li's data-master attribute,
+        // equal to the earned endpoint's masterAwardId). The colon cannot appear in legacy
+        // display-derived keys, so the two key families never collide.
+        internal const string ExophaseStableApiNamePrefix = "exophase:";
         private const int AchievementDomReadyPollDelayMs = 250;
         private const int AchievementDomReadyPollAttempts = 8;
+        // Above this many images, the in-browser CDN warm is skipped; DiskImageService's
+        // lazy-thumbnail retry path warms each thumbnail on download instead.
+        private const int MaxImageWarmCount = 400;
+
+        // Renderer-side mirror of ContainsAchievementMarkup + HasUnlockDataPopulated so readiness
+        // can be polled without serializing the full page source across the CEF boundary each pass.
+        private const string AchievementDomReadyScript =
+            "(function(){try{" +
+            "if(!document.querySelector('.award-title,.award-average,.award-earned,[data-earned],[data-average]')){return false;}" +
+            "if(document.querySelector('.award.visible.earned,.award.earned')){return true;}" +
+            "var es=document.querySelectorAll('[data-earned]');" +
+            "for(var i=0;i<es.length;i++){var v=parseInt(es[i].getAttribute('data-earned'),10);if(v>0){return true;}}" +
+            "return false;}catch(e){return false;}})()";
 
         private readonly IPlayniteAPI _playniteApi;
         private readonly ILogger _logger;
@@ -279,50 +296,44 @@ namespace PlayniteAchievements.Providers.Exophase
         /// <summary>
         /// Fetches JSON from a URL using offscreen WebView to bypass Cloudflare.
         /// </summary>
-        private async Task<string> FetchJsonViaWebViewAsync(string url, CancellationToken ct)
+        internal async Task<string> FetchJsonViaWebViewAsync(string url, CancellationToken ct)
         {
-            var dispatchOperation = _playniteApi.MainView.UIDispatcher.InvokeAsync(async () =>
+            try
             {
-                try
+                return await _offscreenViews.WithNavigableViewAsync(async view =>
                 {
-                    return await _offscreenViews.WithNavigableViewAsync(async view =>
+                    // Navigate and wait for page load (follows ExophaseSessionManager pattern)
+                    await view.NavigateAndWaitAsync(url, timeoutMs: 15000).ConfigureAwait(false);
+
+                    // Get page text (JSON API response displayed as plain text)
+                    var pageText = await view.GetPageTextAsync().ConfigureAwait(false);
+
+                    if (string.IsNullOrWhiteSpace(pageText))
                     {
-                        // Navigate and wait for page load (follows ExophaseSessionManager pattern)
-                        await view.NavigateAndWaitAsync(url, timeoutMs: 15000);
+                        return null;
+                    }
 
-                        // Get page text (JSON API response displayed as plain text)
-                        var pageText = await view.GetPageTextAsync();
+                    // Check if we got a Cloudflare challenge page
+                    if (pageText.Contains("Just a moment") ||
+                        pageText.Contains("Cloudflare") ||
+                        pageText.Contains("Verifying you are human"))
+                    {
+                        _logger?.Warn("[Exophase] Cloudflare challenge detected, search may fail");
+                        return null;
+                    }
 
-                        if (string.IsNullOrWhiteSpace(pageText))
-                        {
-                            return null;
-                        }
-
-                        // Check if we got a Cloudflare challenge page
-                        if (pageText.Contains("Just a moment") ||
-                            pageText.Contains("Cloudflare") ||
-                            pageText.Contains("Verifying you are human"))
-                        {
-                            _logger?.Warn("[Exophase] Cloudflare challenge detected, search may fail");
-                            return null;
-                        }
-
-                        return pageText;
-                    }, ct);
-                }
-                catch (OperationCanceledException)
-                {
-                    throw;
-                }
-                catch (Exception ex)
-                {
-                    _logger?.Error(ex, "[Exophase] Failed to fetch JSON via WebView");
-                    return null;
-                }
-            });
-
-            var responseTask = await dispatchOperation.Task.ConfigureAwait(false);
-            return await responseTask.ConfigureAwait(false);
+                    return pageText;
+                }, ct).ConfigureAwait(false);
+            }
+            catch (OperationCanceledException)
+            {
+                throw;
+            }
+            catch (Exception ex)
+            {
+                _logger?.Error(ex, "[Exophase] Failed to fetch JSON via WebView");
+                return null;
+            }
         }
 
         /// <summary>
@@ -409,82 +420,99 @@ namespace PlayniteAchievements.Providers.Exophase
             // session is active; otherwise loads the snapshot for this call.
             var (snapshotLoaded, snapshotCookies) = AcquireFetchCookies();
 
-            var dispatchOperation = _playniteApi.MainView.UIDispatcher.InvokeAsync(async () =>
+            try
             {
-                try
+                return await _offscreenViews.WithNavigableViewAsync(async view =>
                 {
-                    return await _offscreenViews.WithNavigableViewAsync(async view =>
+                    // Restore cookies from snapshot if available
+                    if (snapshotLoaded && snapshotCookies != null && snapshotCookies.Count > 0)
                     {
-                        // Restore cookies from snapshot if available
-                        if (snapshotLoaded && snapshotCookies != null && snapshotCookies.Count > 0)
+                        await RestoreCookiesAsync(view, snapshotCookies, ct).ConfigureAwait(false);
+                    }
+                    else
+                    {
+                        _logger?.Warn("[Exophase] No snapshot cookies to restore - fetching may not show unlocked achievements");
+                    }
+
+                    await view.NavigateAndWaitAsync(url, timeoutMs: 20000).ConfigureAwait(false);
+
+                    // Wait for JavaScript to populate unlock status (loaded async after initial render)
+                    await Task.Delay(1000, ct).ConfigureAwait(false);
+
+                    // Poll a cheap renderer-side readiness signal, then serialize the (multi-MB for
+                    // large games) page source across the CEF boundary once instead of per attempt.
+                    await PollAsync(
+                        async _ =>
                         {
-                            await RestoreCookiesAsync(view, snapshotCookies, ct);
+                            var eval = await view.EvaluateScriptAsync(AchievementDomReadyScript).ConfigureAwait(false);
+                            return eval?.Success == true &&
+                                   string.Equals(Convert.ToString(eval.Result), bool.TrueString, StringComparison.OrdinalIgnoreCase);
+                        },
+                        ready => ready,
+                        AchievementDomReadyPollAttempts,
+                        AchievementDomReadyPollDelayMs,
+                        ct).ConfigureAwait(false);
+
+                    var html = await view.GetPageSourceAsync().ConfigureAwait(false);
+                    if (!ContainsAchievementMarkup(html) || !HasUnlockDataPopulated(html))
+                    {
+                        // The readiness script can race the final DOM mutation; retry the fetch once.
+                        await Task.Delay(AchievementDomReadyPollDelayMs, ct).ConfigureAwait(false);
+                        html = await view.GetPageSourceAsync().ConfigureAwait(false);
+                    }
+
+                    if (string.IsNullOrWhiteSpace(html))
+                    {
+                        return null;
+                    }
+
+                    // Check if we got a Cloudflare challenge page
+                    if (html.Contains("Just a moment") ||
+                        html.Contains("Cloudflare") ||
+                        html.Contains("Verifying you are human"))
+                    {
+                        _logger?.Warn("[Exophase] Cloudflare challenge detected on achievement page");
+                        return null;
+                    }
+
+                    // Warm Exophase's CDN before callers download award thumbnails over HTTP.
+                    // Award images carry the real CDN URL only in data-normal (src is empty or a
+                    // placeholder) and the offscreen page never scrolls, so the browser would never
+                    // request data-normal on its own. Force each image's real URL to load, then wait
+                    // for those requests to finish. The CDN generates the (lazily-created) thumbnail
+                    // on this first request, so the subsequent HTTP download hits 200 instead of 404.
+                    if (waitForImages)
+                    {
+                        var imageCount = await GetDocumentImageCountAsync(view).ConfigureAwait(false);
+                        if (imageCount > MaxImageWarmCount)
+                        {
+                            _logger?.Info($"[Exophase] Skipping in-browser CDN warm for {imageCount} images (cap {MaxImageWarmCount}); each download attempt still triggers CDN generation, and thumbnails not ready this run are picked up by a later refresh.");
                         }
                         else
                         {
-                            _logger?.Warn("[Exophase] No snapshot cookies to restore - fetching may not show unlocked achievements");
+                            await ForceLazyImagesToLoadAsync(view, ct).ConfigureAwait(false);
+                            await WaitForImagesLoadedAsync(view, ct).ConfigureAwait(false);
                         }
+                    }
 
-                        await view.NavigateAndWaitAsync(url, timeoutMs: 20000);
-
-                        // Wait for JavaScript to populate unlock status (loaded async after initial render)
-                        await Task.Delay(1000, ct);
-
-                        var html = await PollAsync(
-                            _ => view.GetPageSourceAsync(),
-                            h => ContainsAchievementMarkup(h) && HasUnlockDataPopulated(h),
-                            AchievementDomReadyPollAttempts,
-                            AchievementDomReadyPollDelayMs,
-                            ct);
-
-                        if (string.IsNullOrWhiteSpace(html))
-                        {
-                            return null;
-                        }
-
-                        // Check if we got a Cloudflare challenge page
-                        if (html.Contains("Just a moment") ||
-                            html.Contains("Cloudflare") ||
-                            html.Contains("Verifying you are human"))
-                        {
-                            _logger?.Warn("[Exophase] Cloudflare challenge detected on achievement page");
-                            return null;
-                        }
-
-                        // Warm Exophase's CDN before callers download award thumbnails over HTTP.
-                        // Award images carry the real CDN URL only in data-normal (src is empty or a
-                        // placeholder) and the offscreen page never scrolls, so the browser would never
-                        // request data-normal on its own. Force each image's real URL to load, then wait
-                        // for those requests to finish. The CDN generates the (lazily-created) thumbnail
-                        // on this first request, so the subsequent HTTP download hits 200 instead of 404.
-                        if (waitForImages)
-                        {
-                            await ForceLazyImagesToLoadAsync(view, ct);
-                            await WaitForImagesLoadedAsync(view, ct);
-                        }
-
-                        return html;
-                    }, ct);
-                }
-                catch (OperationCanceledException)
-                {
-                    throw;
-                }
-                catch (Exception ex)
-                {
-                    _logger?.Error(ex, "[Exophase] Failed to fetch HTML via WebView");
-                    return null;
-                }
-            });
-
-            var responseTask = await dispatchOperation.Task.ConfigureAwait(false);
-            return await responseTask.ConfigureAwait(false);
+                    return html;
+                }, ct).ConfigureAwait(false);
+            }
+            catch (OperationCanceledException)
+            {
+                throw;
+            }
+            catch (Exception ex)
+            {
+                _logger?.Error(ex, "[Exophase] Failed to fetch HTML via WebView");
+                return null;
+            }
         }
 
         /// <summary>
         /// Fetches a rendered public Exophase page through the same WebView path used by achievement pages.
         /// </summary>
-        internal async Task<string> FetchRenderedHtmlAsync(string url, CancellationToken ct, int postLoadDelayMs = 1000, bool scrollToLoad = false)
+        internal async Task<string> FetchRenderedHtmlAsync(string url, CancellationToken ct, int postLoadDelayMs = 1000)
         {
             if (string.IsNullOrWhiteSpace(url))
             {
@@ -493,106 +521,131 @@ namespace PlayniteAchievements.Providers.Exophase
 
             var (snapshotLoaded, snapshotCookies) = AcquireFetchCookies();
 
-            var dispatchOperation = _playniteApi.MainView.UIDispatcher.InvokeAsync(async () =>
+            try
             {
-                try
+                return await _offscreenViews.WithNavigableViewAsync(async view =>
                 {
-                    return await _offscreenViews.WithNavigableViewAsync(async view =>
+                    if (snapshotLoaded && snapshotCookies != null && snapshotCookies.Count > 0)
                     {
-                        if (snapshotLoaded && snapshotCookies != null && snapshotCookies.Count > 0)
-                        {
-                            await RestoreCookiesAsync(view, snapshotCookies, ct).ConfigureAwait(false);
-                        }
+                        await RestoreCookiesAsync(view, snapshotCookies, ct).ConfigureAwait(false);
+                    }
 
-                        await view.NavigateAndWaitAsync(url, timeoutMs: 20000).ConfigureAwait(false);
-                        if (postLoadDelayMs > 0)
-                        {
-                            await Task.Delay(postLoadDelayMs, ct).ConfigureAwait(false);
-                        }
+                    await view.NavigateAndWaitAsync(url, timeoutMs: 20000).ConfigureAwait(false);
+                    if (postLoadDelayMs > 0)
+                    {
+                        await Task.Delay(postLoadDelayMs, ct).ConfigureAwait(false);
+                    }
 
-                        if (scrollToLoad)
-                        {
-                            await AutoScrollToLoadAsync(view, ct).ConfigureAwait(false);
-                        }
+                    var html = await view.GetPageSourceAsync().ConfigureAwait(false);
+                    if (string.IsNullOrWhiteSpace(html))
+                    {
+                        return null;
+                    }
 
-                        var html = await view.GetPageSourceAsync().ConfigureAwait(false);
-                        if (string.IsNullOrWhiteSpace(html))
-                        {
-                            return null;
-                        }
+                    if (html.Contains("Just a moment") ||
+                        html.Contains("Cloudflare") ||
+                        html.Contains("Verifying you are human"))
+                    {
+                        _logger?.Warn("[Exophase] Cloudflare challenge detected on rendered page");
+                        return null;
+                    }
 
-                        if (html.Contains("Just a moment") ||
-                            html.Contains("Cloudflare") ||
-                            html.Contains("Verifying you are human"))
-                        {
-                            _logger?.Warn("[Exophase] Cloudflare challenge detected on rendered page");
-                            return null;
-                        }
-
-                        return html;
-                    }, ct);
-                }
-                catch (OperationCanceledException)
-                {
-                    throw;
-                }
-                catch (Exception ex)
-                {
-                    _logger?.Error(ex, "[Exophase] Failed to fetch rendered HTML via WebView");
-                    return null;
-                }
-            });
-
-            var responseTask = await dispatchOperation.Task.ConfigureAwait(false);
-            return await responseTask.ConfigureAwait(false);
+                    return html;
+                }, ct).ConfigureAwait(false);
+            }
+            catch (OperationCanceledException)
+            {
+                throw;
+            }
+            catch (Exception ex)
+            {
+                _logger?.Error(ex, "[Exophase] Failed to fetch rendered HTML via WebView");
+                return null;
+            }
         }
 
         /// <summary>
-        /// Repeatedly scrolls an offscreen view to the bottom to trigger lazy-loaded content (such as a
-        /// user's full games list, which appends on scroll rather than paginating) until the page height
-        /// stops growing across two consecutive passes or a hard cap is reached.
+        /// Fetches a rendered profile page and reads the server-rendered JS globals the public API
+        /// needs: window.playerProfileId (the numeric top-level profile id the games-list endpoint
+        /// takes) and window.playerGames (the rich SSR blob holding the 50 most-recently-played games,
+        /// the only source of game-level canonical_id/appid). Both are read via script evaluation so
+        /// the browser has already decoded the \uXXXX-escaped SSR literal.
         /// </summary>
-        private static async Task AutoScrollToLoadAsync(IWebView view, CancellationToken ct)
+        internal async Task<ProfilePageFetchResult> FetchProfilePageWithGlobalsAsync(string url, CancellationToken ct)
         {
-            double lastHeight = 0;
-            var stableCount = 0;
-            for (var pass = 0; pass < 40 && stableCount < 2; pass++)
+            if (string.IsNullOrWhiteSpace(url))
             {
-                ct.ThrowIfCancellationRequested();
-
-                var eval = await view
-                    .EvaluateScriptAsync("window.scrollTo(0, document.body.scrollHeight); document.body.scrollHeight;")
-                    .ConfigureAwait(false);
-
-                double height = 0;
-                if (eval?.Success == true && eval.Result != null)
-                {
-                    try
-                    {
-                        height = Convert.ToDouble(eval.Result);
-                    }
-                    catch
-                    {
-                        height = 0;
-                    }
-                }
-
-                if (height > 0 && height <= lastHeight)
-                {
-                    stableCount++;
-                }
-                else
-                {
-                    stableCount = 0;
-                }
-
-                if (height > lastHeight)
-                {
-                    lastHeight = height;
-                }
-
-                await Task.Delay(700, ct).ConfigureAwait(false);
+                return null;
             }
+
+            var (snapshotLoaded, snapshotCookies) = AcquireFetchCookies();
+
+            try
+            {
+                return await _offscreenViews.WithNavigableViewAsync(async view =>
+                {
+                    if (snapshotLoaded && snapshotCookies != null && snapshotCookies.Count > 0)
+                    {
+                        await RestoreCookiesAsync(view, snapshotCookies, ct).ConfigureAwait(false);
+                    }
+
+                    await view.NavigateAndWaitAsync(url, timeoutMs: 20000).ConfigureAwait(false);
+                    await Task.Delay(1000, ct).ConfigureAwait(false);
+
+                    var html = await view.GetPageSourceAsync().ConfigureAwait(false);
+                    if (string.IsNullOrWhiteSpace(html))
+                    {
+                        return null;
+                    }
+
+                    if (html.Contains("Just a moment") ||
+                        html.Contains("Cloudflare") ||
+                        html.Contains("Verifying you are human"))
+                    {
+                        _logger?.Warn("[Exophase] Cloudflare challenge detected on profile page");
+                        return null;
+                    }
+
+                    var result = new ProfilePageFetchResult { Html = html };
+
+                    var idEval = await view
+                        .EvaluateScriptAsync("(typeof window.playerProfileId !== 'undefined' && window.playerProfileId !== null) ? String(window.playerProfileId) : ''")
+                        .ConfigureAwait(false);
+                    if (idEval?.Success == true && idEval.Result != null)
+                    {
+                        result.PlayerProfileId = Convert.ToString(idEval.Result);
+                    }
+
+                    var gamesEval = await view
+                        .EvaluateScriptAsync("(typeof window.playerGames === 'string') ? window.playerGames : (window.playerGames ? JSON.stringify(window.playerGames) : '')")
+                        .ConfigureAwait(false);
+                    if (gamesEval?.Success == true && gamesEval.Result != null)
+                    {
+                        result.PlayerGamesJson = Convert.ToString(gamesEval.Result);
+                    }
+
+                    return result;
+                }, ct).ConfigureAwait(false);
+            }
+            catch (OperationCanceledException)
+            {
+                throw;
+            }
+            catch (Exception ex)
+            {
+                _logger?.Error(ex, "[Exophase] Failed to fetch profile page with globals via WebView");
+                return null;
+            }
+        }
+
+        internal sealed class ProfilePageFetchResult
+        {
+            public string Html { get; set; }
+
+            // Raw string values of the SSR globals; empty when the page did not define them.
+            public string PlayerProfileId { get; set; }
+
+            public string PlayerGamesJson { get; set; }
         }
 
         /// <summary>
@@ -776,6 +829,28 @@ namespace PlayniteAchievements.Providers.Exophase
             }
         }
 
+        /// <summary>
+        /// Returns the page's img element count, or -1 when evaluation fails.
+        /// </summary>
+        private static async Task<int> GetDocumentImageCountAsync(IWebView view)
+        {
+            try
+            {
+                var eval = await view.EvaluateScriptAsync("document.images.length").ConfigureAwait(false);
+                if (eval?.Success == true && eval.Result != null &&
+                    int.TryParse(Convert.ToString(eval.Result), out var count))
+                {
+                    return count;
+                }
+            }
+            catch
+            {
+                // Best-effort; the caller falls back to warming.
+            }
+
+            return -1;
+        }
+
         private static bool ContainsAchievementMarkup(string html)
         {
             if (string.IsNullOrWhiteSpace(html))
@@ -859,6 +934,13 @@ namespace PlayniteAchievements.Providers.Exophase
 
                 _logger?.Info($"[Exophase] Parsed {achievements.Count} achievements ({unlockedCount} unlocked, {lockedCount} locked)");
 
+                var legacyKeyCount = achievements.Count(a =>
+                    a.ApiName?.StartsWith(ExophaseStableApiNamePrefix, StringComparison.Ordinal) != true);
+                if (legacyKeyCount > 0)
+                {
+                    _logger?.Debug($"[Exophase] {legacyKeyCount} achievement nodes carried no stable award id; using legacy display-derived keys for them.");
+                }
+
                 return achievements.Count > 0 ? achievements : null;
             }
             catch (Exception ex)
@@ -911,6 +993,16 @@ namespace PlayniteAchievements.Providers.Exophase
             var dataEarned = node.GetAttributeValue("data-earned", "0");
             var isUnlocked = dataEarned != "0" && !string.IsNullOrEmpty(dataEarned);
 
+            // data-earned carries the exact unix unlock time when unlocked; prefer it over
+            // parsing the localized display text.
+            DateTime? unlockTimeUtc = null;
+            if (long.TryParse(dataEarned, System.Globalization.NumberStyles.None,
+                    System.Globalization.CultureInfo.InvariantCulture, out var earnedUnixSeconds) &&
+                earnedUnixSeconds > 0)
+            {
+                unlockTimeUtc = DateTimeOffset.FromUnixTimeSeconds(earnedUnixSeconds).UtcDateTime;
+            }
+
             // Check class attribute for unlock-related classes
             var nodeClass = node.GetAttributeValue("class", "");
 
@@ -923,10 +1015,12 @@ namespace PlayniteAchievements.Providers.Exophase
             var hasUnlockedClass = nodeClass.IndexOf("unlocked", StringComparison.OrdinalIgnoreCase) >= 0;
             var hasCompletedClass = nodeClass.IndexOf("completed", StringComparison.OrdinalIgnoreCase) >= 0;
 
-            DateTime? unlockTimeUtc = null;
             if (!string.IsNullOrWhiteSpace(earnedText))
             {
-                unlockTimeUtc = ParseExophaseTimestamp(earnedText);
+                if (!unlockTimeUtc.HasValue)
+                {
+                    unlockTimeUtc = ParseExophaseTimestamp(earnedText);
+                }
 
                 if (!isUnlocked)
                 {
@@ -969,14 +1063,17 @@ namespace PlayniteAchievements.Providers.Exophase
             var trophyType = ParseTrophyType(awardPointsNode);
             var isCapstone = string.Equals(trophyType, "platinum", StringComparison.OrdinalIgnoreCase);
 
-            // Generate a stable API name from the display name
-            var apiName = GenerateApiName(displayName);
-
             if (string.IsNullOrWhiteSpace(displayName))
             {
                 _logger?.Warn("[Exophase] Skipping achievement node - no display name found");
                 return null;
             }
+
+            // Key on the stable award id (data-master, mirrored in the id attribute); fall back
+            // to the legacy display-derived key only when the node carries no id.
+            var apiName = TryParseStableAwardId(node, out var stableAwardId)
+                ? ExophaseStableApiNamePrefix + stableAwardId.ToString(System.Globalization.CultureInfo.InvariantCulture)
+                : GenerateApiName(displayName);
 
             return new AchievementDetail
             {
@@ -994,6 +1091,20 @@ namespace PlayniteAchievements.Providers.Exophase
                 Unlocked = isUnlocked,
                 UnlockTimeUtc = unlockTimeUtc
             };
+        }
+
+        private static bool TryParseStableAwardId(HtmlNode node, out long stableAwardId)
+        {
+            stableAwardId = 0;
+            var candidate = node.GetAttributeValue("data-master", "");
+            if (string.IsNullOrWhiteSpace(candidate))
+            {
+                candidate = node.GetAttributeValue("id", "");
+            }
+
+            return long.TryParse(candidate?.Trim(), System.Globalization.NumberStyles.None,
+                       System.Globalization.CultureInfo.InvariantCulture, out stableAwardId) &&
+                   stableAwardId > 0;
         }
 
         private static double? NormalizePercent(double? rawPercent)
@@ -1244,6 +1355,12 @@ namespace PlayniteAchievements.Providers.Exophase
             }
 
             var candidate = apiName.Trim();
+            if (candidate.StartsWith(ExophaseStableApiNamePrefix, StringComparison.OrdinalIgnoreCase))
+            {
+                // Stable-id keys are opaque; never re-normalize them through the name pipeline.
+                return candidate;
+            }
+
             if (candidate.StartsWith(ExophaseApiNamePrefix, StringComparison.OrdinalIgnoreCase))
             {
                 candidate = candidate.Substring(ExophaseApiNamePrefix.Length);

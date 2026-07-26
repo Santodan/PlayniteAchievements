@@ -45,7 +45,7 @@
                     <Border Style="{StaticResource SettingGroupCardStyle}"
                             Visibility="{Binding Persisted.EnableAchievementPieChartControl, Converter={StaticResource BoolToVis}}">
                         <StackPanel>
-                            <TextBlock Text="PREVIEW"
+                            <TextBlock Text="{DynamicResource LOCPlayAch_Settings_Context_Preview}"
                                        Style="{StaticResource ContextLabelStyle}"/>
                             <modern:AchievementPieChartControl
                                 Width="260"

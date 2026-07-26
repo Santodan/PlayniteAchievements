@@ -176,10 +176,10 @@ namespace PlayniteAchievements.Steam.Tests
             Assert.AreEqual("TLAD: Easy Rider", achievement.DisplayName);
             Assert.AreEqual("Finish the story. (The Lost and Damned)", achievement.Description);
             Assert.AreEqual(
-                "https://cdn.akamai.steamstatic.com/steamcommunity/public/images/apps/12210/8a72778b9ede9c31a444cdf493666457b8238718.jpg",
+                "https://shared.akamai.steamstatic.com/community_assets/images/apps/12210/8a72778b9ede9c31a444cdf493666457b8238718.jpg",
                 achievement.Icon);
             Assert.AreEqual(
-                "https://cdn.akamai.steamstatic.com/steamcommunity/public/images/apps/12210/8a72778b9ede9c31a444cdf493666457b8238718.jpg",
+                "https://shared.akamai.steamstatic.com/community_assets/images/apps/12210/8a72778b9ede9c31a444cdf493666457b8238718.jpg",
                 achievement.IconGray);
             Assert.AreEqual(5.1d, result.GlobalPercentages["E1FINISHSTORY"]);
         }

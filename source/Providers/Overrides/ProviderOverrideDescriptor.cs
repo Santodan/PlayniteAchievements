@@ -18,14 +18,12 @@ namespace PlayniteAchievements.Providers.Overrides
         private ProviderOverrideDescriptor(
             ProviderOverrideValueKind valueKind,
             string inputLabelKey,
-            string inputLabelFallback,
             bool valueOptional,
             IReadOnlyList<ProviderOverrideChoice> choices,
             Func<string, ProviderOverrideValidation> validate)
         {
             ValueKind = valueKind;
             InputLabelKey = inputLabelKey;
-            InputLabelFallback = inputLabelFallback;
             ValueOptional = valueOptional;
             Choices = choices ?? Array.Empty<ProviderOverrideChoice>();
             _validate = validate ?? (_ => ProviderOverrideValidation.Valid(null));
@@ -34,8 +32,6 @@ namespace PlayniteAchievements.Providers.Overrides
         public ProviderOverrideValueKind ValueKind { get; }
 
         public string InputLabelKey { get; }
-
-        public string InputLabelFallback { get; }
 
         /// <summary>
         /// For <see cref="ProviderOverrideValueKind.Text"/>, whether an empty value is acceptable
@@ -70,7 +66,6 @@ namespace PlayniteAchievements.Providers.Overrides
             => new ProviderOverrideDescriptor(
                 ProviderOverrideValueKind.None,
                 inputLabelKey: null,
-                inputLabelFallback: null,
                 valueOptional: true,
                 choices: null,
                 validate: _ => ProviderOverrideValidation.Valid(null));
@@ -78,13 +73,11 @@ namespace PlayniteAchievements.Providers.Overrides
         /// <summary>Free-text identifier/slug override with provider-supplied validation.</summary>
         public static ProviderOverrideDescriptor Text(
             string inputLabelKey,
-            string inputLabelFallback,
             Func<string, ProviderOverrideValidation> validate,
             bool valueOptional = false)
             => new ProviderOverrideDescriptor(
                 ProviderOverrideValueKind.Text,
                 inputLabelKey,
-                inputLabelFallback,
                 valueOptional,
                 choices: null,
                 validate: validate);
@@ -92,16 +85,13 @@ namespace PlayniteAchievements.Providers.Overrides
         /// <summary>Fixed-set choice override (e.g. forcing a Hoyoverse/BattleNet title).</summary>
         public static ProviderOverrideDescriptor Choice(
             string inputLabelKey,
-            string inputLabelFallback,
             IReadOnlyList<ProviderOverrideChoice> choices,
-            string invalidMessageKey,
-            string invalidMessageFallback)
+            string invalidMessageKey)
         {
             var allowed = choices ?? Array.Empty<ProviderOverrideChoice>();
             return new ProviderOverrideDescriptor(
                 ProviderOverrideValueKind.Choice,
                 inputLabelKey,
-                inputLabelFallback,
                 valueOptional: false,
                 choices: allowed,
                 validate: raw =>
@@ -111,7 +101,7 @@ namespace PlayniteAchievements.Providers.Overrides
                         string.Equals(choice.Value, trimmed, StringComparison.OrdinalIgnoreCase));
                     return match != null
                         ? ProviderOverrideValidation.Valid(match.Value)
-                        : ProviderOverrideValidation.Invalid(invalidMessageKey, invalidMessageFallback);
+                        : ProviderOverrideValidation.Invalid(invalidMessageKey);
                 });
         }
     }

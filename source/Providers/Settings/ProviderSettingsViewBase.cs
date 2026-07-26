@@ -34,6 +34,19 @@ namespace PlayniteAchievements.Providers.Settings
             set => SetValue(IsAuthStatusSuccessProperty, value);
         }
 
+        public static readonly DependencyProperty IsAuthStatusCheckingProperty =
+            DependencyProperty.Register(
+                nameof(IsAuthStatusChecking),
+                typeof(bool),
+                typeof(ProviderSettingsViewBase),
+                new PropertyMetadata(false));
+
+        public bool IsAuthStatusChecking
+        {
+            get => (bool)GetValue(IsAuthStatusCheckingProperty);
+            set => SetValue(IsAuthStatusCheckingProperty, value);
+        }
+
         private IProviderSettings _settings;
 
         /// <summary>
@@ -54,6 +67,7 @@ namespace PlayniteAchievements.Providers.Settings
             {
                 IsAuthStatusPending = pending;
                 IsAuthStatusSuccess = success;
+                IsAuthStatusChecking = false;
                 return;
             }
 
@@ -61,7 +75,23 @@ namespace PlayniteAchievements.Providers.Settings
             {
                 IsAuthStatusPending = pending;
                 IsAuthStatusSuccess = success;
+                IsAuthStatusChecking = false;
             }));
+        }
+
+        /// <summary>
+        /// Marks an auth check as in progress. Any subsequent
+        /// <see cref="SetAuthStatusVisualState"/> call clears the checking state.
+        /// </summary>
+        protected void SetAuthStatusChecking()
+        {
+            if (Dispatcher.CheckAccess())
+            {
+                IsAuthStatusChecking = true;
+                return;
+            }
+
+            Dispatcher.BeginInvoke(new System.Action(() => IsAuthStatusChecking = true));
         }
     }
 }

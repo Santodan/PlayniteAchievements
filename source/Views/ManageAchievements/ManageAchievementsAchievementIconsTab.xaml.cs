@@ -51,7 +51,7 @@ namespace PlayniteAchievements.Views.ManageAchievements
             _viewModel.IconOverridesSaved += ViewModel_IconOverridesSaved;
         }
 
-        public event EventHandler IconOverridesSaved;
+        public event EventHandler<IconOverridesSavedEventArgs> IconOverridesSaved;
 
         public void RefreshData()
         {
@@ -140,6 +140,18 @@ namespace PlayniteAchievements.Views.ManageAchievements
             e.Handled = true;
         }
 
+        private void OverrideTextBox_KeyDown(object sender, KeyEventArgs e)
+        {
+            if (e.Key != Key.Enter || !(sender is TextBox textBox))
+            {
+                return;
+            }
+
+            textBox.GetBindingExpression(TextBox.TextProperty)?.UpdateSource();
+            Keyboard.ClearFocus();
+            e.Handled = true;
+        }
+
         private async void OverrideTextBox_Drop(object sender, DragEventArgs e)
         {
             if (!TryResolveRowAndVariant(sender as FrameworkElement, out var row, out var variant))
@@ -175,9 +187,9 @@ namespace PlayniteAchievements.Views.ManageAchievements
             }
         }
 
-        private void ViewModel_IconOverridesSaved(object sender, EventArgs e)
+        private void ViewModel_IconOverridesSaved(object sender, IconOverridesSavedEventArgs e)
         {
-            IconOverridesSaved?.Invoke(this, EventArgs.Empty);
+            IconOverridesSaved?.Invoke(this, e);
         }
 
         private void EnsureAchievementCardsScrollViewer()
@@ -590,9 +602,6 @@ namespace PlayniteAchievements.Views.ManageAchievements
         {
             var elements = new List<UIElement>
             {
-                RevertChangesButton,
-                ClearAllButton,
-                SaveButton,
                 OpenIconsFolderButton
             };
 

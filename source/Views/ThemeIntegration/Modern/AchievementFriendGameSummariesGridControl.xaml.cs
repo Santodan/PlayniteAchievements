@@ -108,7 +108,7 @@ namespace PlayniteAchievements.Views.ThemeIntegration.Modern
                 AppId = summary.AppId,
                 PlayniteGameId = gameId,
                 GameName = summary.GameName,
-                SortingName = summary.Name,
+                SortingName = summary.SortingName,
                 GameCoverPath = summary.CoverImagePath,
                 PlatformText = summary.Platform,
                 LastPlayed = summary.LastFriendPlayedUtc ?? summary.LastPlayed,

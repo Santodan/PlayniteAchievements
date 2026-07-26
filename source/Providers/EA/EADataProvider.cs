@@ -20,7 +20,6 @@ namespace PlayniteAchievements.Providers.EA
     {
         public ProviderOverrideDescriptor OverrideDescriptor { get; } = ProviderOverrideDescriptor.Text(
             "LOCPlayAch_ManageAchievements_Overrides_ProviderValueLabel_EA",
-            "EA Offer ID",
             ProviderOverrideValidators.RequiredText);
 
         private static readonly Guid EaPluginId = ResolveEaPluginId();

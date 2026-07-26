@@ -24,7 +24,6 @@ namespace PlayniteAchievements.Tests.Providers.Overrides
         {
             var descriptor = ProviderOverrideDescriptor.Text(
                 "label.key",
-                "Label",
                 ProviderOverrideValidators.RequiredText);
 
             Assert.AreEqual(ProviderOverrideValueKind.Text, descriptor.ValueKind);
@@ -43,14 +42,12 @@ namespace PlayniteAchievements.Tests.Providers.Overrides
         {
             var descriptor = ProviderOverrideDescriptor.Choice(
                 "label.key",
-                "Label",
                 new[]
                 {
                     new ProviderOverrideChoice("Wow", "World of Warcraft"),
                     new ProviderOverrideChoice("Sc2", "StarCraft II")
                 },
-                "invalid.key",
-                "Invalid");
+                "invalid.key");
 
             Assert.AreEqual(ProviderOverrideValueKind.Choice, descriptor.ValueKind);
 
@@ -68,10 +65,8 @@ namespace PlayniteAchievements.Tests.Providers.Overrides
         {
             var descriptor = ProviderOverrideDescriptor.Choice(
                 "label.key",
-                "Label",
                 new[] { new ProviderOverrideChoice("Sc2", "StarCraft II") },
-                "invalid.key",
-                "Invalid");
+                "invalid.key");
 
             Assert.AreEqual("StarCraft II", descriptor.GetValueDisplay("Sc2"));
             // Unknown values fall back to the raw value.

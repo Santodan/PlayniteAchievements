@@ -48,9 +48,7 @@ namespace PlayniteAchievements.Views.Settings.General
             string message = null;
             var image = MessageBoxImage.Information;
             Exception operationError = null;
-            var progressText = L(
-                "LOCPlayAch_Settings_Cache_ProgressClearing",
-                "Clearing cached achievement data...");
+            var progressText = L("LOCPlayAch_Settings_Cache_ProgressClearing");
 
             RunMaintenanceProgress(
                 progressText,
@@ -60,7 +58,7 @@ namespace PlayniteAchievements.Views.Settings.General
                     try
                     {
                         _plugin.RefreshRuntime.Cache.ClearCache();
-                        message = L("LOCPlayAch_Status_Succeeded", "Success!");
+                        message = L("LOCPlayAch_Status_Succeeded");
                         image = MessageBoxImage.Information;
                     }
                     catch (Exception ex)
@@ -72,15 +70,15 @@ namespace PlayniteAchievements.Views.Settings.General
             if (operationError != null)
             {
                 _plugin.PlayniteApi.Dialogs.ShowMessage(
-                    LF("LOCPlayAch_Status_Failed", "Error: {0}", operationError.Message),
-                    L("LOCPlayAch_Title_PluginName", "Playnite Achievements"),
+                    LF("LOCPlayAch_Status_Failed", operationError.Message),
+                    L("LOCPlayAch_Title_PluginName"),
                     MessageBoxButton.OK,
                     MessageBoxImage.Error);
                 return;
             }
 
             _plugin.PlayniteApi.Dialogs.ShowMessage(
-                message ?? L("LOCPlayAch_Status_Succeeded", "Success!"),
+                message ?? L("LOCPlayAch_Status_Succeeded"),
                 ResourceProvider.GetString("LOCPlayAch_Title_PluginName"),
                 MessageBoxButton.OK,
                 image);
@@ -105,8 +103,8 @@ namespace PlayniteAchievements.Views.Settings.General
                     stats.Definitions <= 0)
                 {
                     _plugin.PlayniteApi.Dialogs.ShowMessage(
-                        L("LOCPlayAch_FriendsOverview_ClearUnowned_None", "No unowned friend game data is cached."),
-                        L("LOCPlayAch_Title_PluginName", "Playnite Achievements"),
+                        L("LOCPlayAch_FriendsOverview_ClearUnowned_None"),
+                        L("LOCPlayAch_Title_PluginName"),
                         MessageBoxButton.OK,
                         MessageBoxImage.Information);
                     return;
@@ -114,7 +112,6 @@ namespace PlayniteAchievements.Views.Settings.General
 
                 var message = LF(
                     "LOCPlayAch_FriendsOverview_ClearUnowned_Confirm",
-                    "Clear unowned friend game data?\n\nThis will delete {0:N0} provider-only games, {1:N0} achievement definitions, {2:N0} friend ownership rows, {3:N0} friend progress rows, {4:N0} achievement rows, and {5:N0} definition-state rows. Owned/shared friend data and your current-user cache will be kept.",
                     stats.Games,
                     stats.Definitions,
                     stats.OwnershipRows,
@@ -124,7 +121,7 @@ namespace PlayniteAchievements.Views.Settings.General
 
                 if (_plugin.PlayniteApi.Dialogs.ShowMessage(
                         message,
-                        L("LOCPlayAch_Title_PluginName", "Playnite Achievements"),
+                        L("LOCPlayAch_Title_PluginName"),
                         MessageBoxButton.YesNo,
                         MessageBoxImage.Warning) != MessageBoxResult.Yes)
                 {
@@ -135,8 +132,8 @@ namespace PlayniteAchievements.Views.Settings.General
                 if (result?.Success != true)
                 {
                     _plugin.PlayniteApi.Dialogs.ShowMessage(
-                        LF("LOCPlayAch_Status_Failed", "Error: {0}", result?.ErrorMessage ?? "unknown"),
-                        L("LOCPlayAch_Title_PluginName", "Playnite Achievements"),
+                        LF("LOCPlayAch_Status_Failed", result?.ErrorMessage ?? "unknown"),
+                        L("LOCPlayAch_Title_PluginName"),
                         MessageBoxButton.OK,
                         MessageBoxImage.Error);
                     return;
@@ -148,10 +145,9 @@ namespace PlayniteAchievements.Views.Settings.General
                 _plugin.PlayniteApi.Dialogs.ShowMessage(
                     LF(
                         "LOCPlayAch_FriendsOverview_ClearUnowned_Done",
-                        "Cleared {0:N0} provider-only games and {1:N0} friend progress rows.",
                         result.Games,
                         result.ProgressRows),
-                    L("LOCPlayAch_Title_PluginName", "Playnite Achievements"),
+                    L("LOCPlayAch_Title_PluginName"),
                     MessageBoxButton.OK,
                     MessageBoxImage.Information);
             }
@@ -159,8 +155,8 @@ namespace PlayniteAchievements.Views.Settings.General
             {
                 _logger?.Error(ex, "Failed to clear unowned friend game data.");
                 _plugin.PlayniteApi.Dialogs.ShowMessage(
-                    LF("LOCPlayAch_Status_Failed", "Error: {0}", ex.Message),
-                    L("LOCPlayAch_Title_PluginName", "Playnite Achievements"),
+                    LF("LOCPlayAch_Status_Failed", ex.Message),
+                    L("LOCPlayAch_Title_PluginName"),
                     MessageBoxButton.OK,
                     MessageBoxImage.Error);
             }
@@ -168,12 +164,6 @@ namespace PlayniteAchievements.Views.Settings.General
 
         private void ClearAllIconCache_Click(object sender, RoutedEventArgs e) =>
             ClearIconCache(IconCacheClearScope.All);
-
-        private void ClearCompressedIconCache_Click(object sender, RoutedEventArgs e) =>
-            ClearIconCache(IconCacheClearScope.CompressedOnly);
-
-        private void ClearFullResolutionIconCache_Click(object sender, RoutedEventArgs e) =>
-            ClearIconCache(IconCacheClearScope.FullResolutionOnly);
 
         private void ClearLockedIconCache_Click(object sender, RoutedEventArgs e) =>
             ClearIconCache(IconCacheClearScope.LockedOnly);
@@ -183,11 +173,8 @@ namespace PlayniteAchievements.Views.Settings.General
             var fileLabel = ResourceProvider.GetString(GetIconCacheFileLabelResourceKey(scope));
             var scanningText = LF(
                 "LOCPlayAch_Settings_IconCache_ProgressScanning",
-                "Scanning cached {0} files...",
                 fileLabel);
-            var deletingTextFormat = L(
-                "LOCPlayAch_Settings_IconCache_ProgressDeletingCount",
-                "Deleting cached {0} files... ({1}/{2})");
+            var deletingTextFormat = L("LOCPlayAch_Settings_IconCache_ProgressDeletingCount");
             var deletedCount = 0;
             Exception operationError = null;
 
@@ -220,7 +207,6 @@ namespace PlayniteAchievements.Views.Settings.General
                                 var progressText = total <= 0
                                     ? LF(
                                         "LOCPlayAch_Settings_IconCache_ProgressNoFiles",
-                                        "No cached {0} files were found.",
                                         fileLabel)
                                     : string.Format(
                                         deletingTextFormat,
@@ -244,14 +230,14 @@ namespace PlayniteAchievements.Views.Settings.General
             if (operationError != null)
             {
                 _plugin.PlayniteApi.Dialogs.ShowMessage(
-                    LF("LOCPlayAch_Status_Failed", "Error: {0}", operationError.Message),
+                    LF("LOCPlayAch_Status_Failed", operationError.Message),
                     ResourceProvider.GetString("LOCPlayAch_Title_PluginName"),
                     MessageBoxButton.OK,
                     MessageBoxImage.Error);
                 return;
             }
 
-            var message = L("LOCPlayAch_Status_Succeeded", "Success!");
+            var message = L("LOCPlayAch_Status_Succeeded");
 
             _plugin.PlayniteApi.Dialogs.ShowMessage(
                 message,
@@ -264,10 +250,6 @@ namespace PlayniteAchievements.Views.Settings.General
         {
             switch (scope)
             {
-                case IconCacheClearScope.CompressedOnly:
-                    return "LOCPlayAch_Settings_IconCache_FileLabel_Compressed";
-                case IconCacheClearScope.FullResolutionOnly:
-                    return "LOCPlayAch_Settings_IconCache_FileLabel_FullResolution";
                 case IconCacheClearScope.LockedOnly:
                     return "LOCPlayAch_Settings_IconCache_FileLabel_Locked";
                 default:
@@ -348,9 +330,7 @@ namespace PlayniteAchievements.Views.Settings.General
                 {
                     UpdateMaintenanceProgress(
                         progress,
-                        text: L(
-                            "LOCPlayAch_Settings_IconCache_ProgressNoLockedReferences",
-                            "No cached locked icon references were found."),
+                        text: L("LOCPlayAch_Settings_IconCache_ProgressNoLockedReferences"),
                         current: 1,
                         max: 1);
                 }
@@ -373,7 +353,6 @@ namespace PlayniteAchievements.Views.Settings.General
                         progress,
                         text: LF(
                             "LOCPlayAch_Settings_IconCache_ProgressScanningLockedReferences",
-                            "Scanning cached locked icon references... ({0}/{1})",
                             i + 1,
                             cachedGameIds.Count),
                         current: i + 1,
@@ -422,7 +401,7 @@ namespace PlayniteAchievements.Views.Settings.General
                 _plugin.SavePluginSettings(_settings);
 
                 _plugin.PlayniteApi.Dialogs.ShowMessage(
-                    L("LOCPlayAch_Status_Succeeded", "Success!"),
+                    L("LOCPlayAch_Status_Succeeded"),
                     ResourceProvider.GetString("LOCPlayAch_Title_PluginName"),
                     MessageBoxButton.OK,
                     MessageBoxImage.Information);
@@ -431,7 +410,7 @@ namespace PlayniteAchievements.Views.Settings.General
             {
                 _logger?.Error(ex, "Failed to reset first-time setup.");
                 _plugin.PlayniteApi.Dialogs.ShowMessage(
-                    LF("LOCPlayAch_Status_Failed", "Error: {0}", ex.Message),
+                    LF("LOCPlayAch_Status_Failed", ex.Message),
                     ResourceProvider.GetString("LOCPlayAch_Title_PluginName"),
                     MessageBoxButton.OK,
                     MessageBoxImage.Error);
@@ -448,7 +427,7 @@ namespace PlayniteAchievements.Views.Settings.General
                 _logger?.Info($"Database exported to: {exportDir}");
 
                 _plugin.PlayniteApi.Dialogs.ShowMessage(
-                    L("LOCPlayAch_Status_Succeeded", "Success!") + "\n" + exportDir,
+                    L("LOCPlayAch_Status_Succeeded") + "\n" + exportDir,
                     ResourceProvider.GetString("LOCPlayAch_Title_PluginName"),
                     MessageBoxButton.OK,
                     MessageBoxImage.Information);
@@ -457,7 +436,7 @@ namespace PlayniteAchievements.Views.Settings.General
             {
                 _logger?.Error(ex, "Failed to export database.");
                 _plugin.PlayniteApi.Dialogs.ShowMessage(
-                    LF("LOCPlayAch_Status_Failed", "Error: {0}", ex.Message),
+                    LF("LOCPlayAch_Status_Failed", ex.Message),
                     ResourceProvider.GetString("LOCPlayAch_Title_PluginName"),
                     MessageBoxButton.OK,
                     MessageBoxImage.Error);
@@ -486,22 +465,21 @@ namespace PlayniteAchievements.Views.Settings.General
             {
                 _logger?.Error(ex, "Failed to open extension data folder.");
                 _plugin.PlayniteApi.Dialogs.ShowMessage(
-                    LF("LOCPlayAch_Status_Failed", "Error: {0}", ex.Message),
+                    LF("LOCPlayAch_Status_Failed", ex.Message),
                     ResourceProvider.GetString("LOCPlayAch_Title_PluginName"),
                     MessageBoxButton.OK,
                     MessageBoxImage.Error);
             }
         }
 
-        private static string L(string key, string fallback)
+        private static string L(string key)
         {
-            var value = ResourceProvider.GetString(key);
-            return string.IsNullOrWhiteSpace(value) ? fallback : value;
+            return ResourceProvider.GetString(key);
         }
 
-        private static string LF(string key, string fallbackFormat, params object[] args)
+        private static string LF(string key, params object[] args)
         {
-            return string.Format(L(key, fallbackFormat), args);
+            return string.Format(L(key), args);
         }
     }
 }

@@ -66,7 +66,7 @@ namespace PlayniteAchievements.Providers.Steam
                     return achievements != null && achievements.Count > 0;
                 }
             }
-            catch (OperationCanceledException) { throw; }
+            catch (OperationCanceledException) when (ct.IsCancellationRequested) { throw; }
             catch (Exception ex)
             {
                 _logger?.Debug(ex, "GetGameAchievements API availability check failed for appId={appId}");
@@ -126,7 +126,7 @@ namespace PlayniteAchievements.Providers.Steam
                         : null;
                 }
             }
-            catch (OperationCanceledException) { throw; }
+            catch (OperationCanceledException) when (ct.IsCancellationRequested) { throw; }
             catch (Exception ex)
             {
                 _logger?.Debug(ex, $"GetOwnedGames API request failed for steamId={steamId64}");
@@ -206,7 +206,7 @@ namespace PlayniteAchievements.Providers.Steam
                     };
                 }
             }
-            catch (OperationCanceledException) { throw; }
+            catch (OperationCanceledException) when (ct.IsCancellationRequested) { throw; }
             catch (Exception ex)
             {
                 _logger?.Debug(ex, "GetGameAchievements API request failed for appId={appId}");
@@ -221,7 +221,7 @@ namespace PlayniteAchievements.Providers.Steam
                 : value.Trim();
         }
 
-        private static string BuildAchievementIconUrl(int appId, string iconFile)
+        internal static string BuildAchievementIconUrl(int appId, string iconFile)
         {
             var normalizedIconFile = NormalizeApiText(iconFile);
             if (string.IsNullOrWhiteSpace(normalizedIconFile))
@@ -229,7 +229,7 @@ namespace PlayniteAchievements.Providers.Steam
                 return string.Empty;
             }
 
-            return $"https://cdn.akamai.steamstatic.com/steamcommunity/public/images/apps/{appId}/{normalizedIconFile}";
+            return $"https://shared.akamai.steamstatic.com/community_assets/images/apps/{appId}/{normalizedIconFile}";
         }
     }
 }

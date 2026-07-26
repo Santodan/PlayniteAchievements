@@ -58,13 +58,13 @@ namespace PlayniteAchievements.Views.Converters
     /// <summary>
     /// Returns a glossy metallic gradient brush in the rarity color (matching the rarity badge
     /// sheen), used as a crisp shiny border for Hardcore RetroAchievements icons in place of the
-    /// soft glow. Returns null for Common (which has no rarity glow), so no border is drawn.
+    /// soft glow. Common has no rarity glow, but still gets a Hardcore border.
     /// </summary>
     public class RarityToShineBrushConverter : IValueConverter
     {
         public object Convert(object value, Type targetType, object parameter, CultureInfo culture)
         {
-            if (!(value is RarityTier tier) || tier == RarityTier.Common)
+            if (!(value is RarityTier tier))
             {
                 return null;
             }

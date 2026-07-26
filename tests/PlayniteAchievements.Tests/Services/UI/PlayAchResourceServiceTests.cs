@@ -101,6 +101,68 @@ namespace PlayniteAchievements.Tests.Services.UI
         }
 
         [TestMethod]
+        public void Apply_PublishesCompletedFillBrush()
+        {
+            var resources = new ResourceDictionary();
+
+            PlayAchResourceService.Apply(resources, null);
+
+            // The completed fill is always a plain CompletedStart -> CompletedEnd sweep;
+            // the badge's rainbow default and highlight band never apply to the bar.
+            var completed = resources["PlayAch.Brush.Progress.CompletedFill"] as LinearGradientBrush;
+            Assert.IsNotNull(completed);
+            Assert.IsTrue(completed.IsFrozen);
+            Assert.AreEqual(new Point(1, 0), completed.EndPoint);
+            Assert.AreEqual(2, completed.GradientStops.Count);
+            Assert.AreEqual(ParseColor(RarityColorSettings.DefaultCompletedStart), completed.GradientStops.First().Color);
+            Assert.AreEqual(ParseColor(RarityColorSettings.DefaultCompletedEnd), completed.GradientStops.Last().Color);
+        }
+
+        [TestMethod]
+        public void Apply_UsesPersistedCompletedGradientColorsForCompletedFill()
+        {
+            var resources = new ResourceDictionary();
+            var settings = new PersistedSettings
+            {
+                RarityColors = new RarityColorSettings
+                {
+                    CompletedStart = "#FFABCDEF",
+                    CompletedEnd = "#FF123456"
+                }
+            };
+
+            PlayAchResourceService.Apply(resources, null, settings);
+
+            var completed = resources["PlayAch.Brush.Progress.CompletedFill"] as LinearGradientBrush;
+            Assert.IsNotNull(completed);
+            Assert.AreEqual(ParseColor("#FFABCDEF"), completed.GradientStops.First().Color);
+            Assert.AreEqual(ParseColor("#FF123456"), completed.GradientStops.Last().Color);
+        }
+
+        [TestMethod]
+        public void ApplyCompletedProgressFillResource_UsesCustomCompletedGradientWhenSupplied()
+        {
+            var resources = new ResourceDictionary();
+            var settings = new PersistedSettings
+            {
+                RarityColors = new RarityColorSettings
+                {
+                    CompletedStart = "#FF112233",
+                    CompletedEnd = "#FF445566"
+                }
+            };
+
+            PlayniteAchievements.Models.Achievements.RarityAppearanceHelper
+                .ApplyCompletedProgressFillResource(resources, settings);
+
+            var gradient = resources["PlayAch.Brush.Progress.CompletedFill"] as LinearGradientBrush;
+            Assert.IsNotNull(gradient);
+            Assert.IsTrue(gradient.IsFrozen);
+            Assert.AreEqual(ParseColor("#FF112233"), gradient.GradientStops.First().Color);
+            Assert.AreEqual(ParseColor("#FF445566"), gradient.GradientStops.Last().Color);
+        }
+
+        [TestMethod]
         public void Apply_ResolvesTransparentOverrideToTransparentBrush()
         {
             var resources = new ResourceDictionary();
@@ -268,6 +330,11 @@ namespace PlayniteAchievements.Tests.Services.UI
                 PlayAchResourceService.ResourceDescriptors.Any(item =>
                     string.Equals(item.ResourceKey, resourceKey, StringComparison.Ordinal)),
                 resourceKey);
+        }
+
+        private static Color ParseColor(string hex)
+        {
+            return (Color)ColorConverter.ConvertFromString(hex);
         }
 
         private static ResourceOverrideSetting CreateBrushOverride(string color)

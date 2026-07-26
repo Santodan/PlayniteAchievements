@@ -103,44 +103,6 @@
                                         MinWidth="130"/>
                             </Grid>
 
-                            <Grid Style="{StaticResource SettingRowStyle}">
-                                <Grid.ColumnDefinitions>
-                                    <ColumnDefinition Width="*"/>
-                                    <ColumnDefinition Width="Auto"/>
-                                </Grid.ColumnDefinitions>
-
-                                <TextBlock Grid.Column="0"
-                                           Text="{DynamicResource LOCPlayAch_Settings_IconCache_ClearCompressedDescription}"
-                                           Style="{StaticResource MutedTextStyle}"
-                                           VerticalAlignment="Center"/>
-
-                                <Button Grid.Column="1"
-                                        Content="{DynamicResource LOCPlayAch_Button_Clear}"
-                                        Click="ClearCompressedIconCache_Click"
-                                        Padding="{StaticResource PlayAch.Thickness.ButtonPadding.Wide}"
-                                        Margin="16,0,0,0"
-                                        MinWidth="130"/>
-                            </Grid>
-
-                            <Grid Style="{StaticResource SettingRowStyle}">
-                                <Grid.ColumnDefinitions>
-                                    <ColumnDefinition Width="*"/>
-                                    <ColumnDefinition Width="Auto"/>
-                                </Grid.ColumnDefinitions>
-
-                                <TextBlock Grid.Column="0"
-                                           Text="{DynamicResource LOCPlayAch_Settings_IconCache_ClearFullResolutionDescription}"
-                                           Style="{StaticResource MutedTextStyle}"
-                                           VerticalAlignment="Center"/>
-
-                                <Button Grid.Column="1"
-                                        Content="{DynamicResource LOCPlayAch_Button_Clear}"
-                                        Click="ClearFullResolutionIconCache_Click"
-                                        Padding="{StaticResource PlayAch.Thickness.ButtonPadding.Wide}"
-                                        Margin="16,0,0,0"
-                                        MinWidth="130"/>
-                            </Grid>
-
                             <Grid>
                                 <Grid.ColumnDefinitions>
                                     <ColumnDefinition Width="*"/>

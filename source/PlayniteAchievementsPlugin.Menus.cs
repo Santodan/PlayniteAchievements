@@ -825,6 +825,36 @@ namespace PlayniteAchievements
                     }
                 };
             }
+
+            // Developer-only diagnostic, hidden unless the hardcoded PerfScope.PerfTracingEnabled
+            // flag is on (never shown in a tracing-off build). Deliberately not localized.
+            // Available mid-refresh: capturing memory state during and after large scans is the
+            // point. The compacting collect logs a managed-vs-native breakdown of residual memory.
+            if (Common.MemoryDiagnostics.Enabled)
+            {
+                yield return new MainMenuItem
+                {
+                    Description = "Log Memory Diagnostics",
+                    MenuSection = PluginMainMenuSection,
+                    Action = (a) => _ = Task.Run(() =>
+                    {
+                        try
+                        {
+                            var before = Common.MemoryDiagnostics.Log(_logger, "manual", "trigger=menu");
+                            System.Runtime.GCSettings.LargeObjectHeapCompactionMode =
+                                System.Runtime.GCLargeObjectHeapCompactionMode.CompactOnce;
+                            GC.Collect();
+                            GC.WaitForPendingFinalizers();
+                            GC.Collect();
+                            Common.MemoryDiagnostics.Log(_logger, "manual.afterGC", before, "trigger=menu");
+                        }
+                        catch (Exception ex)
+                        {
+                            _logger?.Debug(ex, "Manual memory diagnostics failed.");
+                        }
+                    })
+                };
+            }
         }
     }
 }

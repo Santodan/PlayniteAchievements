@@ -14,6 +14,8 @@ namespace PlayniteAchievements.ViewModels
 
         string RefreshOrCancelButtonText { get; }
 
+        string RefreshOrCancelButtonGlyph { get; }
+
         ICommand RefreshCommand { get; }
 
         ICommand RefreshOrCancelCommand { get; }

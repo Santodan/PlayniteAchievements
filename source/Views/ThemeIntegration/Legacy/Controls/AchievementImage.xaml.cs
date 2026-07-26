@@ -276,7 +276,7 @@ namespace PlayniteAchievements.Views.ThemeIntegration.Legacy.Controls
 
                 var rounded = Math.Round(Percent, 1);
                 var overlayText = HasRarityPercent
-                    ? $"{rounded:F1}%"
+                    ? AchievementRarityResolver.FormatPercent(Percent)
                     : RarityText ?? string.Empty;
                 var showOverlay = EnableRaretyIndicator &&
                                   DisplayRaretyValue &&

@@ -75,13 +75,15 @@ namespace PlayniteAchievements.Tests.Providers
                 gameInfo,
                 rarityStats: "casual",
                 categoryLabel: "Base",
-                enableAutomaticCapstoneAssignment: true);
+                enableAutomaticCapstoneAssignment: true,
+                setCategoryType: "Base");
 
             Assert.AreEqual(2, achievements.Count);
 
+            // Base-set achievements carry the "Base" type combined with the unlock mode.
             var soft = achievements.Single(item => item.ApiName == "101");
             Assert.AreEqual("Base", soft.Category);
-            Assert.AreEqual("Softcore", soft.CategoryType);
+            Assert.AreEqual("Base|Softcore", soft.CategoryType);
             Assert.AreEqual(new DateTime(2025, 6, 11, 13, 5, 22, DateTimeKind.Utc), soft.UnlockTimeUtc);
             Assert.AreEqual("https://i.retroachievements.org/Badge/12345.png", soft.UnlockedIconPath);
             Assert.AreEqual("https://i.retroachievements.org/Badge/12345_lock.png", soft.LockedIconPath);
@@ -95,6 +97,53 @@ namespace PlayniteAchievements.Tests.Providers
             Assert.AreEqual(2, rows.Count);
             Assert.IsTrue(rows.All(row => row.Unlocked));
             Assert.AreEqual("https://i.retroachievements.org/Badge/12345.png", rows.Single(row => row.ApiName == "101").IconUrl);
+        }
+
+        [TestMethod]
+        public void ParseAchievements_SubsetCombinesSubsetTypeWithUnlockMode()
+        {
+            var gameInfo = new RaGameInfoUserProgress
+            {
+                NumDistinctPlayers = 100,
+                NumDistinctPlayersCasual = 100,
+                NumDistinctPlayersHardcore = 20,
+                Achievements = new Dictionary<string, RaAchievement>
+                {
+                    ["201"] = new RaAchievement
+                    {
+                        Title = "Soft Subset Win",
+                        DateEarned = "2025-06-11 13:05:22",
+                        NumAwarded = 50
+                    },
+                    ["202"] = new RaAchievement
+                    {
+                        Title = "Hard Subset Win",
+                        DateEarned = "2025-06-10 01:00:00",
+                        DateEarnedHardcore = "2025-06-12 02:00:00",
+                        NumAwarded = 40,
+                        NumAwardedHardcore = 4
+                    },
+                    ["203"] = new RaAchievement
+                    {
+                        Title = "Locked Subset",
+                        NumAwarded = 10
+                    }
+                }
+            };
+
+            var achievements = RetroAchievementsAchievementMapper.ParseAchievements(
+                gameInfo,
+                rarityStats: "casual",
+                categoryLabel: "Bonus",
+                enableAutomaticCapstoneAssignment: false,
+                setCategoryType: "Subset");
+
+            // The free-form label is unchanged; only the canonical type gains "Subset",
+            // combined with the unlock mode in canonical order (Subset before Softcore/Hardcore).
+            Assert.AreEqual("Bonus", achievements.Single(item => item.ApiName == "201").Category);
+            Assert.AreEqual("Subset|Softcore", achievements.Single(item => item.ApiName == "201").CategoryType);
+            Assert.AreEqual("Subset|Hardcore", achievements.Single(item => item.ApiName == "202").CategoryType);
+            Assert.AreEqual("Subset", achievements.Single(item => item.ApiName == "203").CategoryType);
         }
 
         [TestMethod]

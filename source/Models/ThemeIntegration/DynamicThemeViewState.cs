@@ -196,12 +196,13 @@ namespace PlayniteAchievements.Models.ThemeIntegration
     {
         private string _gameKey = string.Empty;
         private string _gameLabel = string.Empty;
+        private string _categoryLabelKey = DynamicThemeViewKeys.All;
 
         public SelectedGameAchievementViewState()
             : base(
                 DynamicThemeViewKeys.All,
                 DynamicThemeViewKeys.All,
-                DynamicThemeViewKeys.Default,
+                DynamicThemeViewKeys.UnlockTime,
                 DynamicThemeViewKeys.Descending)
         {
         }
@@ -216,6 +217,20 @@ namespace PlayniteAchievements.Models.ThemeIntegration
         {
             get => _gameLabel;
             set => _gameLabel = value ?? string.Empty;
+        }
+
+        // Category labels are per-game and user-renamable, so this scope lives outside the
+        // Current/Default selection quartet (like GameKey) and resets when the selected
+        // game no longer contains the label.
+        public string CategoryLabelKey
+        {
+            get => _categoryLabelKey;
+            set => _categoryLabelKey = string.IsNullOrWhiteSpace(value) ? DynamicThemeViewKeys.All : value;
+        }
+
+        public void ResetCategoryScope()
+        {
+            CategoryLabelKey = DynamicThemeViewKeys.All;
         }
     }
 
@@ -249,6 +264,20 @@ namespace PlayniteAchievements.Models.ThemeIntegration
         {
             GameKey = DynamicThemeViewKeys.All;
             GameLabel = DynamicThemeViewKeys.All;
+        }
+    }
+
+    // Per-category rollup of the selected game's achievements. Default sort preserves the
+    // builder's order, which already honors the game's custom category order.
+    internal sealed class CategorySummaryViewState : DynamicThemeListViewState
+    {
+        public CategorySummaryViewState()
+            : base(
+                DynamicThemeViewKeys.All,
+                DynamicThemeViewKeys.All,
+                DynamicThemeViewKeys.Default,
+                DynamicThemeViewKeys.Descending)
+        {
         }
     }
 

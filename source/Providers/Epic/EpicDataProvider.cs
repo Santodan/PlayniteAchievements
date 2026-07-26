@@ -21,7 +21,6 @@ namespace PlayniteAchievements.Providers.Epic
     {
         public ProviderOverrideDescriptor OverrideDescriptor { get; } = ProviderOverrideDescriptor.Text(
             "LOCPlayAch_ManageAchievements_Overrides_ProviderValueLabel_Epic",
-            "Epic Game ID",
             ProviderOverrideValidators.RequiredText);
 
         private readonly EpicSessionManager _sessionManager;

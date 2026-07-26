@@ -39,6 +39,8 @@ namespace PlayniteAchievements.Services.GameCustomData
         public Dictionary<string, CategoryImageOverrideData> AchievementCategoryImageOverrides { get; set; } =
             new Dictionary<string, CategoryImageOverrideData>(StringComparer.OrdinalIgnoreCase);
 
+        public GameSummaryCategoryData GameSummaryCategory { get; set; }
+
         public HashSet<string> FilteredAchievementApiNames { get; set; } =
             new HashSet<string>(StringComparer.OrdinalIgnoreCase);
 
@@ -127,6 +129,9 @@ namespace PlayniteAchievements.Services.GameCustomData
                 AchievementCategoryImageOverrides = hasCustomData
                     ? CloneCategoryImageOverrideMap(customData?.AchievementCategoryImageOverrides)
                     : new Dictionary<string, CategoryImageOverrideData>(StringComparer.OrdinalIgnoreCase),
+                GameSummaryCategory = hasCustomData
+                    ? GameCustomDataNormalizer.NormalizeGameSummaryCategory(customData?.GameSummaryCategory)
+                    : null,
                 FilteredAchievementApiNames = hasCustomData
                     ? CloneApiNameSet(customData?.FilteredAchievementApiNames)
                     : new HashSet<string>(StringComparer.OrdinalIgnoreCase),
@@ -323,6 +328,42 @@ namespace PlayniteAchievements.Services.GameCustomData
             GameCustomDataStore store = null)
         {
             return ResolveGameCustomData(gameId, fallbackSettings, store).AchievementCategoryImageOverrides;
+        }
+
+        public static GameSummaryCategoryData GetGameSummaryCategory(
+            Guid gameId,
+            PersistedSettings fallbackSettings = null,
+            GameCustomDataStore store = null)
+        {
+            return ResolveGameCustomData(gameId, fallbackSettings, store).GameSummaryCategory;
+        }
+
+        /// <summary>
+        /// Lean read for per-game projection loops: one cached store load, no full
+        /// resolved-object construction. The store clones the file on load, so the
+        /// returned override map is safe to hand out.
+        /// </summary>
+        public static bool TryGetGameSummaryCategory(
+            Guid gameId,
+            out GameSummaryCategoryData selection,
+            out IReadOnlyDictionary<string, CategoryImageOverrideData> imageOverrides,
+            GameCustomDataStore store = null)
+        {
+            selection = null;
+            imageOverrides = null;
+            if (gameId == Guid.Empty || !TryLoad(gameId, out var customData, store))
+            {
+                return false;
+            }
+
+            selection = GameCustomDataNormalizer.NormalizeGameSummaryCategory(customData?.GameSummaryCategory);
+            if (selection == null)
+            {
+                return false;
+            }
+
+            imageOverrides = customData?.AchievementCategoryImageOverrides;
+            return true;
         }
 
         public static HashSet<string> GetFilteredAchievementApiNames(
@@ -705,18 +746,15 @@ namespace PlayniteAchievements.Services.GameCustomData
             foreach (var pair in source)
             {
                 var key = AchievementCategoryTypeHelper.NormalizeCategoryOrDefault(pair.Key);
-                var icon = NormalizeValue(pair.Value?.Icon);
-                var cover = NormalizeValue(pair.Value?.Cover);
-                if (string.IsNullOrWhiteSpace(key) ||
-                    (string.IsNullOrWhiteSpace(icon) && string.IsNullOrWhiteSpace(cover)))
+                var art = NormalizeValue(pair.Value?.Art);
+                if (string.IsNullOrWhiteSpace(key) || string.IsNullOrWhiteSpace(art))
                 {
                     continue;
                 }
 
                 map[key] = new CategoryImageOverrideData
                 {
-                    Icon = icon,
-                    Cover = cover
+                    Art = art
                 };
             }
 

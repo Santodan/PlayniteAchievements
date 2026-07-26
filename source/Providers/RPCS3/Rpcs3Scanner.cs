@@ -1,6 +1,7 @@
 using PlayniteAchievements.Common;
 using PlayniteAchievements.Models;
 using PlayniteAchievements.Models.Achievements;
+using PlayniteAchievements.Providers.EmuLibrary;
 using PlayniteAchievements.Providers.Exophase;
 using PlayniteAchievements.Providers.RetroAchievements.Hashing;
 using PlayniteAchievements.Providers.RPCS3.Models;
@@ -242,10 +243,12 @@ namespace PlayniteAchievements.Providers.RPCS3
                 .Where(source => source != null && !string.IsNullOrWhiteSpace(source.NpCommId))
                 .ToList();
 
+            // A null result means "trophy data not located"; the refresh pipeline skips
+            // persistence for null results so previously cached achievements are preserved.
             if (sources.Count == 0)
             {
-                _logger?.Info($"[RPCS3-DIAG] FetchGameDataAsync: game='{game.Name}' - NO trophy sources resolved, reporting no achievements");
-                return Task.FromResult(BuildNoAchievementsData(game));
+                _logger?.Info($"[RPCS3-DIAG] FetchGameDataAsync: game='{game.Name}' - NO trophy sources resolved, returning null (cached achievements preserved)");
+                return Task.FromResult<GameAchievementData>(null);
             }
 
             cancel.ThrowIfCancellationRequested();
@@ -266,8 +269,8 @@ namespace PlayniteAchievements.Providers.RPCS3
 
             if (achievements.Count == 0)
             {
-                _logger?.Info($"[RPCS3-DIAG] FetchGameDataAsync: game='{game.Name}' - sources resolved but 0 achievements parsed, reporting no achievements");
-                return Task.FromResult(BuildNoAchievementsData(game));
+                _logger?.Info($"[RPCS3-DIAG] FetchGameDataAsync: game='{game.Name}' - sources resolved but 0 achievements parsed, returning null (cached achievements preserved)");
+                return Task.FromResult<GameAchievementData>(null);
             }
 
             return Task.FromResult(new GameAchievementData
@@ -452,11 +455,6 @@ namespace PlayniteAchievements.Providers.RPCS3
         // npcommid pattern: NPWR05920_00 format (in TROPDIR subdirectory names)
         private static readonly System.Text.RegularExpressions.Regex NpCommIdPathPattern =
             new System.Text.RegularExpressions.Regex(@"\b([A-Z]{4}\d{5}_\d{2})\b",
-                System.Text.RegularExpressions.RegexOptions.IgnoreCase);
-
-        // Pattern to extract npcommid from TROPHY.TRP file content
-        private static readonly System.Text.RegularExpressions.Regex NpCommIdPattern =
-            new System.Text.RegularExpressions.Regex(@"<npcommid>(.*?)<\/npcommid>",
                 System.Text.RegularExpressions.RegexOptions.IgnoreCase);
 
         // Pattern to extract title-name from TROPCONF.SFM
@@ -1065,6 +1063,14 @@ namespace PlayniteAchievements.Providers.RPCS3
                 }
             }
 
+            // Uninstalled EmuLibrary games carry no rom or install paths; recover the
+            // original source path from the serialized EmuLibrary game id as a last resort.
+            if (_playniteApi != null &&
+                EmuLibraryPathResolver.TryResolveSourcePath(_playniteApi, game, out var emuLibrarySourcePath))
+            {
+                AddCandidate(candidates, seen, emuLibrarySourcePath, installDir);
+            }
+
             return candidates;
         }
 
@@ -1570,6 +1576,7 @@ namespace PlayniteAchievements.Providers.RPCS3
                 _logger?.Info($"[RPCS3-DIAG] FindNpCommIdAndTrpFromInstalledGame: no trophy set under '{gameDirectory}' matches the RPCS3 trophy cache - falling back to first valid TRP '{fallbackNpcommid}' at '{fallbackTrpPath}' (pre-launch)");
             }
 
+
             return (fallbackNpcommid, fallbackTrpPath);
         }
 
@@ -1646,25 +1653,15 @@ namespace PlayniteAchievements.Providers.RPCS3
         /// </summary>
         private string ExtractNpCommIdFromTrpFile(string trpPath)
         {
-            using (var stream = new FileStream(trpPath, FileMode.Open, FileAccess.Read, FileShare.ReadWrite))
-            using (var reader = new StreamReader(stream))
+            // Container-aware extraction first (real binary TRPs), then a raw
+            // byte scan for anything the container reader could not handle.
+            var npCommId = Rpcs3TrophyParser.ExtractNpCommId(trpPath, _logger);
+            if (!string.IsNullOrWhiteSpace(npCommId))
             {
-                // TROPHY.TRP contains XML with <npcommid> tag
-                // Read enough lines to find the npcommid (usually near the top)
-                for (int i = 0; i < 30; i++)
-                {
-                    var line = reader.ReadLine();
-                    if (line == null) break;
-
-                    var match = NpCommIdPattern.Match(line);
-                    if (match.Success)
-                    {
-                        return match.Groups[1].Value?.Trim();
-                    }
-                }
+                return npCommId;
             }
 
-            return null;
+            return Rpcs3NpCommIdExtractor.ExtractFirstNpCommIdFromRawFile(trpPath, _logger);
         }
 
         /// <summary>
@@ -1684,25 +1681,10 @@ namespace PlayniteAchievements.Providers.RPCS3
                     return null;
                 }
 
-                using (var reader = new StreamReader(stream))
-                {
-                    // TROPHY.TRP contains XML with <npcommid> tag
-                    // Read enough to find the npcommid (usually near the top)
-                    for (int i = 0; i < 20; i++)
-                    {
-                        var line = reader.ReadLine();
-                        if (line == null) break;
-
-                        var match = NpCommIdPattern.Match(line);
-                        if (match.Success)
-                        {
-                            return match.Groups[1].Value?.Trim();
-                        }
-                    }
-                }
+                // Bounded byte scan: the npcommid XML sits in plaintext near the
+                // start of the TRP container, after the binary header/entry table.
+                return Rpcs3NpCommIdExtractor.ExtractFirstNpCommIdFromStream(stream, _logger);
             }
-
-            return null;
         }
 
         /// <summary>
@@ -1902,19 +1884,6 @@ namespace PlayniteAchievements.Providers.RPCS3
             {
                 return path;
             }
-        }
-
-        private static GameAchievementData BuildNoAchievementsData(Game game)
-        {
-            return new GameAchievementData
-            {
-                ProviderKey = "RPCS3",
-                LibrarySourceName = game?.Source?.Name,
-                GameName = game?.Name,
-                PlayniteGameId = game?.Id,
-                HasAchievements = false,
-                LastUpdatedUtc = DateTime.UtcNow
-            };
         }
 
         private static string NormalizeTrophyType(string trophyType)

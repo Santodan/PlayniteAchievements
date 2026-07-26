@@ -1,5 +1,6 @@
 using PlayniteAchievements.Models;
 using PlayniteAchievements.Models.Achievements;
+using PlayniteAchievements.Providers.EmuLibrary;
 using PlayniteAchievements.Providers.Exophase;
 using PlayniteAchievements.Services;
 using PlayniteAchievements.Services.GameCustomData;
@@ -202,17 +203,19 @@ namespace PlayniteAchievements.Providers.ShadPS4
                 }
             }
 
-            // Fall back to old format: title ID lookup
+            // Fall back to old format: title ID lookup.
+            // A null result means "trophy data not located"; the refresh pipeline skips
+            // persistence for null results so previously cached achievements are preserved.
             var titleId = ExtractTitleIdFromGame(game);
             if (string.IsNullOrWhiteSpace(titleId) || titleCache == null ||
                 !titleCache.TryGetValue(titleId, out var trophyDataPath))
             {
-                return Task.FromResult(BuildNoAchievementsData(game));
+                return Task.FromResult<GameAchievementData>(null);
             }
 
             var xmlPath = Path.Combine(trophyDataPath, "trophyfiles", "trophy00", "Xml", "TROP.XML");
             if (!File.Exists(xmlPath))
-                return Task.FromResult(BuildNoAchievementsData(game));
+                return Task.FromResult<GameAchievementData>(null);
 
             return ParseTrophyXml(game, xmlPath, TrophyFormat.Old, null, cancel);
         }
@@ -233,7 +236,7 @@ namespace PlayniteAchievements.Providers.ShadPS4
                         return ParseTrophyXml(game, perUserXmlPath, TrophyFormat.New, overrideMatchId, cancel);
                     }
 
-                    return Task.FromResult(BuildNoAchievementsData(game));
+                    return Task.FromResult<GameAchievementData>(null);
 
                 case ShadPS4MatchIdKind.TitleId:
                     if (titleCache != null &&
@@ -246,10 +249,10 @@ namespace PlayniteAchievements.Providers.ShadPS4
                         }
                     }
 
-                    return Task.FromResult(BuildNoAchievementsData(game));
+                    return Task.FromResult<GameAchievementData>(null);
 
                 default:
-                    return Task.FromResult(BuildNoAchievementsData(game));
+                    return Task.FromResult<GameAchievementData>(null);
             }
         }
 
@@ -265,7 +268,7 @@ namespace PlayniteAchievements.Providers.ShadPS4
             CancellationToken cancel)
         {
             if (!File.Exists(xmlPath))
-                return Task.FromResult(BuildNoAchievementsData(game));
+                return Task.FromResult<GameAchievementData>(null);
 
             cancel.ThrowIfCancellationRequested();
 
@@ -376,7 +379,7 @@ namespace PlayniteAchievements.Providers.ShadPS4
             catch (Exception ex)
             {
                 _logger?.Error(ex, $"[ShadPS4] Failed to parse trophy XML for {game.Name}");
-                return Task.FromResult(BuildNoAchievementsData(game));
+                return Task.FromResult<GameAchievementData>(null);
             }
         }
 
@@ -647,30 +650,21 @@ namespace PlayniteAchievements.Providers.ShadPS4
                 ? "Base" : "DLC";
         }
 
-        private static GameAchievementData BuildNoAchievementsData(Game game)
-        {
-            return new GameAchievementData
-            {
-                ProviderKey = "ShadPS4",
-                LibrarySourceName = game?.Source?.Name,
-                GameName = game?.Name,
-                PlayniteGameId = game?.Id,
-                HasAchievements = false,
-                LastUpdatedUtc = DateTime.UtcNow
-            };
-        }
-
         #endregion
 
         #region Game path helpers
 
         private string ExtractTitleIdFromGame(Game game)
         {
-            var rawInstallDir = game?.InstallDirectory;
-            if (string.IsNullOrWhiteSpace(rawInstallDir)) return null;
+            var installDir = ExpandGamePath(game, game?.InstallDirectory);
 
-            var installDir = ExpandGamePath(game, rawInstallDir);
-            if (string.IsNullOrWhiteSpace(installDir)) return null;
+            // Uninstalled EmuLibrary games carry no install directory; recover the
+            // original source path from the serialized EmuLibrary game id instead.
+            if (string.IsNullOrWhiteSpace(installDir) &&
+                !EmuLibraryPathResolver.TryResolveSourcePath(_playniteApi, game, out installDir))
+            {
+                return null;
+            }
 
             var match = TitleIdPattern.Match(installDir);
             return match.Success ? ShadPS4MatchIdHelper.Normalize(match.Groups[1].Value) : null;

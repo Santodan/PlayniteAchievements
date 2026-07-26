@@ -73,7 +73,7 @@
                            Margin="0,-3,0,-3" Padding="5,3,5,5"
                            FontSize="{Binding ActualHeight, RelativeSource={RelativeSource Self}, Converter={StaticResource HeightToFontSizeConverter}, FallbackValue=12}">
                     <TextBlock.Text>
-                        <MultiBinding StringFormat="{}{0}/{1}">
+                        <MultiBinding StringFormat="{}{0:N0}/{1:N0}">
                             <Binding Path="UnlockedCount" FallbackValue="0"/>
                             <Binding Path="AchievementCount" FallbackValue="0"/>
                         </MultiBinding>

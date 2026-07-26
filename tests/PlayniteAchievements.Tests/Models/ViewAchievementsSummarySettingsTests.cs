@@ -16,7 +16,7 @@ namespace PlayniteAchievements.Tests.Models
             Assert.IsTrue(settings.ViewAchievementsGameSummariesShowMetadataPlatform);
             Assert.IsTrue(settings.ViewAchievementsGameSummariesShowMetadataPlaytime);
             Assert.IsTrue(settings.ViewAchievementsGameSummariesShowMetadataRegion);
-            Assert.IsTrue(settings.ViewAchievementsGameSummariesShowCompletionBorder);
+            Assert.IsTrue(settings.ViewAchievementsGameSummariesShowCompletionGlow);
             Assert.IsTrue(settings.ShowViewAchievementsGameSummariesGridColumnHeaders);
             Assert.IsNull(settings.ViewAchievementsGameSummariesGridRowHeight);
         }

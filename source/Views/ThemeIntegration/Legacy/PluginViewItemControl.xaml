@@ -28,7 +28,7 @@
                    FontSize="{Binding RelativeSource={RelativeSource AncestorType=controls:PluginUserControl}, Path=FontSize}"
                    Visibility="{Binding RelativeSource={RelativeSource AncestorType=controls:PluginUserControl}, Path=IntegrationViewItemWithProgressBar, Converter={StaticResource InverseBoolToVisConverter}}">
             <TextBlock.Text>
-                <MultiBinding StringFormat="{}{0}/{1}">
+                <MultiBinding StringFormat="{}{0:N0}/{1:N0}">
                     <Binding RelativeSource="{RelativeSource AncestorType=controls:PluginUserControl}" Path="UnlockedCount" FallbackValue="0" />
                     <Binding RelativeSource="{RelativeSource AncestorType=controls:PluginUserControl}" Path="AchievementCount" FallbackValue="0" />
                 </MultiBinding>

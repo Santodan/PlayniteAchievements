@@ -319,7 +319,7 @@ namespace PlayniteAchievements.Views
                 selectedGameId,
                 selectedGameName);
             var window = PlayniteUiProvider.CreateExtensionWindow(
-                ResourceProvider.GetString("LOCPlayAch_RefreshMode_FriendsCustom") ?? "Friends Custom Refresh",
+                ResourceProvider.GetString("LOCPlayAch_RefreshMode_FriendsCustom"),
                 control,
                 new WindowOptions
                 {
@@ -353,9 +353,9 @@ namespace PlayniteAchievements.Views
 
         private void InitializeProviders()
         {
-            var readyText = L("LOCPlayAch_CustomRefresh_ProviderStatus_Ready", "Ready");
-            var disabledText = L("LOCPlayAch_Common_Status_Disabled", "Disabled");
-            var noAuthText = L("LOCPlayAch_Common_NotAuthenticated", "Not authenticated");
+            var readyText = L("LOCPlayAch_CustomRefresh_ProviderStatus_Ready");
+            var disabledText = L("LOCPlayAch_Common_Status_Disabled");
+            var noAuthText = L("LOCPlayAch_Common_NotAuthenticated");
 
             foreach (var provider in _refreshRuntime.Providers ?? Array.Empty<IDataProvider>())
             {
@@ -432,17 +432,23 @@ namespace PlayniteAchievements.Views
 
         private void InitializeScopes()
         {
-            ScopeOptions.Add(new ScopeOptionItem { Scope = FriendRefreshScope.Recent, DisplayName = L("LOCPlayAch_RefreshModeShort_FriendsRecent", "Recent") });
-            ScopeOptions.Add(new ScopeOptionItem { Scope = FriendRefreshScope.Full, DisplayName = L("LOCPlayAch_RefreshModeShort_FriendsFull", "Full") });
-            ScopeOptions.Add(new ScopeOptionItem { Scope = FriendRefreshScope.Shared, DisplayName = L("LOCPlayAch_RefreshModeShort_FriendsShared", "Shared") });
-            ScopeOptions.Add(new ScopeOptionItem { Scope = FriendRefreshScope.Installed, DisplayName = L("LOCPlayAch_RefreshModeShort_FriendsInstalled", "Installed") });
+            ScopeOptions.Add(new ScopeOptionItem { Scope = FriendRefreshScope.Recent, DisplayName = L("LOCPlayAch_RefreshModeShort_FriendsRecent") });
+            if (_settings?.Persisted?.IncludeUnownedFriendGames == true)
+            {
+                // Full scans unowned friend games; hidden when the global toggle excludes them
+                // (the request planner also clamps Full to Shared as a backstop).
+                ScopeOptions.Add(new ScopeOptionItem { Scope = FriendRefreshScope.Full, DisplayName = L("LOCPlayAch_RefreshModeShort_FriendsFull") });
+            }
+
+            ScopeOptions.Add(new ScopeOptionItem { Scope = FriendRefreshScope.Shared, DisplayName = L("LOCPlayAch_RefreshModeShort_FriendsShared") });
+            ScopeOptions.Add(new ScopeOptionItem { Scope = FriendRefreshScope.Installed, DisplayName = L("LOCPlayAch_RefreshModeShort_FriendsInstalled") });
             if (_selectedGameId.HasValue)
             {
                 ScopeOptions.Add(new ScopeOptionItem
                 {
                     Scope = FriendRefreshScope.SelectedGame,
                     DisplayName = string.Format(
-                        L("LOCPlayAch_FriendCustomRefresh_SelectedGameScope", "Selected game: {0}"),
+                        L("LOCPlayAch_FriendCustomRefresh_SelectedGameScope"),
                         string.IsNullOrWhiteSpace(_selectedGameName) ? _selectedGameId.Value.ToString("D") : _selectedGameName)
                 });
             }
@@ -720,24 +726,23 @@ namespace PlayniteAchievements.Views
                 .Where(name => !string.IsNullOrWhiteSpace(name))
                 .ToList();
             var providerDisplay = selectedProviders.Count == 0
-                ? L("LOCPlayAch_Common_None", "None")
+                ? L("LOCPlayAch_Common_None")
                 : string.Join(", ", selectedProviders);
             var scopeDisplay = ScopeOptions
                 .FirstOrDefault(option => option.Scope == SelectedScope)
                 ?.DisplayName ?? SelectedScope.ToString();
 
             SummaryText = string.Format(
-                L("LOCPlayAch_FriendCustomRefresh_SummaryFormat", "Providers: {0} | Scope: {1}"),
+                L("LOCPlayAch_FriendCustomRefresh_SummaryFormat"),
                 providerDisplay,
                 scopeDisplay);
             CanRun = selectedProviders.Count > 0 &&
                      (SelectedScope != FriendRefreshScope.SelectedGame || _selectedGameId.HasValue);
         }
 
-        private static string L(string key, string fallback)
+        private static string L(string key)
         {
-            var value = ResourceProvider.GetString(key);
-            return string.IsNullOrWhiteSpace(value) || value == key ? fallback : value;
+            return ResourceProvider.GetString(key);
         }
 
         private void OnPropertyChanged(string propertyName)

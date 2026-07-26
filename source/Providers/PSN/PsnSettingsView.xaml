@@ -82,7 +82,7 @@
                                             Click="PsnAuth_Check_Click"
                                             Style="{StaticResource AuthActionButtonStyle}"
                                             Margin="{StaticResource PlayAch.Thickness.Right.Sm}"/>
-                                    <Button Content="{DynamicResource LOCPlayAch_Button_Clear}"
+                                    <Button Content="{DynamicResource LOCPlayAch_Button_SignOut}"
                                             Click="PsnAuth_Clear_Click"
                                             Style="{StaticResource AuthActionButtonStyle}"/>
                                 </StackPanel>

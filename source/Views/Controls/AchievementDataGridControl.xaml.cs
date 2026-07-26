@@ -45,9 +45,13 @@ namespace PlayniteAchievements.Views.Controls
         private const double MinimumFriendAvatarColumnWidth = 32;
         private const double MinimumFriendColumnWidth = 64;
         private const double MaximumStatusColumnWidth = 96;
-        private const double MaximumGameImageColumnWidth = 240;
+        private const double MaximumGameImageColumnWidth = 600;
         private const double MaximumFriendAvatarColumnWidth = 96;
         private const double MaximumFriendColumnWidth = 280;
+        private const string StatusColumnKey = "Status";
+        private const string GameColumnKey = "Game";
+        private const string FriendAvatarColumnKey = "Avatar";
+        private const string FriendColumnKey = "Friend";
 
         private static readonly IReadOnlyDictionary<string, double> DefaultImageColumnWidthSeeds =
             new Dictionary<string, double>(StringComparer.OrdinalIgnoreCase)
@@ -56,6 +60,7 @@ namespace PlayniteAchievements.Views.Controls
                 ["Icon"] = DefaultIconColumnWidth,
                 ["Game"] = DefaultGameImageColumnWidth,
                 ["Avatar"] = DefaultFriendAvatarColumnWidth,
+                ["CategoryIcon"] = DefaultGameImageColumnWidth,
                 ["Trophy"] = DefaultTrophyIconColumnWidth,
                 ["RarityTier"] = DefaultTrophyIconColumnWidth
             };
@@ -84,11 +89,35 @@ namespace PlayniteAchievements.Views.Controls
                     friendAvatar: true,
                     friend: true,
                     unlockDate: true),
+                ["FriendsOverviewSelectedFriendAchievements"] = CreateAchievementVisibility(
+                    status: false,
+                    game: true,
+                    friendAvatar: false,
+                    friend: false,
+                    unlockDate: true),
+                ["FriendsOverviewSelectedGameAchievements"] = CreateAchievementVisibility(
+                    status: false,
+                    game: false,
+                    friendAvatar: true,
+                    friend: true,
+                    unlockDate: true),
+                ["FriendsOverviewSelectedFriendGameAchievements"] = CreateAchievementVisibility(
+                    status: true,
+                    game: false,
+                    friendAvatar: false,
+                    friend: false,
+                    unlockDate: true),
                 ["ViewFriendsAchievements"] = CreateAchievementVisibility(
                     status: true,
                     game: false,
                     friendAvatar: true,
                     friend: true,
+                    unlockDate: true),
+                ["ViewFriendsAchievementsSelectedFriendAchievements"] = CreateAchievementVisibility(
+                    status: true,
+                    game: false,
+                    friendAvatar: false,
+                    friend: false,
                     unlockDate: true),
                 ["Overview"] = CreateAchievementVisibility(status: false, game: true),
                 ["StartPageAchievements"] = CreateAchievementVisibility(
@@ -102,7 +131,13 @@ namespace PlayniteAchievements.Views.Controls
                     rarityTier: true,
                     collectionScore: false,
                     prestigeScore: false,
-                    points: false)
+                    points: false),
+                ["StartPageFriendAchievements"] = CreateAchievementVisibility(
+                    status: false,
+                    game: true,
+                    friendAvatar: true,
+                    friend: true,
+                    unlockDate: true)
             };
 
         private static IReadOnlyDictionary<string, bool> CreateAchievementVisibility(
@@ -117,6 +152,7 @@ namespace PlayniteAchievements.Views.Controls
             bool unlockDate = true,
             bool categoryType = false,
             bool categoryLabel = false,
+            bool categoryIcon = false,
             bool trophy = false,
             bool rarity = true,
             bool rarityTier = false,
@@ -138,6 +174,7 @@ namespace PlayniteAchievements.Views.Controls
                 ["UnlockDate"] = unlockDate,
                 ["CategoryType"] = categoryType,
                 ["CategoryLabel"] = categoryLabel,
+                ["CategoryIcon"] = categoryIcon,
                 ["Trophy"] = trophy,
                 ["Rarity"] = rarity,
                 ["RarityTier"] = rarityTier,
@@ -156,7 +193,25 @@ namespace PlayniteAchievements.Views.Controls
                     ["Avatar"] = 0,
                     ["Friend"] = 1
                 },
+                ["FriendsOverviewSelectedGameAchievements"] = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase)
+                {
+                    ["Avatar"] = 0,
+                    ["Friend"] = 1
+                },
+                ["FriendsOverviewSelectedFriendGameAchievements"] = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase)
+                {
+                    ["Status"] = 0,
+                },
                 ["ViewFriendsAchievements"] = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase)
+                {
+                    ["Avatar"] = 0,
+                    ["Friend"] = 1
+                },
+                ["ViewFriendsAchievementsSelectedFriendAchievements"] = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase)
+                {
+                    ["Status"] = 0
+                },
+                ["StartPageFriendAchievements"] = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase)
                 {
                     ["Avatar"] = 0,
                     ["Friend"] = 1
@@ -184,7 +239,14 @@ namespace PlayniteAchievements.Views.Controls
             if (d is AchievementDataGridControl control)
             {
                 control._preSortItems = null;
-                DataGridSortingHelper.ClearSortIndicators(control.AchievementsDataGrid);
+                if (!control.UseExternalSorting)
+                {
+                    // Externally sorted surfaces own their header indicators via SetSortIndicator
+                    // and re-apply them only when their sort state changes; clearing here would
+                    // drop the arrow on a plain source swap while the external sort still applies.
+                    DataGridSortingHelper.ClearSortIndicators(control.AchievementsDataGrid);
+                }
+
                 control.ObserveItemsSourceCollection();
                 control.OnItemsSourceContentChanged();
             }
@@ -213,7 +275,7 @@ namespace PlayniteAchievements.Views.Controls
         /// </summary>
         public static readonly DependencyProperty ColumnSettingsKeyProperty =
             DependencyProperty.Register(nameof(ColumnSettingsKey), typeof(string),
-                typeof(AchievementDataGridControl), new PropertyMetadata("Default"));
+                typeof(AchievementDataGridControl), new PropertyMetadata("Default", OnColumnSettingsKeyChanged));
 
         /// <summary>
         /// Gets or sets the key used to persist column settings separately per control instance.
@@ -372,6 +434,24 @@ namespace PlayniteAchievements.Views.Controls
         }
 
         /// <summary>
+        /// Identifies the ColorRarityColumnsByRarity dependency property.
+        /// When true, rarity and rarity percent text in this grid are colored by rarity tier
+        /// instead of the default text color.
+        /// </summary>
+        public static readonly DependencyProperty ColorRarityColumnsByRarityProperty =
+            DependencyProperty.Register(nameof(ColorRarityColumnsByRarity), typeof(bool),
+                typeof(AchievementDataGridControl), new PropertyMetadata(false));
+
+        /// <summary>
+        /// Gets or sets whether rarity column text in this grid is colored by rarity.
+        /// </summary>
+        public bool ColorRarityColumnsByRarity
+        {
+            get => (bool)GetValue(ColorRarityColumnsByRarityProperty);
+            set => SetValue(ColorRarityColumnsByRarityProperty, value);
+        }
+
+        /// <summary>
         /// Identifies the DataGridMaxHeight dependency property.
         /// When set, limits the maximum height of the internal DataGrid.
         /// </summary>
@@ -501,11 +581,14 @@ namespace PlayniteAchievements.Views.Controls
         private GridActionButton _backButton;
         private GridControlBarViewModel _controlBarWithToggle;
         private INotifyCollectionChanged _observedItemsSource;
+        private INotifyCollectionChanged _observedCategorySummarySource;
         private BulkObservableCollection<AchievementDisplayItem> _drillItems;
         private List<GameSummaryItem> _allCategorySummaries;
         private GridSearchControl _categorySearch;
         private GridSearchControl _originalSearch;
         private string _categorySearchText = string.Empty;
+        private string _categorySortPath;
+        private ListSortDirection? _categorySortDirection;
         private bool _startInCategoryModeApplied;
         private DataGridRow _pendingCategoryRightClickRow;
 
@@ -584,6 +667,18 @@ namespace PlayniteAchievements.Views.Controls
             set => SetValue(CategoryUseCoverImagesProperty, value);
         }
 
+        public static readonly DependencyProperty CategoryShowCompletionGlowProperty =
+            DependencyProperty.Register(nameof(CategoryShowCompletionGlow), typeof(bool),
+                typeof(AchievementDataGridControl), new PropertyMetadata(true));
+
+        // Completion glow toggle for the embedded category grids (list + drill header),
+        // kept distinct from any game-summaries grid on the same surface.
+        public bool CategoryShowCompletionGlow
+        {
+            get => (bool)GetValue(CategoryShowCompletionGlowProperty);
+            set => SetValue(CategoryShowCompletionGlowProperty, value);
+        }
+
         public static readonly DependencyProperty CategoryShowColumnHeadersProperty =
             DependencyProperty.Register(nameof(CategoryShowColumnHeaders), typeof(bool),
                 typeof(AchievementDataGridControl), new PropertyMetadata(true));
@@ -652,9 +747,13 @@ namespace PlayniteAchievements.Views.Controls
 
         private static void OnCategorySummarySourceChanged(DependencyObject d, DependencyPropertyChangedEventArgs e)
         {
-            if (d is AchievementDataGridControl control && control._isCategoryMode)
+            if (d is AchievementDataGridControl control)
             {
-                control.OnItemsSourceContentChanged();
+                control.ObserveCategorySummarySourceCollection();
+                if (control._isCategoryMode)
+                {
+                    control.OnItemsSourceContentChanged();
+                }
             }
         }
 
@@ -797,6 +896,32 @@ namespace PlayniteAchievements.Views.Controls
             return ControlBar?.Items.OfType<GridToggleFilter>().All(t => t.IsChecked) ?? true;
         }
 
+        // Invoked by AchievementHotkeyService when the category-mode hotkey is pressed while this
+        // control's hosting window is active. Drives the same GridModeToggle the control bar
+        // renders, so the hotkey acts exactly when that toggle is currently shown and clickable,
+        // and never otherwise. Returns true when the mode was flipped.
+        public bool TryFlipCategoryModeFromHotkey()
+        {
+            // Mirror the toggle's own gating: this control must be on screen, the control bar
+            // shown, the toggle injected into the currently attached bar, and effectively visible
+            // (it auto-hides when category mode is unavailable, e.g. multi-game sources or active
+            // filters).
+            var toggle = _modeToggle;
+            if (toggle == null ||
+                !IsVisible ||
+                !ShowControlBar ||
+                _controlBarWithToggle == null ||
+                !ReferenceEquals(_controlBarWithToggle, ControlBar) ||
+                !toggle.EffectiveIsVisible)
+            {
+                return false;
+            }
+
+            // Same path as clicking the control-bar ToggleButton (bound to GridModeToggle.IsChecked).
+            toggle.IsChecked = !toggle.IsChecked;
+            return true;
+        }
+
         // Injects the category-mode toggle and Back button into the surface-owned control bar and
         // reconciles which items are shown for the current mode (flat / category list / drill).
         private void SyncModeToggle()
@@ -914,8 +1039,24 @@ namespace PlayniteAchievements.Views.Controls
                 return false;
             }
 
-            var id = GridOptionsCatalog.ResolveAchievementId(ColumnSettingsKey);
-            return persisted.GridOptions.GetAchievement(id).StartInCategoryMode;
+            return persisted.GridOptions.GetAchievement(ResolveStartInCategoryModeOptionsId()).StartInCategoryMode;
+        }
+
+        // The Start in Category Mode setting is edited once per view (on the parent surface's grid
+        // options), while the friends grids swap ColumnSettingsKey per selection state.
+        private string ResolveStartInCategoryModeOptionsId()
+        {
+            switch (ColumnSettingsKey)
+            {
+                case "FriendsOverviewSelectedFriendAchievements":
+                case "FriendsOverviewSelectedGameAchievements":
+                case "FriendsOverviewSelectedFriendGameAchievements":
+                    return GridOptionKeys.Achievement.FriendsOverviewRecent;
+                case "ViewFriendsAchievementsSelectedFriendAchievements":
+                    return GridOptionKeys.Achievement.ViewFriendsAchievements;
+                default:
+                    return GridOptionsCatalog.ResolveAchievementId(ColumnSettingsKey);
+            }
         }
 
         // Positions the category-mode Back and toggle controls for the current mode. The toggle always
@@ -1083,6 +1224,8 @@ namespace PlayniteAchievements.Views.Controls
                 }
 
                 _categorySearchText = string.Empty;
+                _categorySortPath = null;
+                _categorySortDirection = null;
                 RebuildCategorySummaries();
             }
 
@@ -1117,16 +1260,35 @@ namespace PlayniteAchievements.Views.Controls
                 return;
             }
 
-            if (string.IsNullOrWhiteSpace(_categorySearchText))
+            var visible = all;
+            if (!string.IsNullOrWhiteSpace(_categorySearchText))
             {
-                CategorySummaries = all;
-                return;
+                var needle = _categorySearchText.Trim();
+                visible = all
+                    .Where(c => (c.GameName ?? string.Empty).IndexOf(needle, StringComparison.OrdinalIgnoreCase) >= 0)
+                    .ToList();
             }
 
-            var needle = _categorySearchText.Trim();
-            CategorySummaries = all
-                .Where(c => (c.GameName ?? string.Empty).IndexOf(needle, StringComparison.OrdinalIgnoreCase) >= 0)
-                .ToList();
+            // A manual column sort overlays the builder's default order (custom category order,
+            // then provider order); sorting a copy keeps _allCategorySummaries as the reset target.
+            if (_categorySortDirection.HasValue && !string.IsNullOrWhiteSpace(_categorySortPath))
+            {
+                var sortPath = string.Empty;
+                var sortDirection = ListSortDirection.Ascending;
+                var sorted = new List<GameSummaryItem>(visible);
+                if (GameSummariesSortHelper.TrySortItems(
+                        sorted,
+                        _categorySortPath,
+                        _categorySortDirection.Value,
+                        ref sortPath,
+                        ref sortDirection))
+                {
+                    visible = sorted;
+                }
+            }
+
+            CategorySummaries = visible;
+            CategoryListGrid?.SetSortIndicator(_categorySortPath, _categorySortDirection);
         }
 
         private void DrillIntoCategory(CategorySummaryItem item)
@@ -1214,6 +1376,33 @@ namespace PlayniteAchievements.Views.Controls
             OnItemsSourceContentChanged();
         }
 
+        // Hosts feed CategorySummarySource from a stable collection mutated in place (ReplaceAll),
+        // so the dependency-property callback alone never sees updates. Without observing the
+        // collection itself, category rollups keep the previous selection's rows after a friend
+        // or game switch, showing the wrong game's categories and drill contents.
+        private void ObserveCategorySummarySourceCollection()
+        {
+            if (_observedCategorySummarySource != null)
+            {
+                _observedCategorySummarySource.CollectionChanged -= OnCategorySummarySourceCollectionChanged;
+                _observedCategorySummarySource = null;
+            }
+
+            if (CategorySummarySource is INotifyCollectionChanged incc)
+            {
+                _observedCategorySummarySource = incc;
+                incc.CollectionChanged += OnCategorySummarySourceCollectionChanged;
+            }
+        }
+
+        private void OnCategorySummarySourceCollectionChanged(object sender, NotifyCollectionChangedEventArgs e)
+        {
+            if (_isCategoryMode)
+            {
+                OnItemsSourceContentChanged();
+            }
+        }
+
         private void OnItemsSourceContentChanged()
         {
             // Re-evaluate toggle availability first: a game switch or a newly loaded multi-game feed
@@ -1277,6 +1466,34 @@ namespace PlayniteAchievements.Views.Controls
             {
                 DrillIntoCategory(selected);
             }
+        }
+
+        // Category rows default to the builder's source order (custom category order, then
+        // provider order); header clicks cycle ascending -> descending -> back to that default.
+        private void CategoryList_Sorting(object sender, DataGridSortingEventArgs e)
+        {
+            e.Handled = true;
+            var sortAction = GameSummariesSortHelper.ResolveSourceOrderedGridSortAction(
+                e.Column?.SortMemberPath,
+                _categorySortPath,
+                _categorySortDirection);
+            if (sortAction.Kind == GameSummariesGridSortActionKind.None)
+            {
+                return;
+            }
+
+            if (sortAction.Kind == GameSummariesGridSortActionKind.ResetToDefault)
+            {
+                _categorySortPath = null;
+                _categorySortDirection = null;
+            }
+            else
+            {
+                _categorySortPath = sortAction.SortMemberPath;
+                _categorySortDirection = sortAction.Direction;
+            }
+
+            ApplyCategoryNameFilter();
         }
 
         private void CategoryList_RowPreviewMouseRightButtonDown(object sender, MouseButtonEventArgs e)
@@ -1414,6 +1631,61 @@ namespace PlayniteAchievements.Views.Controls
         // summary list, for surfaces where HideBackButton suppresses the in-grid Back button.
         public void ExitDrilledCategory() => CategoryBackToList();
 
+        /// <summary>
+        /// Selects and scrolls to the given achievement. When category grouping is active
+        /// (e.g. the surface starts in category mode), first drills into the achievement's
+        /// category so the row is actually visible and highlighted.
+        /// </summary>
+        public void FocusAchievementItem(AchievementDisplayItem item)
+        {
+            if (item == null)
+            {
+                return;
+            }
+
+            if (IsCategoryGroupingEffective())
+            {
+                var label = AchievementCategoryTypeHelper.NormalizeCategoryOrDefault(item.CategoryLabel);
+                if (!string.Equals(_drilledCategory, label, StringComparison.OrdinalIgnoreCase))
+                {
+                    var match = CategorySummaries?
+                        .OfType<CategorySummaryItem>()
+                        .FirstOrDefault(c => string.Equals(
+                            AchievementCategoryTypeHelper.NormalizeCategoryOrDefault(c.CategoryLabel),
+                            label,
+                            StringComparison.OrdinalIgnoreCase));
+                    if (match == null)
+                    {
+                        return;
+                    }
+
+                    DrillIntoCategory(match);
+                }
+            }
+
+            var grid = AchievementsDataGrid;
+            if (grid == null)
+            {
+                return;
+            }
+
+            grid.SelectedItem = item;
+            grid.UpdateLayout();
+            grid.ScrollIntoView(item);
+            // The immediate scroll no-ops when the hosting window has not been measured yet
+            // (focus applied while the window is still opening) or when a category drill just
+            // replaced the item collection; re-assert once layout has settled.
+            grid.Dispatcher.BeginInvoke(
+                new Action(() =>
+                {
+                    if (ReferenceEquals(grid.SelectedItem, item))
+                    {
+                        grid.ScrollIntoView(item);
+                    }
+                }),
+                System.Windows.Threading.DispatcherPriority.ContextIdle);
+        }
+
         private void CategoryBackToList()
         {
             _drilledCategory = null;
@@ -1512,8 +1784,39 @@ namespace PlayniteAchievements.Views.Controls
         {
             if (d is AchievementDataGridControl control)
             {
+                control.UpdateColumnPersistenceContextOverrides();
                 control.UpdateColumnVisibility();
+                control._columnPersistence?.Refresh();
             }
+        }
+
+        private static void OnColumnSettingsKeyChanged(DependencyObject d, DependencyPropertyChangedEventArgs e)
+        {
+            if (d is AchievementDataGridControl control)
+            {
+                // A new key means a new surface (e.g. the friends grid switching from the recent
+                // feed to a selected friend+game pair), so re-arm the one-shot start-in-category
+                // application for the incoming surface.
+                control._startInCategoryModeApplied = false;
+                control.UpdateUnlockDateMode();
+                control.ReattachColumnPersistence();
+                control.SyncModeToggle();
+            }
+        }
+
+        private void ReattachColumnPersistence()
+        {
+            if (_columnPersistence == null)
+            {
+                return;
+            }
+
+            _columnPersistence.Dispose();
+            _columnPersistence = null;
+            AttachColumnPersistence();
+            UpdateColumnVisibility();
+            UpdateColumnHeadersVisibility();
+            DataGridAlignmentBehavior.Refresh(AchievementsDataGrid);
         }
 
         private void UpdateColumnVisibility()
@@ -1627,6 +1930,40 @@ namespace PlayniteAchievements.Views.Controls
             column.Width = new DataGridLength(0, DataGridLengthUnitType.Pixel);
         }
 
+        private void UpdateColumnPersistenceContextOverrides()
+        {
+            if (_columnPersistence == null)
+            {
+                return;
+            }
+
+            SetForcedColumnCollapsed(_columnPersistence, StatusColumnKey, HideStatusColumn);
+            SetForcedColumnCollapsed(_columnPersistence, GameColumnKey, !ShowGameColumn);
+            SetForcedColumnCollapsed(_columnPersistence, FriendAvatarColumnKey, !ShowFriendColumn);
+            SetForcedColumnCollapsed(_columnPersistence, FriendColumnKey, !ShowFriendColumn);
+        }
+
+        private static void SetForcedColumnCollapsed(
+            DataGridColumnLayoutService layout,
+            string columnKey,
+            bool forceCollapsed)
+        {
+            if (layout == null || string.IsNullOrWhiteSpace(columnKey))
+            {
+                return;
+            }
+
+            if (forceCollapsed)
+            {
+                layout.ForcedCollapsedKeys.Add(columnKey);
+                layout.ExcludedVisibilityKeys.Add(columnKey);
+                return;
+            }
+
+            layout.ForcedCollapsedKeys.Remove(columnKey);
+            layout.ExcludedVisibilityKeys.Remove(columnKey);
+        }
+
         private static void OnRowSizingChanged(DependencyObject d, DependencyPropertyChangedEventArgs e)
         {
             if (d is AchievementDataGridControl control)
@@ -1664,12 +2001,7 @@ namespace PlayniteAchievements.Views.Controls
         private void OnPersistedSettingsChanged(object sender, PropertyChangedEventArgs e)
         {
             if (string.IsNullOrEmpty(e.PropertyName) ||
-                e.PropertyName == nameof(PersistedSettings.OverviewRecentAchievementsUnlockDateMode) ||
-                e.PropertyName == nameof(PersistedSettings.FriendsOverviewAchievementsUnlockDateMode) ||
-                e.PropertyName == nameof(PersistedSettings.OverviewSelectedGameAchievementsUnlockDateMode) ||
-                e.PropertyName == nameof(PersistedSettings.ViewAchievementsAchievementsUnlockDateMode) ||
-                e.PropertyName == nameof(PersistedSettings.StartPageAchievementsUnlockDateMode) ||
-                e.PropertyName == nameof(PersistedSettings.DesktopThemeAchievementsUnlockDateMode))
+                e.PropertyName == nameof(PersistedSettings.UnlockDateDisplayMode))
             {
                 UpdateUnlockDateMode();
             }
@@ -1683,34 +2015,7 @@ namespace PlayniteAchievements.Views.Controls
                 return;
             }
 
-            switch (ColumnSettingsKey)
-            {
-                case "DesktopTheme":
-                    UnlockDateMode = persisted.DesktopThemeAchievementsUnlockDateMode;
-                    break;
-                case "OverviewRecentAchievements":
-                case "Overview":
-                    UnlockDateMode = persisted.OverviewRecentAchievementsUnlockDateMode;
-                    break;
-                case "FriendsOverviewRecentAchievements":
-                    UnlockDateMode = persisted.FriendsOverviewAchievementsUnlockDateMode;
-                    break;
-                case "OverviewSelectedGameAchievements":
-                case "OverviewGame":
-                    UnlockDateMode = persisted.OverviewSelectedGameAchievementsUnlockDateMode;
-                    break;
-                case "StartPageAchievements":
-                    UnlockDateMode = persisted.StartPageAchievementsUnlockDateMode;
-                    break;
-                case "ViewFriendsAchievements":
-                case "ViewFriendsAchievementsAchievements":
-                    UnlockDateMode = persisted.GridOptions.GetAchievement(GridOptionKeys.Achievement.ViewFriendsAchievements).UnlockDateMode;
-                    break;
-                default:
-                    // "SingleGame" and any unspecified key fall back to the view-achievements grid.
-                    UnlockDateMode = persisted.ViewAchievementsAchievementsUnlockDateMode;
-                    break;
-            }
+            UnlockDateMode = persisted.UnlockDateDisplayMode;
         }
 
         private void OnDataContextChanged(object sender, DependencyPropertyChangedEventArgs e)
@@ -1867,27 +2172,8 @@ namespace PlayniteAchievements.Views.Controls
                 isRuntimeDefaultWidth: IsLegacyImageColumnRuntimeDefaultWidth);
             _columnPersistence.DelayInitialRenderUntilNormalized = DelayInitialRenderUntilNormalized;
 
-            // Force collapse Game column when not shown (prevents flicker by applying during persistence)
-            // Also exclude from visibility toggle menu
-            if (!ShowGameColumn)
-            {
-                _columnPersistence.ForcedCollapsedKeys.Add("Game");
-                _columnPersistence.ExcludedVisibilityKeys.Add("Game");
-            }
-            if (!ShowFriendColumn)
-            {
-                _columnPersistence.ForcedCollapsedKeys.Add("Avatar");
-                _columnPersistence.ExcludedVisibilityKeys.Add("Avatar");
-                _columnPersistence.ForcedCollapsedKeys.Add("Friend");
-                _columnPersistence.ExcludedVisibilityKeys.Add("Friend");
-            }
-            // Force collapse Status column when hidden (prevents flicker by applying during persistence)
-            // Also exclude from visibility toggle menu
-            if (HideStatusColumn)
-            {
-                _columnPersistence.ForcedCollapsedKeys.Add("Status");
-                _columnPersistence.ExcludedVisibilityKeys.Add("Status");
-            }
+            UpdateColumnPersistenceContextOverrides();
+            UpdateColumnVisibility();
 
             _columnPersistence.Attach();
         }
@@ -1936,10 +2222,14 @@ namespace PlayniteAchievements.Views.Controls
             {
                 case "OverviewRecentAchievements":
                 case "FriendsOverviewRecentAchievements":
+                case "FriendsOverviewSelectedFriendAchievements":
+                case "FriendsOverviewSelectedGameAchievements":
+                case "FriendsOverviewSelectedFriendGameAchievements":
                 case "Overview":
                 case "OverviewSelectedGameAchievements":
                 case "OverviewGame":
                 case "StartPageAchievements":
+                case "StartPageFriendAchievements":
                     return false;
                 default:
                     return true;
@@ -2489,6 +2779,7 @@ namespace PlayniteAchievements.Views.Controls
                 return false;
             }
 
+            UpdateColumnPersistenceContextOverrides();
             var menu = _columnPersistence?.BuildColumnVisibilityMenu((owner as DataGridColumnHeader)?.Column);
             if (menu == null || menu.Items.Count == 0)
             {
@@ -2561,6 +2852,12 @@ namespace PlayniteAchievements.Views.Controls
             {
                 _observedItemsSource.CollectionChanged -= OnItemsSourceCollectionChanged;
                 _observedItemsSource = null;
+            }
+
+            if (_observedCategorySummarySource != null)
+            {
+                _observedCategorySummarySource.CollectionChanged -= OnCategorySummarySourceCollectionChanged;
+                _observedCategorySummarySource = null;
             }
             DataGridAlignmentBehavior.SetColumnCellAlignmentOverridesProvider(AchievementsDataGrid, null);
             DataGridAlignmentBehavior.SetColumnCellVerticalAlignmentOverridesProvider(AchievementsDataGrid, null);

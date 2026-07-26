@@ -15,6 +15,15 @@ namespace PlayniteAchievements.Tests.Providers
         }
 
         [TestMethod]
+        public void NormalizeGameName_StripsDirectorsCutSuffix()
+        {
+            Assert.AreEqual("Ghost of Tsushima", ExophaseGameNameMatcher.NormalizeGameName("Ghost of Tsushima DIRECTOR'S CUT"));
+            Assert.AreEqual("Ghost of Tsushima", ExophaseGameNameMatcher.NormalizeGameName("Ghost of Tsushima - Director's Cut"));
+            Assert.AreEqual("Ghost of Tsushima", ExophaseGameNameMatcher.NormalizeGameName("Ghost of Tsushima (Director's Cut)"));
+            Assert.AreEqual("Ghost of Tsushima", ExophaseGameNameMatcher.NormalizeGameName("Ghost of Tsushima Directors Cut"));
+        }
+
+        [TestMethod]
         public void NormalizeGameName_LeavesUnlistedEditionWordsIntact()
         {
             // "Legendary Edition" is not a stripped suffix, so both the friend title and the

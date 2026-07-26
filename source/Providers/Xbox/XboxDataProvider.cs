@@ -8,6 +8,7 @@ using PlayniteAchievements.Services;
 using PlayniteAchievements.Services.GameCustomData;
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 
@@ -21,15 +22,13 @@ namespace PlayniteAchievements.Providers.Xbox
     {
         public ProviderOverrideDescriptor OverrideDescriptor { get; } = ProviderOverrideDescriptor.Text(
             "LOCPlayAch_ManageAchievements_Overrides_ProviderValueLabel_Xbox",
-            "Xbox Title ID",
             raw => XboxTitleIdResolver.TryNormalizeTitleId(raw, out var titleId)
                 ? ProviderOverrideValidation.Valid(titleId)
                 : ProviderOverrideValidation.Invalid(
-                    "LOCPlayAch_Menu_XboxTitleId_InvalidId",
-                    "Please enter a valid Xbox Title ID (8-character hex or decimal)."));
+                    "LOCPlayAch_Menu_XboxTitleId_InvalidId"));
 
         // Xbox library plugin ID from Playnite
-        internal static readonly Guid XboxLibraryPluginId = Guid.Parse("7e4fbb5b-4594-4c5a-8a69-1e3f41b39c52");
+        internal static readonly Guid XboxLibraryPluginId = Guid.Parse("7e4fbb5e-2ae3-48d4-8ba0-6b30e7a4e287");
 
         private readonly XboxSessionManager _sessionManager;
         private readonly XboxScanner _scanner;
@@ -87,6 +86,15 @@ namespace PlayniteAchievements.Providers.Xbox
 
             // Xbox library plugin
             if (game.PluginId == XboxLibraryPluginId)
+            {
+                return true;
+            }
+
+            // Game Pass platform: catches games from third-party importers (e.g. Game Pass
+            // Catalog Browser) or customized libraries whose Source was renamed away from the
+            // strings below. Title ID still resolves via the PFN GameId in the scanner.
+            if (game.Platforms?.Any(p =>
+                    p?.Name?.IndexOf("Game Pass", StringComparison.OrdinalIgnoreCase) >= 0) == true)
             {
                 return true;
             }

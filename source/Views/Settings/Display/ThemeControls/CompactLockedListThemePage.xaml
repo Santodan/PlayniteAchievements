@@ -46,7 +46,7 @@
                     <Border Style="{StaticResource SettingGroupCardStyle}"
                             Visibility="{Binding Persisted.EnableAchievementCompactLockedListControl, Converter={StaticResource BoolToVis}}">
                         <StackPanel>
-                            <TextBlock Text="PREVIEW"
+                            <TextBlock Text="{DynamicResource LOCPlayAch_Settings_Context_Preview}"
                                        Style="{StaticResource ContextLabelStyle}"/>
                             <modern:AchievementCompactLockedListControl
                                 Style="{StaticResource PreviewThemeControlStyle}"
@@ -54,7 +54,7 @@
                                 SettingsOverride="{Binding}"
                                 IconSize="48"
                                 Margin="{StaticResource PlayAch.Thickness.Bottom.Md}"/>
-                            <TextBlock Text="SETTINGS"
+                            <TextBlock Text="{DynamicResource LOCPlayAch_Settings_Context_Settings}"
                                        Style="{StaticResource ContextLabelStyle}"/>
                             <Grid>
                                 <Grid.ColumnDefinitions>

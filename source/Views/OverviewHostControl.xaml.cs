@@ -2,6 +2,7 @@ using System;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Threading;
+using PlayniteAchievements.Common;
 using PlayniteAchievements.Models;
 using PlayniteAchievements.Models.Settings;
 using PlayniteAchievements.Providers;
@@ -46,6 +47,7 @@ namespace PlayniteAchievements.Views
             _plugin = plugin ?? throw new ArgumentNullException(nameof(plugin));
 
             InitializeComponent();
+            FormattingCulture.Apply(this);
 
             Loaded += OverviewHostControl_Loaded;
             Unloaded += OverviewHostControl_Unloaded;

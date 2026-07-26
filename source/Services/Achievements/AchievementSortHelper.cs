@@ -107,6 +107,10 @@ namespace PlayniteAchievements.Services.Achievements
     /// </summary>
     public static class AchievementSortHelper
     {
+        private const int UnlockTimeSortBucketDatedUnlocked = 0;
+        private const int UnlockTimeSortBucketBlankUnlocked = 1;
+        private const int UnlockTimeSortBucketLocked = 2;
+
         public static AchievementSortSpec GetConfiguredDefaultSort(
             PersistedSettings settings,
             AchievementSortSurface surface)
@@ -873,9 +877,9 @@ namespace PlayniteAchievements.Services.Achievements
             AchievementDisplayItem b,
             AchievementSortScope scope)
         {
-            var labelComparison = CompareText(
-                AchievementCategoryTypeHelper.NormalizeCategoryOrDefault(a?.CategoryLabel),
-                AchievementCategoryTypeHelper.NormalizeCategoryOrDefault(b?.CategoryLabel));
+            // Custom category order wins when present; CompareByCategoryOrder falls back to
+            // label text for items without an order index.
+            var labelComparison = CompareByCategoryOrder(a, b);
             if (labelComparison != 0)
             {
                 return labelComparison;
@@ -934,14 +938,25 @@ namespace PlayniteAchievements.Services.Achievements
             ListSortDirection direction,
             AchievementSortScope scope)
         {
-            var aUnlockTime = a?.UnlockTime ?? DateTime.MinValue;
-            var bUnlockTime = b?.UnlockTime ?? DateTime.MinValue;
-            var unlockComparison = direction == ListSortDirection.Ascending
-                ? aUnlockTime.CompareTo(bUnlockTime)
-                : bUnlockTime.CompareTo(aUnlockTime);
-            if (unlockComparison != 0)
+            var aBucket = GetUnlockTimeSortBucket(a);
+            var bBucket = GetUnlockTimeSortBucket(b);
+            var bucketComparison = aBucket.CompareTo(bBucket);
+            if (bucketComparison != 0)
             {
-                return unlockComparison;
+                return bucketComparison;
+            }
+
+            if (aBucket == UnlockTimeSortBucketDatedUnlocked)
+            {
+                var aUnlockTime = GetRealUnlockTimeOrMinValue(a?.UnlockTimeUtc);
+                var bUnlockTime = GetRealUnlockTimeOrMinValue(b?.UnlockTimeUtc);
+                var unlockComparison = direction == ListSortDirection.Ascending
+                    ? aUnlockTime.CompareTo(bUnlockTime)
+                    : bUnlockTime.CompareTo(aUnlockTime);
+                if (unlockComparison != 0)
+                {
+                    return unlockComparison;
+                }
             }
 
             var tieBreakComparison = CompareUnlockTieBreakers(a, b, scope);
@@ -1010,6 +1025,38 @@ namespace PlayniteAchievements.Services.Achievements
             }
 
             return (b?.Points ?? 0).CompareTo(a?.Points ?? 0);
+        }
+
+        private static int GetUnlockTimeSortBucket(AchievementDisplayItem item)
+        {
+            return GetUnlockTimeSortBucket(item?.Unlocked == true, item?.UnlockTimeUtc);
+        }
+
+        private static int GetUnlockTimeSortBucket(AchievementDetail item)
+        {
+            return GetUnlockTimeSortBucket(item?.Unlocked == true, item?.UnlockTimeUtc);
+        }
+
+        private static int GetUnlockTimeSortBucket(bool unlocked, DateTime? unlockTimeUtc)
+        {
+            if (!unlocked)
+            {
+                return UnlockTimeSortBucketLocked;
+            }
+
+            return HasRealUnlockTime(unlockTimeUtc)
+                ? UnlockTimeSortBucketDatedUnlocked
+                : UnlockTimeSortBucketBlankUnlocked;
+        }
+
+        private static bool HasRealUnlockTime(DateTime? unlockTimeUtc)
+        {
+            return unlockTimeUtc.HasValue && unlockTimeUtc.Value != DateTime.MinValue;
+        }
+
+        private static DateTime GetRealUnlockTimeOrMinValue(DateTime? unlockTimeUtc)
+        {
+            return HasRealUnlockTime(unlockTimeUtc) ? unlockTimeUtc.Value : DateTime.MinValue;
         }
 
         private static int CompareByTrophyType(
@@ -1093,6 +1140,7 @@ namespace PlayniteAchievements.Services.Achievements
             item.PointsValue = detail?.ScaledPoints ?? detail?.Points;
             item.CategoryType = AchievementCategoryTypeHelper.NormalizeOrDefault(detail?.CategoryType);
             item.CategoryLabel = AchievementCategoryTypeHelper.NormalizeCategoryOrDefault(detail?.Category);
+            item.CategoryOrderIndex = detail?.CategoryOrderIndex ?? int.MaxValue;
             return item;
         }
 
@@ -1102,8 +1150,12 @@ namespace PlayniteAchievements.Services.Achievements
             bool includeGameNameTieBreak)
         {
             IOrderedEnumerable<AchievementDetail> ordered = direction == ListSortDirection.Ascending
-                ? items.OrderBy(a => a?.UnlockTimeUtc ?? DateTime.MinValue)
-                : items.OrderByDescending(a => a?.UnlockTimeUtc ?? DateTime.MinValue);
+                ? items
+                    .OrderBy(GetUnlockTimeSortBucket)
+                    .ThenBy(a => GetRealUnlockTimeOrMinValue(a?.UnlockTimeUtc))
+                : items
+                    .OrderBy(GetUnlockTimeSortBucket)
+                    .ThenByDescending(a => GetRealUnlockTimeOrMinValue(a?.UnlockTimeUtc));
 
             ordered = ordered
                 .ThenByDescending(a => HasProgress(a?.ProgressNum, a?.ProgressDenom))

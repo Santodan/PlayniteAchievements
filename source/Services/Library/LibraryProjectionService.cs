@@ -4,6 +4,7 @@ using System.ComponentModel;
 using System.Threading;
 using System.Threading.Tasks;
 using Playnite.SDK;
+using PlayniteAchievements.Common;
 using PlayniteAchievements.Models;
 using PlayniteAchievements.Models.Achievements;
 using PlayniteAchievements.Models.ThemeIntegration;
@@ -19,6 +20,7 @@ namespace PlayniteAchievements.Services.Library
     internal sealed class LibraryProjectionService : IDisposable
     {
         private const int WarmDebounceMs = 1500;
+        private static readonly TimeSpan MinEagerWarmInterval = TimeSpan.FromSeconds(30);
 
         private readonly object _sync = new object();
         private readonly AchievementDataService _achievementDataService;
@@ -27,11 +29,16 @@ namespace PlayniteAchievements.Services.Library
         private readonly ICacheManager _cacheManager;
         private readonly GameCustomDataStore _customDataStore;
         private readonly PlayniteAchievementsSettings _settings;
+        private readonly Func<bool> _isRefreshActive;
         private readonly ILogger _logger;
         private readonly Dictionary<string, LibraryProjectionSnapshot> _cache =
             new Dictionary<string, LibraryProjectionSnapshot>(StringComparer.Ordinal);
+        private readonly Dictionary<string, InFlightBuild> _inFlight =
+            new Dictionary<string, InFlightBuild>(StringComparer.Ordinal);
         private int _cacheGeneration;
         private int _warmGeneration;
+        private DateTime _lastWarmStartedUtc;
+        private bool _warmSuppressed;
         private bool _disposed;
 
         public LibraryProjectionService(
@@ -41,7 +48,8 @@ namespace PlayniteAchievements.Services.Library
             PlayniteAchievementsSettings settings,
             ICacheManager cacheManager,
             GameCustomDataStore customDataStore,
-            ILogger logger)
+            ILogger logger,
+            Func<bool> isRefreshActive = null)
         {
             _achievementDataService = achievementDataService ?? throw new ArgumentNullException(nameof(achievementDataService));
             _providers = providers ?? new List<IDataProvider>();
@@ -49,6 +57,7 @@ namespace PlayniteAchievements.Services.Library
             _cacheManager = cacheManager;
             _customDataStore = customDataStore;
             _settings = settings;
+            _isRefreshActive = isRefreshActive;
             _logger = logger;
 
             if (_cacheManager != null)
@@ -70,14 +79,12 @@ namespace PlayniteAchievements.Services.Library
 
         public OverviewDataSnapshot GetOverviewSnapshot(
             PlayniteAchievementsSettings settings,
-            ISet<string> revealedKeys,
             CancellationToken token)
         {
-            var useCache = revealedKeys == null || revealedKeys.Count == 0;
             var snapshot = GetOrBuild(
                 "overview",
-                useCache,
-                () => BuildOverview(settings ?? _settings, revealedKeys, token));
+                useCache: true,
+                build: () => BuildOverview(settings ?? _settings, token));
             return snapshot?.OverviewSnapshot ?? new OverviewDataSnapshot();
         }
 
@@ -130,9 +137,29 @@ namespace PlayniteAchievements.Services.Library
             ScheduleWarm();
         }
 
+        // While a game session is active the background warm is skipped: the in-game poller's
+        // periodic saves would otherwise rebuild the whole-library projection every tick, and that
+        // rebuild holds the store lock long enough to stall UI-thread cache reads. Invalidate()
+        // still clears the snapshot cache on every delta, so on-demand consumers always rebuild
+        // with fresh data; only the precompute is dropped. The post-session warm comes from the
+        // stopped-game refresh's own cache delta (or an explicit Warm() when that refresh is
+        // skipped), so deactivation itself schedules nothing.
+        public void SetGameSessionActive(bool active)
+        {
+            lock (_sync)
+            {
+                _warmSuppressed = active;
+            }
+        }
+
         public void Dispose()
         {
             _disposed = true;
+
+            lock (_sync)
+            {
+                _inFlight.Clear();
+            }
 
             if (_cacheManager != null)
             {
@@ -156,9 +183,19 @@ namespace PlayniteAchievements.Services.Library
             bool useCache,
             Func<LibraryProjectionSnapshot> build)
         {
-            int generation = 0;
-            if (useCache)
+            if (!useCache)
             {
+                // Caller-specific builds (e.g. overview with revealed spoiler keys) capture
+                // per-caller state and must never be shared or cached.
+                ThrowIfDisposed();
+                return build() ?? new LibraryProjectionSnapshot();
+            }
+
+            while (true)
+            {
+                InFlightBuild flight;
+                bool owner = false;
+
                 lock (_sync)
                 {
                     ThrowIfDisposed();
@@ -167,34 +204,75 @@ namespace PlayniteAchievements.Services.Library
                         return cached;
                     }
 
-                    generation = _cacheGeneration;
-                }
-            }
-            else
-            {
-                ThrowIfDisposed();
-            }
-
-            var snapshot = build() ?? new LibraryProjectionSnapshot();
-
-            if (useCache)
-            {
-                lock (_sync)
-                {
-                    ThrowIfDisposed();
-                    if (generation == _cacheGeneration)
+                    var generation = _cacheGeneration;
+                    if (_inFlight.TryGetValue(key, out var existing) && existing.Generation == generation)
                     {
-                        _cache[key] = snapshot;
+                        flight = existing;
+                    }
+                    else
+                    {
+                        // Either no build is running for this key, or the running one started
+                        // before the latest Invalidate(). Start a fresh build; a superseded
+                        // build keeps running but fails the ReferenceEquals check below, so its
+                        // result is returned to its own callers without being stored as current.
+                        flight = new InFlightBuild
+                        {
+                            Generation = generation,
+                            Task = Task.Run(build)
+                        };
+                        _inFlight[key] = flight;
+                        owner = true;
                     }
                 }
-            }
 
-            return snapshot;
+                LibraryProjectionSnapshot snapshot = null;
+                try
+                {
+                    try
+                    {
+                        snapshot = flight.Task.GetAwaiter().GetResult() ?? new LibraryProjectionSnapshot();
+                    }
+                    catch when (!owner)
+                    {
+                        // A joined build faulted or was canceled via its owner's token. Retry
+                        // instead of propagating another caller's exception; the next iteration
+                        // finds a cached snapshot, joins a newer build, or becomes the owner.
+                        snapshot = null;
+                    }
+                }
+                finally
+                {
+                    lock (_sync)
+                    {
+                        if (_inFlight.TryGetValue(key, out var current) && ReferenceEquals(current, flight))
+                        {
+                            _inFlight.Remove(key);
+                            if (snapshot != null && flight.Generation == _cacheGeneration)
+                            {
+                                _cache[key] = snapshot;
+                            }
+                        }
+                    }
+                }
+
+                if (snapshot != null)
+                {
+                    return snapshot;
+                }
+            }
+        }
+
+        // Shares one build per cache key across concurrent callers. Without this, a burst of
+        // invalidations (e.g. per-game saves during a bulk refresh) spawns overlapping
+        // whole-library builds whose combined allocations can exhaust memory.
+        private sealed class InFlightBuild
+        {
+            public Task<LibraryProjectionSnapshot> Task;
+            public int Generation;
         }
 
         private LibraryProjectionSnapshot BuildOverview(
             PlayniteAchievementsSettings settings,
-            ISet<string> revealedKeys,
             CancellationToken token)
         {
             var builder = new OverviewDataBuilder(
@@ -205,7 +283,7 @@ namespace PlayniteAchievements.Services.Library
 
             return new LibraryProjectionSnapshot
             {
-                OverviewSnapshot = builder.Build(settings, revealedKeys, token)
+                OverviewSnapshot = builder.Build(settings, token)
             };
         }
 
@@ -219,7 +297,7 @@ namespace PlayniteAchievements.Services.Library
                 return new LibraryProjectionSnapshot
                 {
                     UsedCachedSummary = true,
-                    LibraryState = LibraryRuntimeStateBuilder.BuildFromCachedSummary(summaryData, _api, token)
+                    LibraryState = LibraryRuntimeStateBuilder.BuildFromCachedSummary(summaryData, _api, token, _customDataStore)
                 };
             }
 
@@ -271,6 +349,27 @@ namespace PlayniteAchievements.Services.Library
 
         private void ScheduleWarm()
         {
+            lock (_sync)
+            {
+                if (_warmSuppressed)
+                {
+                    return;
+                }
+            }
+
+            // During a bulk refresh every per-game save invalidates the projection; eagerly
+            // rebuilding the whole-library snapshot after each one is wasted work (and the
+            // rebuild storm can exhaust memory). Invalidate() has already cleared the cache, so
+            // on-demand consumers still rebuild with fresh data mid-refresh; only the precompute
+            // is skipped. No end-of-refresh warm is needed here: RefreshRuntime ends the run
+            // (making this predicate false) before raising CacheInvalidated, so the final
+            // invalidation schedules the one post-refresh warm. Invoked outside _sync because
+            // the predicate takes the refresh state manager's own lock.
+            if (_isRefreshActive?.Invoke() == true)
+            {
+                return;
+            }
+
             var generation = Interlocked.Increment(ref _warmGeneration);
             _ = WarmAfterDelayAsync(generation);
         }
@@ -279,16 +378,39 @@ namespace PlayniteAchievements.Services.Library
         {
             try
             {
-                await Task.Delay(WarmDebounceMs).ConfigureAwait(false);
+                // Rate-limit eager warms in addition to the debounce. A trickle of
+                // invalidations spaced wider than the debounce (e.g. per-game Playnite
+                // ItemUpdated events while post-refresh tag sync drains) would otherwise
+                // trigger a whole-library rebuild per event, and each rebuild holds the
+                // cache lock long enough to stall concurrent per-game reads. Invalidate()
+                // has already cleared the cache, so on-demand consumers stay fresh; only
+                // the precompute is deferred until the interval elapses, and the trailing
+                // warm still runs after the last invalidation.
+                var delay = TimeSpan.FromMilliseconds(WarmDebounceMs);
+                lock (_sync)
+                {
+                    var untilNextWarm = MinEagerWarmInterval - (DateTime.UtcNow - _lastWarmStartedUtc);
+                    if (untilNextWarm > delay)
+                    {
+                        delay = untilNextWarm;
+                    }
+                }
+
+                await Task.Delay(delay).ConfigureAwait(false);
                 if (_disposed || generation != Volatile.Read(ref _warmGeneration))
                 {
                     return;
                 }
 
-                GetOverviewSnapshot(
-                    _settings,
-                    new HashSet<string>(StringComparer.OrdinalIgnoreCase),
-                    CancellationToken.None);
+                lock (_sync)
+                {
+                    _lastWarmStartedUtc = DateTime.UtcNow;
+                }
+
+                using (PerfScope.StartStartup(_logger, "Warm.OverviewProjection", thresholdMs: 250))
+                {
+                    GetOverviewSnapshot(_settings, CancellationToken.None);
+                }
             }
             catch (Exception ex)
             {

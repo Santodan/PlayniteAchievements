@@ -6,9 +6,11 @@ using PlayniteAchievements.Models;
 using PlayniteAchievements.Models.Achievements;
 using PlayniteAchievements.Models.Settings;
 using PlayniteAchievements.Providers;
+using PlayniteAchievements.Providers.EmuLibrary;
 using PlayniteAchievements.Providers.RPCS3;
 using PlayniteAchievements.Services;
 using PlayniteAchievements.Services.GameCustomData;
+using PlayniteAchievements.Tests.Providers;
 using System;
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
@@ -143,14 +145,90 @@ namespace PlayniteAchievements.Providers.Tests
 
                 var data = await RefreshSingleGameAsync(provider, game).ConfigureAwait(false);
 
-                Assert.IsNotNull(data);
-                Assert.AreEqual("RPCS3", data.ProviderKey);
-                Assert.IsFalse(data.HasAchievements);
-                Assert.AreEqual(0, data.Achievements.Count);
+                // Trophy data for the override was not located: no payload is produced,
+                // so previously cached achievements are preserved instead of being wiped.
+                Assert.IsNull(data);
             }
             finally
             {
                 PlayniteAchievementsPlugin.Instance = previousPlugin;
+                DeleteDirectory(tempDir);
+            }
+        }
+
+        [TestMethod]
+        public async Task RefreshAsync_UninstalledEmuLibraryGame_ResolvesTrophySourceFromDecodedPath()
+        {
+            var tempDir = CreateTempDirectory();
+            var rpcs3Root = Path.Combine(tempDir, "rpcs3");
+            var networkRoot = Path.Combine(tempDir, "network", "PS3");
+
+            try
+            {
+                CreateRpcs3TrophyData(rpcs3Root, "NPWR12345_00", "Single Game", "Single Trophy");
+                CreateTrpFile(
+                    Path.Combine(networkRoot, "Game Dump", "PS3_GAME", "TROPHY", "TROPHY.TRP"),
+                    "NPWR12345_00",
+                    "Single Game",
+                    "Single Trophy");
+
+                var extensionsDataPath = Path.Combine(tempDir, "ExtensionsData");
+                var mappingId = Guid.NewGuid();
+                EmuLibraryPathResolverTests.WriteConfig(extensionsDataPath, mappingId, networkRoot);
+
+                // Uninstalled EmuLibrary game: no install directory or roms, only the
+                // serialized EmuLibrary game id. The name deliberately does not match the
+                // trophy title so only the decoded source path can resolve it.
+                var game = EmuLibraryPathResolverTests.BuildEmuLibraryGame(new EmuLibraryMultiFileGameInfo
+                {
+                    MappingId = mappingId,
+                    SourceBaseDir = "Game Dump",
+                    SourceFilePath = @"Game Dump\PS3_GAME\USRDIR\EBOOT.BIN"
+                });
+                game.Id = Guid.NewGuid();
+                game.Name = "Renamed Library Entry";
+
+                var provider = CreateProvider(rpcs3Root, extensionsDataPath);
+
+                var data = await RefreshSingleGameAsync(provider, game).ConfigureAwait(false);
+
+                Assert.IsNotNull(data);
+                Assert.IsTrue(data.HasAchievements);
+                Assert.AreEqual("Single Trophy", data.Achievements[0].DisplayName);
+            }
+            finally
+            {
+                DeleteDirectory(tempDir);
+            }
+        }
+
+        [TestMethod]
+        public async Task RefreshAsync_UnlocatableGame_ReturnsNoPayloadSoCacheIsPreserved()
+        {
+            var tempDir = CreateTempDirectory();
+            var rpcs3Root = Path.Combine(tempDir, "rpcs3");
+
+            try
+            {
+                // Trophy data exists for some other game so the scan is not skipped outright.
+                CreateRpcs3TrophyData(rpcs3Root, "NPWR22222_00", "Detected Game", "Detected Trophy");
+
+                var provider = CreateProvider(rpcs3Root);
+
+                // Uninstalled game: no install directory, roms, or matching title name.
+                var game = new Game
+                {
+                    Id = Guid.NewGuid(),
+                    Name = "Completely Unrelated Title",
+                    InstallDirectory = null
+                };
+
+                var data = await RefreshSingleGameAsync(provider, game).ConfigureAwait(false);
+
+                Assert.IsNull(data);
+            }
+            finally
+            {
                 DeleteDirectory(tempDir);
             }
         }
@@ -740,7 +818,7 @@ BCUS98246: 'D:\RPCS3\Other Collection.iso' # trailing comment
             return captured;
         }
 
-        private static Rpcs3DataProvider CreateProvider(string rpcs3Root)
+        private static Rpcs3DataProvider CreateProvider(string rpcs3Root, string extensionsDataPath = null)
         {
             var settings = new PlayniteAchievementsSettings();
             var registry = new ProviderRegistry(settings, new[] { "RPCS3" });
@@ -748,7 +826,7 @@ BCUS98246: 'D:\RPCS3\Other Collection.iso' # trailing comment
             providerSettings.ExecutablePath = Path.Combine(rpcs3Root, "rpcs3.exe");
             registry.Save(providerSettings);
 
-            return new Rpcs3DataProvider(new FakeLogger(), settings, new FakePlayniteApi());
+            return new Rpcs3DataProvider(new FakeLogger(), settings, new FakePlayniteApi(extensionsDataPath));
         }
 
         private static void CreateRpcs3TrophyData(string rpcs3Root, string npCommId, string titleName, string trophyName)
@@ -911,10 +989,15 @@ BCUS98246: 'D:\RPCS3\Other Collection.iso' # trailing comment
 
         private sealed class FakePlayniteApi : IPlayniteAPI
         {
+            public FakePlayniteApi(string extensionsDataPath = null)
+            {
+                Paths = extensionsDataPath == null ? null : new FakePathsApi(extensionsDataPath);
+            }
+
             public IMainViewAPI MainView => null;
             public IGameDatabaseAPI Database => null;
             public IDialogsFactory Dialogs => null;
-            public IPlaynitePathsAPI Paths => null;
+            public IPlaynitePathsAPI Paths { get; }
             public INotificationsAPI Notifications => null;
             public IPlayniteInfoAPI ApplicationInfo => null;
             public IWebViewFactory WebViews => null;
@@ -933,6 +1016,19 @@ BCUS98246: 'D:\RPCS3\Other Collection.iso' # trailing comment
             public void AddCustomElementSupport(Plugin plugin, AddCustomElementSupportArgs args) { }
             public void AddSettingsSupport(Plugin plugin, AddSettingsSupportArgs args) { }
             public void AddConvertersSupport(Plugin plugin, AddConvertersSupportArgs args) { }
+        }
+
+        private sealed class FakePathsApi : IPlaynitePathsAPI
+        {
+            public FakePathsApi(string extensionsDataPath)
+            {
+                ExtensionsDataPath = extensionsDataPath;
+            }
+
+            public bool IsPortable => false;
+            public string ApplicationPath => null;
+            public string ConfigurationPath => null;
+            public string ExtensionsDataPath { get; }
         }
     }
 }

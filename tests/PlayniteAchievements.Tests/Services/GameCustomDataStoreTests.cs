@@ -126,6 +126,46 @@ namespace PlayniteAchievements.Services.Tests
         }
 
         [TestMethod]
+        public void Save_GameSummaryCategoryOnly_RoundTripsAndIsVisibleCustomization()
+        {
+            var tempDir = CreateTempDirectory();
+            var gameId = Guid.NewGuid();
+
+            try
+            {
+                var store = new GameCustomDataStore(tempDir);
+                store.Update(gameId, customData =>
+                {
+                    customData.GameSummaryCategory = new GameSummaryCategoryData
+                    {
+                        Label = " My Renamed DLC ",
+                        ProviderLabel = "Phantom Liberty"
+                    };
+                });
+
+                Assert.IsTrue(store.TryLoad(gameId, out var loaded));
+                Assert.IsNotNull(loaded.GameSummaryCategory);
+                Assert.AreEqual("My Renamed DLC", loaded.GameSummaryCategory.Label);
+                Assert.AreEqual("Phantom Liberty", loaded.GameSummaryCategory.ProviderLabel);
+                Assert.IsTrue(GameCustomDataNormalizer.HasVisibleCustomization(loaded));
+
+                store.Update(gameId, customData =>
+                {
+                    customData.GameSummaryCategory = null;
+                });
+
+                if (store.TryLoad(gameId, out var cleared))
+                {
+                    Assert.IsNull(cleared.GameSummaryCategory);
+                }
+            }
+            finally
+            {
+                DeleteDirectory(tempDir);
+            }
+        }
+
+        [TestMethod]
         public void Save_RetroAchievementsOverrideOnly_IsVisibleCustomization()
         {
             var tempDir = CreateTempDirectory();

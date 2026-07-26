@@ -3,6 +3,7 @@ using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
 using Playnite.SDK;
+using PlayniteAchievements.Common;
 using PlayniteAchievements.Services;
 using PlayniteAchievements.Services.Achievements;
 using PlayniteAchievements.Views.Helpers;
@@ -109,13 +110,11 @@ namespace PlayniteAchievements.Views.Dialogs
         {
             if (CharacterCountTextBlock != null)
             {
-                var format = L(
-                    "LOCPlayAch_NotesDialog_CharacterCountFormat",
-                    "{0} / {1} characters");
+                var format = L("LOCPlayAch_NotesDialog_CharacterCountFormat");
                 CharacterCountTextBlock.Text = string.Format(
                     format,
-                    (NoteText ?? string.Empty).Length,
-                    AchievementNoteHelper.MaxNoteLength);
+                    (NoteText ?? string.Empty).Length.ToString("N0", FormattingCulture.Current),
+                    AchievementNoteHelper.MaxNoteLength.ToString("N0", FormattingCulture.Current));
             }
 
             if (ClearButton != null)
@@ -225,10 +224,9 @@ namespace PlayniteAchievements.Views.Dialogs
             }
         }
 
-        private static string L(string key, string fallback)
+        private static string L(string key)
         {
-            var value = ResourceProvider.GetString(key);
-            return string.IsNullOrWhiteSpace(value) ? fallback : value;
+            return ResourceProvider.GetString(key);
         }
     }
 }

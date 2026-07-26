@@ -104,6 +104,25 @@ namespace PlayniteAchievements.ViewModels
             }
         }
 
+        public bool IncludeUnownedFriendGames
+        {
+            get => _settings?.Persisted?.IncludeUnownedFriendGames == true;
+            set
+            {
+                var persisted = _settings?.Persisted;
+                if (persisted == null || persisted.IncludeUnownedFriendGames == value)
+                {
+                    return;
+                }
+
+                persisted.IncludeUnownedFriendGames = value;
+                OnPropertyChanged();
+                // Debounce the persist/sync fan-out (settings serialization, cache sync, theme
+                // refresh) so rapid checkbox toggles stay responsive.
+                SchedulePersistAndNotify(null);
+            }
+        }
+
         public bool IsExophaseProviderEnabled => _exophaseSettings?.IsEnabled == true;
 
         public string ManualExophaseUsername
@@ -375,8 +394,7 @@ namespace PlayniteAchievements.ViewModels
             var group = _settings.Persisted?.AddOrUpdateFriendMergeGroup(accounts, nickname, avatar);
             if (group == null)
             {
-                StatusText = ResourceProvider.GetString("LOCPlayAch_FriendsSettings_MergeInvalid") ??
-                             "Select at least two friends from different platforms to merge.";
+                StatusText = ResourceProvider.GetString("LOCPlayAch_FriendsSettings_MergeInvalid");
                 return;
             }
 
@@ -423,8 +441,7 @@ namespace PlayniteAchievements.ViewModels
                 .ToList();
             if (providerKeys.Count == 0)
             {
-                StatusText = ResourceProvider.GetString("LOCPlayAch_FriendsSettings_NoAutoProviders") ??
-                             "No auto-discovery platforms are enabled.";
+                StatusText = ResourceProvider.GetString("LOCPlayAch_FriendsSettings_NoAutoProviders");
                 return;
             }
 
@@ -464,7 +481,7 @@ namespace PlayniteAchievements.ViewModels
             {
                 var resolvedProviderKeys = providerKeys ?? Array.Empty<string>();
                 IsBusy = true;
-                StatusText = ResourceProvider.GetString("LOCPlayAch_Status_Starting") ?? "Starting...";
+                StatusText = ResourceProvider.GetString("LOCPlayAch_Status_Starting");
                 var saved = await _plugin.RefreshRuntime
                     .RefreshFriendRosterAsync(resolvedProviderKeys, CancellationToken.None)
                     .ConfigureAwait(true);
@@ -486,8 +503,7 @@ namespace PlayniteAchievements.ViewModels
                 PersistAndNotify(null);
                 StatusText = refreshStatus
                     ? string.Format(
-                        ResourceProvider.GetString("LOCPlayAch_FriendsSettings_RefreshCompleteFormat") ??
-                        "Friends refreshed: {0:N0}.",
+                        ResourceProvider.GetString("LOCPlayAch_FriendsSettings_RefreshCompleteFormat"),
                         Math.Max(0, saved))
                     : null;
             }
@@ -873,7 +889,7 @@ namespace PlayniteAchievements.ViewModels
         public string AccountsText => string.Join(", ", Accounts.Select(account => account.ProviderDisplayName));
 
         public string SortProviderName => IsMerged
-            ? ResourceProvider.GetString("LOCPlayAch_FriendsSettings_Merged") ?? "Merged"
+            ? ResourceProvider.GetString("LOCPlayAch_FriendsSettings_Merged")
             : Accounts.FirstOrDefault()?.ProviderDisplayName;
 
         public bool IsIgnored => Accounts.Count > 0 && Accounts.All(account => account.IsIgnored);

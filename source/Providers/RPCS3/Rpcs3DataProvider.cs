@@ -37,12 +37,10 @@ namespace PlayniteAchievements.Providers.RPCS3
     {
         public ProviderOverrideDescriptor OverrideDescriptor { get; } = ProviderOverrideDescriptor.Text(
             "LOCPlayAch_ManageAchievements_Overrides_ProviderValueLabel_RPCS3",
-            "RPCS3 NP Comm ID",
             raw => Rpcs3MatchIdHelper.TryNormalize(raw, out var matchId)
                 ? ProviderOverrideValidation.Valid(matchId)
                 : ProviderOverrideValidation.Invalid(
-                    "LOCPlayAch_Menu_Rpcs3MatchId_InvalidId",
-                    "Please enter a valid RPCS3 trophy NP Comm ID such as NPWR12345_00."));
+                    "LOCPlayAch_Menu_Rpcs3MatchId_InvalidId"));
 
         private readonly Rpcs3Scanner _scanner;
         private readonly PlayniteAchievementsSettings _settings;
@@ -122,17 +120,13 @@ namespace PlayniteAchievements.Providers.RPCS3
             {
                 LogDiag("[RPCS3-DIAG] ValidateRpcs3Path: FAILED - path is empty");
                 result.ErrorMessage = ResourceProvider.GetString("LOCPlayAch_InvalidPath");
-                if (string.IsNullOrWhiteSpace(result.ErrorMessage))
-                    result.ErrorMessage = "Path is required.";
                 return result;
             }
 
             if (!Directory.Exists(path))
             {
                 LogDiag($"[RPCS3-DIAG] ValidateRpcs3Path: FAILED - directory does not exist: '{path}'");
-                result.ErrorMessage = string.Format(
-                    ResourceProvider.GetString("LOCPlayAch_InvalidPath") ?? "Directory does not exist: {0}",
-                    path);
+                result.ErrorMessage = ResourceProvider.GetString("LOCPlayAch_InvalidPath");
                 return result;
             }
 

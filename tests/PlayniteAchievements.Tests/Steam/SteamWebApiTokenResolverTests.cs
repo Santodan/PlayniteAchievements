@@ -59,6 +59,22 @@ namespace PlayniteAchievements.Steam.Tests
         }
 
         [TestMethod]
+        public async Task ResolveAsync_PreservesTransientFailureOutcome()
+        {
+            var resolver = new SteamWebApiTokenResolver(
+                new FakeSessionManager(),
+                _ => Task.FromResult(SteamWebAuthSession.TransientFailure(AuthOutcome.TimedOut)),
+                logger: null);
+
+            var result = await resolver.ResolveAsync(CancellationToken.None).ConfigureAwait(false);
+
+            Assert.IsFalse(result.IsSuccess);
+            Assert.AreEqual(AuthOutcome.TimedOut, result.ProbeResult.Outcome);
+            Assert.IsTrue(string.IsNullOrWhiteSpace(result.UserId));
+            Assert.IsTrue(string.IsNullOrWhiteSpace(result.Token));
+        }
+
+        [TestMethod]
         public async Task ResolveAsync_DoesNotCacheSuccessfulResolution()
         {
             var resolveCalls = 0;

@@ -22,7 +22,7 @@
     <TabControl x:Name="CategorySubTabs"
                 BorderThickness="0"
                 Background="Transparent">
-        <TabItem Header="Assign Achievements">
+        <TabItem Header="{DynamicResource LOCPlayAch_ManageAchievements_Category_Tab_Assign}">
     <Grid Margin="0">
         <Grid.RowDefinitions>
             <RowDefinition Height="Auto" />
@@ -134,6 +134,7 @@
                    Visibility="{Binding HasAchievements, Converter={StaticResource InverseBoolToVis}}" />
 
         <DataGrid x:Name="CategoryDataGrid"
+                  Style="{StaticResource PlayAch.DataGrid.BaseStyle}"
                   Grid.Row="2"
                   Margin="0,2,0,0"
                   ItemsSource="{Binding AchievementRows}"
@@ -192,8 +193,7 @@
                                       HorizontalAlignment="Center"
                                       VerticalAlignment="Center"
                                       Focusable="False"
-                                      IsTabStop="False"
-                                      Click="RowSelectionCheckBox_Click"/>
+                                      IsTabStop="False"/>
                         </DataTemplate>
                     </DataGridTemplateColumn.CellTemplate>
                 </DataGridTemplateColumn>
@@ -253,33 +253,30 @@
             </DataGrid.Columns>
         </DataGrid>
 
-        <Border Grid.Row="3"
-                Background="{StaticResource PlayAch.Brush.Overlay.Shade.12}"
-                BorderBrush="{DynamicResource PlayAch.Brush.Border}"
-                BorderThickness="{StaticResource PlayAch.Thickness.Border}"
-                CornerRadius="{StaticResource PlayAch.Radius.Card}"
-                Margin="0,10,0,0"
-                Padding="10,8,10,10">
-            <Expander x:Name="BulkEditExpander"
-                      IsExpanded="False"
-                      Focusable="True"
-                      IsTabStop="False"
-                      Background="Transparent"
-                      BorderThickness="0">
-                <Expander.Header>
-                    <StackPanel>
-                        <TextBlock Text="{DynamicResource LOCPlayAch_Common_Edit}"
-                                   Foreground="{DynamicResource PlayAch.Brush.Text}"
-                                   FontWeight="SemiBold" />
-                        <TextBlock Text="{DynamicResource LOCPlayAch_ManageAchievements_Category_BulkHint}"
-                                   Foreground="{DynamicResource PlayAch.Brush.Text}"
-                                   Opacity="{StaticResource PlayAch.Opacity.Hint}"
-                                   FontSize="{DynamicResource PlayAch.FontSize.Caption}"
-                                   Margin="0,3,0,0" />
-                    </StackPanel>
-                </Expander.Header>
+        <Expander Grid.Row="3"
+                  x:Name="BulkEditExpander"
+                  IsExpanded="False"
+                  Focusable="True"
+                  IsTabStop="False"
+                  Background="{StaticResource PlayAch.Brush.Overlay.Shade.12}"
+                  BorderBrush="{DynamicResource PlayAch.Brush.Border}"
+                  BorderThickness="{StaticResource PlayAch.Thickness.Border}"
+                  Margin="0,10,0,0"
+                  Padding="10,8,10,10">
+            <Expander.Header>
+                <StackPanel>
+                    <TextBlock Text="{DynamicResource LOCPlayAch_Common_Edit}"
+                               Foreground="{DynamicResource PlayAch.Brush.Text}"
+                               FontWeight="SemiBold" />
+                    <TextBlock Text="{DynamicResource LOCPlayAch_ManageAchievements_Category_BulkHint}"
+                               Foreground="{DynamicResource PlayAch.Brush.Text}"
+                               Opacity="{StaticResource PlayAch.Opacity.Hint}"
+                               FontSize="{DynamicResource PlayAch.FontSize.Caption}"
+                               Margin="0,3,0,0" />
+                </StackPanel>
+            </Expander.Header>
 
-                <Grid Margin="{StaticResource PlayAch.Thickness.Top.Sm}">
+            <Grid Margin="{StaticResource PlayAch.Thickness.Top.Sm}">
                     <Grid.ColumnDefinitions>
                         <ColumnDefinition Width="*" />
                         <ColumnDefinition Width="Auto" />
@@ -360,13 +357,12 @@
                             Padding="{StaticResource PlayAch.Thickness.ButtonPadding}"
                             Height="{StaticResource PlayAch.Size.Control.Height}"
                             Margin="8,8,0,0" />
-                </Grid>
-            </Expander>
-        </Border>
+            </Grid>
+        </Expander>
     </Grid>
         </TabItem>
 
-        <TabItem Header="Manage Categories">
+        <TabItem Header="{DynamicResource LOCPlayAch_ManageAchievements_Category_Context_ManageCategories}">
             <Grid Margin="0">
                 <Grid.RowDefinitions>
                     <RowDefinition Height="Auto" />
@@ -383,9 +379,9 @@
                         </Grid.ColumnDefinitions>
 
                         <StackPanel Grid.Column="0">
-                            <TextBlock Text="Manage Categories"
+                            <TextBlock Text="{DynamicResource LOCPlayAch_ManageAchievements_Category_Context_ManageCategories}"
                                        Style="{StaticResource ManageAchievementsHeaderTitleStyle}" />
-                            <TextBlock Text="Rename categories, choose category images, and drag categories into their display order."
+                            <TextBlock Text="{DynamicResource LOCPlayAch_ManageAchievements_Category_ManageHint}"
                                        Style="{StaticResource ManageAchievementsHeaderHintStyle}" />
                             <TextBlock Text="{Binding CategoryImageStatusText}"
                                        Style="{StaticResource StatusTextStyle}"
@@ -399,18 +395,6 @@
                                     Margin="{StaticResource PlayAch.Thickness.Left.Md}">
                             <WrapPanel Orientation="Horizontal"
                                        HorizontalAlignment="Right">
-                                <Button x:Name="RevertCategoryImagesButton"
-                                        Content="{DynamicResource LOCPlayAch_Common_RevertChanges}"
-                                        Command="{Binding RevertCategoryImageChangesCommand}"
-                                        Style="{StaticResource ToolbarButtonStyle}" />
-                                <Button x:Name="ClearCategoryImagesButton"
-                                        Content="{DynamicResource LOCPlayAch_Common_ClearOverrides}"
-                                        Command="{Binding ClearCategoryImagesCommand}"
-                                        Style="{StaticResource ToolbarButtonStyle}" />
-                                <Button x:Name="SaveCategoryImagesButton"
-                                        Content="{DynamicResource LOCPlayAch_Button_Save}"
-                                        Command="{Binding SaveCategoryImagesCommand}"
-                                        Padding="{StaticResource PlayAch.Thickness.ButtonPadding}" />
                                 <Button x:Name="ResetCategoryMetadataButton"
                                         Content="{DynamicResource LOCPlayAch_Button_Reset}"
                                         Click="ResetCategoryMetadataButton_Click"
@@ -437,6 +421,7 @@
                            Visibility="{Binding HasAchievements, Converter={StaticResource InverseBoolToVis}}" />
 
                 <DataGrid x:Name="CategoryManagerDataGrid"
+                          Style="{StaticResource PlayAch.DataGrid.BaseStyle}"
                           Grid.Row="2"
                           ItemsSource="{Binding CategoryRows}"
                           AutoGenerateColumns="False"
@@ -504,7 +489,7 @@
                             </DataGridTemplateColumn.CellTemplate>
                         </DataGridTemplateColumn>
 
-                        <DataGridTemplateColumn Width="1.2*" MinWidth="140" Header="{DynamicResource LOCPlayAch_Common_Label_Category}">
+                        <DataGridTemplateColumn Width="3*" MinWidth="260" Header="{DynamicResource LOCPlayAch_Common_Label_Category}">
                             <DataGridTemplateColumn.CellTemplate>
                                 <DataTemplate>
                                     <StackPanel VerticalAlignment="Center">
@@ -513,6 +498,7 @@
                                                      Text="{Binding RenameOverrideText, Mode=TwoWay, UpdateSourceTrigger=LostFocus}"
                                                      LostFocus="CategoryRenameTextBox_LostFocus"
                                                      KeyDown="CategoryRenameTextBox_KeyDown"
+                                                     IsEnabled="{Binding IsDefaultCategory, Converter={StaticResource InvertBoolConverter}}"
                                                      Padding="6,4"
                                                      VerticalContentAlignment="Center" />
                                             <TextBlock Text="{Binding ProviderCategoryDisplay}"
@@ -547,36 +533,40 @@
                             </DataGridTemplateColumn.CellTemplate>
                         </DataGridTemplateColumn>
 
-                        <DataGridTemplateColumn Width="2*" MinWidth="220" Header="Icon">
+                        <DataGridTemplateColumn Width="4*" MinWidth="260" Header="{DynamicResource LOCPlayAch_Column_CategoryArt}">
                             <DataGridTemplateColumn.CellTemplate>
                                 <DataTemplate>
                                     <Grid VerticalAlignment="Center">
                                         <Grid.ColumnDefinitions>
-                                            <ColumnDefinition Width="44" />
+                                            <ColumnDefinition Width="96" />
                                             <ColumnDefinition Width="*" />
                                             <ColumnDefinition Width="Auto" />
                                         </Grid.ColumnDefinitions>
 
+                                        <!-- Wide box so arbitrary aspect ratios (Steam banner art,
+                                             portrait covers, square icons) stay recognizable. -->
                                         <Border Grid.Column="0"
+                                                Width="88"
+                                                Height="50"
+                                                Background="Transparent"
                                                 Style="{StaticResource PreviewBorderStyle}">
-                                            <Image Width="34"
-                                                   Height="{StaticResource PlayAch.Size.Control.Height}"
-                                                   Stretch="Uniform"
-                                                   helpers:AsyncImage.Uri="{Binding IconPreviewPath}"
-                                                   helpers:AsyncImage.DecodePixel="72" />
+                                            <Image Stretch="Uniform"
+                                                   helpers:AsyncImage.Uri="{Binding ArtPreviewPath}"
+                                                   helpers:AsyncImage.DecodePixel="-1" />
                                         </Border>
 
                                         <Grid Grid.Column="1"
+                                              VerticalAlignment="Center"
                                               Margin="{StaticResource PlayAch.Thickness.Left.Sm}">
-                                            <TextBox Text="{Binding IconOverrideText, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
-                                                     Tag="Icon"
+                                            <TextBox Text="{Binding ArtOverrideText, Mode=TwoWay, UpdateSourceTrigger=LostFocus}"
                                                      AllowDrop="True"
                                                      PreviewDragOver="CategoryImageTextBox_PreviewDragOver"
-                                                     Drop="CategoryImageTextBox_Drop">
+                                                     Drop="CategoryImageTextBox_Drop"
+                                                     KeyDown="CategoryImageTextBox_KeyDown">
                                                 <TextBox.Style>
                                                     <Style TargetType="TextBox" BasedOn="{StaticResource EditorTextBoxStyle}">
                                                         <Style.Triggers>
-                                                            <DataTrigger Binding="{Binding HasIconOverrideValidationError}" Value="True">
+                                                            <DataTrigger Binding="{Binding HasArtOverrideValidationError}" Value="True">
                                                                 <Setter Property="BorderBrush" Value="{StaticResource PlayAch.Brush.ErrorText}" />
                                                                 <Setter Property="BorderThickness" Value="2" />
                                                             </DataTrigger>
@@ -585,8 +575,7 @@
                                                 </TextBox.Style>
                                             </TextBox>
 
-                                            <Button Tag="{Binding IconOverrideText}"
-                                                    CommandParameter="Icon"
+                                            <Button Tag="{Binding ArtOverrideText}"
                                                     Style="{StaticResource ClearSearchButtonStyle}"
                                                     Focusable="True"
                                                     Click="ClearCategoryImageButton_Click" />
@@ -594,7 +583,6 @@
 
                                         <Button Grid.Column="2"
                                                 Content="..."
-                                                Tag="Icon"
                                                 ToolTip="{DynamicResource LOCPlayAch_Button_Browse}"
                                                 Style="{StaticResource InlineBrowseButtonStyle}"
                                                 Click="BrowseCategoryImageButton_Click" />
@@ -603,58 +591,54 @@
                             </DataGridTemplateColumn.CellTemplate>
                         </DataGridTemplateColumn>
 
-                        <DataGridTemplateColumn Width="2*" MinWidth="220" Header="Cover">
+                        <DataGridTemplateColumn Width="Auto"
+                                                MinWidth="96"
+                                                CanUserResize="False"
+                                                CanUserSort="False"
+                                                Header="{DynamicResource LOCPlayAch_Column_UseForGameSummaries}">
                             <DataGridTemplateColumn.CellTemplate>
                                 <DataTemplate>
-                                    <Grid VerticalAlignment="Center">
-                                        <Grid.ColumnDefinitions>
-                                            <ColumnDefinition Width="44" />
-                                            <ColumnDefinition Width="*" />
-                                            <ColumnDefinition Width="Auto" />
-                                        </Grid.ColumnDefinitions>
+                                    <!-- No GroupName: exclusivity is enforced in the view model because
+                                         recycled virtualized rows make WPF radio groups unreliable. The
+                                         OneWay binding keeps the view model the single writer; the
+                                         Preview/Key handlers toggle, enabling click-again-to-clear. -->
+                                    <RadioButton IsChecked="{Binding IsSummarySelected, Mode=OneWay}"
+                                                 PreviewMouseLeftButtonDown="SummaryCategoryRadioButton_PreviewMouseLeftButtonDown"
+                                                 KeyDown="SummaryCategoryRadioButton_KeyDown"
+                                                 ToolTip="{DynamicResource LOCPlayAch_ManageAchievements_Category_SummaryArtTooltip}"
+                                                 Focusable="True"
+                                                 HorizontalAlignment="Center"
+                                                 VerticalAlignment="Center" />
+                                </DataTemplate>
+                            </DataGridTemplateColumn.CellTemplate>
+                        </DataGridTemplateColumn>
 
-                                        <Border Grid.Column="0"
-                                                Style="{StaticResource PreviewBorderStyle}">
-                                            <Image Width="34"
-                                                   Height="{StaticResource PlayAch.Size.Control.Height}"
-                                                   Stretch="Uniform"
-                                                   helpers:AsyncImage.Uri="{Binding CoverPreviewPath}"
-                                                   helpers:AsyncImage.DecodePixel="72" />
-                                        </Border>
-
-                                        <Grid Grid.Column="1"
-                                              Margin="{StaticResource PlayAch.Thickness.Left.Sm}">
-                                            <TextBox Text="{Binding CoverOverrideText, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
-                                                     Tag="Cover"
-                                                     AllowDrop="True"
-                                                     PreviewDragOver="CategoryImageTextBox_PreviewDragOver"
-                                                     Drop="CategoryImageTextBox_Drop">
-                                                <TextBox.Style>
-                                                    <Style TargetType="TextBox" BasedOn="{StaticResource EditorTextBoxStyle}">
-                                                        <Style.Triggers>
-                                                            <DataTrigger Binding="{Binding HasCoverOverrideValidationError}" Value="True">
-                                                                <Setter Property="BorderBrush" Value="{StaticResource PlayAch.Brush.ErrorText}" />
-                                                                <Setter Property="BorderThickness" Value="2" />
-                                                            </DataTrigger>
-                                                        </Style.Triggers>
-                                                    </Style>
-                                                </TextBox.Style>
-                                            </TextBox>
-
-                                            <Button Tag="{Binding CoverOverrideText}"
-                                                    CommandParameter="Cover"
-                                                    Style="{StaticResource ClearSearchButtonStyle}"
-                                                    Focusable="True"
-                                                    Click="ClearCategoryImageButton_Click" />
-                                        </Grid>
-
-                                        <Button Grid.Column="2"
-                                                Content="..."
-                                                Tag="Cover"
-                                                ToolTip="{DynamicResource LOCPlayAch_Button_Browse}"
-                                                Style="{StaticResource InlineBrowseButtonStyle}"
-                                                Click="BrowseCategoryImageButton_Click" />
-                                    </Grid>
+                        <DataGridTemplateColumn Width="Auto"
+                                                MinWidth="90"
+                                                CanUserResize="False"
+                                                CanUserSort="False"
+                                                Header="{DynamicResource LOCPlayAch_Column_Merge}">
+                            <DataGridTemplateColumn.CellTemplate>
+                                <DataTemplate>
+                                    <Button Content="{DynamicResource LOCPlayAch_Common_Merge}"
+                                            Click="MergeCategoryButton_Click"
+                                            ToolTip="{DynamicResource LOCPlayAch_ManageAchievements_Category_MergeTooltip}"
+                                            Padding="{StaticResource PlayAch.Thickness.ButtonPadding}"
+                                            HorizontalAlignment="Center"
+                                            VerticalAlignment="Center">
+                                        <!-- IsEnabled lives in a style so the IsDefaultCategory trigger can
+                                             override it; a local IsEnabled value would always win. -->
+                                        <Button.Style>
+                                            <Style TargetType="Button" BasedOn="{StaticResource {x:Type Button}}">
+                                                <Setter Property="IsEnabled" Value="{Binding DataContext.CanMergeCategories, RelativeSource={RelativeSource AncestorType=DataGrid}}" />
+                                                <Style.Triggers>
+                                                    <DataTrigger Binding="{Binding IsDefaultCategory}" Value="True">
+                                                        <Setter Property="IsEnabled" Value="False" />
+                                                    </DataTrigger>
+                                                </Style.Triggers>
+                                            </Style>
+                                        </Button.Style>
+                                    </Button>
                                 </DataTemplate>
                             </DataGridTemplateColumn.CellTemplate>
                         </DataGridTemplateColumn>

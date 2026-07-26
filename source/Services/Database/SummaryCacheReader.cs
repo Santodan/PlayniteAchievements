@@ -27,6 +27,7 @@ namespace PlayniteAchievements.Services.Database
             public long HasAchievements { get; set; }
             public long AchievementsUnlocked { get; set; }
             public long TotalAchievements { get; set; }
+            public string LastUnlockUtc { get; set; }
             public string LastUpdatedUtc { get; set; }
             public string ProviderKey { get; set; }
             public string ProviderPlatformKey { get; set; }
@@ -99,7 +100,7 @@ namespace PlayniteAchievements.Services.Database
 
         public CachedSummaryData LoadCachedSummaryData(int recentAchievementDetailLimit = 0)
         {
-            return _store.WithDb(db =>
+            return _store.WithReadDb(db =>
             {
                 var gameRows = LoadCachedGameSummaryRows(db);
                 var scoreTotalsByCacheKey = LoadCachedScoreTotals(db, unlockedOnly: true);
@@ -132,8 +133,11 @@ namespace PlayniteAchievements.Services.Database
                         AppId = (int)Math.Max(0, row.ProviderGameId ?? 0),
                         ProviderGameKey = NormalizeProviderGameKey(row.ProviderGameKey),
                         GameName = row.GameName,
-                        HasAchievements = row.HasAchievements != 0,
+                        // Mirrors the visible-projection semantics: a game whose achievements
+                        // are all filtered away is hidden, like the per-game hydrated path.
+                        HasAchievements = row.HasAchievements != 0 && row.TotalAchievements > 0,
                         LastUpdatedUtc = ParseUtc(row.LastUpdatedUtc) ?? DateTime.UtcNow,
+                        LastUnlockUtc = ParseUtc(row.LastUnlockUtc),
                         TotalAchievements = (int)Math.Max(0, row.TotalAchievements),
                         UnlockedAchievements = (int)Math.Max(0, row.AchievementsUnlocked),
                         CollectionScore = scoreTotals.CollectionScore,
@@ -207,6 +211,11 @@ namespace PlayniteAchievements.Services.Database
 
         private static List<CachedGameSummaryRow> LoadCachedGameSummaryRows(SQLiteDatabase db)
         {
+            // Headline counts are recomputed from the joined (filter-aware) definition rows
+            // rather than read from the persisted ugp scalars, which aggregate over ALL
+            // achievements. The AchievementFilters anti-join lives INSIDE the LEFT JOIN
+            // condition so games with zero visible definitions still produce their row (the
+            // consumer hides rows whose recomputed TotalAchievements is 0).
             return db.Load<CachedGameSummaryRow>(
                 @"WITH LatestProgress AS (
                     SELECT
@@ -214,8 +223,6 @@ namespace PlayniteAchievements.Services.Database
                         ugp.GameId AS GameId,
                         TRIM(ugp.CacheKey) AS CacheKey,
                         ugp.HasAchievements AS HasAchievements,
-                        ugp.AchievementsUnlocked AS AchievementsUnlocked,
-                        ugp.TotalAchievements AS TotalAchievements,
                         ugp.LastUpdatedUtc AS LastUpdatedUtc,
                         g.ProviderKey AS ProviderKey,
                         g.ProviderPlatformKey AS ProviderPlatformKey,
@@ -237,8 +244,9 @@ namespace PlayniteAchievements.Services.Database
                 SELECT
                     lp.CacheKey AS CacheKey,
                     lp.HasAchievements AS HasAchievements,
-                    lp.AchievementsUnlocked AS AchievementsUnlocked,
-                    lp.TotalAchievements AS TotalAchievements,
+                    SUM(CASE WHEN ua.Unlocked = 1 THEN 1 ELSE 0 END) AS AchievementsUnlocked,
+                    COUNT(ad.Id) AS TotalAchievements,
+                    MAX(CASE WHEN ua.Unlocked = 1 THEN ua.UnlockTimeUtc END) AS LastUnlockUtc,
                     lp.LastUpdatedUtc AS LastUpdatedUtc,
                     lp.ProviderKey AS ProviderKey,
                     lp.ProviderPlatformKey AS ProviderPlatformKey,
@@ -264,7 +272,11 @@ namespace PlayniteAchievements.Services.Database
                     SUM(CASE WHEN LOWER(COALESCE(ad.TrophyType, '')) = 'bronze' THEN 1 ELSE 0 END) AS TrophyBronzeTotal,
                     MAX(CASE WHEN ad.IsCapstone = 1 AND ua.Unlocked = 1 THEN 1 ELSE 0 END) AS HasUnlockedCapstone
                 FROM LatestProgress lp
-                LEFT JOIN AchievementDefinitions ad ON ad.GameId = lp.GameId
+                LEFT JOIN AchievementDefinitions ad
+                    ON ad.GameId = lp.GameId
+                   AND NOT EXISTS (SELECT 1 FROM AchievementFilters af
+                                   WHERE af.PlayniteGameId = lp.PlayniteGameId
+                                     AND af.ApiName = ad.ApiName)
                 LEFT JOIN UserAchievements ua
                     ON ua.AchievementDefinitionId = ad.Id
                    AND ua.UserGameProgressId = lp.UserGameProgressId
@@ -272,8 +284,6 @@ namespace PlayniteAchievements.Services.Database
                 GROUP BY
                     lp.CacheKey,
                     lp.HasAchievements,
-                    lp.AchievementsUnlocked,
-                    lp.TotalAchievements,
                     lp.LastUpdatedUtc,
                     lp.ProviderKey,
                     lp.ProviderPlatformKey,
@@ -301,12 +311,14 @@ namespace PlayniteAchievements.Services.Database
                         ugp.Id AS UserGameProgressId,
                         ugp.GameId AS GameId,
                         TRIM(ugp.CacheKey) AS CacheKey,
+                        g.PlayniteGameId AS PlayniteGameId,
                         ROW_NUMBER() OVER (
                             PARTITION BY ugp.CacheKey
                             ORDER BY ugp.LastUpdatedUtc DESC, ugp.Id DESC
                         ) AS RowNum
                     FROM UserGameProgress ugp
                     INNER JOIN Users u ON u.Id = ugp.UserId
+                    INNER JOIN Games g ON g.Id = ugp.GameId
                     WHERE u.IsCurrentUser = 1
                       AND ugp.CacheKey IS NOT NULL
                       AND TRIM(ugp.CacheKey) <> ''
@@ -320,6 +332,9 @@ namespace PlayniteAchievements.Services.Database
                 INNER JOIN AchievementDefinitions ad ON ad.GameId = lp.GameId
                 " + userAchievementJoin + @"
                 WHERE lp.RowNum = 1
+                  AND NOT EXISTS (SELECT 1 FROM AchievementFilters af
+                                  WHERE af.PlayniteGameId = lp.PlayniteGameId
+                                    AND af.ApiName = ad.ApiName)
                 ORDER BY lp.CacheKey;").ToList();
 
             var totals = new Dictionary<string, (int CollectionScore, int PrestigeScore, int Points)>(StringComparer.OrdinalIgnoreCase);
@@ -372,7 +387,11 @@ namespace PlayniteAchievements.Services.Database
                     ON ua.UserGameProgressId = lp.UserGameProgressId
                    AND ua.Unlocked = 1
                    AND ua.UnlockTimeUtc IS NOT NULL
+                INNER JOIN AchievementDefinitions ad ON ad.Id = ua.AchievementDefinitionId
                 WHERE lp.RowNum = 1
+                  AND NOT EXISTS (SELECT 1 FROM AchievementFilters af
+                                  WHERE af.PlayniteGameId = lp.PlayniteGameId
+                                    AND af.ApiName = ad.ApiName)
                 GROUP BY
                     lp.CacheKey,
                     lp.PlayniteGameId,
@@ -436,6 +455,9 @@ namespace PlayniteAchievements.Services.Database
                    AND ua.UnlockTimeUtc IS NOT NULL
                 INNER JOIN AchievementDefinitions ad ON ad.Id = ua.AchievementDefinitionId
                 WHERE lp.RowNum = 1
+                  AND NOT EXISTS (SELECT 1 FROM AchievementFilters af
+                                  WHERE af.PlayniteGameId = lp.PlayniteGameId
+                                    AND af.ApiName = ad.ApiName)
                 ORDER BY ua.UnlockTimeUtc DESC, lp.CacheKey, ad.Id");
 
             if (recentAchievementLimit > 0)

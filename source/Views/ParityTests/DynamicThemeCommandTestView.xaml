@@ -120,6 +120,7 @@
                         </TextBlock>
 
                         <DataGrid ItemsSource="{Binding Settings.DynamicAchievements, Mode=OneWay}"
+                                  Style="{StaticResource PlayAch.DataGrid.BaseStyle}"
                                   AutoGenerateColumns="False"
                                   IsReadOnly="True"
                                   Height="230"
@@ -187,6 +188,7 @@
                         </TextBlock>
 
                         <DataGrid ItemsSource="{Binding Settings.DynamicLibraryAchievements, Mode=OneWay}"
+                                  Style="{StaticResource PlayAch.DataGrid.BaseStyle}"
                                   AutoGenerateColumns="False"
                                   IsReadOnly="True"
                                   Height="230"
@@ -254,6 +256,7 @@
                         </TextBlock>
 
                         <DataGrid ItemsSource="{Binding Settings.DynamicGameSummaries, Mode=OneWay}"
+                                  Style="{StaticResource PlayAch.DataGrid.BaseStyle}"
                                   AutoGenerateColumns="False"
                                   IsReadOnly="True"
                                   Height="230"

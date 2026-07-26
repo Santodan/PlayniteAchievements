@@ -46,10 +46,22 @@ namespace PlayniteAchievements.Models.Settings
             set => Options.UseCoverImages = value;
         }
 
-        public bool ShowCompletionBorder
+        public bool ShowCompletionGlow
         {
-            get => Options.ShowCompletionBorder;
-            set => Options.ShowCompletionBorder = value;
+            get => Options.ShowCompletionGlow;
+            set => Options.ShowCompletionGlow = value;
+        }
+
+        public bool ColorRarityColumnsByRarity
+        {
+            get => Options.ColorRarityColumnsByRarity;
+            set => Options.ColorRarityColumnsByRarity = value;
+        }
+
+        public bool ShowNameAboveProgress
+        {
+            get => Options.ShowNameAboveProgress;
+            set => Options.ShowNameAboveProgress = value;
         }
 
         public bool ShowColumnHeaders
@@ -104,7 +116,9 @@ namespace PlayniteAchievements.Models.Settings
             target.ShowMetadataPlaytime = ShowMetadataPlaytime;
             target.ShowMetadataRegion = ShowMetadataRegion;
             target.UseCoverImages = UseCoverImages;
-            target.ShowCompletionBorder = ShowCompletionBorder;
+            target.ShowCompletionGlow = ShowCompletionGlow;
+            target.ColorRarityColumnsByRarity = ColorRarityColumnsByRarity;
+            target.ShowNameAboveProgress = ShowNameAboveProgress;
             target.ShowColumnHeaders = ShowColumnHeaders;
             target.ShowControlBar = ShowControlBar;
             target.RowHeight = RowHeight;
@@ -173,6 +187,12 @@ namespace PlayniteAchievements.Models.Settings
             set => Options.ColorNamesByRarity = value;
         }
 
+        public bool ColorRarityColumnsByRarity
+        {
+            get => Options.ColorRarityColumnsByRarity;
+            set => Options.ColorRarityColumnsByRarity = value;
+        }
+
         public bool ShowColumnHeaders
         {
             get => Options.ShowColumnHeaders;
@@ -224,6 +244,7 @@ namespace PlayniteAchievements.Models.Settings
             target.UseCoverImages = UseCoverImages;
             target.ShowRarityGlow = ShowRarityGlow;
             target.ColorNamesByRarity = ColorNamesByRarity;
+            target.ColorRarityColumnsByRarity = ColorRarityColumnsByRarity;
             target.ShowColumnHeaders = ShowColumnHeaders;
             target.ShowControlBar = ShowControlBar;
             target.RowHeight = RowHeight;

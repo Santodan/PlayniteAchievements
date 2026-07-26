@@ -32,6 +32,49 @@ namespace PlayniteAchievements.Tests.ViewModels
         }
 
         [TestMethod]
+        public void LoadAsync_TogglesIsLoadingForInitialLoad()
+        {
+            using var viewModel = CreateViewModel(CreateData());
+            var isLoadingChanges = new List<bool>();
+            viewModel.PropertyChanged += (_, e) =>
+            {
+                if (e.PropertyName == nameof(FriendsOverviewViewModel.IsLoading))
+                {
+                    isLoadingChanges.Add(viewModel.IsLoading);
+                }
+            };
+
+            Assert.IsFalse(viewModel.IsLoading);
+
+            viewModel.LoadAsync().GetAwaiter().GetResult();
+
+            Assert.IsFalse(viewModel.IsLoading, "IsLoading should clear once the initial load completes.");
+            CollectionAssert.Contains(isLoadingChanges, true, "IsLoading should be raised during the initial load.");
+        }
+
+        [TestMethod]
+        public void LoadAsync_DoesNotFlagIsLoadingWhenDataAlreadyPresent()
+        {
+            using var viewModel = CreateViewModel(CreateData());
+            viewModel.LoadAsync().GetAwaiter().GetResult();
+            Assert.IsTrue(viewModel.HasData);
+
+            var raisedDuringReload = false;
+            viewModel.PropertyChanged += (_, e) =>
+            {
+                if (e.PropertyName == nameof(FriendsOverviewViewModel.IsLoading) && viewModel.IsLoading)
+                {
+                    raisedDuringReload = true;
+                }
+            };
+
+            viewModel.LoadAsync().GetAwaiter().GetResult();
+
+            Assert.IsFalse(raisedDuringReload, "Reloads over populated data should not flash the loading overlay.");
+            Assert.IsFalse(viewModel.IsLoading);
+        }
+
+        [TestMethod]
         public void LoadAsync_AppliesConfiguredRowLimitsToAllThreeGrids()
         {
             var data = CreateData();
@@ -59,7 +102,7 @@ namespace PlayniteAchievements.Tests.ViewModels
         }
 
         [TestMethod]
-        public void FriendsOverviewDataCoordinator_InvalidatedDuringBuild_ReturnsFreshSnapshot()
+        public void FriendsOverviewDataCoordinator_InvalidatedDuringBuild_ReturnsBoundedStaleSnapshotThenRebuilds()
         {
             var staleData = CreateData();
             staleData.Games[0].GameLogo = null;
@@ -90,9 +133,43 @@ namespace PlayniteAchievements.Tests.ViewModels
             Assert.IsTrue(task.Wait(TimeSpan.FromSeconds(2)));
             var snapshot = task.GetAwaiter().GetResult();
 
+            // A mid-build invalidation no longer triggers a rebuild loop: the awaited call
+            // returns the bounded-stale result of the single load it joined.
+            Assert.AreEqual(1, cache.LoadFriendsOverviewDataCalls);
+            Assert.IsNull(snapshot.Games[0].GameLogo);
+            Assert.IsFalse(coordinator.TryGetCurrentSnapshot(out _));
+
+            // Convergence happens on the next request (in production, driven by the throttled
+            // SnapshotInvalidated fire).
+            var fresh = coordinator.GetSnapshotAsync(CancellationToken.None).GetAwaiter().GetResult();
             Assert.AreEqual(2, cache.LoadFriendsOverviewDataCalls);
-            Assert.AreEqual("icon.png", snapshot.Games[0].GameLogo);
-            Assert.AreEqual("cover.png", snapshot.Games[0].GameCoverPath);
+            Assert.AreEqual("icon.png", fresh.Games[0].GameLogo);
+            Assert.AreEqual("cover.png", fresh.Games[0].GameCoverPath);
+        }
+
+        [TestMethod]
+        public void FriendsOverviewDataCoordinator_InvalidationBurst_CoalescesEventsToLeadingAndTrailingFire()
+        {
+            var cache = new StubFriendCache(CreateData());
+            using var coordinator = new FriendsOverviewDataCoordinator(
+                cache,
+                () => new PersistedSettings(),
+                invalidationEventThrottleInterval: TimeSpan.FromMilliseconds(250));
+            var fires = 0;
+            coordinator.SnapshotInvalidated += (_, __) => Interlocked.Increment(ref fires);
+
+            for (var i = 0; i < 10; i++)
+            {
+                coordinator.Invalidate();
+            }
+
+            // Leading fire only, so far.
+            Assert.AreEqual(1, Volatile.Read(ref fires));
+
+            // The burst's remaining invalidations fold into exactly one trailing fire.
+            Assert.IsTrue(SpinWait.SpinUntil(() => Volatile.Read(ref fires) == 2, TimeSpan.FromSeconds(2)));
+            Thread.Sleep(400);
+            Assert.AreEqual(2, Volatile.Read(ref fires));
         }
 
         [TestMethod]
@@ -111,6 +188,88 @@ namespace PlayniteAchievements.Tests.ViewModels
             Assert.IsTrue(
                 SpinWait.SpinUntil(() => cache.LoadFriendsOverviewDataCalls > 0, TimeSpan.FromSeconds(2)));
             Assert.IsTrue(invalidated);
+        }
+
+        [TestMethod]
+        public void FriendsOverviewDataCoordinator_Warm_WithCurrentSnapshot_InvalidatesWithoutRebuilding()
+        {
+            var cache = new StubFriendCache(CreateData());
+            using var coordinator = new FriendsOverviewDataCoordinator(
+                cache,
+                () => new PersistedSettings(),
+                warmDebounceInterval: TimeSpan.Zero);
+            coordinator.GetSnapshotAsync(CancellationToken.None).GetAwaiter().GetResult();
+            Assert.AreEqual(1, cache.LoadFriendsOverviewDataCalls);
+            var invalidated = false;
+            coordinator.SnapshotInvalidated += (_, __) => invalidated = true;
+
+            coordinator.Warm();
+
+            Assert.IsTrue(SpinWait.SpinUntil(() => invalidated, TimeSpan.FromSeconds(2)));
+            Assert.IsFalse(coordinator.TryGetCurrentSnapshot(out _));
+            Thread.Sleep(100);
+            Assert.AreEqual(1, cache.LoadFriendsOverviewDataCalls);
+
+            coordinator.GetSnapshotAsync(CancellationToken.None).GetAwaiter().GetResult();
+            Assert.AreEqual(2, cache.LoadFriendsOverviewDataCalls);
+        }
+
+        [TestMethod]
+        public void FriendsOverviewDataCoordinator_Warm_WithBuildInFlight_DoesNotStartSecondBuild()
+        {
+            using var firstLoadEntered = new ManualResetEventSlim(false);
+            using var releaseFirstLoad = new ManualResetEventSlim(false);
+            var cache = new StubFriendCache(CreateData())
+            {
+                FirstLoadEntered = firstLoadEntered,
+                ReleaseFirstLoad = releaseFirstLoad
+            };
+            using var coordinator = new FriendsOverviewDataCoordinator(
+                cache,
+                () => new PersistedSettings(),
+                warmDebounceInterval: TimeSpan.Zero);
+            var invalidated = false;
+            coordinator.SnapshotInvalidated += (_, __) => invalidated = true;
+
+            var task = coordinator.GetSnapshotAsync(CancellationToken.None);
+            Assert.IsTrue(firstLoadEntered.Wait(TimeSpan.FromSeconds(2)));
+
+            coordinator.Warm();
+            Thread.Sleep(100);
+            releaseFirstLoad.Set();
+
+            Assert.IsTrue(task.Wait(TimeSpan.FromSeconds(2)));
+            Assert.AreEqual(1, cache.LoadFriendsOverviewDataCalls);
+            Assert.IsFalse(invalidated);
+            Assert.IsTrue(coordinator.TryGetCurrentSnapshot(out _));
+        }
+
+        [TestMethod]
+        public void FriendsOverviewDataCoordinator_Invalidate_ReleasesStaleSnapshot()
+        {
+            var cache = new StubFriendCache(CreateData());
+            using var coordinator = new FriendsOverviewDataCoordinator(
+                cache,
+                () => new PersistedSettings());
+            var weakSnapshot = BuildSnapshotAndGetWeakReference(coordinator);
+
+            coordinator.Invalidate();
+            GC.Collect();
+            GC.WaitForPendingFinalizers();
+            GC.Collect();
+
+            Assert.IsFalse(coordinator.TryGetCurrentSnapshot(out _));
+            Assert.IsFalse(weakSnapshot.IsAlive, "Invalidated snapshot should be collectible.");
+        }
+
+        // Builds the snapshot in a separate frame so the test method holds no strong local
+        // reference when the collection assertion runs.
+        [System.Runtime.CompilerServices.MethodImpl(System.Runtime.CompilerServices.MethodImplOptions.NoInlining)]
+        private static WeakReference BuildSnapshotAndGetWeakReference(FriendsOverviewDataCoordinator coordinator)
+        {
+            var snapshot = coordinator.GetSnapshotAsync(CancellationToken.None).GetAwaiter().GetResult();
+            Assert.IsNotNull(snapshot);
+            return new WeakReference(snapshot);
         }
 
         [TestMethod]
@@ -172,7 +331,7 @@ namespace PlayniteAchievements.Tests.ViewModels
         }
 
         [TestMethod]
-        public void ScopedFriendAchievementsUseFullRowsButRecentStaysUnlockedOnly()
+        public void LockedRowsShowOnlyForSingleFriendGamePair()
         {
             var data = CreateData();
             var locked = CreateAchievement(
@@ -189,20 +348,46 @@ namespace PlayniteAchievements.Tests.ViewModels
                 new DateTime(2026, 1, 1, 0, 0, 0, DateTimeKind.Utc));
             locked.Unlocked = false;
             locked.UnlockTimeUtc = null;
-            data.AllAchievements = data.AllUnlockedAchievements.Concat(new[] { locked }).ToList();
+            // Production shape: the overview snapshot carries unlocked rows only; the pair
+            // view's locked rows arrive through the stub's on-demand game-scoped load.
+            data.AllAchievements = data.AllUnlockedAchievements.ToList();
+            var cache = new StubFriendCache(data)
+            {
+                PairAchievements = data.AllUnlockedAchievements.Concat(new[] { locked }).ToList()
+            };
 
-            var viewModel = CreateViewModel(data);
+            var viewModel = CreateViewModel(cache);
             viewModel.LoadAsync().GetAwaiter().GetResult();
 
+            // No selection: recent unlocks only.
             CollectionAssert.AreEqual(
                 new[] { "Recent Only" },
                 viewModel.DisplayedAchievements.Select(item => item.DisplayName).ToArray());
 
+            // Friend-only selection is an aggregated view: unlocked rows only.
             viewModel.SelectedFriend = data.Friends[0];
+            Assert.IsFalse(viewModel.DisplayedAchievements.Any(item => item.DisplayName == "Alice Locked"));
+            CollectionAssert.AreEquivalent(
+                new[] { "Recent Only", "Alice Game Two" },
+                viewModel.DisplayedAchievements.Select(item => item.DisplayName).ToArray());
+            Assert.AreEqual(0, cache.PairAchievementLoadCalls);
 
+            // Single friend + single game pair: full comparison view including locked rows,
+            // materialized by the on-demand game-scoped load.
+            viewModel.SelectedGame = data.Games[0];
+            viewModel.PairAchievementsFetchTask?.GetAwaiter().GetResult();
+            Assert.AreEqual(1, cache.PairAchievementLoadCalls);
             Assert.IsTrue(viewModel.DisplayedAchievements.Any(item =>
                 item.DisplayName == "Alice Locked" &&
                 !item.Unlocked));
+
+            // Game-only selection is aggregated again: locked rows disappear.
+            viewModel.ClearFriendSelection();
+            Assert.IsNotNull(viewModel.SelectedGame);
+            Assert.IsFalse(viewModel.DisplayedAchievements.Any(item => item.DisplayName == "Alice Locked"));
+            CollectionAssert.AreEquivalent(
+                new[] { "Recent Only", "Bob Game One" },
+                viewModel.DisplayedAchievements.Select(item => item.DisplayName).ToArray());
         }
 
         [TestMethod]
@@ -288,10 +473,60 @@ namespace PlayniteAchievements.Tests.ViewModels
 
             viewModel.SelectedFriend = data.Friends[0];
             viewModel.SelectedGame = data.Games[1];
+            viewModel.PairAchievementsFetchTask?.GetAwaiter().GetResult();
 
             CollectionAssert.AreEqual(
                 new[] { "Alice Game Two" },
                 viewModel.DisplayedAchievements.Select(item => item.DisplayName).ToArray());
+        }
+
+        [TestMethod]
+        public void SelectedFriendGameAllAchievements_KeepsSnapshotOrderIndependentOfDisplaySort()
+        {
+            var data = CreateData();
+            var locked = CreateAchievement(
+                "Steam",
+                "alice",
+                "Alice",
+                "https://cdn.example/alice.png",
+                10,
+                data.Games[0].PlayniteGameId.Value,
+                "Game One",
+                "AAA Locked",
+                "Story",
+                "Main",
+                new DateTime(2026, 1, 1, 0, 0, 0, DateTimeKind.Utc));
+            locked.Unlocked = false;
+            locked.UnlockTimeUtc = null;
+            // Production shape: the snapshot is unlocked-only; the on-demand pair load supplies
+            // the definition-ordered rows with the locked row preceding the unlocked one.
+            data.AllAchievements = data.AllUnlockedAchievements.ToList();
+            var cache = new StubFriendCache(data)
+            {
+                PairAchievements = new[] { locked }.Concat(data.AllUnlockedAchievements).ToList()
+            };
+
+            var viewModel = CreateViewModel(cache);
+            viewModel.LoadAsync().GetAwaiter().GetResult();
+
+            // No friend+game pair selected: the category-summary source stays empty.
+            Assert.AreEqual(0, viewModel.SelectedFriendGameAllAchievements.Count);
+
+            viewModel.SelectedFriend = data.Friends[0];
+            viewModel.SelectedGame = data.Games[0];
+            viewModel.PairAchievementsFetchTask?.GetAwaiter().GetResult();
+
+            // The displayed grid follows the configured default sort (unlock time descending), but
+            // the category-summary source preserves the definition-ordered pair load.
+            CollectionAssert.AreEqual(
+                new[] { "Recent Only", "AAA Locked" },
+                viewModel.DisplayedAchievements.Select(item => item.DisplayName).ToArray());
+            CollectionAssert.AreEqual(
+                new[] { "AAA Locked", "Recent Only" },
+                viewModel.SelectedFriendGameAllAchievements.Select(item => item.DisplayName).ToArray());
+
+            viewModel.ClearGameSelection();
+            Assert.AreEqual(0, viewModel.SelectedFriendGameAllAchievements.Count);
         }
 
         [TestMethod]
@@ -303,6 +538,7 @@ namespace PlayniteAchievements.Tests.ViewModels
 
             viewModel.SelectedFriend = data.Friends[0];
             viewModel.SelectedGame = data.Games[1];
+            viewModel.PairAchievementsFetchTask?.GetAwaiter().GetResult();
             viewModel.AchievementSearchText = "does not match";
 
             Assert.AreEqual(0, viewModel.DisplayedAchievements.Count);
@@ -310,7 +546,7 @@ namespace PlayniteAchievements.Tests.ViewModels
         }
 
         [TestMethod]
-        public void FriendGameFiltersIgnoreOwnershipOnlyLinks()
+        public void OwnedGamesShowWithoutUnlocks_GamesWithoutPairDataClearFriendLists()
         {
             var data = CreateData();
             var ownedOnlyGameId = Guid.Parse("44444444-4444-4444-4444-444444444444");
@@ -331,24 +567,44 @@ namespace PlayniteAchievements.Tests.ViewModels
                 ProviderKey = "Steam",
                 ExternalUserId = "alice",
                 AppId = 40,
-                PlayniteGameId = ownedOnlyGameId
+                PlayniteGameId = ownedOnlyGameId,
+                PlaytimeForeverMinutes = 45
             });
+            // A game no friend has any data for (no link, no rows) — e.g. stale aggregate row; the
+            // refresh/cleanup invariant means ownership rows imply displayability, so the games list
+            // shows whatever the cache holds, but no friend can pair with this game.
+            var noPairDataGame = new FriendGameSummaryItem
+            {
+                ProviderKey = "Steam",
+                AppId = 50,
+                GameName = "No Pair Data",
+                TotalAchievements = 3
+            };
+            data.Games.Add(noPairDataGame);
 
             var viewModel = CreateViewModel(data);
             viewModel.LoadAsync().GetAwaiter().GetResult();
 
-            Assert.IsFalse(viewModel.FilteredGames.Any(item => item.GameName == "Owned Only"));
+            // Owned + friend-owned with zero unlocks appears in the games overview.
+            Assert.IsTrue(viewModel.FilteredGames.Any(item => item.GameName == "Owned Only"));
 
+            // And in the selected friend's per-friend games list, as a 0/N ownership row.
             viewModel.SelectedFriend = data.Friends[0];
+            var ownedRow = viewModel.FilteredGames.Single(item => item.GameName == "Owned Only");
+            Assert.AreEqual(0, ownedRow.UnlockedAchievements);
+            Assert.AreEqual(12, ownedRow.TotalAchievements);
+            Assert.IsFalse(viewModel.FilteredGames.Any(item => item.GameName == "No Pair Data"));
 
-            Assert.IsFalse(viewModel.FilteredGames.Any(item => item.GameName == "Owned Only"));
+            // Selecting the ownership-only pair sticks and shows an empty pair grid.
+            viewModel.SelectedGame = ownedRow;
+            Assert.IsNotNull(viewModel.SelectedGame);
+            Assert.AreEqual(0, viewModel.DisplayedAchievements.Count);
 
-            viewModel.SelectedGame = ownedOnlyGame;
-
-            Assert.IsNull(viewModel.SelectedGame);
-            CollectionAssert.AreEquivalent(
-                new[] { "Recent Only", "Alice Game Two" },
-                viewModel.DisplayedAchievements.Select(item => item.DisplayName).ToArray());
+            // A game with no pair data lists no friends when selected on its own.
+            viewModel.ClearFriendSelection();
+            viewModel.SelectedGame = noPairDataGame;
+            Assert.AreEqual(0, viewModel.FilteredFriends.Count);
+            Assert.AreEqual(0, viewModel.DisplayedAchievements.Count);
         }
 
         [TestMethod]
@@ -444,11 +700,13 @@ namespace PlayniteAchievements.Tests.ViewModels
             var cache = new StubFriendCache(initialData);
             var refreshRuntime = new RefreshRuntime();
             refreshRuntime.BeginTestRefresh(new ProgressReport { Mode = RefreshModeType.Full });
+            // Raw friend-cache invalidations now go through the scheduled reload path (they no
+            // longer force an immediate reload); zero intervals exercise the immediate branch.
             var viewModel = CreateViewModel(
                 cache,
                 refreshRuntime: refreshRuntime,
-                cacheInvalidationDebounceInterval: TimeSpan.FromSeconds(10),
-                activeRefreshInvalidationInterval: TimeSpan.FromSeconds(10));
+                cacheInvalidationDebounceInterval: TimeSpan.Zero,
+                activeRefreshInvalidationInterval: TimeSpan.Zero);
             viewModel.LoadAsync().GetAwaiter().GetResult();
             var loadCountAfterInitialLoad = cache.LoadFriendsOverviewDataCalls;
 
@@ -464,7 +722,7 @@ namespace PlayniteAchievements.Tests.ViewModels
         }
 
         [TestMethod]
-        public void FriendCacheInvalidated_DuringFriendRefresh_ReloadsCheckpointImmediately()
+        public void FriendCacheInvalidated_DuringFriendRefresh_ReloadsCheckpointOnActiveRefreshCadence()
         {
             var initialData = CreateData();
             var updatedData = CreateData();
@@ -481,11 +739,14 @@ namespace PlayniteAchievements.Tests.ViewModels
             var cache = new StubFriendCache(initialData);
             var refreshRuntime = new RefreshRuntime();
             refreshRuntime.BeginTestRefresh(new ProgressReport { Mode = RefreshModeType.FriendsFull });
+            // Checkpoint reloads during an active friend refresh follow the active-refresh
+            // cadence (production default 15s) instead of forcing an immediate rebuild per
+            // invalidation; a zero interval exercises the immediate branch of that path.
             var viewModel = CreateViewModel(
                 cache,
                 refreshRuntime: refreshRuntime,
                 cacheInvalidationDebounceInterval: TimeSpan.Zero,
-                activeRefreshInvalidationInterval: TimeSpan.FromSeconds(10));
+                activeRefreshInvalidationInterval: TimeSpan.Zero);
             viewModel.LoadAsync().GetAwaiter().GetResult();
             var loadCountAfterInitialLoad = cache.LoadFriendsOverviewDataCalls;
 
@@ -591,14 +852,20 @@ namespace PlayniteAchievements.Tests.ViewModels
             var viewModel = CreateViewModel(data);
             viewModel.LoadAsync().GetAwaiter().GetResult();
 
+            // Type/category options are game-specific vocabulary: they are only populated once a
+            // single game is selected (with no game selected the option lists are cleared and any
+            // selections are pruned, so the dropdowns auto-hide).
             viewModel.SetProviderFilter("Steam");
             viewModel.FriendSearchText = "ali";
-            viewModel.SelectedFriend = data.Friends[0];
+            viewModel.SelectedGame = data.Games[0];
             viewModel.SetTypeFilterSelected("Story", true);
             viewModel.SetCategoryFilterSelected("Main", true);
 
+            // Game One has two unlocked rows (Alice's Challenge/Side, Bob's Story/Main); the type
+            // and category filters compose to keep only Bob's row while the friend search filters
+            // the friends grid independently.
             CollectionAssert.AreEqual(
-                new[] { "Alice Game Two" },
+                new[] { "Bob Game One" },
                 viewModel.DisplayedAchievements.Select(item => item.DisplayName).ToArray());
             CollectionAssert.AreEqual(
                 new[] { "Alice" },
@@ -656,6 +923,7 @@ namespace PlayniteAchievements.Tests.ViewModels
             viewModel.LoadAsync().GetAwaiter().GetResult();
             viewModel.SelectedFriend = data.Friends[0];
             viewModel.SelectedGame = data.Games[1];
+            viewModel.PairAchievementsFetchTask?.GetAwaiter().GetResult();
 
             viewModel.ClearGameSelection();
             viewModel.ClearFriendSelection();
@@ -1062,7 +1330,7 @@ namespace PlayniteAchievements.Tests.ViewModels
                 Data = data;
             }
 
-            public event EventHandler FriendCacheInvalidated;
+            public event EventHandler<FriendCacheInvalidatedEventArgs> FriendCacheInvalidated;
 
             public FriendsOverviewData Data { get; set; }
 
@@ -1076,7 +1344,7 @@ namespace PlayniteAchievements.Tests.ViewModels
 
             public void RaiseFriendCacheInvalidated()
             {
-                FriendCacheInvalidated?.Invoke(this, EventArgs.Empty);
+                FriendCacheInvalidated?.Invoke(this, FriendCacheInvalidatedEventArgs.FullInvalidation);
             }
 
             public IFriendCacheInvalidationBatch BeginFriendCacheInvalidationBatch() =>
@@ -1109,6 +1377,11 @@ namespace PlayniteAchievements.Tests.ViewModels
                 string providerKey,
                 IReadOnlyCollection<string> providerGameKeys) =>
                 new Dictionary<string, FriendGameDefinitionState>(StringComparer.OrdinalIgnoreCase);
+
+            public List<string> LoadLegacyKeyedDefinitionGameKeys(
+                string providerKey,
+                IReadOnlyCollection<string> providerGameKeys) =>
+                new List<string>();
 
             public FriendUnownedCacheStats GetUnownedFriendGameCacheStats() =>
                 new FriendUnownedCacheStats();
@@ -1153,6 +1426,8 @@ namespace PlayniteAchievements.Tests.ViewModels
             public List<FriendIdentity> LoadFriendIdentities(string providerKey) =>
                 new List<FriendIdentity>();
 
+            public DateTime? GetMostRecentFriendLastRefreshedUtc() => null;
+
             public List<FriendRefreshCandidate> LoadFriendRefreshCandidates(
                 string providerKey,
                 FriendRefreshOptions options) =>
@@ -1178,8 +1453,31 @@ namespace PlayniteAchievements.Tests.ViewModels
                     : data;
             }
 
+            public FriendsOverviewData LoadFriendsOverviewPatchData(IReadOnlyList<FriendCacheChange> reloadScopes) =>
+                Data;
+
             public FriendsOverviewData LoadFriendGameAchievementData(Guid playniteGameId) =>
                 Data;
+
+            public int PairAchievementLoadCalls { get; private set; }
+
+            // On-demand pair rows (locked included): serves the game-scoped subset of
+            // PairAchievements when set, else of Data.AllAchievements.
+            public FriendsOverviewData LoadFriendGameAchievementData(FriendCacheChange gameScope)
+            {
+                PairAchievementLoadCalls++;
+                var source = PairAchievements ?? Data?.AllAchievements ?? new List<FriendAchievementDisplayItem>();
+                var rows = source
+                    .Where(item => item != null &&
+                        string.Equals(item.ProviderKey, gameScope?.ProviderKey, StringComparison.OrdinalIgnoreCase) &&
+                        ((gameScope?.AppId > 0 && item.AppId == gameScope.AppId) ||
+                         (!string.IsNullOrWhiteSpace(gameScope?.ProviderGameKey) &&
+                          string.Equals(item.ProviderGameKey, gameScope.ProviderGameKey, StringComparison.OrdinalIgnoreCase))))
+                    .ToList();
+                return new FriendsOverviewData { AllAchievements = rows };
+            }
+
+            public List<FriendAchievementDisplayItem> PairAchievements { get; set; }
 
             public FriendsOverviewData LoadFriendRecentUnlocksData(int recentLimit) =>
                 Data;

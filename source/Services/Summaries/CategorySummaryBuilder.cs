@@ -57,24 +57,76 @@ namespace PlayniteAchievements.Services.Summaries
                 }
 
                 var display = AchievementCategoryTypeHelper.ToCategoryLabelDisplayText(label);
+                // Category art fills both image slots so the grid's icon/cover toggle only
+                // selects the game-asset fallback for categories without art.
+                var sharedArt = ResolveSharedImage(bucket, item => item.CategoryArtPath);
                 var item = new CategorySummaryItem
                 {
                     CategoryLabel = label,
                     PlayniteGameId = ResolveSharedGameId(bucket),
                     GameName = display,
                     SortingName = display,
-                    GameLogo = ResolveSharedImage(bucket, item => item.CategoryIconPath),
-                    GameCoverPath = ResolveSharedImage(bucket, item => item.CategoryCoverPath)
+                    GameLogo = sharedArt ?? ResolveSharedImage(bucket, item => item.GameIconPath),
+                    GameCoverPath = sharedArt ?? ResolveSharedImage(bucket, item => item.GameCoverPath)
                 };
 
                 AchievementStatsAccumulator
                     .FromDisplayItems(bucket)
                     .ApplyTo(item);
 
+                item.IsCompleted = ComputeIsCompleted(bucket);
+                item.CategoryType = ResolveCategoryType(bucket);
+
                 result.Add(item);
             }
 
             return result;
+        }
+
+        /// <summary>
+        /// Mirrors <see cref="PlayniteAchievements.Models.Achievements.GameAchievementData.IsCompleted"/>:
+        /// every achievement unlocked, or the category contains the game's unlocked capstone achievement.
+        /// </summary>
+        private static bool ComputeIsCompleted(IReadOnlyList<AchievementDisplayItem> bucket)
+        {
+            var hasAny = false;
+            var allUnlocked = true;
+            foreach (var achievement in bucket)
+            {
+                if (achievement == null)
+                {
+                    continue;
+                }
+
+                hasAny = true;
+                if (achievement.IsCapstone && achievement.Unlocked)
+                {
+                    return true;
+                }
+
+                if (!achievement.Unlocked)
+                {
+                    allUnlocked = false;
+                }
+            }
+
+            return hasAny && allUnlocked;
+        }
+
+        /// <summary>
+        /// Resolves the bucket's group-based category type token (Base/DLC/Update/Subset) for theme
+        /// binding, falling back to <see cref="AchievementCategoryTypeHelper.DefaultCategoryType"/> when
+        /// the bucket has no group membership. A category label maps 1:1 to a provider set in practice,
+        /// so the group component is uniform; the canonical-first pick is a defensive tiebreak.
+        /// </summary>
+        private static string ResolveCategoryType(IReadOnlyList<AchievementDisplayItem> bucket)
+        {
+            var combined = AchievementCategoryTypeHelper.Combine(
+                bucket.Where(item => item != null).Select(item => item.CategoryType));
+            var groupComponents = AchievementCategoryTypeHelper.GetGroupTypeComponents(combined);
+            return groupComponents.Count > 0
+                ? groupComponents[0]
+                : AchievementCategoryTypeHelper.DefaultCategoryType;
         }
 
         private static System.Guid? ResolveSharedGameId(IReadOnlyList<AchievementDisplayItem> bucket)

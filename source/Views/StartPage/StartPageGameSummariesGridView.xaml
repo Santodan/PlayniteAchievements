@@ -12,7 +12,7 @@
                                                ShowMetadataPlatform="{Binding ShowMetadataPlatform}"
                                                ShowMetadataPlaytime="{Binding ShowMetadataPlaytime}"
                                                ShowMetadataRegion="{Binding ShowMetadataRegion}"
-                                               ShowCompletionBorder="{Binding ShowCompletionBorder}"
+                                               ShowCompletionGlow="{Binding ShowCompletionGlow}"
                                                ShowColumnHeaders="{Binding ShowColumnHeaders}"
                                                ControlBar="{Binding ControlBar}"
                                                ShowControlBar="{Binding ShowControlBar}"

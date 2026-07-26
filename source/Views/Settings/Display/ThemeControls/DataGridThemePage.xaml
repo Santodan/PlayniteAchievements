@@ -46,14 +46,14 @@
                     <Border Style="{StaticResource SettingGroupCardStyle}"
                             Visibility="{Binding Persisted.EnableAchievementDataGridControl, Converter={StaticResource BoolToVis}}">
                         <StackPanel>
-                            <TextBlock Text="PREVIEW"
+                            <TextBlock Text="{DynamicResource LOCPlayAch_Settings_Context_Preview}"
                                        Style="{StaticResource ContextLabelStyle}"/>
                             <modern:AchievementDataGridControl
                                 Style="{StaticResource PreviewThemeControlStyle}"
                                 ThemeDataOverride="{Binding PreviewThemeData, RelativeSource={RelativeSource AncestorType=UserControl}}"
                                 PreviewMinimumMaxHeight="220"
                                 Margin="{StaticResource PlayAch.Thickness.Bottom.Md}"/>
-                            <TextBlock Text="SETTINGS"
+                            <TextBlock Text="{DynamicResource LOCPlayAch_Settings_Context_Settings}"
                                        Style="{StaticResource ContextLabelStyle}"/>
                             <controls:GridOptionsEditor Options="{Binding Persisted.GridOptions.Achievement[DesktopTheme]}"
                                                         ShowCategoryModeRow="True"
@@ -71,6 +71,9 @@
                             <TextBlock Text="{DynamicResource LOCPlayAch_Settings_CategoryGrid}"
                                        Style="{StaticResource SubSectionHeaderStyle}"
                                        Margin="{StaticResource PlayAch.Thickness.Top.Md}"/>
+                            <CheckBox Content="{DynamicResource LOCPlayAch_Settings_HideCategorySummaryRow}"
+                                      IsChecked="{Binding Persisted.GridOptions.Achievement[DesktopTheme].HideCategorySummaryRow}"
+                                      Margin="{StaticResource PlayAch.Thickness.Bottom.Md}"/>
                             <controls:GridOptionsEditor Options="{Binding Persisted.GridOptions.CategorySummaries[DesktopTheme]}"/>
                         </StackPanel>
                     </Border>

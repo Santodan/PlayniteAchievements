@@ -1,3 +1,4 @@
+using PlayniteAchievements.Common;
 using PlayniteAchievements.Services;
 using PlayniteAchievements.Services.Friends;
 using Playnite.SDK.Data;
@@ -99,7 +100,7 @@ namespace PlayniteAchievements.ViewModels.Items
             : 0;
 
         public string FriendCompletionText => TotalAchievements > 0
-            ? $"{FriendCompletionPercent:N0}%"
+            ? PercentFormatter.FormatWhole(FriendCompletionPercent)
             : string.Empty;
 
         public DateTime? LastFriendUnlockUtc

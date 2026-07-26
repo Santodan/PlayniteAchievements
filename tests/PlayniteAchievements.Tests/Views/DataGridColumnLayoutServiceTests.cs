@@ -57,6 +57,50 @@ namespace PlayniteAchievements.Tests.Views
         }
 
         [TestMethod]
+        public void ForcedCollapsedColumn_DoesNotLoseWidthWhenVisibleAgain()
+        {
+            RunOnStaThread(() =>
+            {
+                var order = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
+                var widths = new Dictionary<string, double>(StringComparer.OrdinalIgnoreCase)
+                {
+                    ["A"] = 40,
+                    ["B"] = 120,
+                    ["C"] = 120
+                };
+                var visibility = new Dictionary<string, bool>(StringComparer.OrdinalIgnoreCase)
+                {
+                    ["A"] = true,
+                    ["B"] = true,
+                    ["C"] = true
+                };
+                var grid = CreateGrid();
+                grid.Columns[0].MinWidth = 28;
+                grid.Columns[0].MaxWidth = 96;
+                grid.Columns[0].Width = new DataGridLength(40, DataGridLengthUnitType.Pixel);
+                var service = CreateService(grid, order, () => { }, widths, initialVisibility: visibility);
+
+                service.ForcedCollapsedKeys.Add("A");
+                service.Attach();
+
+                Assert.AreEqual(Visibility.Collapsed, grid.Columns[0].Visibility);
+                Assert.AreEqual(28d, grid.Columns[0].MinWidth);
+                Assert.AreEqual(96d, grid.Columns[0].MaxWidth);
+                Assert.AreEqual(40d, grid.Columns[0].Width.Value);
+
+                service.ForcedCollapsedKeys.Remove("A");
+                service.Refresh();
+
+                Assert.AreEqual(Visibility.Visible, grid.Columns[0].Visibility);
+                Assert.AreEqual(28d, grid.Columns[0].MinWidth);
+                Assert.AreEqual(96d, grid.Columns[0].MaxWidth);
+                Assert.AreEqual(40d, grid.Columns[0].Width.Value);
+
+                service.Detach();
+            });
+        }
+
+        [TestMethod]
         public void Attach_WithDelayedInitialRenderRestoresGridAfterSuccessfulNormalization()
         {
             RunOnStaThread(() =>
@@ -331,12 +375,15 @@ namespace PlayniteAchievements.Tests.Views
             Dictionary<string, int> order,
             Action saveSettings,
             Dictionary<string, double> initialWidths = null,
+            Dictionary<string, bool> initialVisibility = null,
             IReadOnlyDictionary<string, double> defaultWidthSeeds = null)
         {
             var widths = initialWidths != null
                 ? new Dictionary<string, double>(initialWidths, StringComparer.OrdinalIgnoreCase)
                 : new Dictionary<string, double>(StringComparer.OrdinalIgnoreCase);
-            var visibility = new Dictionary<string, bool>(StringComparer.OrdinalIgnoreCase);
+            var visibility = initialVisibility != null
+                ? new Dictionary<string, bool>(initialVisibility, StringComparer.OrdinalIgnoreCase)
+                : new Dictionary<string, bool>(StringComparer.OrdinalIgnoreCase);
 
             return new DataGridColumnLayoutService(
                 grid,

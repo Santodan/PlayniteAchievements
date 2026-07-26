@@ -20,6 +20,7 @@ namespace PlayniteAchievements.Views.Settings.Display
             nameof(PersistedSettings.ShowLockedIcon),
             nameof(PersistedSettings.UseSeparateLockedIconsWhenAvailable),
             nameof(PersistedSettings.UseUniformRarityBadges),
+            nameof(PersistedSettings.RoundRarityPercentages),
             nameof(PersistedSettings.RarityColors)
         };
 

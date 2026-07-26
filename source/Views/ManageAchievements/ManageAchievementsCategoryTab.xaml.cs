@@ -1,11 +1,14 @@
 using System;
+using System.Collections;
 using System.Collections.Generic;
+using System.ComponentModel;
 using System.IO;
 using System.Linq;
 using System.Text.RegularExpressions;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Controls.Primitives;
+using System.Windows.Data;
 using System.Windows.Input;
 using System.Windows.Media.Imaging;
 using Microsoft.Win32;
@@ -43,6 +46,11 @@ namespace PlayniteAchievements.Views.ManageAchievements
         {
             InitializeComponent();
             DataContext = viewModel ?? throw new ArgumentNullException(nameof(viewModel));
+
+            // Live sorting repositions only the rows whose sorted-column value changed (via a
+            // Move, not a Reset), and does nothing while no column sort is active. This keeps
+            // in-place category edits flicker-free yet still honors an active sort.
+            EnableLiveSorting(viewModel.AchievementRows);
             DataGridRowReorderBehavior.SetOptions(CategoryManagerDataGrid, new DataGridRowReorderOptions
             {
                 DragDataFormat = CategoryDragDataFormat,
@@ -210,7 +218,7 @@ namespace PlayniteAchievements.Views.ManageAchievements
 
         private async void BrowseCategoryImageButton_Click(object sender, RoutedEventArgs e)
         {
-            if (!TryResolveCategoryImageRowAndKind(sender as FrameworkElement, out var row, out var kind))
+            if (!TryResolveCategoryImageRow(sender as FrameworkElement, out var row))
             {
                 return;
             }
@@ -224,18 +232,56 @@ namespace PlayniteAchievements.Views.ManageAchievements
 
             if (dialog.ShowDialog() == true)
             {
-                await ViewModel.ApplyCategoryLocalFileOverrideAsync(row, kind, dialog.FileName);
+                await ViewModel.ApplyCategoryLocalFileOverrideAsync(row, dialog.FileName);
             }
         }
 
-        private void ClearCategoryImageButton_Click(object sender, RoutedEventArgs e)
+        private void CategoryImageTextBox_KeyDown(object sender, KeyEventArgs e)
         {
-            if (!TryResolveCategoryImageRowAndKind(sender as FrameworkElement, out var row, out var kind))
+            if (e.Key != Key.Enter || !(sender is TextBox textBox))
             {
                 return;
             }
 
-            row.ClearOverride(kind);
+            textBox.GetBindingExpression(TextBox.TextProperty)?.UpdateSource();
+            Keyboard.ClearFocus();
+            e.Handled = true;
+        }
+
+        private void ClearCategoryImageButton_Click(object sender, RoutedEventArgs e)
+        {
+            if (!TryResolveCategoryImageRow(sender as FrameworkElement, out var row))
+            {
+                return;
+            }
+
+            row.ClearOverride();
+            e.Handled = true;
+        }
+
+        // The radio is bound OneWay with VM-enforced exclusivity, so the toggle here is the
+        // single writer; handling the tunneling event also allows click-again-to-clear, which
+        // a RadioButton's own click cannot do.
+        private void SummaryCategoryRadioButton_PreviewMouseLeftButtonDown(object sender, MouseButtonEventArgs e)
+        {
+            if (!TryResolveCategoryImageRow(sender as FrameworkElement, out var row))
+            {
+                return;
+            }
+
+            row.IsSummarySelected = !row.IsSummarySelected;
+            e.Handled = true;
+        }
+
+        private void SummaryCategoryRadioButton_KeyDown(object sender, KeyEventArgs e)
+        {
+            if (e.Key != Key.Space ||
+                !TryResolveCategoryImageRow(sender as FrameworkElement, out var row))
+            {
+                return;
+            }
+
+            row.IsSummarySelected = !row.IsSummarySelected;
             e.Handled = true;
         }
 
@@ -248,7 +294,7 @@ namespace PlayniteAchievements.Views.ManageAchievements
 
         private async void CategoryImageTextBox_Drop(object sender, DragEventArgs e)
         {
-            if (!TryResolveCategoryImageRowAndKind(sender as FrameworkElement, out var row, out var kind))
+            if (!TryResolveCategoryImageRow(sender as FrameworkElement, out var row))
             {
                 return;
             }
@@ -258,14 +304,14 @@ namespace PlayniteAchievements.Views.ManageAchievements
                 if (TryGetFirstImageFilePath(e.Data, out var imagePath))
                 {
                     e.Handled = true;
-                    await ViewModel.ApplyCategoryLocalFileOverrideAsync(row, kind, imagePath);
+                    await ViewModel.ApplyCategoryLocalFileOverrideAsync(row, imagePath);
                     return;
                 }
 
                 if (TryGetFirstBrowserUrl(e.Data, out var url))
                 {
                     e.Handled = true;
-                    row.SetOverrideValue(kind, url);
+                    row.SetOverrideValue(url);
                 }
             }
             catch
@@ -274,30 +320,12 @@ namespace PlayniteAchievements.Views.ManageAchievements
             }
         }
 
-        private static bool TryResolveCategoryImageRowAndKind(
+        private static bool TryResolveCategoryImageRow(
             FrameworkElement element,
-            out ManageAchievementsCategoryMetadataItem row,
-            out CategoryImageKind kind)
+            out ManageAchievementsCategoryMetadataItem row)
         {
             row = element?.DataContext as ManageAchievementsCategoryMetadataItem;
-            kind = CategoryImageKind.Icon;
-            if (row == null)
-            {
-                return false;
-            }
-
-            var token = (element as ButtonBase)?.CommandParameter as string;
-            if (string.IsNullOrWhiteSpace(token))
-            {
-                token = element?.Tag as string;
-            }
-
-            if (string.Equals((token ?? string.Empty).Trim(), "Cover", StringComparison.OrdinalIgnoreCase))
-            {
-                kind = CategoryImageKind.Cover;
-            }
-
-            return true;
+            return row != null;
         }
 
         private void CategoryDataGrid_PreviewMouseLeftButtonDown(object sender, MouseButtonEventArgs e)
@@ -310,6 +338,16 @@ namespace PlayniteAchievements.Views.ManageAchievements
 
             if (source is CheckBox || VisualTreeHelpers.FindVisualParent<CheckBox>(source) != null)
             {
+                // Toggle bulk-selection ourselves and consume the event so the DataGrid never runs
+                // native cell selection / BringIntoView, which scrolls (and oscillates) when the
+                // clicked row is only partially visible at the viewport edge.
+                if (VisualTreeHelpers.FindVisualParent<DataGridRow>(source)?.DataContext
+                        is ManageAchievementsCategoryItem checkItem)
+                {
+                    checkItem.IsSelected = !checkItem.IsSelected;
+                }
+
+                e.Handled = true;
                 return;
             }
 
@@ -409,9 +447,6 @@ namespace PlayniteAchievements.Views.ManageAchievements
 
             if (CategorySubTabs?.SelectedIndex == 1)
             {
-                elements.Add(RevertCategoryImagesButton);
-                elements.Add(ClearCategoryImagesButton);
-                elements.Add(SaveCategoryImagesButton);
                 elements.Add(ResetCategoryMetadataButton);
                 elements.Add(OpenCategoryImagesFolderButton);
                 elements.Add(CategoryManagerDataGrid);
@@ -531,25 +566,33 @@ namespace PlayniteAchievements.Views.ManageAchievements
         {
             var menu = new ContextMenu();
 
-            var addTypeMenu = new MenuItem
+            var rows = ResolveActionRows(contextItem);
+            var typesMenu = new MenuItem
             {
-                Header = L("LOCPlayAch_Common_AddType", "Add Type")
+                Header = L("LOCPlayAch_Common_Label_Type")
             };
             foreach (var categoryType in AchievementCategoryTypeHelper.AssignableCategoryTypes)
             {
                 var capturedType = categoryType;
-                addTypeMenu.Items.Add(CreateMenuItem(
-                    ManageAchievementsCategoryViewModel.GetCategoryTypeDisplayName(capturedType),
-                    () => AddTypeFromContext(contextItem, capturedType)));
+                var typeItem = new MenuItem
+                {
+                    Header = ManageAchievementsCategoryViewModel.GetCategoryTypeDisplayName(capturedType),
+                    IsCheckable = true,
+                    StaysOpenOnClick = true,
+                    IsChecked = IsCategoryTypeOnAllRows(rows, capturedType)
+                };
+                typeItem.Click += (_, __) =>
+                    ViewModel?.SetCategoryTypeForSelection(rows, capturedType, typeItem.IsChecked);
+                typesMenu.Items.Add(typeItem);
             }
-            menu.Items.Add(addTypeMenu);
+            menu.Items.Add(typesMenu);
 
             menu.Items.Add(CreateMenuItem(
-                L("LOCPlayAch_Common_SetLabelEllipsis", "Set Label..."),
+                L("LOCPlayAch_Common_SetLabelEllipsis"),
                 () => SetLabelFromContext(contextItem)));
 
             menu.Items.Add(CreateMenuItem(
-                L("LOCPlayAch_Button_Clear", "Clear"),
+                L("LOCPlayAch_Button_Clear"),
                 () => ClearRowsFromContext(contextItem)));
 
             return menu;
@@ -562,20 +605,28 @@ namespace PlayniteAchievements.Views.ManageAchievements
             return item;
         }
 
-        private void AddTypeFromContext(ManageAchievementsCategoryItem contextItem, string categoryType)
+        private static void EnableLiveSorting(IEnumerable source)
         {
-            if (ViewModel == null)
+            if (source != null &&
+                CollectionViewSource.GetDefaultView(source) is ICollectionViewLiveShaping live &&
+                live.CanChangeLiveSorting)
             {
-                return;
+                live.IsLiveSorting = true;
+            }
+        }
+
+        private static bool IsCategoryTypeOnAllRows(
+            IReadOnlyList<ManageAchievementsCategoryItem> rows,
+            string categoryType)
+        {
+            if (rows == null || rows.Count == 0)
+            {
+                return false;
             }
 
-            var rows = ResolveActionRows(contextItem);
-            if (rows.Count == 0)
-            {
-                return;
-            }
-
-            ViewModel.AddCategoryTypesToSelection(rows, new[] { categoryType });
+            return rows.All(row => row != null &&
+                AchievementCategoryTypeHelper.ParseValues(row.CategoryType)
+                    .Any(value => string.Equals(value, categoryType, StringComparison.OrdinalIgnoreCase)));
         }
 
         private void SetLabelFromContext(ManageAchievementsCategoryItem contextItem)
@@ -593,14 +644,10 @@ namespace PlayniteAchievements.Views.ManageAchievements
 
             var inputText = contextItem?.CategoryDisplay ?? string.Empty;
             var inputDialog = new TextInputDialog(
-                L(
-                    "LOCPlayAch_ManageAchievements_Category_Context_SetLabelHint",
-                    "Enter a category label for the selected achievements."),
+                L("LOCPlayAch_ManageAchievements_Category_Context_SetLabelHint"),
                 inputText);
             var window = PlayniteUiProvider.CreateExtensionWindow(
-                L(
-                    "LOCPlayAch_ManageAchievements_Category_Context_SetLabelTitle",
-                    "Set Category Label"),
+                L("LOCPlayAch_ManageAchievements_Category_Context_SetLabelTitle"),
                 inputDialog,
                 new WindowOptions
                 {
@@ -622,6 +669,56 @@ namespace PlayniteAchievements.Views.ManageAchievements
 
             inputText = (inputDialog.InputText ?? string.Empty).Trim();
             ViewModel.SetCategoryLabelForSelection(rows, inputText);
+        }
+
+        private void MergeCategoryButton_Click(object sender, RoutedEventArgs e)
+        {
+            if (ViewModel == null || !TryResolveCategoryImageRow(sender as FrameworkElement, out var row))
+            {
+                return;
+            }
+
+            var sourceLabel = row.CategoryLabel;
+            var targetOptions = ViewModel.CategoryRows
+                .Where(candidate => candidate != null && !string.IsNullOrWhiteSpace(candidate.CategoryLabel))
+                .Select(candidate => candidate.CategoryLabel)
+                .ToList();
+
+            if (targetOptions.Count(label => !string.Equals(label, sourceLabel, StringComparison.OrdinalIgnoreCase)) == 0)
+            {
+                return;
+            }
+
+            var dialog = new MergeCategoryDialog(sourceLabel, targetOptions);
+            var window = PlayniteUiProvider.CreateExtensionWindow(
+                L("LOCPlayAch_ManageAchievements_Category_MergeDialog_Title"),
+                dialog,
+                new WindowOptions
+                {
+                    ShowMinimizeButton = false,
+                    ShowMaximizeButton = false,
+                    ShowCloseButton = true,
+                    CanBeResizable = false,
+                    Width = 500,
+                    Height = 220
+                });
+
+            WindowPlacementPersistenceService.Attach(
+                window,
+                ViewModel.PlacementSettings,
+                () => PlayniteAchievementsPlugin.Instance?.PersistSettingsForUi(),
+                "ManageAchievementsMergeCategoryDialog",
+                ViewModel.PlacementLogger);
+
+            dialog.RequestClose += (s, args) => window.Close();
+            window.ShowDialog();
+
+            if (dialog.DialogResult != true)
+            {
+                return;
+            }
+
+            ViewModel.MergeCategoryInto(sourceLabel, dialog.SelectedTarget);
         }
 
         private void ClearRowsFromContext(ManageAchievementsCategoryItem contextItem)
@@ -668,16 +765,6 @@ namespace PlayniteAchievements.Views.ManageAchievements
             return new List<ManageAchievementsCategoryItem> { contextItem };
         }
 
-        private void RowSelectionCheckBox_Click(object sender, RoutedEventArgs e)
-        {
-            if (sender is CheckBox checkBox && checkBox.DataContext is ManageAchievementsCategoryItem item)
-            {
-                item.IsSelected = checkBox.IsChecked == true;
-            }
-
-            e.Handled = true;
-        }
-
         private void SelectAllButton_Click(object sender, RoutedEventArgs e)
         {
             SetAllSelectableRows(selected: true);
@@ -709,12 +796,43 @@ namespace PlayniteAchievements.Views.ManageAchievements
 
         private void ResetCategoryMetadataButton_Click(object sender, RoutedEventArgs e)
         {
-            if (ViewModel?.ResetCategoryMetadata() == true)
+            if (ViewModel == null)
+            {
+                return;
+            }
+
+            var menu = new ContextMenu();
+            menu.Items.Add(CreateResetMenuItem(
+                L("LOCPlayAch_ManageAchievements_Tab_AchievementOrder"),
+                ViewModel.HasCustomCategoryOrder,
+                () => ResetCategoryMetadataAspect(ViewModel.ResetCategoryOrder)));
+            menu.Items.Add(CreateResetMenuItem(
+                L("LOCPlayAch_Column_Name"),
+                ViewModel.HasCustomCategoryNames,
+                () => ResetCategoryMetadataAspect(ViewModel.ResetCategoryNames)));
+            menu.Items.Add(CreateResetMenuItem(
+                L("LOCPlayAch_Column_CategoryArt"),
+                ViewModel.HasCustomCategoryArt || ViewModel.HasCustomSummaryCategory,
+                () => ResetCategoryMetadataAspect(ViewModel.ResetCategoryArt)));
+
+            ContextMenuStyleHelper.ApplyAchievementContextMenuStyle(this, menu);
+            OpenSelectorContextMenu(ResetCategoryMetadataButton, menu);
+            e.Handled = true;
+        }
+
+        private MenuItem CreateResetMenuItem(string header, bool isEnabled, Action onClick)
+        {
+            var item = CreateMenuItem(header, onClick);
+            item.IsEnabled = isEnabled;
+            return item;
+        }
+
+        private void ResetCategoryMetadataAspect(Func<bool> reset)
+        {
+            if (reset?.Invoke() == true)
             {
                 DataGridRowReorderBehavior.CancelPendingDrag(CategoryManagerDataGrid);
             }
-
-            e.Handled = true;
         }
 
         private void SetAllSelectableRows(bool selected)
@@ -757,10 +875,9 @@ namespace PlayniteAchievements.Views.ManageAchievements
             }
         }
 
-        private static string L(string key, string fallback)
+        private static string L(string key)
         {
-            var value = ResourceProvider.GetString(key);
-            return string.IsNullOrWhiteSpace(value) ? fallback : value;
+            return ResourceProvider.GetString(key);
         }
 
         private static bool TryGetFirstImageFilePath(IDataObject data, out string imagePath)

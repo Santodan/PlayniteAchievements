@@ -12,6 +12,8 @@ using System.Linq;
 using System.Threading;
 using PlayniteAchievements.Services.Achievements;
 using PlayniteAchievements.Services.Cache;
+using PlayniteAchievements.Services.GameCustomData;
+using PlayniteAchievements.Services.Images;
 using PlayniteAchievements.ViewModels;
 using PlayniteAchievements.Services.Summaries;
 using PlayniteAchievements.ViewModels.Items;
@@ -97,7 +99,10 @@ namespace PlayniteAchievements.Services.ThemeIntegration
                     data.PlayniteGameId.Value,
                     data.Game?.Name ?? data.GameName ?? string.Empty,
                     data.Game?.Source?.Name ?? "Unknown",
-                    ResolveCoverImagePath(data.Game, api),
+                    GameSummaryArtResolver.Resolve(
+                        data.PlayniteGameId,
+                        data.GameSummaryCategory,
+                        data.AchievementCategoryImageOverrides) ?? ResolveCoverImagePath(data.Game, api),
                     stats.ProgressPercent,
                     gold,
                     silver,
@@ -115,7 +120,8 @@ namespace PlayniteAchievements.Services.ThemeIntegration
                     providerName,
                     data.Game?.LastActivity,
                     stats.UnlockedAchievements,
-                    stats.TotalAchievements);
+                    stats.TotalAchievements,
+                    sortingName: data.Game?.SortingName ?? data.Game?.Name ?? data.GameName ?? string.Empty);
 
                 allGames.Add(summary);
             }
@@ -139,7 +145,8 @@ namespace PlayniteAchievements.Services.ThemeIntegration
         public static LibraryRuntimeState BuildFromCachedSummary(
             CachedSummaryData summaryData,
             IPlayniteAPI api,
-            CancellationToken token)
+            CancellationToken token,
+            GameCustomDataStore customDataStore = null)
         {
             token.ThrowIfCancellationRequested();
 
@@ -200,7 +207,7 @@ namespace PlayniteAchievements.Services.ThemeIntegration
                     gameId,
                     presentation.Game?.Name ?? game.GameName ?? string.Empty,
                     presentation.Platform ?? "Unknown",
-                    presentation.CoverImagePath,
+                    GameSummaryArtResolver.ResolveForGame(gameId, customDataStore) ?? presentation.CoverImagePath,
                     AchievementCompletionPercentCalculator.ComputeRoundedPercent(
                         game.UnlockedAchievements,
                         game.TotalAchievements),
@@ -220,7 +227,8 @@ namespace PlayniteAchievements.Services.ThemeIntegration
                     providerName,
                     presentation.LastPlayed,
                     game.UnlockedAchievements,
-                    game.TotalAchievements));
+                    game.TotalAchievements,
+                    sortingName: presentation.SortingName ?? presentation.Game?.Name ?? game.GameName ?? string.Empty));
 
                 collectorScore = AddScore(collectorScore, game.CollectionScore);
                 prestigeScore = AddScore(prestigeScore, game.PrestigeScore);
@@ -456,24 +464,30 @@ namespace PlayniteAchievements.Services.ThemeIntegration
                 return;
             }
 
+            var category = AchievementCategoryTypeHelper.NormalizeCategoryOrDefault(achievement.Category);
+            achievement.CategoryOrderIndex =
+                AchievementCategoryFilterOrderHelper.ResolveCategoryOrderIndex(category, data?.AchievementCategoryOrder);
+
             var gameId = data?.PlayniteGameId;
             if (!gameId.HasValue || gameId.Value == Guid.Empty)
             {
-                achievement.CategoryIconPath = null;
-                achievement.CategoryCoverPath = null;
+                achievement.CategoryArtPath = null;
                 return;
             }
 
             CategoryImageOverrideData imageOverride = null;
-            var category = AchievementCategoryTypeHelper.NormalizeCategoryOrDefault(achievement.Category);
             if (!string.IsNullOrWhiteSpace(category) &&
                 data?.AchievementCategoryImageOverrides != null)
             {
                 data.AchievementCategoryImageOverrides.TryGetValue(category, out imageOverride);
             }
 
-            achievement.CategoryIconPath = NormalizeImageOverridePath(imageOverride?.Icon);
-            achievement.CategoryCoverPath = NormalizeImageOverridePath(imageOverride?.Cover);
+            // Default images are keyed by the provider label; renames only change Category.
+            var providerCategory = AchievementCategoryTypeHelper.NormalizeCategoryOrDefault(
+                achievement.ProviderCategory ?? achievement.Category);
+            achievement.CategoryArtPath =
+                NormalizeImageOverridePath(imageOverride?.Art) ??
+                CategoryDefaultImageResolver.Resolve(gameId, providerCategory);
         }
 
         private static string NormalizeImageOverridePath(string value)
@@ -595,7 +609,8 @@ namespace PlayniteAchievements.Services.ThemeIntegration
                 Game = game,
                 Platform = game?.Source?.Name ?? "Unknown",
                 CoverImagePath = ResolveCoverImagePath(game, api),
-                LastPlayed = game?.LastActivity
+                LastPlayed = game?.LastActivity,
+                SortingName = game?.SortingName
             };
         }
 
@@ -823,6 +838,8 @@ namespace PlayniteAchievements.Services.ThemeIntegration
             public string CoverImagePath { get; set; }
 
             public DateTime? LastPlayed { get; set; }
+
+            public string SortingName { get; set; }
         }
 
         private sealed class ProviderBucket

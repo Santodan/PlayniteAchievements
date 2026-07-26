@@ -23,15 +23,13 @@ namespace PlayniteAchievements.Providers.Exophase
 
     internal sealed class ExophaseMetadataEnricher : IDisposable
     {
-        private static readonly TimeSpan SlugCacheTtl = TimeSpan.FromHours(1);
-
         private readonly IPlayniteAPI _playniteApi;
         private readonly ILogger _logger;
         private readonly PlayniteAchievementsSettings _settings;
         private readonly ExophaseSessionManager _sessionManager;
         private readonly ExophaseApiClient _apiClient;
-        private readonly Dictionary<string, string> _slugCache = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
-        private readonly Dictionary<string, DateTime> _slugCacheTimestamps = new Dictionary<string, DateTime>(StringComparer.OrdinalIgnoreCase);
+        // Slug mappings are permanently stable; memoized for the enricher's lifetime.
+        private readonly Dictionary<string, string> _slugMemo = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
         private bool _authChecked;
         private bool _isReady;
 
@@ -224,16 +222,8 @@ namespace PlayniteAchievements.Providers.Exophase
                 return false;
             }
 
-            if (!_slugCache.TryGetValue(cacheKey, out var cachedSlug))
+            if (!_slugMemo.TryGetValue(cacheKey, out var cachedSlug))
             {
-                return false;
-            }
-
-            if (!_slugCacheTimestamps.TryGetValue(cacheKey, out var timestamp) ||
-                DateTime.UtcNow - timestamp >= SlugCacheTtl)
-            {
-                _slugCache.Remove(cacheKey);
-                _slugCacheTimestamps.Remove(cacheKey);
                 return false;
             }
 
@@ -248,8 +238,7 @@ namespace PlayniteAchievements.Providers.Exophase
                 return;
             }
 
-            _slugCache[cacheKey] = slug;
-            _slugCacheTimestamps[cacheKey] = DateTime.UtcNow;
+            _slugMemo[cacheKey] = slug;
         }
 
         private static ExophaseGame FindBestSearchMatch(string gameName, IList<ExophaseGame> games, string platformSlug)

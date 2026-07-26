@@ -48,6 +48,11 @@ namespace PlayniteAchievements.Models
         public bool ForceBypassExclusionsForExplicitIncludes { get; set; } = true;
         public bool ForceIconRefresh { get; set; }
         public bool ForceDefinitionRefresh { get; set; }
+
+        // Reuse cached Ok schemas even for scopes that normally force a definition re-fetch
+        // (SelectedGame/Full). Set by latency-sensitive programmatic callers such as the
+        // in-game poller; user-initiated refreshes leave this false.
+        public bool PreferCachedDefinitions { get; set; }
         public bool? RunProvidersInParallelOverride { get; set; }
 
         public RefreshOptions Clone()
@@ -78,6 +83,7 @@ namespace PlayniteAchievements.Models
                 ForceBypassExclusionsForExplicitIncludes = ForceBypassExclusionsForExplicitIncludes,
                 ForceIconRefresh = ForceIconRefresh,
                 ForceDefinitionRefresh = ForceDefinitionRefresh,
+                PreferCachedDefinitions = PreferCachedDefinitions,
                 RunProvidersInParallelOverride = RunProvidersInParallelOverride
             };
         }
@@ -113,7 +119,8 @@ namespace PlayniteAchievements.Models
                 ProviderGameKeys = source.ProviderGameKeys,
                 FriendAccounts = source.FriendAccounts,
                 FriendExternalUserIds = source.FriendExternalUserIds,
-                ForceDefinitionRefresh = source.ForceDefinitionRefresh
+                ForceDefinitionRefresh = source.ForceDefinitionRefresh,
+                PreferCachedDefinitions = source.PreferCachedDefinitions
             }.Clone();
         }
 

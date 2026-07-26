@@ -71,6 +71,34 @@ namespace PlayniteAchievements.Models.Achievements
         }
 
         /// <summary>
+        /// Wraps a local file path with a cache-bust token derived from the file's
+        /// last write time and length so overwriting the file at the same path
+        /// produces a new cache key. Idempotent: any existing token is replaced
+        /// and an existing grayscale marker is preserved.
+        /// Non-file sources are returned normalized and unwrapped.
+        /// </summary>
+        public static string ApplyCacheBust(string path) => BuildDisplayIcon(path, gray: ContainsGrayMarker(path));
+
+        private static bool ContainsGrayMarker(string value)
+        {
+            var normalized = NormalizeIcon(value);
+            while (!string.IsNullOrWhiteSpace(normalized) &&
+                   normalized.StartsWith(CacheBustPrefix, StringComparison.OrdinalIgnoreCase))
+            {
+                var firstSeparator = normalized.IndexOf('|');
+                var secondSeparator = firstSeparator >= 0 ? normalized.IndexOf('|', firstSeparator + 1) : -1;
+                if (secondSeparator < 0 || secondSeparator + 1 >= normalized.Length)
+                {
+                    break;
+                }
+
+                normalized = normalized.Substring(secondSeparator + 1);
+            }
+
+            return normalized?.StartsWith(GrayPrefix, StringComparison.OrdinalIgnoreCase) == true;
+        }
+
+        /// <summary>
         /// Prefixes the icon identifier with "gray:" when not already prefixed.
         /// </summary>
         public static string ApplyGrayPrefix(string icon)

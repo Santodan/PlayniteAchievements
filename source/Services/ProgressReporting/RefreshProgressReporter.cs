@@ -4,6 +4,8 @@ using PlayniteAchievements.Providers;
 using Playnite.SDK;
 using Playnite.SDK.Models;
 using System;
+using System.Collections.Generic;
+using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 
@@ -60,6 +62,12 @@ namespace PlayniteAchievements.Services.ProgressReporting
         private readonly Action<ProgressReport, bool> _emit;
         private int _processedGamesInRun;
         private int _totalGamesInRun;
+
+        // Refresh targets are (game, provider) pairs, so a game serviced by several providers completes
+        // several passes. Progress counts distinct games: a game counts as processed only when its last
+        // pending provider pass completes, keeping "n/total" and the completion count in game units.
+        private readonly object _pendingPassesGate = new object();
+        private Dictionary<Guid, int> _pendingProviderPassesByGame = new Dictionary<Guid, int>();
         private bool _useWeightedProgress;
         private int _weightedStartUnits;
         private int _weightedEndUnits;
@@ -102,6 +110,11 @@ namespace PlayniteAchievements.Services.ProgressReporting
 
         public void Reset()
         {
+            lock (_pendingPassesGate)
+            {
+                _pendingProviderPassesByGame = new Dictionary<Guid, int>();
+            }
+
             Interlocked.Exchange(ref _processedGamesInRun, 0);
             Interlocked.Exchange(ref _totalGamesInRun, 0);
             _useWeightedProgress = false;
@@ -117,14 +130,58 @@ namespace PlayniteAchievements.Services.ProgressReporting
             Interlocked.Exchange(ref _lastReportedStep, 0);
         }
 
-        public void Initialize(int totalGames)
+        /// <summary>
+        /// Initializes game progress from the run's (game, provider) targets: one id per target,
+        /// repeated when several providers service the same game. Totals count distinct games.
+        /// </summary>
+        public void Initialize(IEnumerable<Guid> targetGameIds)
         {
+            var pendingPasses = new Dictionary<Guid, int>();
+            foreach (var gameId in targetGameIds ?? Enumerable.Empty<Guid>())
+            {
+                pendingPasses.TryGetValue(gameId, out var passes);
+                pendingPasses[gameId] = passes + 1;
+            }
+
+            lock (_pendingPassesGate)
+            {
+                _pendingProviderPassesByGame = pendingPasses;
+            }
+
             Interlocked.Exchange(ref _processedGamesInRun, 0);
-            Interlocked.Exchange(ref _totalGamesInRun, Math.Max(0, totalGames));
+            Interlocked.Exchange(ref _totalGamesInRun, pendingPasses.Count);
             if (!_useWeightedProgress)
             {
                 RememberCompletionTotal(TotalGames);
             }
+        }
+
+        /// <summary>
+        /// Records completion of one provider pass for a game and returns the number of fully
+        /// processed games. A game is processed once all of its pending provider passes complete.
+        /// </summary>
+        private int CompleteProviderPass(Guid gameId)
+        {
+            var gameCompleted = false;
+            lock (_pendingPassesGate)
+            {
+                if (_pendingProviderPassesByGame.TryGetValue(gameId, out var passes))
+                {
+                    if (passes <= 1)
+                    {
+                        _pendingProviderPassesByGame.Remove(gameId);
+                        gameCompleted = true;
+                    }
+                    else
+                    {
+                        _pendingProviderPassesByGame[gameId] = passes - 1;
+                    }
+                }
+            }
+
+            return gameCompleted
+                ? Interlocked.Increment(ref _processedGamesInRun)
+                : Volatile.Read(ref _processedGamesInRun);
         }
 
         public void ConfigureWeightedProgress(int totalUnits, int startUnits, int endUnits)
@@ -325,7 +382,7 @@ namespace PlayniteAchievements.Services.ProgressReporting
             finally
             {
                 var totalGames = TotalGames;
-                var completedGames = Interlocked.Increment(ref _processedGamesInRun);
+                var completedGames = CompleteProviderPass(game?.Id ?? data?.PlayniteGameId ?? scope.SingleGameId ?? Guid.Empty);
                 if (completedGames > totalGames)
                 {
                     completedGames = totalGames;

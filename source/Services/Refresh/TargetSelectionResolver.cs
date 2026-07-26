@@ -157,6 +157,80 @@ namespace PlayniteAchievements.Services.Refresh
              return GameCustomDataLookup.TryGetProviderOverride(gameId, out _);
         }
 
+        /// <summary>
+        /// Returns the subset of providers that could service at least one candidate game,
+        /// ignoring authentication state. Games with a forced provider override mark the
+        /// override provider directly, since override resolution never falls through to
+        /// capability checks. A provider whose capability check throws is kept, so filtering
+        /// can only over-approximate the set of providers worth probing.
+        /// </summary>
+        public IReadOnlyList<IDataProvider> GetProvidersWithCapableGames(
+            IEnumerable<Game> candidateGames,
+            IReadOnlyList<IDataProvider> providers,
+            TargetSelectionCache targetSelectionCache = null)
+        {
+            var candidates = providers?
+                .Where(provider => provider != null)
+                .ToList() ?? new List<IDataProvider>();
+            if (candidates.Count == 0 || candidateGames == null)
+            {
+                return new List<IDataProvider>();
+            }
+
+            var markedKeys = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            foreach (var game in candidateGames)
+            {
+                if (markedKeys.Count == candidates.Count)
+                {
+                    break;
+                }
+
+                if (game == null)
+                {
+                    continue;
+                }
+
+                if (GameCustomDataLookup.TryGetProviderOverride(game.Id, out var providerOverride))
+                {
+                    var overrideProvider = candidates.FirstOrDefault(provider =>
+                        string.Equals(provider.ProviderKey, providerOverride.ProviderKey, StringComparison.OrdinalIgnoreCase));
+                    if (overrideProvider != null)
+                    {
+                        markedKeys.Add(overrideProvider.ProviderKey);
+                    }
+
+                    continue;
+                }
+
+                foreach (var provider in candidates)
+                {
+                    if (markedKeys.Contains(provider.ProviderKey))
+                    {
+                        continue;
+                    }
+
+                    try
+                    {
+                        if (IsProviderCapable(game, provider, targetSelectionCache))
+                        {
+                            markedKeys.Add(provider.ProviderKey);
+                        }
+                    }
+                    catch (Exception ex)
+                    {
+                        _logger?.Debug(ex, string.Format(
+                            "Platform capability check failed for game '{0}'.",
+                            game?.Name));
+                        markedKeys.Add(provider.ProviderKey);
+                    }
+                }
+            }
+
+            return candidates
+                .Where(provider => markedKeys.Contains(provider.ProviderKey))
+                .ToList();
+        }
+
         public IReadOnlyList<IDataProvider> OrderProvidersForRefresh(IEnumerable<IDataProvider> providers)
         {
             return (providers ?? Enumerable.Empty<IDataProvider>())

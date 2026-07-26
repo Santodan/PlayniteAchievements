@@ -459,7 +459,11 @@ namespace PlayniteAchievements.Providers.Steam
                 return Task.CompletedTask;
             }
 
-            return _steamHuntersCategoryEnricher.EnrichAsync(appId, gameName, achievements, cancel);
+            // Friends refreshes never download default category art (playniteGameId: null):
+            // provider-only friend games have no Playnite id to key art files by, and mapped
+            // games get their art from the owner's own library scan. The category labels/types
+            // set here do persist for mapped games (seed/backfill at definition-save time).
+            return _steamHuntersCategoryEnricher.EnrichAsync(appId, gameName, achievements, playniteGameId: null, cancel);
         }
 
         private static bool ShouldUseSteamHuntersForCategories()

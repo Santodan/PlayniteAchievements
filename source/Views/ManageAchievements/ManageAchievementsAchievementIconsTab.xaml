@@ -50,22 +50,6 @@
                             HorizontalAlignment="Right"
                             VerticalAlignment="Top"
                             Margin="{StaticResource PlayAch.Thickness.Left.Md}">
-                    <WrapPanel Orientation="Horizontal"
-                               HorizontalAlignment="Right">
-                        <Button x:Name="RevertChangesButton"
-                                Content="{DynamicResource LOCPlayAch_Common_RevertChanges}"
-                                Command="{Binding RevertChangesCommand}"
-                                Style="{StaticResource ToolbarButtonStyle}" />
-                        <Button x:Name="ClearAllButton"
-                                Content="{DynamicResource LOCPlayAch_Common_ClearOverrides}"
-                                Command="{Binding ClearAllCommand}"
-                                Style="{StaticResource ToolbarButtonStyle}" />
-                        <Button x:Name="SaveButton"
-                                Content="{DynamicResource LOCPlayAch_Button_Save}"
-                                Command="{Binding SaveCommand}"
-                                Padding="{StaticResource PlayAch.Thickness.ButtonPadding}" />
-                    </WrapPanel>
-
                     <Button x:Name="OpenIconsFolderButton"
                             Content="{DynamicResource LOCPlayAch_ManageAchievements_CustomIcons_OpenFolderButton}"
                             Command="{Binding OpenIconsFolderCommand}"
@@ -207,12 +191,13 @@
 
                                     <Grid Grid.Column="2"
                                           Margin="{StaticResource PlayAch.Thickness.Left.Sm}">
-                                        <TextBox Text="{Binding UnlockedOverrideText, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                        <TextBox Text="{Binding UnlockedOverrideText, Mode=TwoWay, UpdateSourceTrigger=LostFocus}"
                                                  ToolTip="{Binding UnlockedOverrideToolTip}"
                                                  Tag="Unlocked"
                                                  AllowDrop="True"
                                                  PreviewDragOver="OverrideTextBox_PreviewDragOver"
-                                                 Drop="OverrideTextBox_Drop">
+                                                 Drop="OverrideTextBox_Drop"
+                                                 KeyDown="OverrideTextBox_KeyDown">
                                             <TextBox.Style>
                                                 <Style TargetType="TextBox" BasedOn="{StaticResource EditorTextBoxStyle}">
                                                     <Style.Triggers>
@@ -277,12 +262,13 @@
 
                                     <Grid Grid.Column="2"
                                           Margin="{StaticResource PlayAch.Thickness.Left.Sm}">
-                                        <TextBox Text="{Binding LockedOverrideText, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                        <TextBox Text="{Binding LockedOverrideText, Mode=TwoWay, UpdateSourceTrigger=LostFocus}"
                                                  ToolTip="{Binding LockedOverrideToolTip}"
                                                  Tag="Locked"
                                                  AllowDrop="True"
                                                  PreviewDragOver="OverrideTextBox_PreviewDragOver"
-                                                 Drop="OverrideTextBox_Drop">
+                                                 Drop="OverrideTextBox_Drop"
+                                                 KeyDown="OverrideTextBox_KeyDown">
                                             <TextBox.Style>
                                                 <Style TargetType="TextBox" BasedOn="{StaticResource EditorTextBoxStyle}">
                                                     <Style.Triggers>

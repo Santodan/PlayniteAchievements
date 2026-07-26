@@ -18,7 +18,6 @@ namespace PlayniteAchievements.Providers.Hoyoverse
 
         public ProviderOverrideDescriptor OverrideDescriptor { get; } = ProviderOverrideDescriptor.Choice(
             "LOCPlayAch_ManageAchievements_Overrides_ProviderValueLabel_Hoyoverse",
-            "HoYoverse Title",
             new[]
             {
                 new ProviderOverrideChoice(
@@ -31,8 +30,7 @@ namespace PlayniteAchievements.Providers.Hoyoverse
                     HoyoverseGameKind.ZenlessZoneZero.ToString(),
                     HoyoverseGameCatalog.GetCanonicalName(HoyoverseGameKind.ZenlessZoneZero))
             },
-            "LOCPlayAch_ManageAchievements_Overrides_ProviderInvalidChoice",
-            "Please select a valid title for this override.");
+            "LOCPlayAch_ManageAchievements_Overrides_ProviderInvalidChoice");
         internal const string IconKey = "ProviderIconHoyoverse";
         internal const string ColorHex = "#D4ACF8";
 

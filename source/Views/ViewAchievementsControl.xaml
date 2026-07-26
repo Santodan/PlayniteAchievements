@@ -87,7 +87,7 @@
                                                ShowMetadataPlatform="{Binding SummaryShowMetadataPlatform}"
                                                ShowMetadataPlaytime="{Binding SummaryShowMetadataPlaytime}"
                                                ShowMetadataRegion="{Binding SummaryShowMetadataRegion}"
-                                               ShowCompletionBorder="{Binding SummaryShowCompletionBorder}"
+                                               ShowCompletionGlow="{Binding SummaryShowCompletionGlow}"
                                                ShowColumnHeaders="{Binding SummaryShowColumnHeaders}"
                                                FixedRowHeight="{Binding SummaryGridRowHeight}"
                                                DelayInitialRenderUntilNormalized="True"
@@ -115,7 +115,7 @@
             Style="{StaticResource CardBorderStyle}"
             Margin="{StaticResource PlayAch.Thickness.Bottom.Sm}"
             Padding="16,12,16,12"
-                Visibility="{Binding HasAchievements, Converter={StaticResource BoolToVis}}">
+                Visibility="Collapsed">
             <StackPanel>
                 <!-- Timeline Header -->
                 <ToggleButton x:Name="TimelineToggleButton"
@@ -247,7 +247,7 @@
 
         <!-- Achievements List -->
         <Grid Grid.Row="2"
-              Margin="16,0,16,0"
+              Margin="8,0,8,0"
               Visibility="{Binding HasAchievements, Converter={StaticResource BoolToVis}}">
             <Grid.RowDefinitions>
                 <RowDefinition Height="Auto"/>
@@ -284,6 +284,7 @@
             <controls:AchievementDataGridControl x:Name="AchievementsDataGridControl"
                                                  Grid.Row="1"
                                                  ItemsSource="{Binding Achievements}"
+                                                 CategorySummarySource="{Binding AllAchievements}"
                                                  RevealCommand="{Binding RevealAchievementCommand}"
                                                  ColumnSettingsKey="SingleGame"
                                                  EnableCategoryMode="True"
@@ -291,12 +292,14 @@
                                                  HideCategorySummaryRow="{Binding HideCategorySummaryRow}"
                                                  DrilledCategory="{Binding SelectedCategoryName, Mode=OneWayToSource}"
                                                  CategoryUseCoverImages="{Binding CategorySummariesUseCoverImages}"
+                                                 CategoryShowCompletionGlow="{Binding CategorySummariesShowCompletionGlow}"
                                                  CategoryShowColumnHeaders="{Binding CategorySummariesShowColumnHeaders}"
                                                  CategoryFixedRowHeight="{Binding CategorySummariesGridRowHeight}"
                                                  CategoryColumnSettingsKey="ViewAchievementsCategorySummaries"
                                                  DataGridMaxHeight="{x:Static sys:Double.NaN}"
                                                  ShowRarityGlow="{Binding ShowRarityGlow}"
                                                  ColorNamesByRarity="{Binding ColorNamesByRarity}"
+                                                 ColorRarityColumnsByRarity="{Binding ColorRarityColumnsByRarity}"
                                                  FixedRowHeight="{Binding SingleGameGridRowHeight}"
                                                  ControlBar="{Binding AchievementsControlBar}"
                                                  ShowControlBar="{Binding ShowAchievementGridControlBar}"

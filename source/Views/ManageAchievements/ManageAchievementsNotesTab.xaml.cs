@@ -146,8 +146,8 @@ namespace PlayniteAchievements.Views.ManageAchievements
                 achievementIconSource: item.DisplayIcon);
 
             var title = isEditMode
-                ? L("LOCPlayAch_NotesDialog_EditTitle", "Edit Note")
-                : L("LOCPlayAch_NotesDialog_ViewTitle", "View Note");
+                ? L("LOCPlayAch_NotesDialog_EditTitle")
+                : L("LOCPlayAch_NotesDialog_ViewTitle");
             var window = PlayniteUiProvider.CreateExtensionWindow(
                 title,
                 dialog,
@@ -170,10 +170,9 @@ namespace PlayniteAchievements.Views.ManageAchievements
             }
         }
 
-        private static string L(string key, string fallback)
+        private static string L(string key)
         {
-            var value = ResourceProvider.GetString(key);
-            return string.IsNullOrWhiteSpace(value) ? fallback : value;
+            return ResourceProvider.GetString(key);
         }
     }
 }

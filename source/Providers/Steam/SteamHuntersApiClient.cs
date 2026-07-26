@@ -3,7 +3,6 @@ using Playnite.SDK;
 using System;
 using System.Collections.Generic;
 using System.Globalization;
-using System.Net.Http;
 using System.Threading;
 using System.Threading.Tasks;
 
@@ -12,18 +11,25 @@ namespace PlayniteAchievements.Providers.Steam
     internal sealed class SteamHuntersApiClient
     {
         private const string BaseUrl = "https://steamhunters.com/api";
-        private const string UserAgent =
-            "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36";
 
-        private readonly HttpClient _httpClient;
+        private readonly Func<string, CancellationToken, Task<string>> _fetchPageText;
         private readonly ILogger _logger;
 
-        public SteamHuntersApiClient(HttpClient httpClient, ILogger logger)
+        public SteamHuntersApiClient(
+            Func<string, CancellationToken, Task<string>> fetchPageText,
+            ILogger logger)
         {
-            _httpClient = httpClient ?? throw new ArgumentNullException(nameof(httpClient));
+            _fetchPageText = fetchPageText ?? throw new ArgumentNullException(nameof(fetchPageText));
             _logger = logger;
         }
 
+        /// <summary>
+        /// Fetches the achievement groups through an offscreen CEF view (the Steam scan's
+        /// shared leased view while a scan or friend refresh holds the lease).
+        /// steamhunters.com tarpits the .NET HTTP stack's TLS fingerprint, so the browser is
+        /// the only reliable transport; the JSON endpoint renders as a plain-text document,
+        /// so the page text is the raw JSON body. Returns null on failure.
+        /// </summary>
         public async Task<SteamHuntersAchievementGroupsResponse> GetAchievementGroupsAsync(
             int appId,
             CancellationToken cancel)
@@ -36,37 +42,21 @@ namespace PlayniteAchievements.Providers.Steam
             var url = BaseUrl + "/GetAchievementGroups/v1?appId=" +
                 appId.ToString(CultureInfo.InvariantCulture);
 
-            using (var request = new HttpRequestMessage(HttpMethod.Get, url))
+            var body = await _fetchPageText(url, cancel).ConfigureAwait(false);
+            if (string.IsNullOrWhiteSpace(body))
             {
-                request.Headers.TryAddWithoutValidation("User-Agent", UserAgent);
-                request.Headers.TryAddWithoutValidation("Accept", "application/json,text/html;q=0.8,*/*;q=0.5");
-                request.Headers.TryAddWithoutValidation("X-Requested-With", "PlayniteAchievements");
+                _logger?.Warn($"[SteamHunters] Group request returned no content for appId={appId}.");
+                return null;
+            }
 
-                using (var response = await _httpClient.SendAsync(request, cancel).ConfigureAwait(false))
-                {
-                    var body = await response.Content.ReadAsStringAsync().ConfigureAwait(false);
-                    if (!response.IsSuccessStatusCode)
-                    {
-                        _logger?.Warn(
-                            $"[SteamHunters] Group request failed for appId={appId}. Status={(int)response.StatusCode}. BodyLength={body?.Length ?? 0}");
-                        return null;
-                    }
-
-                    if (string.IsNullOrWhiteSpace(body))
-                    {
-                        return null;
-                    }
-
-                    try
-                    {
-                        return JsonConvert.DeserializeObject<SteamHuntersAchievementGroupsResponse>(body);
-                    }
-                    catch (JsonException ex)
-                    {
-                        _logger?.Warn(ex, $"[SteamHunters] Failed to parse achievement groups for appId={appId}.");
-                        return null;
-                    }
-                }
+            try
+            {
+                return JsonConvert.DeserializeObject<SteamHuntersAchievementGroupsResponse>(body);
+            }
+            catch (JsonException ex)
+            {
+                _logger?.Warn(ex, $"[SteamHunters] Failed to parse achievement groups for appId={appId} (length={body.Length}).");
+                return null;
             }
         }
     }

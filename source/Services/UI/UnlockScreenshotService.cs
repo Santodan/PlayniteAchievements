@@ -13,8 +13,8 @@ namespace PlayniteAchievements.Services.UI
 {
     /// <summary>
     /// Captures a screenshot of the monitor the running game is on and saves it under a
-    /// user-chosen base directory as &lt;base&gt;\Game\NNN_AchievementName.png. Used by
-    /// the unlock-toast pipeline to record one image per own-unlock wave. All failures are
+    /// user-chosen base directory as &lt;base&gt;\Game\NNN_AchievementName_&lt;variant&gt;.png.
+    /// Used by the unlock-toast pipeline to record images per own-unlock wave. All failures are
     /// swallowed (logged at debug) so screenshotting never disrupts toasts.
     /// </summary>
     internal sealed class UnlockScreenshotService
@@ -150,9 +150,19 @@ namespace PlayniteAchievements.Services.UI
         /// </summary>
         public Bitmap CaptureGameWindow(int? startedProcessId)
         {
+            return CaptureGameWindow(IntPtr.Zero, startedProcessId);
+        }
+
+        /// <summary>
+        /// Capture overload for callers that already resolved the game window (e.g. via the
+        /// foreground tracker): a valid <paramref name="knownHwnd"/> wins, the started-process
+        /// resolution is the fallback.
+        /// </summary>
+        public Bitmap CaptureGameWindow(IntPtr knownHwnd, int? startedProcessId)
+        {
             try
             {
-                var bounds = TryResolveGameWindowBounds(startedProcessId, out var rect, out var hwnd)
+                var bounds = TryResolveGameWindowBounds(knownHwnd, startedProcessId, out var rect, out var hwnd)
                     ? rect
                     : ResolveMonitorBounds(hwnd);
                 if (bounds.Width <= 0 || bounds.Height <= 0)
@@ -176,9 +186,24 @@ namespace PlayniteAchievements.Services.UI
         }
 
         /// <summary>
+        /// Maps a single screenshot variant to its filename suffix ("clean"/"toast"/"framed").
+        /// Returns null for None or combined flags.
+        /// </summary>
+        internal static string VariantSuffix(ScreenshotVariants variant)
+        {
+            switch (variant)
+            {
+                case ScreenshotVariants.Clean: return "clean";
+                case ScreenshotVariants.WithToast: return "toast";
+                case ScreenshotVariants.Framed: return "framed";
+                default: return null;
+            }
+        }
+
+        /// <summary>
         /// Saves an already-captured bitmap to
-        /// &lt;baseDir&gt;\Game\NNN_AchievementName.png. Creates directories as needed and
-        /// avoids clobbering an existing file by appending " (2)", " (3)"...
+        /// &lt;baseDir&gt;\Game\NNN_AchievementName_&lt;variant&gt;.png. Creates directories as
+        /// needed and avoids clobbering an existing file by appending " (2)", " (3)"...
         /// </summary>
         public void Save(
             Bitmap bitmap,
@@ -187,20 +212,73 @@ namespace PlayniteAchievements.Services.UI
             string gameName,
             string achievementName,
             int number,
-            int total)
+            int total,
+            string variantSuffix = null)
         {
-            if (bitmap == null || string.IsNullOrWhiteSpace(baseDir))
+            if (bitmap == null)
+            {
+                return;
+            }
+
+            SaveCore(
+                path => bitmap.Save(path, ImageFormat.Png),
+                baseDir, providerKey, gameName, achievementName, number, total, variantSuffix);
+        }
+
+        /// <summary>
+        /// Saves an already-rendered (frozen) WPF bitmap — the framed composite — via
+        /// PngBitmapEncoder using the same naming scheme as the GDI overload.
+        /// </summary>
+        public void Save(
+            System.Windows.Media.Imaging.BitmapSource source,
+            string baseDir,
+            string providerKey,
+            string gameName,
+            string achievementName,
+            int number,
+            int total,
+            string variantSuffix = null)
+        {
+            if (source == null)
+            {
+                return;
+            }
+
+            SaveCore(
+                path =>
+                {
+                    var encoder = new System.Windows.Media.Imaging.PngBitmapEncoder();
+                    encoder.Frames.Add(System.Windows.Media.Imaging.BitmapFrame.Create(source));
+                    using (var stream = new FileStream(path, FileMode.CreateNew, FileAccess.Write, FileShare.None))
+                    {
+                        encoder.Save(stream);
+                    }
+                },
+                baseDir, providerKey, gameName, achievementName, number, total, variantSuffix);
+        }
+
+        private void SaveCore(
+            Action<string> writeToPath,
+            string baseDir,
+            string providerKey,
+            string gameName,
+            string achievementName,
+            int number,
+            int total,
+            string variantSuffix)
+        {
+            if (string.IsNullOrWhiteSpace(baseDir))
             {
                 return;
             }
 
             try
             {
-                var relative = BuildRelativePath(providerKey, gameName, achievementName, number, total);
+                var relative = BuildRelativePath(providerKey, gameName, achievementName, number, total, variantSuffix);
                 var folder = Path.Combine(baseDir, relative.Folder);
                 Directory.CreateDirectory(folder);
                 var path = EnsureUniquePath(Path.Combine(folder, relative.FileName));
-                bitmap.Save(path, ImageFormat.Png);
+                writeToPath(path);
             }
             catch (Exception ex)
             {
@@ -209,7 +287,7 @@ namespace PlayniteAchievements.Services.UI
         }
 
         /// <summary>
-        /// Pure path builder: folder "Game", file "NNN_AchievementName.png" where NNN
+        /// Pure path builder: folder "Game", file "NNN_AchievementName[_suffix].ext" where NNN
         /// is zero-padded to the width of the game's total achievement count (min 3). Every
         /// segment is sanitized for the filesystem.
         /// </summary>
@@ -218,7 +296,9 @@ namespace PlayniteAchievements.Services.UI
             string gameName,
             string achievementName,
             int number,
-            int total)
+            int total,
+            string variantSuffix = null,
+            string extension = ".png")
         {
             var game = AchievementIconCachePathBuilder.SanitizeSegment(gameName);
             var name = AchievementIconCachePathBuilder.SanitizeSegment(achievementName);
@@ -226,7 +306,8 @@ namespace PlayniteAchievements.Services.UI
             var width = Math.Max(3, Math.Max(1, total).ToString(CultureInfo.InvariantCulture).Length);
             var prefix = Math.Max(0, number).ToString(CultureInfo.InvariantCulture).PadLeft(width, '0');
 
-            return (game, $"{prefix}_{name}.png");
+            var suffix = string.IsNullOrWhiteSpace(variantSuffix) ? string.Empty : $"_{variantSuffix}";
+            return (game, $"{prefix}_{name}{suffix}{extension}");
         }
 
         /// <summary>
@@ -236,15 +317,51 @@ namespace PlayniteAchievements.Services.UI
         /// </summary>
         public Rectangle? TryGetGameWindowBounds(int? startedProcessId)
         {
-            // No game running -> caller (toast placement) uses the work area.
-            if (!startedProcessId.HasValue)
+            return TryGetGameWindowBounds(IntPtr.Zero, startedProcessId);
+        }
+
+        /// <summary>
+        /// Bounds overload for callers with a known game window handle; the started-process
+        /// resolution is the fallback.
+        /// </summary>
+        public Rectangle? TryGetGameWindowBounds(IntPtr knownHwnd, int? startedProcessId)
+        {
+            // No game window and no game running -> caller (toast placement) uses the work area.
+            if (knownHwnd == IntPtr.Zero && !startedProcessId.HasValue)
             {
                 return null;
             }
 
-            return TryResolveGameWindowBounds(startedProcessId, out var bounds, out _)
+            return TryResolveGameWindowBounds(knownHwnd, startedProcessId, out var bounds, out _)
                 ? bounds
                 : (Rectangle?)null;
+        }
+
+        /// <summary>
+        /// Bounds of the monitor hosting the game window (started-process main window, else
+        /// foreground), in physical pixels. Used by the unlock-recording service to scope the
+        /// ffmpeg screen capture: ffmpeg can't follow a moving window, so the whole monitor is
+        /// recorded. Returns null when no window or monitor can be resolved.
+        /// </summary>
+        public Rectangle? TryGetGameMonitorBounds(int? startedProcessId)
+        {
+            return TryGetGameMonitorBounds(IntPtr.Zero, startedProcessId);
+        }
+
+        /// <summary>
+        /// Monitor-bounds overload for callers with a known game window handle; the
+        /// started-process resolution is the fallback.
+        /// </summary>
+        public Rectangle? TryGetGameMonitorBounds(IntPtr knownHwnd, int? startedProcessId)
+        {
+            var hwnd = ResolveWindow(knownHwnd, startedProcessId);
+            if (hwnd == IntPtr.Zero)
+            {
+                return null;
+            }
+
+            var bounds = ResolveMonitorBounds(hwnd);
+            return bounds.Width > 0 && bounds.Height > 0 ? bounds : (Rectangle?)null;
         }
 
         /// <summary>
@@ -254,6 +371,20 @@ namespace PlayniteAchievements.Services.UI
         /// </summary>
         public IntPtr ResolveGameWindowHandle(int? startedProcessId)
         {
+            return ResolveGameWindowHandle(IntPtr.Zero, startedProcessId);
+        }
+
+        /// <summary>
+        /// Handle-resolution overload for callers with a known game window handle; the
+        /// started-process resolution is the fallback.
+        /// </summary>
+        public IntPtr ResolveGameWindowHandle(IntPtr knownHwnd, int? startedProcessId)
+        {
+            if (knownHwnd != IntPtr.Zero && TryGetWindowRectangle(knownHwnd, out _))
+            {
+                return knownHwnd;
+            }
+
             return startedProcessId.HasValue ? ResolveWindow(startedProcessId) : IntPtr.Zero;
         }
 
@@ -292,8 +423,17 @@ namespace PlayniteAchievements.Services.UI
         /// </summary>
         private static bool TryResolveGameWindowBounds(int? startedProcessId, out Rectangle bounds, out IntPtr hwnd)
         {
+            return TryResolveGameWindowBounds(IntPtr.Zero, startedProcessId, out bounds, out hwnd);
+        }
+
+        private static bool TryResolveGameWindowBounds(
+            IntPtr knownHwnd,
+            int? startedProcessId,
+            out Rectangle bounds,
+            out IntPtr hwnd)
+        {
             bounds = Rectangle.Empty;
-            hwnd = ResolveWindow(startedProcessId);
+            hwnd = ResolveWindow(knownHwnd, startedProcessId);
             if (hwnd == IntPtr.Zero || !TryGetWindowRectangle(hwnd, out var window))
             {
                 return false;
@@ -312,6 +452,18 @@ namespace PlayniteAchievements.Services.UI
 
             bounds = window;
             return true;
+        }
+
+        private static IntPtr ResolveWindow(IntPtr knownHwnd, int? startedProcessId)
+        {
+            // A caller-supplied handle (foreground tracker) beats pid resolution: for
+            // launcher-wrapped titles the started process often has no (or the wrong) window.
+            if (knownHwnd != IntPtr.Zero && TryGetWindowRectangle(knownHwnd, out _))
+            {
+                return knownHwnd;
+            }
+
+            return ResolveWindow(startedProcessId);
         }
 
         private static IntPtr ResolveWindow(int? startedProcessId)
@@ -351,7 +503,7 @@ namespace PlayniteAchievements.Services.UI
             }
         }
 
-        private static string EnsureUniquePath(string path)
+        internal static string EnsureUniquePath(string path)
         {
             if (!File.Exists(path))
             {

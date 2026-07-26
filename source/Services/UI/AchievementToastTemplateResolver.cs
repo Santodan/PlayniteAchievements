@@ -15,12 +15,14 @@ namespace PlayniteAchievements.Services.UI
     public sealed class AchievementToastTemplateResolver
     {
         public const string TemplateKey = "PlayAch.Template.AchievementToast";
+        public const string FrameTemplateKey = "PlayAch.Template.ScreenshotFrame";
         public const string SlideInStoryboardKey = "PlayAch.Storyboard.ToastSlideIn";
         public const string SlideOutStoryboardKey = "PlayAch.Storyboard.ToastSlideOut";
         public const string CountdownStoryboardKey = "PlayAch.Storyboard.ToastCountdown";
         public const string PositionResourceKey = "PlayAch.Toast.Position";
         public const string DurationSecondsResourceKey = "PlayAch.Toast.DurationSeconds";
         public const string ThemeOverrideRelativePath = "PlayniteAchievements\\AchievementToast.xaml";
+        public const string FrameThemeOverrideRelativePath = "PlayniteAchievements\\ScreenshotFrame.xaml";
 
         private const string PluginDefaultDictionaryUri =
             "pack://application:,,,/PlayniteAchievements;component/Resources/AchievementResources.xaml";
@@ -31,15 +33,18 @@ namespace PlayniteAchievements.Services.UI
         private readonly IPlayniteAPI _api;
         private readonly ILogger _logger;
         private readonly Func<DataTemplate> _loadDefaultTemplate;
+        private readonly Func<DataTemplate> _loadDefaultFrameTemplate;
 
         public AchievementToastTemplateResolver(
             IPlayniteAPI api,
             ILogger logger,
-            Func<DataTemplate> loadDefaultTemplate = null)
+            Func<DataTemplate> loadDefaultTemplate = null,
+            Func<DataTemplate> loadDefaultFrameTemplate = null)
         {
             _api = api;
             _logger = logger;
             _loadDefaultTemplate = loadDefaultTemplate;
+            _loadDefaultFrameTemplate = loadDefaultFrameTemplate;
         }
 
         public DataTemplate ResolveTemplate()
@@ -49,7 +54,24 @@ namespace PlayniteAchievements.Services.UI
 
         public DataTemplate ResolveTemplate(ResourceDictionary applicationResources)
         {
-            return ResolveResource<DataTemplate>(applicationResources, TemplateKey, _loadDefaultTemplate);
+            return ResolveResource<DataTemplate>(
+                applicationResources, TemplateKey, ThemeOverrideRelativePath, _loadDefaultTemplate);
+        }
+
+        /// <summary>
+        /// Resolves the screenshot-frame DataTemplate (composited onto framed unlock screenshots,
+        /// never shown on screen) using the same theme-override precedence as the toast template,
+        /// except the theme file is PlayniteAchievements\ScreenshotFrame.xaml.
+        /// </summary>
+        public DataTemplate ResolveFrameTemplate()
+        {
+            return ResolveFrameTemplate(Application.Current?.Resources);
+        }
+
+        public DataTemplate ResolveFrameTemplate(ResourceDictionary applicationResources)
+        {
+            return ResolveResource<DataTemplate>(
+                applicationResources, FrameTemplateKey, FrameThemeOverrideRelativePath, _loadDefaultFrameTemplate);
         }
 
         /// <summary>
@@ -61,7 +83,7 @@ namespace PlayniteAchievements.Services.UI
         /// </summary>
         public Storyboard ResolveStoryboard(string key)
         {
-            return ResolveResource<Storyboard>(Application.Current?.Resources, key, null);
+            return ResolveResource<Storyboard>(Application.Current?.Resources, key, ThemeOverrideRelativePath, null);
         }
 
         /// <summary>
@@ -73,7 +95,7 @@ namespace PlayniteAchievements.Services.UI
         /// </summary>
         public object ResolveResourceValue(string key)
         {
-            return ResolveResource<object>(Application.Current?.Resources, key, null);
+            return ResolveResource<object>(Application.Current?.Resources, key, ThemeOverrideRelativePath, null);
         }
 
         public string ResolveActiveThemeOverridePath()
@@ -83,12 +105,19 @@ namespace PlayniteAchievements.Services.UI
 
         public IReadOnlyList<string> ResolveActiveThemeOverridePaths(ResourceDictionary applicationResources)
         {
+            return ResolveActiveThemeOverridePaths(applicationResources, ThemeOverrideRelativePath);
+        }
+
+        public IReadOnlyList<string> ResolveActiveThemeOverridePaths(
+            ResourceDictionary applicationResources,
+            string overrideRelativePath)
+        {
             var modeName = GetThemeModeName();
             var themeId = GetActiveThemeId(modeName);
             var themesRoots = GetThemesRootPaths();
             var themeDirectories = ResolveThemeDirectories(applicationResources, themesRoots, modeName, themeId);
             var overridePaths = themeDirectories
-                .Select(directory => Path.Combine(directory, ThemeOverrideRelativePath))
+                .Select(directory => Path.Combine(directory, overrideRelativePath))
                 .Distinct(StringComparer.OrdinalIgnoreCase)
                 .ToList();
 
@@ -152,27 +181,52 @@ namespace PlayniteAchievements.Services.UI
             if (string.IsNullOrWhiteSpace(selectedPath))
             {
                 _logger.Info($"[ToastTheme] {contextPrefix}No AchievementToast.xaml override file found; bundled default will be used.");
+            }
+            else
+            {
+                var dictionary = LoadActiveThemeDictionary(applicationResources, ThemeOverrideRelativePath);
+                if (dictionary == null)
+                {
+                    _logger.Warn($"[ToastTheme] {contextPrefix}Override file exists but did not load as a ResourceDictionary: '{selectedPath}'.");
+                }
+                else
+                {
+                    _logger.Info(
+                        $"[ToastTheme] {contextPrefix}Loaded override '{selectedPath}'. " +
+                        $"template={HasDirectResourceKey(dictionary, TemplateKey)}, " +
+                        $"slideIn={HasDirectResourceKey(dictionary, SlideInStoryboardKey)}, " +
+                        $"slideOut={HasDirectResourceKey(dictionary, SlideOutStoryboardKey)}, " +
+                        $"countdown={HasDirectResourceKey(dictionary, CountdownStoryboardKey)}, " +
+                        $"position={HasDirectResourceKey(dictionary, PositionResourceKey)}, " +
+                        $"duration={HasDirectResourceKey(dictionary, DurationSecondsResourceKey)}");
+                }
+            }
+
+            var framePath = ResolveActiveThemeOverridePaths(applicationResources, FrameThemeOverrideRelativePath)
+                .FirstOrDefault(File.Exists);
+            if (string.IsNullOrWhiteSpace(framePath))
+            {
+                _logger.Info($"[ToastTheme] {contextPrefix}No ScreenshotFrame.xaml override file found; bundled default frame will be used.");
                 return;
             }
 
-            var dictionary = LoadActiveThemeDictionary(applicationResources);
-            if (dictionary == null)
+            var frameDictionary = LoadActiveThemeDictionary(applicationResources, FrameThemeOverrideRelativePath);
+            if (frameDictionary == null)
             {
-                _logger.Warn($"[ToastTheme] {contextPrefix}Override file exists but did not load as a ResourceDictionary: '{selectedPath}'.");
+                _logger.Warn($"[ToastTheme] {contextPrefix}Frame override file exists but did not load as a ResourceDictionary: '{framePath}'.");
                 return;
             }
 
             _logger.Info(
-                $"[ToastTheme] {contextPrefix}Loaded override '{selectedPath}'. " +
-                $"template={HasDirectResourceKey(dictionary, TemplateKey)}, " +
-                $"slideIn={HasDirectResourceKey(dictionary, SlideInStoryboardKey)}, " +
-                $"slideOut={HasDirectResourceKey(dictionary, SlideOutStoryboardKey)}, " +
-                $"countdown={HasDirectResourceKey(dictionary, CountdownStoryboardKey)}, " +
-                $"position={HasDirectResourceKey(dictionary, PositionResourceKey)}, " +
-                $"duration={HasDirectResourceKey(dictionary, DurationSecondsResourceKey)}");
+                $"[ToastTheme] {contextPrefix}Loaded frame override '{framePath}'. " +
+                $"frame={HasDirectResourceKey(frameDictionary, FrameTemplateKey)}");
         }
 
-        private T ResolveResource<T>(ResourceDictionary applicationResources, string key, Func<T> pluginDefaultOverride)
+        private T ResolveResource<T>(
+            ResourceDictionary applicationResources,
+            string key,
+            string overrideRelativePath,
+            Func<T> pluginDefaultOverride)
             where T : class
         {
             if (TryFindLoadedThemeResource<T>(applicationResources, key, out var loaded))
@@ -180,7 +234,7 @@ namespace PlayniteAchievements.Services.UI
                 return loaded;
             }
 
-            if (TryLoadActiveThemeResource<T>(applicationResources, key, out var themeResource))
+            if (TryLoadActiveThemeResource<T>(applicationResources, key, overrideRelativePath, out var themeResource))
             {
                 return themeResource;
             }
@@ -239,26 +293,33 @@ namespace PlayniteAchievements.Services.UI
             return false;
         }
 
-        private bool TryLoadActiveThemeResource<T>(ResourceDictionary applicationResources, string key, out T resource)
+        private bool TryLoadActiveThemeResource<T>(
+            ResourceDictionary applicationResources,
+            string key,
+            string overrideRelativePath,
+            out T resource)
             where T : class
         {
             resource = null;
 
-            var dictionary = LoadActiveThemeDictionary(applicationResources);
+            var dictionary = LoadActiveThemeDictionary(applicationResources, overrideRelativePath);
             return dictionary != null && TryGetDirectResource(dictionary, key, out resource);
         }
 
         /// <summary>
-        /// Parses the active theme's AchievementToast.xaml override into a ResourceDictionary (or
-        /// returns the cached parse when the file is unchanged), so all three storyboard keys plus
-        /// the template are pulled from a single parse. Returns null when the theme ships no override
-        /// or the file fails to parse.
+        /// Parses the active theme's override file (AchievementToast.xaml or ScreenshotFrame.xaml)
+        /// into a ResourceDictionary (or returns the cached parse when the file is unchanged), so
+        /// all keys in one file are pulled from a single parse. The cache is keyed per file path.
+        /// Returns null when the theme ships no override or the file fails to parse.
         /// </summary>
-        private ResourceDictionary LoadActiveThemeDictionary(ResourceDictionary applicationResources)
+        private ResourceDictionary LoadActiveThemeDictionary(
+            ResourceDictionary applicationResources,
+            string overrideRelativePath)
         {
             var modeName = GetThemeModeName();
             var themeId = GetActiveThemeId(modeName);
-            var path = ResolveActiveThemeOverridePaths(applicationResources).FirstOrDefault(File.Exists);
+            var path = ResolveActiveThemeOverridePaths(applicationResources, overrideRelativePath)
+                .FirstOrDefault(File.Exists);
             if (string.IsNullOrWhiteSpace(path))
             {
                 return null;

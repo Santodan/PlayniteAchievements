@@ -31,12 +31,18 @@ namespace PlayniteAchievements.Models.Settings
         public const double DefaultOverviewLeftColumnRatio = 0.5d;
         public const double MinOverviewLeftColumnRatio = 0.01d;
         public const double MaxOverviewLeftColumnRatio = 0.99d;
+        public const double DefaultFriendsOverviewFriendColumnRatio = 0.25d;
+        public const double DefaultFriendsOverviewGameColumnRatio = 0.31d;
+        public const double MinFriendsOverviewColumnRatio = 0.01d;
+        public const double MaxFriendsOverviewColumnRatio = 0.98d;
         public const GameActivityScope DefaultStartPageActivityScope = GameActivityScope.Played;
         public const GameProgressScope DefaultStartPageProgressScope =
             GameProgressScope.Completed | GameProgressScope.InProgress;
         public const string DefaultViewAchievementsHotkey = "Ctrl+Alt+V";
         public const string DefaultManageAchievementsHotkey = "Ctrl+Alt+M";
         public const string DefaultOverviewHotkey = "Ctrl+Alt+O";
+        public const string DefaultOpenSettingsHotkey = "Ctrl+Alt+P";
+        public const string DefaultCategoryModeHotkey = "C";
 
         /// <summary>
         /// Column key of the Progress column in game-summaries grids (matches the XAML ColumnKey and
@@ -56,6 +62,8 @@ namespace PlayniteAchievements.Models.Settings
         private bool _enablePeriodicUpdates = true;
         private bool _includeHiddenGamesInBulkScans = true;
         private int _periodicUpdateHours = 6;
+        private bool _enableFriendsPeriodicUpdates = false;
+        private int _friendsPeriodicUpdateHours = 24;
         private bool _enableInGamePolling = true;
         private int _inGamePollIntervalSeconds = 15;
         private bool _inGamePollRefreshFriends = false;
@@ -75,10 +83,35 @@ namespace PlayniteAchievements.Models.Settings
         private bool _toastShowDescription = true;
         private bool _toastShowCategory = true;
         private bool _toastShowGameName = true;
+        private bool _toastShowUnlockTime = false;
         private int _toastDurationSeconds = 6;
         private int _maxConcurrentToasts = 3;
         private bool _enableUnlockScreenshots = false;
+        private bool _unlockScreenshotClean = false;
+        private bool _unlockScreenshotWithToast = true;
+        private bool _unlockScreenshotFramed = false;
+        private bool _frameShowHeader = true;
+        private bool _frameShowName = true;
+        private bool _frameShowDescription = true;
+        private bool _frameShowCategory = true;
+        private bool _frameShowGameName = true;
+        private bool _frameShowRarityBadge = true;
+        private bool _frameShowRarityPercent = true;
+        private bool _frameShowRarityGlow = true;
+        private bool _frameRarityColoredName = true;
+        private bool _frameShowUnlockTime = true;
         private string _unlockScreenshotDirectory;
+        private bool _enableUnlockRecordings = false;
+        private string _ffmpegPath;
+        private string _unlockRecordingDirectory;
+        private int _recordingClipSeconds = 15;
+        private int _recordingFps = 30;
+        private RecordingResolution _recordingResolution = RecordingResolution.Native;
+        private RecordingEncoder _recordingEncoder = RecordingEncoder.Auto;
+        private RecordingCaptureBackend _recordingCaptureBackend = RecordingCaptureBackend.Auto;
+        private bool _recordingIncludeAudio = false;
+        private Dictionary<string, ProviderNotificationOverride> _providerNotificationOverrides =
+            new Dictionary<string, ProviderNotificationOverride>(StringComparer.OrdinalIgnoreCase);
         private ToastScreenCorner _toastPosition = ToastScreenCorner.BottomRight;
         private int _recentRefreshGamesCount = 10;
         private RefreshModeType _defaultOverviewRefreshMode = RefreshModeType.Installed;
@@ -87,18 +120,20 @@ namespace PlayniteAchievements.Models.Settings
         private string _viewAchievementsHotkey = DefaultViewAchievementsHotkey;
         private string _manageAchievementsHotkey = DefaultManageAchievementsHotkey;
         private string _overviewHotkey = DefaultOverviewHotkey;
+        private string _openSettingsHotkey = DefaultOpenSettingsHotkey;
+        private string _categoryModeHotkey = DefaultCategoryModeHotkey;
         private bool _showHiddenIcon = false;
         private bool _showHiddenTitle = false;
         private bool _showHiddenDescription = false;
         private bool _showHiddenSuffix = true;
         private bool _showLockedIcon = true;
-        private bool _preserveAchievementIconResolution = false;
         private bool _useSeparateLockedIconsWhenAvailable = false;
         private HashSet<Guid> _separateLockedIconEnabledGameIds = new HashSet<Guid>();
         private bool _modernCompactListShowRarityGlow = true;
         private bool _modernUnlockedListShowRarityGlow = true;
         private bool _useUniformRarityBadges = false;
         private bool _useTrophiesForRarity = false;
+        private bool _roundRarityPercentages = false;
         private RarityColorSettings _rarityColors = RarityColorSettings.CreateDefault();
         private bool _includeUnplayedGames = true;
         private bool _showOverviewCollectionScoreCard = true;
@@ -115,6 +150,7 @@ namespace PlayniteAchievements.Models.Settings
         private bool _overviewPieChartVisibilityInitializedFromIndividualSettings;
         private bool _showOverviewBarCharts = true;
         private bool _showTopMenuBarButton = true;
+        private bool _showCompletedProgressColoring = true;
         private bool _showCompactListRarityBar = true;
         private bool _progressColumnAlignmentDefaulted = true;
         private bool _inlineSurfaceTransparencySeeded = true;
@@ -122,6 +158,8 @@ namespace PlayniteAchievements.Models.Settings
         private GridAlignment _gridColumnHeaderAlignment = GridAlignment.Center;
         private GridAlignment _gridCellAlignment = GridAlignment.Left;
         private GridVerticalAlignment _gridCellVerticalAlignment = GridVerticalAlignment.Center;
+        private DateDisplayMode _unlockDateDisplayMode = DateDisplayMode.DateAndTime;
+        private PlaytimeDisplayMode _playtimeDisplayMode = PlaytimeDisplayMode.HoursAndMinutes;
         private bool _enableAchievementCompactListControl = true;
         private bool _enableAchievementDataGridControl = true;
         private bool _enableAchievementCompactUnlockedListControl = true;
@@ -151,6 +189,8 @@ namespace PlayniteAchievements.Models.Settings
             new Dictionary<string, ResourceOverrideSetting>(StringComparer.OrdinalIgnoreCase);
         private List<CustomRefreshPreset> _customRefreshPresets = new List<CustomRefreshPreset>();
         private double _overviewLeftColumnRatio = DefaultOverviewLeftColumnRatio;
+        private double _friendsOverviewFriendColumnRatio = DefaultFriendsOverviewFriendColumnRatio;
+        private double _friendsOverviewGameColumnRatio = DefaultFriendsOverviewGameColumnRatio;
         private Dictionary<string, WindowPlacementState> _windowPlacements =
             new Dictionary<string, WindowPlacementState>(StringComparer.OrdinalIgnoreCase);
         private TimelineRange _overviewTimelineRange = TimelineRange.OneYear;
@@ -179,6 +219,7 @@ namespace PlayniteAchievements.Models.Settings
         private bool _enableFriendsFeatures = true;
         private HashSet<string> _autoDiscoverFriendProviderKeys = CreateDefaultAutoDiscoverFriendProviderKeys();
         private bool _useExophaseForSteamFriendOwnership = false;
+        private bool _includeUnownedFriendGames = false;
         private ObservableCollection<FriendSettingsEntry> _friends = new ObservableCollection<FriendSettingsEntry>();
         private ObservableCollection<FriendMergeGroup> _friendMergeGroups = new ObservableCollection<FriendMergeGroup>();
 
@@ -216,6 +257,17 @@ namespace PlayniteAchievements.Models.Settings
         {
             get => _useExophaseForSteamFriendOwnership;
             set => SetValue(ref _useExophaseForSteamFriendOwnership, value);
+        }
+
+        /// <summary>
+        /// When true, friend refreshes may scan games the current user does not own (the Full
+        /// scope). When false, Full-scope requests are clamped to Shared so no unowned friend
+        /// games are ever scanned.
+        /// </summary>
+        public bool IncludeUnownedFriendGames
+        {
+            get => _includeUnownedFriendGames;
+            set => SetValue(ref _includeUnownedFriendGames, value);
         }
 
         public ObservableCollection<FriendSettingsEntry> Friends
@@ -701,6 +753,24 @@ namespace PlayniteAchievements.Models.Settings
             set => SetValue(ref _periodicUpdateHours, Math.Max(1, value));
         }
 
+        /// <summary>
+        /// Enable the background periodic Recent friends refresh.
+        /// </summary>
+        public bool EnableFriendsPeriodicUpdates
+        {
+            get => _enableFriendsPeriodicUpdates;
+            set => SetValue(ref _enableFriendsPeriodicUpdates, value);
+        }
+
+        /// <summary>
+        /// Hours between periodic background Recent friends refreshes.
+        /// </summary>
+        public int FriendsPeriodicUpdateHours
+        {
+            get => _friendsPeriodicUpdateHours;
+            set => SetValue(ref _friendsPeriodicUpdateHours, Math.Max(1, value));
+        }
+
         public bool EnableInGamePolling
         {
             get => _enableInGamePolling;
@@ -812,6 +882,25 @@ namespace PlayniteAchievements.Models.Settings
             set => SetValue(ref _overviewHotkey, NormalizeHotkeyText(value));
         }
 
+        /// <summary>
+        /// Shortcut that opens the plugin settings window.
+        /// </summary>
+        public string OpenSettingsHotkey
+        {
+            get => _openSettingsHotkey;
+            set => SetValue(ref _openSettingsHotkey, NormalizeHotkeyText(value));
+        }
+
+        /// <summary>
+        /// Shortcut that flips category mode in a focused achievement grid, when the
+        /// category toggle is available there.
+        /// </summary>
+        public string CategoryModeHotkey
+        {
+            get => _categoryModeHotkey;
+            set => SetValue(ref _categoryModeHotkey, NormalizeHotkeyText(value));
+        }
+
         #endregion
 
         #region Notification Settings
@@ -909,6 +998,16 @@ namespace PlayniteAchievements.Models.Settings
             set => SetValue(ref _toastShowGameName, value);
         }
 
+        /// <summary>
+        /// Shows the unlock datetime on the toast's header line. Off by default; the frame has
+        /// its own always-on datetime row.
+        /// </summary>
+        public bool ToastShowUnlockTime
+        {
+            get => _toastShowUnlockTime;
+            set => SetValue(ref _toastShowUnlockTime, value);
+        }
+
         public int ToastDurationSeconds
         {
             get => _toastDurationSeconds;
@@ -929,7 +1028,8 @@ namespace PlayniteAchievements.Models.Settings
 
         /// <summary>
         /// When true, a screenshot of the game's monitor is saved for each of your own unlock
-        /// waves (requires unlock toasts to be enabled). Opt-in since it writes files to disk.
+        /// waves. Independent of unlock toasts (the with-toast variant is skipped when no toast
+        /// shows). Opt-in since it writes files to disk.
         /// </summary>
         public bool EnableUnlockScreenshots
         {
@@ -938,13 +1038,238 @@ namespace PlayniteAchievements.Models.Settings
         }
 
         /// <summary>
+        /// Save a screenshot captured before the toast window is shown (game only, no overlay).
+        /// </summary>
+        public bool UnlockScreenshotClean
+        {
+            get => _unlockScreenshotClean;
+            set => SetValue(ref _unlockScreenshotClean, value);
+        }
+
+        /// <summary>
+        /// Save a screenshot captured after the toast slides in (toast visible in frame).
+        /// </summary>
+        public bool UnlockScreenshotWithToast
+        {
+            get => _unlockScreenshotWithToast;
+            set => SetValue(ref _unlockScreenshotWithToast, value);
+        }
+
+        /// <summary>
+        /// Save a copy of the clean screenshot with the theme frame composited onto the image.
+        /// The frame is never shown on screen.
+        /// </summary>
+        public bool UnlockScreenshotFramed
+        {
+            get => _unlockScreenshotFramed;
+            set => SetValue(ref _unlockScreenshotFramed, value);
+        }
+
+        // Frame appearance toggles: which fields the screenshot frame renders. Independent of
+        // the ToastShow* toggles so the saved image can differ from the on-screen toast.
+        public bool FrameShowHeader
+        {
+            get => _frameShowHeader;
+            set => SetValue(ref _frameShowHeader, value);
+        }
+
+        public bool FrameShowName
+        {
+            get => _frameShowName;
+            set => SetValue(ref _frameShowName, value);
+        }
+
+        public bool FrameShowDescription
+        {
+            get => _frameShowDescription;
+            set => SetValue(ref _frameShowDescription, value);
+        }
+
+        public bool FrameShowCategory
+        {
+            get => _frameShowCategory;
+            set => SetValue(ref _frameShowCategory, value);
+        }
+
+        public bool FrameShowGameName
+        {
+            get => _frameShowGameName;
+            set => SetValue(ref _frameShowGameName, value);
+        }
+
+        public bool FrameShowRarityBadge
+        {
+            get => _frameShowRarityBadge;
+            set => SetValue(ref _frameShowRarityBadge, value);
+        }
+
+        public bool FrameShowRarityPercent
+        {
+            get => _frameShowRarityPercent;
+            set => SetValue(ref _frameShowRarityPercent, value);
+        }
+
+        public bool FrameShowRarityGlow
+        {
+            get => _frameShowRarityGlow;
+            set => SetValue(ref _frameShowRarityGlow, value);
+        }
+
+        public bool FrameRarityColoredName
+        {
+            get => _frameRarityColoredName;
+            set => SetValue(ref _frameRarityColoredName, value);
+        }
+
+        /// <summary>
+        /// Shows the localized unlock datetime on the frame's header line.
+        /// </summary>
+        public bool FrameShowUnlockTime
+        {
+            get => _frameShowUnlockTime;
+            set => SetValue(ref _frameShowUnlockTime, value);
+        }
+
+        /// <summary>
         /// Base directory for unlock screenshots. Files are written to
-        /// &lt;dir&gt;\Game\NNN_AchievementName.png.
+        /// &lt;dir&gt;\Game\NNN_AchievementName_&lt;variant&gt;.png.
         /// </summary>
         public string UnlockScreenshotDirectory
         {
             get => _unlockScreenshotDirectory;
             set => SetValue(ref _unlockScreenshotDirectory, value);
+        }
+
+        /// <summary>
+        /// When true, a video clip of the game's monitor is saved for each of your own unlocks
+        /// while a game is running, via a rolling ffmpeg screen capture. Requires a valid
+        /// <see cref="FfmpegPath"/>; the plugin never downloads ffmpeg.
+        /// </summary>
+        public bool EnableUnlockRecordings
+        {
+            get => _enableUnlockRecordings;
+            set => SetValue(ref _enableUnlockRecordings, value);
+        }
+
+        /// <summary>
+        /// Full path to a user-supplied ffmpeg.exe used for unlock recordings.
+        /// </summary>
+        public string FfmpegPath
+        {
+            get => _ffmpegPath;
+            set => SetValue(ref _ffmpegPath, value);
+        }
+
+        /// <summary>
+        /// Base directory for unlock recordings. Blank falls back to
+        /// <see cref="UnlockScreenshotDirectory"/> at runtime. Files are written to
+        /// &lt;dir&gt;\Game\NNN_AchievementName.mp4.
+        /// </summary>
+        public string UnlockRecordingDirectory
+        {
+            get => _unlockRecordingDirectory;
+            set => SetValue(ref _unlockRecordingDirectory, value);
+        }
+
+        /// <summary>
+        /// Seconds recorded before the unlock moment (pre-roll). The clip end is anchored past
+        /// the toast's dismissal, so total length = pre-roll + detection gap + toast time.
+        /// </summary>
+        public int RecordingClipSeconds
+        {
+            get => _recordingClipSeconds;
+            set => SetValue(ref _recordingClipSeconds, Math.Min(60, Math.Max(5, value)));
+        }
+
+        public int RecordingFps
+        {
+            get => _recordingFps;
+            set => SetValue(ref _recordingFps, Math.Min(60, Math.Max(10, value)));
+        }
+
+        public RecordingResolution RecordingResolution
+        {
+            get => _recordingResolution;
+            set => SetValue(ref _recordingResolution, value);
+        }
+
+        public RecordingEncoder RecordingEncoder
+        {
+            get => _recordingEncoder;
+            set => SetValue(ref _recordingEncoder, value);
+        }
+
+        public RecordingCaptureBackend RecordingCaptureBackend
+        {
+            get => _recordingCaptureBackend;
+            set => SetValue(ref _recordingCaptureBackend, value);
+        }
+
+        /// <summary>
+        /// When true, unlock clips include system audio (everything the PC is playing) captured
+        /// alongside the rolling screen capture. Off by default; audio capture is best-effort
+        /// and never blocks the video pipeline.
+        /// </summary>
+        public bool RecordingIncludeAudio
+        {
+            get => _recordingIncludeAudio;
+            set => SetValue(ref _recordingIncludeAudio, value);
+        }
+
+        /// <summary>
+        /// Per-provider notification overrides keyed by provider key. Only deviating providers
+        /// are stored; absent providers inherit the global notification defaults, so new
+        /// providers pick up the globals automatically.
+        /// </summary>
+        public Dictionary<string, ProviderNotificationOverride> ProviderNotificationOverrides
+        {
+            get => _providerNotificationOverrides ??
+                   (_providerNotificationOverrides =
+                       new Dictionary<string, ProviderNotificationOverride>(StringComparer.OrdinalIgnoreCase));
+            set => SetValue(ref _providerNotificationOverrides, NormalizeProviderNotificationOverrides(value));
+        }
+
+        /// <summary>
+        /// The stored override for a provider, or null when the provider has no deviation and
+        /// inherits the global notification defaults.
+        /// </summary>
+        public ProviderNotificationOverride GetProviderNotificationOverride(string providerKey)
+        {
+            providerKey = NormalizeProviderKeyToken(providerKey);
+            return providerKey != null &&
+                   ProviderNotificationOverrides.TryGetValue(providerKey, out var value)
+                ? value
+                : null;
+        }
+
+        /// <summary>
+        /// Stores a clone of the override for a provider, removing the entry when the override
+        /// is null or all-inherit. Reassigns the dictionary so PropertyChanged is raised.
+        /// </summary>
+        public void SetProviderNotificationOverride(string providerKey, ProviderNotificationOverride value)
+        {
+            providerKey = NormalizeProviderKeyToken(providerKey);
+            if (string.IsNullOrWhiteSpace(providerKey))
+            {
+                return;
+            }
+
+            var overrides = new Dictionary<string, ProviderNotificationOverride>(
+                ProviderNotificationOverrides,
+                StringComparer.OrdinalIgnoreCase);
+            if (value == null || value.IsAllInherit)
+            {
+                if (!overrides.Remove(providerKey))
+                {
+                    return;
+                }
+            }
+            else
+            {
+                overrides[providerKey] = value.Clone();
+            }
+
+            ProviderNotificationOverrides = overrides;
         }
 
         #endregion
@@ -996,16 +1321,6 @@ namespace PlayniteAchievements.Models.Settings
         {
             get => _showLockedIcon;
             set => SetValue(ref _showLockedIcon, value);
-        }
-
-        /// <summary>
-        /// When true, achievement icons are cached at their original decoded size instead of the optimized 128px cache mode.
-        /// Changes apply on the next refresh.
-        /// </summary>
-        public bool PreserveAchievementIconResolution
-        {
-            get => _preserveAchievementIconResolution;
-            set => SetValue(ref _preserveAchievementIconResolution, value);
         }
 
         /// <summary>
@@ -1080,6 +1395,16 @@ namespace PlayniteAchievements.Models.Settings
         {
             get => _useTrophiesForRarity;
             set => SetValue(ref _useTrophiesForRarity, value);
+        }
+
+        /// <summary>
+        /// When true, rarity percentages display rounded to the nearest whole percent and values
+        /// under 1% display as "&lt;1%". Display-only; stored percent values are unaffected.
+        /// </summary>
+        public bool RoundRarityPercentages
+        {
+            get => _roundRarityPercentages;
+            set => SetValue(ref _roundRarityPercentages, value);
         }
 
         /// <summary>
@@ -1232,6 +1557,16 @@ namespace PlayniteAchievements.Models.Settings
         }
 
         /// <summary>
+        /// When true, progress bars of fully completed games use the completed game colors
+        /// instead of the normal fill.
+        /// </summary>
+        public bool ShowCompletedProgressColoring
+        {
+            get => _showCompletedProgressColoring;
+            set => SetValue(ref _showCompletedProgressColoring, value);
+        }
+
+        /// <summary>
         /// When false, friend achievement rows for achievements the current user has not unlocked
         /// are obscured using the achievement visibility settings, as if locked for the user.
         /// Applies to all friend surfaces (overview, friends achievements window, recent unlocks, themes).
@@ -1312,6 +1647,24 @@ namespace PlayniteAchievements.Models.Settings
         {
             get => _gridCellVerticalAlignment;
             set => SetValue(ref _gridCellVerticalAlignment, value);
+        }
+
+        /// <summary>
+        /// Date display mode for achievement unlock dates and friend last-unlock dates.
+        /// </summary>
+        public DateDisplayMode UnlockDateDisplayMode
+        {
+            get => _unlockDateDisplayMode;
+            set => SetValue(ref _unlockDateDisplayMode, value);
+        }
+
+        /// <summary>
+        /// Display mode for playtime text shown in summaries and metadata.
+        /// </summary>
+        public PlaytimeDisplayMode PlaytimeDisplayMode
+        {
+            get => _playtimeDisplayMode;
+            set => SetValue(ref _playtimeDisplayMode, value);
         }
 
         /// <summary>
@@ -1556,6 +1909,22 @@ namespace PlayniteAchievements.Models.Settings
                     : Math.Max(MinOverviewLeftColumnRatio, Math.Min(MaxOverviewLeftColumnRatio, value));
                 SetValue(ref _overviewLeftColumnRatio, normalized);
             }
+        }
+
+        public double FriendsOverviewFriendColumnRatio
+        {
+            get => _friendsOverviewFriendColumnRatio;
+            set => SetValue(
+                ref _friendsOverviewFriendColumnRatio,
+                NormalizeFriendsOverviewColumnRatio(value, DefaultFriendsOverviewFriendColumnRatio));
+        }
+
+        public double FriendsOverviewGameColumnRatio
+        {
+            get => _friendsOverviewGameColumnRatio;
+            set => SetValue(
+                ref _friendsOverviewGameColumnRatio,
+                NormalizeFriendsOverviewColumnRatio(value, DefaultFriendsOverviewGameColumnRatio));
         }
 
         /// <summary>
@@ -1907,6 +2276,7 @@ namespace PlayniteAchievements.Models.Settings
                     ? new HashSet<string>(this.AutoDiscoverFriendProviderKeys, StringComparer.OrdinalIgnoreCase)
                     : CreateDefaultAutoDiscoverFriendProviderKeys(),
                 UseExophaseForSteamFriendOwnership = this.UseExophaseForSteamFriendOwnership,
+                IncludeUnownedFriendGames = this.IncludeUnownedFriendGames,
                 Friends = new ObservableCollection<FriendSettingsEntry>(
                     (this.Friends ?? new ObservableCollection<FriendSettingsEntry>())
                     .Where(friend => friend != null)
@@ -1923,6 +2293,8 @@ namespace PlayniteAchievements.Models.Settings
                 EnablePeriodicUpdates = this.EnablePeriodicUpdates,
                 IncludeHiddenGamesInBulkScans = this.IncludeHiddenGamesInBulkScans,
                 PeriodicUpdateHours = this.PeriodicUpdateHours,
+                EnableFriendsPeriodicUpdates = this.EnableFriendsPeriodicUpdates,
+                FriendsPeriodicUpdateHours = this.FriendsPeriodicUpdateHours,
                 EnableInGamePolling = this.EnableInGamePolling,
                 InGamePollIntervalSeconds = this.InGamePollIntervalSeconds,
                 InGamePollRefreshFriends = this.InGamePollRefreshFriends,
@@ -1940,6 +2312,8 @@ namespace PlayniteAchievements.Models.Settings
                 ViewAchievementsHotkey = this.ViewAchievementsHotkey,
                 ManageAchievementsHotkey = this.ManageAchievementsHotkey,
                 OverviewHotkey = this.OverviewHotkey,
+                OpenSettingsHotkey = this.OpenSettingsHotkey,
+                CategoryModeHotkey = this.CategoryModeHotkey,
 
                 // Notification Settings
                 EnableNotifications = this.EnableNotifications,
@@ -1956,11 +2330,40 @@ namespace PlayniteAchievements.Models.Settings
                 ToastShowDescription = this.ToastShowDescription,
                 ToastShowCategory = this.ToastShowCategory,
                 ToastShowGameName = this.ToastShowGameName,
+                ToastShowUnlockTime = this.ToastShowUnlockTime,
                 ToastDurationSeconds = this.ToastDurationSeconds,
                 MaxConcurrentToasts = this.MaxConcurrentToasts,
                 ToastPosition = this.ToastPosition,
                 EnableUnlockScreenshots = this.EnableUnlockScreenshots,
+                UnlockScreenshotClean = this.UnlockScreenshotClean,
+                UnlockScreenshotWithToast = this.UnlockScreenshotWithToast,
+                UnlockScreenshotFramed = this.UnlockScreenshotFramed,
+                FrameShowHeader = this.FrameShowHeader,
+                FrameShowName = this.FrameShowName,
+                FrameShowDescription = this.FrameShowDescription,
+                FrameShowCategory = this.FrameShowCategory,
+                FrameShowGameName = this.FrameShowGameName,
+                FrameShowRarityBadge = this.FrameShowRarityBadge,
+                FrameShowRarityPercent = this.FrameShowRarityPercent,
+                FrameShowRarityGlow = this.FrameShowRarityGlow,
+                FrameRarityColoredName = this.FrameRarityColoredName,
+                FrameShowUnlockTime = this.FrameShowUnlockTime,
                 UnlockScreenshotDirectory = this.UnlockScreenshotDirectory,
+                EnableUnlockRecordings = this.EnableUnlockRecordings,
+                FfmpegPath = this.FfmpegPath,
+                UnlockRecordingDirectory = this.UnlockRecordingDirectory,
+                RecordingClipSeconds = this.RecordingClipSeconds,
+                RecordingFps = this.RecordingFps,
+                RecordingResolution = this.RecordingResolution,
+                RecordingEncoder = this.RecordingEncoder,
+                RecordingCaptureBackend = this.RecordingCaptureBackend,
+                RecordingIncludeAudio = this.RecordingIncludeAudio,
+                ProviderNotificationOverrides = this.ProviderNotificationOverrides != null
+                    ? this.ProviderNotificationOverrides.ToDictionary(
+                        kvp => kvp.Key,
+                        kvp => kvp.Value?.Clone(),
+                        StringComparer.OrdinalIgnoreCase)
+                    : new Dictionary<string, ProviderNotificationOverride>(StringComparer.OrdinalIgnoreCase),
 
                 // Display Preferences
                 ShowHiddenIcon = this.ShowHiddenIcon,
@@ -1968,12 +2371,12 @@ namespace PlayniteAchievements.Models.Settings
                 ShowHiddenDescription = this.ShowHiddenDescription,
                 ShowHiddenSuffix = this.ShowHiddenSuffix,
                 ShowLockedIcon = this.ShowLockedIcon,
-                PreserveAchievementIconResolution = this.PreserveAchievementIconResolution,
                 UseSeparateLockedIconsWhenAvailable = this.UseSeparateLockedIconsWhenAvailable,
                 ModernCompactListShowRarityGlow = this.ModernCompactListShowRarityGlow,
                 ModernUnlockedListShowRarityGlow = this.ModernUnlockedListShowRarityGlow,
                 UseUniformRarityBadges = this.UseUniformRarityBadges,
                 UseTrophiesForRarity = this.UseTrophiesForRarity,
+                RoundRarityPercentages = this.RoundRarityPercentages,
                 RarityColors = this.RarityColors?.Clone() ?? RarityColorSettings.CreateDefault(),
                 IncludeUnplayedGames = this.IncludeUnplayedGames,
                 ShowOverviewCollectionScoreCard = this.ShowOverviewCollectionScoreCard,
@@ -1987,6 +2390,7 @@ namespace PlayniteAchievements.Models.Settings
                 OverviewPieSmallSliceMode = this.OverviewPieSmallSliceMode,
                 ShowOverviewBarCharts = this.ShowOverviewBarCharts,
                 ShowTopMenuBarButton = this.ShowTopMenuBarButton,
+                ShowCompletedProgressColoring = this.ShowCompletedProgressColoring,
                 ShowFriendSpoilers = this.ShowFriendSpoilers,
                 FriendsOverviewRecentUnlockLimit = this.FriendsOverviewRecentUnlockLimit,
                 ShowCompactListRarityBar = this.ShowCompactListRarityBar,
@@ -1995,6 +2399,8 @@ namespace PlayniteAchievements.Models.Settings
                 GridColumnHeaderAlignment = this.GridColumnHeaderAlignment,
                 GridCellAlignment = this.GridCellAlignment,
                 GridCellVerticalAlignment = this.GridCellVerticalAlignment,
+                UnlockDateDisplayMode = this.UnlockDateDisplayMode,
+                PlaytimeDisplayMode = this.PlaytimeDisplayMode,
                 EnableAchievementCompactListControl = this.EnableAchievementCompactListControl,
                 EnableAchievementDataGridControl = this.EnableAchievementDataGridControl,
                 EnableAchievementCompactUnlockedListControl = this.EnableAchievementCompactUnlockedListControl,
@@ -2028,6 +2434,8 @@ namespace PlayniteAchievements.Models.Settings
 
                 // Layout State
                 OverviewLeftColumnRatio = this.OverviewLeftColumnRatio,
+                FriendsOverviewFriendColumnRatio = this.FriendsOverviewFriendColumnRatio,
+                FriendsOverviewGameColumnRatio = this.FriendsOverviewGameColumnRatio,
                 WindowPlacements = this.WindowPlacements != null
                     ? this.WindowPlacements.ToDictionary(
                         kvp => kvp.Key,
@@ -2106,13 +2514,13 @@ namespace PlayniteAchievements.Models.Settings
             ShowHiddenSuffix = defaults.ShowHiddenSuffix;
             ShowLockedIcon = defaults.ShowLockedIcon;
             ShowFriendSpoilers = defaults.ShowFriendSpoilers;
-            PreserveAchievementIconResolution = defaults.PreserveAchievementIconResolution;
             UseSeparateLockedIconsWhenAvailable = defaults.UseSeparateLockedIconsWhenAvailable;
             SeparateLockedIconEnabledGameIds = new HashSet<Guid>();
             ModernCompactListShowRarityGlow = defaults.ModernCompactListShowRarityGlow;
             ModernUnlockedListShowRarityGlow = defaults.ModernUnlockedListShowRarityGlow;
             UseUniformRarityBadges = defaults.UseUniformRarityBadges;
             UseTrophiesForRarity = defaults.UseTrophiesForRarity;
+            RoundRarityPercentages = defaults.RoundRarityPercentages;
             RarityColors = RarityColorSettings.CreateDefault();
             ResourceOverrides = CreateDefaultResourceOverrides();
 
@@ -2127,11 +2535,14 @@ namespace PlayniteAchievements.Models.Settings
             OverviewPieSmallSliceMode = defaults.OverviewPieSmallSliceMode;
             ShowOverviewBarCharts = defaults.ShowOverviewBarCharts;
             ShowTopMenuBarButton = defaults.ShowTopMenuBarButton;
+            ShowCompletedProgressColoring = defaults.ShowCompletedProgressColoring;
             ShowCompactListRarityBar = defaults.ShowCompactListRarityBar;
 
             GridColumnHeaderAlignment = defaults.GridColumnHeaderAlignment;
             GridCellAlignment = defaults.GridCellAlignment;
             GridCellVerticalAlignment = defaults.GridCellVerticalAlignment;
+            UnlockDateDisplayMode = defaults.UnlockDateDisplayMode;
+            PlaytimeDisplayMode = defaults.PlaytimeDisplayMode;
 
             EnableAchievementCompactListControl = defaults.EnableAchievementCompactListControl;
             EnableAchievementDataGridControl = defaults.EnableAchievementDataGridControl;
@@ -2159,8 +2570,22 @@ namespace PlayniteAchievements.Models.Settings
 
 
             OverviewLeftColumnRatio = defaults.OverviewLeftColumnRatio;
+            FriendsOverviewFriendColumnRatio = defaults.FriendsOverviewFriendColumnRatio;
+            FriendsOverviewGameColumnRatio = defaults.FriendsOverviewGameColumnRatio;
             ViewAchievementsTimelineRange = defaults.ViewAchievementsTimelineRange;
             ViewAchievementsTimelineVisible = defaults.ViewAchievementsTimelineVisible;
+        }
+
+        private static double NormalizeFriendsOverviewColumnRatio(double value, double fallback)
+        {
+            if (double.IsNaN(value) || double.IsInfinity(value))
+            {
+                return fallback;
+            }
+
+            return Math.Max(
+                MinFriendsOverviewColumnRatio,
+                Math.Min(MaxFriendsOverviewColumnRatio, value));
         }
 
         public static double? NormalizeGridRowHeight(double? value)
@@ -2278,6 +2703,24 @@ namespace PlayniteAchievements.Models.Settings
                         };
                         break;
                 }
+            }
+
+            return normalized;
+        }
+
+        private static Dictionary<string, ProviderNotificationOverride> NormalizeProviderNotificationOverrides(
+            IEnumerable<KeyValuePair<string, ProviderNotificationOverride>> value)
+        {
+            var normalized = new Dictionary<string, ProviderNotificationOverride>(StringComparer.OrdinalIgnoreCase);
+            foreach (var pair in value ?? Enumerable.Empty<KeyValuePair<string, ProviderNotificationOverride>>())
+            {
+                var key = NormalizeProviderKeyToken(pair.Key);
+                if (key == null || pair.Value == null || pair.Value.IsAllInherit)
+                {
+                    continue;
+                }
+
+                normalized[key] = pair.Value;
             }
 
             return normalized;

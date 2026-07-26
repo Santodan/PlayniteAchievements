@@ -336,6 +336,7 @@ namespace PlayniteAchievements.Services.Database
 
         private sealed class GamePresentation
         {
+            public string DisplayName { get; set; }
             public string SortingName { get; set; }
             public string IconPath { get; set; }
             public string CoverPath { get; set; }
@@ -375,6 +376,17 @@ namespace PlayniteAchievements.Services.Database
         private readonly SummaryCacheReader _summaryReader;
         internal SQLiteDatabase _db;
         private bool _initialized;
+
+        // Second, read-only connection used for long read-only queries (friends overview,
+        // whole-library projection, summaries). WAL mode allows a reader to run concurrently
+        // with the read-write connection, so these queries no longer serialize behind _sync and
+        // stall short per-game grid reads. Guarded by its own lock; never held together with
+        // _sync (WithReadDb runs EnsureInitialized before taking _readSync, and the disposal
+        // paths take the two locks separately).
+        private readonly object _readSync = new object();
+        private SQLiteDatabase _readDb;
+        private bool _readInitialized;
+        private const int ReadConnectionBusyTimeoutMs = 5000;
 
         public string DatabasePath { get; }
 
@@ -454,6 +466,45 @@ namespace PlayniteAchievements.Services.Database
                       FROM UserGameProgress ugp
                       INNER JOIN Users u ON u.Id = ugp.UserId
                       WHERE u.IsCurrentUser = 1;");
+                return ParseUtc(value);
+            });
+        }
+
+        // Cheap freshness probe for the per-game grid read: the latest progress row's
+        // LastUpdatedUtc for the cache key, or null when no row exists or the value is
+        // unparsable — callers must fall back to the full read on null rather than treating it
+        // as a deleted row.
+        public DateTime? GetCurrentUserGameLastUpdatedUtc(string key)
+        {
+            if (string.IsNullOrWhiteSpace(key))
+            {
+                return null;
+            }
+
+            var cacheKey = key.Trim();
+            return WithDb(db =>
+            {
+                var value = db.ExecuteScalar<string>(
+                    @"SELECT ugp.LastUpdatedUtc
+                      FROM UserGameProgress ugp
+                      INNER JOIN Users u ON u.Id = ugp.UserId
+                      WHERE u.IsCurrentUser = 1
+                        AND ugp.CacheKey = ?
+                      ORDER BY ugp.LastUpdatedUtc DESC
+                      LIMIT 1;",
+                    cacheKey);
+                return ParseUtc(value);
+            });
+        }
+
+        public DateTime? GetMostRecentFriendLastRefreshedUtc()
+        {
+            return WithDb(db =>
+            {
+                var value = db.ExecuteScalar<string>(
+                    @"SELECT MAX(u.LastRefreshedUtc)
+                      FROM Users u
+                      WHERE " + ActiveFriendPredicateSql + ";");
                 return ParseUtc(value);
             });
         }
@@ -581,7 +632,7 @@ namespace PlayniteAchievements.Services.Database
 
         public List<KeyValuePair<string, GameAchievementData>> LoadAllCurrentUserGameDataByCacheKey()
         {
-            return WithDb(db =>
+            return WithReadDb(db =>
             {
                 var progressRows = db.Load<ProgressGameJoinRow>(
                     @"WITH LatestProgress AS (
@@ -794,6 +845,7 @@ namespace PlayniteAchievements.Services.Database
         {
             return new GamePresentation
             {
+                DisplayName = playniteGame?.Name,
                 SortingName = playniteGame?.SortingName,
                 IconPath = !string.IsNullOrWhiteSpace(playniteGame?.Icon)
                     ? ResolvePlayniteAssetPath(playniteGame.Icon)
@@ -981,6 +1033,8 @@ namespace PlayniteAchievements.Services.Database
             try
             {
                 var writtenCount = 0;
+                var renamedApiNames = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+                Guid? renamedPlayniteGameId = null;
                 WithDb(db =>
                 {
                     db.RunTransaction(() =>
@@ -989,7 +1043,22 @@ namespace PlayniteAchievements.Services.Database
                             definition.Achievements != null &&
                             definition.Achievements.Count > 0)
                         {
-                            var game = LoadAnyGameByAppId(db, providerKey, definition.AppId, definition.ProviderGameKey);
+                            // Exophase keys resolve through the single-row invariant (healing any
+                            // duplicates) without touching the mapping flag; other providers keep
+                            // the existing lookup.
+                            var game = IsExophaseProvider(providerKey) && !string.IsNullOrWhiteSpace(definition.ProviderGameKey)
+                                ? ResolveSingleExophaseFriendGameRow(
+                                    db,
+                                    providerKey,
+                                    definition.AppId,
+                                    NormalizeProviderGameKey(definition.ProviderGameKey),
+                                    definition.ProviderPlatformKey,
+                                    null,
+                                    allowCreate: true,
+                                    applyOwnershipMapping: false,
+                                    definition.GameName,
+                                    nowIso)
+                                : LoadAnyGameByAppId(db, providerKey, definition.AppId, definition.ProviderGameKey);
                             var gameId = game?.Id ?? EnsureProviderOnlyGame(
                                 db,
                                 providerKey,
@@ -1000,13 +1069,55 @@ namespace PlayniteAchievements.Services.Database
                                 nowIso);
                             if (gameId > 0)
                             {
-                                UpsertAchievementDefinitions(
-                                    db,
-                                    gameId,
-                                    definition.Achievements,
-                                    nowIso,
-                                    checkedIso);
-                                writtenCount = definition.Achievements.Count;
+                                // A complete Ok definition fetch is authoritative for provider-only
+                                // rows. Mapped proxy rows mirror the current user's schema, which
+                                // stays canonical: Exophase definitions use aggregator api-name
+                                // families that the proxy refresh prunes, so they are never written
+                                // here. Native-provider definitions share the user's key family, so
+                                // when the mapped row has no schema yet the category-bearing fetch
+                                // seeds it (non-authoritative: it must never prune a user scan), and
+                                // otherwise only Default category placeholders are backfilled.
+                                var isProviderOnlyRow = !ParseGuid(game?.PlayniteGameId).HasValue;
+                                if (isProviderOnlyRow)
+                                {
+                                    UpsertAchievementDefinitions(
+                                        db,
+                                        gameId,
+                                        definition.Achievements,
+                                        nowIso,
+                                        checkedIso,
+                                        renamedApiNames,
+                                        authoritativeSource: true);
+                                    writtenCount = definition.Achievements.Count;
+                                }
+                                else if (IsExophaseProvider(providerKey))
+                                {
+                                    _logger?.Debug($"Skipping definition write for mapped friend game {providerKey}/{definition.ProviderGameKey}; the mapped current-user schema is canonical for its proxy row.");
+                                }
+                                else if (db.ExecuteScalar<long>(
+                                    "SELECT COUNT(1) FROM AchievementDefinitions WHERE GameId = ?;",
+                                    gameId) == 0)
+                                {
+                                    UpsertAchievementDefinitions(
+                                        db,
+                                        gameId,
+                                        definition.Achievements,
+                                        nowIso,
+                                        checkedIso,
+                                        renamedApiNames,
+                                        authoritativeSource: false);
+                                    writtenCount = definition.Achievements.Count;
+                                }
+                                else
+                                {
+                                    writtenCount = BackfillDefinitionCategories(
+                                        db,
+                                        gameId,
+                                        definition.Achievements,
+                                        checkedIso);
+                                }
+
+                                renamedPlayniteGameId = ParseGuid(game?.PlayniteGameId);
                             }
                         }
 
@@ -1025,10 +1136,17 @@ namespace PlayniteAchievements.Services.Database
                     });
                 });
 
-                return FriendCacheWriteResult.Ok(
+                var result = FriendCacheWriteResult.Ok(
                     incomingCount: definition.Achievements?.Count ?? 0,
                     writtenCount: writtenCount,
                     skippedCount: Math.Max(0, (definition.Achievements?.Count ?? 0) - writtenCount));
+                if (renamedApiNames.Count > 0)
+                {
+                    result.RenamedApiNames = renamedApiNames;
+                    result.RenamedPlayniteGameId = renamedPlayniteGameId;
+                }
+
+                return result;
             }
             catch (Exception ex)
             {
@@ -1178,6 +1296,78 @@ namespace PlayniteAchievements.Services.Database
                 }
 
                 return result;
+            });
+        }
+
+        // Returns the subset of the given provider game cache keys whose cached achievement
+        // definitions still carry legacy display-derived Exophase keys ("exophase_..."). Such games
+        // need a definition re-fetch so the rename-aware upsert can migrate them to stable ids
+        // before locale-independent unlock rows can match.
+        public List<string> LoadLegacyKeyedDefinitionGameKeys(
+            string providerKey,
+            IReadOnlyCollection<string> providerGameKeys)
+        {
+            providerKey = NormalizeProviderKey(providerKey);
+            var keys = (providerGameKeys ?? Array.Empty<string>())
+                .Where(key => !string.IsNullOrWhiteSpace(key))
+                .Select(key => key.Trim())
+                .Distinct(StringComparer.OrdinalIgnoreCase)
+                .ToList();
+            if (keys.Count == 0)
+            {
+                return new List<string>();
+            }
+
+            return WithDb(db =>
+            {
+                var numericIds = keys
+                    .Select(key => int.TryParse(key, NumberStyles.Integer, CultureInfo.InvariantCulture, out var parsed) ? parsed : 0)
+                    .Where(id => id > 0)
+                    .Distinct()
+                    .ToList();
+                var slugKeys = keys
+                    .Where(key => !int.TryParse(key, NumberStyles.Integer, CultureInfo.InvariantCulture, out _))
+                    .ToList();
+
+                var clauses = new List<string>();
+                var args = new List<object> { providerKey };
+                if (numericIds.Count > 0)
+                {
+                    clauses.Add("g.ProviderGameId IN (" + string.Join(",", numericIds.Select(_ => "?")) + ")");
+                    args.AddRange(numericIds.Cast<object>());
+                }
+
+                if (slugKeys.Count > 0)
+                {
+                    // COLLATE NOCASE mirrors the OrdinalIgnoreCase key comparisons used everywhere
+                    // else in this file; SQLite IN is case-sensitive by default.
+                    clauses.Add("g.ProviderGameKey COLLATE NOCASE IN (" + string.Join(",", slugKeys.Select(_ => "?")) + ")");
+                    args.AddRange(slugKeys.Cast<object>());
+                }
+
+                if (clauses.Count == 0)
+                {
+                    return new List<string>();
+                }
+
+                var sql =
+                    @"SELECT DISTINCT
+                        g.Id AS Id,
+                        g.ProviderGameId AS ProviderGameId,
+                        g.ProviderGameKey AS ProviderGameKey
+                      FROM Games g
+                      INNER JOIN AchievementDefinitions d ON d.GameId = g.Id
+                      WHERE g.ProviderKey = ?
+                        AND d.ApiName LIKE 'exophase\_%' ESCAPE '\'
+                        AND (" + string.Join(" OR ", clauses) + ");";
+
+                var requestedKeySet = new HashSet<string>(keys, StringComparer.OrdinalIgnoreCase);
+                return db.Load<GameRow>(sql, args.ToArray())
+                    .Where(row => row != null)
+                    .Select(row => ToProviderGameCacheKey((int)Math.Max(0, row.ProviderGameId ?? 0), row.ProviderGameKey))
+                    .Where(key => !string.IsNullOrWhiteSpace(key) && requestedKeySet.Contains(key))
+                    .Distinct(StringComparer.OrdinalIgnoreCase)
+                    .ToList();
             });
         }
 
@@ -1859,16 +2049,35 @@ namespace PlayniteAchievements.Services.Database
 
             try
             {
+                var renamedApiNames = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+                Guid? renamedPlayniteGameId = null;
                 WithDb(db =>
                 {
                     db.RunTransaction(() =>
                     {
                         var user = LoadFriendUser(db, providerKey, externalUserId);
-                        var game = LoadAnyGameByAppId(db, providerKey, appId, providerGameKey);
+                        // Exophase keys resolve through the single-row invariant (healing any
+                        // duplicates) without touching the mapping flag; other providers keep the
+                        // existing lookup.
+                        var game = IsExophaseProvider(providerKey) && !string.IsNullOrWhiteSpace(providerGameKey)
+                            ? ResolveSingleExophaseFriendGameRow(
+                                db,
+                                providerKey,
+                                appId,
+                                providerGameKey,
+                                null,
+                                null,
+                                allowCreate: false,
+                                applyOwnershipMapping: false,
+                                null,
+                                nowIso)
+                            : LoadAnyGameByAppId(db, providerKey, appId, providerGameKey);
                         if (user == null || game == null)
                         {
                             return;
                         }
+
+                        renamedPlayniteGameId = ParseGuid(game.PlayniteGameId);
 
                         var status = ResolveFriendScrapeStatus(achievements);
                         var detail = achievements?.DetailCode.ToString();
@@ -1887,7 +2096,8 @@ namespace PlayniteAchievements.Services.Database
                             db,
                             game,
                             nowIso,
-                            updatedIso);
+                            updatedIso,
+                            renamedApiNames);
                         if (refreshedFromMappedCurrentUser)
                         {
                             definitions = LoadAchievementDefinitionsForGame(db, game.Id);
@@ -1902,12 +2112,38 @@ namespace PlayniteAchievements.Services.Database
                             // this provider), or an older friend-seeded definition set with the same keys.
                             // Seed/refresh from this scrape only when no mapped current-user schema won;
                             // native definitions stay canonical for shared/mapped games.
-                            UpsertAchievementDefinitions(db, game.Id, seededDefinitions, nowIso, updatedIso);
+                            UpsertAchievementDefinitions(db, game.Id, seededDefinitions, nowIso, updatedIso, renamedApiNames);
                             definitions = LoadAchievementDefinitionsForGame(db, game.Id);
+                        }
+
+                        // Stable-keyed unlock rows carry no display text and can only match definitions by
+                        // key. Defer only while definitions are missing or still carry legacy display-derived
+                        // Exophase keys (migration-pending); definitions keyed by another provider's scheme
+                        // (mapped games serviced by Steam/PSN/...) proceed and match via the native-key bridge.
+                        if (SqlNadoCacheBehavior.RowsRequireStableKeyedDefinitions(incomingRows) &&
+                            (definitions.Count == 0 ||
+                             SqlNadoCacheBehavior.HasLegacyExophaseKeyedDefinitions(definitions.Select(def => def?.ApiName))))
+                        {
+                            _logger?.Info($"Friend achievements for provider={providerKey}, game={ToProviderGameLogKey(appId, providerGameKey)} " +
+                                "deferred: definitions are missing or still legacy-keyed; awaiting definition migration.");
+                            UpdateFriendOwnershipScrapeState(db, user.Id, game.Id, "transient", "awaiting-definition-migration", updatedIso, nowIso);
+                            return;
                         }
 
                         var totalAchievements = definitions.Count;
                         var matchedRows = MapFriendRowsToDefinitions(definitions, incomingRows);
+
+                        // A nonzero unlock list that matches no definition at all is a matching failure
+                        // (mismatched key schemes, stale definitions), never a real state; persisting it
+                        // would write the collapsed unlock counts this pipeline exists to prevent. Record
+                        // a transient state so the candidate retries after definitions heal.
+                        if (matchedRows.Count == 0 && incomingRows.Count > 0 && definitions.Count > 0)
+                        {
+                            _logger?.Warn($"Friend achievements for provider={providerKey}, game={ToProviderGameLogKey(appId, providerGameKey)} " +
+                                $"deferred: none of {incomingRows.Count} unlock row(s) matched {definitions.Count} cached definition(s).");
+                            UpdateFriendOwnershipScrapeState(db, user.Id, game.Id, "transient", "no-definition-match", updatedIso, nowIso);
+                            return;
+                        }
 
                         var cacheKey = BuildFriendCacheKey(providerKey, externalUserId, game);
                         var existingProgress = LoadUserGameProgress(db, user.Id, game.Id, cacheKey);
@@ -1949,7 +2185,14 @@ namespace PlayniteAchievements.Services.Database
                     });
                 });
 
-                return FriendCacheWriteResult.Ok();
+                var result = FriendCacheWriteResult.Ok();
+                if (renamedApiNames.Count > 0)
+                {
+                    result.RenamedApiNames = renamedApiNames;
+                    result.RenamedPlayniteGameId = renamedPlayniteGameId;
+                }
+
+                return result;
             }
             catch (Exception ex)
             {
@@ -2526,7 +2769,7 @@ namespace PlayniteAchievements.Services.Database
 
         public FriendsOverviewData LoadFriendsOverviewData(int recentLimit)
         {
-            return WithDb(db =>
+            return WithReadDb(db =>
             {
                 var data = new FriendsOverviewData();
 
@@ -2545,20 +2788,9 @@ namespace PlayniteAchievements.Services.Database
 
                 using (PerfScope.Start(_logger, "Friends.LoadAchievementRows", thresholdMs: 15))
                 data.AllAchievements = MapFriendAchievementRows(LoadFriendAllAchievementRows(db), presentationCache);
-                data.AllUnlockedAchievements = data.AllAchievements
-                    .Where(item => item?.Unlocked == true)
-                    .ToList();
-
-                // Recent unlocks are the time-stamped subset of all unlocked achievements, already
-                // ordered by unlock time DESC from the query - derive them in memory rather than
-                // re-running the identical friend/achievement join a second time.
-                var recentUnlocked = data.AllUnlockedAchievements
-                    .Where(item => item.UnlockTimeUtc.HasValue)
-                    .OrderByDescending(item => item.UnlockTimeUtc ?? DateTime.MinValue);
-                data.RecentUnlocks = (recentLimit > 0 ? recentUnlocked.Take(recentLimit) : recentUnlocked).ToList();
 
                 using (PerfScope.Start(_logger, "Friends.ApplySummaryScores", thresholdMs: 15))
-                ApplyFriendSummaryScores(data.Friends, data.AllUnlockedAchievements);
+                FriendsOverviewDerivations.Apply(data, recentLimit);
                 return data;
             });
         }
@@ -2570,7 +2802,7 @@ namespace PlayniteAchievements.Services.Database
                 return new FriendsOverviewData();
             }
 
-            return WithDb(db =>
+            return WithReadDb(db =>
             {
                 var data = new FriendsOverviewData();
                 var presentationCache = new Dictionary<Guid, GamePresentation>();
@@ -2595,23 +2827,95 @@ namespace PlayniteAchievements.Services.Database
                         unlockedOnly: false,
                         playniteGameId: playniteGameId),
                     presentationCache);
-                data.AllUnlockedAchievements = data.AllAchievements
-                    .Where(item => item?.Unlocked == true)
-                    .ToList();
-                data.RecentUnlocks = data.AllUnlockedAchievements
-                    .Where(item => item.UnlockTimeUtc.HasValue)
-                    .OrderByDescending(item => item.UnlockTimeUtc ?? DateTime.MinValue)
-                    .ToList();
-
                 using (PerfScope.Start(_logger, "Friends.ApplyTargetGameSummaryScores", thresholdMs: 15))
-                ApplyFriendSummaryScores(data.Friends, data.AllUnlockedAchievements);
+                FriendsOverviewDerivations.Apply(data, recentLimit: 0);
+                return data;
+            });
+        }
+
+        /// <summary>
+        /// Loads every friend's achievement rows — LOCKED INCLUDED — for one game identified by
+        /// provider scope (ProviderKey + AppId/ProviderGameKey), so provider-only friend games
+        /// without a PlayniteGameId are supported. Used by the friend+game pair comparison
+        /// surfaces to materialize locked rows on demand, since the overview snapshot carries
+        /// unlocked rows only.
+        /// </summary>
+        public FriendsOverviewData LoadFriendGameAchievementData(FriendCacheChange gameScope)
+        {
+            if (gameScope == null ||
+                string.IsNullOrWhiteSpace(gameScope.ProviderKey) ||
+                (gameScope.AppId <= 0 && string.IsNullOrWhiteSpace(gameScope.ProviderGameKey)))
+            {
+                return new FriendsOverviewData();
+            }
+
+            return WithReadDb(db =>
+            {
+                var data = new FriendsOverviewData();
+                var presentationCache = new Dictionary<Guid, GamePresentation>();
+
+                using (PerfScope.Start(_logger, "Friends.LoadPairAchievementRows", thresholdMs: 15))
+                data.AllAchievements = MapFriendAchievementRows(
+                    LoadFriendAchievementRows(
+                        db,
+                        0,
+                        requireUnlockTime: false,
+                        unlockedOnly: false,
+                        reloadScopes: new[] { gameScope }),
+                    presentationCache);
+
+                FriendsOverviewDerivations.Apply(data, recentLimit: 0);
+                return data;
+            });
+        }
+
+        /// <summary>
+        /// Loads the data needed to patch a retained friends-overview data set: the three cheap
+        /// lists reloaded in full (friend summaries, game summaries, ownership links — keeping
+        /// all cross-friend aggregates authoritative from SQL) plus achievement display rows for
+        /// ONLY the given scopes. The caller splices the scoped rows into its retained
+        /// AllAchievements and re-runs <see cref="FriendsOverviewDerivations"/>; the derived
+        /// lists are left empty here.
+        /// </summary>
+        public FriendsOverviewData LoadFriendsOverviewPatchData(IReadOnlyList<FriendCacheChange> reloadScopes)
+        {
+            return WithReadDb(db =>
+            {
+                var data = new FriendsOverviewData();
+                var presentationCache = new Dictionary<Guid, GamePresentation>();
+
+                using (PerfScope.Start(_logger, "Friends.LoadSummaryRows", thresholdMs: 15))
+                data.Friends = MapFriendSummaryRows(LoadFriendSummaryRows(db));
+
+                using (PerfScope.Start(_logger, "Friends.LoadGameSummaryRows", thresholdMs: 15))
+                data.Games = MapFriendGameSummaryRows(LoadFriendGameSummaryRows(db), presentationCache);
+
+                using (PerfScope.Start(_logger, "Friends.LoadGameLinkRows", thresholdMs: 15))
+                data.FriendGameLinks = MapFriendGameLinkRows(LoadFriendGameLinkRows(db));
+
+                if (reloadScopes != null && reloadScopes.Count > 0)
+                {
+                    // Unlocked-only to match the retained splice base (see
+                    // LoadFriendAllAchievementRows); a locked patch row would otherwise
+                    // reintroduce rows the base never carries.
+                    using (PerfScope.Start(_logger, "Friends.LoadScopedAchievementRows", thresholdMs: 15))
+                    data.AllAchievements = MapFriendAchievementRows(
+                        LoadFriendAchievementRows(
+                            db,
+                            0,
+                            requireUnlockTime: false,
+                            unlockedOnly: true,
+                            reloadScopes: reloadScopes),
+                        presentationCache);
+                }
+
                 return data;
             });
         }
 
         public FriendsOverviewData LoadFriendRecentUnlocksData(int recentLimit)
         {
-            return WithDb(db =>
+            return WithReadDb(db =>
             {
                 var data = new FriendsOverviewData();
                 var presentationCache = new Dictionary<Guid, GamePresentation>();
@@ -2629,88 +2933,9 @@ namespace PlayniteAchievements.Services.Database
                 data.AllAchievements = data.RecentUnlocks;
                 data.AllUnlockedAchievements = data.RecentUnlocks;
                 data.Friends = BuildFriendSummariesFromAchievements(data.RecentUnlocks);
-                ApplyFriendSummaryScores(data.Friends, data.AllUnlockedAchievements);
+                FriendsOverviewDerivations.ApplyFriendSummaryScores(data.Friends, data.AllUnlockedAchievements);
                 return data;
             });
-        }
-
-        private static void ApplyFriendSummaryScores(
-            IEnumerable<FriendSummaryItem> friends,
-            IEnumerable<FriendAchievementDisplayItem> unlockedAchievements)
-        {
-            var friendList = friends?.Where(friend => friend != null).ToList();
-            if (friendList == null || friendList.Count == 0)
-            {
-                return;
-            }
-
-            var achievementsByFriend = new Dictionary<string, List<FriendAchievementDisplayItem>>(
-                StringComparer.OrdinalIgnoreCase);
-            foreach (var achievement in unlockedAchievements ?? Enumerable.Empty<FriendAchievementDisplayItem>())
-            {
-                var key = BuildFriendScoreKey(achievement?.ProviderKey, achievement?.FriendExternalUserId);
-                if (string.IsNullOrWhiteSpace(key))
-                {
-                    continue;
-                }
-
-                if (!achievementsByFriend.TryGetValue(key, out var list))
-                {
-                    list = new List<FriendAchievementDisplayItem>();
-                    achievementsByFriend[key] = list;
-                }
-
-                list.Add(achievement);
-            }
-
-            foreach (var friend in friendList)
-            {
-                if (achievementsByFriend.TryGetValue(
-                        BuildFriendScoreKey(friend.ProviderKey, friend.ExternalUserId),
-                        out var friendAchievements))
-                {
-                    // Reuse the shared accumulator so per-friend scores, rarity, and trophy counts
-                    // stay consistent with the per-game friend path in
-                    // FriendOverviewProjection.BuildSelectedFriendGameSummary. Every row counts
-                    // (no cross-game dedup) to preserve UnlockedAchievementsCount semantics.
-                    var stats = AchievementStatsAccumulator.FromDisplayItems(
-                        friendAchievements,
-                        treatItemsAsUnlocked: true);
-                    friend.CollectionScore = stats.CollectionScore;
-                    friend.PrestigeScore = stats.PrestigeScore;
-                    friend.CommonCount = stats.CommonCount;
-                    friend.UncommonCount = stats.UncommonCount;
-                    friend.RareCount = stats.RareCount;
-                    friend.UltraRareCount = stats.UltraRareCount;
-                    friend.TrophyPlatinumCount = stats.TrophyPlatinumCount;
-                    friend.TrophyGoldCount = stats.TrophyGoldCount;
-                    friend.TrophySilverCount = stats.TrophySilverCount;
-                    friend.TrophyBronzeCount = stats.TrophyBronzeCount;
-                }
-
-                friend.CollectionLevel = GetDisplayLevel(AchievementLevelCalculator.CalculateModern(friend.CollectionScore));
-                friend.PrestigeLevel = GetDisplayLevel(AchievementLevelCalculator.CalculateModern(friend.PrestigeScore));
-            }
-        }
-
-        private static int GetDisplayLevel(AchievementLevelSnapshot snapshot)
-        {
-            if (snapshot == null)
-            {
-                return 0;
-            }
-
-            return snapshot.DisplayLevel > 0 ? snapshot.DisplayLevel : snapshot.Level;
-        }
-
-        private static string BuildFriendScoreKey(string providerKey, string externalUserId)
-        {
-            if (string.IsNullOrWhiteSpace(providerKey) || string.IsNullOrWhiteSpace(externalUserId))
-            {
-                return null;
-            }
-
-            return providerKey.Trim() + "\u001f" + externalUserId.Trim();
         }
 
         private static string GetFriendSource(string providerKey) =>
@@ -3006,6 +3231,30 @@ namespace PlayniteAchievements.Services.Database
             string nowIso)
         {
             providerGameKey = NormalizeProviderGameKey(providerGameKey);
+
+            // Aggregator (Exophase) friend games hold the invariant: exactly ONE Games row per
+            // (provider, providerGameKey). The library mapping is a flag set/cleared on that single
+            // row by the ownership save (which is authoritative for the mapping each run) — it is
+            // never expressed by creating a second row for the same key, and a mapped item never
+            // rewrites another key's row. Every Exophase key row is friend-pipeline-owned (the
+            // current user's own rows use un-prefixed slug keys), so flag changes here cannot touch
+            // current-user data. Other providers keep the shared-row semantics below, where a friend
+            // item may legitimately resolve to the current user's own Games row.
+            if (IsExophaseProvider(providerKey) && !string.IsNullOrWhiteSpace(providerGameKey))
+            {
+                return ResolveSingleExophaseFriendGameRow(
+                    db,
+                    providerKey,
+                    appId,
+                    providerGameKey,
+                    providerPlatformKey,
+                    playniteGameId,
+                    allowProviderOnly,
+                    applyOwnershipMapping: true,
+                    gameName,
+                    nowIso);
+            }
+
             if (playniteGameId.HasValue && playniteGameId.Value != Guid.Empty)
             {
                 var mapped = LoadGameByPlayniteId(db, providerKey, playniteGameId.Value);
@@ -3064,6 +3313,199 @@ namespace PlayniteAchievements.Services.Database
             return gameId > 0
                 ? LoadProviderOnlyGameByAppId(db, providerKey, appId, providerGameKey)
                 : null;
+        }
+
+        // Resolves THE single Games row for an Exophase friend game key, healing any duplicate rows
+        // for the key first, and optionally syncing the library-mapping flag from the ownership row.
+        // Returns null only when the row does not exist and creation is not allowed.
+        private static GameRow ResolveSingleExophaseFriendGameRow(
+            SQLiteDatabase db,
+            string providerKey,
+            int appId,
+            string providerGameKey,
+            string providerPlatformKey,
+            Guid? playniteGameId,
+            bool allowCreate,
+            bool applyOwnershipMapping,
+            string gameName,
+            string nowIso)
+        {
+            var row = MergeDuplicateFriendGameRows(db, providerKey, providerGameKey, nowIso);
+            var mappedId = playniteGameId.HasValue && playniteGameId.Value != Guid.Empty
+                ? playniteGameId.Value
+                : Guid.Empty;
+
+            if (applyOwnershipMapping && mappedId != Guid.Empty)
+            {
+                // One mapping claim per (provider, library game): release any OTHER key's row still
+                // claiming this PlayniteGameId (the previous winner among duplicate trophy lists).
+                // This must run BEFORE this key claims the mapping below — the partial unique index
+                // on (ProviderKey, PlayniteGameId) rejects a second claim, so a claim-first order
+                // aborts the whole ownership transaction whenever the mapping winner changes.
+                // Scoped to friend-format keys ("platform|slug"): the current user's own
+                // Exophase-provider row uses a bare slug key and must never lose its mapping here.
+                db.ExecuteNonQuery(
+                    @"UPDATE Games
+                      SET PlayniteGameId = NULL,
+                          LastUpdatedUtc = ?
+                      WHERE ProviderKey = ?
+                        AND PlayniteGameId = ?
+                        AND ProviderGameKey LIKE '%|%'
+                        AND Id <> ?;",
+                    nowIso,
+                    providerKey,
+                    mappedId.ToString(),
+                    row?.Id ?? -1);
+            }
+
+            if (row == null)
+            {
+                if (!allowCreate && mappedId == Guid.Empty)
+                {
+                    return null;
+                }
+
+                var name = string.IsNullOrWhiteSpace(gameName)
+                    ? $"{providerKey} Game {ToProviderGameLogKey(appId, providerGameKey)}"
+                    : gameName.Trim();
+                db.ExecuteNonQuery(
+                    @"INSERT INTO Games
+                        (ProviderKey, ProviderPlatformKey, ProviderGameId, ProviderGameKey, PlayniteGameId, GameName, LibrarySourceName, FirstSeenUtc, LastUpdatedUtc)
+                      VALUES
+                        (?, ?, ?, ?, ?, ?, ?, ?, ?);",
+                    providerKey,
+                    DbValue(string.IsNullOrWhiteSpace(providerPlatformKey) ? providerKey : providerPlatformKey.Trim()),
+                    appId > 0 ? (object)appId : DBNull.Value,
+                    DbValue(providerGameKey),
+                    mappedId != Guid.Empty ? (object)mappedId.ToString() : DBNull.Value,
+                    DbValue(name),
+                    DbValue(providerKey),
+                    nowIso,
+                    nowIso);
+                row = LoadAnyGameByAppId(db, providerKey, appId, providerGameKey);
+            }
+            else if (applyOwnershipMapping)
+            {
+                var rowMappedId = ParseGuid(row.PlayniteGameId) ?? Guid.Empty;
+                if (mappedId != Guid.Empty && rowMappedId != mappedId)
+                {
+                    db.ExecuteNonQuery(
+                        @"UPDATE Games
+                          SET PlayniteGameId = ?,
+                              LastUpdatedUtc = ?
+                          WHERE Id = ?;",
+                        mappedId.ToString(),
+                        nowIso,
+                        row.Id);
+                    row.PlayniteGameId = mappedId.ToString();
+                }
+                else if (mappedId == Guid.Empty && rowMappedId != Guid.Empty)
+                {
+                    // Ownership is authoritative for the mapping: this key did not resolve to (or
+                    // lost) the library mapping this run, so the stale flag is cleared in place.
+                    db.ExecuteNonQuery(
+                        @"UPDATE Games
+                          SET PlayniteGameId = NULL,
+                              LastUpdatedUtc = ?
+                          WHERE Id = ?;",
+                        nowIso,
+                        row.Id);
+                    row.PlayniteGameId = null;
+                }
+            }
+
+            if (row == null)
+            {
+                return null;
+            }
+
+            // Identity refresh: name/platform/appid only. The key equals the row's key by
+            // construction (key-first resolution), so the COALESCE write cannot re-key the row.
+            UpdateMappedGameIdentity(db, row.Id, appId, providerGameKey, providerPlatformKey, gameName, nowIso);
+            return LoadAnyGameByAppId(db, providerKey, appId, providerGameKey);
+        }
+
+        // Restores the one-row-per-(provider, key) invariant for a key whose rows were duplicated by
+        // earlier mapped/provider-only split resolution: keeps the row holding the most progress data
+        // (tie: most recently updated), absorbs the losers' missing definitions, ownership, and
+        // progress via the promotion movers, and deletes the loser rows. Returns the surviving row,
+        // or null when the key has no rows.
+        private static GameRow MergeDuplicateFriendGameRows(
+            SQLiteDatabase db,
+            string providerKey,
+            string providerGameKey,
+            string nowIso)
+        {
+            var rows = db.Load<GameRow>(
+                @"SELECT Id, ProviderKey, ProviderPlatformKey, ProviderGameId, ProviderGameKey, PlayniteGameId, GameName, LibrarySourceName, FirstSeenUtc, LastUpdatedUtc
+                  FROM Games
+                  WHERE ProviderKey = ?
+                    AND ProviderGameKey = ?
+                  ORDER BY Id;",
+                providerKey,
+                providerGameKey).ToList();
+            if (rows.Count <= 1)
+            {
+                return rows.FirstOrDefault();
+            }
+
+            GameRow keeper = null;
+            var keeperProgressCount = -1L;
+            foreach (var candidate in rows)
+            {
+                var progressCount = db.ExecuteScalar<long>(
+                    "SELECT COUNT(*) FROM UserGameProgress WHERE GameId = ?;",
+                    candidate.Id);
+                if (progressCount > keeperProgressCount ||
+                    (progressCount == keeperProgressCount &&
+                     string.CompareOrdinal(candidate.LastUpdatedUtc, keeper?.LastUpdatedUtc) > 0))
+                {
+                    keeper = candidate;
+                    keeperProgressCount = progressCount;
+                }
+            }
+
+            foreach (var loser in rows)
+            {
+                if (loser.Id == keeper.Id)
+                {
+                    continue;
+                }
+
+                // Same movers the provider-only promotion uses: definitions the keeper lacks move
+                // over (so unlock rows keep resolving), ownership and progress rows migrate with
+                // ApiName-based achievement remapping, and conflicts keep the keeper's data.
+                MergeProviderOnlyDefinitionsIntoTarget(db, loser.Id, keeper.Id, nowIso);
+                MoveFriendOwnershipToPromotedGame(db, loser.Id, keeper.Id, nowIso);
+                MoveFriendProgressToPromotedGame(db, loser.Id, keeper.Id, nowIso);
+
+                // Definitions still on the loser are duplicates of keys the keeper already holds
+                // (everything else moved above), and any unlock rows still referencing them were
+                // copied/remapped onto the keeper's definitions by the progress mover — delete both
+                // explicitly rather than relying on FK cascade, which is per-connection.
+                db.ExecuteNonQuery(
+                    @"DELETE FROM UserAchievements
+                      WHERE AchievementDefinitionId IN (
+                          SELECT Id FROM AchievementDefinitions WHERE GameId = ?
+                      );",
+                    loser.Id);
+                db.ExecuteNonQuery(
+                    @"DELETE FROM AchievementDefinitions
+                      WHERE GameId = ?;",
+                    loser.Id);
+                db.ExecuteNonQuery(
+                    "DELETE FROM ProviderGameDefinitionState WHERE ProviderKey = ? AND ProviderGameKey = ? AND Id NOT IN (SELECT MIN(Id) FROM ProviderGameDefinitionState WHERE ProviderKey = ? AND ProviderGameKey = ?);",
+                    providerKey,
+                    providerGameKey,
+                    providerKey,
+                    providerGameKey);
+                db.ExecuteNonQuery(
+                    "DELETE FROM Games WHERE Id = ?;",
+                    loser.Id);
+            }
+
+            // The keeper carries the union; a stale mapping flag on it is reconciled by the caller.
+            return keeper;
         }
 
         private static bool ShouldUseSharedFriendGameFallback(string providerKey, string providerGameKey, Guid? playniteGameId)
@@ -3130,14 +3572,17 @@ namespace PlayniteAchievements.Services.Database
                 return 0;
             }
 
+            providerGameKey = NormalizeProviderGameKey(providerGameKey);
+
+            // Dev-parity behavior for non-Exophase providers (Exophase keys never reach this
+            // method; they resolve through ResolveSingleExophaseFriendGameRow, which handles
+            // duplicate trophy lists without hijacking row identity).
             var existing = LoadGameByPlayniteId(db, providerKey, playniteGameId);
             if (existing != null)
             {
                 UpdateMappedGameIdentity(db, existing.Id, appId, providerGameKey, providerPlatformKey, gameName, nowIso);
                 return existing.Id;
             }
-
-            providerGameKey = NormalizeProviderGameKey(providerGameKey);
 
             // Upgrade an existing provider-only row for this game in place (attach the PlayniteGameId)
             // rather than inserting a second row. A cross-provider aggregator friend game (ProviderKey
@@ -3572,7 +4017,8 @@ namespace PlayniteAchievements.Services.Database
             SQLiteDatabase db,
             GameRow game,
             string nowIso,
-            string updatedIso)
+            string updatedIso,
+            IDictionary<string, string> renameCollector = null)
         {
             if (db == null ||
                 game == null ||
@@ -3598,7 +4044,9 @@ namespace PlayniteAchievements.Services.Database
                 return false;
             }
 
-            UpsertAchievementDefinitions(db, game.Id, achievements, nowIso, updatedIso);
+            // The mapped current-user schema is complete by construction; the proxy row must mirror
+            // it exactly, so stale accumulated keys are pruned regardless of relative counts.
+            UpsertAchievementDefinitions(db, game.Id, achievements, nowIso, updatedIso, renameCollector, authoritativeSource: true);
             return true;
         }
 
@@ -3737,6 +4185,31 @@ namespace PlayniteAchievements.Services.Database
                 if (byApiName.Count == 1)
                 {
                     return byApiName[0];
+                }
+            }
+
+            // Native-key bridge: mapped games serviced by the platform's own provider key their
+            // definitions with the platform-native scheme (Steam apinames, PSN "{group}:{trophyId}").
+            // Aggregator rows carry that native key in ProviderNativeKey — match it verbatim first,
+            // then in the group-qualified PSN form. Unique matches only.
+            if (!string.IsNullOrWhiteSpace(row.ProviderNativeKey))
+            {
+                var byNativeKey = definitions
+                    .Where(def => !usedDefinitionIds.Contains(def.Id) &&
+                                  SqlNadoCacheBehavior.MatchesNativeKey(def.ApiName, row.ProviderNativeKey))
+                    .ToList();
+                if (byNativeKey.Count == 1)
+                {
+                    return byNativeKey[0];
+                }
+
+                var byGroupQualifiedKey = definitions
+                    .Where(def => !usedDefinitionIds.Contains(def.Id) &&
+                                  SqlNadoCacheBehavior.MatchesGroupQualifiedNativeKey(def.ApiName, row.ProviderNativeKey))
+                    .ToList();
+                if (byGroupQualifiedKey.Count == 1)
+                {
+                    return byGroupQualifiedKey[0];
                 }
             }
 
@@ -3961,8 +4434,8 @@ namespace PlayniteAchievements.Services.Database
                         AppId = (int)Math.Max(0, row.ProviderGameId ?? 0),
                         ProviderGameKey = NormalizeProviderGameKey(row.ProviderGameKey),
                         PlayniteGameId = playniteGameId,
-                        GameName = row.GameName,
-                        SortingName = presentation.SortingName ?? row.GameName,
+                        GameName = presentation.DisplayName ?? row.GameName,
+                        SortingName = presentation.SortingName ?? presentation.DisplayName ?? row.GameName,
                         GameLogo = ResolveFriendGameIconPath(presentation, row.IconPath),
                         GameCoverPath = ResolveFriendGameCoverPath(presentation, row.CoverPath),
                         PlatformText = presentation.PlatformText,
@@ -4011,7 +4484,7 @@ namespace PlayniteAchievements.Services.Database
                                       !string.IsNullOrWhiteSpace(achievement.ProviderKey) &&
                                       !string.IsNullOrWhiteSpace(achievement.FriendExternalUserId))
                 .GroupBy(
-                    achievement => BuildFriendScoreKey(achievement.ProviderKey, achievement.FriendExternalUserId),
+                    achievement => FriendsOverviewDerivations.BuildFriendScoreKey(achievement.ProviderKey, achievement.FriendExternalUserId),
                     StringComparer.OrdinalIgnoreCase)
                 .Select(group =>
                 {
@@ -4351,22 +4824,27 @@ namespace PlayniteAchievements.Services.Database
                 : db.Load<FriendGameLinkRow>(sql.ToString()).ToList();
         }
 
+        // Unlocked-only: the overview snapshot's consumers (summaries, recents, projection
+        // derivations, single-selection grids) never read locked rows, and materializing the
+        // full definition-driven set was the dominant load cost (~6x more rows). The friend+game
+        // pair comparison view loads its one game's locked rows on demand via
+        // LoadFriendGameAchievementData instead.
         private static List<FriendRecentUnlockRow> LoadFriendAllAchievementRows(SQLiteDatabase db)
-        {
-            return LoadFriendAchievementRows(db, 0, requireUnlockTime: false, unlockedOnly: false);
-        }
-
-        private static List<FriendRecentUnlockRow> LoadFriendUnlockedAchievementRows(SQLiteDatabase db)
         {
             return LoadFriendAchievementRows(db, 0, requireUnlockTime: false, unlockedOnly: true);
         }
 
+        // Rows are driven from the game's full AchievementDefinitions schema with the friend's
+        // stored unlock rows LEFT JOINed on the stable definition key, so the friend+game pair
+        // view always shows every achievement of the game with the friend's unlock state per
+        // row, even when the friend's stored rows cover only a subset of the schema.
         private static List<FriendRecentUnlockRow> LoadFriendAchievementRows(
             SQLiteDatabase db,
             int recentLimit,
             bool requireUnlockTime,
             bool unlockedOnly,
-            Guid? playniteGameId = null)
+            Guid? playniteGameId = null,
+            IReadOnlyList<FriendCacheChange> reloadScopes = null)
         {
             var args = new List<object>();
             var sql = new StringBuilder(
@@ -4412,7 +4890,7 @@ namespace PlayniteAchievements.Services.Database
                     ad.GlobalPercentUnlocked AS GlobalPercentUnlocked,
                     ad.Rarity AS Rarity,
                     ua.UnlockTimeUtc AS UnlockTimeUtc,
-                    ua.Unlocked AS Unlocked,
+                    COALESCE(ua.Unlocked, 0) AS Unlocked,
                     COALESCE(cu.Unlocked, 0) AS MyUnlocked,
                     ua.ProgressNum AS ProgressNum,
                     ua.ProgressDenom AS ProgressDenom,
@@ -4422,8 +4900,9 @@ namespace PlayniteAchievements.Services.Database
                   INNER JOIN UserGameProgress ugp ON ugp.UserId = u.Id
                   INNER JOIN Games g ON g.Id = ugp.GameId
                   INNER JOIN FriendOwnership fo ON fo.UserId = u.Id AND fo.GameId = g.Id
-                  INNER JOIN UserAchievements ua ON ua.UserGameProgressId = ugp.Id
-                  INNER JOIN AchievementDefinitions ad ON ad.Id = ua.AchievementDefinitionId
+                  INNER JOIN AchievementDefinitions ad ON ad.GameId = g.Id
+                  LEFT JOIN UserAchievements ua ON ua.UserGameProgressId = ugp.Id
+                      AND ua.AchievementDefinitionId = ad.Id
                   LEFT JOIN CurrentUnlocks cu ON cu.PlayniteGameId = g.PlayniteGameId
                       AND cu.ApiName = ad.ApiName
                   WHERE " + ActiveFriendPredicateSql);
@@ -4444,7 +4923,71 @@ namespace PlayniteAchievements.Services.Database
                 args.Add(playniteGameId.Value.ToString("D"));
             }
 
-            sql.Append(" ORDER BY ua.UnlockTimeUtc DESC, u.DisplayName, g.GameName, ad.Id");
+            if (reloadScopes != null && reloadScopes.Count > 0)
+            {
+                // Restrict rows to the changed (provider [, friend], game) scopes. A scope
+                // without a friend covers every friend of that game (definition-level changes).
+                var scopeSql = new List<string>();
+                foreach (var scope in reloadScopes)
+                {
+                    if (scope == null)
+                    {
+                        continue;
+                    }
+
+                    var gameConditions = new List<string>();
+                    if (!string.IsNullOrWhiteSpace(scope.ProviderGameKey))
+                    {
+                        gameConditions.Add("LOWER(g.ProviderGameKey) = LOWER(?)");
+                    }
+
+                    if (scope.AppId > 0)
+                    {
+                        gameConditions.Add("g.ProviderGameId = ?");
+                    }
+
+                    if (gameConditions.Count == 0)
+                    {
+                        // Not translatable to a game filter; callers exclude such kinds before
+                        // requesting a patch load.
+                        continue;
+                    }
+
+                    var conditions = new List<string> { "LOWER(g.ProviderKey) = LOWER(?)" };
+                    args.Add(scope.ProviderKey ?? string.Empty);
+                    if (!string.IsNullOrWhiteSpace(scope.ExternalUserId))
+                    {
+                        conditions.Add("LOWER(u.ExternalUserId) = LOWER(?)");
+                        args.Add(scope.ExternalUserId);
+                    }
+
+                    if (!string.IsNullOrWhiteSpace(scope.ProviderGameKey))
+                    {
+                        args.Add(scope.ProviderGameKey);
+                    }
+
+                    if (scope.AppId > 0)
+                    {
+                        args.Add(scope.AppId);
+                    }
+
+                    conditions.Add("(" + string.Join(" OR ", gameConditions) + ")");
+                    scopeSql.Add("(" + string.Join(" AND ", conditions) + ")");
+                }
+
+                sql.Append(scopeSql.Count > 0
+                    // No translatable scope must return nothing, never everything.
+                    ? " AND (" + string.Join(" OR ", scopeSql) + ")"
+                    : " AND 1 = 0");
+            }
+
+            // Recent-unlock queries stay unlock-time ordered so LIMIT takes the newest rows.
+            // Full comparison loads order by AchievementDefinitions id so each friend+game pair's
+            // rows arrive in the same canonical definition order the non-friend surfaces use,
+            // keeping category-order fallbacks independent of unlock recency and grid sorts.
+            sql.Append(requireUnlockTime
+                ? " ORDER BY ua.UnlockTimeUtc DESC, u.DisplayName, g.GameName, ad.Id"
+                : " ORDER BY u.DisplayName, g.GameName, ad.Id");
             if (recentLimit > 0)
             {
                 sql.Append(" LIMIT ?");
@@ -4519,8 +5062,8 @@ namespace PlayniteAchievements.Services.Database
                     ProviderKey = row.ProviderKey,
                     AppId = (int)Math.Max(0, row.ProviderGameId ?? 0),
                     ProviderGameKey = NormalizeProviderGameKey(row.ProviderGameKey),
-                    GameName = row.GameName,
-                    SortingName = presentation.SortingName ?? row.GameName,
+                    GameName = presentation.DisplayName ?? row.GameName,
+                    SortingName = presentation.SortingName ?? presentation.DisplayName ?? row.GameName,
                     PlayniteGameId = playniteGameId,
                     GameIconPath = ResolveFriendGameIconPath(presentation, row.IconPath),
                     GameCoverPath = ResolveFriendGameCoverPath(presentation, row.CoverPath),
@@ -4533,15 +5076,14 @@ namespace PlayniteAchievements.Services.Database
 
                 var customData = ResolveFriendAchievementCustomData(playniteGameId, customDataByGameId);
                 ApplyCustomDataToFriendAchievement(item, customData);
-                // Category rollups render the shared CategoryIconPath/CategoryCoverPath, which
-                // fall back to the game images when no per-category override exists.
+                // Category rollups render the shared CategoryArtPath; the display-path
+                // properties fall back to the game images when no category art exists.
                 AchievementDisplayItem.ApplyCategoryPresentation(
                     item,
                     customData?.AchievementCategoryOrder,
                     customData?.AchievementCategoryImageOverrides,
                     item.CategoryLabel,
-                    item.GameIconPath,
-                    item.GameCoverPath,
+                    detail.Category,
                     playniteGameId);
                 item.ApplyAppearanceSettings(AchievementDisplayItem.CreateAppearanceSettingsSnapshot(
                     _plugin?.Settings,
@@ -4693,11 +5235,14 @@ namespace PlayniteAchievements.Services.Database
             return iconUrl.Substring(lastSlash + 1);
         }
 
-        public void SaveCurrentUserGameData(string key, GameAchievementData data)
+        // Returns the ApiName renames applied while upserting definitions (old -> new), so the
+        // caller can rewrite ApiName-keyed per-game custom data (notes, order, filters, overrides).
+        public Dictionary<string, string> SaveCurrentUserGameData(string key, GameAchievementData data)
         {
+            var renamedApiNames = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
             if (string.IsNullOrWhiteSpace(key))
             {
-                return;
+                return renamedApiNames;
             }
 
             var cacheKey = key.Trim();
@@ -4781,7 +5326,8 @@ namespace PlayniteAchievements.Services.Database
                         gameId,
                         achievements,
                         nowIso,
-                        updatedIso);
+                        updatedIso,
+                        renamedApiNames);
 
                     var existingRows = db.Load<UserAchievementRow>(
                         @"SELECT Id, UserGameProgressId, AchievementDefinitionId, Unlocked, UnlockTimeUtc, ProgressNum, ProgressDenom, LastUpdatedUtc, CreatedUtc
@@ -4879,6 +5425,8 @@ namespace PlayniteAchievements.Services.Database
                     }
                 });
             });
+
+            return renamedApiNames;
         }
 
         private GameRow FindExistingRealProviderGame(SQLiteDatabase db, string cacheKey)
@@ -4957,6 +5505,10 @@ namespace PlayniteAchievements.Services.Database
 
         public void ClearCacheData()
         {
+            // Close the read-only connection first so it does not hold a handle to the file
+            // being deleted below. Done before the _sync block to avoid nesting the two locks.
+            DisposeReadConnection();
+
             lock (_sync)
             {
                 // Close the database connection
@@ -5022,6 +5574,203 @@ namespace PlayniteAchievements.Services.Database
                         playniteGameIdText);
                 });
             });
+        }
+
+        internal static class AchievementFilterKinds
+        {
+            public const string Filtered = "Filtered";
+            public const string SummaryFiltered = "SummaryFiltered";
+        }
+
+        private sealed class AchievementFilterRow
+        {
+            public string PlayniteGameId { get; set; }
+            public string ApiName { get; set; }
+            public string Kind { get; set; }
+        }
+
+        private static string AchievementFilterEntryKey(string apiName, string kind)
+        {
+            return (apiName ?? string.Empty).Trim() + "\n" + (kind ?? string.Empty).Trim();
+        }
+
+        private static HashSet<string> BuildAchievementFilterEntryKeys(
+            IReadOnlyList<(string ApiName, string Kind)> entries)
+        {
+            var keys = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            foreach (var entry in entries ?? Array.Empty<(string, string)>())
+            {
+                if (string.IsNullOrWhiteSpace(entry.ApiName) || string.IsNullOrWhiteSpace(entry.Kind))
+                {
+                    continue;
+                }
+
+                keys.Add(AchievementFilterEntryKey(entry.ApiName, entry.Kind));
+            }
+
+            return keys;
+        }
+
+        /// <summary>
+        /// Replaces one game's rows in the AchievementFilters mirror (see the schema comment:
+        /// derived from per-game custom data, which the summary queries cannot join to
+        /// directly). Compares before writing so unchanged saves stay WAL-silent. Returns true
+        /// when rows changed.
+        /// </summary>
+        public bool ReplaceAchievementFilters(
+            Guid playniteGameId,
+            IReadOnlyList<(string ApiName, string Kind)> entries)
+        {
+            if (playniteGameId == Guid.Empty)
+            {
+                return false;
+            }
+
+            var gameIdText = playniteGameId.ToString();
+            var desired = BuildAchievementFilterEntryKeys(entries);
+            return WithDb(db =>
+            {
+                var existing = db.Load<AchievementFilterRow>(
+                        @"SELECT PlayniteGameId, ApiName, Kind
+                          FROM AchievementFilters
+                          WHERE PlayniteGameId = ?;",
+                        gameIdText)
+                    .Select(row => AchievementFilterEntryKey(row.ApiName, row.Kind))
+                    .ToList();
+
+                if (existing.Count == desired.Count && desired.SetEquals(existing))
+                {
+                    return false;
+                }
+
+                var nowIso = ToIso(DateTime.UtcNow);
+                db.RunTransaction(() =>
+                {
+                    db.ExecuteNonQuery(
+                        "DELETE FROM AchievementFilters WHERE PlayniteGameId = ?;",
+                        gameIdText);
+                    InsertAchievementFilterKeys(db, gameIdText, desired, nowIso);
+                });
+
+                return true;
+            });
+        }
+
+        /// <summary>
+        /// Reconciles the whole AchievementFilters mirror against the desired per-game entry
+        /// sets (games absent from the map lose their rows). Diffs first and returns the number
+        /// of changed games; 0 means no write at all.
+        /// </summary>
+        public int ResyncAllAchievementFilters(
+            IReadOnlyDictionary<Guid, IReadOnlyList<(string ApiName, string Kind)>> entriesByGameId)
+        {
+            var desiredByGame = new Dictionary<Guid, HashSet<string>>();
+            foreach (var pair in entriesByGameId ?? new Dictionary<Guid, IReadOnlyList<(string, string)>>())
+            {
+                if (pair.Key == Guid.Empty)
+                {
+                    continue;
+                }
+
+                var keys = BuildAchievementFilterEntryKeys(pair.Value);
+                if (keys.Count > 0)
+                {
+                    desiredByGame[pair.Key] = keys;
+                }
+            }
+
+            return WithDb(db =>
+            {
+                var existingByGameText = db.Load<AchievementFilterRow>(
+                        "SELECT PlayniteGameId, ApiName, Kind FROM AchievementFilters;")
+                    .GroupBy(row => row.PlayniteGameId ?? string.Empty, StringComparer.OrdinalIgnoreCase)
+                    .ToDictionary(
+                        group => group.Key,
+                        group => new HashSet<string>(
+                            group.Select(row => AchievementFilterEntryKey(row.ApiName, row.Kind)),
+                            StringComparer.OrdinalIgnoreCase),
+                        StringComparer.OrdinalIgnoreCase);
+
+                // Stale rows: stored games no longer carrying filters (or unparsable ids).
+                var textsToDelete = new List<string>();
+                foreach (var pair in existingByGameText)
+                {
+                    if (!Guid.TryParse(pair.Key, out var gameId) ||
+                        !desiredByGame.TryGetValue(gameId, out var desired) ||
+                        !desired.SetEquals(pair.Value))
+                    {
+                        textsToDelete.Add(pair.Key);
+                    }
+                }
+
+                // New or changed games to (re)write.
+                var gamesToWrite = new List<Guid>();
+                foreach (var pair in desiredByGame)
+                {
+                    if (!existingByGameText.TryGetValue(pair.Key.ToString(), out var existing) ||
+                        !pair.Value.SetEquals(existing))
+                    {
+                        gamesToWrite.Add(pair.Key);
+                    }
+                }
+
+                if (textsToDelete.Count == 0 && gamesToWrite.Count == 0)
+                {
+                    return 0;
+                }
+
+                var nowIso = ToIso(DateTime.UtcNow);
+                db.RunTransaction(() =>
+                {
+                    foreach (var gameIdText in textsToDelete)
+                    {
+                        db.ExecuteNonQuery(
+                            "DELETE FROM AchievementFilters WHERE PlayniteGameId = ?;",
+                            gameIdText);
+                    }
+
+                    foreach (var gameId in gamesToWrite)
+                    {
+                        var gameIdText = gameId.ToString();
+                        db.ExecuteNonQuery(
+                            "DELETE FROM AchievementFilters WHERE PlayniteGameId = ?;",
+                            gameIdText);
+                        InsertAchievementFilterKeys(db, gameIdText, desiredByGame[gameId], nowIso);
+                    }
+                });
+
+                var changedGames = new HashSet<string>(textsToDelete, StringComparer.OrdinalIgnoreCase);
+                foreach (var gameId in gamesToWrite)
+                {
+                    changedGames.Add(gameId.ToString());
+                }
+
+                return changedGames.Count;
+            });
+        }
+
+        private static void InsertAchievementFilterKeys(
+            SQLiteDatabase db,
+            string gameIdText,
+            IEnumerable<string> entryKeys,
+            string nowIso)
+        {
+            foreach (var key in entryKeys)
+            {
+                var separator = key.IndexOf('\n');
+                if (separator <= 0 || separator >= key.Length - 1)
+                {
+                    continue;
+                }
+
+                db.ExecuteNonQuery(
+                    @"INSERT OR IGNORE INTO AchievementFilters (PlayniteGameId, ApiName, Kind, CreatedUtc)
+                      VALUES (?, ?, ?, ?);",
+                    gameIdText,
+                    key.Substring(0, separator),
+                    key.Substring(separator + 1),
+                    nowIso);
+            }
         }
 
         private void EnsureInitializedLocked()
@@ -5137,6 +5886,73 @@ namespace PlayniteAchievements.Services.Database
             {
                 EnsureInitializedLocked();
                 action(_db);
+            }
+        }
+
+        // Runs a read-only query on the dedicated read connection, off the _sync lock. Falls
+        // back to default(T) if the connection cannot be opened or the query fails (e.g. the
+        // database file is being cleared concurrently) so read callers degrade to empty results
+        // rather than throwing.
+        internal T WithReadDb<T>(Func<SQLiteDatabase, T> action)
+        {
+            if (action == null)
+            {
+                return default;
+            }
+
+            // Ensure the read-write connection has created the database file, WAL and shared
+            // memory before the read-only connection opens against them. Done outside _readSync
+            // so the two locks are never held simultaneously.
+            EnsureInitialized();
+
+            lock (_readSync)
+            {
+                try
+                {
+                    EnsureReadConnectionLocked();
+                    return action(_readDb);
+                }
+                catch (Exception ex)
+                {
+                    _logger?.Debug(ex, "Read-only cache query failed; returning empty result.");
+                    return default;
+                }
+            }
+        }
+
+        private void EnsureReadConnectionLocked()
+        {
+            if (_readInitialized && _readDb != null)
+            {
+                return;
+            }
+
+            _readDb = new SQLiteDatabase(
+                DatabasePath,
+                SQLiteOpenOptions.SQLITE_OPEN_READONLY |
+                SQLiteOpenOptions.SQLITE_OPEN_FULLMUTEX);
+            _readDb.EnableStatementsCache = true;
+            _readDb.BusyTimeout = ReadConnectionBusyTimeoutMs;
+            _readInitialized = true;
+        }
+
+        private void DisposeReadConnection()
+        {
+            lock (_readSync)
+            {
+                if (_readDb is IDisposable disposable)
+                {
+                    try
+                    {
+                        disposable.Dispose();
+                    }
+                    catch
+                    {
+                    }
+                }
+
+                _readDb = null;
+                _readInitialized = false;
             }
         }
 
@@ -5491,22 +6307,73 @@ namespace PlayniteAchievements.Services.Database
             return existing.Id;
         }
 
+        // Fills Category/CategoryType on existing definition rows that still hold the Default
+        // placeholder, matched by ApiName. Used for mapped friend proxy rows: the current user's
+        // schema stays canonical, so a friend definition fetch only supplies category data that
+        // is missing and never rewrites rows a user scan already categorized.
+        private int BackfillDefinitionCategories(
+            SQLiteDatabase db,
+            long gameId,
+            IReadOnlyList<AchievementDetail> achievements,
+            string updatedIso)
+        {
+            var existingDefinitions = db.Load<AchievementDefinitionRow>(
+                    @"SELECT Id, GameId, ApiName, Category, CategoryType
+                      FROM AchievementDefinitions
+                      WHERE GameId = ?;",
+                    gameId)
+                .Where(a => a != null)
+                .Select(a => (a.Id, a.ApiName, a.Category, a.CategoryType))
+                .ToList();
+
+            var backfills = SqlNadoCacheBehavior.ComputeDefinitionCategoryBackfills(
+                existingDefinitions,
+                achievements);
+            foreach (var backfill in backfills)
+            {
+                db.ExecuteNonQuery(
+                    @"UPDATE AchievementDefinitions
+                      SET Category = ?,
+                          CategoryType = ?,
+                          UpdatedUtc = ?
+                      WHERE Id = ?;",
+                    DbValue(backfill.Category),
+                    DbValue(backfill.CategoryType),
+                    updatedIso,
+                    backfill.DefinitionId);
+            }
+
+            return backfills.Count;
+        }
+
         private Dictionary<string, long> UpsertAchievementDefinitions(
             SQLiteDatabase db,
             long gameId,
             IEnumerable<AchievementDetail> achievements,
             string nowIso,
-            string updatedIso)
+            string updatedIso,
+            IDictionary<string, string> renameCollector = null,
+            bool authoritativeSource = false)
         {
             var idsByApiName = new Dictionary<string, long>(StringComparer.OrdinalIgnoreCase);
             if (achievements == null)
             {
+                db.ExecuteNonQuery(
+                    @"DELETE FROM UserAchievements
+                      WHERE AchievementDefinitionId IN (
+                          SELECT Id FROM AchievementDefinitions WHERE GameId = ?
+                      );",
+                    gameId);
                 db.ExecuteNonQuery(
                     @"DELETE FROM AchievementDefinitions
                       WHERE GameId = ?;",
                     gameId);
                 return idsByApiName;
             }
+
+            var incomingAchievements = achievements
+                .Where(a => a != null && !string.IsNullOrWhiteSpace(a.ApiName))
+                .ToList();
 
             var desiredApiNames = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
 
@@ -5518,7 +6385,46 @@ namespace PlayniteAchievements.Services.Database
                 .Where(a => !string.IsNullOrWhiteSpace(a?.ApiName))
                 .ToDictionary(a => a.ApiName.Trim(), StringComparer.OrdinalIgnoreCase);
 
-            foreach (var achievement in achievements)
+            // An incoming achievement whose ApiName is unknown may be an existing achievement whose
+            // key changed (provider key-format migration or a renamed achievement) rather than a new
+            // one. Pair such incoming rows with otherwise-stale existing rows by content and rename
+            // the existing row in place, preserving its Id and therefore every user's unlock rows
+            // (UserAchievements cascades on definition delete). Unpaired rows keep the existing
+            // insert + prune semantics.
+            var renamesByOldApiName = ComputeDefinitionRenames(incomingAchievements, existingByApiName);
+            foreach (var rename in renamesByOldApiName)
+            {
+                if (!existingByApiName.TryGetValue(rename.Key, out var renamedRow) || renamedRow == null)
+                {
+                    continue;
+                }
+
+                db.ExecuteNonQuery(
+                    @"UPDATE AchievementDefinitions
+                      SET ApiName = ?,
+                          UpdatedUtc = ?
+                      WHERE Id = ?;",
+                    rename.Value,
+                    updatedIso,
+                    renamedRow.Id);
+
+                existingByApiName.Remove(rename.Key);
+                renamedRow.ApiName = rename.Value;
+                existingByApiName[rename.Value] = renamedRow;
+
+                if (renameCollector != null)
+                {
+                    renameCollector[rename.Key] = rename.Value;
+                }
+                _logger?.Debug($"Renamed achievement definition {renamedRow.Id} '{rename.Key}' -> '{rename.Value}' (gameId={gameId})");
+            }
+
+            if (renamesByOldApiName.Count > 0)
+            {
+                _logger?.Info($"Renamed {renamesByOldApiName.Count} achievement definitions in place for gameId={gameId}, preserving unlock history.");
+            }
+
+            foreach (var achievement in incomingAchievements)
             {
                 if (achievement == null || string.IsNullOrWhiteSpace(achievement.ApiName))
                 {
@@ -5660,10 +6566,29 @@ namespace PlayniteAchievements.Services.Database
             // cached) that would otherwise delete good achievement data. An equal-or-larger incoming
             // set still prunes, so genuine renames/replacements/growth are handled. Legitimate
             // shrinkage (a developer removing achievements) is left un-pruned rather than risk data loss.
-            if (desiredApiNames.Count >= existingByApiName.Count && staleDefinitionIds.Count > 0)
+            //
+            // An authoritative source (a mapped current-user schema copied onto its friend proxy row,
+            // or a complete Ok definition fetch) is exempt from the count comparison: it is complete
+            // by construction, and holding stale keys instead deadlocks proxy rows where several key
+            // schemes have accumulated — every DisplayName is then duplicated, so rename pairing is
+            // ambiguous, the count invariant never allows the prune, and legacy keys defer friend
+            // saves forever. Friend unlock rows attached to pruned rows are re-derived from the next
+            // earned fetch; current-user saves never pass authoritativeSource.
+            if ((authoritativeSource || desiredApiNames.Count >= existingByApiName.Count) &&
+                desiredApiNames.Count > 0 &&
+                staleDefinitionIds.Count > 0)
             {
                 for (int i = 0; i < staleDefinitionIds.Count; i++)
                 {
+                    // Explicitly delete dependent unlock rows: the declared ON DELETE CASCADE only
+                    // applies when the connection has PRAGMA foreign_keys enabled, which is not
+                    // guaranteed on the save connections. A stale definition surviving with unlock
+                    // rows (or unlock rows orphaned and later re-joined by rowid reuse) is how
+                    // duplicate per-family unlock sets arise.
+                    db.ExecuteNonQuery(
+                        @"DELETE FROM UserAchievements
+                          WHERE AchievementDefinitionId = ?;",
+                        staleDefinitionIds[i]);
                     db.ExecuteNonQuery(
                         @"DELETE FROM AchievementDefinitions
                           WHERE Id = ?;",
@@ -5674,8 +6599,155 @@ namespace PlayniteAchievements.Services.Database
             return idsByApiName;
         }
 
+        // Pairs incoming achievements that have no ApiName match (would-be inserts) with existing
+        // definitions absent from the incoming set (would-be prune candidates), by content:
+        // DisplayName+Description, then DisplayName, then icon filename. A pair forms only when the
+        // content key is unique on BOTH sides within its tier, so ambiguity always falls through to
+        // the pre-existing insert + prune behavior rather than a speculative rename. Rename targets
+        // are by construction absent from the existing key set, so in-place ApiName updates cannot
+        // collide with other rows for the game.
+        private static Dictionary<string, string> ComputeDefinitionRenames(
+            List<AchievementDetail> incomingAchievements,
+            Dictionary<string, AchievementDefinitionRow> existingByApiName)
+        {
+            var renames = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+            if (incomingAchievements == null || incomingAchievements.Count == 0 ||
+                existingByApiName == null || existingByApiName.Count == 0)
+            {
+                return renames;
+            }
+
+            var incomingApiNames = new HashSet<string>(
+                incomingAchievements.Select(a => a.ApiName.Trim()),
+                StringComparer.OrdinalIgnoreCase);
+
+            var unmatchedIncoming = incomingAchievements
+                .Where(a => !existingByApiName.ContainsKey(a.ApiName.Trim()))
+                .ToList();
+            var unmatchedExisting = existingByApiName.Values
+                .Where(row => row != null && !incomingApiNames.Contains(row.ApiName.Trim()))
+                .ToList();
+
+            if (unmatchedIncoming.Count == 0 || unmatchedExisting.Count == 0)
+            {
+                return renames;
+            }
+
+            var tiers = new Func<string, string, string>[]
+            {
+                (displayName, description) => CombineRenameMatchKey(
+                    NormalizeMatchText(displayName),
+                    NormalizeMatchText(description)),
+                (displayName, description) => NormalizeMatchText(displayName),
+                null // icon tier handled separately below
+            };
+
+            for (var tierIndex = 0; tierIndex < tiers.Length; tierIndex++)
+            {
+                if (unmatchedIncoming.Count == 0 || unmatchedExisting.Count == 0)
+                {
+                    break;
+                }
+
+                Dictionary<string, AchievementDetail> incomingByKey;
+                Dictionary<string, AchievementDefinitionRow> existingByKey;
+                if (tiers[tierIndex] != null)
+                {
+                    var tier = tiers[tierIndex];
+                    incomingByKey = GroupUniqueByKey(
+                        unmatchedIncoming,
+                        a => tier(a.DisplayName, a.Description));
+                    existingByKey = GroupUniqueByKey(
+                        unmatchedExisting,
+                        row => tier(row.DisplayName, row.Description));
+                }
+                else
+                {
+                    incomingByKey = GroupUniqueByKey(
+                        unmatchedIncoming,
+                        a => FirstIconFilename(a.UnlockedIconPath, a.LockedIconPath));
+                    existingByKey = GroupUniqueByKey(
+                        unmatchedExisting,
+                        row => FirstIconFilename(row.UnlockedIconPath, row.LockedIconPath));
+                }
+
+                foreach (var pair in incomingByKey)
+                {
+                    if (pair.Value == null ||
+                        !existingByKey.TryGetValue(pair.Key, out var existingRow) ||
+                        existingRow == null)
+                    {
+                        continue;
+                    }
+
+                    var oldApiName = existingRow.ApiName.Trim();
+                    var newApiName = pair.Value.ApiName.Trim();
+                    if (renames.ContainsKey(oldApiName))
+                    {
+                        continue;
+                    }
+
+                    // A degenerate incoming set with duplicate ApiNames could target the same new
+                    // key from two pairs; the second in-place UPDATE would violate
+                    // UNIQUE (GameId, ApiName) and abort the save. First pairing wins.
+                    if (renames.ContainsValue(newApiName))
+                    {
+                        continue;
+                    }
+
+                    renames[oldApiName] = newApiName;
+                    unmatchedIncoming.Remove(pair.Value);
+                    unmatchedExisting.Remove(existingRow);
+                }
+            }
+
+            return renames;
+        }
+
+        private static string CombineRenameMatchKey(string left, string right)
+        {
+            if (string.IsNullOrEmpty(left) || string.IsNullOrEmpty(right))
+            {
+                return null;
+            }
+
+            return left + "\n" + right;
+        }
+
+        private static string FirstIconFilename(string primaryIconPath, string secondaryIconPath)
+        {
+            var fileName = ExtractIconFilename(primaryIconPath);
+            return string.IsNullOrWhiteSpace(fileName)
+                ? ExtractIconFilename(secondaryIconPath)
+                : fileName;
+        }
+
+        // Groups items by a content key; a key that maps to more than one item is marked ambiguous
+        // by storing null, so callers can require uniqueness. Null/empty keys are skipped.
+        private static Dictionary<string, TItem> GroupUniqueByKey<TItem>(
+            List<TItem> items,
+            Func<TItem, string> keySelector)
+            where TItem : class
+        {
+            var byKey = new Dictionary<string, TItem>(StringComparer.OrdinalIgnoreCase);
+            foreach (var item in items)
+            {
+                var key = keySelector(item);
+                if (string.IsNullOrWhiteSpace(key))
+                {
+                    continue;
+                }
+
+                byKey[key] = byKey.ContainsKey(key) ? null : item;
+            }
+
+            return byKey;
+        }
+
         public void Dispose()
         {
+            DisposeReadConnection();
+
             lock (_sync)
             {
                 _cachedCurrentUsersByProvider.Clear();

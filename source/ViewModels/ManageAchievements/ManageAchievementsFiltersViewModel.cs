@@ -186,8 +186,8 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
             {
                 var selected = GetSelectedCategoryTypeFilterValues();
                 return selected.Count == 0
-                    ? L("LOCPlayAch_Common_Label_Type", "Type")
-                    : AchievementCategoryTypeHelper.ToDisplayText(selected);
+                    ? L("LOCPlayAch_Common_Label_Type")
+                    : string.Join(", ", selected.Select(AchievementCategoryTypeHelper.ToCategoryTypeDisplayText));
             }
         }
 
@@ -197,9 +197,7 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
             {
                 if (_selectedCategoryLabelFilters.Count == 0)
                 {
-                    return L(
-                        "LOCPlayAch_Common_Label_Category",
-                        "Category");
+                    return L("LOCPlayAch_Common_Label_Category");
                 }
 
                 var ordered = CategoryLabelFilterOptions
@@ -275,24 +273,35 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
                 var summaryFilteredApiNames = GameCustomDataLookup.GetSummaryFilteredAchievementApiNames(_gameId, _settings?.Persisted);
 
                 List<AchievementDetail> orderedAchievements;
+                List<AchievementDetail> canonicalAchievements;
                 if (hydratedGameData?.AchievementOrder != null && hydratedGameData.AchievementOrder.Count > 0)
                 {
                     orderedAchievements = AchievementOrderHelper.ApplyOrder(
                         rawAchievements,
                         a => a.ApiName,
                         hydratedGameData.AchievementOrder);
+                    canonicalAchievements = orderedAchievements;
                 }
                 else
                 {
                     orderedAchievements = rawAchievements
                         .OrderBy(a => a.DisplayName ?? a.ApiName, StringComparer.OrdinalIgnoreCase)
                         .ToList();
+                    canonicalAchievements = rawAchievements;
                 }
 
                 _canonicalCategoryLabelFilterOptions = AchievementCategoryFilterOrderHelper.BuildOrderedCategoryLabels(
-                    orderedAchievements,
+                    canonicalAchievements,
                     achievement => ResolveEffectiveCategoryLabel(achievement, categoryOverrides),
                     hydratedGameData?.AchievementCategoryOrder);
+
+                // Per-game invariants hoisted out of the row loop: the appearance snapshot and
+                // category art/order resolution are identical for every row in this pass.
+                var appearanceSnapshot = AchievementDisplayItem.CreateAppearanceSettingsSnapshot(
+                    _settings,
+                    _gameId,
+                    projectionSource?.UseSeparateLockedIconsWhenAvailable);
+                var categoryMemo = new AchievementDisplayItem.CategoryPresentationMemo();
 
                 _allRows = orderedAchievements.Select(a =>
                 {
@@ -301,7 +310,9 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
                         projectionSource,
                         a,
                         _settings,
-                        playniteGameIdOverride: _gameId);
+                        playniteGameIdOverride: _gameId,
+                        appearanceSettings: appearanceSnapshot,
+                        categoryMemo: categoryMemo);
                     if (projected == null)
                     {
                         return null;
@@ -786,10 +797,10 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
         {
             return new[]
             {
-                new FilterStateOption(AchievementFilterStateFilter.All, L("LOCPlayAch_Common_All", "All")),
-                new FilterStateOption(AchievementFilterStateFilter.FilteredOut, L("LOCPlayAch_ManageAchievements_Filters_FilteredOut", "Filtered")),
-                new FilterStateOption(AchievementFilterStateFilter.FilteredOutOfSummaries, L("LOCPlayAch_ManageAchievements_Filters_FilteredOutOfSummaries", "Filtered from Summaries")),
-                new FilterStateOption(AchievementFilterStateFilter.Unfiltered, L("LOCPlayAch_ManageAchievements_Filters_Unfiltered", "Unfiltered"))
+                new FilterStateOption(AchievementFilterStateFilter.All, L("LOCPlayAch_Common_All")),
+                new FilterStateOption(AchievementFilterStateFilter.FilteredOut, L("LOCPlayAch_ManageAchievements_Filters_FilteredOut")),
+                new FilterStateOption(AchievementFilterStateFilter.FilteredOutOfSummaries, L("LOCPlayAch_ManageAchievements_Filters_FilteredOutOfSummaries")),
+                new FilterStateOption(AchievementFilterStateFilter.Unfiltered, L("LOCPlayAch_ManageAchievements_Filters_Unfiltered"))
             };
         }
 
@@ -799,17 +810,16 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
             {
                 new FilterBulkTargetOption(
                     AchievementFilterBulkTarget.AchievementViews,
-                    L("LOCPlayAch_Achievements", "Achievements")),
+                    L("LOCPlayAch_Achievements")),
                 new FilterBulkTargetOption(
                     AchievementFilterBulkTarget.Summaries,
-                    L("LOCPlayAch_Overview_GameSummaries", "Game Summaries"))
+                    L("LOCPlayAch_Overview_GameSummaries"))
             };
         }
 
-        private static string L(string key, string fallback)
+        private static string L(string key)
         {
-            var value = ResourceProvider.GetString(key);
-            return string.IsNullOrWhiteSpace(value) ? fallback : value;
+            return ResourceProvider.GetString(key);
         }
     }
 

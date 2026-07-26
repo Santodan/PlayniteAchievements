@@ -60,7 +60,7 @@
                                             Style="{StaticResource AuthActionButtonStyle}" Margin="{StaticResource PlayAch.Thickness.Right.Sm}"/>
                                         <Button Content="{DynamicResource LOCPlayAch_Common_Check}" Click="Auth_Check_Click"
                                             Style="{StaticResource AuthActionButtonStyle}" Margin="{StaticResource PlayAch.Thickness.Right.Sm}"/>
-                                        <Button Content="{DynamicResource LOCPlayAch_Button_Clear}" Click="Logout_Click"
+                                        <Button Content="{DynamicResource LOCPlayAch_Button_SignOut}" Click="Logout_Click"
                                             Style="{StaticResource AuthActionButtonStyle}"/>
                                 </StackPanel>
                             </StackPanel>

@@ -31,6 +31,13 @@ namespace PlayniteAchievements.ThemeIntegration.Tests
     [TestClass]
     public class ThemeIntegrationBindingsTests
     {
+        // Percent assertions (e.g. FriendCompletionText) depend on the plugin formatting culture.
+        [TestInitialize]
+        public void PinFormattingCulture()
+        {
+            PlayniteAchievements.Common.FormattingCulture.Initialize(() => "english");
+        }
+
         [TestMethod]
         public void SelectedGameBuilder_IncludesStoredFallbackRarityInStats()
         {
@@ -105,8 +112,7 @@ namespace PlayniteAchievements.ThemeIntegration.Tests
                 {
                     ["DLC"] = new CategoryImageOverrideData
                     {
-                        Icon = "category-icon.png",
-                        Cover = "category-cover.png"
+                        Art = "category-art.png"
                     }
                 }
             };
@@ -114,8 +120,7 @@ namespace PlayniteAchievements.ThemeIntegration.Tests
             var state = SelectedGameRuntimeStateBuilder.Build(gameId, data);
             var detail = state.AllAchievements.Single();
 
-            Assert.AreEqual("category-icon.png", detail.CategoryIconPath);
-            Assert.AreEqual("category-cover.png", detail.CategoryCoverPath);
+            Assert.AreEqual("category-art.png", detail.CategoryArtPath);
 
             var displayItem = new AchievementDisplayItem();
             displayItem.UpdateFrom(
@@ -130,8 +135,7 @@ namespace PlayniteAchievements.ThemeIntegration.Tests
                 useSeparateLockedIconsWhenAvailable: false,
                 showRarityBar: true);
 
-            Assert.AreEqual("category-icon.png", displayItem.CategoryIconPath);
-            Assert.AreEqual("category-cover.png", displayItem.CategoryCoverPath);
+            Assert.AreEqual("category-art.png", displayItem.CategoryArtPath);
         }
 
         [TestMethod]
@@ -1025,9 +1029,9 @@ namespace PlayniteAchievements.ThemeIntegration.Tests
             context.Service.PopulateSingleGameDataSync(firstGameId);
 
             Assert.AreEqual(DynamicThemeViewKeys.All, context.Settings.DynamicAchievementsFilterKey);
-            Assert.AreEqual(DynamicThemeViewKeys.Default, context.Settings.DynamicAchievementsSortKey);
+            Assert.AreEqual(DynamicThemeViewKeys.UnlockTime, context.Settings.DynamicAchievementsSortKey);
             Assert.AreEqual(DynamicThemeViewKeys.Descending, context.Settings.DynamicAchievementsSortDirectionKey);
-            AssertAchievementNames(context.Settings.DynamicAchievements, "Alpha Locked", "Bravo Rare", "Charlie Ultra");
+            AssertAchievementNames(context.Settings.DynamicAchievements, "Charlie Ultra", "Bravo Rare", "Alpha Locked");
             Assert.IsTrue(changedProperties.Contains(nameof(PlayniteAchievementsSettings.DynamicAchievements)));
 
             context.Settings.SetDynamicAchievementsFilterCommand.Execute("uNlOcKeD");
@@ -1279,7 +1283,7 @@ namespace PlayniteAchievements.ThemeIntegration.Tests
 
             Assert.AreEqual("Locked+Rare+UltraRare", context.Settings.DynamicAchievementsFilterKey);
             Assert.AreEqual("Locked + Rare + Ultra Rare", context.Settings.DynamicAchievementsFilterLabel);
-            AssertAchievementNames(context.Settings.DynamicAchievements, "Rare Locked", "Ultra Locked");
+            AssertAchievementNames(context.Settings.DynamicAchievements, "Ultra Locked", "Rare Locked");
             CollectionAssert.Contains(
                 context.Settings.DynamicAchievementsFilterOptions.Select(item => item.Key).ToList(),
                 "Locked+Rare+UltraRare");
@@ -2084,6 +2088,38 @@ namespace PlayniteAchievements.ThemeIntegration.Tests
 
             Assert.AreEqual(1, cache.LoadFriendsOverviewDataCalls);
             Assert.AreNotEqual(constructionThreadId, cache.FirstLoadThreadId);
+        }
+
+        [TestMethod]
+        public void FriendDynamicLists_NoConsumerSkipsSnapshotBuild()
+        {
+            var cache = new FakeFriendCache(CreateFriendOverviewData());
+            using var context = CreateServiceContext(friendCache: cache);
+
+            // No friend theme property has been read, so neither construction nor an
+            // invalidation may build the friends overview snapshot.
+            cache.RaiseFriendCacheInvalidated();
+            Task.Delay(250).GetAwaiter().GetResult();
+            Assert.AreEqual(0, cache.LoadFriendsOverviewDataCalls);
+
+            // The first read registers demand and builds once, even after the invalidation.
+            WaitForFriendThemeData(context.Settings);
+            Assert.AreEqual(1, cache.LoadFriendsOverviewDataCalls);
+        }
+
+        [TestMethod]
+        public void FriendDynamicLists_InvalidationAfterConsumptionRebuildsOnce()
+        {
+            var cache = new FakeFriendCache(CreateFriendOverviewData());
+            using var context = CreateServiceContext(friendCache: cache);
+
+            WaitForFriendThemeData(context.Settings);
+            Assert.AreEqual(1, cache.LoadFriendsOverviewDataCalls);
+
+            cache.RaiseFriendCacheInvalidated();
+            WaitForConditionAsync(
+                () => cache.LoadFriendsOverviewDataCalls == 2,
+                timeoutMs: 3000).GetAwaiter().GetResult();
         }
 
         [TestMethod]
@@ -2903,7 +2939,7 @@ namespace PlayniteAchievements.ThemeIntegration.Tests
                 Data = data;
             }
 
-            public event EventHandler FriendCacheInvalidated;
+            public event EventHandler<FriendCacheInvalidatedEventArgs> FriendCacheInvalidated;
 
             public FriendsOverviewData Data { get; set; }
 
@@ -2913,7 +2949,7 @@ namespace PlayniteAchievements.ThemeIntegration.Tests
 
             public void RaiseFriendCacheInvalidated()
             {
-                FriendCacheInvalidated?.Invoke(this, EventArgs.Empty);
+                FriendCacheInvalidated?.Invoke(this, FriendCacheInvalidatedEventArgs.FullInvalidation);
             }
 
             public IFriendCacheInvalidationBatch BeginFriendCacheInvalidationBatch() =>
@@ -2946,6 +2982,11 @@ namespace PlayniteAchievements.ThemeIntegration.Tests
                 string providerKey,
                 IReadOnlyCollection<string> providerGameKeys) =>
                 new Dictionary<string, FriendGameDefinitionState>(StringComparer.OrdinalIgnoreCase);
+
+            public List<string> LoadLegacyKeyedDefinitionGameKeys(
+                string providerKey,
+                IReadOnlyCollection<string> providerGameKeys) =>
+                new List<string>();
 
             public FriendUnownedCacheStats GetUnownedFriendGameCacheStats() =>
                 new FriendUnownedCacheStats();
@@ -2990,6 +3031,8 @@ namespace PlayniteAchievements.ThemeIntegration.Tests
             public List<FriendIdentity> LoadFriendIdentities(string providerKey) =>
                 new List<FriendIdentity>();
 
+            public DateTime? GetMostRecentFriendLastRefreshedUtc() => null;
+
             public List<FriendRefreshCandidate> LoadFriendRefreshCandidates(
                 string providerKey,
                 FriendRefreshOptions options) =>
@@ -3010,6 +3053,12 @@ namespace PlayniteAchievements.ThemeIntegration.Tests
 
                 return Data;
             }
+
+            public FriendsOverviewData LoadFriendsOverviewPatchData(IReadOnlyList<FriendCacheChange> reloadScopes) =>
+                Data;
+
+            public FriendsOverviewData LoadFriendGameAchievementData(FriendCacheChange gameScope) =>
+                new FriendsOverviewData();
 
             public FriendsOverviewData LoadFriendGameAchievementData(Guid playniteGameId) =>
                 Data;

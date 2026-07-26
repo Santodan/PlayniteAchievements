@@ -11,6 +11,7 @@ using PlayniteAchievements.Providers.RetroAchievements;
 using PlayniteAchievements.Services;
 using PlayniteAchievements.Services.Achievements;
 using PlayniteAchievements.Services.GameCustomData;
+using PlayniteAchievements.Services.Images;
 using Playnite.SDK;
 
 using ObservableObject = PlayniteAchievements.Common.ObservableObject;
@@ -55,8 +56,7 @@ namespace PlayniteAchievements.ViewModels.Items
         private string _gameIconPath;
         private string _gameCoverPath;
         private int _categoryOrderIndex = int.MaxValue;
-        private string _categoryIconPath;
-        private string _categoryCoverPath;
+        private string _categoryArtPath;
 
         public AchievementDetail Source => _source;
 
@@ -251,6 +251,7 @@ namespace PlayniteAchievements.ViewModels.Items
                     OnPropertyChanged(nameof(RaritySortValue));
                     OnPropertyChanged(nameof(CollectionScore));
                     OnPropertyChanged(nameof(PrestigeScore));
+                    OnPropertyChanged(nameof(RarityBrush));
                     OnPropertyChanged(nameof(RarityNameBrush));
                 }
             }
@@ -590,7 +591,7 @@ namespace PlayniteAchievements.ViewModels.Items
             }
         }
 
-        public string CategoryLabelDisplay => AchievementCategoryTypeHelper.ToCategoryLabelDisplayText(CategoryLabel);
+        public string CategoryLabelDisplay => AchievementCategoryTypeHelper.ToCategoryLabelCellText(CategoryLabel);
 
         /// <summary>
         /// Path to the game's icon image.
@@ -599,7 +600,13 @@ namespace PlayniteAchievements.ViewModels.Items
         public string GameIconPath
         {
             get => _gameIconPath;
-            set => SetValue(ref _gameIconPath, value);
+            set
+            {
+                if (SetValueAndReturn(ref _gameIconPath, value))
+                {
+                    OnPropertyChanged(nameof(CategoryIconDisplayPath));
+                }
+            }
         }
 
         /// <summary>
@@ -609,7 +616,13 @@ namespace PlayniteAchievements.ViewModels.Items
         public string GameCoverPath
         {
             get => _gameCoverPath;
-            set => SetValue(ref _gameCoverPath, value);
+            set
+            {
+                if (SetValueAndReturn(ref _gameCoverPath, value))
+                {
+                    OnPropertyChanged(nameof(CategoryCoverDisplayPath));
+                }
+            }
         }
 
         public int CategoryOrderIndex
@@ -618,17 +631,33 @@ namespace PlayniteAchievements.ViewModels.Items
             set => SetValue(ref _categoryOrderIndex, value);
         }
 
-        public string CategoryIconPath
+        /// <summary>
+        /// Category art path: custom override when set, otherwise the provider default.
+        /// Null when neither exists; the display-path properties below choose the game
+        /// icon/cover fallback per the grid's UseCoverImages setting.
+        /// </summary>
+        public string CategoryArtPath
         {
-            get => _categoryIconPath;
-            set => SetValue(ref _categoryIconPath, value);
+            get => _categoryArtPath;
+            set
+            {
+                if (SetValueAndReturn(ref _categoryArtPath, value))
+                {
+                    OnPropertyChanged(nameof(CategoryIconDisplayPath));
+                    OnPropertyChanged(nameof(CategoryCoverDisplayPath));
+                }
+            }
         }
 
-        public string CategoryCoverPath
-        {
-            get => _categoryCoverPath;
-            set => SetValue(ref _categoryCoverPath, value);
-        }
+        /// <summary>
+        /// Category column binding target when the grid shows icons: art, else the game icon.
+        /// </summary>
+        public string CategoryIconDisplayPath => CategoryArtPath ?? GameIconPath;
+
+        /// <summary>
+        /// Category column binding target when the grid shows covers: art, else the game cover.
+        /// </summary>
+        public string CategoryCoverDisplayPath => CategoryArtPath ?? GameCoverPath;
 
         /// <summary>
         /// True if this achievement has PlayStation trophy type data.
@@ -643,7 +672,9 @@ namespace PlayniteAchievements.ViewModels.Items
         /// <summary>
         /// Text representation of progress as "ProgressNum / ProgressDenom".
         /// </summary>
-        public string ProgressText => HasProgress ? $"{ProgressNum.Value}/{ProgressDenom.Value}" : string.Empty;
+        public string ProgressText => HasProgress
+            ? $"{ProgressNum.Value.ToString("N0", FormattingCulture.Current)}/{ProgressDenom.Value.ToString("N0", FormattingCulture.Current)}"
+            : string.Empty;
 
         /// <summary>
         /// Progress percentage (0-100) for progress bar binding.
@@ -714,6 +745,15 @@ namespace PlayniteAchievements.ViewModels.Items
             }
         }
 
+        public System.Windows.Media.Brush RarityBrush
+        {
+            get
+            {
+                var persisted = PlayniteAchievementsPlugin.Instance?.Settings?.Persisted;
+                return RarityAppearanceHelper.GetBrush(Rarity, persisted);
+            }
+        }
+
         public string HiddenTitleSuffix
         {
             get
@@ -771,8 +811,7 @@ namespace PlayniteAchievements.ViewModels.Items
             string gameIconPath = null,
             string gameCoverPath = null,
             int categoryOrderIndex = int.MaxValue,
-            string categoryIconPath = null,
-            string categoryCoverPath = null)
+            string categoryArtPath = null)
         {
             SetSource(source, notifyChanges: true);
             ProviderKey = source?.ProviderKey;
@@ -795,8 +834,9 @@ namespace PlayniteAchievements.ViewModels.Items
             GameIconPath = resolvedGameIconPath;
             GameCoverPath = resolvedGameCoverPath;
             CategoryOrderIndex = categoryOrderIndex;
-            CategoryIconPath = categoryIconPath ?? source?.CategoryIconPath ?? resolvedGameIconPath;
-            CategoryCoverPath = categoryCoverPath ?? source?.CategoryCoverPath ?? resolvedGameCoverPath;
+            // Deliberately no game-asset fallback here: null means "no category art" and the
+            // display-path properties select the game icon/cover per the grid setting.
+            CategoryArtPath = categoryArtPath ?? source?.CategoryArtPath;
         }
 
         /// <summary>
@@ -824,8 +864,7 @@ namespace PlayniteAchievements.ViewModels.Items
                 sourceItem.GameIconPath,
                 sourceItem.GameCoverPath,
                 sourceItem.CategoryOrderIndex,
-                sourceItem.CategoryIconPath,
-                sourceItem.CategoryCoverPath);
+                sourceItem.CategoryArtPath);
             ProviderKey = sourceItem.ProviderKey;
             PointsValue = sourceItem.PointsValue;
             CategoryType = sourceItem.CategoryType;
@@ -850,6 +889,7 @@ namespace PlayniteAchievements.ViewModels.Items
             ShowLockedIcon = showLockedIcon;
             UseSeparateLockedIconsWhenAvailable = useSeparateLockedIconsWhenAvailable;
             ShowRarityBar = showRarityBar;
+            OnPropertyChanged(nameof(RarityBrush));
             OnPropertyChanged(nameof(RarityNameBrush));
         }
 
@@ -914,7 +954,9 @@ namespace PlayniteAchievements.ViewModels.Items
 
         public int Points => PointsValue ?? 0;
 
-        public string PointsText => PointsValue.HasValue ? PointsValue.Value.ToString() : "-";
+        public string PointsText => PointsValue.GetValueOrDefault() != 0
+            ? PointsValue.Value.ToString("N0", FormattingCulture.Current)
+            : string.Empty;
 
         public int CollectionScore => _source?.CollectionScore ?? 0;
 
@@ -1048,13 +1090,35 @@ namespace PlayniteAchievements.ViewModels.Items
             clone.GameIconPath = _gameIconPath;
             clone.GameCoverPath = _gameCoverPath;
             clone.CategoryOrderIndex = _categoryOrderIndex;
-            clone.CategoryIconPath = _categoryIconPath;
-            clone.CategoryCoverPath = _categoryCoverPath;
+            clone.CategoryArtPath = _categoryArtPath;
             clone.SetDynamicAchievementsGameCommand = SetDynamicAchievementsGameCommand;
             clone.FilterDynamicLibraryAchievementsByProviderCommand = FilterDynamicLibraryAchievementsByProviderCommand;
             clone.OpenViewAchievementsWindow = OpenViewAchievementsWindow;
             clone.OpenManageAchievementsWindow = OpenManageAchievementsWindow;
             return clone;
+        }
+
+        /// <summary>
+        /// Per-rebuild-pass memo for category presentation (order index and resolved art path).
+        /// Rows in one pass share a single game's category order, image overrides, and default
+        /// art directory, so the resolution repeats per distinct category; without a memo every
+        /// row pays override-path resolution and disk probing again. Scope one memo to a single
+        /// pass over a single game's achievements and discard it afterwards.
+        /// </summary>
+        public sealed class CategoryPresentationMemo
+        {
+            internal sealed class Entry
+            {
+                public int OrderIndex { get; set; }
+                public string ArtPath { get; set; }
+            }
+
+            private readonly Dictionary<string, Entry> _entries =
+                new Dictionary<string, Entry>(StringComparer.OrdinalIgnoreCase);
+
+            internal bool TryGet(string key, out Entry entry) => _entries.TryGetValue(key, out entry);
+
+            internal void Set(string key, Entry entry) => _entries[key] = entry;
         }
 
         public static AchievementDisplayItem Create(
@@ -1063,7 +1127,8 @@ namespace PlayniteAchievements.ViewModels.Items
             PlayniteAchievementsSettings settings,
             ISet<string> revealedKeys = null,
             Guid? playniteGameIdOverride = null,
-            AppearanceSettingsSnapshot appearanceSettings = null)
+            AppearanceSettingsSnapshot appearanceSettings = null,
+            CategoryPresentationMemo categoryMemo = null)
         {
             if (achievement == null)
             {
@@ -1071,7 +1136,7 @@ namespace PlayniteAchievements.ViewModels.Items
             }
 
             var gameId = playniteGameIdOverride ?? gameData?.PlayniteGameId;
-            var item = CreateBaseItem(gameData, achievement, gameId, ResolvePoints(achievement, gameData));
+            var item = CreateBaseItem(gameData, achievement, gameId, ResolvePoints(achievement, gameData), categoryMemo);
             var resolvedAppearanceSettings = appearanceSettings ?? CreateAppearanceSettingsSnapshot(
                 settings,
                 gameId,
@@ -1105,8 +1170,7 @@ namespace PlayniteAchievements.ViewModels.Items
                 item,
                 gameData,
                 item.CategoryLabel,
-                item.GameIconPath,
-                item.GameCoverPath,
+                achievement.ProviderCategory,
                 gameData?.PlayniteGameId);
             var resolvedAppearanceSettings = appearanceSettings ?? CreateAppearanceSettingsSnapshot(
                 settings,
@@ -1261,6 +1325,7 @@ namespace PlayniteAchievements.ViewModels.Items
             OnPropertyChanged(nameof(ShowUnlockDate));
             OnPropertyChanged(nameof(ShowLockedProgress));
             OnPropertyChanged(nameof(IsCapstone));
+            OnPropertyChanged(nameof(RarityBrush));
             OnPropertyChanged(nameof(RarityNameBrush));
             OnPropertyChanged(nameof(Hidden));
             OnPropertyChanged(nameof(IsUnlock));
@@ -1335,7 +1400,8 @@ namespace PlayniteAchievements.ViewModels.Items
             GameAchievementData gameData,
             AchievementDetail achievement,
             Guid? playniteGameId,
-            int? pointsValue)
+            int? pointsValue,
+            CategoryPresentationMemo categoryMemo = null)
         {
             var item = new AchievementDisplayItem();
             item.SetSource(achievement, notifyChanges: false);
@@ -1352,9 +1418,9 @@ namespace PlayniteAchievements.ViewModels.Items
                 item,
                 gameData,
                 item.CategoryLabel,
-                item.GameIconPath,
-                item.GameCoverPath,
-                playniteGameId);
+                achievement.ProviderCategory,
+                playniteGameId,
+                categoryMemo);
             return item;
         }
 
@@ -1362,18 +1428,18 @@ namespace PlayniteAchievements.ViewModels.Items
             AchievementDisplayItem item,
             GameAchievementData gameData,
             string categoryLabel,
-            string defaultIconPath,
-            string defaultCoverPath,
-            Guid? playniteGameId)
+            string providerCategoryLabel,
+            Guid? playniteGameId,
+            CategoryPresentationMemo categoryMemo = null)
         {
             ApplyCategoryPresentation(
                 item,
                 gameData?.AchievementCategoryOrder,
                 gameData?.AchievementCategoryImageOverrides,
                 categoryLabel,
-                defaultIconPath,
-                defaultCoverPath,
-                playniteGameId);
+                providerCategoryLabel,
+                playniteGameId,
+                categoryMemo);
         }
 
         internal static void ApplyCategoryPresentation(
@@ -1381,9 +1447,9 @@ namespace PlayniteAchievements.ViewModels.Items
             IReadOnlyList<string> categoryOrder,
             IReadOnlyDictionary<string, CategoryImageOverrideData> categoryImageOverrides,
             string categoryLabel,
-            string defaultIconPath,
-            string defaultCoverPath,
-            Guid? playniteGameId)
+            string providerCategoryLabel,
+            Guid? playniteGameId,
+            CategoryPresentationMemo categoryMemo = null)
         {
             if (item == null)
             {
@@ -1391,7 +1457,27 @@ namespace PlayniteAchievements.ViewModels.Items
             }
 
             var normalizedCategory = AchievementCategoryTypeHelper.NormalizeCategoryOrDefault(categoryLabel);
-            item.CategoryOrderIndex = ResolveCategoryOrderIndex(normalizedCategory, categoryOrder);
+
+            // Default images are keyed by the provider label (renames only affect the
+            // displayed label); fall back to the effective label when no provider label
+            // is available, e.g. un-hydrated details where the two are identical.
+            var providerCategory = AchievementCategoryTypeHelper.NormalizeCategoryOrDefault(
+                string.IsNullOrWhiteSpace(providerCategoryLabel) ? categoryLabel : providerCategoryLabel);
+
+            string memoKey = null;
+            if (categoryMemo != null)
+            {
+                memoKey = string.Concat(normalizedCategory, "\u001f", providerCategory);
+                if (categoryMemo.TryGet(memoKey, out var cached))
+                {
+                    item.CategoryOrderIndex = cached.OrderIndex;
+                    item.CategoryArtPath = cached.ArtPath;
+                    return;
+                }
+            }
+
+            var orderIndex = AchievementCategoryFilterOrderHelper.ResolveCategoryOrderIndex(normalizedCategory, categoryOrder);
+            item.CategoryOrderIndex = orderIndex;
 
             CategoryImageOverrideData imageOverride = null;
             if (!string.IsNullOrWhiteSpace(normalizedCategory) &&
@@ -1400,33 +1486,26 @@ namespace PlayniteAchievements.ViewModels.Items
                 categoryImageOverrides.TryGetValue(normalizedCategory, out imageOverride);
             }
 
-            item.CategoryIconPath =
-                ResolveCategoryImageOverridePath(imageOverride?.Icon, playniteGameId) ??
-                defaultIconPath;
-            item.CategoryCoverPath =
-                ResolveCategoryImageOverridePath(imageOverride?.Cover, playniteGameId) ??
-                defaultCoverPath;
-        }
+            // Default art is normally keyed by the provider label, but an achievement recategorized
+            // into another category (e.g. via a category merge) keeps its original provider label
+            // while its effective label now points at the target category. Probe the effective label
+            // first so every achievement in the target category resolves the target's art (rather than
+            // its old category's), then fall back to the provider label for un-merged categories,
+            // including renames where the effective label has no default file of its own.
+            var artPath =
+                ResolveCategoryImageOverridePath(imageOverride?.Art, playniteGameId) ??
+                CategoryDefaultImageResolver.Resolve(playniteGameId, normalizedCategory) ??
+                CategoryDefaultImageResolver.Resolve(playniteGameId, providerCategory);
+            item.CategoryArtPath = artPath;
 
-        private static int ResolveCategoryOrderIndex(string categoryLabel, IReadOnlyList<string> categoryOrder)
-        {
-            if (string.IsNullOrWhiteSpace(categoryLabel) || categoryOrder == null || categoryOrder.Count == 0)
+            if (memoKey != null)
             {
-                return int.MaxValue;
-            }
-
-            for (var i = 0; i < categoryOrder.Count; i++)
-            {
-                if (string.Equals(
-                    AchievementCategoryTypeHelper.NormalizeCategoryOrDefault(categoryOrder[i]),
-                    categoryLabel,
-                    StringComparison.OrdinalIgnoreCase))
+                categoryMemo.Set(memoKey, new CategoryPresentationMemo.Entry
                 {
-                    return i;
-                }
+                    OrderIndex = orderIndex,
+                    ArtPath = artPath
+                });
             }
-
-            return int.MaxValue;
         }
 
         private static string ResolveCategoryImageOverridePath(string value, Guid? playniteGameId)
@@ -1438,9 +1517,12 @@ namespace PlayniteAchievements.ViewModels.Items
             }
 
             var managedCustomIconService = PlayniteAchievementsPlugin.Instance?.ManagedCustomIconService;
-            return playniteGameId.HasValue
+            var resolved = playniteGameId.HasValue
                 ? managedCustomIconService?.ResolveManagedDisplayPath(normalized, playniteGameId.Value.ToString("D")) ?? normalized
                 : normalized;
+            // Category graphics are overwritten in place at a stable managed path, so the
+            // display path needs a cache-bust token or stale bitmaps are served after replacement.
+            return AchievementIconResolver.ApplyCacheBust(resolved);
         }
 
         private static string ResolveGameAssetPath(string value)

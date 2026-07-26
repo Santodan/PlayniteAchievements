@@ -53,7 +53,7 @@ namespace PlayniteAchievements.ViewModels.StartPage
                     nameof(SearchText),
                     () => SearchText,
                     value => SearchText = value,
-                    L("LOCPlayAch_Filter_Achievements", "Search Achievements"),
+                    L("LOCPlayAch_Filter_Achievements"),
                     () => SearchText = string.Empty)
             };
 
@@ -106,6 +106,8 @@ namespace PlayniteAchievements.ViewModels.StartPage
         public bool ShowRarityGlow => WidgetSettings.ShowRarityGlow;
 
         public bool ColorNamesByRarity => WidgetSettings.ColorNamesByRarity;
+
+        public bool ColorRarityColumnsByRarity => WidgetSettings.ColorRarityColumnsByRarity;
 
         public bool ShowColumnHeaders => WidgetSettings.ShowColumnHeaders;
 
@@ -172,7 +174,7 @@ namespace PlayniteAchievements.ViewModels.StartPage
             RunOnUiThread(() =>
             {
                 IsLoading = true;
-                StatusText = L("LOCPlayAch_Status_LoadingAchievements", "Loading achievements");
+                StatusText = L("LOCPlayAch_Status_LoadingAchievements");
             });
 
             try
@@ -203,7 +205,7 @@ namespace PlayniteAchievements.ViewModels.StartPage
                 _logger?.Error(ex, "Failed to refresh StartPage friends recent achievements widget.");
                 RunOnUiThread(() =>
                 {
-                    StatusText = L("LOCPlayAch_Error_RebuildFailed", "Refresh failed");
+                    StatusText = L("LOCPlayAch_Error_RebuildFailed");
                     IsLoading = false;
                 });
             }
@@ -275,6 +277,12 @@ namespace PlayniteAchievements.ViewModels.StartPage
                 IsWidgetSettingsProperty(propertyName, nameof(StartPageFriendsRecentUnlocksGridSettings.ColorNamesByRarity)))
             {
                 OnPropertyChanged(nameof(ColorNamesByRarity));
+            }
+
+            if (string.IsNullOrEmpty(propertyName) ||
+                IsWidgetSettingsProperty(propertyName, nameof(StartPageFriendsRecentUnlocksGridSettings.ColorRarityColumnsByRarity)))
+            {
+                OnPropertyChanged(nameof(ColorRarityColumnsByRarity));
             }
 
             if (string.IsNullOrEmpty(propertyName) ||
@@ -385,10 +393,9 @@ namespace PlayniteAchievements.ViewModels.StartPage
             action();
         }
 
-        private static string L(string key, string fallback)
+        private static string L(string key)
         {
-            var value = ResourceProvider.GetString(key);
-            return string.IsNullOrWhiteSpace(value) ? fallback : value;
+            return ResourceProvider.GetString(key);
         }
     }
 }

@@ -46,13 +46,11 @@ namespace PlayniteAchievements.Services.Images
 
         public string GetCategoryCustomImagePath(
             string gameId,
-            string fileStem,
-            CategoryImageKind kind)
+            string fileStem)
         {
             var relativePath = AchievementIconCachePathBuilder.BuildCustomCategoryRelativePath(
                 gameId,
-                fileStem,
-                kind);
+                fileStem);
             return Path.Combine(
                 Path.GetDirectoryName(_diskImageService.GetCacheDirectoryPath()) ?? string.Empty,
                 relativePath);
@@ -239,7 +237,6 @@ namespace PlayniteAchievements.Services.Images
             string sourcePath,
             string gameId,
             string fileStem,
-            CategoryImageKind kind,
             CancellationToken cancel,
             bool overwriteExistingTarget = false)
         {
@@ -248,7 +245,7 @@ namespace PlayniteAchievements.Services.Images
                 return Task.FromResult<string>(null);
             }
 
-            var targetPath = GetCategoryCustomImagePath(gameId, fileStem, kind);
+            var targetPath = GetCategoryCustomImagePath(gameId, fileStem);
             return MaterializeImageToPathAsync(
                 sourcePath,
                 targetPath,

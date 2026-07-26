@@ -39,7 +39,7 @@ namespace PlayniteAchievements.Tests.Views
                 "GridOptions",
                 "GridOptionsCatalog.ResolveFriendSummariesId(ColumnSettingsKey)",
                 "GetFriendSummaries(id)",
-                "FriendsOverviewFriendSummariesLastUnlockDateMode");
+                "UnlockDateDisplayMode");
         }
 
         [TestMethod]
@@ -50,9 +50,19 @@ namespace PlayniteAchievements.Tests.Views
 
             AssertContainsAll(
                 xaml,
-                "ColumnKey=\"GameSummaryLastUnlock\"");
+                "ColumnKey=\"GameSummaryLastUnlock\"",
+                "ColumnKey=\"GameSummaryOwned\"",
+                "Width=\"40\" MinWidth=\"28\" MaxWidth=\"96\"",
+                "Header=\"{DynamicResource LOCPlayAch_Column_Owned}\"",
+                "SortMemberPath=\"Owned\"",
+                "CellStyle=\"{StaticResource AchievementStatusCellStyle}\"",
+                "Text=\"{Binding}\" Opacity=\"0\"",
+                "Visibility=\"{Binding Owned, Converter={StaticResource BooleanToVisibilityConverter}}",
+                "Data=\"{StaticResource GeoCheck}\"",
+                "Stroke=\"{DynamicResource PlayAch.Brush.Glyph}\"");
             AssertContainsNone(
                 xaml,
+                "Text=\"{Binding OwnedText}\"",
                 "ColumnKey=\"FriendGameFriendsWithUnlocks\"",
                 "ColumnKey=\"FriendGameLastUnlock\"",
                 "ColumnKey=\"FriendGamePlaytime\"",
@@ -68,6 +78,10 @@ namespace PlayniteAchievements.Tests.Views
                 code,
                 "FriendsOverviewGameSummaries",
                 "FriendsOverviewSelectedFriendGameSummaries",
+                "FriendGameOnlyColumnKeys",
+                "\"GameSummaryOwned\"",
+                "MirroredAppearanceResourceKeys",
+                "\"PlayAch.Brush.Progress.CompletedFill\"",
                 "GridSurface.FriendsOverview",
                 "GridSurface.FriendsOverviewSelectedFriend",
                 "GetGameSummaries(GridOptionKeys.GameSummaries.FriendsOverview)",
@@ -86,12 +100,61 @@ namespace PlayniteAchievements.Tests.Views
                 "x:Name=\"SelectedFriendGameSummariesGridControl\"",
                 "ColumnSettingsKey=\"FriendsOverviewGameSummaries\"",
                 "ColumnSettingsKey=\"FriendsOverviewSelectedFriendGameSummaries\"",
+                "ColumnSettingsKey=\"{Binding AchievementColumnSettingsKey}\"",
+                "EnableCategoryMode=\"{Binding HasFriendGameSelection}\"",
+                "ShowGameColumn=\"True\"",
+                "ShowFriendColumn=\"True\"",
+                "HideStatusColumn=\"False\"",
                 "Visibility=\"{Binding HasFriendSelection, Converter={StaticResource InverseBoolToVis}}\"",
                 "Visibility=\"{Binding HasFriendSelection, Converter={StaticResource BoolToVis}}\"");
             AssertContainsAll(
                 code,
                 "SelectedFriendGameSummariesGridControl?.Dispose()",
                 "ClearGridSelection(SelectedFriendGameSummariesGridControl?.InternalDataGrid)");
+        }
+
+        [TestMethod]
+        public void FriendsOverview_PersistsSplitterColumnRatios()
+        {
+            var xaml = File.ReadAllText(FindRepoFile("source", "Views", "FriendsOverviewControl.xaml"));
+            var code = File.ReadAllText(FindRepoFile("source", "Views", "FriendsOverviewControl.xaml.cs"));
+            var settings = File.ReadAllText(FindRepoFile("source", "Models", "Settings", "PersistedSettings.cs"));
+
+            AssertContainsAll(
+                xaml,
+                "x:Name=\"FriendsOverviewFriendColumn\"",
+                "x:Name=\"FriendsOverviewGameColumn\"",
+                "x:Name=\"FriendsOverviewAchievementColumn\"",
+                "DragCompleted=\"FriendsOverviewGridSplitter_DragCompleted\"");
+            AssertContainsAll(
+                code,
+                "ApplyFriendsOverviewColumnRatios()",
+                "PersistFriendsOverviewColumnRatios",
+                "FriendsOverviewFriendColumnRatio",
+                "FriendsOverviewGameColumnRatio",
+                "_persistSettingsForUi?.Invoke()");
+            AssertContainsAll(
+                settings,
+                "DefaultFriendsOverviewFriendColumnRatio",
+                "DefaultFriendsOverviewGameColumnRatio",
+                "public double FriendsOverviewFriendColumnRatio",
+                "public double FriendsOverviewGameColumnRatio");
+        }
+
+        [TestMethod]
+        public void OverviewSummaries_DisplayPlayniteNameAndSortBySortingName()
+        {
+            var builder = File.ReadAllText(FindRepoFile("source", "Services", "Summaries", "GameSummaryItemBuilder.cs"));
+            var overview = File.ReadAllText(FindRepoFile("source", "Services", "Overview", "OverviewDataBuilder.cs"));
+
+            AssertContainsAll(
+                builder,
+                "GameName = presentation.DisplayName ?? gameData.GameName ?? \"Unknown\"",
+                "SortingName = presentation.SortingName ?? presentation.DisplayName ?? gameData.GameName ?? \"Unknown\"");
+            AssertContainsAll(
+                overview,
+                "GameName = presentation.DisplayName ?? game.GameName ?? \"Unknown\"",
+                "SortingName = presentation.SortingName ?? presentation.DisplayName ?? game.GameName ?? \"Unknown\"");
         }
 
         [TestMethod]
@@ -116,12 +179,20 @@ namespace PlayniteAchievements.Tests.Views
             AssertContainsAll(
                 code,
                 "FriendsOverviewRecentAchievements",
+                "FriendsOverviewSelectedFriendAchievements",
+                "FriendsOverviewSelectedGameAchievements",
+                "FriendsOverviewSelectedFriendGameAchievements",
                 "RowPreviewMouseLeftButtonDownEvent",
+                "status: true",
+                "status: false",
                 "friendAvatar: true",
+                "friendAvatar: false",
                 "GridOptionsCatalog.ResolveAchievementId(ColumnSettingsKey)",
                 "GetAchievement(id).Columns",
-                "FriendsOverviewAchievementsUnlockDateMode",
-                "unlockDate: true");
+                "UnlockDateDisplayMode",
+                "unlockDate: true",
+                "SetForcedColumnCollapsed(_columnPersistence, StatusColumnKey, HideStatusColumn)",
+                "control._columnPersistence?.Refresh()");
         }
 
         [TestMethod]
@@ -191,6 +262,30 @@ namespace PlayniteAchievements.Tests.Views
                 xaml.IndexOf("x:Name=\"FriendsSubViewButton\"", StringComparison.Ordinal) <
                 xaml.IndexOf("x:Name=\"RefreshModeSelectionButton\"", StringComparison.Ordinal),
                 "Subview switcher should appear before refresh controls.");
+        }
+
+        [TestMethod]
+        public void MergedOverview_DisablingFriendsNeverTrapsFriendsSubview()
+        {
+            var xaml = File.ReadAllText(FindRepoFile("source", "Views", "OverviewControl.xaml"));
+            var code = File.ReadAllText(FindRepoFile("source", "Views", "OverviewControl.xaml.cs"));
+
+            // The subview switch stays reachable while the friends subview is active even when
+            // the feature toggle is off.
+            AssertContainsAll(
+                xaml,
+                "<Setter Property=\"Visibility\" Value=\"{Binding EnableFriendsFeatures, Converter={StaticResource BoolToVis}}\"/>",
+                "<DataTrigger Binding=\"{Binding ActiveSubView, ElementName=OverviewControlRoot}\" Value=\"{x:Static rootModels:OverviewSubView.Friends}\">");
+
+            // The friends subview is left on construction and on settings save when the feature
+            // is disabled.
+            AssertContainsAll(
+                code,
+                "ActiveSubView = _settings?.Persisted?.EnableFriendsFeatures == false",
+                "? OverviewSubView.Overview",
+                ": _lastSelectedSubView;",
+                "if (_settings?.Persisted?.EnableFriendsFeatures == false &&",
+                "ActiveSubView == OverviewSubView.Friends)");
         }
 
         [TestMethod]

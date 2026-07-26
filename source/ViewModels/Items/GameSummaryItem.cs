@@ -34,6 +34,8 @@ namespace PlayniteAchievements.ViewModels.Items
         private string _sortingName;
         public string SortingName { get => _sortingName; set => SetValue(ref _sortingName, value); }
 
+        public bool Owned => PlayniteGameId.HasValue;
+
         private string _gameLogo;
         public string GameLogo { get => _gameLogo; set => SetValue(ref _gameLogo, value); }
 
@@ -75,7 +77,19 @@ namespace PlayniteAchievements.ViewModels.Items
 
         public int AppId { get; set; } // Stays as AppId is immutable ID
         public string ProviderGameKey { get; set; }
-        public Guid? PlayniteGameId { get; set; }
+
+        private Guid? _playniteGameId;
+        public Guid? PlayniteGameId
+        {
+            get => _playniteGameId;
+            set
+            {
+                if (SetValueAndReturn(ref _playniteGameId, value))
+                {
+                    OnPropertyChanged(nameof(Owned));
+                }
+            }
+        }
 
         private int _totalAchievements;
         public int TotalAchievements 
@@ -85,9 +99,9 @@ namespace PlayniteAchievements.ViewModels.Items
             { 
                 if (_totalAchievements != value)
                 {
-                    SetValue(ref _totalAchievements, value); 
-                    OnPropertyChanged(nameof(Progression)); 
-                    OnPropertyChanged(nameof(ProgressionText)); 
+                    SetValue(ref _totalAchievements, value);
+                    OnPropertyChanged(nameof(Progression));
+                    OnPropertyChanged(nameof(ProgressionText));
                 }
             } 
         }
@@ -100,9 +114,9 @@ namespace PlayniteAchievements.ViewModels.Items
             { 
                 if (_unlockedAchievements != value)
                 {
-                    SetValue(ref _unlockedAchievements, value); 
-                    OnPropertyChanged(nameof(Progression)); 
-                    OnPropertyChanged(nameof(ProgressionText)); 
+                    SetValue(ref _unlockedAchievements, value);
+                    OnPropertyChanged(nameof(Progression));
+                    OnPropertyChanged(nameof(ProgressionText));
                 }
             } 
         }
@@ -264,7 +278,7 @@ namespace PlayniteAchievements.ViewModels.Items
 
         public int Progression => AchievementCompletionPercentCalculator.ComputeRoundedPercent(UnlockedAchievements, TotalAchievements);
 
-        public string ProgressionText => $"{Progression}%";
+        public string ProgressionText => PercentFormatter.FormatWhole(Progression);
 
         public string CollectionScoreFractionText => FormatScoreFraction(CollectionScore, CollectionScoreTotal);
 
@@ -281,7 +295,7 @@ namespace PlayniteAchievements.ViewModels.Items
 
         private static string FormatScoreFraction(int earned, int total)
         {
-            return $"{Math.Max(0, earned):N0}/{Math.Max(0, total):N0}";
+            return string.Format(FormattingCulture.Current, "{0:N0}/{1:N0}", Math.Max(0, earned), Math.Max(0, total));
         }
     }
 }

@@ -110,7 +110,7 @@ namespace PlayniteAchievements.ViewModels
         public string SelectedCategoryTypeFilterText => GetSelectedFilterText(
             _selectedCategoryTypeFilters,
             CategoryTypeFilterOptions,
-            L("LOCPlayAch_Common_Label_Type", "Type"),
+            L("LOCPlayAch_Common_Label_Type"),
             AchievementCategoryTypeHelper.ToCategoryTypeDisplayText);
 
         public ObservableCollection<string> CategoryLabelFilterOptions { get; }
@@ -118,7 +118,7 @@ namespace PlayniteAchievements.ViewModels
         public string SelectedCategoryLabelFilterText => GetSelectedFilterText(
             _selectedCategoryLabelFilters,
             CategoryLabelFilterOptions,
-            L("LOCPlayAch_Common_Label_Category", "Category"),
+            L("LOCPlayAch_Common_Label_Category"),
             AchievementCategoryTypeHelper.ToCategoryLabelDisplayText);
 
         public IReadOnlyList<AchievementDisplayItem> Apply(IEnumerable<AchievementDisplayItem> source)
@@ -332,7 +332,7 @@ namespace PlayniteAchievements.ViewModels
                     nameof(SearchText),
                     () => SearchText,
                     value => SearchText = value,
-                    L("LOCPlayAch_Filter_Achievements", "Search Achievements"),
+                    L("LOCPlayAch_Filter_Achievements"),
                     () => SearchText = string.Empty)
             };
             controlBar.Items.Add(new GridMultiSelectFilter(
@@ -345,7 +345,7 @@ namespace PlayniteAchievements.ViewModels
                 AchievementCategoryTypeHelper.ToCategoryTypeDisplayText)
             {
                 Width = 120,
-                ToolTip = L("LOCPlayAch_ManageAchievements_Category_Filter_Type", "Filter by Category Type")
+                ToolTip = L("LOCPlayAch_ManageAchievements_Category_Filter_Type")
             });
             controlBar.Items.Add(new GridMultiSelectFilter(
                 this,
@@ -357,12 +357,12 @@ namespace PlayniteAchievements.ViewModels
                 AchievementCategoryTypeHelper.ToCategoryLabelDisplayText)
             {
                 Width = 140,
-                ToolTip = L("LOCPlayAch_ManageAchievements_Category_Filter_Label", "Filter by Category Label")
+                ToolTip = L("LOCPlayAch_ManageAchievements_Category_Filter_Label")
             });
             controlBar.Items.Add(new GridToggleFilter(
                 this,
                 nameof(ShowUnlocked),
-                L("LOCPlayAch_Common_Unlocked", "Unlocked"),
+                L("LOCPlayAch_Common_Unlocked"),
                 () => ShowUnlocked,
                 value => ShowUnlocked = value,
                 GridToggleFilterIcon.Unlocked,
@@ -370,7 +370,7 @@ namespace PlayniteAchievements.ViewModels
             controlBar.Items.Add(new GridToggleFilter(
                 this,
                 nameof(ShowLocked),
-                L("LOCPlayAch_Common_Locked", "Locked"),
+                L("LOCPlayAch_Common_Locked"),
                 () => ShowLocked,
                 value => ShowLocked = value,
                 GridToggleFilterIcon.Locked,
@@ -378,7 +378,7 @@ namespace PlayniteAchievements.ViewModels
             controlBar.Items.Add(new GridToggleFilter(
                 this,
                 nameof(ShowHidden),
-                L("LOCPlayAch_Filter_Hidden", "Hidden"),
+                L("LOCPlayAch_Filter_Hidden"),
                 () => ShowHidden,
                 value => ShowHidden = value,
                 GridToggleFilterIcon.Hidden,
@@ -487,10 +487,9 @@ namespace PlayniteAchievements.ViewModels
             return string.Join(", ", ordered.Select(value => displayText?.Invoke(value) ?? value));
         }
 
-        private static string L(string key, string fallback)
+        private static string L(string key)
         {
-            var value = ResourceProvider.GetString(key);
-            return string.IsNullOrWhiteSpace(value) ? fallback : value;
+            return ResourceProvider.GetString(key);
         }
     }
 }

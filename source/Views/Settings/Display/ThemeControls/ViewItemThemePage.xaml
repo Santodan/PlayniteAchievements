@@ -45,7 +45,7 @@
                     <Border Style="{StaticResource SettingGroupCardStyle}"
                             Visibility="{Binding Persisted.EnableAchievementViewItemControl, Converter={StaticResource BoolToVis}}">
                         <StackPanel>
-                            <TextBlock Text="PREVIEW"
+                            <TextBlock Text="{DynamicResource LOCPlayAch_Settings_Context_Preview}"
                                        Style="{StaticResource ContextLabelStyle}"/>
                             <StackPanel Orientation="Horizontal">
                                 <modern:AchievementViewItemControl Width="60" ShowProgressBar="False" Margin="0,0,16,0"

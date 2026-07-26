@@ -14,6 +14,8 @@ using PlayniteAchievements.Services;
 using PlayniteAchievements.Services.Achievements;
 using PlayniteAchievements.ViewModels;
 using PlayniteAchievements.ViewModels.Items;
+using PlayniteAchievements.Views.Controls;
+using PlayniteAchievements.Views.Helpers;
 using PlayniteAchievements.Views.ThemeIntegration.Base;
 
 namespace PlayniteAchievements.Views.ThemeIntegration.Modern
@@ -369,6 +371,39 @@ namespace PlayniteAchievements.Views.ThemeIntegration.Modern
             }
 
             return map;
+        }
+
+        /// <summary>
+        /// Opens the View Achievements window focused on the clicked achievement.
+        /// Handled on the tunneling event: theme-provided implicit styles/behaviors
+        /// (e.g. drag-scroll ScrollViewer styles) can consume the bubbling event
+        /// inside this control's template, so the bubble phase never reliably
+        /// reaches this control. Reveal clicks keep priority: an obscured item is
+        /// left for the compact item control's own preview handler to reveal.
+        /// </summary>
+        protected override void OnPreviewMouseLeftButtonDown(MouseButtonEventArgs e)
+        {
+            base.OnPreviewMouseLeftButtonDown(e);
+            if (e.Handled)
+            {
+                return;
+            }
+
+            var itemControl = VisualTreeHelpers.FindVisualParent<AchievementCompactItemControl>(
+                e.OriginalSource as DependencyObject);
+            if (!(itemControl?.DataContext is AchievementDisplayItem item))
+            {
+                return;
+            }
+
+            if (item.CanReveal && !item.IsRevealed)
+            {
+                // Let the click tunnel on to the item control, which reveals it.
+                return;
+            }
+
+            e.Handled = true;
+            OpenViewAchievementsWindowFocused(item.PlayniteGameId, item.ApiName, item.DisplayName);
         }
 
         /// <summary>

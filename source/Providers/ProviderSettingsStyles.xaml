@@ -79,6 +79,10 @@
                          Value="True">
                 <Setter Property="BorderBrush" Value="{StaticResource PlayAch.Brush.AuthSuccess}"/>
             </DataTrigger>
+            <DataTrigger Binding="{Binding IsAuthStatusChecking, RelativeSource={RelativeSource AncestorType=UserControl}}"
+                         Value="True">
+                <Setter Property="BorderBrush" Value="{StaticResource PlayAch.Brush.AuthPending}"/>
+            </DataTrigger>
         </Style.Triggers>
     </Style>
 
@@ -94,6 +98,12 @@
         <Setter Property="TextAlignment" Value="Center"/>
         <Setter Property="Text" Value="&#xE783;"/>
         <Setter Property="Foreground" Value="{StaticResource PlayAch.Brush.AuthError}"/>
+        <Setter Property="RenderTransformOrigin" Value="0.5,0.5"/>
+        <Setter Property="RenderTransform">
+            <Setter.Value>
+                <RotateTransform Angle="0"/>
+            </Setter.Value>
+        </Setter>
         <Style.Triggers>
             <DataTrigger Binding="{Binding IsAuthStatusPending, RelativeSource={RelativeSource AncestorType=UserControl}}"
                          Value="True">
@@ -104,6 +114,31 @@
                          Value="True">
                 <Setter Property="Text" Value="&#xE930;"/>
                 <Setter Property="Foreground" Value="{StaticResource PlayAch.Brush.AuthSuccess}"/>
+            </DataTrigger>
+            <DataTrigger Binding="{Binding IsAuthStatusChecking, RelativeSource={RelativeSource AncestorType=UserControl}}"
+                         Value="True">
+                <Setter Property="Text" Value="&#xE895;"/>
+                <Setter Property="Foreground" Value="{StaticResource PlayAch.Brush.AuthPending}"/>
+                <!-- Segoe MDL2 glyphs fill the em square with no descent, so the element
+                     bounds only match the glyph (making center rotation true) when
+                     FontSize == Width == Height == LineHeight. The margin re-centers the
+                     smaller box within the 24px icon slot so neighboring text stays put. -->
+                <Setter Property="FontSize" Value="16"/>
+                <Setter Property="Width" Value="16"/>
+                <Setter Property="Height" Value="16"/>
+                <Setter Property="LineHeight" Value="16"/>
+                <Setter Property="Margin" Value="4,0,16,0"/>
+                <DataTrigger.EnterActions>
+                    <BeginStoryboard x:Name="AuthCheckingSpinStoryboard">
+                        <Storyboard>
+                            <DoubleAnimation Storyboard.TargetProperty="(UIElement.RenderTransform).(RotateTransform.Angle)"
+                                             From="0" To="360" Duration="0:0:1.2" RepeatBehavior="Forever"/>
+                        </Storyboard>
+                    </BeginStoryboard>
+                </DataTrigger.EnterActions>
+                <DataTrigger.ExitActions>
+                    <StopStoryboard BeginStoryboardName="AuthCheckingSpinStoryboard"/>
+                </DataTrigger.ExitActions>
             </DataTrigger>
         </Style.Triggers>
     </Style>

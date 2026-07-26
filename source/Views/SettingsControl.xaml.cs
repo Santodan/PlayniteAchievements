@@ -1,9 +1,13 @@
 // SettingsControl.xaml.cs
 using System;
 using System.Linq;
+using System.Collections.Generic;
 using System.Collections.ObjectModel;
+using System.Threading;
+using System.Threading.Tasks;
 using System.Windows;
 using System.Windows.Controls;
+using PlayniteAchievements.Common;
 using PlayniteAchievements.Models;
 using PlayniteAchievements.Models.Settings;
 using PlayniteAchievements.ViewModels;
@@ -19,6 +23,7 @@ namespace PlayniteAchievements.Views
     public partial class SettingsControl : UserControl, IDisposable
     {
         private readonly PlayniteAchievementsPlugin _plugin;
+        private bool _windowPlacementAttached;
         private readonly PlayniteAchievementsSettingsViewModel _settingsViewModel;
         private readonly ILogger _logger;
         private readonly ProviderRegistry _providerRegistry;
@@ -26,6 +31,8 @@ namespace PlayniteAchievements.Views
         private DisplaySettingsTab _displaySettingsTab;
         private GeneralSettingsTab _generalSettingsTab;
         private bool _providerNavigationBuilt;
+        private readonly HashSet<string> _autoAuthCheckedProviders = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        private CancellationTokenSource _autoAuthDebounceCts;
 
         public static readonly DependencyProperty ProviderNavigationItemsProperty =
             DependencyProperty.Register(
@@ -45,7 +52,7 @@ namespace PlayniteAchievements.Views
                 nameof(SelectedProviderNavigationItem),
                 typeof(ProviderNavigationItem),
                 typeof(SettingsControl),
-                new PropertyMetadata(null));
+                new PropertyMetadata(null, OnSelectedProviderNavigationItemChanged));
 
         public ProviderNavigationItem SelectedProviderNavigationItem
         {
@@ -73,6 +80,7 @@ namespace PlayniteAchievements.Views
             _pickColor = pickColor ?? throw new ArgumentNullException(nameof(pickColor));
 
             InitializeComponent();
+            FormattingCulture.Apply(this);
 
             // Initialize provider navigation overview
             ProviderNavigationItems = new ObservableCollection<ProviderNavigationItem>();
@@ -135,6 +143,8 @@ namespace PlayniteAchievements.Views
                     SettingsTabControl.SelectedItem = ProvidersTab;
                     NavigateToPendingProvider();
                 }
+
+                AttachSettingsWindowPlacement();
             };
         }
 
@@ -212,9 +222,100 @@ namespace PlayniteAchievements.Views
             _logger?.Info($"Built {ProviderNavigationItems.Count} platform navigation items");
         }
 
+        private static void OnSelectedProviderNavigationItemChanged(DependencyObject d, DependencyPropertyChangedEventArgs e)
+        {
+            if (d is SettingsControl control)
+            {
+                control.ScheduleAutoAuthCheck(e.NewValue as ProviderNavigationItem);
+            }
+        }
+
+        /// <summary>
+        /// Schedules a debounced, once-per-settings-session auth check for the selected
+        /// provider page. Selecting another page cancels a still-pending check.
+        /// </summary>
+        private void ScheduleAutoAuthCheck(ProviderNavigationItem item)
+        {
+            _autoAuthDebounceCts?.Cancel();
+            _autoAuthDebounceCts?.Dispose();
+            _autoAuthDebounceCts = null;
+
+            if (item == null ||
+                item.IsRedirect ||
+                !item.IsEnabled ||
+                _autoAuthCheckedProviders.Contains(item.ProviderKey))
+            {
+                return;
+            }
+
+            _autoAuthDebounceCts = new CancellationTokenSource();
+            _ = RunAutoAuthCheckAsync(item, _autoAuthDebounceCts.Token);
+        }
+
+        private async Task RunAutoAuthCheckAsync(ProviderNavigationItem item, CancellationToken token)
+        {
+            try
+            {
+                await Task.Delay(300, token);
+            }
+            catch (OperationCanceledException)
+            {
+                return;
+            }
+
+            if (token.IsCancellationRequested ||
+                !ReferenceEquals(SelectedProviderNavigationItem, item))
+            {
+                return;
+            }
+
+            if (!(item.EnsureView() is IAuthRefreshable refreshable))
+            {
+                return;
+            }
+
+            _autoAuthCheckedProviders.Add(item.ProviderKey);
+
+            try
+            {
+                _logger?.Info($"Auto-refreshing auth status for {item.ProviderKey}");
+                await refreshable.RefreshAuthStatusAsync();
+            }
+            catch (Exception ex)
+            {
+                _logger?.Error(ex, $"Failed to refresh auth status for {item.ProviderKey}");
+            }
+        }
+
         private static string GetProviderSettingsGroupName(string providerKey)
         {
             return ResourceProvider.GetString(ProviderUiPolicies.GetSettingsGroupResourceKey(providerKey));
+        }
+
+        // Playnite owns the window hosting this control, so placement persistence
+        // cannot be attached at window creation the way the plugin's own windows do.
+        // Attach only to Playnite's dedicated plugin-settings dialog; when this control
+        // is embedded in the shared add-ons window, resizing it would affect unrelated UI.
+        private void AttachSettingsWindowPlacement()
+        {
+            if (_windowPlacementAttached)
+            {
+                return;
+            }
+
+            var window = Window.GetWindow(this);
+            if (window == null || window.GetType().Name != "PluginSettingsWindow")
+            {
+                return;
+            }
+
+            _windowPlacementAttached = true;
+            Helpers.WindowPlacementPersistenceService.Attach(
+                window,
+                _settingsViewModel.Settings?.Persisted,
+                _plugin.PersistSettingsForUi,
+                "PluginSettings",
+                _logger);
         }
 
         private void NavigateToPendingProvider()
@@ -306,6 +407,9 @@ namespace PlayniteAchievements.Views
 
         public void Dispose()
         {
+            _autoAuthDebounceCts?.Cancel();
+            _autoAuthDebounceCts?.Dispose();
+            _autoAuthDebounceCts = null;
             _settingsViewModel.Settings.Persisted.PropertyChanged -= Persisted_PropertyChanged;
             _displaySettingsTab?.Dispose();
             _generalSettingsTab?.Dispose();

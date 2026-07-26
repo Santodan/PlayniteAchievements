@@ -54,6 +54,32 @@ namespace PlayniteAchievements.Views.Settings.General
             set => SetValue(OverviewHotkeyButtonTextProperty, value);
         }
 
+        public static readonly DependencyProperty OpenSettingsHotkeyButtonTextProperty =
+            DependencyProperty.Register(
+                nameof(OpenSettingsHotkeyButtonText),
+                typeof(string),
+                typeof(HotkeySettingsSection),
+                new PropertyMetadata(string.Empty));
+
+        public string OpenSettingsHotkeyButtonText
+        {
+            get => (string)GetValue(OpenSettingsHotkeyButtonTextProperty);
+            set => SetValue(OpenSettingsHotkeyButtonTextProperty, value);
+        }
+
+        public static readonly DependencyProperty CategoryModeHotkeyButtonTextProperty =
+            DependencyProperty.Register(
+                nameof(CategoryModeHotkeyButtonText),
+                typeof(string),
+                typeof(HotkeySettingsSection),
+                new PropertyMetadata(string.Empty));
+
+        public string CategoryModeHotkeyButtonText
+        {
+            get => (string)GetValue(CategoryModeHotkeyButtonTextProperty);
+            set => SetValue(CategoryModeHotkeyButtonTextProperty, value);
+        }
+
         public static readonly DependencyProperty HotkeyCaptureStatusTextProperty =
             DependencyProperty.Register(
                 nameof(HotkeyCaptureStatusText),
@@ -71,8 +97,13 @@ namespace PlayniteAchievements.Views.Settings.General
         {
             ViewAchievements,
             ManageAchievements,
-            Overview
+            Overview,
+            OpenSettings,
+            CategoryMode
         }
+
+        private static readonly HotkeyCaptureTarget[] AllTargets =
+            (HotkeyCaptureTarget[])Enum.GetValues(typeof(HotkeyCaptureTarget));
 
         private readonly PlayniteAchievementsSettings _settings;
         private readonly PersistedSettingsSubscription _persistedSubscription;
@@ -100,7 +131,9 @@ namespace PlayniteAchievements.Views.Settings.General
         {
             if (e.PropertyName == nameof(PersistedSettings.ViewAchievementsHotkey) ||
                 e.PropertyName == nameof(PersistedSettings.ManageAchievementsHotkey) ||
-                e.PropertyName == nameof(PersistedSettings.OverviewHotkey))
+                e.PropertyName == nameof(PersistedSettings.OverviewHotkey) ||
+                e.PropertyName == nameof(PersistedSettings.OpenSettingsHotkey) ||
+                e.PropertyName == nameof(PersistedSettings.CategoryModeHotkey))
             {
                 UpdateHotkeyButtonTexts();
             }
@@ -130,21 +163,7 @@ namespace PlayniteAchievements.Views.Settings.General
                 return;
             }
 
-            switch (target)
-            {
-                case HotkeyCaptureTarget.ViewAchievements:
-                    persisted.ViewAchievementsHotkey = PersistedSettings.DefaultViewAchievementsHotkey;
-                    break;
-                case HotkeyCaptureTarget.ManageAchievements:
-                    persisted.ManageAchievementsHotkey = PersistedSettings.DefaultManageAchievementsHotkey;
-                    break;
-                case HotkeyCaptureTarget.Overview:
-                    persisted.OverviewHotkey = PersistedSettings.DefaultOverviewHotkey;
-                    break;
-                default:
-                    return;
-            }
-
+            SetPersistedHotkey(target, GetDefaultHotkey(target));
             EndHotkeyCapture();
         }
 
@@ -156,12 +175,7 @@ namespace PlayniteAchievements.Views.Settings.General
             }
 
             var target = _capturingHotkey.Value;
-            if ((target == HotkeyCaptureTarget.ViewAchievements &&
-                 !ReferenceEquals(sender, ViewAchievementsHotkeyCaptureButton)) ||
-                (target == HotkeyCaptureTarget.ManageAchievements &&
-                 !ReferenceEquals(sender, ManageAchievementsHotkeyCaptureButton)) ||
-                (target == HotkeyCaptureTarget.Overview &&
-                 !ReferenceEquals(sender, OverviewHotkeyCaptureButton)))
+            if (!ReferenceEquals(sender, GetCaptureButton(target)))
             {
                 return;
             }
@@ -176,60 +190,36 @@ namespace PlayniteAchievements.Views.Settings.General
 
             if (key == Key.Back || key == Key.Delete)
             {
-                SetCapturedHotkey(target, string.Empty);
+                SetPersistedHotkey(target, string.Empty);
                 EndHotkeyCapture();
                 return;
             }
 
             if (!AchievementHotkeyGesture.TryCreate(key, Keyboard.Modifiers, out var gesture))
             {
-                HotkeyCaptureStatusText = L(
-                    "LOCPlayAch_Hotkeys_InvalidShortcut",
-                    "Unsupported shortcut. Press a letter, digit, function key, or a modified shortcut.");
+                HotkeyCaptureStatusText = L("LOCPlayAch_Hotkeys_InvalidShortcut");
                 return;
             }
 
             if (IsDuplicateHotkey(target, gesture))
             {
-                HotkeyCaptureStatusText = L(
-                    "LOCPlayAch_Hotkeys_DuplicateShortcut",
-                    "That shortcut is already assigned.");
+                HotkeyCaptureStatusText = L("LOCPlayAch_Hotkeys_DuplicateShortcut");
                 return;
             }
 
-            SetCapturedHotkey(target, gesture.ToString());
+            SetPersistedHotkey(target, gesture.ToString());
             EndHotkeyCapture();
         }
 
         private void StartHotkeyCapture(HotkeyCaptureTarget target, Button button)
         {
-            _capturingHotkey = target;
-            HotkeyCaptureStatusText = L("LOCPlayAch_Hotkeys_CapturePrompt", "Press a shortcut...");
+            // Refresh every button from persisted state first, then mark only the captured one.
+            _capturingHotkey = null;
+            UpdateHotkeyButtonTexts();
 
-            if (target == HotkeyCaptureTarget.ViewAchievements)
-            {
-                ViewAchievementsHotkeyButtonText = L("LOCPlayAch_Hotkeys_CaptureButton", "Press keys...");
-                ManageAchievementsHotkeyButtonText = FormatHotkeyButtonText(
-                    _settings?.Persisted?.ManageAchievementsHotkey);
-                OverviewHotkeyButtonText = FormatHotkeyButtonText(
-                    _settings?.Persisted?.OverviewHotkey);
-            }
-            else if (target == HotkeyCaptureTarget.ManageAchievements)
-            {
-                ManageAchievementsHotkeyButtonText = L("LOCPlayAch_Hotkeys_CaptureButton", "Press keys...");
-                ViewAchievementsHotkeyButtonText = FormatHotkeyButtonText(
-                    _settings?.Persisted?.ViewAchievementsHotkey);
-                OverviewHotkeyButtonText = FormatHotkeyButtonText(
-                    _settings?.Persisted?.OverviewHotkey);
-            }
-            else
-            {
-                OverviewHotkeyButtonText = L("LOCPlayAch_Hotkeys_CaptureButton", "Press keys...");
-                ViewAchievementsHotkeyButtonText = FormatHotkeyButtonText(
-                    _settings?.Persisted?.ViewAchievementsHotkey);
-                ManageAchievementsHotkeyButtonText = FormatHotkeyButtonText(
-                    _settings?.Persisted?.ManageAchievementsHotkey);
-            }
+            _capturingHotkey = target;
+            HotkeyCaptureStatusText = L("LOCPlayAch_Hotkeys_CapturePrompt");
+            SetHotkeyButtonText(target, L("LOCPlayAch_Hotkeys_CaptureButton"));
 
             button?.Focus();
             Keyboard.Focus(button);
@@ -242,7 +232,21 @@ namespace PlayniteAchievements.Views.Settings.General
             UpdateHotkeyButtonTexts();
         }
 
-        private void SetCapturedHotkey(HotkeyCaptureTarget target, string hotkey)
+        private string GetPersistedHotkey(HotkeyCaptureTarget target)
+        {
+            var persisted = _settings?.Persisted;
+            switch (target)
+            {
+                case HotkeyCaptureTarget.ViewAchievements: return persisted?.ViewAchievementsHotkey;
+                case HotkeyCaptureTarget.ManageAchievements: return persisted?.ManageAchievementsHotkey;
+                case HotkeyCaptureTarget.Overview: return persisted?.OverviewHotkey;
+                case HotkeyCaptureTarget.OpenSettings: return persisted?.OpenSettingsHotkey;
+                case HotkeyCaptureTarget.CategoryMode: return persisted?.CategoryModeHotkey;
+                default: return null;
+            }
+        }
+
+        private void SetPersistedHotkey(HotkeyCaptureTarget target, string hotkey)
         {
             var persisted = _settings?.Persisted;
             if (persisted == null)
@@ -250,53 +254,78 @@ namespace PlayniteAchievements.Views.Settings.General
                 return;
             }
 
-            if (target == HotkeyCaptureTarget.ViewAchievements)
+            switch (target)
             {
-                persisted.ViewAchievementsHotkey = hotkey;
+                case HotkeyCaptureTarget.ViewAchievements: persisted.ViewAchievementsHotkey = hotkey; break;
+                case HotkeyCaptureTarget.ManageAchievements: persisted.ManageAchievementsHotkey = hotkey; break;
+                case HotkeyCaptureTarget.Overview: persisted.OverviewHotkey = hotkey; break;
+                case HotkeyCaptureTarget.OpenSettings: persisted.OpenSettingsHotkey = hotkey; break;
+                case HotkeyCaptureTarget.CategoryMode: persisted.CategoryModeHotkey = hotkey; break;
             }
-            else if (target == HotkeyCaptureTarget.ManageAchievements)
+        }
+
+        private static string GetDefaultHotkey(HotkeyCaptureTarget target)
+        {
+            switch (target)
             {
-                persisted.ManageAchievementsHotkey = hotkey;
+                case HotkeyCaptureTarget.ViewAchievements: return PersistedSettings.DefaultViewAchievementsHotkey;
+                case HotkeyCaptureTarget.ManageAchievements: return PersistedSettings.DefaultManageAchievementsHotkey;
+                case HotkeyCaptureTarget.Overview: return PersistedSettings.DefaultOverviewHotkey;
+                case HotkeyCaptureTarget.OpenSettings: return PersistedSettings.DefaultOpenSettingsHotkey;
+                case HotkeyCaptureTarget.CategoryMode: return PersistedSettings.DefaultCategoryModeHotkey;
+                default: return string.Empty;
             }
-            else
+        }
+
+        private Button GetCaptureButton(HotkeyCaptureTarget target)
+        {
+            switch (target)
             {
-                persisted.OverviewHotkey = hotkey;
+                case HotkeyCaptureTarget.ViewAchievements: return ViewAchievementsHotkeyCaptureButton;
+                case HotkeyCaptureTarget.ManageAchievements: return ManageAchievementsHotkeyCaptureButton;
+                case HotkeyCaptureTarget.Overview: return OverviewHotkeyCaptureButton;
+                case HotkeyCaptureTarget.OpenSettings: return OpenSettingsHotkeyCaptureButton;
+                case HotkeyCaptureTarget.CategoryMode: return CategoryModeHotkeyCaptureButton;
+                default: return null;
+            }
+        }
+
+        private void SetHotkeyButtonText(HotkeyCaptureTarget target, string text)
+        {
+            switch (target)
+            {
+                case HotkeyCaptureTarget.ViewAchievements: ViewAchievementsHotkeyButtonText = text; break;
+                case HotkeyCaptureTarget.ManageAchievements: ManageAchievementsHotkeyButtonText = text; break;
+                case HotkeyCaptureTarget.Overview: OverviewHotkeyButtonText = text; break;
+                case HotkeyCaptureTarget.OpenSettings: OpenSettingsHotkeyButtonText = text; break;
+                case HotkeyCaptureTarget.CategoryMode: CategoryModeHotkeyButtonText = text; break;
             }
         }
 
         private bool IsDuplicateHotkey(HotkeyCaptureTarget target, AchievementHotkeyGesture gesture)
         {
-            if (gesture == null || gesture.IsEmpty)
+            if (gesture == null || gesture.IsEmpty || _settings?.Persisted == null)
             {
                 return false;
             }
 
-            var persisted = _settings?.Persisted;
-            if (persisted == null)
+            foreach (var other in AllTargets)
             {
-                return false;
+                if (other == target)
+                {
+                    continue;
+                }
+
+                if (AchievementHotkeyGesture.TryParse(GetPersistedHotkey(other), out var otherGesture) &&
+                    otherGesture != null &&
+                    !otherGesture.IsEmpty &&
+                    gesture.Equals(otherGesture))
+                {
+                    return true;
+                }
             }
 
-            return IsMatchingHotkey(target, HotkeyCaptureTarget.ViewAchievements, persisted.ViewAchievementsHotkey, gesture) ||
-                   IsMatchingHotkey(target, HotkeyCaptureTarget.ManageAchievements, persisted.ManageAchievementsHotkey, gesture) ||
-                   IsMatchingHotkey(target, HotkeyCaptureTarget.Overview, persisted.OverviewHotkey, gesture);
-        }
-
-        private static bool IsMatchingHotkey(
-            HotkeyCaptureTarget currentTarget,
-            HotkeyCaptureTarget comparedTarget,
-            string comparedText,
-            AchievementHotkeyGesture gesture)
-        {
-            if (currentTarget == comparedTarget)
-            {
-                return false;
-            }
-
-            return AchievementHotkeyGesture.TryParse(comparedText, out var otherGesture) &&
-                   otherGesture != null &&
-                   !otherGesture.IsEmpty &&
-                   gesture.Equals(otherGesture);
+            return false;
         }
 
         private void UpdateHotkeyButtonTexts()
@@ -306,16 +335,16 @@ namespace PlayniteAchievements.Views.Settings.General
                 return;
             }
 
-            var persisted = _settings?.Persisted;
-            ViewAchievementsHotkeyButtonText = FormatHotkeyButtonText(persisted?.ViewAchievementsHotkey);
-            ManageAchievementsHotkeyButtonText = FormatHotkeyButtonText(persisted?.ManageAchievementsHotkey);
-            OverviewHotkeyButtonText = FormatHotkeyButtonText(persisted?.OverviewHotkey);
+            foreach (var target in AllTargets)
+            {
+                SetHotkeyButtonText(target, FormatHotkeyButtonText(GetPersistedHotkey(target)));
+            }
         }
 
         private string FormatHotkeyButtonText(string hotkey)
         {
             return string.IsNullOrWhiteSpace(hotkey)
-                ? L("LOCPlayAch_Common_None", "None")
+                ? L("LOCPlayAch_Common_None")
                 : hotkey;
         }
 
@@ -344,10 +373,9 @@ namespace PlayniteAchievements.Views.Settings.General
             _persistedSubscription?.Dispose();
         }
 
-        private static string L(string key, string fallback)
+        private static string L(string key)
         {
-            var value = ResourceProvider.GetString(key);
-            return string.IsNullOrWhiteSpace(value) ? fallback : value;
+            return ResourceProvider.GetString(key);
         }
     }
 }

@@ -345,7 +345,7 @@
                             </Grid.RowDefinitions>
 
                             <TextBlock Grid.Row="0"
-                                       Text="Hex"
+                                       Text="{DynamicResource LOCPlayAch_ColorPicker_HexLabel}"
                                        Style="{StaticResource ColorPickerLabelStyle}"
                                        Margin="{StaticResource PlayAch.Thickness.Bottom.Compact}"/>
                             <TextBox x:Name="HexTextBox"

@@ -43,7 +43,7 @@
                            Effect="{StaticResource BadgeShadow}"
                            VerticalAlignment="Center"
                            Style="{StaticResource RarityIcon}"/>
-                    <TextBlock Text="{Binding Count}"
+                    <TextBlock Text="{Binding Count, StringFormat={}{0:N0}}"
                                Style="{StaticResource PlayAch.TextBlock.BaseStyle}"
                                VerticalAlignment="Center"
                                Margin="{StaticResource PlayAch.Thickness.Left.Xs}"

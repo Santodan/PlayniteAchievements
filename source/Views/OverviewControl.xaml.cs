@@ -125,7 +125,11 @@ namespace PlayniteAchievements.Views
             _viewModel.PropertyChanged += ViewModel_PropertyChanged;
             _viewModel.SetActive(false);
             ActiveRefreshHeader = _viewModel;
-            ActiveSubView = _lastSelectedSubView;
+            // Never restore the Friends subview when the feature is disabled; the subview
+            // switch is hidden in that state, which would trap the user in the friends view.
+            ActiveSubView = _settings?.Persisted?.EnableFriendsFeatures == false
+                ? OverviewSubView.Overview
+                : _lastSelectedSubView;
             ApplyActiveSubView();
             PlayniteAchievementsPlugin.SettingsSaved += Plugin_SettingsSaved;
             if (_settings?.Persisted != null)
@@ -350,6 +354,15 @@ namespace PlayniteAchievements.Views
         {
             ResetOverviewSortDirection();
             ResetAchievementsSortDirection();
+
+            // The Persisted_PropertyChanged subscription targets the Persisted instance from
+            // construction time, which settings edits can replace (CopyPersistedFrom); this
+            // save-time check leaves the friends view even when that subscription went stale.
+            if (_settings?.Persisted?.EnableFriendsFeatures == false &&
+                ActiveSubView == OverviewSubView.Friends)
+            {
+                ActiveSubView = OverviewSubView.Overview;
+            }
         }
 
         private void ViewModel_PropertyChanged(object sender, PropertyChangedEventArgs e)

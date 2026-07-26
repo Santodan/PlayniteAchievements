@@ -267,11 +267,23 @@ namespace PlayniteAchievements.Views.ThemeIntegration.Modern
             _lastSourceItems = sourceItems;
             _lastOrderedAchievements = orderedAchievements;
             _lastMaxRows = maxRows;
-            _controlBarAdapter.UpdateOptions(sourceItems);
 
             var revealedKeys = GetRevealedKeys(DisplayItems);
             var clonedItems = sourceItems.Select(item => item.Clone()).ToList();
             RestoreRevealedState(clonedItems, revealedKeys);
+
+            // Category rollups and dropdown options use the canonical definition order,
+            // independent of the configured theme sort or a user-applied column sort.
+            var categorySummaryItems = new List<AchievementDisplayItem>(clonedItems);
+            AchievementSortHelper.ApplyExplicitOrder(
+                categorySummaryItems,
+                AchievementSortHelper.CreateExplicitOrderKeys(theme?.AchievementDefaultOrder ?? new List<AchievementDetail>()));
+            if (AchievementsGrid != null)
+            {
+                AchievementsGrid.CategorySummarySource = categorySummaryItems;
+            }
+
+            _controlBarAdapter.UpdateOptions(categorySummaryItems);
 
             if (!string.IsNullOrWhiteSpace(_currentSortPath) && _currentSortDirection.HasValue)
             {
@@ -465,7 +477,8 @@ namespace PlayniteAchievements.Views.ThemeIntegration.Modern
                 ref _currentSortPath,
                 ref _currentSortDirection);
 
-            _controlBarAdapter.UpdateOptions(items);
+            // Keep dropdown options in canonical definition order rather than the new column sort.
+            _controlBarAdapter.UpdateOptions(AchievementsGrid?.CategorySummarySource ?? items);
             var filteredItems = _controlBarAdapter.Apply(items);
             var displayItems = DisplayGridRowLimitHelper.Limit(
                 filteredItems,
@@ -510,6 +523,11 @@ namespace PlayniteAchievements.Views.ThemeIntegration.Modern
             }
 
             _controlBarAdapter.Clear();
+            if (AchievementsGrid != null)
+            {
+                AchievementsGrid.CategorySummarySource = null;
+            }
+
             AchievementsGrid?.SetSortIndicator(null, null);
         }
 

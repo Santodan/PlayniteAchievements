@@ -5,6 +5,7 @@
              xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
              xmlns:vm="clr-namespace:PlayniteAchievements.ViewModels"
              xmlns:helpers="clr-namespace:PlayniteAchievements.Views.Helpers"
+             xmlns:converters="clr-namespace:PlayniteAchievements.Views.Converters"
              mc:Ignorable="d"
              d:DesignHeight="600" d:DesignWidth="800"
              d:DataContext="{d:DesignInstance vm:ManualAchievementsViewModel}"
@@ -15,6 +16,7 @@
             <ResourceDictionary.MergedDictionaries>
                 <ResourceDictionary Source="pack://application:,,,/PlayniteAchievements;component/Resources/ManageAchievementsScopedControlStyles.xaml"/>
             </ResourceDictionary.MergedDictionaries>
+            <converters:WholePercentToTextConverter x:Key="WholePercentToText"/>
         </ResourceDictionary>
     </UserControl.Resources>
 
@@ -106,6 +108,7 @@
                         BorderThickness="0"
                         Margin="{StaticResource PlayAch.Thickness.Bottom.Md}">
                     <DataGrid x:Name="SearchResultsDataGrid"
+                              Style="{StaticResource PlayAch.DataGrid.BaseStyle}"
                               ItemsSource="{Binding SearchResults}"
                               SelectedItem="{Binding SelectedResult, Mode=TwoWay}"
                               AutoGenerateColumns="False"
@@ -237,7 +240,7 @@
                              HorizontalAlignment="Center"/>
 
                 <TextBlock Grid.Row="2"
-                           Text="{Binding ProgressPercent, StringFormat={}{0:F0}%, Mode=OneWay}"
+                           Text="{Binding ProgressPercent, Converter={StaticResource WholePercentToText}, Mode=OneWay}"
                            Foreground="{DynamicResource PlayAch.Brush.Text}"
                            HorizontalAlignment="Center"
                            Margin="{StaticResource PlayAch.Thickness.Top.Sm}"/>
@@ -316,6 +319,7 @@
                         BorderThickness="0"
                         Margin="{StaticResource PlayAch.Thickness.Bottom.Md}">
                     <DataGrid x:Name="ManualAchievementsDataGrid"
+                              Style="{StaticResource PlayAch.DataGrid.BaseStyle}"
                               ItemsSource="{Binding FilteredAchievements}"
                               AutoGenerateColumns="False"
                               IsReadOnly="False"

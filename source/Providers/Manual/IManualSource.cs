@@ -85,5 +85,12 @@ namespace PlayniteAchievements.Providers.Manual
         /// <param name="ct">Cancellation token.</param>
         /// <returns>List of AchievementDetail objects with Unlocked=false and UnlockTimeUtc=null, or null if error.</returns>
         Task<List<AchievementDetail>> GetAchievementsAsync(string sourceGameId, string language, CancellationToken ct);
+
+        /// <summary>
+        /// Derives the display platform provider key for a linked game (e.g. "Steam", "PSN").
+        /// Returns null when the platform cannot be resolved; the game then displays as Manual.
+        /// </summary>
+        /// <param name="sourceGameId">The source game ID (e.g., Steam AppID or Exophase slug).</param>
+        string ResolveProviderPlatformKey(string sourceGameId);
     }
 }

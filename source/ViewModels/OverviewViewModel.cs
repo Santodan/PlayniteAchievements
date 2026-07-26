@@ -65,20 +65,14 @@ namespace PlayniteAchievements.ViewModels
         private OverviewDataSnapshot _latestSnapshot;
         private bool _hasAppliedSnapshot;
 
-        private readonly object _progressLock = new object();
-        private DateTime _lastProgressUpdate = DateTime.MinValue;
-        private static readonly TimeSpan ProgressMinInterval = TimeSpan.FromMilliseconds(50);
+        private readonly RefreshHeaderProgressTracker _progressTracker;
         private const int ContextualPieSeriesCount = 5;
         private System.Windows.Threading.DispatcherTimer _refreshDebounceTimer;
-        private System.Windows.Threading.DispatcherTimer _progressHideTimer;
         private System.Windows.Threading.DispatcherTimer _deltaBatchTimer;
         private bool _isApplyingTimelineRange;
-        private bool _showCompletedProgress;
-        private bool _refreshInitiated;
         private bool _selectedGameLoadInProgress;
         private bool _selectedGameContentReady;
         private CancellationTokenSource _selectedGameLoadCts;
-        private static readonly TimeSpan ProgressHideDelay = TimeSpan.FromSeconds(3);
         private readonly object _deltaSync = new object();
         private readonly HashSet<string> _pendingDeltaKeys = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
         private bool _pendingFullResetFromDelta;
@@ -147,11 +141,8 @@ namespace PlayniteAchievements.ViewModels
             };
             _refreshDebounceTimer.Tick += OnRefreshDebounceTimerTick;
 
-            _progressHideTimer = new System.Windows.Threading.DispatcherTimer
-            {
-                Interval = ProgressHideDelay
-            };
-            _progressHideTimer.Tick += OnProgressHideTimerTick;
+            _progressTracker = new RefreshHeaderProgressTracker(_refreshService, _logger);
+            _progressTracker.PropertyChanged += OnProgressTrackerChanged;
 
             _deltaBatchTimer = new System.Windows.Threading.DispatcherTimer
             {
@@ -168,8 +159,8 @@ namespace PlayniteAchievements.ViewModels
             CompletenessFilterOptions = new ObservableCollection<string>();
 
             // Default the progress dropdown to the full completed + incomplete scope.
-            _selectedCompletenessFilters.Add(L("LOCPlayAch_Filter_Complete", "Complete"));
-            _selectedCompletenessFilters.Add(L("LOCPlayAch_Filter_InProgress", "In Progress"));
+            _selectedCompletenessFilters.Add(L("LOCPlayAch_Filter_Complete"));
+            _selectedCompletenessFilters.Add(L("LOCPlayAch_Filter_InProgress"));
 
             // Initialize refresh mode options from service (exclude LibrarySelected - context menu only)
             RefreshModes = new ObservableCollection<RefreshMode>(
@@ -243,7 +234,6 @@ namespace PlayniteAchievements.ViewModels
             NavigateToGameCommand = new RelayCommand(param => NavigateToGame(param as GameSummaryItem));
 
             // Subscribe to progress events
-            _refreshService.RebuildProgress += OnRebuildProgress;
             _refreshService.CacheDeltaUpdated += OnCacheDeltaUpdated;
             _refreshService.CacheInvalidated += OnCacheInvalidated;
             if (_gameCustomDataStore != null)
@@ -284,7 +274,7 @@ namespace PlayniteAchievements.ViewModels
                     nameof(LeftSearchText),
                     () => LeftSearchText,
                     value => LeftSearchText = value,
-                    L("LOCPlayAch_Filter_Games", "Search Games"),
+                    L("LOCPlayAch_Filter_Games"),
                     ClearLeftSearch)
             };
             GameSummariesControlBar.Items.Add(new GridProviderPlatformFilter(
@@ -324,7 +314,7 @@ namespace PlayniteAchievements.ViewModels
                     nameof(RightSearchText),
                     () => RightSearchText,
                     value => RightSearchText = value,
-                    L("LOCPlayAch_Filter_Achievements", "Search Achievements"),
+                    L("LOCPlayAch_Filter_Achievements"),
                     ClearRightSearch)
             };
 
@@ -708,7 +698,7 @@ namespace PlayniteAchievements.ViewModels
             }
 
             // Check if "Locked" was clicked
-            if (string.Equals(sliceLabel, L("LOCPlayAch_Common_Locked", "Locked"), StringComparison.OrdinalIgnoreCase))
+            if (string.Equals(sliceLabel, L("LOCPlayAch_Common_Locked"), StringComparison.OrdinalIgnoreCase))
             {
                 ClearProviderFilters();
                 return;
@@ -736,7 +726,7 @@ namespace PlayniteAchievements.ViewModels
         public string SelectedCompletenessFilterText => GetSelectedFilterText(
             _selectedCompletenessFilters,
             CompletenessFilterOptions,
-            L("LOCPlayAch_Progress", "Progress"));
+            L("LOCPlayAch_Progress"));
 
         public bool IsCompletenessFilterSelected(string value)
         {
@@ -768,7 +758,7 @@ namespace PlayniteAchievements.ViewModels
         public string SelectedPlayStatusFilterText => GetSelectedFilterText(
             _selectedPlayStatusFilters,
             PlayStatusFilterOptions,
-            L("LOCPlayAch_Filter_ActivitySelectorPlaceholder", "Activity"));
+            L("LOCPlayAch_Filter_ActivitySelectorPlaceholder"));
 
         public bool IsPlayStatusFilterSelected(string value)
         {
@@ -801,10 +791,10 @@ namespace PlayniteAchievements.ViewModels
                 return;
             }
 
-            var completeOption = L("LOCPlayAch_Filter_Complete", "Complete");
-            var inProgressOption = L("LOCPlayAch_Filter_InProgress", "In Progress");
-            var noProgressOption = L("LOCPlayAch_Filter_NoProgress", "No Progress");
-            var incompleteSliceLabel = L("LOCPlayAch_Overview_Incomplete", "Incomplete");
+            var completeOption = L("LOCPlayAch_Filter_Complete");
+            var inProgressOption = L("LOCPlayAch_Filter_InProgress");
+            var noProgressOption = L("LOCPlayAch_Filter_NoProgress");
+            var incompleteSliceLabel = L("LOCPlayAch_Overview_Incomplete");
             var targetFilters = new List<string>();
 
             if (string.Equals(completenessLabel, completeOption, StringComparison.OrdinalIgnoreCase))
@@ -862,7 +852,7 @@ namespace PlayniteAchievements.ViewModels
             .FirstOrDefault(mode => string.Equals(mode?.Key, SelectedRefreshMode, StringComparison.Ordinal))?
             .ShortDisplayName
             ?? RefreshModes?.FirstOrDefault()?.ShortDisplayName
-            ?? L("LOCPlayAch_Button_Refresh", "Refresh");
+            ?? L("LOCPlayAch_Button_Refresh");
 
         public string RefreshActionButtonText => string.Equals(
             SelectedRefreshMode,
@@ -875,6 +865,12 @@ namespace PlayniteAchievements.ViewModels
             ? ResourceProvider.GetString("LOCPlayAch_Button_Cancel")
             : RefreshActionButtonText;
 
+        public string RefreshOrCancelButtonGlyph => IsRefreshing
+            ? "\uEEE4"
+            : string.Equals(SelectedRefreshMode, RefreshModeType.Custom.GetKey(), StringComparison.Ordinal)
+                ? "\uEFE1"
+                : "\uEFD1";
+
         public bool UseCoverImagesGameSummaries => _settings?.Persisted?.OverviewGameSummariesUseCoverImages ?? true;
 
         public bool UseCoverImagesRecentAchievements => _settings?.Persisted?.OverviewRecentAchievementsUseCoverImages ?? true;
@@ -886,6 +882,10 @@ namespace PlayniteAchievements.ViewModels
         public bool ColorNamesByRarityRecentAchievements => _settings?.Persisted?.OverviewRecentAchievementsColorNamesByRarity ?? false;
 
         public bool ColorNamesByRaritySelectedGame => _settings?.Persisted?.OverviewSelectedGameColorNamesByRarity ?? false;
+
+        public bool ColorRarityColumnsByRarityRecentAchievements => _settings?.Persisted?.OverviewRecentAchievementsColorRarityColumnsByRarity ?? false;
+
+        public bool ColorRarityColumnsByRaritySelectedGame => _settings?.Persisted?.OverviewSelectedGameColorRarityColumnsByRarity ?? false;
 
         public bool ShowOverviewCollectionScoreCard => _settings?.Persisted?.ShowOverviewCollectionScoreCard ?? true;
 
@@ -925,7 +925,7 @@ namespace PlayniteAchievements.ViewModels
 
         public bool ShowOverviewGameMetadataRegion => _settings?.Persisted?.ShowOverviewGameMetadataRegion ?? true;
 
-        public bool ShowCompletionBorder => _settings?.Persisted?.ShowCompletionBorder ?? true;
+        public bool ShowCompletionGlow => _settings?.Persisted?.ShowCompletionGlow ?? true;
 
         public bool ShowOverviewGameSummariesGridColumnHeaders => _settings?.Persisted?.ShowOverviewGameSummariesGridColumnHeaders ?? true;
 
@@ -940,6 +940,8 @@ namespace PlayniteAchievements.ViewModels
         public double? OverviewSelectedGameCategorySummariesGridRowHeight => _settings?.Persisted?.OverviewSelectedGameCategorySummariesGridRowHeight;
 
         public bool OverviewSelectedGameCategorySummariesUseCoverImages => _settings?.Persisted?.OverviewSelectedGameCategorySummariesUseCoverImages ?? false;
+
+        public bool OverviewSelectedGameCategorySummariesShowCompletionGlow => _settings?.Persisted?.OverviewSelectedGameCategorySummariesShowCompletionGlow ?? true;
 
         public bool ShowOverviewGameSummariesGridControlBar => _settings?.Persisted?.ShowOverviewGameSummariesGridControlBar ?? true;
 
@@ -1200,7 +1202,7 @@ namespace PlayniteAchievements.ViewModels
         {
             get
             {
-                var title = L("LOCPlayAch_Section_Timeline", "Achievements Over Time");
+                var title = L("LOCPlayAch_Section_Timeline");
                 var selectedGameName = IsSelectedGameContentReady ? DisplayedSelectedGame?.GameName : null;
                 return string.IsNullOrWhiteSpace(selectedGameName)
                     ? title
@@ -1217,7 +1219,7 @@ namespace PlayniteAchievements.ViewModels
         public string RarityPieChartTitle
         {
             get => string.IsNullOrWhiteSpace(_rarityPieChartTitle)
-                ? L("LOCPlayAch_Overview_RarityPieChart", "Achievements by Rarity")
+                ? L("LOCPlayAch_Overview_RarityPieChart")
                 : _rarityPieChartTitle;
             private set => SetValue(ref _rarityPieChartTitle, value);
         }
@@ -1226,7 +1228,7 @@ namespace PlayniteAchievements.ViewModels
         public string TrophyPieChartTitle
         {
             get => string.IsNullOrWhiteSpace(_trophyPieChartTitle)
-                ? L("LOCPlayAch_Overview_TrophyPieChart", "Achievements by Trophy")
+                ? L("LOCPlayAch_Overview_TrophyPieChart")
                 : _trophyPieChartTitle;
             private set => SetValue(ref _trophyPieChartTitle, value);
         }
@@ -1248,23 +1250,33 @@ namespace PlayniteAchievements.ViewModels
 
         #region Progress Properties
 
-        public bool IsRefreshing => _refreshService.IsRebuilding;
+        public bool IsRefreshing => _progressTracker.IsRefreshing;
 
-        private double _progressPercent;
-        public double ProgressPercent
+        public double ProgressPercent => _progressTracker.ProgressPercent;
+
+        public string ProgressMessage => _progressTracker.ProgressMessage;
+
+        public bool ShowProgress => _progressTracker.ShowProgress;
+
+        private void OnProgressTrackerChanged(object sender, PropertyChangedEventArgs e)
         {
-            get => _progressPercent;
-            set => SetValue(ref _progressPercent, value);
+            switch (e.PropertyName)
+            {
+                case nameof(RefreshHeaderProgressTracker.ProgressPercent):
+                    OnPropertyChanged(nameof(ProgressPercent));
+                    break;
+                case nameof(RefreshHeaderProgressTracker.ProgressMessage):
+                    OnPropertyChanged(nameof(ProgressMessage));
+                    break;
+                case nameof(RefreshHeaderProgressTracker.IsRefreshing):
+                    OnPropertyChanged(nameof(IsRefreshing));
+                    RaiseCommandsChanged();
+                    break;
+                case nameof(RefreshHeaderProgressTracker.ShowProgress):
+                    OnPropertyChanged(nameof(ShowProgress));
+                    break;
+            }
         }
-
-        private string _progressMessage;
-        public string ProgressMessage
-        {
-            get => _progressMessage;
-            set => SetValue(ref _progressMessage, value);
-        }
-
-        public bool ShowProgress => _refreshInitiated || IsRefreshing || _showCompletedProgress;
 
         #endregion
 
@@ -1374,12 +1386,12 @@ namespace PlayniteAchievements.ViewModels
                     _pendingDeltaKeys.Clear();
                     _pendingFullResetFromDelta = false;
                 }
-                CancelProgressHideTimer(clearCompletedProgress: true);
+                _progressTracker.NotifyDeactivated();
                 CancelPendingRefresh();
             }
             else
             {
-                ApplyRefreshStatus(_refreshService.GetRefreshStatusSnapshot());
+                _progressTracker.SyncToCurrentState();
                 // Refresh data when overview becomes active to ensure cached changes are visible
                 _ = RefreshViewAsync();
             }
@@ -1411,26 +1423,14 @@ namespace PlayniteAchievements.ViewModels
                 await _refreshLock.WaitAsync(cancel).ConfigureAwait(false);
                 try
                 {
-                    var showIcon = _settings?.Persisted?.ShowHiddenIcon ?? false;
-                    var showTitle = _settings?.Persisted?.ShowHiddenTitle ?? false;
-                    var showDescription = _settings?.Persisted?.ShowHiddenDescription ?? false;
-                    var anyHidingEnabled = !showIcon || !showTitle || !showDescription;
-                    HashSet<string> revealedCopy = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-                    if (anyHidingEnabled)
-                    {
-                        lock (_revealedKeys)
-                        {
-                            if (_revealedKeys.Count > 0)
-                            {
-                                revealedCopy = new HashSet<string>(_revealedKeys, StringComparer.OrdinalIgnoreCase);
-                            }
-                        }
-                    }
+                    // Spoiler reveals only affect the per-game grids (a separate per-game
+                    // path); the overview snapshot carries no per-achievement display items,
+                    // so it builds without reveal state.
                     OverviewDataSnapshot snapshot;
                     snapshot = await Task.Run(
                         () => _libraryProjectionService != null
-                            ? _libraryProjectionService.GetOverviewSnapshot(_settings, revealedCopy, cancel)
-                            : _dataBuilder.Build(_settings, revealedCopy, cancel),
+                            ? _libraryProjectionService.GetOverviewSnapshot(_settings, cancel)
+                            : _dataBuilder.Build(_settings, cancel),
                         cancel).ConfigureAwait(false);
 
                     // Still off the UI thread: precompute the search-text maps so ApplySnapshot
@@ -1536,9 +1536,7 @@ namespace PlayniteAchievements.ViewModels
                     return;
                 }
 
-                CancelProgressHideTimer(clearCompletedProgress: false);
-                _refreshInitiated = true;
-                ApplyRefreshStatus(_refreshService.GetStartingRefreshStatusSnapshot());
+                _progressTracker.NotifyRefreshStarting();
 
                 await _refreshCoordinator.ExecuteAsync(
                     refreshRequest,
@@ -1561,7 +1559,7 @@ namespace PlayniteAchievements.ViewModels
                 // even if the final progress event was not delivered.
                 if (refreshRequest != null)
                 {
-                    ApplyRefreshStatus(_refreshService.GetRefreshStatusSnapshot());
+                    _progressTracker.SyncToCurrentState();
                 }
             }
         }
@@ -1597,7 +1595,7 @@ namespace PlayniteAchievements.ViewModels
                 }
                 else
                 {
-                    StatusText = "No game selected in the overview.";
+                    StatusText = ResourceProvider.GetString("LOCPlayAch_Overview_NoGameSelected");
                     return null;
                 }
             }
@@ -1613,6 +1611,7 @@ namespace PlayniteAchievements.ViewModels
         {
             OnPropertyChanged(nameof(RefreshActionButtonText));
             OnPropertyChanged(nameof(RefreshOrCancelButtonText));
+            OnPropertyChanged(nameof(RefreshOrCancelButtonGlyph));
             OnPropertyChanged(nameof(RefreshModeSelectionText));
         }
 
@@ -1630,9 +1629,7 @@ namespace PlayniteAchievements.ViewModels
 
             try
             {
-                CancelProgressHideTimer(clearCompletedProgress: false);
-                _refreshInitiated = true;
-                ApplyRefreshStatus(_refreshService.GetStartingRefreshStatusSnapshot());
+                _progressTracker.NotifyRefreshStarting();
 
                 await _refreshCoordinator.ExecuteAsync(
                     new RefreshRequest
@@ -1655,7 +1652,7 @@ namespace PlayniteAchievements.ViewModels
             }
             finally
             {
-                ApplyRefreshStatus(_refreshService.GetRefreshStatusSnapshot());
+                _progressTracker.SyncToCurrentState();
             }
         }
 
@@ -2268,9 +2265,9 @@ namespace PlayniteAchievements.ViewModels
         {
             var options = new List<string>
             {
-                L("LOCPlayAch_Filter_Complete", "Complete"),
-                L("LOCPlayAch_Filter_InProgress", "In Progress"),
-                L("LOCPlayAch_Filter_NoProgress", "No Progress")
+                L("LOCPlayAch_Filter_Complete"),
+                L("LOCPlayAch_Filter_InProgress"),
+                L("LOCPlayAch_Filter_NoProgress")
             };
 
             if (CompletenessFilterOptions == null)
@@ -2295,8 +2292,8 @@ namespace PlayniteAchievements.ViewModels
         {
             var options = new List<string>
             {
-                L("LOCPlayAch_Filter_Played", "Played"),
-                L("LOCPlayAch_Filter_Unplayed", "Unplayed")
+                L("LOCPlayAch_Filter_Played"),
+                L("LOCPlayAch_Filter_Unplayed")
             };
 
             if (PlayStatusFilterOptions == null)
@@ -2345,6 +2342,8 @@ namespace PlayniteAchievements.ViewModels
                 OnPropertyChanged(nameof(ShowRarityGlowSelectedGame));
                 OnPropertyChanged(nameof(ColorNamesByRarityRecentAchievements));
                 OnPropertyChanged(nameof(ColorNamesByRaritySelectedGame));
+                OnPropertyChanged(nameof(ColorRarityColumnsByRarityRecentAchievements));
+                OnPropertyChanged(nameof(ColorRarityColumnsByRaritySelectedGame));
                 OnPropertyChanged(nameof(IncludeUnplayedGames));
                 RaiseOverviewScoreCardVisibilityChanged();
                 ApplyOverviewPieSmallSliceMode();
@@ -2355,7 +2354,7 @@ namespace PlayniteAchievements.ViewModels
                 OnPropertyChanged(nameof(ShowOverviewGameMetadataPlatform));
                 OnPropertyChanged(nameof(ShowOverviewGameMetadataPlaytime));
                 OnPropertyChanged(nameof(ShowOverviewGameMetadataRegion));
-                OnPropertyChanged(nameof(ShowCompletionBorder));
+                OnPropertyChanged(nameof(ShowCompletionGlow));
                 OnPropertyChanged(nameof(ShowOverviewGameSummariesGridColumnHeaders));
                 OnPropertyChanged(nameof(ShowOverviewRecentAchievementsGridColumnHeaders));
                 OnPropertyChanged(nameof(ShowOverviewSelectedGameGridColumnHeaders));
@@ -2363,6 +2362,7 @@ namespace PlayniteAchievements.ViewModels
                 OnPropertyChanged(nameof(ShowOverviewSelectedGameCategorySummariesGridColumnHeaders));
                 OnPropertyChanged(nameof(OverviewSelectedGameCategorySummariesGridRowHeight));
                 OnPropertyChanged(nameof(OverviewSelectedGameCategorySummariesUseCoverImages));
+                OnPropertyChanged(nameof(OverviewSelectedGameCategorySummariesShowCompletionGlow));
                 OnPropertyChanged(nameof(ShowOverviewGameSummariesGridControlBar));
                 OnPropertyChanged(nameof(ShowOverviewRecentAchievementsGridControlBar));
                 OnPropertyChanged(nameof(ShowOverviewSelectedGameGridControlBar));
@@ -2401,6 +2401,14 @@ namespace PlayniteAchievements.ViewModels
             else if (propertyName == nameof(PersistedSettings.OverviewSelectedGameColorNamesByRarity))
             {
                 OnPropertyChanged(nameof(ColorNamesByRaritySelectedGame));
+            }
+            else if (propertyName == nameof(PersistedSettings.OverviewRecentAchievementsColorRarityColumnsByRarity))
+            {
+                OnPropertyChanged(nameof(ColorRarityColumnsByRarityRecentAchievements));
+            }
+            else if (propertyName == nameof(PersistedSettings.OverviewSelectedGameColorRarityColumnsByRarity))
+            {
+                OnPropertyChanged(nameof(ColorRarityColumnsByRaritySelectedGame));
             }
             else if (propertyName == nameof(PersistedSettings.IncludeUnplayedGames))
             {
@@ -2443,9 +2451,9 @@ namespace PlayniteAchievements.ViewModels
             {
                 OnPropertyChanged(nameof(ShowOverviewGameMetadataRegion));
             }
-            else if (propertyName == nameof(PersistedSettings.ShowCompletionBorder))
+            else if (propertyName == nameof(PersistedSettings.ShowCompletionGlow))
             {
-                OnPropertyChanged(nameof(ShowCompletionBorder));
+                OnPropertyChanged(nameof(ShowCompletionGlow));
             }
             else if (propertyName == nameof(PersistedSettings.ShowOverviewGameSummariesGridColumnHeaders))
             {
@@ -2474,6 +2482,10 @@ namespace PlayniteAchievements.ViewModels
             else if (propertyName == nameof(PersistedSettings.OverviewSelectedGameCategorySummariesUseCoverImages))
             {
                 OnPropertyChanged(nameof(OverviewSelectedGameCategorySummariesUseCoverImages));
+            }
+            else if (propertyName == nameof(PersistedSettings.OverviewSelectedGameCategorySummariesShowCompletionGlow))
+            {
+                OnPropertyChanged(nameof(OverviewSelectedGameCategorySummariesShowCompletionGlow));
             }
             else if (propertyName == nameof(PersistedSettings.ShowOverviewGameSummariesGridControlBar))
             {
@@ -2593,42 +2605,6 @@ namespace PlayniteAchievements.ViewModels
             }
         }
 
-        private void OnRebuildProgress(object sender, ProgressReport report)
-        {
-            if (report == null) return;
-
-            var now = DateTime.UtcNow;
-
-            // Centralized progress/status state from RefreshRuntime.
-            var status = _refreshService.GetRefreshStatusSnapshot(report);
-
-            lock (_progressLock)
-            {
-                if (!status.IsFinal)
-                {
-                    // Only throttle non-final updates
-                    if ((now - _lastProgressUpdate) < ProgressMinInterval)
-                    {
-                        return;
-                    }
-                }
-
-                _lastProgressUpdate = now;
-            }
-
-            System.Windows.Application.Current?.Dispatcher?.BeginInvoke(new Action(() =>
-            {
-                try
-                {
-                    ApplyRefreshStatus(status);
-                }
-                catch (Exception ex)
-                {
-                    _logger?.Debug($"Progress UI update error: {ex.Message}");
-                }
-            }));
-        }
-
         private void OnCacheDeltaUpdated(object sender, CacheDeltaEventArgs e)
         {
             if (!_isActive || e == null)
@@ -2671,10 +2647,26 @@ namespace PlayniteAchievements.ViewModels
             });
         }
 
-        private void OnCacheInvalidated(object sender, EventArgs e)
+        private void OnCacheInvalidated(object sender, CacheInvalidatedEventArgs e)
         {
             if (!_isActive || _disposed || _refreshService.IsRebuilding)
             {
+                return;
+            }
+
+            // Scoped invalidations (a poller tick names exactly one game) route through the
+            // existing per-game fragment path instead of the full projection + search index
+            // rebuild; only unscoped invalidations pay for the full refresh.
+            if (e != null && !e.IsFull)
+            {
+                foreach (var gameId in e.ChangedGameIds)
+                {
+                    if (gameId != Guid.Empty)
+                    {
+                        QueueOverviewDelta(isFullReset: false, key: gameId.ToString("D"));
+                    }
+                }
+
                 return;
             }
 
@@ -2822,74 +2814,6 @@ namespace PlayniteAchievements.ViewModels
             }
         }
 
-        private void StartProgressHideTimer()
-        {
-            if (_progressHideTimer == null)
-            {
-                return;
-            }
-
-            _progressHideTimer.Stop();
-            _progressHideTimer.Start();
-        }
-
-        private void CancelProgressHideTimer(bool clearCompletedProgress)
-        {
-            _progressHideTimer?.Stop();
-
-            if (clearCompletedProgress)
-            {
-                _refreshInitiated = false;
-                if (_showCompletedProgress)
-                {
-                    _showCompletedProgress = false;
-                    OnPropertyChanged(nameof(ShowProgress));
-                }
-            }
-        }
-
-        private void OnProgressHideTimerTick(object sender, EventArgs e)
-        {
-            _progressHideTimer?.Stop();
-            _refreshInitiated = false;
-            if (_showCompletedProgress)
-            {
-                _showCompletedProgress = false;
-                OnPropertyChanged(nameof(ShowProgress));
-            }
-        }
-
-        private void ApplyRefreshStatus(RefreshStatusSnapshot status)
-        {
-            if (status == null)
-            {
-                return;
-            }
-
-            ProgressPercent = status.ProgressPercent;
-            ProgressMessage = status.Message ?? string.Empty;
-
-            if (status.IsRefreshing)
-            {
-                _refreshInitiated = true;
-                CancelProgressHideTimer(clearCompletedProgress: false);
-                _showCompletedProgress = false;
-            }
-            else if (_refreshInitiated)
-            {
-                _showCompletedProgress = true;
-                StartProgressHideTimer();
-            }
-            else
-            {
-                _showCompletedProgress = false;
-            }
-
-            OnPropertyChanged(nameof(IsRefreshing));
-            OnPropertyChanged(nameof(ShowProgress));
-            RaiseCommandsChanged();
-        }
-
         private bool FilterAchievement(AchievementDisplayItem item, SearchQuery searchQuery)
         {
             if (item == null) return false;
@@ -2951,11 +2875,20 @@ namespace PlayniteAchievements.ViewModels
             }
             else if (HasMaterializedGlobalAchievementItems() && AllAchievements.Count < _totalCount)
             {
-                StatusText = string.Format(ResourceProvider.GetString("LOCPlayAch_Status_FilteredCounts"), AllAchievements.Count, _totalCount, _unlockedCount, _gamesCount);
+                StatusText = string.Format(
+                    ResourceProvider.GetString("LOCPlayAch_Status_FilteredCounts"),
+                    AllAchievements.Count.ToString("N0", FormattingCulture.Current),
+                    _totalCount.ToString("N0", FormattingCulture.Current),
+                    _unlockedCount.ToString("N0", FormattingCulture.Current),
+                    _gamesCount.ToString("N0", FormattingCulture.Current));
             }
             else
             {
-                StatusText = string.Format(ResourceProvider.GetString("LOCPlayAch_Status_TotalCounts"), _totalCount, _unlockedCount, _gamesCount);
+                StatusText = string.Format(
+                    ResourceProvider.GetString("LOCPlayAch_Status_TotalCounts"),
+                    _totalCount.ToString("N0", FormattingCulture.Current),
+                    _unlockedCount.ToString("N0", FormattingCulture.Current),
+                    _gamesCount.ToString("N0", FormattingCulture.Current));
             }
         }
 
@@ -2990,6 +2923,7 @@ namespace PlayniteAchievements.ViewModels
             (OpenGameInLibraryCommand as RelayCommand)?.RaiseCanExecuteChanged();
             (OpenGameInOverviewCommand as RelayCommand)?.RaiseCanExecuteChanged();
             OnPropertyChanged(nameof(RefreshOrCancelButtonText));
+            OnPropertyChanged(nameof(RefreshOrCancelButtonGlyph));
         }
 
         #endregion
@@ -3019,10 +2953,11 @@ namespace PlayniteAchievements.ViewModels
         private void SyncSelectedGameAchievementsDisplay()
         {
             // Keep the unfiltered category-summary source current; the achievement filters do not
-            // touch it, so category rollups stay stable while drilled.
+            // touch it, so category rollups stay stable while drilled. Sync from the canonical
+            // definition/custom-order snapshot so category ordering does not follow the live grid sort.
             CollectionHelper.Replace(
                 SelectedGameAllAchievements,
-                _allSelectedGameAchievements ?? new List<AchievementDisplayItem>());
+                _selectedGameDefaultOrderedAchievements ?? new List<AchievementDisplayItem>());
 
             var displayItems = DisplayGridRowLimitHelper.Limit(
                 _filteredSelectedGameAchievements,
@@ -3052,11 +2987,11 @@ namespace PlayniteAchievements.ViewModels
                 filtered,
                 _selectedPlayStatusFilters,
                 _selectedCompletenessFilters,
-                L("LOCPlayAch_Filter_Played", "Played"),
-                L("LOCPlayAch_Filter_Unplayed", "Unplayed"),
-                L("LOCPlayAch_Filter_Complete", "Complete"),
-                L("LOCPlayAch_Filter_InProgress", "In Progress"),
-                L("LOCPlayAch_Filter_NoProgress", "No Progress"));
+                L("LOCPlayAch_Filter_Played"),
+                L("LOCPlayAch_Filter_Unplayed"),
+                L("LOCPlayAch_Filter_Complete"),
+                L("LOCPlayAch_Filter_InProgress"),
+                L("LOCPlayAch_Filter_NoProgress"));
 
             _filteredGameSummaries = filtered.ToList();
             if (!string.IsNullOrEmpty(_overviewSortPath))
@@ -3104,16 +3039,16 @@ namespace PlayniteAchievements.ViewModels
             }
 
             var labels = new List<string>();
-            var completeLabel = L("LOCPlayAch_Filter_Complete", "Complete");
+            var completeLabel = L("LOCPlayAch_Filter_Complete");
             if (_selectedCompletenessFilters.Contains(completeLabel))
             {
                 labels.Add(completeLabel);
             }
 
-            if (_selectedCompletenessFilters.Contains(L("LOCPlayAch_Filter_InProgress", "In Progress")) ||
-                _selectedCompletenessFilters.Contains(L("LOCPlayAch_Filter_NoProgress", "No Progress")))
+            if (_selectedCompletenessFilters.Contains(L("LOCPlayAch_Filter_InProgress")) ||
+                _selectedCompletenessFilters.Contains(L("LOCPlayAch_Filter_NoProgress")))
             {
-                labels.Add(L("LOCPlayAch_Overview_Incomplete", "Incomplete"));
+                labels.Add(L("LOCPlayAch_Overview_Incomplete"));
             }
 
             var selectedVisibleLabels = labels
@@ -3237,11 +3172,11 @@ namespace PlayniteAchievements.ViewModels
                 filteredGames,
                 _selectedPlayStatusFilters,
                 _selectedCompletenessFilters,
-                L("LOCPlayAch_Filter_Played", "Played"),
-                L("LOCPlayAch_Filter_Unplayed", "Unplayed"),
-                L("LOCPlayAch_Filter_Complete", "Complete"),
-                L("LOCPlayAch_Filter_InProgress", "In Progress"),
-                L("LOCPlayAch_Filter_NoProgress", "No Progress"));
+                L("LOCPlayAch_Filter_Played"),
+                L("LOCPlayAch_Filter_Unplayed"),
+                L("LOCPlayAch_Filter_Complete"),
+                L("LOCPlayAch_Filter_InProgress"),
+                L("LOCPlayAch_Filter_NoProgress"));
         }
 
         private IEnumerable<GameSummaryItem> GetCompletedGamesPieChartGames()
@@ -3251,11 +3186,11 @@ namespace PlayniteAchievements.ViewModels
                 filteredGames,
                 _selectedPlayStatusFilters,
                 GetCompletedGamesPieProgressFilters(),
-                L("LOCPlayAch_Filter_Played", "Played"),
-                L("LOCPlayAch_Filter_Unplayed", "Unplayed"),
-                L("LOCPlayAch_Filter_Complete", "Complete"),
-                L("LOCPlayAch_Filter_InProgress", "In Progress"),
-                L("LOCPlayAch_Filter_NoProgress", "No Progress"));
+                L("LOCPlayAch_Filter_Played"),
+                L("LOCPlayAch_Filter_Unplayed"),
+                L("LOCPlayAch_Filter_Complete"),
+                L("LOCPlayAch_Filter_InProgress"),
+                L("LOCPlayAch_Filter_NoProgress"));
         }
 
         private ISet<string> GetCompletedGamesPieProgressFilters()
@@ -3265,7 +3200,7 @@ namespace PlayniteAchievements.ViewModels
                 return null;
             }
 
-            var noProgressLabel = L("LOCPlayAch_Filter_NoProgress", "No Progress");
+            var noProgressLabel = L("LOCPlayAch_Filter_NoProgress");
             if (_selectedCompletenessFilters.Contains(noProgressLabel))
             {
                 return null;
@@ -3273,8 +3208,8 @@ namespace PlayniteAchievements.ViewModels
 
             return new HashSet<string>(StringComparer.OrdinalIgnoreCase)
             {
-                L("LOCPlayAch_Filter_Complete", "Complete"),
-                L("LOCPlayAch_Filter_InProgress", "In Progress")
+                L("LOCPlayAch_Filter_Complete"),
+                L("LOCPlayAch_Filter_InProgress")
             };
         }
 
@@ -3300,15 +3235,15 @@ namespace PlayniteAchievements.ViewModels
             string trophyBronzeLabel = null,
             string lockedLabel = null)
         {
-            commonLabel ??= L("LOCPlayAch_Rarity_Common", "Common");
-            uncommonLabel ??= L("LOCPlayAch_Rarity_Uncommon", "Uncommon");
-            rareLabel ??= L("LOCPlayAch_Rarity_Rare", "Rare");
-            ultraRareLabel ??= L("LOCPlayAch_Rarity_UltraRare", "Ultra Rare");
-            trophyPlatinumLabel ??= L("LOCPlayAch_Trophy_Platinum", "Platinum");
-            trophyGoldLabel ??= L("LOCPlayAch_Trophy_Gold", "Gold");
-            trophySilverLabel ??= L("LOCPlayAch_Trophy_Silver", "Silver");
-            trophyBronzeLabel ??= L("LOCPlayAch_Trophy_Bronze", "Bronze");
-            lockedLabel ??= L("LOCPlayAch_Common_Locked", "Locked");
+            commonLabel ??= L("LOCPlayAch_Rarity_Common");
+            uncommonLabel ??= L("LOCPlayAch_Rarity_Uncommon");
+            rareLabel ??= L("LOCPlayAch_Rarity_Rare");
+            ultraRareLabel ??= L("LOCPlayAch_Rarity_UltraRare");
+            trophyPlatinumLabel ??= L("LOCPlayAch_Trophy_Platinum");
+            trophyGoldLabel ??= L("LOCPlayAch_Trophy_Gold");
+            trophySilverLabel ??= L("LOCPlayAch_Trophy_Silver");
+            trophyBronzeLabel ??= L("LOCPlayAch_Trophy_Bronze");
+            lockedLabel ??= L("LOCPlayAch_Common_Locked");
 
             var selectedGame = ResolveSelectedGameForChartContext(snapshot);
             var useSelectedRarity = selectedGame?.HasRarityPieChartData == true;
@@ -3390,8 +3325,8 @@ namespace PlayniteAchievements.ViewModels
                     lockedLabel);
             }
 
-            var rarityTitle = L("LOCPlayAch_Overview_RarityPieChart", "Achievements by Rarity");
-            var trophyTitle = L("LOCPlayAch_Overview_TrophyPieChart", "Achievements by Trophy");
+            var rarityTitle = L("LOCPlayAch_Overview_RarityPieChart");
+            var trophyTitle = L("LOCPlayAch_Overview_TrophyPieChart");
             RarityPieChartTitle = BuildContextualPieChartTitle(rarityTitle, useSelectedRarity ? selectedGame?.GameName : null);
             TrophyPieChartTitle = BuildContextualPieChartTitle(trophyTitle, useSelectedTrophy ? selectedGame?.GameName : null);
         }
@@ -3549,7 +3484,7 @@ namespace PlayniteAchievements.ViewModels
         {
             return OverviewGameSummaryFilters.BuildProviderFilterText(
                 ProviderFilterGroups,
-                L("LOCPlayAch_Common_Label_Platform", "Platform"));
+                L("LOCPlayAch_Common_Label_Platform"));
         }
 
         private void ApplyRightFilters(bool skipDefaultSort = false)
@@ -3652,7 +3587,7 @@ namespace PlayniteAchievements.ViewModels
                 }
             }
 
-            SelectedGameHeaderText = $"({unlocked}/{total} {(isFiltered ? L("LOCPlayAch_RefreshModeShort_Selected", "Selected") : L("LOCPlayAch_Achievements", "Achievements"))})";
+            SelectedGameHeaderText = $"({unlocked.ToString("N0", FormattingCulture.Current)}/{total.ToString("N0", FormattingCulture.Current)} {(isFiltered ? L("LOCPlayAch_RefreshModeShort_Selected") : L("LOCPlayAch_Achievements"))})";
         }
 
         private void ResetSelectedGameSortToDefault()
@@ -4009,36 +3944,31 @@ namespace PlayniteAchievements.ViewModels
             SyncSelectedGameAchievementsDisplay();
         }
 
-        private static string L(string key, string fallback)
+        private static string L(string key)
         {
-            var value = ResourceProvider.GetString(key);
-            if (string.IsNullOrWhiteSpace(value))
-            {
-                return fallback;
-            }
-
-            if (value.Length > 4 &&
-                value.StartsWith("<!", StringComparison.Ordinal) &&
-                value.EndsWith("!>", StringComparison.Ordinal))
-            {
-                return fallback;
-            }
-
-            return value;
+            return ResourceProvider.GetString(key);
         }
 
         public void Dispose()
         {
+            if (_disposed)
+            {
+                return;
+            }
+
             _disposed = true;
             SetActive(false);
             CancelSelectedGameLoad();
             _refreshDebounceTimer?.Stop();
-            _progressHideTimer?.Stop();
             _deltaBatchTimer?.Stop();
             CancelPendingRefresh();
+            if (_progressTracker != null)
+            {
+                _progressTracker.PropertyChanged -= OnProgressTrackerChanged;
+                _progressTracker.Dispose();
+            }
             if (_refreshService != null)
             {
-                _refreshService.RebuildProgress -= OnRebuildProgress;
                 _refreshService.CacheDeltaUpdated -= OnCacheDeltaUpdated;
                 _refreshService.CacheInvalidated -= OnCacheInvalidated;
             }
@@ -4065,10 +3995,6 @@ namespace PlayniteAchievements.ViewModels
             if (_refreshDebounceTimer != null)
             {
                 _refreshDebounceTimer.Tick -= OnRefreshDebounceTimerTick;
-            }
-            if (_progressHideTimer != null)
-            {
-                _progressHideTimer.Tick -= OnProgressHideTimerTick;
             }
             if (_deltaBatchTimer != null)
             {

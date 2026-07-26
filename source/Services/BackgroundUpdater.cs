@@ -5,6 +5,7 @@ using Playnite.SDK;
 using PlayniteAchievements.Models;
 using PlayniteAchievements.Services.Achievements;
 using PlayniteAchievements.Services.Cache;
+using PlayniteAchievements.Services.Friends;
 using PlayniteAchievements.Services.Refresh;
 
 namespace PlayniteAchievements.Services
@@ -14,6 +15,7 @@ namespace PlayniteAchievements.Services
         private readonly RefreshEntryPoint _refreshCoordinator;
         private readonly RefreshRuntime _refreshService;
         private readonly ICacheManager _cacheManager;
+        private readonly IFriendCacheManager _friendCache;
         private readonly PlayniteAchievementsSettings _settings;
         private readonly ILogger _logger;
         private readonly NotificationPublisher _notifications;
@@ -34,6 +36,7 @@ namespace PlayniteAchievements.Services
             _refreshCoordinator = refreshEntryPoint;
             _refreshService = refreshRuntime;
             _cacheManager = cacheManager;
+            _friendCache = cacheManager as IFriendCacheManager;
             _settings = settings;
             _logger = logger;
             _notifications = notifications;
@@ -55,13 +58,14 @@ namespace PlayniteAchievements.Services
             var token = _cts.Token;
 
             var interval = TimeSpan.FromHours(Math.Max(1, _settings.Persisted.PeriodicUpdateHours));
+            var friendsInterval = TimeSpan.FromHours(Math.Max(1, _settings.Persisted.FriendsPeriodicUpdateHours));
 
             // Run an initial check immediately on startup, then continue with the normal loop.
             Task.Run(async () =>
             {
                 try
                 {
-                    await PerformUpdateIfNeeded(interval, token).ConfigureAwait(false);
+                    await PerformUpdateIfNeeded(interval, friendsInterval, token).ConfigureAwait(false);
                 }
                 catch (Exception ex)
                 {
@@ -69,7 +73,7 @@ namespace PlayniteAchievements.Services
                     _logger.Error(ex, msg);
                 }
 
-                await PeriodicUpdateLoop(interval, token).ConfigureAwait(false);
+                await PeriodicUpdateLoop(interval, friendsInterval, token).ConfigureAwait(false);
             }, token);
         }
 
@@ -104,25 +108,51 @@ namespace PlayniteAchievements.Services
             }
         }
 
-        private async Task PeriodicUpdateLoop(TimeSpan interval, CancellationToken token)
+        private async Task PeriodicUpdateLoop(TimeSpan interval, TimeSpan friendsInterval, CancellationToken token)
         {
+            var wakeInterval = ResolveWakeInterval(interval, friendsInterval);
             while (!token.IsCancellationRequested)
             {
+                await DelayNextUpdate(wakeInterval, token).ConfigureAwait(false);
+                if (token.IsCancellationRequested)
+                {
+                    break;
+                }
+
                 try
                 {
-                    await PerformUpdateIfNeeded(interval, token).ConfigureAwait(false);
+                    await PerformUpdateIfNeeded(interval, friendsInterval, token).ConfigureAwait(false);
                 }
                 catch (Exception ex)
                 {
                     var msg = ResourceProvider.GetString("LOCPlayAch_Error_Periodic_UpdateFailed");
                     _logger.Error(ex, msg);
                 }
-
-                await DelayNextUpdate(interval, token).ConfigureAwait(false);
             }
         }
 
-        private async Task PerformUpdateIfNeeded(TimeSpan interval, CancellationToken token)
+        // The loop wakes at the shorter of the enabled cadences; each leg then re-checks its own
+        // staleness, so waking more often than one leg needs is harmless.
+        private TimeSpan ResolveWakeInterval(TimeSpan interval, TimeSpan friendsInterval)
+        {
+            if (IsFriendsUpdateConfigured())
+            {
+                return _settings.Persisted.EnablePeriodicUpdates && interval < friendsInterval
+                    ? interval
+                    : friendsInterval;
+            }
+
+            return interval;
+        }
+
+        private bool IsFriendsUpdateConfigured()
+        {
+            return _friendCache != null &&
+                   _settings.Persisted.EnableFriendsPeriodicUpdates &&
+                   _settings.Persisted.EnableFriendsFeatures;
+        }
+
+        private async Task PerformUpdateIfNeeded(TimeSpan interval, TimeSpan friendsInterval, CancellationToken token)
         {
             if (ShouldPerformUpdate(interval))
             {
@@ -132,6 +162,25 @@ namespace PlayniteAchievements.Services
             {
                 _logger.Debug("[PeriodicUpdate] Cache is recent; skipping update.");
             }
+
+            if (ShouldPerformFriendsUpdate(friendsInterval))
+            {
+                await ExecuteFriendsUpdate(token).ConfigureAwait(false);
+            }
+            else
+            {
+                _logger.Debug("[PeriodicUpdate] Friend cache is recent or friends updates are disabled; skipping friends update.");
+            }
+        }
+
+        private bool ShouldShowLandingPage()
+        {
+            // Skip background work while the landing page should be shown (setup incomplete).
+            var firstTimeCompleted = _settings.Persisted.FirstTimeSetupCompleted;
+            var seenThemeMigration = _settings.Persisted.SeenThemeMigration;
+            var achievementDataService = PlayniteAchievementsPlugin.Instance?.AchievementDataService;
+            var hasCachedData = achievementDataService?.HasCachedGameData() == true;
+            return !seenThemeMigration || !firstTimeCompleted || !hasCachedData;
         }
 
         private bool ShouldPerformUpdate(TimeSpan interval)
@@ -141,14 +190,7 @@ namespace PlayniteAchievements.Services
                 return false;
             }
 
-            // Skip if landing page should be shown (user hasn't completed setup)
-            var firstTimeCompleted = _settings.Persisted.FirstTimeSetupCompleted;
-            var seenThemeMigration = _settings.Persisted.SeenThemeMigration;
-            var achievementDataService = PlayniteAchievementsPlugin.Instance?.AchievementDataService;
-            var hasCachedData = achievementDataService?.HasCachedGameData() == true;
-            bool showLandingPage = !seenThemeMigration || !firstTimeCompleted || !hasCachedData;
-
-            if (showLandingPage)
+            if (ShouldShowLandingPage())
             {
                 _logger.Debug("[PeriodicUpdate] Skipping update - landing page should be shown.");
                 return false;
@@ -175,6 +217,33 @@ namespace PlayniteAchievements.Services
             return needsUpdate;
         }
 
+        private bool ShouldPerformFriendsUpdate(TimeSpan interval)
+        {
+            if (!IsFriendsUpdateConfigured())
+            {
+                return false;
+            }
+
+            if (ShouldShowLandingPage())
+            {
+                _logger.Debug("[PeriodicUpdate] Skipping friends update - landing page should be shown.");
+                return false;
+            }
+
+            var lastRefresh = _friendCache.GetMostRecentFriendLastRefreshedUtc();
+            if (!lastRefresh.HasValue)
+            {
+                _logger.Debug("[PeriodicUpdate] No friend refresh time found; friends update needed.");
+                return true;
+            }
+
+            var age = DateTime.UtcNow - lastRefresh.Value;
+            var needsUpdate = age >= interval;
+            _logger.Debug($"[PeriodicUpdate] Last friends refresh was {age.TotalHours:F1}h ago, interval={interval.TotalHours:F1}h, needsUpdate={needsUpdate}");
+
+            return needsUpdate;
+        }
+
         private async Task ExecuteUpdate(CancellationToken token)
         {
             _logger.Debug("[PeriodicUpdate] Triggering cache update...");
@@ -193,6 +262,35 @@ namespace PlayniteAchievements.Services
                 await _refreshCoordinator.ExecuteAsync(request, policy).ConfigureAwait(false);
 
                 _logger.Debug("[PeriodicUpdate] Cache update completed.");
+                HandleUpdateCompletion();
+            }
+            catch (OperationCanceledException) when (token.IsCancellationRequested)
+            {
+                // Graceful shutdown
+            }
+        }
+
+        // Background Recent friends refresh: reuses the same refresh entry point and policy as the
+        // current-user leg. Recent scope re-fetches each friend's ownership every run and fails
+        // closed on fetch gaps (see FriendRefreshCoordinator), so no extra guards are needed here.
+        private async Task ExecuteFriendsUpdate(CancellationToken token)
+        {
+            _logger.Debug("[PeriodicUpdate] Triggering friends cache update...");
+
+            try
+            {
+                var request = new RefreshRequest { Mode = RefreshModeType.FriendsRecent };
+                var policy = new RefreshExecutionPolicy
+                {
+                    ValidateAuthentication = true,
+                    UseProgressWindow = false,
+                    SwallowExceptions = true,
+                    ErrorLogMessage = ResourceProvider.GetString("LOCPlayAch_Error_Periodic_UpdateFailed")
+                };
+
+                await _refreshCoordinator.ExecuteAsync(request, policy).ConfigureAwait(false);
+
+                _logger.Debug("[PeriodicUpdate] Friends cache update completed.");
                 HandleUpdateCompletion();
             }
             catch (OperationCanceledException) when (token.IsCancellationRequested)

@@ -88,6 +88,7 @@ namespace PlayniteAchievements.Providers.Exophase
             AuthProbeResult result;
             try
             {
+                SetAuthStatusChecking();
                 SetAuthStatusByKey("LOCPlayAch_Auth_Checking");
                 Logger.Debug("[ExophaseSettings] Calling ProbeAuthStateAsync...");
                 result = await _sessionManager.ProbeAuthStateAsync(CancellationToken.None);

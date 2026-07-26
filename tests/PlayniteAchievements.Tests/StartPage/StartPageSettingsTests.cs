@@ -132,7 +132,9 @@ namespace PlayniteAchievements.Tests.StartPage
             source.StartPageGameSummariesGrid.ShowMetadataPlatform = false;
             source.StartPageGameSummariesGrid.ShowMetadataPlaytime = false;
             source.StartPageGameSummariesGrid.ShowMetadataRegion = false;
-            source.StartPageGameSummariesGrid.ShowCompletionBorder = false;
+            source.StartPageGameSummariesGrid.ShowCompletionGlow = false;
+            source.StartPageGameSummariesGrid.ColorRarityColumnsByRarity = true;
+            source.StartPageGameSummariesGrid.ShowNameAboveProgress = true;
             source.StartPageGameSummariesGrid.ShowColumnHeaders = false;
             source.StartPageGameSummariesGrid.ShowControlBar = true;
             source.StartPageGameSummariesGrid.RowHeight = 72d;
@@ -142,6 +144,7 @@ namespace PlayniteAchievements.Tests.StartPage
 
             source.StartPageRecentUnlocksGrid.UseCoverImages = false;
             source.StartPageRecentUnlocksGrid.ColorNamesByRarity = true;
+            source.StartPageRecentUnlocksGrid.ColorRarityColumnsByRarity = true;
             source.StartPageRecentUnlocksGrid.ShowColumnHeaders = false;
             source.StartPageRecentUnlocksGrid.ShowControlBar = true;
             source.StartPageRecentUnlocksGrid.RowHeight = 84d;
@@ -151,6 +154,7 @@ namespace PlayniteAchievements.Tests.StartPage
 
             source.StartPageFriendsRecentUnlocksGrid.UseCoverImages = false;
             source.StartPageFriendsRecentUnlocksGrid.ColorNamesByRarity = true;
+            source.StartPageFriendsRecentUnlocksGrid.ColorRarityColumnsByRarity = true;
             source.StartPageFriendsRecentUnlocksGrid.ShowColumnHeaders = false;
             source.StartPageFriendsRecentUnlocksGrid.ShowControlBar = true;
             source.StartPageFriendsRecentUnlocksGrid.RowHeight = 86d;
@@ -171,7 +175,9 @@ namespace PlayniteAchievements.Tests.StartPage
             Assert.IsFalse(clone.StartPageGameSummariesGrid.ShowMetadataPlatform);
             Assert.IsFalse(clone.StartPageGameSummariesGrid.ShowMetadataPlaytime);
             Assert.IsFalse(clone.StartPageGameSummariesGrid.ShowMetadataRegion);
-            Assert.IsFalse(clone.StartPageGameSummariesGrid.ShowCompletionBorder);
+            Assert.IsFalse(clone.StartPageGameSummariesGrid.ShowCompletionGlow);
+            Assert.IsTrue(clone.StartPageGameSummariesGrid.ColorRarityColumnsByRarity);
+            Assert.IsTrue(clone.StartPageGameSummariesGrid.ShowNameAboveProgress);
             Assert.IsFalse(clone.StartPageGameSummariesGrid.ShowColumnHeaders);
             Assert.IsTrue(clone.StartPageGameSummariesGrid.ShowControlBar);
             Assert.AreEqual(72d, clone.StartPageGameSummariesGrid.RowHeight);
@@ -182,6 +188,7 @@ namespace PlayniteAchievements.Tests.StartPage
 
             Assert.IsFalse(copy.StartPageRecentUnlocksGrid.UseCoverImages);
             Assert.IsTrue(copy.StartPageRecentUnlocksGrid.ColorNamesByRarity);
+            Assert.IsTrue(copy.StartPageRecentUnlocksGrid.ColorRarityColumnsByRarity);
             Assert.IsFalse(copy.StartPageRecentUnlocksGrid.ShowColumnHeaders);
             Assert.IsTrue(copy.StartPageRecentUnlocksGrid.ShowControlBar);
             Assert.AreEqual(84d, copy.StartPageRecentUnlocksGrid.RowHeight);
@@ -192,6 +199,7 @@ namespace PlayniteAchievements.Tests.StartPage
 
             Assert.IsFalse(copy.StartPageFriendsRecentUnlocksGrid.UseCoverImages);
             Assert.IsTrue(copy.StartPageFriendsRecentUnlocksGrid.ColorNamesByRarity);
+            Assert.IsTrue(copy.StartPageFriendsRecentUnlocksGrid.ColorRarityColumnsByRarity);
             Assert.IsFalse(copy.StartPageFriendsRecentUnlocksGrid.ShowColumnHeaders);
             Assert.IsTrue(copy.StartPageFriendsRecentUnlocksGrid.ShowControlBar);
             Assert.AreEqual(86d, copy.StartPageFriendsRecentUnlocksGrid.RowHeight);
@@ -314,7 +322,11 @@ namespace PlayniteAchievements.Tests.StartPage
                 GridOptionKeys.Achievement.OverviewRecent,
                 GridOptionKeys.Achievement.OverviewSelectedGame,
                 GridOptionKeys.Achievement.FriendsOverviewRecent,
+                GridOptionKeys.Achievement.FriendsOverviewSelectedFriend,
+                GridOptionKeys.Achievement.FriendsOverviewSelectedGame,
+                GridOptionKeys.Achievement.FriendsOverviewSelectedFriendGame,
                 GridOptionKeys.Achievement.ViewFriendsAchievements,
+                GridOptionKeys.Achievement.ViewFriendsAchievementsSelectedFriend,
                 GridOptionKeys.Achievement.StartPageRecent,
                 GridOptionKeys.Achievement.StartPageFriendAchievements,
                 GridOptionKeys.Achievement.DesktopTheme
@@ -500,6 +512,7 @@ namespace PlayniteAchievements.Tests.StartPage
             options.UseCoverImages = seed % 2 == 0;
             options.ShowRarityGlow = seed % 2 != 0;
             options.ColorNamesByRarity = seed % 2 == 0;
+            options.ColorRarityColumnsByRarity = seed % 2 != 0;
             options.UnlockDateMode = (DateDisplayMode)(seed % 3);
             options.SortMode = (CompactListSortMode)(seed % 3);
             options.SortDescending = seed % 2 == 0;
@@ -513,6 +526,7 @@ namespace PlayniteAchievements.Tests.StartPage
             Assert.AreEqual(seed % 2 == 0, options.UseCoverImages);
             Assert.AreEqual(seed % 2 != 0, options.ShowRarityGlow);
             Assert.AreEqual(seed % 2 == 0, options.ColorNamesByRarity);
+            Assert.AreEqual(seed % 2 != 0, options.ColorRarityColumnsByRarity);
             Assert.AreEqual((DateDisplayMode)(seed % 3), options.UnlockDateMode);
             Assert.AreEqual((CompactListSortMode)(seed % 3), options.SortMode);
             Assert.AreEqual(seed % 2 == 0, options.SortDescending);
@@ -527,7 +541,9 @@ namespace PlayniteAchievements.Tests.StartPage
             options.ShowMetadataPlatform = seed % 2 != 0;
             options.ShowMetadataPlaytime = seed % 2 == 0;
             options.ShowMetadataRegion = seed % 2 != 0;
-            options.ShowCompletionBorder = seed % 2 == 0;
+            options.ShowCompletionGlow = seed % 2 == 0;
+            options.ColorRarityColumnsByRarity = seed % 2 != 0;
+            options.ShowNameAboveProgress = seed % 2 == 0;
             options.LastPlayedDateMode = (DateDisplayMode)(seed % 3);
             options.SortMode = (GameSummariesSortMode)(seed % 5);
             options.SortDescending = seed % 2 == 0;
@@ -540,7 +556,9 @@ namespace PlayniteAchievements.Tests.StartPage
             Assert.AreEqual(seed % 2 != 0, options.ShowMetadataPlatform);
             Assert.AreEqual(seed % 2 == 0, options.ShowMetadataPlaytime);
             Assert.AreEqual(seed % 2 != 0, options.ShowMetadataRegion);
-            Assert.AreEqual(seed % 2 == 0, options.ShowCompletionBorder);
+            Assert.AreEqual(seed % 2 == 0, options.ShowCompletionGlow);
+            Assert.AreEqual(seed % 2 != 0, options.ColorRarityColumnsByRarity);
+            Assert.AreEqual(seed % 2 == 0, options.ShowNameAboveProgress);
             Assert.AreEqual((DateDisplayMode)(seed % 3), options.LastPlayedDateMode);
             Assert.AreEqual((GameSummariesSortMode)(seed % 5), options.SortMode);
             Assert.AreEqual(seed % 2 == 0, options.SortDescending);
@@ -561,11 +579,13 @@ namespace PlayniteAchievements.Tests.StartPage
         private static void ConfigureCategorySummaryGrid(CategorySummaryGridOptions options, int seed)
         {
             ConfigureColumns(options.Columns, seed);
+            options.ShowNameAboveProgress = seed % 2 == 0;
         }
 
         private static void AssertCategorySummaryGrid(CategorySummaryGridOptions options, int seed)
         {
             AssertColumns(options.Columns, seed);
+            Assert.AreEqual(seed % 2 == 0, options.ShowNameAboveProgress);
         }
 
         private static void ConfigureCommonGrid(GridCommonOptions options, int seed)

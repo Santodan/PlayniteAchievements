@@ -241,7 +241,6 @@ namespace PlayniteAchievements.Models.Settings
                 ("ShowOverviewGameMetadataPlatform", nameof(GameSummaryGridOptions.ShowMetadataPlatform)),
                 ("ShowOverviewGameMetadataPlaytime", nameof(GameSummaryGridOptions.ShowMetadataPlaytime)),
                 ("ShowOverviewGameMetadataRegion", nameof(GameSummaryGridOptions.ShowMetadataRegion)),
-                ("ShowCompletionBorder", nameof(GameSummaryGridOptions.ShowCompletionBorder)),
                 ("OverviewGameSummariesLastPlayedDateMode", nameof(GameSummaryGridOptions.LastPlayedDateMode)),
                 ("OverviewGameSummariesGridSortMode", nameof(GameSummaryGridOptions.SortMode)),
                 ("OverviewGameSummariesGridSortDescending", nameof(GameSummaryGridOptions.SortDescending)));
@@ -259,7 +258,6 @@ namespace PlayniteAchievements.Models.Settings
                 (nameof(StartPageGameSummariesGridSettings.ShowMetadataPlatform), nameof(GameSummaryGridOptions.ShowMetadataPlatform)),
                 (nameof(StartPageGameSummariesGridSettings.ShowMetadataPlaytime), nameof(GameSummaryGridOptions.ShowMetadataPlaytime)),
                 (nameof(StartPageGameSummariesGridSettings.ShowMetadataRegion), nameof(GameSummaryGridOptions.ShowMetadataRegion)),
-                (nameof(StartPageGameSummariesGridSettings.ShowCompletionBorder), nameof(GameSummaryGridOptions.ShowCompletionBorder)),
                 (nameof(StartPageGameSummariesGridSettings.SortMode), nameof(GameSummaryGridOptions.SortMode)),
                 (nameof(StartPageGameSummariesGridSettings.SortDescending), nameof(GameSummaryGridOptions.SortDescending)));
 
@@ -283,7 +281,6 @@ namespace PlayniteAchievements.Models.Settings
                 ("ViewAchievementsGameSummariesShowMetadataPlatform", nameof(GameSummaryGridOptions.ShowMetadataPlatform)),
                 ("ViewAchievementsGameSummariesShowMetadataPlaytime", nameof(GameSummaryGridOptions.ShowMetadataPlaytime)),
                 ("ViewAchievementsGameSummariesShowMetadataRegion", nameof(GameSummaryGridOptions.ShowMetadataRegion)),
-                ("ViewAchievementsGameSummariesShowCompletionBorder", nameof(GameSummaryGridOptions.ShowCompletionBorder)),
                 ("ViewAchievementsGameSummariesLastPlayedDateMode", nameof(GameSummaryGridOptions.LastPlayedDateMode)));
 
             changed |= CopyScalars(
@@ -299,7 +296,6 @@ namespace PlayniteAchievements.Models.Settings
                 ("FriendsOverviewGameSummariesShowMetadataPlatform", nameof(GameSummaryGridOptions.ShowMetadataPlatform)),
                 ("FriendsOverviewGameSummariesShowMetadataPlaytime", nameof(GameSummaryGridOptions.ShowMetadataPlaytime)),
                 ("FriendsOverviewGameSummariesShowMetadataRegion", nameof(GameSummaryGridOptions.ShowMetadataRegion)),
-                ("ShowCompletionBorder", nameof(GameSummaryGridOptions.ShowCompletionBorder)),
                 ("FriendsOverviewGameSummariesLastPlayedDateMode", nameof(GameSummaryGridOptions.LastPlayedDateMode)));
 
             changed |= CopyScalars(

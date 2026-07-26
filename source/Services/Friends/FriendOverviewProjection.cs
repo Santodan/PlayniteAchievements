@@ -23,8 +23,8 @@ namespace PlayniteAchievements.Services.Friends
         private readonly List<FriendAchievementDisplayItem> _allUnlockedAchievements;
         private readonly List<FriendGameLinkItem> _friendGameLinks;
         private readonly Dictionary<string, List<FriendGameSummaryItem>> _selectedFriendGamesByFriendKey;
-        private readonly HashSet<string> _gameUnlockKeys;
         private readonly HashSet<string> _friendGameUnlockKeys;
+        private readonly HashSet<string> _friendGameOwnershipKeys;
 
         public FriendOverviewProjection(FriendsOverviewData data, PersistedSettings settings = null)
         {
@@ -36,8 +36,8 @@ namespace PlayniteAchievements.Services.Friends
             _allUnlockedAchievements = data.AllUnlockedAchievements ?? new List<FriendAchievementDisplayItem>();
             _friendGameLinks = data.FriendGameLinks ?? new List<FriendGameLinkItem>();
             _selectedFriendGamesByFriendKey = BuildSelectedFriendGameSummaries();
-            _gameUnlockKeys = BuildGameUnlockKeys();
             _friendGameUnlockKeys = BuildFriendGameUnlockKeys();
+            _friendGameOwnershipKeys = BuildFriendGameOwnershipKeys();
         }
 
         public IReadOnlyList<FriendSummaryItem> Friends => _friends;
@@ -93,26 +93,11 @@ namespace PlayniteAchievements.Services.Friends
                 string.Equals(GetGameScopeKey(game), gameScopeKey, StringComparison.OrdinalIgnoreCase));
         }
 
-        public bool HasAnyFriendUnlocks(FriendGameSummaryItem game)
-        {
-            if (game == null)
-            {
-                return false;
-            }
-
-            var gameKey = BuildGameUnlockKey(game.ProviderKey, game.ProviderGameKey, game.AppId, game.PlayniteGameId);
-            if (!string.IsNullOrWhiteSpace(gameKey) && _gameUnlockKeys.Contains(gameKey))
-            {
-                return true;
-            }
-
-            return _allAchievements.Count == 0 &&
-                   (game.FriendsWithUnlocksCount > 0 ||
-                    game.FriendUnlockedAchievementsCount > 0 ||
-                    game.LastFriendUnlockUtc.HasValue);
-        }
-
-        public bool HasUnlocksForFriendGame(FriendSummaryItem friend, FriendGameSummaryItem game)
+        // True when this friend+game pair has anything to show: unlocked achievement rows, or an
+        // ownership link. The cache enforces that a provider-only game's ownership link only exists
+        // once the friend has confirmed unlocks (refresh probe + schema v16 cleanup), so ownership
+        // presence is sufficient here — the display layer needs no owned/unowned gating.
+        public bool HasFriendGamePairData(FriendSummaryItem friend, FriendGameSummaryItem game)
         {
             if (friend == null || game == null)
             {
@@ -125,13 +110,8 @@ namespace PlayniteAchievements.Services.Friends
                 game.ProviderGameKey,
                 game.AppId,
                 game.PlayniteGameId);
-            if (!string.IsNullOrWhiteSpace(key) && _friendGameUnlockKeys.Contains(key))
-            {
-                return true;
-            }
-
-            return _allAchievements.Count == 0 &&
-                   game.FriendsWithUnlocksCount > 0;
+            return !string.IsNullOrWhiteSpace(key) &&
+                   (_friendGameUnlockKeys.Contains(key) || _friendGameOwnershipKeys.Contains(key));
         }
 
         public static bool IsAllScope(string scopeKey)
@@ -614,6 +594,7 @@ namespace PlayniteAchievements.Services.Friends
             var next = new Dictionary<string, List<FriendGameSummaryItem>>(StringComparer.OrdinalIgnoreCase);
             var gamesByKey = new Dictionary<string, FriendGameSummaryItem>(StringComparer.OrdinalIgnoreCase);
             var linksByFriendGameKey = new Dictionary<string, FriendGameLinkItem>(StringComparer.OrdinalIgnoreCase);
+            var emittedFriendGameKeys = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
 
             foreach (var game in _aggregateGames)
             {
@@ -677,24 +658,44 @@ namespace PlayniteAchievements.Services.Friends
                 }
 
                 rows.Add(row);
+                emittedFriendGameKeys.Add(group.Key);
+            }
+
+            // Ownership pass: a friend's games with no achievement rows yet (shared library games the
+            // friend never played, or games scraped for ownership only) still get a per-friend row.
+            // The cache guarantees provider-only links only exist once the friend has unlocks, so no
+            // owned/unowned check is needed.
+            foreach (var pair in linksByFriendGameKey)
+            {
+                if (emittedFriendGameKeys.Contains(pair.Key))
+                {
+                    continue;
+                }
+
+                var link = pair.Value;
+                var friendKey = GetFriendScopeKey(link);
+                var gameKey = BuildGameUnlockKey(link?.ProviderKey, link?.ProviderGameKey, link?.AppId ?? 0, link?.PlayniteGameId);
+                if (string.IsNullOrWhiteSpace(friendKey) ||
+                    string.IsNullOrWhiteSpace(gameKey) ||
+                    !gamesByKey.TryGetValue(gameKey, out var baseGame))
+                {
+                    continue;
+                }
+
+                var row = BuildSelectedFriendGameSummary(
+                    baseGame,
+                    Enumerable.Empty<FriendAchievementDisplayItem>(),
+                    link);
+                if (!next.TryGetValue(friendKey, out var rows))
+                {
+                    rows = new List<FriendGameSummaryItem>();
+                    next[friendKey] = rows;
+                }
+
+                rows.Add(row);
             }
 
             return next;
-        }
-
-        private HashSet<string> BuildGameUnlockKeys()
-        {
-            var keys = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-            foreach (var achievement in _allAchievements)
-            {
-                var gameKey = BuildGameUnlockKey(achievement?.ProviderKey, achievement?.ProviderGameKey, achievement?.AppId ?? 0, achievement?.PlayniteGameId);
-                if (!string.IsNullOrWhiteSpace(gameKey))
-                {
-                    keys.Add(gameKey);
-                }
-            }
-
-            return keys;
         }
 
         private HashSet<string> BuildFriendGameUnlockKeys()
@@ -702,12 +703,38 @@ namespace PlayniteAchievements.Services.Friends
             var keys = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
             foreach (var achievement in _allAchievements)
             {
+                // Locked rows exist for pair comparison views; only genuine unlocks count here.
+                if (achievement?.Unlocked != true)
+                {
+                    continue;
+                }
+
                 var friendGameKey = BuildFriendGameUnlockKey(
                     GetFriendProviderKey(achievement),
                     GetFriendExternalUserId(achievement),
-                    achievement?.ProviderGameKey,
-                    achievement?.AppId ?? 0,
-                    achievement?.PlayniteGameId);
+                    achievement.ProviderGameKey,
+                    achievement.AppId,
+                    achievement.PlayniteGameId);
+                if (!string.IsNullOrWhiteSpace(friendGameKey))
+                {
+                    keys.Add(friendGameKey);
+                }
+            }
+
+            return keys;
+        }
+
+        private HashSet<string> BuildFriendGameOwnershipKeys()
+        {
+            var keys = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            foreach (var link in _friendGameLinks)
+            {
+                var friendGameKey = BuildFriendGameUnlockKey(
+                    GetFriendProviderKey(link),
+                    GetFriendExternalUserId(link),
+                    link?.ProviderGameKey,
+                    link?.AppId ?? 0,
+                    link?.PlayniteGameId);
                 if (!string.IsNullOrWhiteSpace(friendGameKey))
                 {
                     keys.Add(friendGameKey);

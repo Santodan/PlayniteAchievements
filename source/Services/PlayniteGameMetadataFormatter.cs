@@ -4,6 +4,8 @@ using System.Globalization;
 using System.Linq;
 using Playnite.SDK;
 using Playnite.SDK.Models;
+using PlayniteAchievements.Common;
+using PlayniteAchievements.Models.Settings;
 
 namespace PlayniteAchievements.Services
 {
@@ -58,42 +60,57 @@ namespace PlayniteAchievements.Services
 
         public static string FormatPlaytime(ulong playtimeSeconds)
         {
+            return FormatPlaytime(playtimeSeconds, ResolvePlaytimeDisplayMode());
+        }
+
+        public static string FormatPlaytime(ulong playtimeSeconds, PlaytimeDisplayMode displayMode)
+        {
+            if (playtimeSeconds < 60)
+            {
+                // Zero doubles as the "no playtime data" sentinel (providers such as
+                // Exophase report no playtime), and sub-minute residue would render a
+                // zero duration ("0m"), so show nothing instead.
+                return string.Empty;
+            }
+
             var totalMinutes = playtimeSeconds / 60;
             var hours = totalMinutes / 60;
             var minutes = totalMinutes % 60;
 
-            if (hours > 0)
+            if (hours == 0)
             {
-                return minutes > 0
-                    ? string.Format(CultureInfo.CurrentCulture, L("LOCPlayAch_Playtime_HoursMinutes", "{0}h{1}m"), hours, minutes)
-                    : string.Format(CultureInfo.CurrentCulture, L("LOCPlayAch_Playtime_Hours", "{0}h"), hours);
+                return L("LOCPlayAch_Playtime_LessThanOneHour");
             }
 
-            return string.Format(CultureInfo.CurrentCulture, L("LOCPlayAch_Playtime_Minutes", "{0}m"), totalMinutes);
+            var culture = FormattingCulture.Current;
+            var hoursText = hours.ToString("N0", culture);
+
+            if (displayMode == PlaytimeDisplayMode.HoursOnly)
+            {
+                return string.Format(culture, L("LOCPlayAch_Playtime_Hours"), hoursText);
+            }
+
+            return minutes > 0
+                ? string.Format(culture, L("LOCPlayAch_Playtime_HoursMinutes"), hoursText, minutes)
+                : string.Format(culture, L("LOCPlayAch_Playtime_Hours"), hoursText);
         }
 
-        private static string L(string key, string fallback)
+        private static PlaytimeDisplayMode ResolvePlaytimeDisplayMode()
         {
-            string value;
             try
             {
-                value = ResourceProvider.GetString(key);
+                return PlayniteAchievementsPlugin.Instance?.Settings?.Persisted?.PlaytimeDisplayMode ??
+                    PlaytimeDisplayMode.HoursAndMinutes;
             }
             catch (Exception)
             {
-                return fallback;
+                return PlaytimeDisplayMode.HoursAndMinutes;
             }
+        }
 
-            if (string.IsNullOrWhiteSpace(value))
-            {
-                return fallback;
-            }
-
-            return value.Length > 4 &&
-                value.StartsWith("<!", StringComparison.Ordinal) &&
-                value.EndsWith("!>", StringComparison.Ordinal)
-                ? fallback
-                : value;
+        private static string L(string key)
+        {
+            return ResourceProvider.GetString(key);
         }
 
         public static string BuildOverviewMetadataText(
@@ -124,7 +141,7 @@ namespace PlayniteAchievements.Services
                 parts.Add(platformText.Trim());
             }
 
-            if (showPlaytime && !string.IsNullOrWhiteSpace(playtimeText))
+            if (showPlaytime && !string.IsNullOrWhiteSpace(playtimeText) && !IsZeroPlaytimeText(playtimeText))
             {
                 parts.Add(playtimeText.Trim());
             }
@@ -135,6 +152,38 @@ namespace PlayniteAchievements.Services
             }
 
             return parts.Count > 0 ? string.Join(" • ", parts) : string.Empty;
+        }
+
+        /// <summary>
+        /// True when the playtime text is a zero duration in any unit format
+        /// ("0m", "0h", "0h0m", "0 hours", localized digits-and-units variants):
+        /// it contains at least one digit and every digit is zero. Zero playtime
+        /// means "no playtime data", so the metadata line drops the segment.
+        /// </summary>
+        public static bool IsZeroPlaytimeText(string playtimeText)
+        {
+            if (string.IsNullOrWhiteSpace(playtimeText))
+            {
+                return false;
+            }
+
+            var hasDigit = false;
+            foreach (var ch in playtimeText)
+            {
+                if (!char.IsDigit(ch))
+                {
+                    continue;
+                }
+
+                if (ch != '0')
+                {
+                    return false;
+                }
+
+                hasDigit = true;
+            }
+
+            return hasDigit;
         }
     }
 }

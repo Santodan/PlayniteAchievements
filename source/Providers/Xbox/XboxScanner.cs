@@ -44,9 +44,6 @@ namespace PlayniteAchievements.Providers.Xbox
         private readonly IPlayniteAPI _playniteApi;
         private readonly string _pluginUserDataPath;
 
-        // Xbox library plugin ID from Playnite
-        internal static readonly Guid XboxLibraryPluginId = Guid.Parse("7e4fbb5b-4594-4c5a-8a69-1e3f41b39c52");
-
         public XboxScanner(
             PlayniteAchievementsSettings settings,
             XboxSettings providerSettings,

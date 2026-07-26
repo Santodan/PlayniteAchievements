@@ -733,7 +733,7 @@ namespace PlayniteAchievements.Services.Tests
 #pragma warning disable CS0067
             public event EventHandler<GameCacheUpdatedEventArgs> GameCacheUpdated;
             public event EventHandler<CacheDeltaEventArgs> CacheDeltaUpdated;
-            public event EventHandler CacheInvalidated;
+            public event EventHandler<CacheInvalidatedEventArgs> CacheInvalidated;
 #pragma warning restore CS0067
 
             public void EnsureDiskCacheOrClearMemory() { }
@@ -746,6 +746,7 @@ namespace PlayniteAchievements.Services.Tests
             public void RemoveGameData(Guid playniteGameId) { }
             public void RemoveGameCache(Guid playniteGameId) { }
             public void NotifyCacheInvalidated() { }
+            public void NotifyCacheInvalidated(IReadOnlyList<Guid> changedGameIds) { }
             public void ClearCache() { }
             public string ExportDatabaseToCsv(string exportDirectory) => null;
         }

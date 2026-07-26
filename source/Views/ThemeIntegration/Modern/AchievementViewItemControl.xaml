@@ -36,7 +36,7 @@
                    Foreground="{DynamicResource PlayAch.Brush.Text}"
                    FontSize="{DynamicResource PlayAch.FontSize.Body}">
             <TextBlock.Text>
-                <MultiBinding StringFormat="{}{0}/{1}">
+                <MultiBinding StringFormat="{}{0:N0}/{1:N0}">
                     <Binding RelativeSource="{RelativeSource AncestorType=base:ThemeControlBase}" Path="UnlockedCount" FallbackValue="0" />
                     <Binding RelativeSource="{RelativeSource AncestorType=base:ThemeControlBase}" Path="AchievementCount" FallbackValue="0" />
                 </MultiBinding>
@@ -65,7 +65,7 @@
                        Foreground="{DynamicResource PlayAch.Brush.Text}"
                        FontSize="{DynamicResource PlayAch.FontSize.Caption}">
                 <TextBlock.Text>
-                    <MultiBinding StringFormat="{}{0}/{1}">
+                    <MultiBinding StringFormat="{}{0:N0}/{1:N0}">
                         <Binding RelativeSource="{RelativeSource AncestorType=base:ThemeControlBase}" Path="UnlockedCount" FallbackValue="0" />
                         <Binding RelativeSource="{RelativeSource AncestorType=base:ThemeControlBase}" Path="AchievementCount" FallbackValue="0" />
                     </MultiBinding>

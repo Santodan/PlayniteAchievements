@@ -5,6 +5,7 @@
                    xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
                    xmlns:base="clr-namespace:PlayniteAchievements.Views.ThemeIntegration.Base"
                    xmlns:shared="clr-namespace:PlayniteAchievements.Views.ThemeIntegration.Modern.Shared"
+                   xmlns:converters="clr-namespace:PlayniteAchievements.Views.Converters"
                    mc:Ignorable="d"
                    d:DesignHeight="50" d:DesignWidth="300">
 
@@ -14,6 +15,7 @@
                 <ResourceDictionary Source="pack://application:,,,/PlayniteAchievements;component/Resources/AchievementResources.xaml"/>
                 <ResourceDictionary Source="pack://application:,,,/PlayniteAchievements;component/Resources/RarityBadges.xaml"/>
             </ResourceDictionary.MergedDictionaries>
+            <converters:WholePercentToTextConverter x:Key="WholePercentToText"/>
         </ResourceDictionary>
     </base:ThemeControlBase.Resources>
 
@@ -64,7 +66,7 @@
             <ProgressBar Value="{Binding ProgressPercentage, Mode=OneWay}"
                          Maximum="100"
                          Style="{StaticResource DesktopProgressBarStyle}"/>
-            <TextBlock Text="{Binding ProgressPercentage, Mode=OneWay, StringFormat={}{0:F0}%}"
+            <TextBlock Text="{Binding ProgressPercentage, Mode=OneWay, Converter={StaticResource WholePercentToText}}"
                        Style="{StaticResource DesktopProgressPercentTextStyle}"
                        TextWrapping="NoWrap"
                        IsHitTestVisible="False"

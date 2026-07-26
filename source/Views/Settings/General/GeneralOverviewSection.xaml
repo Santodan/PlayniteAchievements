@@ -10,6 +10,7 @@
         <ResourceDictionary>
             <ResourceDictionary.MergedDictionaries>
                 <ResourceDictionary Source="pack://application:,,,/PlayniteAchievements;component/Resources/SettingsScopedControlStyles.xaml"/>
+                <ResourceDictionary Source="pack://application:,,,/PlayniteAchievements;component/Resources/LogoResources.xaml"/>
             </ResourceDictionary.MergedDictionaries>
         </ResourceDictionary>
     </UserControl.Resources>
@@ -21,9 +22,17 @@
             <Border Style="{StaticResource SectionBorderStyle}"
                     Background="{DynamicResource PlayAch.Brush.Panel}"
                     BorderBrush="{DynamicResource PlayAch.Brush.Border}">
-                <TextBlock Text="{DynamicResource LOCPlayAch_Settings_Description}"
-                           Style="{StaticResource SectionHeaderStyle}"
-                           Margin="0"/>
+                <StackPanel Orientation="Horizontal">
+                    <Image Source="{StaticResource PlayAch.Image.Logo}"
+                           Width="32"
+                           Height="32"
+                           VerticalAlignment="Center"
+                           Margin="{StaticResource PlayAch.Thickness.Right.Compact}"/>
+                    <TextBlock Text="{DynamicResource LOCPlayAch_Settings_Description}"
+                               Style="{StaticResource SectionHeaderStyle}"
+                               VerticalAlignment="Center"
+                               Margin="0"/>
+                </StackPanel>
             </Border>
 
             <!-- Prominent quick links to other settings tabs -->
@@ -119,8 +128,8 @@
                             <ComboBoxItem Content="French (Français)" Tag="french"/>
                             <ComboBoxItem Content="Spanish (Español)" Tag="spanish"/>
                             <ComboBoxItem Content="Italian (Italiano)" Tag="italian"/>
-                            <ComboBoxItem Content="Portuguese" Tag="portuguese"/>
-                            <ComboBoxItem Content="Brazilian Portuguese" Tag="brazilian"/>
+                            <ComboBoxItem Content="Portuguese (Português)" Tag="portuguese"/>
+                            <ComboBoxItem Content="Brazilian Portuguese (Português brasileiro)" Tag="brazilian"/>
                             <ComboBoxItem Content="Russian (Русский)" Tag="russian"/>
                             <ComboBoxItem Content="Polish (Polski)" Tag="polish"/>
                             <ComboBoxItem Content="Dutch (Nederlands)" Tag="dutch"/>

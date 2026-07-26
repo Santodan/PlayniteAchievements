@@ -58,12 +58,29 @@ namespace PlayniteAchievements.Views.Helpers
                 menu.Items.Add(new Separator());
                 menu.Items.Add(CreateMenuItem(resourceOwner, "LOCPlayAch_Menu_ClearData",
                     () => ClearGameData(data, playniteApi, overridesService, cacheManager, logger)));
-                menu.Items.Add(CreateMenuItem(resourceOwner, "LOCPlayAch_Common_Action_ExcludeFromSummaries",
-                    () => ExcludeGameFromSummaries(data, overridesService)));
-                menu.Items.Add(CreateMenuItem(resourceOwner, "LOCPlayAch_Menu_ExcludeFromRefreshes",
-                    () => ExcludeGameFromRefreshes(data, playniteApi, overridesService, clearDataWhenExcluding: false)));
-                menu.Items.Add(CreateMenuItem(resourceOwner, "LOCPlayAch_Menu_ExcludeFromRefreshesAndClearData",
-                    () => ExcludeGameFromRefreshes(data, playniteApi, overridesService, clearDataWhenExcluding: true)));
+
+                TryGetGameId(data, out var menuGameId);
+                var excludedFromSummaries = overridesService?.IsExcludedFromSummaries(menuGameId) == true;
+                var excludedFromRefreshes = overridesService?.IsExcludedFromRefreshes(menuGameId) == true;
+
+                menu.Items.Add(CreateMenuItem(resourceOwner,
+                    excludedFromSummaries
+                        ? "LOCPlayAch_Common_Action_IncludeInSummaries"
+                        : "LOCPlayAch_Common_Action_ExcludeFromSummaries",
+                    () => SetExcludedFromSummaries(data, overridesService, excluded: !excludedFromSummaries)));
+                menu.Items.Add(CreateMenuItem(resourceOwner,
+                    excludedFromRefreshes
+                        ? "LOCPlayAch_Menu_IncludeInRefreshes"
+                        : "LOCPlayAch_Menu_ExcludeFromRefreshes",
+                    () => SetExcludedFromRefreshes(data, playniteApi, overridesService,
+                        excluded: !excludedFromRefreshes, clearDataWhenExcluding: false, refreshGameCommand: null)));
+                menu.Items.Add(CreateMenuItem(resourceOwner,
+                    excludedFromRefreshes
+                        ? "LOCPlayAch_Menu_IncludeInRefreshesAndRefresh"
+                        : "LOCPlayAch_Menu_ExcludeFromRefreshesAndClearData",
+                    () => SetExcludedFromRefreshes(data, playniteApi, overridesService,
+                        excluded: !excludedFromRefreshes, clearDataWhenExcluding: true,
+                        refreshGameCommand: refreshGameCommand)));
             }
 
             return menu;
@@ -158,21 +175,23 @@ namespace PlayniteAchievements.Views.Helpers
             }
         }
 
-        private static void ExcludeGameFromSummaries(object data, AchievementOverridesService overridesService)
+        private static void SetExcludedFromSummaries(object data, AchievementOverridesService overridesService, bool excluded)
         {
             if (!TryGetGameId(data, out var gameId))
             {
                 return;
             }
 
-            overridesService?.SetExcludedFromSummaries(gameId, true);
+            overridesService?.SetExcludedFromSummaries(gameId, excluded);
         }
 
-        private static void ExcludeGameFromRefreshes(
+        private static void SetExcludedFromRefreshes(
             object data,
             IPlayniteAPI playniteApi,
             AchievementOverridesService overridesService,
-            bool clearDataWhenExcluding)
+            bool excluded,
+            bool clearDataWhenExcluding,
+            ICommand refreshGameCommand)
         {
             if (!TryGetGameId(data, out var gameId))
             {
@@ -182,6 +201,19 @@ namespace PlayniteAchievements.Views.Helpers
             var game = playniteApi?.Database?.Games?.Get(gameId);
             if (game == null)
             {
+                return;
+            }
+
+            if (!excluded)
+            {
+                overridesService?.SetExcludedByUser(gameId, excluded: false, clearCachedDataWhenExcluding: false);
+
+                // "Include in Refreshes and Refresh" re-includes then refreshes the game.
+                if (refreshGameCommand != null)
+                {
+                    ExecuteCommand(refreshGameCommand, data);
+                }
+
                 return;
             }
 

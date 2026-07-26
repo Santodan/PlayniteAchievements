@@ -88,18 +88,28 @@ namespace PlayniteAchievements.Models.Achievements
         public string ProviderKey { get; set; }
 
         /// <summary>
-        /// Runtime-only category icon path for theme/display bindings.
-        /// Hydrated from the parent GameAchievementData category image overrides.
+        /// Runtime-only provider-assigned category label, captured by the hydrator before
+        /// user rename overrides overwrite <see cref="Category"/>. Default category images
+        /// are keyed by this label, so resolution stays stable across renames.
         /// </summary>
         [IgnoreDataMember]
-        public string CategoryIconPath { get; set; }
+        public string ProviderCategory { get; set; }
 
         /// <summary>
-        /// Runtime-only category cover path for theme/display bindings.
-        /// Hydrated from the parent GameAchievementData category image overrides.
+        /// Runtime-only category art path for theme/display bindings: custom override when
+        /// set, otherwise the provider default. Null when neither exists; consumers choose
+        /// the game icon/cover fallback.
         /// </summary>
         [IgnoreDataMember]
-        public string CategoryCoverPath { get; set; }
+        public string CategoryArtPath { get; set; }
+
+        /// <summary>
+        /// Runtime-only index of this achievement's category in the game's custom category
+        /// order (<c>AchievementCategoryOrder</c>). <see cref="int.MaxValue"/> when the game
+        /// has no custom order or the category is not in it; sorts fall back to label text.
+        /// </summary>
+        [IgnoreDataMember]
+        public int CategoryOrderIndex { get; set; } = int.MaxValue;
 
         [IgnoreDataMember]
         public ICommand SetDynamicAchievementsGameCommand { get; set; }

@@ -171,8 +171,7 @@ namespace PlayniteAchievements.Views.Settings.Display
 
             if (settings.Persisted.EnableFriendsFeatures)
             {
-                _navigationItems.Insert(3, _friendsOverviewNavigationItem);
-                _navigationItems.Insert(4, _friendsAchievementsNavigationItem);
+                InsertFriendsNavigationItems();
             }
 
             MasterDetail.ItemsSource = _navigationItems;
@@ -190,19 +189,7 @@ namespace PlayniteAchievements.Views.Settings.Display
 
             if (_settings.Persisted.EnableFriendsFeatures)
             {
-                if (!_navigationItems.Contains(_friendsOverviewNavigationItem))
-                {
-                    var insertIndex = Math.Min(3, _navigationItems.Count);
-                    _navigationItems.Insert(insertIndex, _friendsOverviewNavigationItem);
-                }
-
-                if (!_navigationItems.Contains(_friendsAchievementsNavigationItem))
-                {
-                    var insertIndex = Math.Min(
-                        _navigationItems.IndexOf(_friendsOverviewNavigationItem) + 1,
-                        _navigationItems.Count);
-                    _navigationItems.Insert(insertIndex, _friendsAchievementsNavigationItem);
-                }
+                InsertFriendsNavigationItems();
             }
             else
             {
@@ -215,6 +202,27 @@ namespace PlayniteAchievements.Views.Settings.Display
                     MasterDetail.SelectedItem = _navigationItems[0];
                 }
             }
+        }
+
+        private void InsertFriendsNavigationItems()
+        {
+            InsertNavigationItemAfter(_friendsOverviewNavigationItem, "Overview");
+            InsertNavigationItemAfter(_friendsAchievementsNavigationItem, "AchievementsWindow");
+        }
+
+        private void InsertNavigationItemAfter(SettingsNavigationItem item, string precedingKey)
+        {
+            if (_navigationItems.Contains(item))
+            {
+                return;
+            }
+
+            var precedingItem = _navigationItems.FirstOrDefault(x =>
+                string.Equals(x.Key, precedingKey, StringComparison.OrdinalIgnoreCase));
+            var insertIndex = precedingItem == null
+                ? _navigationItems.Count
+                : _navigationItems.IndexOf(precedingItem) + 1;
+            _navigationItems.Insert(Math.Min(insertIndex, _navigationItems.Count), item);
         }
 
         /// <summary>

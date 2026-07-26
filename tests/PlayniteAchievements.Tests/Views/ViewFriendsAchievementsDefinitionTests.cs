@@ -40,11 +40,14 @@ namespace PlayniteAchievements.Tests.Views
 
             AssertContainsAll(
                 xaml,
+                "ColumnSettingsKey=\"{Binding AchievementColumnSettingsKey}\"",
                 "EnableCategoryMode=\"{Binding HasFriendSelection}\"",
                 "CategoryColumnSettingsKey=\"ViewFriendsAchievementsCategorySummaries\"",
                 "HideBackButton=\"True\"",
                 "HideCategorySummaryRow=\"{Binding HideCategorySummaryRow}\"",
                 "DrilledCategory=\"{Binding SelectedCategoryName, Mode=OneWayToSource}\"",
+                "ShowGameColumn=\"True\"",
+                "ShowFriendColumn=\"True\"",
                 "MouseLeftButtonUp=\"GameNameBreadcrumb_Click\"");
             AssertContainsAll(
                 code,
@@ -79,8 +82,10 @@ namespace PlayniteAchievements.Tests.Views
             AssertContainsAll(
                 code,
                 "[\"ViewFriendsAchievements\"] = CreateAchievementVisibility(",
+                "[\"ViewFriendsAchievementsSelectedFriendAchievements\"] = CreateAchievementVisibility(",
                 "[\"ViewFriendsAchievements\"] = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase)",
-                "GetAchievement(GridOptionKeys.Achievement.ViewFriendsAchievements).UnlockDateMode");
+                "[\"ViewFriendsAchievementsSelectedFriendAchievements\"] = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase)",
+                "UnlockDateDisplayMode");
         }
 
         [TestMethod]
@@ -99,13 +104,16 @@ namespace PlayniteAchievements.Tests.Views
                 section,
                 "FriendSummaries[ViewFriendsAchievements]",
                 "GameSummaries[ViewFriendsAchievements]",
-                "GameSummaries[ViewFriendsAchievementsSelectedFriend]",
                 "Achievement[ViewFriendsAchievements]",
                 "CategorySummaries[ViewFriendsAchievements]",
                 "ShowCategoryModeRow=\"True\"");
             AssertContainsNone(
+                section,
+                "GameSummaries[ViewFriendsAchievementsSelectedFriend]");
+            AssertContainsNone(
                 overviewSection,
-                "Achievement[ViewFriendsAchievements]");
+                "Achievement[ViewFriendsAchievements]",
+                "GameSummaries[FriendsOverviewSelectedFriend]");
         }
 
         private static void AssertContainsAll(string content, params string[] expected)

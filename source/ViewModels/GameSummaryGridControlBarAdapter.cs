@@ -70,21 +70,21 @@ namespace PlayniteAchievements.ViewModels
         public string SelectedProviderFilterText =>
             OverviewGameSummaryFilters.BuildProviderFilterText(
                 ProviderFilterGroups,
-                L("LOCPlayAch_Common_Label_Platform", "Platform"));
+                L("LOCPlayAch_Common_Label_Platform"));
 
         public ObservableCollection<string> ProgressFilterOptions { get; }
 
         public string SelectedProgressFilterText => GetSelectedFilterText(
             _selectedProgressFilters,
             ProgressFilterOptions,
-            L("LOCPlayAch_Progress", "Progress"));
+            L("LOCPlayAch_Progress"));
 
         public ObservableCollection<string> ActivityFilterOptions { get; }
 
         public string SelectedActivityFilterText => GetSelectedFilterText(
             _selectedActivityFilters,
             ActivityFilterOptions,
-            L("LOCPlayAch_Filter_ActivitySelectorPlaceholder", "Activity"));
+            L("LOCPlayAch_Filter_ActivitySelectorPlaceholder"));
 
         public IReadOnlyList<GameSummaryItem> Apply(IEnumerable<GameSummaryItem> source)
         {
@@ -248,7 +248,7 @@ namespace PlayniteAchievements.ViewModels
                     nameof(SearchText),
                     () => SearchText,
                     value => SearchText = value,
-                    L("LOCPlayAch_Filter_Games", "Search Games"),
+                    L("LOCPlayAch_Filter_Games"),
                     () => SearchText = string.Empty)
             };
             controlBar.Items.Add(new GridProviderPlatformFilter(
@@ -356,20 +356,19 @@ namespace PlayniteAchievements.ViewModels
             return string.Join(", ", ordered);
         }
 
-        private static string CompleteLabel => L("LOCPlayAch_Filter_Complete", OverviewGameSummaryFilters.CompleteFallback);
+        private static string CompleteLabel => L("LOCPlayAch_Filter_Complete");
 
-        private static string InProgressLabel => L("LOCPlayAch_Filter_InProgress", OverviewGameSummaryFilters.InProgressFallback);
+        private static string InProgressLabel => L("LOCPlayAch_Filter_InProgress");
 
-        private static string NoProgressLabel => L("LOCPlayAch_Filter_NoProgress", OverviewGameSummaryFilters.NoProgressFallback);
+        private static string NoProgressLabel => L("LOCPlayAch_Filter_NoProgress");
 
-        private static string PlayedLabel => L("LOCPlayAch_Filter_Played", OverviewGameSummaryFilters.PlayedFallback);
+        private static string PlayedLabel => L("LOCPlayAch_Filter_Played");
 
-        private static string UnplayedLabel => L("LOCPlayAch_Filter_Unplayed", OverviewGameSummaryFilters.UnplayedFallback);
+        private static string UnplayedLabel => L("LOCPlayAch_Filter_Unplayed");
 
-        private static string L(string key, string fallback)
+        private static string L(string key)
         {
-            var value = ResourceProvider.GetString(key);
-            return string.IsNullOrWhiteSpace(value) ? fallback : value;
+            return ResourceProvider.GetString(key);
         }
     }
 }

@@ -60,6 +60,72 @@ namespace PlayniteAchievements.SqlNado.Tests
         }
 
         [TestMethod]
+        public void ReadOnlyConnection_ReadsCommittedWritesConcurrentlyUnderWal()
+        {
+            // Validates the assumption behind the store's dedicated read connection: a second
+            // read-only connection, opened while a read-write connection is live, can read the
+            // database under WAL and sees writes the read-write connection commits afterward.
+            var path = Path.Combine(Path.GetTempPath(), "playach-sqlnado-ro-" + Guid.NewGuid().ToString("N") + ".db");
+            try
+            {
+                using (var rw = new SQLiteDatabase(
+                    path,
+                    SQLiteOpenOptions.SQLITE_OPEN_READWRITE |
+                    SQLiteOpenOptions.SQLITE_OPEN_CREATE |
+                    SQLiteOpenOptions.SQLITE_OPEN_FULLMUTEX))
+                {
+                    rw.ExecuteNonQuery("PRAGMA journal_mode = WAL;");
+                    rw.ExecuteNonQuery(
+                        @"CREATE TABLE Probe (
+                            Id INTEGER PRIMARY KEY AUTOINCREMENT,
+                            Value INTEGER NOT NULL
+                          );");
+                    rw.ExecuteNonQuery("INSERT INTO Probe (Value) VALUES (?);", 1L);
+
+                    using (var ro = new SQLiteDatabase(
+                        path,
+                        SQLiteOpenOptions.SQLITE_OPEN_READONLY |
+                        SQLiteOpenOptions.SQLITE_OPEN_FULLMUTEX))
+                    {
+                        ro.BusyTimeout = 5000;
+
+                        Assert.AreEqual(1L, ro.ExecuteScalar<long>("SELECT COUNT(*) FROM Probe;"));
+
+                        // A commit on the read-write connection is visible to the read-only
+                        // connection's next read.
+                        rw.ExecuteNonQuery("INSERT INTO Probe (Value) VALUES (?);", 2L);
+                        Assert.AreEqual(2L, ro.ExecuteScalar<long>("SELECT COUNT(*) FROM Probe;"));
+
+                        // A read-only connection cannot write: the insert is rejected and the
+                        // row count is unchanged.
+                        var writeRejected = false;
+                        try
+                        {
+                            ro.ExecuteNonQuery("INSERT INTO Probe (Value) VALUES (?);", 3L);
+                        }
+                        catch
+                        {
+                            writeRejected = true;
+                        }
+
+                        Assert.IsTrue(writeRejected, "Read-only connection should reject writes.");
+                        Assert.AreEqual(2L, ro.ExecuteScalar<long>("SELECT COUNT(*) FROM Probe;"));
+                    }
+                }
+            }
+            finally
+            {
+                foreach (var file in new[] { path, path + "-wal", path + "-shm" })
+                {
+                    if (File.Exists(file))
+                    {
+                        File.Delete(file);
+                    }
+                }
+            }
+        }
+
+        [TestMethod]
         public void ComputeStaleDefinitionIds_ReturnsMissingOnly_CaseInsensitive()
         {
             var existing = new Dictionary<string, long>
@@ -246,6 +312,121 @@ namespace PlayniteAchievements.SqlNado.Tests
         public void BuildDefinitionsFromFriendRows_NullInput_ReturnsEmpty()
         {
             Assert.AreEqual(0, SqlNadoCacheBehavior.BuildDefinitionsFromFriendRows(null).Count);
+        }
+
+        [TestMethod]
+        public void ComputeDefinitionCategoryBackfills_FillsOnlyDefaultPlaceholders()
+        {
+            var existing = new List<(long Id, string ApiName, string Category, string CategoryType)>
+            {
+                (1, "ach_blank", null, null),
+                (2, "ach_default", "Default", "Default"),
+                (3, "ach_categorized", "Base Game", "Base"),
+                (4, "ach_no_incoming", "Default", "Default")
+            };
+            var incoming = new List<AchievementDetail>
+            {
+                new AchievementDetail { ApiName = "ach_blank", Category = "Phantom Liberty", CategoryType = "DLC" },
+                new AchievementDetail { ApiName = "ach_default", Category = "Phantom Liberty", CategoryType = "DLC" },
+                new AchievementDetail { ApiName = "ach_categorized", Category = "Renamed Group", CategoryType = "DLC" }
+            };
+
+            var backfills = SqlNadoCacheBehavior.ComputeDefinitionCategoryBackfills(existing, incoming);
+
+            Assert.AreEqual(2, backfills.Count);
+            Assert.AreEqual(1L, backfills[0].DefinitionId);
+            Assert.AreEqual("Phantom Liberty", backfills[0].Category);
+            Assert.AreEqual("DLC", backfills[0].CategoryType);
+            Assert.AreEqual(2L, backfills[1].DefinitionId);
+            Assert.AreEqual("Phantom Liberty", backfills[1].Category);
+            Assert.AreEqual("DLC", backfills[1].CategoryType);
+        }
+
+        [TestMethod]
+        public void ComputeDefinitionCategoryBackfills_FillsPartiallyMissingFieldsIndependently()
+        {
+            var existing = new List<(long Id, string ApiName, string Category, string CategoryType)>
+            {
+                (1, "ach_label_only", "Existing Label", "Default"),
+                (2, "ach_type_only", "Default", "DLC")
+            };
+            var incoming = new List<AchievementDetail>
+            {
+                new AchievementDetail { ApiName = "ach_label_only", Category = "Incoming Label", CategoryType = "DLC" },
+                new AchievementDetail { ApiName = "ach_type_only", Category = "Incoming Label", CategoryType = "Base" }
+            };
+
+            var backfills = SqlNadoCacheBehavior.ComputeDefinitionCategoryBackfills(existing, incoming);
+
+            Assert.AreEqual(2, backfills.Count);
+            Assert.AreEqual("Existing Label", backfills[0].Category);
+            Assert.AreEqual("DLC", backfills[0].CategoryType);
+            Assert.AreEqual("Incoming Label", backfills[1].Category);
+            Assert.AreEqual("DLC", backfills[1].CategoryType);
+        }
+
+        [TestMethod]
+        public void ComputeDefinitionCategoryBackfills_SkipsDefaultOnlyIncomingAndUnknownApiNames()
+        {
+            var existing = new List<(long Id, string ApiName, string Category, string CategoryType)>
+            {
+                (1, "ach_one", null, null)
+            };
+            var incoming = new List<AchievementDetail>
+            {
+                new AchievementDetail { ApiName = "ach_one", Category = "  ", CategoryType = "Default" },
+                new AchievementDetail { ApiName = "ach_unknown", Category = "DLC Pack", CategoryType = "DLC" },
+                null
+            };
+
+            Assert.AreEqual(0, SqlNadoCacheBehavior.ComputeDefinitionCategoryBackfills(existing, incoming).Count);
+            Assert.AreEqual(0, SqlNadoCacheBehavior.ComputeDefinitionCategoryBackfills(null, incoming).Count);
+            Assert.AreEqual(0, SqlNadoCacheBehavior.ComputeDefinitionCategoryBackfills(existing, null).Count);
+        }
+
+        [TestMethod]
+        public void HasLegacyExophaseKeyedDefinitions_DetectsOnlyLegacyPrefix()
+        {
+            Assert.IsTrue(SqlNadoCacheBehavior.HasLegacyExophaseKeyedDefinitions(
+                new[] { "default:5", "exophase_platinum_trophy" }));
+            Assert.IsFalse(SqlNadoCacheBehavior.HasLegacyExophaseKeyedDefinitions(
+                new[] { "exophase:7186932", "default:5", "KNT_Achievement_05" }));
+            Assert.IsFalse(SqlNadoCacheBehavior.HasLegacyExophaseKeyedDefinitions(new string[0]));
+            Assert.IsFalse(SqlNadoCacheBehavior.HasLegacyExophaseKeyedDefinitions(null));
+        }
+
+        [TestMethod]
+        public void MatchesNativeKey_MatchesVerbatimIgnoringCaseAndWhitespace()
+        {
+            // Steam: definition ApiName is the apiname, which is exactly the aggregator's native key.
+            Assert.IsTrue(SqlNadoCacheBehavior.MatchesNativeKey("KNT_Achievement_05", "knt_achievement_05"));
+            Assert.IsTrue(SqlNadoCacheBehavior.MatchesNativeKey(" quest_begin_gristle ", "quest_begin_gristle"));
+            Assert.IsFalse(SqlNadoCacheBehavior.MatchesNativeKey("KNT_Achievement_05", "KNT_Achievement_06"));
+            Assert.IsFalse(SqlNadoCacheBehavior.MatchesNativeKey(null, "key"));
+            Assert.IsFalse(SqlNadoCacheBehavior.MatchesNativeKey("key", null));
+            Assert.IsFalse(SqlNadoCacheBehavior.MatchesNativeKey("", ""));
+        }
+
+        [TestMethod]
+        public void MatchesGroupQualifiedNativeKey_MatchesPsnTrophyKeys()
+        {
+            // PSN: definitions are keyed "{group}:{trophyId}"; the native key is the bare trophy id.
+            Assert.IsTrue(SqlNadoCacheBehavior.MatchesGroupQualifiedNativeKey("default:5", "5"));
+            Assert.IsTrue(SqlNadoCacheBehavior.MatchesGroupQualifiedNativeKey("001:17", "17"));
+            Assert.IsFalse(SqlNadoCacheBehavior.MatchesGroupQualifiedNativeKey("default:5", "6"));
+        }
+
+        [TestMethod]
+        public void MatchesGroupQualifiedNativeKey_RejectsAggregatorAndMalformedKeys()
+        {
+            // "exophase:{id}" is the aggregator's own scheme, never a group-qualified native key.
+            Assert.IsFalse(SqlNadoCacheBehavior.MatchesGroupQualifiedNativeKey("exophase:7186932", "7186932"));
+            Assert.IsFalse(SqlNadoCacheBehavior.MatchesGroupQualifiedNativeKey("EXOPHASE:5", "5"));
+            Assert.IsFalse(SqlNadoCacheBehavior.MatchesGroupQualifiedNativeKey("no-separator", "no-separator"));
+            Assert.IsFalse(SqlNadoCacheBehavior.MatchesGroupQualifiedNativeKey(":5", "5"));
+            Assert.IsFalse(SqlNadoCacheBehavior.MatchesGroupQualifiedNativeKey("default:", ""));
+            Assert.IsFalse(SqlNadoCacheBehavior.MatchesGroupQualifiedNativeKey(null, "5"));
+            Assert.IsFalse(SqlNadoCacheBehavior.MatchesGroupQualifiedNativeKey("default:5", null));
         }
 
         [TestMethod]
@@ -557,6 +738,19 @@ namespace PlayniteAchievements.SqlNado.Tests
             StringAssert.Contains(store, "ShouldRefreshDefinitionsFromFriendRows(definitions, seededDefinitions)");
             Assert.IsFalse(store.Contains("UpdateAchievementDefinitionMetadataFromFriendRows"),
                 "Exophase friend metadata must not overwrite mapped/native current-user definitions.");
+        }
+
+        [TestMethod]
+        public void CacheStore_FriendAchievementRowsCoverFullDefinitionSchema()
+        {
+            var store = File.ReadAllText(FindRepoFile("source", "Services", "Database", "SqlNadoCacheStore.cs"));
+
+            // The friend+game view shows the game's full schema with the friend's unlock state
+            // joined per definition, not just the rows the friend scrape happened to store.
+            StringAssert.Contains(store, "INNER JOIN AchievementDefinitions ad ON ad.GameId = g.Id");
+            StringAssert.Contains(store, "LEFT JOIN UserAchievements ua ON ua.UserGameProgressId = ugp.Id");
+            StringAssert.Contains(store, "AND ua.AchievementDefinitionId = ad.Id");
+            StringAssert.Contains(store, "COALESCE(ua.Unlocked, 0) AS Unlocked");
         }
 
         [TestMethod]

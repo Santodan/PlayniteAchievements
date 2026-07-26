@@ -288,6 +288,127 @@ namespace PlayniteAchievements.Tests.Services.UI
             });
         }
 
+        [TestMethod]
+        public void ResolveFrameTemplate_LoadedThemeResourceWinsOverThemeFile()
+        {
+            RunOnSta(() =>
+            {
+                var root = CreateConfigurationRoot();
+                try
+                {
+                    WriteFrameThemeOverride(root, "Desktop", "ThemeA", "frame-file");
+                    var appResources = new ResourceDictionary
+                    {
+                        [AchievementToastTemplateResolver.FrameTemplateKey] = CreateTemplate("frame-app")
+                    };
+
+                    var resolver = CreateResolver(root, ApplicationMode.Desktop, desktopTheme: "ThemeA");
+                    var template = resolver.ResolveFrameTemplate(appResources);
+
+                    Assert.AreEqual("frame-app", GetMarker(template));
+                }
+                finally
+                {
+                    DeleteDirectory(root);
+                }
+            });
+        }
+
+        [TestMethod]
+        public void ResolveFrameTemplate_ThemeFileWinsOverDefault()
+        {
+            RunOnSta(() =>
+            {
+                var root = CreateConfigurationRoot();
+                try
+                {
+                    WriteFrameThemeOverride(root, "Desktop", "ThemeA", "frame-file");
+
+                    var resolver = CreateResolver(root, ApplicationMode.Desktop, desktopTheme: "ThemeA");
+                    var template = resolver.ResolveFrameTemplate(new ResourceDictionary());
+
+                    Assert.AreEqual("frame-file", GetMarker(template));
+                }
+                finally
+                {
+                    DeleteDirectory(root);
+                }
+            });
+        }
+
+        [TestMethod]
+        public void ResolveFrameTemplate_FallsBackToDefaultWhenNoOverride()
+        {
+            RunOnSta(() =>
+            {
+                var root = CreateConfigurationRoot();
+                try
+                {
+                    var resolver = CreateResolver(root, ApplicationMode.Desktop, desktopTheme: "ThemeA");
+                    var template = resolver.ResolveFrameTemplate(new ResourceDictionary());
+
+                    Assert.AreEqual("frame-default", GetMarker(template));
+                }
+                finally
+                {
+                    DeleteDirectory(root);
+                }
+            });
+        }
+
+        [TestMethod]
+        public void ResolveFrameTemplate_IgnoresFrameKeyInToastOverrideFile()
+        {
+            RunOnSta(() =>
+            {
+                var root = CreateConfigurationRoot();
+                try
+                {
+                    // The frame key placed inside AchievementToast.xaml must NOT satisfy the frame
+                    // lookup: the file-based tier for frames reads ScreenshotFrame.xaml only.
+                    var toastOverridePath = GetOverridePath(root, "Desktop", "ThemeA");
+                    Directory.CreateDirectory(Path.GetDirectoryName(toastOverridePath));
+                    File.WriteAllText(
+                        toastOverridePath,
+                        CreateTemplateXaml("misplaced").Replace(
+                            AchievementToastTemplateResolver.TemplateKey,
+                            AchievementToastTemplateResolver.FrameTemplateKey));
+
+                    var resolver = CreateResolver(root, ApplicationMode.Desktop, desktopTheme: "ThemeA");
+                    var template = resolver.ResolveFrameTemplate(new ResourceDictionary());
+
+                    Assert.AreEqual("frame-default", GetMarker(template));
+                }
+                finally
+                {
+                    DeleteDirectory(root);
+                }
+            });
+        }
+
+        [TestMethod]
+        public void ResolveTemplate_ToastAndFrameOverrideFilesResolveIndependently()
+        {
+            RunOnSta(() =>
+            {
+                var root = CreateConfigurationRoot();
+                try
+                {
+                    WriteThemeOverride(root, "Desktop", "ThemeA", "toast-file");
+                    WriteFrameThemeOverride(root, "Desktop", "ThemeA", "frame-file");
+
+                    var resolver = CreateResolver(root, ApplicationMode.Desktop, desktopTheme: "ThemeA");
+
+                    Assert.AreEqual("toast-file", GetMarker(resolver.ResolveTemplate(new ResourceDictionary())));
+                    Assert.AreEqual("frame-file", GetMarker(resolver.ResolveFrameTemplate(new ResourceDictionary())));
+                }
+                finally
+                {
+                    DeleteDirectory(root);
+                }
+            });
+        }
+
         private static AchievementToastTemplateResolver CreateResolver(
             string configurationRoot,
             ApplicationMode mode,
@@ -302,7 +423,8 @@ namespace PlayniteAchievements.Tests.Services.UI
                     new FakePlayniteSettings(desktopTheme, fullscreenTheme),
                     new FakePlaynitePaths(configurationRoot, applicationPath)),
                 logger ?? new FakeLogger(),
-                () => CreateTemplate("default"));
+                () => CreateTemplate("default"),
+                () => CreateTemplate("frame-default"));
         }
 
         private static DataTemplate CreateTemplate(string marker)
@@ -333,6 +455,22 @@ namespace PlayniteAchievements.Tests.Services.UI
                 mode,
                 themeName,
                 AchievementToastTemplateResolver.ThemeOverrideRelativePath);
+        }
+
+        private static void WriteFrameThemeOverride(string configurationRoot, string mode, string themeName, string marker)
+        {
+            var overridePath = Path.Combine(
+                configurationRoot,
+                "Themes",
+                mode,
+                themeName,
+                AchievementToastTemplateResolver.FrameThemeOverrideRelativePath);
+            Directory.CreateDirectory(Path.GetDirectoryName(overridePath));
+            File.WriteAllText(
+                overridePath,
+                CreateTemplateXaml(marker).Replace(
+                    AchievementToastTemplateResolver.TemplateKey,
+                    AchievementToastTemplateResolver.FrameTemplateKey));
         }
 
         private static string CreateTemplateXaml(string marker)

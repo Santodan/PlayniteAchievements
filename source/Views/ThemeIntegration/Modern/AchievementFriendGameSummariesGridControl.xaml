@@ -14,7 +14,7 @@
                                        ShowMetadataPlatform="{Binding DataContext.Persisted.FriendsOverviewGameSummariesShowMetadataPlatform, RelativeSource={RelativeSource AncestorType=base:ThemeControlBase}}"
                                        ShowMetadataPlaytime="{Binding DataContext.Persisted.FriendsOverviewGameSummariesShowMetadataPlaytime, RelativeSource={RelativeSource AncestorType=base:ThemeControlBase}}"
                                        ShowMetadataRegion="{Binding DataContext.Persisted.FriendsOverviewGameSummariesShowMetadataRegion, RelativeSource={RelativeSource AncestorType=base:ThemeControlBase}}"
-                                       ShowCompletionBorder="False"
+                                       ShowCompletionGlow="False"
                                        ShowColumnHeaders="{Binding DataContext.Persisted.ShowFriendsOverviewGameSummariesGridColumnHeaders, RelativeSource={RelativeSource AncestorType=base:ThemeControlBase}}"
                                        FixedRowHeight="{Binding DataContext.Persisted.FriendsOverviewGameSummariesGridRowHeight, RelativeSource={RelativeSource AncestorType=base:ThemeControlBase}}"
                                        DelayInitialRenderUntilNormalized="True"/>

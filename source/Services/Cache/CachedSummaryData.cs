@@ -86,6 +86,8 @@ namespace PlayniteAchievements.Services.Cache
         public int TrophyBronzeTotal { get; set; }
 
         public bool IsCompleted { get; set; }
+
+        public DateTime? LastUnlockUtc { get; set; }
     }
 
     internal sealed class CachedRecentUnlockData

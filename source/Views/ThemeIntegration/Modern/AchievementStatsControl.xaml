@@ -50,9 +50,9 @@
             <TextBlock Grid.Column="2"
                        Foreground="{DynamicResource PlayAch.Brush.Text}"
                        VerticalAlignment="Center">
-                <Run Text="{Binding UltraRare.Unlocked, Mode=OneWay}"/>
+                <Run Text="{Binding UltraRare.Unlocked, Mode=OneWay, StringFormat={}{0:N0}}"/>
                 <Run Text="/"/>
-                <Run Text="{Binding UltraRare.Total, Mode=OneWay}"/>
+                <Run Text="{Binding UltraRare.Total, Mode=OneWay, StringFormat={}{0:N0}}"/>
             </TextBlock>
         </Grid>
 
@@ -79,9 +79,9 @@
             <TextBlock Grid.Column="2"
                        Foreground="{DynamicResource PlayAch.Brush.Text}"
                        VerticalAlignment="Center">
-                <Run Text="{Binding Rare.Unlocked, Mode=OneWay}"/>
+                <Run Text="{Binding Rare.Unlocked, Mode=OneWay, StringFormat={}{0:N0}}"/>
                 <Run Text="/"/>
-                <Run Text="{Binding Rare.Total, Mode=OneWay}"/>
+                <Run Text="{Binding Rare.Total, Mode=OneWay, StringFormat={}{0:N0}}"/>
             </TextBlock>
         </Grid>
 
@@ -108,9 +108,9 @@
             <TextBlock Grid.Column="2"
                        Foreground="{DynamicResource PlayAch.Brush.Text}"
                        VerticalAlignment="Center">
-                <Run Text="{Binding Uncommon.Unlocked, Mode=OneWay}"/>
+                <Run Text="{Binding Uncommon.Unlocked, Mode=OneWay, StringFormat={}{0:N0}}"/>
                 <Run Text="/"/>
-                <Run Text="{Binding Uncommon.Total, Mode=OneWay}"/>
+                <Run Text="{Binding Uncommon.Total, Mode=OneWay, StringFormat={}{0:N0}}"/>
             </TextBlock>
         </Grid>
 
@@ -137,9 +137,9 @@
             <TextBlock Grid.Column="2"
                        Foreground="{DynamicResource PlayAch.Brush.Text}"
                        VerticalAlignment="Center">
-                <Run Text="{Binding Common.Unlocked, Mode=OneWay}"/>
+                <Run Text="{Binding Common.Unlocked, Mode=OneWay, StringFormat={}{0:N0}}"/>
                 <Run Text="/"/>
-                <Run Text="{Binding Common.Total, Mode=OneWay}"/>
+                <Run Text="{Binding Common.Total, Mode=OneWay, StringFormat={}{0:N0}}"/>
             </TextBlock>
         </Grid>
     </StackPanel>

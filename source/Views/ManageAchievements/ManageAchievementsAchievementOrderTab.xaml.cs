@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Windows;
 using System.Windows.Controls;
+using Playnite.SDK;
 using Playnite.SDK.Events;
 using PlayniteAchievements.Services;
 using PlayniteAchievements.Services.Achievements;
@@ -123,12 +124,12 @@ namespace PlayniteAchievements.Views.ManageAchievements
             }
 
             var menu = new ContextMenu();
-            menu.Items.Add(CreateOrderMenuItem("Move Up", () => MoveControllerSelection(item, -1)));
-            menu.Items.Add(CreateOrderMenuItem("Move Down", () => MoveControllerSelection(item, 1)));
-            menu.Items.Add(CreateOrderMenuItem("Move to Top", () => MoveControllerSelectionToEdge(item, toTop: true)));
-            menu.Items.Add(CreateOrderMenuItem("Move to Bottom", () => MoveControllerSelectionToEdge(item, toTop: false)));
+            menu.Items.Add(CreateOrderMenuItem(ResourceProvider.GetString("LOCPlayAch_ManageAchievements_Order_MoveUp"), () => MoveControllerSelection(item, -1)));
+            menu.Items.Add(CreateOrderMenuItem(ResourceProvider.GetString("LOCPlayAch_ManageAchievements_Order_MoveDown"), () => MoveControllerSelection(item, 1)));
+            menu.Items.Add(CreateOrderMenuItem(ResourceProvider.GetString("LOCPlayAch_ManageAchievements_Order_MoveToTop"), () => MoveControllerSelectionToEdge(item, toTop: true)));
+            menu.Items.Add(CreateOrderMenuItem(ResourceProvider.GetString("LOCPlayAch_ManageAchievements_Order_MoveToBottom"), () => MoveControllerSelectionToEdge(item, toTop: false)));
             menu.Items.Add(new Separator());
-            menu.Items.Add(CreateOrderMenuItem("Reset Custom Order", () =>
+            menu.Items.Add(CreateOrderMenuItem(ResourceProvider.GetString("LOCPlayAch_ManageAchievements_Order_Reset"), () =>
             {
                 ViewModel?.ResetCustomOrder();
                 FocusRowByApiName(item.ApiName);

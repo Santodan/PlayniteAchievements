@@ -252,8 +252,7 @@ namespace PlayniteAchievements.Services.StartPage
                 item.GameIconPath,
                 item.GameCoverPath,
                 item.CategoryOrderIndex,
-                item.CategoryIconPath,
-                item.CategoryCoverPath);
+                item.CategoryArtPath);
             clone.FriendName = item.FriendName;
             clone.FriendExternalUserId = item.FriendExternalUserId;
             clone.FriendAvatarPath = item.FriendAvatarPath;

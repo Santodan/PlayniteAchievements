@@ -277,7 +277,7 @@ namespace PlayniteAchievements.Services.ProgressReporting
                     }
                     catch (Exception ex)
                     {
-                        _logger?.Error(ex, ResourceProvider.GetString("LOCPlayAch_Error_NotifySubscribers"));
+                        _logger?.Error(ex, "Failed to notify progress subscribers.");
                     }
                 }
             });

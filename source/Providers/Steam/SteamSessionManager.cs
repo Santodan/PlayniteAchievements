@@ -94,11 +94,23 @@ namespace PlayniteAchievements.Providers.Steam
                         return AuthProbeResult.AlreadyAuthenticated(session.SteamId64);
                     }
 
-                    if (!string.IsNullOrWhiteSpace(session?.SteamId64))
+                    if (session?.IsTransientFailure == true)
                     {
-                        PersistSteamUserId(session.SteamId64);
+                        var result = AuthProbeResult.Create(
+                            session.TransientFailureOutcome.Value,
+                            "LOCPlayAch_Common_NotAuthenticated",
+                            userId: session.SteamId64);
+                        _logger?.Warn(
+                            $"[SteamAuth] Steam web auth could not be verified ({result.Outcome}); keeping persisted Steam identity unchanged.");
+                        return result;
                     }
-                    else if (session?.HasSteamSessionCookies != true)
+
+                    // Only clear the persisted ID when no session cookies remain at all.
+                    // An incomplete session (ID without a web API token) must not update
+                    // the persisted identity: it can carry a stale account's ID.
+                    if (session != null &&
+                        !session.IsTransientFailure &&
+                        session.HasSteamSessionCookies != true)
                     {
                         PersistSteamUserId(null);
                     }
@@ -195,11 +207,6 @@ namespace PlayniteAchievements.Providers.Steam
 
                 if (session?.IsComplete != true)
                 {
-                    if (!string.IsNullOrWhiteSpace(session?.SteamId64))
-                    {
-                        PersistSteamUserId(session.SteamId64);
-                    }
-
                     progress?.Report(AuthProgressStep.Failed);
                     return AuthProbeResult.Cancelled(windowOpened);
                 }
@@ -247,6 +254,12 @@ namespace PlayniteAchievements.Providers.Steam
         /// memory during long scans.
         /// </summary>
         public IDisposable BeginOffscreenViewLease() => _offscreenViews.BeginLease();
+
+        /// <summary>
+        /// The shared offscreen view source, for callers that fetch non-Steam pages through
+        /// the same leased view (e.g. SteamHunters enrichment during a scan).
+        /// </summary>
+        internal OffscreenViewLeaseSource OffscreenViews => _offscreenViews;
 
         // ---------------------------------------------------------------------
         // Internal methods for SteamHttpClient
@@ -332,7 +345,35 @@ namespace PlayniteAchievements.Providers.Steam
                     return await _offscreenViews.WithNavigableViewAsync(async view =>
                     {
                         _logger?.Debug($"[SteamAuth] Navigating to {CommunityEditInfoUrl} to resolve web auth session...");
-                        await view.NavigateAndWaitAsync(CommunityEditInfoUrl, timeoutMs: 15000).ConfigureAwait(true);
+                        try
+                        {
+                            await view.NavigateAndWaitAsync(CommunityEditInfoUrl, timeoutMs: 15000).ConfigureAwait(true);
+                        }
+                        catch (TimeoutException ex)
+                        {
+                            SteamWebAuthSession session = null;
+                            try
+                            {
+                                session = ResolveWebAuthSessionFromView(view);
+                            }
+                            catch (Exception inspectEx)
+                            {
+                                _logger?.Debug(inspectEx, "[SteamAuth] Failed to inspect timed-out Steam WebView.");
+                            }
+
+                            if (session?.IsComplete == true)
+                            {
+                                _logger?.Warn(
+                                    "[SteamAuth] Steam WebView navigation timed out, but a complete auth session was available from the page/cookies.");
+                                return session;
+                            }
+
+                            _logger?.Warn(ex, "[SteamAuth] Steam WebView navigation timed out before auth could be verified.");
+                            return SteamWebAuthSession.TransientFailure(
+                                AuthOutcome.TimedOut,
+                                session);
+                        }
+
                         await Task.Delay(500, ct).ConfigureAwait(true);
                         return ResolveWebAuthSessionFromView(view);
                     }, ct).ConfigureAwait(true);
@@ -341,10 +382,15 @@ namespace PlayniteAchievements.Providers.Steam
                 {
                     throw;
                 }
+                catch (TimeoutException ex)
+                {
+                    _logger?.Warn(ex, "[SteamAuth] Steam web auth session resolution timed out before the WebView could be inspected.");
+                    return SteamWebAuthSession.TransientFailure(AuthOutcome.TimedOut);
+                }
                 catch (Exception ex)
                 {
                     _logger?.Warn(ex, "[SteamAuth] Failed to resolve Steam web auth session.");
-                    return SteamWebAuthSession.Empty();
+                    return SteamWebAuthSession.TransientFailure(AuthOutcome.ProbeFailed);
                 }
             });
         }
@@ -370,7 +416,56 @@ namespace PlayniteAchievements.Providers.Steam
                 _logger?.Debug(ex, "[SteamAuth] Failed to read Steam WebView page source.");
             }
 
-            return SteamWebAuthParser.Parse(source, cookieSteamId, hasSessionCookies);
+            var session = SteamWebAuthParser.Parse(source, cookieSteamId, hasSessionCookies);
+            ClearStaleSteamPoweredCookies(view, cookies, session.SteamId64);
+            return session;
+        }
+
+        /// <summary>
+        /// Deletes steampowered.com cookies whose steamLoginSecure identifies a different
+        /// account than the resolved community session. Such cookies survive an account
+        /// switch performed through another login flow (e.g. the Steam library extension)
+        /// and would otherwise keep authenticating requests as the previous account.
+        /// </summary>
+        private void ClearStaleSteamPoweredCookies(
+            IWebView view,
+            IEnumerable<HttpCookie> cookies,
+            string resolvedSteamId64)
+        {
+            if (view == null || cookies == null || string.IsNullOrWhiteSpace(resolvedSteamId64))
+            {
+                return;
+            }
+
+            var staleDomains = cookies
+                .Where(c => c != null &&
+                            !string.IsNullOrWhiteSpace(c.Domain) &&
+                            IsSteamPoweredDomain(c.Domain) &&
+                            c.Name.Equals("steamLoginSecure", StringComparison.OrdinalIgnoreCase))
+                .Select(c => new
+                {
+                    c.Domain,
+                    SteamId = TryExtractSteamId64FromSteamLoginSecure(c.Value)
+                })
+                .Where(c => !string.IsNullOrWhiteSpace(c.SteamId) &&
+                            !string.Equals(c.SteamId, resolvedSteamId64, StringComparison.Ordinal))
+                .Select(c => c.Domain.Trim().TrimStart('.'))
+                .Distinct(StringComparer.OrdinalIgnoreCase)
+                .ToList();
+
+            foreach (var domain in staleDomains)
+            {
+                try
+                {
+                    _logger?.Info($"[SteamAuth] Clearing stale Steam cookies on '{domain}' (login cookie belongs to a different account than the active session).");
+                    view.DeleteDomainCookies("." + domain);
+                    view.DeleteDomainCookies(domain);
+                }
+                catch (Exception ex)
+                {
+                    _logger?.Debug(ex, $"[SteamAuth] Failed to clear stale Steam cookies on '{domain}'.");
+                }
+            }
         }
 
         /// <summary>
@@ -503,6 +598,20 @@ namespace PlayniteAchievements.Providers.Steam
                    d.EndsWith("steampowered.com", StringComparison.OrdinalIgnoreCase);
         }
 
+        private static bool IsSteamCommunityDomain(string domain)
+        {
+            if (string.IsNullOrWhiteSpace(domain)) return false;
+            var d = domain.Trim().TrimStart('.');
+            return d.EndsWith("steamcommunity.com", StringComparison.OrdinalIgnoreCase);
+        }
+
+        private static bool IsSteamPoweredDomain(string domain)
+        {
+            if (string.IsNullOrWhiteSpace(domain)) return false;
+            var d = domain.Trim().TrimStart('.');
+            return d.EndsWith("steampowered.com", StringComparison.OrdinalIgnoreCase);
+        }
+
         public static string TryExtractSteamId64FromSteamLoginSecure(string value)
         {
             if (string.IsNullOrWhiteSpace(value))
@@ -524,10 +633,13 @@ namespace PlayniteAchievements.Providers.Steam
 
         private static string TryExtractSteamId64FromCookies(IEnumerable<HttpCookie> cookies)
         {
+            // Only the steamcommunity.com login cookie identifies the session the
+            // community scrapes run as. Cookies on steampowered.com domains can belong
+            // to a previously logged-in account and must not determine identity.
             var authCookie = cookies?.FirstOrDefault(c =>
                 c != null &&
                 !string.IsNullOrWhiteSpace(c.Domain) &&
-                IsSteamDomain(c.Domain) &&
+                IsSteamCommunityDomain(c.Domain) &&
                 c.Name.Equals("steamLoginSecure", StringComparison.OrdinalIgnoreCase));
 
             return authCookie == null

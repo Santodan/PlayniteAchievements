@@ -3,6 +3,7 @@
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
         xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+        xmlns:converters="clr-namespace:PlayniteAchievements.Views.Converters"
         mc:Ignorable="d"
         d:DesignHeight="280"
         d:DesignWidth="400">
@@ -11,7 +12,9 @@
         <ResourceDictionary>
             <ResourceDictionary.MergedDictionaries>
                 <ResourceDictionary Source="pack://application:,,,/PlayniteAchievements;component/Resources/CommonResources.xaml"/>
+                <ResourceDictionary Source="pack://application:,,,/PlayniteAchievements;component/Resources/LogoResources.xaml"/>
             </ResourceDictionary.MergedDictionaries>
+            <converters:WholePercentToTextConverter x:Key="WholePercentToText"/>
         </ResourceDictionary>
     </UserControl.Resources>
 
@@ -35,16 +38,13 @@
                     <ColumnDefinition Width="*"/>
                 </Grid.ColumnDefinitions>
 
-                <!-- Badge Icon -->
+                <!-- Plugin Logo -->
                 <Image Grid.Column="0"
-                       Source="{DynamicResource BadgeRarityUltraRare}"
-                       Width="28"
-                       Height="28"
+                       Source="{StaticResource PlayAch.Image.Logo}"
+                       Width="32"
+                       Height="32"
                        Margin="{StaticResource PlayAch.Thickness.Right.Md}"
-                       VerticalAlignment="Center"
-                       SnapsToDevicePixels="True"
-                       RenderOptions.BitmapScalingMode="NearestNeighbor"
-                       Effect="{StaticResource BadgeShadow}"/>
+                       VerticalAlignment="Center"/>
 
                 <!-- Title -->
                 <TextBlock Grid.Column="1"
@@ -77,7 +77,7 @@
                     <ProgressBar Value="{Binding ProgressPercent}"
                                  Style="{StaticResource GameProgressBar}"
                                  Height="22"/>
-                    <TextBlock Text="{Binding ProgressPercent, StringFormat={}{0:F0}%}"
+                    <TextBlock Text="{Binding ProgressPercent, Converter={StaticResource WholePercentToText}}"
                                HorizontalAlignment="Center"
                                VerticalAlignment="Center"
                                Style="{DynamicResource PlayAch.TextBlock.BaseStyle}"

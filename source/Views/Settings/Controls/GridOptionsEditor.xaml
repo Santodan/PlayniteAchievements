@@ -30,13 +30,6 @@
                     </DataTrigger>
                 </Style.Triggers>
             </Style>
-            <Style x:Key="FriendSummaryPanelStyle" TargetType="StackPanel">
-                <Style.Triggers>
-                    <DataTrigger Binding="{Binding FriendSummaryOptions, ElementName=EditorRoot}" Value="{x:Null}">
-                        <Setter Property="Visibility" Value="Collapsed"/>
-                    </DataTrigger>
-                </Style.Triggers>
-            </Style>
             <Style x:Key="CategorySummaryPanelStyle" TargetType="StackPanel">
                 <Style.Triggers>
                     <DataTrigger Binding="{Binding CategorySummaryOptions, ElementName=EditorRoot}" Value="{x:Null}">
@@ -86,6 +79,10 @@
                       IsChecked="{Binding AchievementOptions.ColorNamesByRarity, ElementName=EditorRoot}"
                       Visibility="{Binding ShowColorNamesRow, ElementName=EditorRoot, Converter={StaticResource BoolToVis}}"
                       Margin="{StaticResource PlayAch.Thickness.Bottom.Md}"/>
+            <CheckBox Content="{DynamicResource LOCPlayAch_Settings_ColorRarityTextByRarity}"
+                      IsChecked="{Binding AchievementOptions.ColorRarityColumnsByRarity, ElementName=EditorRoot}"
+                      Visibility="{Binding ShowColorNamesRow, ElementName=EditorRoot, Converter={StaticResource BoolToVis}}"
+                      Margin="{StaticResource PlayAch.Thickness.Bottom.Md}"/>
         </StackPanel>
 
         <!-- Game-summary-specific leading rows -->
@@ -110,9 +107,16 @@
                               Margin="{StaticResource PlayAch.Thickness.Bottom.Md}"/>
                 </StackPanel>
             </StackPanel>
-            <CheckBox Content="{DynamicResource LOCPlayAch_Settings_ShowCompletionBorder}"
-                      IsChecked="{Binding GameSummaryOptions.ShowCompletionBorder, ElementName=EditorRoot}"
-                      Visibility="{Binding ShowCompletionBorderRow, ElementName=EditorRoot, Converter={StaticResource BoolToVis}}"
+            <CheckBox Content="{DynamicResource LOCPlayAch_Settings_ShowCompletionGlow}"
+                      IsChecked="{Binding GameSummaryOptions.ShowCompletionGlow, ElementName=EditorRoot}"
+                      Visibility="{Binding ShowCompletionGlowRow, ElementName=EditorRoot, Converter={StaticResource BoolToVis}}"
+                      Margin="{StaticResource PlayAch.Thickness.Bottom.Md}"/>
+            <CheckBox Content="{DynamicResource LOCPlayAch_Settings_ColorRarityTextByRarity}"
+                      IsChecked="{Binding GameSummaryOptions.ColorRarityColumnsByRarity, ElementName=EditorRoot}"
+                      Visibility="{Binding ShowColorNamesRow, ElementName=EditorRoot, Converter={StaticResource BoolToVis}}"
+                      Margin="{StaticResource PlayAch.Thickness.Bottom.Md}"/>
+            <CheckBox Content="{DynamicResource LOCPlayAch_Settings_ShowNameAboveProgress}"
+                      IsChecked="{Binding GameSummaryOptions.ShowNameAboveProgress, ElementName=EditorRoot}"
                       Margin="{StaticResource PlayAch.Thickness.Bottom.Md}"/>
         </StackPanel>
 
@@ -125,6 +129,17 @@
             <CheckBox Content="{DynamicResource LOCPlayAch_Settings_ShowCategoryGridColumnHeaders}"
                       IsChecked="{Binding CategorySummaryOptions.ShowColumnHeaders, ElementName=EditorRoot}"
                       Visibility="{Binding ShowColumnHeadersRow, ElementName=EditorRoot, Converter={StaticResource BoolToVis}}"
+                      Margin="{StaticResource PlayAch.Thickness.Bottom.Md}"/>
+            <CheckBox Content="{DynamicResource LOCPlayAch_Settings_ShowCompletionGlow}"
+                      IsChecked="{Binding CategorySummaryOptions.ShowCompletionGlow, ElementName=EditorRoot}"
+                      Visibility="{Binding ShowCompletionGlowRow, ElementName=EditorRoot, Converter={StaticResource BoolToVis}}"
+                      Margin="{StaticResource PlayAch.Thickness.Bottom.Md}"/>
+            <CheckBox Content="{DynamicResource LOCPlayAch_Settings_ColorRarityTextByRarity}"
+                      IsChecked="{Binding CategorySummaryOptions.ColorRarityColumnsByRarity, ElementName=EditorRoot}"
+                      Visibility="{Binding ShowColorNamesRow, ElementName=EditorRoot, Converter={StaticResource BoolToVis}}"
+                      Margin="{StaticResource PlayAch.Thickness.Bottom.Md}"/>
+            <CheckBox Content="{DynamicResource LOCPlayAch_Settings_ShowNameAboveProgress}"
+                      IsChecked="{Binding CategorySummaryOptions.ShowNameAboveProgress, ElementName=EditorRoot}"
                       Margin="{StaticResource PlayAch.Thickness.Bottom.Md}"/>
             <StackPanel Orientation="Horizontal"
                         Visibility="{Binding ShowRowHeightRow, ElementName=EditorRoot, Converter={StaticResource BoolToVis}}"
@@ -160,29 +175,12 @@
                       Margin="{StaticResource PlayAch.Thickness.Bottom.Md}"/>
         </StackPanel>
 
-        <!-- Achievement date/category rows -->
+        <!-- Achievement category mode row -->
         <StackPanel Style="{StaticResource AchievementPanelStyle}">
             <StackPanel Visibility="{Binding ShowCategoryModeRow, ElementName=EditorRoot, Converter={StaticResource BoolToVis}}">
                 <CheckBox Content="{DynamicResource LOCPlayAch_Settings_StartInCategoryMode}"
                           IsChecked="{Binding AchievementOptions.StartInCategoryMode, ElementName=EditorRoot}"
                           Margin="{StaticResource PlayAch.Thickness.Bottom.Md}"/>
-                <CheckBox Content="{DynamicResource LOCPlayAch_Settings_HideCategorySummaryRow}"
-                          IsChecked="{Binding AchievementOptions.HideCategorySummaryRow, ElementName=EditorRoot}"
-                          Margin="{StaticResource PlayAch.Thickness.Bottom.Md}"/>
-            </StackPanel>
-            <StackPanel Orientation="Horizontal"
-                        Visibility="{Binding ShowDateModeRow, ElementName=EditorRoot, Converter={StaticResource BoolToVis}}"
-                        Margin="{StaticResource PlayAch.Thickness.Bottom.Md}">
-                <TextBlock Text="{DynamicResource LOCPlayAch_Settings_UnlockDateDisplay}"
-                           VerticalAlignment="Center"/>
-                <ComboBox SelectedValue="{Binding AchievementOptions.UnlockDateMode, ElementName=EditorRoot, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
-                          SelectedValuePath="Tag"
-                          MinWidth="140"
-                          Margin="{StaticResource PlayAch.Thickness.Left.Sm}">
-                    <ComboBoxItem Content="{DynamicResource LOCPlayAch_Settings_DateDisplayMode_DateAndTime}" Tag="{x:Static settings:DateDisplayMode.DateAndTime}"/>
-                    <ComboBoxItem Content="{DynamicResource LOCPlayAch_Settings_DateDisplayMode_DateOnly}" Tag="{x:Static settings:DateDisplayMode.DateOnly}"/>
-                    <ComboBoxItem Content="{DynamicResource LOCPlayAch_Settings_DateDisplayMode_Relative}" Tag="{x:Static settings:DateDisplayMode.Relative}"/>
-                </ComboBox>
             </StackPanel>
         </StackPanel>
 
@@ -194,24 +192,6 @@
                 <TextBlock Text="{DynamicResource LOCPlayAch_Settings_LastPlayedDateDisplay}"
                            VerticalAlignment="Center"/>
                 <ComboBox SelectedValue="{Binding GameSummaryOptions.LastPlayedDateMode, ElementName=EditorRoot, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
-                          SelectedValuePath="Tag"
-                          MinWidth="140"
-                          Margin="{StaticResource PlayAch.Thickness.Left.Sm}">
-                    <ComboBoxItem Content="{DynamicResource LOCPlayAch_Settings_DateDisplayMode_DateAndTime}" Tag="{x:Static settings:DateDisplayMode.DateAndTime}"/>
-                    <ComboBoxItem Content="{DynamicResource LOCPlayAch_Settings_DateDisplayMode_DateOnly}" Tag="{x:Static settings:DateDisplayMode.DateOnly}"/>
-                    <ComboBoxItem Content="{DynamicResource LOCPlayAch_Settings_DateDisplayMode_Relative}" Tag="{x:Static settings:DateDisplayMode.Relative}"/>
-                </ComboBox>
-            </StackPanel>
-        </StackPanel>
-
-        <!-- Friend-summary date row -->
-        <StackPanel Style="{StaticResource FriendSummaryPanelStyle}">
-            <StackPanel Orientation="Horizontal"
-                        Visibility="{Binding ShowDateModeRow, ElementName=EditorRoot, Converter={StaticResource BoolToVis}}"
-                        Margin="{StaticResource PlayAch.Thickness.Bottom.Md}">
-                <TextBlock Text="{DynamicResource LOCPlayAch_Settings_DateDisplay}"
-                           VerticalAlignment="Center"/>
-                <ComboBox SelectedValue="{Binding FriendSummaryOptions.LastUnlockDateMode, ElementName=EditorRoot, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
                           SelectedValuePath="Tag"
                           MinWidth="140"
                           Margin="{StaticResource PlayAch.Thickness.Left.Sm}">

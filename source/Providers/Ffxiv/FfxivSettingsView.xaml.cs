@@ -105,6 +105,9 @@ namespace PlayniteAchievements.Providers.Ffxiv
                 return;
             }
 
+            SetAuthStatusChecking();
+            AuthStatus = ResourceProvider.GetString("LOCPlayAch_Settings_FFXIV_Verifying");
+
             try
             {
                 using (var client = new FfxivApiClient(Logger))

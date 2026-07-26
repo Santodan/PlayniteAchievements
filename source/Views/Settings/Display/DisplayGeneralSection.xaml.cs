@@ -4,6 +4,8 @@ using System.Windows;
 using System.Windows.Controls;
 using Playnite.SDK;
 using PlayniteAchievements.Models;
+using PlayniteAchievements.Models.Achievements;
+using PlayniteAchievements.Models.Settings;
 using PlayniteAchievements.Models.ThemeIntegration;
 using PlayniteAchievements.Views.Helpers;
 
@@ -81,6 +83,11 @@ namespace PlayniteAchievements.Views.Settings.Display
             {
                 RefreshVisibilityPreview();
             }
+
+            if (e.PropertyName == nameof(PersistedSettings.ShowCompletedProgressColoring))
+            {
+                RarityAppearanceHelper.ApplyBadgeApplicationResources(_settings?.Persisted);
+            }
         }
 
         private void ResetDisplaySettings_Click(object sender, RoutedEventArgs e)
@@ -94,7 +101,7 @@ namespace PlayniteAchievements.Views.Settings.Display
                 _onDisplaySettingsReset?.Invoke();
 
                 _plugin.PlayniteApi.Dialogs.ShowMessage(
-                    L("LOCPlayAch_Status_Succeeded", "Success!"),
+                    L("LOCPlayAch_Status_Succeeded"),
                     ResourceProvider.GetString("LOCPlayAch_Title_PluginName"),
                     MessageBoxButton.OK,
                     MessageBoxImage.Information);
@@ -103,7 +110,7 @@ namespace PlayniteAchievements.Views.Settings.Display
             {
                 _logger?.Error(ex, "Failed to reset Display tab settings.");
                 _plugin.PlayniteApi.Dialogs.ShowMessage(
-                    LF("LOCPlayAch_Status_Failed", "Error: {0}", ex.Message),
+                    LF("LOCPlayAch_Status_Failed", ex.Message),
                     ResourceProvider.GetString("LOCPlayAch_Title_PluginName"),
                     MessageBoxButton.OK,
                     MessageBoxImage.Error);
@@ -115,15 +122,14 @@ namespace PlayniteAchievements.Views.Settings.Display
             _persistedSubscription?.Dispose();
         }
 
-        private static string L(string key, string fallback)
+        private static string L(string key)
         {
-            var value = ResourceProvider.GetString(key);
-            return string.IsNullOrWhiteSpace(value) ? fallback : value;
+            return ResourceProvider.GetString(key);
         }
 
-        private static string LF(string key, string fallbackFormat, params object[] args)
+        private static string LF(string key, params object[] args)
         {
-            return string.Format(L(key, fallbackFormat), args);
+            return string.Format(L(key), args);
         }
     }
 }

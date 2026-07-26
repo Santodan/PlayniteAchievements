@@ -9,6 +9,7 @@ using PlayniteAchievements.Services.Friends;
 using PlayniteAchievements.Services.Refresh;
 using PlayniteAchievements.Services.Search;
 using PlayniteAchievements.ViewModels.Items;
+using PlayniteAchievements.Views.Helpers;
 using System;
 using System.Collections.Generic;
 using System.ComponentModel;
@@ -56,6 +57,16 @@ namespace PlayniteAchievements.ViewModels
         private List<FriendAchievementDisplayItem> _allRecentUnlocks = new List<FriendAchievementDisplayItem>();
         private List<FriendAchievementDisplayItem> _allAchievements = new List<FriendAchievementDisplayItem>();
         private List<FriendAchievementDisplayItem> _allUnlockedAchievements = new List<FriendAchievementDisplayItem>();
+
+        // On-demand rows for the friend+game pair comparison. The overview snapshot carries
+        // unlocked rows only, so the selected game's full definition rows (locked included,
+        // all friends) are fetched once per game selection and swapped in when they land;
+        // until then the pair view falls back to the snapshot's unlocked rows.
+        private List<FriendAchievementDisplayItem> _pairGameAchievements;
+        private string _pairGameKey;
+        private string _pairGameKeyInFlight;
+        private int _pairFetchVersion;
+        internal Task PairAchievementsFetchTask { get; private set; }
         private List<FriendSummaryItem> _filteredFriendsList = new List<FriendSummaryItem>();
         private List<FriendGameSummaryItem> _filteredGamesList = new List<FriendGameSummaryItem>();
         private List<FriendAchievementDisplayItem> _filteredAchievementsList = new List<FriendAchievementDisplayItem>();
@@ -78,14 +89,14 @@ namespace PlayniteAchievements.ViewModels
         private readonly object _loadQueueSync = new object();
         private Task _loadQueueTask;
         private bool _loadAgainRequested;
+        private bool _isLoading;
         private string _statusText;
         private string _friendSearchText;
         private string _gameSearchText;
         private string _achievementSearchText;
         private string _selectedProviderKey;
         private string _selectedRefreshMode = RefreshModeType.FriendsRecent.GetKey();
-        private double _progressPercent;
-        private string _progressMessage;
+        private readonly RefreshHeaderProgressTracker _progressTracker;
         private readonly TimeSpan _cacheInvalidationDebounceInterval;
         private readonly TimeSpan _activeRefreshInvalidationInterval;
         private DateTime _lastCacheReloadUtc = DateTime.MinValue;
@@ -113,9 +124,18 @@ namespace PlayniteAchievements.ViewModels
             _ownsFriendsOverviewDataCoordinator = friendsOverviewDataCoordinator == null;
             _friendsOverviewDataCoordinator = friendsOverviewDataCoordinator ??
                 new FriendsOverviewDataCoordinator(friendCache, () => _settings?.Persisted, logger);
+            if (!_ownsFriendsOverviewDataCoordinator)
+            {
+                // A shared coordinator retains its snapshot only while views (or a
+                // friend-consuming theme) hold it; an owned instance is disposed wholesale.
+                _friendsOverviewDataCoordinator.AddViewConsumer();
+            }
             _friendsOverviewDataCoordinator.SnapshotInvalidated += OnFriendsOverviewSnapshotInvalidated;
             _cacheInvalidationDebounceInterval = cacheInvalidationDebounceInterval ?? TimeSpan.FromMilliseconds(300);
-            _activeRefreshInvalidationInterval = activeRefreshInvalidationInterval ?? TimeSpan.FromMilliseconds(2500);
+            // Matches the FriendsOverviewDataCoordinator invalidation-event throttle: each reload
+            // during an active friend refresh rebuilds the full friend display graph, so the two
+            // cadences are kept aligned.
+            _activeRefreshInvalidationInterval = activeRefreshInvalidationInterval ?? TimeSpan.FromSeconds(15);
 
             if (_cacheInvalidationDebounceInterval > TimeSpan.Zero ||
                 _activeRefreshInvalidationInterval > TimeSpan.Zero)
@@ -132,6 +152,7 @@ namespace PlayniteAchievements.ViewModels
             FilteredFriends = new BulkObservableCollection<FriendSummaryItem>();
             FilteredGames = new BulkObservableCollection<FriendGameSummaryItem>();
             DisplayedAchievements = new BulkObservableCollection<FriendAchievementDisplayItem>();
+            SelectedFriendGameAllAchievements = new BulkObservableCollection<FriendAchievementDisplayItem>();
             ProviderFilterOptions = new ObservableCollection<string>();
             TypeFilterOptions = new ObservableCollection<string>();
             CategoryFilterOptions = new ObservableCollection<string>();
@@ -154,6 +175,8 @@ namespace PlayniteAchievements.ViewModels
 
             if (_refreshRuntime != null)
             {
+                _progressTracker = new RefreshHeaderProgressTracker(_refreshRuntime, logger);
+                _progressTracker.PropertyChanged += OnProgressTrackerChanged;
                 _refreshRuntime.RebuildProgress += OnRebuildProgress;
                 _refreshRuntime.CacheInvalidated += OnCacheInvalidated;
                 _refreshRuntime.FriendCacheInvalidated += OnFriendCacheInvalidated;
@@ -174,6 +197,10 @@ namespace PlayniteAchievements.ViewModels
         public BulkObservableCollection<FriendSummaryItem> FilteredFriends { get; }
         public BulkObservableCollection<FriendGameSummaryItem> FilteredGames { get; }
         public BulkObservableCollection<FriendAchievementDisplayItem> DisplayedAchievements { get; }
+
+        // Unfiltered friend+game comparison rows in canonical definition order feeding the grid's
+        // CategorySummarySource so category ordering does not follow the configured or live sort.
+        public BulkObservableCollection<FriendAchievementDisplayItem> SelectedFriendGameAllAchievements { get; }
 
         public BulkObservableCollection<FriendSummaryItem> Friends => FilteredFriends;
         public BulkObservableCollection<FriendGameSummaryItem> Games => FilteredGames;
@@ -253,6 +280,28 @@ namespace PlayniteAchievements.ViewModels
         public bool HasGameSelection => SelectedGame != null;
         public bool HasAnySelection => SelectedFriend != null || SelectedGame != null;
         public bool HasFriendGameSelection => SelectedFriend != null && SelectedGame != null;
+        public string AchievementColumnSettingsKey
+        {
+            get
+            {
+                if (HasFriendGameSelection)
+                {
+                    return "FriendsOverviewSelectedFriendGameAchievements";
+                }
+
+                if (HasFriendSelection)
+                {
+                    return "FriendsOverviewSelectedFriendAchievements";
+                }
+
+                if (HasGameSelection)
+                {
+                    return "FriendsOverviewSelectedGameAchievements";
+                }
+
+                return "FriendsOverviewRecentAchievements";
+            }
+        }
 
         // Category the achievement grid is currently drilled into (null when not drilled), pushed
         // up from AchievementDataGridControl so a breadcrumb segment can follow the section title.
@@ -331,6 +380,7 @@ namespace PlayniteAchievements.ViewModels
                     OnPropertyChanged(nameof(RefreshModeSelectionText));
                     OnPropertyChanged(nameof(RefreshActionButtonText));
                     OnPropertyChanged(nameof(RefreshOrCancelButtonText));
+                    OnPropertyChanged(nameof(RefreshOrCancelButtonGlyph));
                 }
             }
         }
@@ -345,12 +395,18 @@ namespace PlayniteAchievements.ViewModels
             SelectedRefreshMode,
             RefreshModeType.FriendsCustom.GetKey(),
             StringComparison.Ordinal)
-            ? ResourceProvider.GetString("LOCPlayAch_Button_Configure") ?? "Configure"
-            : ResourceProvider.GetString("LOCPlayAch_Button_Refresh") ?? "Refresh";
+            ? ResourceProvider.GetString("LOCPlayAch_Button_Configure")
+            : ResourceProvider.GetString("LOCPlayAch_Button_Refresh");
 
         public string RefreshOrCancelButtonText => IsRefreshing
-            ? ResourceProvider.GetString("LOCPlayAch_Button_Cancel") ?? "Cancel"
+            ? ResourceProvider.GetString("LOCPlayAch_Button_Cancel")
             : RefreshActionButtonText;
+
+        public string RefreshOrCancelButtonGlyph => IsRefreshing
+            ? "\uEEE4"
+            : string.Equals(SelectedRefreshMode, RefreshModeType.FriendsCustom.GetKey(), StringComparison.Ordinal)
+                ? "\uEFE1"
+                : "\uEFD1";
 
         public bool IsRefreshing
         {
@@ -361,30 +417,33 @@ namespace PlayniteAchievements.ViewModels
                 {
                     RaiseRefreshCanExecuteChanged();
                     OnPropertyChanged(nameof(RefreshOrCancelButtonText));
+                    OnPropertyChanged(nameof(RefreshOrCancelButtonGlyph));
                     OnPropertyChanged(nameof(ShowProgress));
                 }
             }
         }
 
-        public double ProgressPercent
-        {
-            get => _progressPercent;
-            private set => SetValue(ref _progressPercent, value);
-        }
+        public double ProgressPercent => _progressTracker?.ProgressPercent ?? 0;
 
-        public string ProgressMessage
+        public string ProgressMessage => _progressTracker?.ProgressMessage;
+
+        public bool ShowProgress => _progressTracker?.ShowProgress ?? false;
+
+        private void OnProgressTrackerChanged(object sender, PropertyChangedEventArgs e)
         {
-            get => _progressMessage;
-            private set
+            switch (e.PropertyName)
             {
-                if (SetValueAndReturn(ref _progressMessage, value))
-                {
+                case nameof(RefreshHeaderProgressTracker.ProgressPercent):
+                    OnPropertyChanged(nameof(ProgressPercent));
+                    break;
+                case nameof(RefreshHeaderProgressTracker.ProgressMessage):
+                    OnPropertyChanged(nameof(ProgressMessage));
+                    break;
+                case nameof(RefreshHeaderProgressTracker.ShowProgress):
                     OnPropertyChanged(nameof(ShowProgress));
-                }
+                    break;
             }
         }
-
-        public bool ShowProgress => IsRefreshing && !string.IsNullOrWhiteSpace(ProgressMessage);
 
         public string StatusText
         {
@@ -399,22 +458,31 @@ namespace PlayniteAchievements.ViewModels
         }
 
         public bool HasStatusText => !string.IsNullOrWhiteSpace(StatusText);
+
+        // True while the initial data load is in flight (before any data is shown), so the view
+        // can display a loading indicator. Set only for empty-state loads, so routine reloads
+        // over already-populated grids do not flash the overlay.
+        public bool IsLoading
+        {
+            get => _isLoading;
+            private set => SetValue(ref _isLoading, value);
+        }
         public bool HasData => _allFriends.Count > 0 || _allGames.Count > 0 || _allRecentUnlocks.Count > 0 || _allAchievements.Count > 0 || _allUnlockedAchievements.Count > 0;
         public bool IsProviderDisabled => false;
 
         public string SelectedProviderFilterText => string.IsNullOrWhiteSpace(SelectedProviderKey)
-            ? ResourceProvider.GetString("LOCPlayAch_FriendsOverview_AllProviders") ?? "All Providers"
+            ? ResourceProvider.GetString("LOCPlayAch_FriendsOverview_AllProviders")
             : SelectedProviderKey;
 
         public string SelectedTypeFilterText => GetSelectedFilterText(
             _selectedTypeFilters,
             TypeFilterOptions,
-            ResourceProvider.GetString("LOCPlayAch_Common_Label_Type") ?? "Type");
+            ResourceProvider.GetString("LOCPlayAch_Common_Label_Type"));
 
         public string SelectedCategoryFilterText => GetSelectedFilterText(
             _selectedCategoryFilters,
             CategoryFilterOptions,
-            ResourceProvider.GetString("LOCPlayAch_Common_Label_Category") ?? "Category");
+            ResourceProvider.GetString("LOCPlayAch_Common_Label_Category"));
 
         public string AchievementSectionTitle
         {
@@ -423,26 +491,24 @@ namespace PlayniteAchievements.ViewModels
                 if (SelectedFriend != null && SelectedGame != null)
                 {
                     return string.Format(
-                        ResourceProvider.GetString("LOCPlayAch_FriendsOverview_SelectedFriendGameAchievements") ?? "{0} - {1}",
+                        ResourceProvider.GetString("LOCPlayAch_FriendsOverview_SelectedFriendGameAchievements"),
                         SelectedFriend.DisplayName,
                         SelectedGame.GameName);
                 }
 
                 if (SelectedFriend != null)
                 {
-                    return string.Format(
-                        ResourceProvider.GetString("LOCPlayAch_FriendsOverview_SelectedFriendAchievements") ?? "{0} Achievements",
-                        SelectedFriend.DisplayName);
+                    return SelectedFriend.DisplayName;
                 }
 
                 if (SelectedGame != null)
                 {
                     return string.Format(
-                        ResourceProvider.GetString("LOCPlayAch_FriendsOverview_SelectedGameAchievements") ?? "{0} Achievements",
+                        ResourceProvider.GetString("LOCPlayAch_FriendsOverview_SelectedGameAchievements"),
                         SelectedGame.GameName);
                 }
 
-                return ResourceProvider.GetString("LOCPlayAch_RecentAchievements") ?? "Recent Achievements";
+                return ResourceProvider.GetString("LOCPlayAch_RecentAchievements");
             }
         }
 
@@ -465,9 +531,9 @@ namespace PlayniteAchievements.ViewModels
 
                 return string.Format(
                     format,
-                    unlocked,
-                    total,
-                    ResourceProvider.GetString("LOCPlayAch_Achievements") ?? "Achievements");
+                    unlocked.ToString("N0", FormattingCulture.Current),
+                    total.ToString("N0", FormattingCulture.Current),
+                    ResourceProvider.GetString("LOCPlayAch_Achievements"));
             }
         }
 
@@ -703,8 +769,7 @@ namespace PlayniteAchievements.ViewModels
             {
                 if (_showCustomRefreshDialog == null)
                 {
-                    StatusText = ResourceProvider.GetString("LOCPlayAch_FriendsOverview_NotAvailable") ??
-                                 "Friends Overview is not available.";
+                    StatusText = ResourceProvider.GetString("LOCPlayAch_FriendsOverview_NotAvailable");
                     return;
                 }
 
@@ -740,8 +805,7 @@ namespace PlayniteAchievements.ViewModels
         {
             if (_refreshCoordinator == null)
             {
-                StatusText = ResourceProvider.GetString("LOCPlayAch_FriendsOverview_NotAvailable") ??
-                             "Friends Overview is not available.";
+                StatusText = ResourceProvider.GetString("LOCPlayAch_FriendsOverview_NotAvailable");
                 return;
             }
 
@@ -749,9 +813,7 @@ namespace PlayniteAchievements.ViewModels
             {
                 IsRefreshing = true;
                 StatusText = null;
-                ProgressPercent = 0;
-                ProgressMessage = ResourceProvider.GetString("LOCPlayAch_FriendsOverview_Refreshing") ??
-                                  "Refreshing friends...";
+                _progressTracker?.NotifyRefreshStarting();
                 await _refreshCoordinator.ExecuteAsync(
                     request,
                     new RefreshExecutionPolicy
@@ -766,13 +828,11 @@ namespace PlayniteAchievements.ViewModels
             catch (Exception ex)
             {
                 _logger?.Error(ex, "Failed to refresh friends overview.");
-                StatusText = ResourceProvider.GetString("LOCPlayAch_FriendsOverview_RefreshFailed") ??
-                             "Friend refresh failed.";
+                StatusText = ResourceProvider.GetString("LOCPlayAch_FriendsOverview_RefreshFailed");
             }
             finally
             {
                 IsRefreshing = false;
-                ProgressMessage = null;
             }
         }
 
@@ -791,8 +851,7 @@ namespace PlayniteAchievements.ViewModels
                 return;
             }
 
-            StatusText = ResourceProvider.GetString("LOCPlayAch_FriendsOverview_SelectTargetForRefresh") ??
-                         "Select a friend or game before refreshing selected friend data.";
+            StatusText = ResourceProvider.GetString("LOCPlayAch_FriendsOverview_SelectTargetForRefresh");
         }
 
         private bool CanRefreshSelectedFriendTarget(object parameter)
@@ -1036,12 +1095,10 @@ namespace PlayniteAchievements.ViewModels
                 return;
             }
 
+            // Progress display is handled by the shared tracker; here we only track the
+            // friend-scoped refreshing state (button/command semantics) and refresh the
+            // friends snapshot when a friend refresh completes.
             IsRefreshing = _refreshRuntime?.IsRebuilding == true;
-            ProgressPercent = Math.Max(0, Math.Min(100, report.PercentComplete));
-            if (!string.IsNullOrWhiteSpace(report.Message))
-            {
-                ProgressMessage = report.Message;
-            }
 
             if (_refreshRuntime?.IsFinalProgressReport(report) == true)
             {
@@ -1059,14 +1116,19 @@ namespace PlayniteAchievements.ViewModels
             InvalidateFriendsOverviewSnapshot(forceImmediate: false);
         }
 
-        private void OnFriendCacheInvalidated(object sender, EventArgs e)
+        private void OnFriendCacheInvalidated(object sender, FriendCacheInvalidatedEventArgs e)
         {
             if (_disposed)
             {
                 return;
             }
 
-            InvalidateFriendsOverviewSnapshot(forceImmediate: true);
+            // Not forceImmediate: friend scans flush cache invalidations every ~2s, and each
+            // immediate reload is a full multi-second snapshot rebuild. The scheduled path
+            // applies the active-refresh interval during scans (and the short idle debounce
+            // otherwise), so scan progress still surfaces on a bounded cadence. The change
+            // scope is passed through so the coordinator can patch instead of fully reloading.
+            InvalidateFriendsOverviewSnapshot(forceImmediate: false, e);
         }
 
         private void OnFriendsOverviewSnapshotInvalidated(object sender, EventArgs e)
@@ -1079,7 +1141,7 @@ namespace PlayniteAchievements.ViewModels
             ScheduleCacheInvalidationReloadOnDispatcher(forceImmediate: false);
         }
 
-        private void InvalidateFriendsOverviewSnapshot(bool forceImmediate)
+        private void InvalidateFriendsOverviewSnapshot(bool forceImmediate, FriendCacheInvalidatedEventArgs args = null)
         {
             if (_disposed)
             {
@@ -1089,7 +1151,7 @@ namespace PlayniteAchievements.ViewModels
             Interlocked.Increment(ref _suppressCoordinatorInvalidationReload);
             try
             {
-                _friendsOverviewDataCoordinator?.Invalidate();
+                _friendsOverviewDataCoordinator?.Invalidate(args);
             }
             finally
             {
@@ -1190,6 +1252,8 @@ namespace PlayniteAchievements.ViewModels
 
         private Task LoadFromCacheAsync()
         {
+            Task queueTask;
+            bool startedNewLoad = false;
             lock (_loadQueueSync)
             {
                 if (_disposed)
@@ -1201,14 +1265,37 @@ namespace PlayniteAchievements.ViewModels
                 {
                     _loadAgainRequested = false;
                     _loadQueueTask = RunLoadFromCacheQueueAsync();
+                    startedNewLoad = true;
                 }
                 else
                 {
                     _loadAgainRequested = true;
                 }
 
-                return _loadQueueTask;
+                queueTask = _loadQueueTask;
             }
+
+            // Show the loading indicator only for an initial (empty) load, so it fills the blank
+            // window while the first snapshot builds without covering already-populated grids on
+            // routine reloads. It is cleared once the queue drains (RunLoadFromCacheQueueAsync).
+            if (startedNewLoad && !HasData)
+            {
+                SetIsLoadingOnUiThread(true);
+            }
+
+            return queueTask;
+        }
+
+        private void SetIsLoadingOnUiThread(bool value)
+        {
+            var dispatcher = System.Windows.Application.Current?.Dispatcher;
+            if (dispatcher != null && !dispatcher.CheckAccess())
+            {
+                dispatcher.BeginInvoke(new Action(() => IsLoading = value));
+                return;
+            }
+
+            IsLoading = value;
         }
 
         private async Task RunLoadFromCacheQueueAsync()
@@ -1227,6 +1314,7 @@ namespace PlayniteAchievements.ViewModels
                     if (!_loadAgainRequested || _disposed)
                     {
                         _loadQueueTask = null;
+                        SetIsLoadingOnUiThread(false);
                         return;
                     }
                 }
@@ -1297,6 +1385,7 @@ namespace PlayniteAchievements.ViewModels
                     _allRecentUnlocks = result.RecentUnlocks;
                     _allAchievements = result.AllAchievements;
                     _allUnlockedAchievements = result.AllUnlockedAchievements;
+                    ResetPairAchievements();
 
                     using (PerfScope.Start(_logger, "FriendsOverview.ApplyOnUiThread", thresholdMs: 15))
                     {
@@ -1309,8 +1398,7 @@ namespace PlayniteAchievements.ViewModels
 
                     StatusText = HasData
                         ? null
-                        : ResourceProvider.GetString("LOCPlayAch_FriendsOverview_NoData") ??
-                          "No friend achievement data yet.";
+                        : ResourceProvider.GetString("LOCPlayAch_FriendsOverview_NoData");
                     OnPropertyChanged(nameof(HasData));
                     OnPropertyChanged(nameof(IsProviderDisabled));
                 }
@@ -1321,12 +1409,13 @@ namespace PlayniteAchievements.ViewModels
                     _allRecentUnlocks = new List<FriendAchievementDisplayItem>();
                     _allAchievements = new List<FriendAchievementDisplayItem>();
                     _allUnlockedAchievements = new List<FriendAchievementDisplayItem>();
+                    ResetPairAchievements();
                     _projection = new FriendOverviewProjection(null);
                     FilteredFriends.ReplaceAll(Array.Empty<FriendSummaryItem>());
                     FilteredGames.ReplaceAll(Array.Empty<FriendGameSummaryItem>());
+                    SelectedFriendGameAllAchievements.ReplaceAll(Array.Empty<FriendAchievementDisplayItem>());
                     DisplayedAchievements.ReplaceAll(Array.Empty<FriendAchievementDisplayItem>());
-                    StatusText = ResourceProvider.GetString("LOCPlayAch_FriendsOverview_LoadFailed") ??
-                                 "Failed to load friend achievement data.";
+                    StatusText = ResourceProvider.GetString("LOCPlayAch_FriendsOverview_LoadFailed");
                     OnPropertyChanged(nameof(HasData));
                 }
             }
@@ -1356,7 +1445,7 @@ namespace PlayniteAchievements.ViewModels
                 if (!preserveSelections &&
                     SelectedFriend != null &&
                     SelectedGame != null &&
-                    !HasUnlocksForFriendGame(SelectedFriend, SelectedGame))
+                    !HasFriendGamePairData(SelectedFriend, SelectedGame))
                 {
                     _selectedGame = null;
                     OnPropertyChanged(nameof(SelectedGame));
@@ -1372,7 +1461,7 @@ namespace PlayniteAchievements.ViewModels
                     .Where(friend => _friendSearchIndex.Matches(friend, friendQuery));
                 if (SelectedGame != null)
                 {
-                    friends = friends.Where(friend => HasUnlocksForFriendGame(friend, SelectedGame));
+                    friends = friends.Where(friend => HasFriendGamePairData(friend, SelectedGame));
                 }
 
                 var friendList = friends.ToList();
@@ -1381,9 +1470,11 @@ namespace PlayniteAchievements.ViewModels
                     ? GetSelectedFriendGames(SelectedFriend)
                     : _allGames;
 
+                // No unlock gating here: the games list is ownership-driven and the cache only holds
+                // ownership rows that should display (owned games unconditionally; provider-only games
+                // once the friend has confirmed unlocks).
                 var games = gameSource
                     .Where(game => MatchesProvider(game?.ProviderKey))
-                    .Where(game => HasAnyFriendUnlocks(game))
                     .Where(game => _gameSearchIndex.Matches(game, gameQuery));
 
                 var gameList = games.ToList();
@@ -1449,9 +1540,15 @@ namespace PlayniteAchievements.ViewModels
                 // Rescope the type/category dropdowns to the now-resolved friend/game selection.
                 UpdateScopedFilterOptions();
 
-                var achievementSource = HasAnySelection
-                    ? _allAchievements
-                    : _allRecentUnlocks;
+                // Locked rows only make sense in the single friend + single game comparison view;
+                // every aggregated view (friend-only, game-only) shows unlocked rows, and no
+                // selection keeps the recent-unlocks feed. Pair rows (locked included) load on
+                // demand per selected game.
+                IReadOnlyList<FriendAchievementDisplayItem> achievementSource = HasFriendGameSelection
+                    ? ResolvePairAchievementSource()
+                    : HasAnySelection
+                        ? _allUnlockedAchievements
+                        : _allRecentUnlocks;
 
                 var achievements = achievementSource
                     .Where(achievement => MatchesProvider(achievement?.ProviderKey))
@@ -1532,6 +1629,15 @@ namespace PlayniteAchievements.ViewModels
                 FilteredGames.ReplaceAll(DisplayGridRowLimitHelper.Limit(
                     _filteredGamesList,
                     persisted?.FriendsOverviewGameSummariesGridMaxRows));
+                // Keep the unfiltered category-summary source current; achievement filters and grid
+                // sorts never touch it, so the category fallback order stays the definition-ordered
+                // snapshot loaded from the cache. Replaced before DisplayedAchievements so the grid's
+                // items-source reset rebuilds category rollups from the new selection's rows.
+                SelectedFriendGameAllAchievements.ReplaceAll(HasFriendGameSelection
+                    ? achievementSource.Where(achievement =>
+                        IsSameFriend(achievement, SelectedFriend) &&
+                        IsSameGame(achievement, SelectedGame))
+                    : Enumerable.Empty<FriendAchievementDisplayItem>());
                 DisplayedAchievements.ReplaceAll(DisplayGridRowLimitHelper.Limit(
                     _filteredAchievementsList,
                     persisted?.FriendsOverviewAchievementsGridMaxRows));
@@ -1542,6 +1648,97 @@ namespace PlayniteAchievements.ViewModels
             {
                 _isApplyingFilters = false;
             }
+        }
+
+        // Returns the pair comparison's achievement source: the on-demand full rows when they
+        // are loaded (or loaded-empty, falling back), otherwise the snapshot's unlocked rows
+        // while a fetch for the selected game runs.
+        private IReadOnlyList<FriendAchievementDisplayItem> ResolvePairAchievementSource()
+        {
+            var key = FriendOverviewProjection.GetGameScopeKey(SelectedGame);
+            if (string.IsNullOrWhiteSpace(key) ||
+                string.Equals(key, FriendOverviewProjection.AllScopeKey, StringComparison.OrdinalIgnoreCase))
+            {
+                return _allAchievements;
+            }
+
+            if (_pairGameAchievements != null &&
+                string.Equals(_pairGameKey, key, StringComparison.OrdinalIgnoreCase))
+            {
+                // A loaded-but-empty result (no cached definitions for the game) falls back to
+                // the unlocked rows instead of blanking the grid; it is cached either way so
+                // filter churn does not re-query.
+                return _pairGameAchievements.Count > 0 ? _pairGameAchievements : _allAchievements;
+            }
+
+            BeginPairAchievementsFetch(key, SelectedGame);
+            return _allAchievements;
+        }
+
+        private void BeginPairAchievementsFetch(string key, FriendGameSummaryItem game)
+        {
+            if (_friendCache == null ||
+                game == null ||
+                string.Equals(_pairGameKeyInFlight, key, StringComparison.OrdinalIgnoreCase))
+            {
+                return;
+            }
+
+            _pairGameKeyInFlight = key;
+            var version = Interlocked.Increment(ref _pairFetchVersion);
+            var gameScope = FriendCacheChange.ForGameDefinition(
+                game.ProviderKey,
+                game.AppId,
+                game.ProviderGameKey);
+            PairAchievementsFetchTask = FetchPairAchievementsAsync(version, key, gameScope);
+        }
+
+        private async Task FetchPairAchievementsAsync(int version, string key, FriendCacheChange gameScope)
+        {
+            List<FriendAchievementDisplayItem> rows = null;
+            try
+            {
+                rows = await Task
+                    .Run(() => _friendCache.LoadFriendGameAchievementData(gameScope)?.AllAchievements)
+                    .ConfigureAwait(false);
+            }
+            catch (Exception ex)
+            {
+                _logger?.Error(ex, "Failed to load friend pair achievement rows.");
+            }
+
+            void Apply()
+            {
+                if (_disposed || version != Volatile.Read(ref _pairFetchVersion))
+                {
+                    return;
+                }
+
+                _pairGameKeyInFlight = null;
+                _pairGameKey = key;
+                _pairGameAchievements = rows ?? new List<FriendAchievementDisplayItem>();
+                ApplyFilters(preserveSelections: true);
+            }
+
+            var dispatcher = System.Windows.Application.Current?.Dispatcher;
+            if (dispatcher != null)
+            {
+                dispatcher.InvokeIfNeeded(Apply);
+            }
+            else
+            {
+                Apply();
+            }
+        }
+
+        // Drops the on-demand pair rows and discards any in-flight fetch result; the next
+        // pair-scoped ApplyFilters re-fetches against the fresh cache state.
+        private void ResetPairAchievements()
+        {
+            Interlocked.Increment(ref _pairFetchVersion);
+            _pairGameAchievements = null;
+            _pairGameKey = null;
+            _pairGameKeyInFlight = null;
         }
 
         private void ApplyAchievementConfiguredDefaultSort()
@@ -1741,14 +1938,9 @@ namespace PlayniteAchievements.ViewModels
                    SelectedGame;
         }
 
-        private bool HasAnyFriendUnlocks(FriendGameSummaryItem game)
+        private bool HasFriendGamePairData(FriendSummaryItem friend, FriendGameSummaryItem game)
         {
-            return _projection?.HasAnyFriendUnlocks(game) == true;
-        }
-
-        private bool HasUnlocksForFriendGame(FriendSummaryItem friend, FriendGameSummaryItem game)
-        {
-            return _projection?.HasUnlocksForFriendGame(friend, game) == true;
+            return _projection?.HasFriendGamePairData(friend, game) == true;
         }
 
         private static bool IsSameFriend(FriendSummaryItem left, FriendSummaryItem right)
@@ -1775,6 +1967,7 @@ namespace PlayniteAchievements.ViewModels
 
             try
             {
+                PlayniteUiProvider.RestoreMainView();
                 _playniteApi?.MainView?.SelectGame(gameId);
             }
             catch (Exception ex)
@@ -1872,7 +2065,8 @@ namespace PlayniteAchievements.ViewModels
                 return;
             }
 
-            var scoped = (HasAnySelection ? _allAchievements : _allRecentUnlocks)
+            // Mirror the grid's source pick so the dropdowns only offer values the grid can show.
+            var scoped = (HasFriendGameSelection ? _allAchievements : _allUnlockedAchievements)
                 .Where(achievement => MatchesProvider(achievement?.ProviderKey))
                 .Where(achievement => IsSameGame(achievement, SelectedGame));
             if (SelectedFriend != null)
@@ -1956,7 +2150,7 @@ namespace PlayniteAchievements.ViewModels
             }
 
             var format = GetResourceFormatOrFallback("LOCPlayAch_Common_SelectedCountFormat", "{0:N0} selected", "{0");
-            return string.Format(format, selectedCount);
+            return string.Format(FormattingCulture.Current, format, selectedCount);
         }
 
         internal static string GetResourceFormatOrFallback(string resourceKey, string fallback, params string[] requiredPlaceholders)
@@ -1978,6 +2172,7 @@ namespace PlayniteAchievements.ViewModels
             OnPropertyChanged(nameof(HasGameSelection));
             OnPropertyChanged(nameof(HasAnySelection));
             OnPropertyChanged(nameof(HasFriendGameSelection));
+            OnPropertyChanged(nameof(AchievementColumnSettingsKey));
             OnPropertyChanged(nameof(AchievementSectionTitle));
             OnPropertyChanged(nameof(AchievementCountText));
         }
@@ -2000,6 +2195,12 @@ namespace PlayniteAchievements.ViewModels
                 propertyName == nameof(PersistedSettings.ShowFriendSpoilers))
             {
                 _friendsOverviewDataCoordinator?.Invalidate();
+            }
+
+            if (string.IsNullOrWhiteSpace(propertyName) ||
+                propertyName == nameof(PersistedSettings.IncludeUnownedFriendGames))
+            {
+                RebuildFriendRefreshModes();
             }
 
             if (string.IsNullOrWhiteSpace(propertyName) ||
@@ -2038,14 +2239,35 @@ namespace PlayniteAchievements.ViewModels
             }
         }
 
-        private static IEnumerable<RefreshMode> CreateFriendRefreshModes()
+        private IEnumerable<RefreshMode> CreateFriendRefreshModes()
         {
             yield return CreateRefreshMode(RefreshModeType.FriendsRecent);
-            yield return CreateRefreshMode(RefreshModeType.FriendsFull);
+            if (_settings?.Persisted?.IncludeUnownedFriendGames == true)
+            {
+                // Full is the only mode that scans unowned friend games; hide it entirely when
+                // the global toggle excludes unowned games (the planner also clamps any Full
+                // request to Shared as a backstop).
+                yield return CreateRefreshMode(RefreshModeType.FriendsFull);
+            }
+
             yield return CreateRefreshMode(RefreshModeType.FriendsShared);
             yield return CreateRefreshMode(RefreshModeType.FriendsInstalled);
             yield return CreateRefreshMode(RefreshModeType.FriendsSelectedGame);
             yield return CreateRefreshMode(RefreshModeType.FriendsCustom);
+        }
+
+        private void RebuildFriendRefreshModes()
+        {
+            FriendRefreshModes.Clear();
+            foreach (var mode in CreateFriendRefreshModes())
+            {
+                FriendRefreshModes.Add(mode);
+            }
+
+            if (!FriendRefreshModes.Any(mode => string.Equals(mode?.Key, SelectedRefreshMode, StringComparison.Ordinal)))
+            {
+                SelectedRefreshMode = RefreshModeType.FriendsRecent.GetKey();
+            }
         }
 
         private static RefreshMode CreateRefreshMode(RefreshModeType type)
@@ -2092,7 +2314,19 @@ namespace PlayniteAchievements.ViewModels
 
         public void Dispose()
         {
+            // Guards the shared coordinator's view-consumer count against double-decrement.
+            if (_disposed)
+            {
+                return;
+            }
+
             _disposed = true;
+
+            if (_progressTracker != null)
+            {
+                _progressTracker.PropertyChanged -= OnProgressTrackerChanged;
+                _progressTracker.Dispose();
+            }
 
             if (_refreshRuntime != null)
             {
@@ -2123,6 +2357,10 @@ namespace PlayniteAchievements.ViewModels
             if (_ownsFriendsOverviewDataCoordinator)
             {
                 _friendsOverviewDataCoordinator?.Dispose();
+            }
+            else
+            {
+                _friendsOverviewDataCoordinator?.RemoveViewConsumer();
             }
         }
 

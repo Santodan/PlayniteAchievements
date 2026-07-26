@@ -17,14 +17,12 @@ namespace PlayniteAchievements.Providers.BattleNet
 
         public ProviderOverrideDescriptor OverrideDescriptor { get; } = ProviderOverrideDescriptor.Choice(
             "LOCPlayAch_ManageAchievements_Overrides_ProviderValueLabel_BattleNet",
-            "Battle.net Title",
             new[]
             {
                 new ProviderOverrideChoice(BattleNetGameTitle.Wow.ToString(), "World of Warcraft"),
                 new ProviderOverrideChoice(BattleNetGameTitle.Sc2.ToString(), "StarCraft II")
             },
-            "LOCPlayAch_ManageAchievements_Overrides_ProviderInvalidChoice",
-            "Please select a valid title for this override.");
+            "LOCPlayAch_ManageAchievements_Overrides_ProviderInvalidChoice");
 
         private readonly BattleNetApiClient _apiClient;
         private readonly BattleNetSessionManager _sessionManager;

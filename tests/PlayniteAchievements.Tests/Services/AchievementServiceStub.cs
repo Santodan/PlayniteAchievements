@@ -138,8 +138,8 @@ namespace PlayniteAchievements.Services.Refresh
 #pragma warning disable CS0067
             public event EventHandler<GameCacheUpdatedEventArgs> GameCacheUpdated;
             public event EventHandler<CacheDeltaEventArgs> CacheDeltaUpdated;
-            public event EventHandler CacheInvalidated;
-            public event EventHandler FriendCacheInvalidated;
+            public event EventHandler<CacheInvalidatedEventArgs> CacheInvalidated;
+            public event EventHandler<FriendCacheInvalidatedEventArgs> FriendCacheInvalidated;
 #pragma warning restore CS0067
 
             public void EnsureDiskCacheOrClearMemory() { }
@@ -151,8 +151,12 @@ namespace PlayniteAchievements.Services.Refresh
             public CacheWriteResult SaveGameData(string key, GameAchievementData data) => null;
             public void RemoveGameData(Guid playniteGameId) { }
             public void RemoveGameCache(Guid playniteGameId) { }
-            public void NotifyCacheInvalidated() => CacheInvalidated?.Invoke(this, EventArgs.Empty);
-            public void NotifyFriendCacheInvalidated() => FriendCacheInvalidated?.Invoke(this, EventArgs.Empty);
+            public void NotifyCacheInvalidated() =>
+                CacheInvalidated?.Invoke(this, CacheInvalidatedEventArgs.FullInvalidation);
+            public void NotifyCacheInvalidated(IReadOnlyList<Guid> changedGameIds) =>
+                CacheInvalidated?.Invoke(this, CacheInvalidatedEventArgs.Scoped(changedGameIds));
+            public void NotifyFriendCacheInvalidated() =>
+                FriendCacheInvalidated?.Invoke(this, FriendCacheInvalidatedEventArgs.FullInvalidation);
             public IFriendCacheInvalidationBatch BeginFriendCacheInvalidationBatch() => NullFriendCacheInvalidationBatch.Instance;
             public void ClearCache() { }
             public string ExportDatabaseToCsv(string exportDirectory) => null;
@@ -182,6 +186,11 @@ namespace PlayniteAchievements.Services.Refresh
                 string providerKey,
                 IReadOnlyCollection<string> providerGameKeys) =>
                 new Dictionary<string, FriendGameDefinitionState>(StringComparer.OrdinalIgnoreCase);
+
+            public List<string> LoadLegacyKeyedDefinitionGameKeys(
+                string providerKey,
+                IReadOnlyCollection<string> providerGameKeys) =>
+                new List<string>();
 
             public FriendUnownedCacheStats GetUnownedFriendGameCacheStats() => new FriendUnownedCacheStats();
             public FriendUnownedCacheClearResult ClearUnownedFriendGameData() => new FriendUnownedCacheClearResult { Success = true };
@@ -219,6 +228,8 @@ namespace PlayniteAchievements.Services.Refresh
 
             public List<FriendIdentity> LoadFriendIdentities(string providerKey) => new List<FriendIdentity>();
 
+            public DateTime? GetMostRecentFriendLastRefreshedUtc() => null;
+
             public List<FriendRefreshCandidate> LoadFriendRefreshCandidates(string providerKey, FriendRefreshOptions options) =>
                 new List<FriendRefreshCandidate>();
 
@@ -226,7 +237,9 @@ namespace PlayniteAchievements.Services.Refresh
                 new Dictionary<string, FriendOwnershipRecency>();
 
             public FriendsOverviewData LoadFriendsOverviewData(int recentLimit) => new FriendsOverviewData();
+            public FriendsOverviewData LoadFriendsOverviewPatchData(IReadOnlyList<FriendCacheChange> reloadScopes) => new FriendsOverviewData();
             public FriendsOverviewData LoadFriendGameAchievementData(Guid playniteGameId) => new FriendsOverviewData();
+            public FriendsOverviewData LoadFriendGameAchievementData(FriendCacheChange gameScope) => new FriendsOverviewData();
             public FriendsOverviewData LoadFriendRecentUnlocksData(int recentLimit) => new FriendsOverviewData();
             public IReadOnlyList<CurrentUserGameLabel> LoadCurrentUserGameLabels() => new List<CurrentUserGameLabel>();
         }

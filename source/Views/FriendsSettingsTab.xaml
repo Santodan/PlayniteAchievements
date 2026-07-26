@@ -29,17 +29,32 @@
         </ResourceDictionary>
     </UserControl.Resources>
 
+    <ScrollViewer VerticalScrollBarVisibility="Auto"
+                  HorizontalScrollBarVisibility="Disabled">
     <Grid Margin="20">
         <Grid.RowDefinitions>
             <RowDefinition Height="Auto"/>
             <RowDefinition Height="Auto"/>
-            <RowDefinition Height="*"/>
         </Grid.RowDefinitions>
 
-        <Border Grid.Row="0" Style="{StaticResource SectionBorderStyle}">
+        <Grid Grid.Row="0">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="*"/>
+                <ColumnDefinition Width="*"/>
+            </Grid.ColumnDefinitions>
+
+            <Border Grid.Column="0" Style="{StaticResource SectionBorderStyle}" Margin="0,0,10,20">
                 <StackPanel>
-                    <TextBlock Text="{DynamicResource LOCPlayAch_FriendsSettings_AutoDiscover}"
-                               Style="{StaticResource SectionHeaderStyle}"/>
+                    <DockPanel Margin="0,0,0,6">
+                        <Button DockPanel.Dock="Right"
+                                Content="{DynamicResource LOCPlayAch_Settings_RefreshFriendsList}"
+                                Command="{Binding RefreshAutoDiscoverCommand}"
+                                VerticalAlignment="Top"
+                                Padding="{StaticResource PlayAch.Thickness.ButtonPadding.Wide}"/>
+                        <TextBlock Text="{DynamicResource LOCPlayAch_FriendsSettings_AutoDiscover}"
+                                   Style="{StaticResource SectionHeaderStyle}"
+                                   VerticalAlignment="Center"/>
+                    </DockPanel>
 
                     <TextBlock Text="{DynamicResource LOCPlayAch_FriendsSettings_AutoDiscoverHint}"
                                Style="{StaticResource MutedTextStyle}"
@@ -47,12 +62,17 @@
                                Margin="0,0,0,10"/>
 
                     <ItemsControl ItemsSource="{Binding AutoDiscoverProviders}">
+                        <ItemsControl.ItemsPanel>
+                            <ItemsPanelTemplate>
+                                <WrapPanel Orientation="Horizontal"/>
+                            </ItemsPanelTemplate>
+                        </ItemsControl.ItemsPanel>
                         <ItemsControl.ItemTemplate>
                             <DataTemplate>
                                 <CheckBox Content="{Binding DisplayName}"
                                           IsChecked="{Binding IsSelected, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
                                           IsEnabled="{Binding IsAvailable}"
-                                          Margin="0,0,0,6"/>
+                                          Margin="0,0,16,6"/>
                             </DataTemplate>
                         </ItemsControl.ItemTemplate>
                     </ItemsControl>
@@ -60,28 +80,29 @@
                     <CheckBox Content="{DynamicResource LOCPlayAch_FriendsSettings_UseExophaseForSteamOwnership}"
                               IsChecked="{Binding UseExophaseForSteamFriendOwnership, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
                               IsEnabled="{Binding IsExophaseProviderEnabled}"
-                              Margin="0,8,0,4"/>
-                    <TextBlock Text="{DynamicResource LOCPlayAch_FriendsSettings_UseExophaseForSteamOwnershipHint}"
+                              ToolTip="{DynamicResource LOCPlayAch_FriendsSettings_UseExophaseForSteamOwnershipHint}"
+                              ToolTipService.ShowOnDisabled="True"
+                              Margin="0,6,0,0"/>
+
+                    <CheckBox Content="{DynamicResource LOCPlayAch_FriendsSettings_IncludeUnownedGames}"
+                              IsChecked="{Binding IncludeUnownedFriendGames, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                              ToolTip="{DynamicResource LOCPlayAch_FriendsSettings_IncludeUnownedGamesHint}"
+                              Margin="0,6,0,0"/>
+                    <TextBlock Text="{DynamicResource LOCPlayAch_FriendsSettings_IncludeUnownedGamesHint}"
                                Style="{StaticResource MutedTextStyle}"
                                TextWrapping="Wrap"
-                               Margin="0,0,0,6"/>
-
-                    <Button Content="{DynamicResource LOCPlayAch_Settings_RefreshFriendsList}"
-                            Command="{Binding RefreshAutoDiscoverCommand}"
-                            HorizontalAlignment="Left"
-                            Padding="{StaticResource PlayAch.Thickness.ButtonPadding.Wide}"
-                            Margin="0,8,0,0"/>
+                               Margin="18,2,0,0"/>
                 </StackPanel>
             </Border>
 
-        <Border Grid.Row="1" Style="{StaticResource SectionBorderStyle}">
+            <Border Grid.Column="1" Style="{StaticResource SectionBorderStyle}">
                 <StackPanel>
                     <TextBlock Text="{DynamicResource LOCPlayAch_FriendsSettings_ManualAdd}"
                                Style="{StaticResource SectionHeaderStyle}"/>
 
                     <Grid>
                         <Grid.ColumnDefinitions>
-                            <ColumnDefinition Width="120"/>
+                            <ColumnDefinition Width="Auto"/>
                             <ColumnDefinition Width="*"/>
                             <ColumnDefinition Width="Auto"/>
                         </Grid.ColumnDefinitions>
@@ -96,7 +117,7 @@
                         <TextBox Grid.Column="1"
                                  Text="{Binding ManualExophaseUsername, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
                                  VerticalAlignment="Center"
-                                 MinWidth="220"
+                                 MinWidth="160"
                                  Margin="0,0,12,0"/>
 
                         <Button Grid.Column="2"
@@ -106,35 +127,36 @@
                     </Grid>
                 </StackPanel>
             </Border>
+        </Grid>
 
-        <Border Grid.Row="2" Style="{StaticResource SectionBorderStyle}">
+        <Border Grid.Row="1" Style="{StaticResource SectionBorderStyle}">
                 <Grid>
                     <Grid.RowDefinitions>
-                        <RowDefinition Height="Auto"/>
                         <RowDefinition Height="Auto"/>
                         <RowDefinition Height="Auto"/>
                         <RowDefinition Height="*"/>
                         <RowDefinition Height="Auto"/>
                     </Grid.RowDefinitions>
 
-                    <TextBlock Grid.Row="0"
-                               Text="{DynamicResource LOCPlayAch_Settings_Friends}"
-                               Style="{StaticResource SectionHeaderStyle}"/>
+                    <DockPanel Grid.Row="0" Margin="0,0,0,4">
+                        <Button DockPanel.Dock="Right"
+                                Content="{DynamicResource LOCPlayAch_FriendsSettings_MergeSelected}"
+                                Command="{Binding MergeSelectedCommand}"
+                                VerticalAlignment="Top"
+                                Padding="{StaticResource PlayAch.Thickness.ButtonPadding.Wide}"/>
+                        <TextBlock Text="{DynamicResource LOCPlayAch_Settings_Friends}"
+                                   Style="{StaticResource SectionHeaderStyle}"
+                                   VerticalAlignment="Center"/>
+                    </DockPanel>
 
                     <TextBlock Grid.Row="1"
                                Text="{DynamicResource LOCPlayAch_Settings_FriendsTableHint}"
                                Style="{StaticResource MutedTextStyle}"
                                TextWrapping="Wrap"
-                               Margin="0,0,0,10"/>
+                               Margin="0,0,0,8"/>
 
-                    <DockPanel Grid.Row="2" Margin="0,0,0,8">
-                        <Button Content="{DynamicResource LOCPlayAch_FriendsSettings_MergeSelected}"
-                                Command="{Binding MergeSelectedCommand}"
-                                HorizontalAlignment="Left"
-                                Padding="{StaticResource PlayAch.Thickness.ButtonPadding.Wide}"/>
-                    </DockPanel>
-
-                    <DataGrid Grid.Row="3"
+                    <DataGrid Grid.Row="2"
+                              Style="{StaticResource PlayAch.DataGrid.BaseStyle}"
                               ItemsSource="{Binding Friends}"
                               AutoGenerateColumns="False"
                               CanUserAddRows="False"
@@ -149,9 +171,10 @@
                               ColumnHeaderStyle="{StaticResource AchievementColumnHeaderStyle}"
                               CellStyle="{StaticResource AchievementCellStyle}"
                               RowStyle="{StaticResource FriendsSettingsGridRowStyle}"
-                              MinHeight="160"
+                              MinHeight="420"
+                              MaxHeight="600"
                               VerticalAlignment="Stretch"
-                              VirtualizingPanel.ScrollUnit="Pixel"
+                              VirtualizingPanel.ScrollUnit="Item"
                               ScrollViewer.VerticalScrollBarVisibility="Auto"
                               ScrollViewer.HorizontalScrollBarVisibility="Auto">
                         <DataGrid.Columns>
@@ -188,7 +211,7 @@
                                                     VerticalAlignment="Center">
                                                 <Image helpers:AsyncImage.Uri="{Binding AvatarSource}"
                                                        helpers:AsyncImage.DecodePixel="96"
-                                                       Stretch="UniformToFill"
+                                                       Stretch="Uniform"
                                                        RenderOptions.BitmapScalingMode="HighQuality"/>
                                             </Border>
 
@@ -251,7 +274,7 @@
                                                                 VerticalAlignment="Center">
                                                             <Image helpers:AsyncImage.Uri="{Binding AvatarSource}"
                                                                    helpers:AsyncImage.DecodePixel="48"
-                                                                   Stretch="UniformToFill"
+                                                                   Stretch="Uniform"
                                                                    RenderOptions.BitmapScalingMode="HighQuality"/>
                                                         </Border>
 
@@ -413,7 +436,7 @@
                         </DataGrid.Columns>
                     </DataGrid>
 
-                    <TextBlock Grid.Row="4"
+                    <TextBlock Grid.Row="3"
                                Text="{Binding StatusText}"
                                Style="{StaticResource MutedTextStyle}"
                                TextWrapping="Wrap"
@@ -421,4 +444,5 @@
                 </Grid>
             </Border>
     </Grid>
+    </ScrollViewer>
 </UserControl>

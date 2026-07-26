@@ -65,7 +65,10 @@ namespace PlayniteAchievements.Services.Hydration
                 detail.ProviderKey = providerKey;
 
                 var apiName = (detail.ApiName ?? string.Empty).Trim();
-                var providerCategory = NormalizeCategory(detail.Category);
+                // Prefer the previously captured provider label: re-hydrating an instance whose
+                // Category was already overwritten by a rename override must not lose it.
+                var providerCategory = NormalizeCategory(detail.ProviderCategory ?? detail.Category);
+                detail.ProviderCategory = providerCategory;
                 var providerCategoryType = AchievementCategoryTypeHelper.Normalize(detail.CategoryType);
 
                 if (hasManualCapstone)

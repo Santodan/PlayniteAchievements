@@ -11,7 +11,7 @@ namespace PlayniteAchievements.Services.Database
 {
     internal sealed class SqlNadoSchemaManager
     {
-        public const int SchemaVersion = 15;
+        public const int SchemaVersion = 17;
         private const string LegacyGamesProviderGameIdIndexName = "UX_Games_Provider_GameId";
         private const string GamesProviderGameIdNonRaIndexName = "UX_Games_Provider_GameId_NonRA";
         private const string GamesProviderGameIdLookupIndexName = "IX_Games_Provider_GameId";
@@ -150,6 +150,7 @@ namespace PlayniteAchievements.Services.Database
 
             EnsureFriendOwnershipTable(db);
             EnsureProviderGameDefinitionStateTable(db);
+            EnsureAchievementFiltersTable(db);
 
             var storedVersion = GetStoredSchemaVersion(db);
             var verification = VerifyRequiredColumns(db);
@@ -164,6 +165,7 @@ namespace PlayniteAchievements.Services.Database
                 // Schema is correct - ensure version is set if needed
                 if (storedVersion < SchemaVersion)
                 {
+                    RunVersionedDataCleanups(db, storedVersion);
                     db.ExecuteNonQuery(
                         "INSERT OR REPLACE INTO CacheMetadata (Key, Value) VALUES (?, ?);",
                         "schema_version",
@@ -202,12 +204,66 @@ namespace PlayniteAchievements.Services.Database
             // Create ProviderKey-dependent indexes after successful migration
             CreateProviderKeyIndexes(db);
 
+            RunVersionedDataCleanups(db, storedVersion);
             db.ExecuteNonQuery(
                 "INSERT OR REPLACE INTO CacheMetadata (Key, Value) VALUES (?, ?);",
                 "schema_version",
                 SchemaVersion.ToString(CultureInfo.InvariantCulture));
 
             BackfillRequiredAchievementCategoryValues(db);
+        }
+
+        // One-time data cleanups tied to schema version upgrades. Runs before the stored version is
+        // advanced; fresh databases (storedVersion 0) have nothing to clean.
+        private void RunVersionedDataCleanups(SQLiteDatabase db, int storedVersion)
+        {
+            if (storedVersion <= 0)
+            {
+                return;
+            }
+
+            if (storedVersion < 16)
+            {
+                CleanupZeroUnlockProviderOnlyFriendOwnership(db);
+            }
+        }
+
+        // v16: friend ownership rows for provider-only games (no PlayniteGameId) are only written once
+        // a probe has confirmed the friend has unlocked achievements. Older caches persisted them
+        // unconditionally; delete the rows whose friend has no unlocked achievement for that game so
+        // the ownership-driven friends overview matches the refresh-side invariant without display
+        // filtering. Mirrors the unlocks predicate of LoadFriendGameSummaryRows (UserGameProgress ->
+        // UserAchievements with Unlocked = 1).
+        private void CleanupZeroUnlockProviderOnlyFriendOwnership(SQLiteDatabase db)
+        {
+            try
+            {
+                db.ExecuteNonQuery(@"DELETE FROM FriendOwnership
+                    WHERE Id IN (
+                        SELECT fo.Id
+                        FROM FriendOwnership fo
+                        INNER JOIN Users u ON u.Id = fo.UserId
+                        INNER JOIN Games g ON g.Id = fo.GameId
+                        WHERE g.PlayniteGameId IS NULL
+                          AND u.IsCurrentUser = 0
+                          AND NOT EXISTS (
+                              SELECT 1
+                              FROM UserGameProgress ugp
+                              INNER JOIN UserAchievements ua
+                                  ON ua.UserGameProgressId = ugp.Id AND ua.Unlocked = 1
+                              WHERE ugp.UserId = fo.UserId AND ugp.GameId = fo.GameId
+                          )
+                    );");
+                var deleted = db.ExecuteScalar<long>("SELECT changes();");
+                if (deleted > 0)
+                {
+                    _logger?.Info($"[Schema] v16 cleanup removed {deleted} zero-unlock provider-only friend ownership row(s).");
+                }
+            }
+            catch (System.Exception ex)
+            {
+                _logger?.Error(ex, "[Schema] v16 zero-unlock provider-only friend ownership cleanup failed.");
+            }
         }
 
         private void ExecuteSafe(SQLiteDatabase db, string sql)
@@ -274,6 +330,7 @@ namespace PlayniteAchievements.Services.Database
             EnsureFriendOwnershipIndexes(db);
             EnsureProviderGameDefinitionStateTable(db);
             EnsureProviderGameDefinitionStateIndexes(db);
+            EnsureAchievementFiltersTable(db);
         }
 
         private void EnsureFriendOwnershipTable(SQLiteDatabase db)
@@ -307,6 +364,23 @@ namespace PlayniteAchievements.Services.Database
 
             ExecuteSafe(db, @"CREATE INDEX IF NOT EXISTS IX_FriendOwnership_LastScraped
                 ON FriendOwnership (LastScrapedUtc, LastScrapeStatus);");
+        }
+
+        // Derived mirror of the per-game achievement filter lists stored in game_custom_data.db
+        // (a separate SQLite file the summary queries cannot join to). Fully resynced from
+        // custom data at startup and on every CustomDataChanged; refresh saves never touch it.
+        // The UNIQUE index prefix-covers the summary queries' (PlayniteGameId, ApiName)
+        // anti-join probe.
+        private void EnsureAchievementFiltersTable(SQLiteDatabase db)
+        {
+            ExecuteSafe(db, @"CREATE TABLE IF NOT EXISTS AchievementFilters (
+                Id INTEGER PRIMARY KEY AUTOINCREMENT,
+                PlayniteGameId TEXT NOT NULL COLLATE NOCASE,
+                ApiName TEXT NOT NULL COLLATE NOCASE,
+                Kind TEXT NOT NULL COLLATE NOCASE,
+                CreatedUtc TEXT NOT NULL,
+                UNIQUE (PlayniteGameId, ApiName, Kind)
+            );");
         }
 
         private void EnsureProviderGameDefinitionStateTable(SQLiteDatabase db)
@@ -617,6 +691,7 @@ namespace PlayniteAchievements.Services.Database
             ReconcileProviderGameDefinitionStateTable(db, ref backupPath);
             EnsureProviderGameDefinitionStateTable(db);
             EnsureProviderGameDefinitionStateIndexes(db);
+            EnsureAchievementFiltersTable(db);
 
             return backupPath;
         }
@@ -861,6 +936,12 @@ namespace PlayniteAchievements.Services.Database
             EnsureRequiredColumn(friendOwnershipColumns, "LastScrapeDetail", "FriendOwnership", missing);
             EnsureRequiredColumn(friendOwnershipColumns, "CreatedUtc", "FriendOwnership", missing);
             EnsureRequiredColumn(friendOwnershipColumns, "UpdatedUtc", "FriendOwnership", missing);
+
+            var achievementFilterColumns = GetColumnNames(db, "AchievementFilters");
+            EnsureRequiredColumn(achievementFilterColumns, "PlayniteGameId", "AchievementFilters", missing);
+            EnsureRequiredColumn(achievementFilterColumns, "ApiName", "AchievementFilters", missing);
+            EnsureRequiredColumn(achievementFilterColumns, "Kind", "AchievementFilters", missing);
+            EnsureRequiredColumn(achievementFilterColumns, "CreatedUtc", "AchievementFilters", missing);
 
             var providerGameDefinitionStateColumns = GetColumnNames(db, "ProviderGameDefinitionState");
             EnsureRequiredColumn(providerGameDefinitionStateColumns, "ProviderKey", "ProviderGameDefinitionState", missing);

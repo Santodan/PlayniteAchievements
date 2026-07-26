@@ -209,6 +209,53 @@ namespace PlayniteAchievements.Services.Tests
         }
 
         [TestMethod]
+        public void ResolveSourceOrderedGridSortAction_CyclesAscendingDescendingThenResetsToSourceOrder()
+        {
+            var first = GameSummariesSortHelper.ResolveSourceOrderedGridSortAction(
+                "SortingName",
+                currentSortPath: null,
+                currentSortDirection: null);
+            var second = GameSummariesSortHelper.ResolveSourceOrderedGridSortAction(
+                "SortingName",
+                first.SortMemberPath,
+                first.Direction);
+            var third = GameSummariesSortHelper.ResolveSourceOrderedGridSortAction(
+                "SortingName",
+                second.SortMemberPath,
+                second.Direction);
+
+            Assert.AreEqual(GameSummariesGridSortActionKind.ApplySort, first.Kind);
+            Assert.AreEqual(ListSortDirection.Ascending, first.Direction);
+            Assert.AreEqual(GameSummariesGridSortActionKind.ApplySort, second.Kind);
+            Assert.AreEqual(ListSortDirection.Descending, second.Direction);
+            Assert.AreEqual(GameSummariesGridSortActionKind.ResetToDefault, third.Kind);
+        }
+
+        [TestMethod]
+        public void ResolveSourceOrderedGridSortAction_DifferentColumn_RestartsAtAscending()
+        {
+            var action = GameSummariesSortHelper.ResolveSourceOrderedGridSortAction(
+                nameof(GameSummaryItem.Progression),
+                currentSortPath: "SortingName",
+                currentSortDirection: ListSortDirection.Descending);
+
+            Assert.AreEqual(GameSummariesGridSortActionKind.ApplySort, action.Kind);
+            Assert.AreEqual(nameof(GameSummaryItem.Progression), action.SortMemberPath);
+            Assert.AreEqual(ListSortDirection.Ascending, action.Direction);
+        }
+
+        [TestMethod]
+        public void ResolveSourceOrderedGridSortAction_MissingSortMemberPath_ReturnsNone()
+        {
+            var action = GameSummariesSortHelper.ResolveSourceOrderedGridSortAction(
+                null,
+                currentSortPath: "SortingName",
+                currentSortDirection: ListSortDirection.Ascending);
+
+            Assert.AreEqual(GameSummariesGridSortActionKind.None, action.Kind);
+        }
+
+        [TestMethod]
         public void ApplySortIndicator_RecentUnlockDefault_DoesNotReturnVisibleColumn()
         {
             string indicatorPath = "seed";
@@ -307,6 +354,31 @@ namespace PlayniteAchievements.Services.Tests
                 items.Select(item => item.GameName).ToArray());
         }
 
+        [TestMethod]
+        public void TrySortItems_Owned_UsesPlayniteGamePresence()
+        {
+            var items = new List<GameSummaryItem>
+            {
+                CreateItem("Gamma", owned: false),
+                CreateItem("Beta", owned: true),
+                CreateItem("Alpha", owned: false)
+            };
+            string currentSortPath = null;
+            var currentSortDirection = ListSortDirection.Ascending;
+
+            var sorted = GameSummariesSortHelper.TrySortItems(
+                items,
+                nameof(GameSummaryItem.Owned),
+                ListSortDirection.Descending,
+                ref currentSortPath,
+                ref currentSortDirection);
+
+            Assert.IsTrue(sorted);
+            CollectionAssert.AreEqual(
+                new[] { "Beta", "Alpha", "Gamma" },
+                items.Select(item => item.GameName).ToArray());
+        }
+
         private static GameSummaryItem CreateItem(
             string gameName,
             string sortingName = null,
@@ -316,7 +388,8 @@ namespace PlayniteAchievements.Services.Tests
             int unlockedAchievements = 5,
             int collectionScore = 0,
             int prestigeScore = 0,
-            int points = 0)
+            int points = 0,
+            bool owned = false)
         {
             return new GameSummaryItem
             {
@@ -329,6 +402,7 @@ namespace PlayniteAchievements.Services.Tests
                 CollectionScore = collectionScore,
                 PrestigeScore = prestigeScore,
                 Points = points,
+                PlayniteGameId = owned ? Guid.NewGuid() : (Guid?)null,
                 AppId = Math.Abs(gameName.GetHashCode())
             };
         }

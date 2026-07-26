@@ -91,7 +91,9 @@
         </Border>
     </ControlTemplate>
 
-    <Style TargetType="{x:Type DataGrid}">
+    <!-- This dictionary is merged into Application.Current.Resources; keyless styles here would
+         apply to every matching control in the Playnite process, including other plugins. -->
+    <Style x:Key="PlayAch.DataGrid.BaseStyle" TargetType="{x:Type DataGrid}">
         <Setter Property="helpers:DataGridColumnGripperBehavior.IsEnabled" Value="True"/>
         <Style.Triggers>
             <Trigger Property="helpers:DataGridHoverScrollBarBehavior.IsEnabled"
@@ -262,7 +264,7 @@
 
     <!-- DataGrid Cell Style -->
     <Style x:Key="AchievementCellStyle" TargetType="DataGridCell">
-        <Setter Property="Background" Value="{DynamicResource PlayAch.Brush.Grid.RowBackground}"/>
+        <Setter Property="Background" Value="Transparent"/>
         <Setter Property="BorderThickness" Value="0"/>
         <Setter Property="Focusable" Value="True"/>
         <Setter Property="IsTabStop" Value="True"/>
@@ -282,34 +284,6 @@
                 </ControlTemplate>
             </Setter.Value>
         </Setter>
-        <Style.Triggers>
-            <DataTrigger Binding="{Binding RelativeSource={RelativeSource AncestorType=DataGridRow}, Path=ContextMenu.IsOpen}" Value="True">
-                <Setter Property="Background" Value="{DynamicResource PlayAch.Brush.Grid.RowHoverBackground}"/>
-            </DataTrigger>
-            <DataTrigger Binding="{Binding RelativeSource={RelativeSource AncestorType=DataGridRow}, Path=IsMouseOver}" Value="True">
-                <Setter Property="Background" Value="{DynamicResource PlayAch.Brush.Grid.RowHoverBackground}"/>
-            </DataTrigger>
-            <DataTrigger Binding="{Binding RelativeSource={RelativeSource AncestorType=DataGridRow}, Path=IsSelected}" Value="True">
-                <Setter Property="Background" Value="{DynamicResource PlayAch.Brush.Grid.RowSelectedBackground}"/>
-            </DataTrigger>
-            <DataTrigger Binding="{Binding RelativeSource={RelativeSource AncestorType=DataGridRow}, Path=IsKeyboardFocusWithin}" Value="True">
-                <Setter Property="Background" Value="{DynamicResource PlayAch.Brush.Grid.RowHoverBackground}"/>
-            </DataTrigger>
-            <MultiDataTrigger>
-                <MultiDataTrigger.Conditions>
-                    <Condition Binding="{Binding RelativeSource={RelativeSource AncestorType=DataGridRow}, Path=IsMouseOver}" Value="True"/>
-                    <Condition Binding="{Binding RelativeSource={RelativeSource AncestorType=DataGridRow}, Path=IsSelected}" Value="True"/>
-                </MultiDataTrigger.Conditions>
-                <Setter Property="Background" Value="{DynamicResource PlayAch.Brush.Grid.RowSelectedBackground}"/>
-            </MultiDataTrigger>
-            <MultiDataTrigger>
-                <MultiDataTrigger.Conditions>
-                    <Condition Binding="{Binding RelativeSource={RelativeSource AncestorType=DataGridRow}, Path=IsSelected}" Value="True"/>
-                    <Condition Binding="{Binding RelativeSource={RelativeSource AncestorType=DataGridRow}, Path=IsKeyboardFocusWithin}" Value="True"/>
-                </MultiDataTrigger.Conditions>
-                <Setter Property="Background" Value="{DynamicResource PlayAch.Brush.Grid.RowSelectedBackground}"/>
-            </MultiDataTrigger>
-        </Style.Triggers>
     </Style>
 
     <Style x:Key="ManageAchievementsDataGridCellStyle"
@@ -498,6 +472,69 @@
         <Setter Property="FocusVisualStyle" Value="{x:Null}"/>
         <Setter Property="Cursor" Value="Hand"/>
         <Setter Property="MinHeight" Value="66"/>
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="{x:Type DataGridRow}">
+                    <Border x:Name="DGR_Border"
+                            Background="{TemplateBinding Background}"
+                            BorderBrush="{TemplateBinding BorderBrush}"
+                            BorderThickness="{TemplateBinding BorderThickness}"
+                            SnapsToDevicePixels="True">
+                        <SelectiveScrollingGrid>
+                            <SelectiveScrollingGrid.ColumnDefinitions>
+                                <ColumnDefinition Width="Auto"/>
+                                <ColumnDefinition Width="*"/>
+                            </SelectiveScrollingGrid.ColumnDefinitions>
+                            <SelectiveScrollingGrid.RowDefinitions>
+                                <RowDefinition Height="*"/>
+                                <RowDefinition Height="Auto"/>
+                            </SelectiveScrollingGrid.RowDefinitions>
+
+                            <DataGridCellsPresenter Grid.Column="1"
+                                                    ItemsPanel="{TemplateBinding ItemsPanel}"
+                                                    SnapsToDevicePixels="{TemplateBinding SnapsToDevicePixels}"/>
+
+                            <DataGridDetailsPresenter Grid.Column="1"
+                                                      Grid.Row="1"
+                                                      SelectiveScrollingGrid.SelectiveScrollingOrientation="{Binding AreRowDetailsFrozen, ConverterParameter={x:Static SelectiveScrollingOrientation.Vertical}, Converter={x:Static DataGrid.RowDetailsScrollingConverter}, RelativeSource={RelativeSource AncestorType={x:Type DataGrid}}}"
+                                                      Visibility="{TemplateBinding DetailsVisibility}"/>
+
+                            <DataGridRowHeader Grid.RowSpan="2"
+                                               SelectiveScrollingGrid.SelectiveScrollingOrientation="Vertical"
+                                               Visibility="{Binding HeadersVisibility, ConverterParameter={x:Static DataGridHeadersVisibility.Row}, Converter={x:Static DataGrid.HeadersVisibilityConverter}, RelativeSource={RelativeSource AncestorType={x:Type DataGrid}}}"/>
+                        </SelectiveScrollingGrid>
+                    </Border>
+                    <ControlTemplate.Triggers>
+                        <DataTrigger Binding="{Binding ContextMenu.IsOpen, RelativeSource={RelativeSource TemplatedParent}}" Value="True">
+                            <Setter TargetName="DGR_Border" Property="Background" Value="{DynamicResource PlayAch.Brush.Grid.RowHoverBackground}"/>
+                        </DataTrigger>
+                        <Trigger Property="IsMouseOver" Value="True">
+                            <Setter TargetName="DGR_Border" Property="Background" Value="{DynamicResource PlayAch.Brush.Grid.RowHoverBackground}"/>
+                        </Trigger>
+                        <Trigger Property="IsKeyboardFocusWithin" Value="True">
+                            <Setter TargetName="DGR_Border" Property="Background" Value="{DynamicResource PlayAch.Brush.Grid.RowHoverBackground}"/>
+                        </Trigger>
+                        <Trigger Property="IsSelected" Value="True">
+                            <Setter TargetName="DGR_Border" Property="Background" Value="{DynamicResource PlayAch.Brush.Grid.RowSelectedBackground}"/>
+                        </Trigger>
+                        <MultiTrigger>
+                            <MultiTrigger.Conditions>
+                                <Condition Property="IsMouseOver" Value="True"/>
+                                <Condition Property="IsSelected" Value="True"/>
+                            </MultiTrigger.Conditions>
+                            <Setter TargetName="DGR_Border" Property="Background" Value="{DynamicResource PlayAch.Brush.Grid.RowSelectedBackground}"/>
+                        </MultiTrigger>
+                        <MultiTrigger>
+                            <MultiTrigger.Conditions>
+                                <Condition Property="IsSelected" Value="True"/>
+                                <Condition Property="IsKeyboardFocusWithin" Value="True"/>
+                            </MultiTrigger.Conditions>
+                            <Setter TargetName="DGR_Border" Property="Background" Value="{DynamicResource PlayAch.Brush.Grid.RowSelectedBackground}"/>
+                        </MultiTrigger>
+                    </ControlTemplate.Triggers>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
     </Style>
 
     <Style x:Key="ManageAchievementsDataGridRowStyle"

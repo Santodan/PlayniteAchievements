@@ -98,8 +98,18 @@ namespace PlayniteAchievements.Views.ManageAchievements
                 return;
             }
 
-            if (source is CheckBox || VisualTreeHelpers.FindVisualParent<CheckBox>(source) != null)
+            var checkBox = source as CheckBox ?? VisualTreeHelpers.FindVisualParent<CheckBox>(source);
+            if (checkBox != null)
             {
+                // Toggle the hit checkbox ourselves and consume the event so the DataGrid never runs
+                // native cell selection / BringIntoView, which scrolls (and oscillates) when the
+                // clicked row is only partially visible at the viewport edge.
+                if (checkBox.IsEnabled)
+                {
+                    checkBox.IsChecked = !(checkBox.IsChecked ?? false);
+                }
+
+                e.Handled = true;
                 return;
             }
 

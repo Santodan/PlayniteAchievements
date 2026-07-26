@@ -1,4 +1,6 @@
+using PlayniteAchievements.Models.Achievements;
 using PlayniteAchievements.Models.ThemeIntegration;
+using PlayniteAchievements.Services.Achievements;
 using System;
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
@@ -91,6 +93,54 @@ namespace PlayniteAchievements.Services.ThemeIntegration
             return new ObservableCollection<DynamicThemeOption>(options);
         }
 
+        public static ObservableCollection<DynamicThemeOption> CreateCategoryLabelOptions(
+            IEnumerable<AchievementDetail> achievements,
+            string selectedKey,
+            ICommand applyCommand = null)
+        {
+            var items = (achievements ?? Enumerable.Empty<AchievementDetail>())
+                .Where(item => item != null)
+                .ToList();
+
+            var counts = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
+            foreach (var item in items)
+            {
+                var label = AchievementCategoryTypeHelper.NormalizeCategoryOrDefault(item.Category);
+                counts.TryGetValue(label, out var count);
+                counts[label] = count + 1;
+            }
+
+            // Labels follow the game's custom category order first (order indexes resolved
+            // during presentation), then first-seen order for the remainder.
+            var preferredOrder = items
+                .Where(item => item.CategoryOrderIndex < int.MaxValue)
+                .OrderBy(item => item.CategoryOrderIndex)
+                .Select(item => AchievementCategoryTypeHelper.NormalizeCategoryOrDefault(item.Category));
+            var orderedLabels = AchievementCategoryFilterOrderHelper.BuildOrderedCategoryLabels(
+                items,
+                item => item.Category,
+                preferredOrder);
+
+            var options = new List<DynamicThemeOption>
+            {
+                new DynamicThemeOption(
+                    DynamicThemeViewKeys.All,
+                    DynamicThemeLabels.GetLabel(DynamicThemeViewKeys.All, DynamicThemeViewKeys.All),
+                    counts.Values.Sum(),
+                    IsSelected(DynamicThemeViewKeys.All, selectedKey),
+                    applyCommand)
+            };
+
+            options.AddRange(orderedLabels.Select(label => new DynamicThemeOption(
+                label,
+                AchievementCategoryTypeHelper.ToCategoryLabelDisplayText(label),
+                counts.TryGetValue(label, out var count) ? count : 0,
+                IsSelected(label, selectedKey),
+                applyCommand)));
+
+            return new ObservableCollection<DynamicThemeOption>(options);
+        }
+
         public static ObservableCollection<DynamicThemeOption> CreateGameOptions(
             IEnumerable<GameAchievementSummary> games,
             string selectedKey,
@@ -103,15 +153,22 @@ namespace PlayniteAchievements.Services.ThemeIntegration
                 .Select(group =>
                 {
                     var game = group.First();
-                    return new DynamicThemeOption(
-                        game.GameId.ToString("D"),
-                        !string.IsNullOrWhiteSpace(game.Name) ? game.Name : game.GameId.ToString("D"),
-                        game.AchievementCount,
-                        IsSelected(game.GameId.ToString("D"), selectedKey),
-                        applyCommand,
-                        commandParameterFactory?.Invoke(game.GameId.ToString("D")));
+                    var key = game.GameId.ToString("D");
+                    return new
+                    {
+                        Option = new DynamicThemeOption(
+                            key,
+                            !string.IsNullOrWhiteSpace(game.Name) ? game.Name : key,
+                            game.AchievementCount,
+                            IsSelected(key, selectedKey),
+                            applyCommand,
+                            commandParameterFactory?.Invoke(key)),
+                        SortName = string.IsNullOrWhiteSpace(game.SortingName) ? game.Name : game.SortingName
+                    };
                 })
-                .OrderBy(option => option.Label, StringComparer.CurrentCultureIgnoreCase)
+                .OrderBy(item => item.SortName, StringComparer.CurrentCultureIgnoreCase)
+                .ThenBy(item => item.Option.Label, StringComparer.CurrentCultureIgnoreCase)
+                .Select(item => item.Option)
                 .ToList();
 
             if (!string.IsNullOrWhiteSpace(selectedKey) &&

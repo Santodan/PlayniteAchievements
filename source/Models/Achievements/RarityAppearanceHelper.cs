@@ -43,17 +43,15 @@ namespace PlayniteAchievements.Models.Achievements
         /// <summary>
         /// Glossy gradient brush in the rarity color for the Hardcore icon border. The corners
         /// stay at the rarity color and a bright highlight sweeps diagonally through the middle,
-        /// giving a clean shine without the dark corners of the badge gradient. Returns null for
-        /// Common (no rarity treatment).
+        /// giving a clean shine without the dark corners of the badge gradient.
         /// </summary>
         public static Brush GetShineBrush(RarityTier tier, PersistedSettings settings = null)
         {
-            if (tier == RarityTier.Common)
-            {
-                return null;
-            }
+            return CreateShineBrush(GetBaseColor(tier, settings));
+        }
 
-            var baseColor = GetBaseColor(tier, settings);
+        private static Brush CreateShineBrush(Color baseColor)
+        {
             var brush = new LinearGradientBrush
             {
                 StartPoint = new Point(0, 0),
@@ -102,6 +100,71 @@ namespace PlayniteAchievements.Models.Achievements
             }
 
             resources["PlayAch.Brush.CompletedGame"] = GetCompletedBrush(settings);
+        }
+
+        /// <summary>
+        /// Soft glow effect in the completed-game gradient start or end color for the
+        /// game/category art completion glow. The two effects are offset toward opposite
+        /// corners so stacked copies read as a two-tone bloom matching the diagonal of the
+        /// completed badge gradient.
+        /// </summary>
+        public static DropShadowEffect GetCompletedGlow(bool useEndColor, PersistedSettings settings = null)
+        {
+            var effect = new DropShadowEffect
+            {
+                BlurRadius = 14,
+                ShadowDepth = 2,
+                Direction = useEndColor ? 315 : 135,
+                Color = useEndColor ? GetCompletedEndColor(settings) : GetCompletedStartColor(settings),
+                Opacity = 1.0
+            };
+
+            if (effect.CanFreeze)
+            {
+                effect.Freeze();
+            }
+
+            return effect;
+        }
+
+        public static void ApplyCompletedGlowEffectResources(ResourceDictionary resources, PersistedSettings settings = null)
+        {
+            if (resources == null)
+            {
+                return;
+            }
+
+            resources["PlayAch.Effect.CompletedGlowStart"] = GetCompletedGlow(useEndColor: false, settings);
+            resources["PlayAch.Effect.CompletedGlowEnd"] = GetCompletedGlow(useEndColor: true, settings);
+        }
+
+        /// <summary>
+        /// Publishes the completed progress-bar fill so the progress-bar style can switch to
+        /// the completed gradient via DynamicResource. The fill is always a plain
+        /// CompletedStart -> CompletedEnd sweep (the badge's rainbow default and highlight
+        /// band stay badge-only).
+        /// </summary>
+        public static void ApplyCompletedProgressFillResource(ResourceDictionary resources, PersistedSettings settings = null)
+        {
+            if (resources == null)
+            {
+                return;
+            }
+
+            var persisted = settings ?? _activeSettings;
+            if (persisted?.ShowCompletedProgressColoring == false)
+            {
+                var normalFill = resources.Contains("PlayAch.Brush.Progress.Fill")
+                    ? resources["PlayAch.Brush.Progress.Fill"]
+                    : Application.Current?.TryFindResource("PlayAch.Brush.Progress.Fill");
+                if (normalFill != null)
+                {
+                    resources["PlayAch.Brush.Progress.CompletedFill"] = normalFill;
+                    return;
+                }
+            }
+
+            resources["PlayAch.Brush.Progress.CompletedFill"] = CreateCompletedProgressFillBrush(settings);
         }
 
         public static Color GetCompletedStartColor(PersistedSettings settings = null)
@@ -258,6 +321,7 @@ namespace PlayniteAchievements.Models.Achievements
             SetGeneratedBadge(resources, RarityTier.Rare, "BadgeGoldHexagon");
             SetGeneratedBadge(resources, RarityTier.UltraRare, "BadgePlatinumHexagon");
             ApplyCompletedGameBrushResource(resources, settings);
+            ApplyCompletedProgressFillResource(resources, settings);
             var completedBadge = CreateCompletedBadgeImage(settings);
             resources["BadgeCompletedGame"] = completedBadge;
             // Runtime-only alias with no static definition in RarityBadges.xaml, mirroring the
@@ -269,6 +333,16 @@ namespace PlayniteAchievements.Models.Achievements
             resources["TrophySilver"] = CreateTrophyImage("TrophySilver", settings);
             resources["TrophyGold"] = CreateTrophyImage("TrophyGold", settings);
             resources["TrophyPlatinum"] = CreateTrophyImage("TrophyPlatinum", settings);
+            // Solid text brushes in the configured tier colors for rarity/trophy count labels
+            // (e.g. the game summary progress-footer badges), consumed via DynamicResource.
+            resources["PlayAch.Brush.Rarity.UltraRare"] = GetBrush(RarityTier.UltraRare, settings);
+            resources["PlayAch.Brush.Rarity.Rare"] = GetBrush(RarityTier.Rare, settings);
+            resources["PlayAch.Brush.Rarity.Uncommon"] = GetBrush(RarityTier.Uncommon, settings);
+            resources["PlayAch.Brush.Rarity.Common"] = GetBrush(RarityTier.Common, settings);
+            resources["PlayAch.Brush.Trophy.Platinum"] = CreateSolidBrush(GetTrophyColor("TrophyPlatinum", settings));
+            resources["PlayAch.Brush.Trophy.Gold"] = CreateSolidBrush(GetTrophyColor("TrophyGold", settings));
+            resources["PlayAch.Brush.Trophy.Silver"] = CreateSolidBrush(GetTrophyColor("TrophySilver", settings));
+            resources["PlayAch.Brush.Trophy.Bronze"] = CreateSolidBrush(GetTrophyColor("TrophyBronze", settings));
             SetStaticScoreBadge(resources, "ScoreBadgeBronzeTriangle", "BadgeBronzeTriangle");
             SetStaticScoreBadge(resources, "ScoreBadgeBronzeHexagon", "BadgeBronzeHexagon");
             SetStaticScoreBadge(resources, "ScoreBadgeSilverSquare", "BadgeSilverSquare");
@@ -502,6 +576,29 @@ namespace PlayniteAchievements.Models.Achievements
             brush.GradientStops.Add(new GradientStop(Blend(startColor, endColor, 0.35), 0.35));
             brush.GradientStops.Add(new GradientStop(Blend(Blend(startColor, endColor, 0.55), Colors.White, 0.72), 0.55));
             brush.GradientStops.Add(new GradientStop(endColor, 1.00));
+            if (brush.CanFreeze)
+            {
+                brush.Freeze();
+            }
+
+            return brush;
+        }
+
+        /// <summary>
+        /// Plain horizontal CompletedStart -> CompletedEnd sweep for the progress-bar fill and
+        /// border. Unlike the badge gradient there is no white highlight band, which reads as a
+        /// stray bright patch on a thin bar.
+        /// </summary>
+        private static Brush CreateCompletedProgressFillBrush(PersistedSettings settings)
+        {
+            var brush = new LinearGradientBrush
+            {
+                StartPoint = new Point(0, 0),
+                EndPoint = new Point(1, 0)
+            };
+
+            brush.GradientStops.Add(new GradientStop(GetCompletedStartColor(settings), 0.0));
+            brush.GradientStops.Add(new GradientStop(GetCompletedEndColor(settings), 1.0));
             if (brush.CanFreeze)
             {
                 brush.Freeze();

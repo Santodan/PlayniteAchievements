@@ -56,19 +56,53 @@ namespace PlayniteAchievements.Tests.Common
         [TestMethod]
         public void GetBucket_EarlierThisMonthPriorWeek_ReturnsThisMonth()
         {
-            Assert.AreEqual(RelativeDateBucket.ThisMonth, RelativeDateFormatter.GetBucket(new DateTime(2026, 6, 15), Now));
+            Assert.AreEqual(RelativeDateBucket.ThisMonth, RelativeDateFormatter.GetBucket(new DateTime(2026, 6, 10), Now));
+        }
+
+        [TestMethod]
+        public void GetBucket_PreviousCalendarWeek_ReturnsLastWeek()
+        {
+            Assert.AreEqual(RelativeDateBucket.LastWeek, RelativeDateFormatter.GetBucket(new DateTime(2026, 6, 15), Now));
+        }
+
+        [TestMethod]
+        public void GetBucket_PreviousCalendarMonth_ReturnsLastMonth()
+        {
+            Assert.AreEqual(RelativeDateBucket.LastMonth, RelativeDateFormatter.GetBucket(new DateTime(2026, 5, 15), Now));
         }
 
         [TestMethod]
         public void GetBucket_EarlierThisYearPriorMonth_ReturnsThisYear()
         {
-            Assert.AreEqual(RelativeDateBucket.ThisYear, RelativeDateFormatter.GetBucket(new DateTime(2026, 5, 15), Now));
+            Assert.AreEqual(RelativeDateBucket.ThisYear, RelativeDateFormatter.GetBucket(new DateTime(2026, 4, 15), Now));
+        }
+
+        [TestMethod]
+        public void GetBucket_LastMonthAcrossYearBoundary_ReturnsLastMonth()
+        {
+            Assert.AreEqual(
+                RelativeDateBucket.LastMonth,
+                RelativeDateFormatter.GetBucket(new DateTime(2025, 12, 15), new DateTime(2026, 1, 15)));
         }
 
         [TestMethod]
         public void GetBucket_PriorYear_ReturnsLongAgo()
         {
             Assert.AreEqual(RelativeDateBucket.LongAgo, RelativeDateFormatter.GetBucket(new DateTime(2025, 6, 15), Now));
+        }
+
+        [TestMethod]
+        public void GetYearsAgo_PriorCalendarYear_ReturnsOne()
+        {
+            // Calendar-year difference, consistent with the bucketing: late December of the
+            // prior year is still "1 year ago" in early January.
+            Assert.AreEqual(1, RelativeDateFormatter.GetYearsAgo(new DateTime(2025, 12, 31), new DateTime(2026, 1, 1)));
+        }
+
+        [TestMethod]
+        public void GetYearsAgo_SeveralYearsBack_ReturnsCalendarYearDifference()
+        {
+            Assert.AreEqual(8, RelativeDateFormatter.GetYearsAgo(new DateTime(2018, 6, 15), Now));
         }
     }
 }

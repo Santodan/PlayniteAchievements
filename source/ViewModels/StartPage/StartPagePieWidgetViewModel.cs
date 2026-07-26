@@ -108,8 +108,8 @@ namespace PlayniteAchievements.ViewModels.StartPage
             Chart.SetGameData(
                 games.Count,
                 games.Count(game => game?.IsCompleted == true),
-                L("LOCPlayAch_Filter_Complete", "Complete"),
-                L("LOCPlayAch_Overview_Incomplete", "Incomplete"));
+                L("LOCPlayAch_Filter_Complete"),
+                L("LOCPlayAch_Overview_Incomplete"));
         }
 
         private void ApplyProvider(OverviewDataSnapshot snapshot)
@@ -125,7 +125,7 @@ namespace PlayniteAchievements.ViewModels.StartPage
                 unlockedByProvider,
                 totalByProvider,
                 totalLocked,
-                L("LOCPlayAch_Common_Locked", "Locked"),
+                L("LOCPlayAch_Common_Locked"),
                 providerLookup,
                 providerDisplayNames);
         }
@@ -143,11 +143,11 @@ namespace PlayniteAchievements.ViewModels.StartPage
                 games.Sum(game => game?.TotalUncommonPossible ?? 0),
                 games.Sum(game => game?.TotalRarePossible ?? 0),
                 games.Sum(game => game?.TotalUltraRarePossible ?? 0),
-                L("LOCPlayAch_Rarity_Common", "Common"),
-                L("LOCPlayAch_Rarity_Uncommon", "Uncommon"),
-                L("LOCPlayAch_Rarity_Rare", "Rare"),
-                L("LOCPlayAch_Rarity_UltraRare", "Ultra Rare"),
-                L("LOCPlayAch_Common_Locked", "Locked"),
+                L("LOCPlayAch_Rarity_Common"),
+                L("LOCPlayAch_Rarity_Uncommon"),
+                L("LOCPlayAch_Rarity_Rare"),
+                L("LOCPlayAch_Rarity_UltraRare"),
+                L("LOCPlayAch_Common_Locked"),
                 PersistedSettings?.UseUniformRarityBadges ?? false);
         }
 
@@ -163,11 +163,11 @@ namespace PlayniteAchievements.ViewModels.StartPage
                 games.Sum(game => game?.TrophyGoldTotal ?? 0),
                 games.Sum(game => game?.TrophySilverTotal ?? 0),
                 games.Sum(game => game?.TrophyBronzeTotal ?? 0),
-                L("LOCPlayAch_Trophy_Platinum", "Platinum"),
-                L("LOCPlayAch_Trophy_Gold", "Gold"),
-                L("LOCPlayAch_Trophy_Silver", "Silver"),
-                L("LOCPlayAch_Trophy_Bronze", "Bronze"),
-                L("LOCPlayAch_Common_Locked", "Locked"));
+                L("LOCPlayAch_Trophy_Platinum"),
+                L("LOCPlayAch_Trophy_Gold"),
+                L("LOCPlayAch_Trophy_Silver"),
+                L("LOCPlayAch_Trophy_Bronze"),
+                L("LOCPlayAch_Common_Locked"));
         }
 
         private List<GameSummaryItem> GetScopedGames(OverviewDataSnapshot snapshot, bool includeProgressScope)
@@ -241,25 +241,17 @@ namespace PlayniteAchievements.ViewModels.StartPage
         {
             return widgetKind switch
             {
-                StartPageWidgetKind.CompletedGamesPie => L("LOCPlayAch_Overview_GamesPieChart", "Completed Games"),
-                StartPageWidgetKind.ProviderPie => L("LOCPlayAch_Overview_ProviderDistribution", "Achievements by Platform"),
-                StartPageWidgetKind.RarityPie => L("LOCPlayAch_Overview_RarityPieChart", "Achievements by Rarity"),
-                StartPageWidgetKind.TrophyPie => L("LOCPlayAch_Overview_TrophyPieChart", "Achievements by Trophy"),
+                StartPageWidgetKind.CompletedGamesPie => L("LOCPlayAch_Overview_GamesPieChart"),
+                StartPageWidgetKind.ProviderPie => L("LOCPlayAch_Overview_ProviderDistribution"),
+                StartPageWidgetKind.RarityPie => L("LOCPlayAch_Overview_RarityPieChart"),
+                StartPageWidgetKind.TrophyPie => L("LOCPlayAch_Overview_TrophyPieChart"),
                 _ => string.Empty
             };
         }
 
-        private static string L(string key, string fallback)
+        private static string L(string key)
         {
-            if (string.IsNullOrWhiteSpace(key))
-            {
-                return fallback;
-            }
-
-            var value = ResourceProvider.GetString(key);
-            return string.IsNullOrWhiteSpace(value) || string.Equals(value, key, StringComparison.Ordinal)
-                ? fallback
-                : value;
+            return ResourceProvider.GetString(key);
         }
     }
 }

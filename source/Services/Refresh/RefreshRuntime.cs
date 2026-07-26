@@ -69,6 +69,14 @@ namespace PlayniteAchievements.Services.Refresh
         private readonly PlayniteAchievements.Providers.ProviderRegistry _providerRegistry;
         private readonly Action<RebuildPayload> _onRefreshCompleted;
         private int _savedGamesInCurrentRun;
+
+        // A refresh that saves many games or scrapes many friend rows fetches many provider web
+        // pages (multi-MB HTML on the LOH), inflating the working set the CLR then holds. After a
+        // large run, request a one-time LOH compaction. The gate takes the max of current-user
+        // saved games and friend scrape volume so combined runs whose weight is on the friend
+        // side still compact, while Single/Recent runs (a handful of games) never trigger a
+        // collection.
+        private const int LohCompactionSavedGamesThreshold = 25;
         private volatile List<string> _lastFailedAuthProviderKeys = new List<string>();
 
         // Dependencies that need disposal
@@ -81,11 +89,19 @@ namespace PlayniteAchievements.Services.Refresh
         /// </summary>
         public PlayniteAchievements.Providers.ProviderRegistry ProviderRegistry => _providerRegistry;
 
-        internal virtual async Task<RefreshAuthContext> GetRefreshAuthContextOrShowDialogAsync(CancellationToken ct = default)
+        internal virtual async Task<RefreshAuthContext> GetRefreshAuthContextOrShowDialogAsync(
+            RefreshRequest request,
+            CancellationToken ct = default)
         {
-            var authContext = await GetRefreshAuthContextAsync(ct).ConfigureAwait(false);
+            var authContext = await GetRefreshAuthContextAsync(request, ct).ConfigureAwait(false);
             if (authContext.HasAuthenticatedProviders)
             {
+                return authContext;
+            }
+
+            if (HasSteamTransientAuthFailure(authContext))
+            {
+                _logger.Warn("Refresh skipped because Steam web authentication could not be verified; suppressing generic authentication modal.");
                 return authContext;
             }
 
@@ -100,7 +116,7 @@ namespace PlayniteAchievements.Services.Refresh
 
         internal virtual async Task<IReadOnlyList<IDataProvider>> GetAuthenticatedProvidersOrShowDialogAsync(CancellationToken ct = default)
         {
-            var authContext = await GetRefreshAuthContextOrShowDialogAsync(ct).ConfigureAwait(false);
+            var authContext = await GetRefreshAuthContextOrShowDialogAsync(null, ct).ConfigureAwait(false);
             return authContext?.AuthenticatedProviders ?? Array.Empty<IDataProvider>();
         }
 
@@ -141,13 +157,13 @@ namespace PlayniteAchievements.Services.Refresh
             remove => _cacheService.CacheDeltaUpdated -= value;
         }
 
-        public event EventHandler CacheInvalidated
+        public event EventHandler<CacheInvalidatedEventArgs> CacheInvalidated
         {
             add => _cacheService.CacheInvalidated += value;
             remove => _cacheService.CacheInvalidated -= value;
         }
 
-        public event EventHandler FriendCacheInvalidated
+        public event EventHandler<FriendCacheInvalidatedEventArgs> FriendCacheInvalidated
         {
             add
             {
@@ -461,6 +477,9 @@ namespace PlayniteAchievements.Services.Refresh
             Interlocked.Exchange(ref _savedGamesInCurrentRun, 0);
             List<IRefreshAuthContextReceiver> authContextReceivers = null;
 
+            var memBaseline = MemoryDiagnostics.Log(_logger, "refresh.start", $"mode={mode} operation={operationId}");
+            var memSampler = MemoryDiagnostics.StartSampler(_logger, $"mode={mode}", TimeSpan.FromSeconds(60));
+
             // Report immediately so UI updates buttons before any async work
             var startMsg = ResourceProvider.GetString("LOCPlayAch_Status_Starting");
             Report(
@@ -497,6 +516,20 @@ namespace PlayniteAchievements.Services.Refresh
                     ? new List<string>(payload.FailedProviderKeys)
                     : new List<string>();
             }
+            catch (OperationCanceledException ex) when (!cts.IsCancellationRequested)
+            {
+                // A cancellation-shaped exception (e.g. an HttpClient timeout's
+                // TaskCanceledException) without the run token being cancelled is a failure,
+                // not a user cancel; log it with its stack so the timeout site is identifiable.
+                _logger.Error(ex, $"{errorLogMessage} (operation canceled without the run token being cancelled)");
+                Report(
+                    ResourceProvider.GetString("LOCPlayAch_Error_RebuildFailed"),
+                    0,
+                    1,
+                    operationId: operationId,
+                    mode: mode,
+                    currentGameId: singleGameId);
+            }
             catch (OperationCanceledException)
             {
                 _logger.Info("User achievement refresh was canceled.");
@@ -522,8 +555,10 @@ namespace PlayniteAchievements.Services.Refresh
             }
             finally
             {
+                memSampler?.Dispose();
                 EndScopedRefreshAuthContext(effectiveAuthContext, authContextReceivers);
-                var hasSavedGames = Interlocked.Exchange(ref _savedGamesInCurrentRun, 0) > 0;
+                var savedGamesCount = Interlocked.Exchange(ref _savedGamesInCurrentRun, 0);
+                var hasSavedGames = savedGamesCount > 0;
                 var wasCanceled = cts.IsCancellationRequested;
                 var finalTotalSteps = _refreshProgressReporter.CompletionTotalSteps;
                 EndRun();
@@ -543,8 +578,29 @@ namespace PlayniteAchievements.Services.Refresh
 
                 if (hasSavedGames)
                 {
-                    _cacheService.NotifyCacheInvalidated();
+                    // Scoped when the run knows which games it refreshed (a poller tick names
+                    // exactly one); null or an over-large list degrades to a full invalidation.
+                    _cacheService.NotifyCacheInvalidated(payload?.Summary?.RefreshedGameIds);
                 }
+
+                MemoryDiagnostics.Log(
+                    _logger,
+                    "refresh.end",
+                    memBaseline,
+                    $"mode={mode} savedGames={savedGamesCount} canceled={wasCanceled}");
+
+                // Runs on a threadpool continuation (the run body is awaited with
+                // ConfigureAwait(false)), so the blocking collection stays off the UI thread.
+                // payload is null on cancel/exception paths, so friend volume is 0 there and
+                // only current-user saves can gate the compaction (matching prior behavior).
+                var compactionWorkVolume = Math.Max(
+                    savedGamesCount, FriendRefreshCoordinator.GetFriendScrapeVolume(payload));
+                MemoryMaintenance.CompactLargeObjectHeapAfterLargeScan(
+                    compactionWorkVolume,
+                    LohCompactionSavedGamesThreshold,
+                    _logger,
+                    context: $"refresh.end mode={mode}");
+                ScheduleFollowUpCompaction(compactionWorkVolume, mode);
 
                 // Notify refresh completion subscribers (e.g., auth failure notifications).
                 if (!wasCanceled && payload != null)
@@ -554,6 +610,54 @@ namespace PlayniteAchievements.Services.Refresh
 
                 _refreshProgressReporter.Reset();
             }
+        }
+
+        // The completion compaction returns the scrape peak, but the post-refresh rebuild wave
+        // (final friends snapshot build, overview and theme refreshes) keeps allocating after
+        // refresh end, and that garbage otherwise lingers in the working set until an unrelated
+        // gen-2 collection. Measured on a large scan, the wave settles within ~20s, so the first
+        // follow-up sweeps then; a later one catches stragglers (demand-driven theme rebuilds).
+        // Same work-volume gate; a sweep is skipped (and the chain stopped) when a newer refresh
+        // is already running, since its own completion compaction covers it.
+        private static readonly TimeSpan[] FollowUpCompactionDelays =
+        {
+            TimeSpan.FromSeconds(20),
+            TimeSpan.FromSeconds(90)
+        };
+
+        private void ScheduleFollowUpCompaction(int workVolume, RefreshModeType mode)
+        {
+            if (workVolume < LohCompactionSavedGamesThreshold)
+            {
+                return;
+            }
+
+            _ = Task.Run(async () =>
+            {
+                try
+                {
+                    var elapsed = TimeSpan.Zero;
+                    foreach (var delay in FollowUpCompactionDelays)
+                    {
+                        await Task.Delay(delay - elapsed).ConfigureAwait(false);
+                        elapsed = delay;
+                        if (IsRebuilding)
+                        {
+                            return;
+                        }
+
+                        MemoryMaintenance.CompactLargeObjectHeapAfterLargeScan(
+                            workVolume,
+                            LohCompactionSavedGamesThreshold,
+                            _logger,
+                            context: $"refresh.followUp mode={mode} atSeconds={(int)delay.TotalSeconds}");
+                    }
+                }
+                catch (Exception ex)
+                {
+                    _logger?.Debug(ex, "Follow-up LOH compaction failed.");
+                }
+            });
         }
 
         private sealed class RefreshGameTarget
@@ -570,32 +674,89 @@ namespace PlayniteAchievements.Services.Refresh
                 new List<ProviderRefreshExecutor.ProviderExecutionPlan>();
         }
 
-        internal virtual async Task<RefreshAuthContext> GetRefreshAuthContextAsync(CancellationToken ct = default)
+        internal Task<RefreshAuthContext> GetRefreshAuthContextAsync(CancellationToken ct = default)
+        {
+            return GetRefreshAuthContextAsync(null, ct);
+        }
+
+        internal virtual async Task<RefreshAuthContext> GetRefreshAuthContextAsync(
+            RefreshRequest request,
+            CancellationToken ct = default)
         {
             var context = new RefreshAuthContext(Guid.NewGuid());
-            var enabledProviders = _providers
-                .Where(provider => provider != null &&
-                                   (_providerRegistry == null ||
-                                    _providerRegistry.IsProviderEnabled(provider.ProviderKey)))
-                .ToList();
-
+            var enabledProviders = GetEnabledProviders();
             if (enabledProviders.Count == 0)
             {
                 return context;
             }
 
-            var maxParallelism = Math.Max(1, Math.Min(4, enabledProviders.Count));
-            using (var gate = new SemaphoreSlim(maxParallelism, maxParallelism))
+            var targetSelectionCache = new TargetSelectionCache();
+            context.TargetSelectionCache = targetSelectionCache;
+
+            IReadOnlyList<IDataProvider> probeCandidates = enabledProviders;
+            if (request != null && _refreshRequestPlanner != null)
             {
-                var tasks = enabledProviders
-                    .Select(provider => ProbeProviderForAuthContextAsync(provider, context, gate, ct))
-                    .ToArray();
-                await Task.WhenAll(tasks).ConfigureAwait(false);
+                var filterTimer = Stopwatch.StartNew();
+                probeCandidates = _refreshRequestPlanner.ResolveAuthProbeCandidates(
+                    request,
+                    enabledProviders,
+                    targetSelectionCache);
+                filterTimer.Stop();
+                _logger?.Debug(
+                    $"[RefreshPerf] phase=auth.preflight.filter enabled={enabledProviders.Count} candidates={probeCandidates.Count} ms={filterTimer.ElapsedMilliseconds}");
+            }
+
+            await ProbeProvidersForAuthContextAsync(probeCandidates, context, ct).ConfigureAwait(false);
+
+            if (probeCandidates.Count < enabledProviders.Count &&
+                !enabledProviders.Any(provider => context.IsProviderAuthenticated(provider.ProviderKey)))
+            {
+                // Second chance: when no capability-filtered provider authenticates, probe the
+                // remaining enabled providers so failure dialogs and dead-end messages match an
+                // unfiltered preflight.
+                var probedKeys = new HashSet<string>(
+                    probeCandidates.Select(provider => provider.ProviderKey),
+                    StringComparer.OrdinalIgnoreCase);
+                var remaining = enabledProviders
+                    .Where(provider => !probedKeys.Contains(provider.ProviderKey))
+                    .ToList();
+                _logger?.Debug(
+                    $"[RefreshPerf] phase=auth.preflight.secondchance remaining={remaining.Count}");
+                await ProbeProvidersForAuthContextAsync(remaining, context, ct).ConfigureAwait(false);
             }
 
             context.SetAuthenticatedProviders(
                 enabledProviders.Where(provider => context.IsProviderAuthenticated(provider.ProviderKey)));
             return context;
+        }
+
+        private List<IDataProvider> GetEnabledProviders()
+        {
+            return _providers
+                .Where(provider => provider != null &&
+                                   (_providerRegistry == null ||
+                                    _providerRegistry.IsProviderEnabled(provider.ProviderKey)))
+                .ToList();
+        }
+
+        private async Task ProbeProvidersForAuthContextAsync(
+            IReadOnlyList<IDataProvider> providers,
+            RefreshAuthContext context,
+            CancellationToken ct)
+        {
+            if (providers == null || providers.Count == 0)
+            {
+                return;
+            }
+
+            var maxParallelism = Math.Max(1, Math.Min(8, providers.Count));
+            using (var gate = new SemaphoreSlim(maxParallelism, maxParallelism))
+            {
+                var tasks = providers
+                    .Select(provider => ProbeProviderForAuthContextAsync(provider, context, gate, ct))
+                    .ToArray();
+                await Task.WhenAll(tasks).ConfigureAwait(false);
+            }
         }
 
         public async Task<IReadOnlyList<IDataProvider>> GetAuthenticatedProvidersAsync(CancellationToken ct = default)
@@ -752,7 +913,10 @@ namespace PlayniteAchievements.Services.Refresh
                 // (a single-game refresh would sit at 0 until completion, then jump to 100%).
                 _refreshProgressReporter.ConfigureWeightedProgress(
                     FriendRefreshProgressSession.TotalUnits, 0, FriendRefreshProgressSession.TotalUnits);
-                _refreshProgressReporter.Initialize(totalGames);
+                // One id per (game, provider) pass; the reporter counts distinct games so multi-provider
+                // games do not inflate the "n/total" denominator.
+                _refreshProgressReporter.Initialize(
+                    plans.SelectMany(plan => plan.Games).Select(game => game?.Id ?? Guid.Empty));
             }
 
             var progressScope = new RefreshProgressScope(operationId, mode, singleGameId);
@@ -809,12 +973,13 @@ namespace PlayniteAchievements.Services.Refresh
             }
         }
 
-        private static RebuildPayload CreateCurrentRefreshPayload(
+        private RebuildPayload CreateCurrentRefreshPayload(
             IReadOnlyList<ProviderRefreshExecutor.ProviderExecutionResult> providerResults)
         {
             var mergedSummary = new RebuildSummary();
             var authRequired = false;
             var failedProviderKeys = new List<string>();
+            var faultedProviderKeys = new List<string>();
 
             foreach (var result in providerResults)
             {
@@ -822,6 +987,8 @@ namespace PlayniteAchievements.Services.Refresh
                 {
                     continue;
                 }
+
+                RecordProviderFault(result, faultedProviderKeys);
 
                 if (result.Payload.AuthRequired)
                 {
@@ -839,7 +1006,6 @@ namespace PlayniteAchievements.Services.Refresh
                     continue;
                 }
 
-                mergedSummary.GamesRefreshed += result.Payload.Summary.GamesRefreshed;
                 mergedSummary.GamesWithAchievements += result.Payload.Summary.GamesWithAchievements;
                 mergedSummary.GamesWithoutAchievements += result.Payload.Summary.GamesWithoutAchievements;
 
@@ -849,12 +1015,42 @@ namespace PlayniteAchievements.Services.Refresh
                 }
             }
 
+            // Providers count their own passes, so summing per-provider GamesRefreshed counts a game
+            // once per servicing provider. The user-facing count is distinct games refreshed.
+            mergedSummary.GamesRefreshed = mergedSummary.RefreshedGameIds.Distinct().Count();
+
             return new RebuildPayload
             {
                 Summary = mergedSummary,
                 AuthRequired = authRequired,
-                FailedProviderKeys = failedProviderKeys
+                FailedProviderKeys = failedProviderKeys,
+                FaultedProviderKeys = faultedProviderKeys
             };
+        }
+
+        /// <summary>
+        /// Logs a provider execution fault and records its provider key so the completion
+        /// message can name the provider whose games did not refresh.
+        /// </summary>
+        private void RecordProviderFault(
+            ProviderRefreshExecutor.ProviderExecutionResult result,
+            List<string> faultedProviderKeys)
+        {
+            if (result?.Fault == null)
+            {
+                return;
+            }
+
+            var key = result.Provider?.ProviderKey;
+            _logger?.Error(
+                result.Fault,
+                $"Provider '{key ?? "unknown"}' refresh faulted; remaining providers continued.");
+
+            if (!string.IsNullOrWhiteSpace(key) &&
+                !faultedProviderKeys.Contains(key, StringComparer.OrdinalIgnoreCase))
+            {
+                faultedProviderKeys.Add(key);
+            }
         }
 
         /// <summary>
@@ -885,16 +1081,16 @@ namespace PlayniteAchievements.Services.Refresh
                         .Select(key => key.Trim()),
                     StringComparer.OrdinalIgnoreCase);
 
-            var authContext = await GetRefreshAuthContextAsync(cancel).ConfigureAwait(false);
-            var providers = MaterializeProviderScope(authContext.AuthenticatedProviders)
-                .Where(provider => provider?.Friends != null)
+            var friendProviders = GetEnabledProviders()
+                .Where(provider => provider.Friends != null &&
+                                   (providerKeySet == null || providerKeySet.Count == 0 ||
+                                    providerKeySet.Contains(provider.ProviderKey)))
                 .ToList();
-            if (providerKeySet?.Count > 0)
-            {
-                providers = providers
-                    .Where(provider => providerKeySet.Contains(provider.ProviderKey))
-                    .ToList();
-            }
+            var authContext = new RefreshAuthContext(Guid.NewGuid());
+            await ProbeProvidersForAuthContextAsync(friendProviders, authContext, cancel).ConfigureAwait(false);
+            authContext.SetAuthenticatedProviders(
+                friendProviders.Where(provider => authContext.IsProviderAuthenticated(provider.ProviderKey)));
+            var providers = MaterializeProviderScope(authContext.AuthenticatedProviders);
 
             if (providers.Count == 0)
             {
@@ -1094,9 +1290,11 @@ namespace PlayniteAchievements.Services.Refresh
                 {
                     // Combined preparation runs current-game refreshes and friend-roster loads concurrently.
                     // Drive one shared aggregate over [0, preparationUnits] so the two workstreams cannot
-                    // collide or freeze each other. Initialize still tracks the current-game count so the
-                    // per-game status text ("Refreshing X (n/total)") stays correct.
-                    _refreshProgressReporter.Initialize(currentPlanBuild.Targets.Count);
+                    // collide or freeze each other. Initialize still tracks the current-game targets (one
+                    // id per provider pass, counted as distinct games) so the per-game status text
+                    // ("Refreshing X (n/total)") stays correct.
+                    _refreshProgressReporter.Initialize(
+                        currentPlanBuild.Targets.Select(target => target.Game?.Id ?? Guid.Empty));
                     _refreshProgressReporter.InitializePreparation(
                         currentPlanBuild.Targets.Count + orderedFriendProviders.Count,
                         preparationUnits,
@@ -1165,6 +1363,15 @@ namespace PlayniteAchievements.Services.Refresh
                     foreach (var result in providerResults)
                     {
                         FriendRefreshCoordinator.Merge(payload, result?.Payload);
+                        RecordProviderFault(result, payload.FaultedProviderKeys);
+                    }
+
+                    // Merge dedupes RefreshedGameIds but sums per-provider pass counts; report the
+                    // user-facing count as distinct games refreshed.
+                    if (payload.Summary != null)
+                    {
+                        payload.Summary.GamesRefreshed = payload.Summary.RefreshedGameIds?.Distinct().Count()
+                            ?? payload.Summary.GamesRefreshed;
                     }
 
                     if (hasFriendWork)
@@ -1266,10 +1473,62 @@ namespace PlayniteAchievements.Services.Refresh
 
                 Interlocked.Increment(ref _savedGamesInCurrentRun);
 
+                // The persisted icon paths now point at original-resolution files, so the game's
+                // retired compressed 128px folder (if any) is no longer referenced and can go.
+                _achievementIconService.DeleteLegacyCompressedIconFolder(key);
+
                 FriendRefresh.PromoteMatchingProviderOnlyFriendGame(provider, data);
 
                 // Fire per-game refresh event for amortized tag syncing
                 try { GameRefreshed?.Invoke(game.Id); } catch (Exception ex) { _logger?.Debug(ex, "GameRefreshed event handler failed."); }
+            }
+        }
+
+        // Applies icon overrides for the given achievements against the cached game data without
+        // running providers: materialize changed overrides (or restore cleared ones to the cached
+        // provider default) and persist the rewritten paths. The legacy compressed folder is kept
+        // because a clear-restore may resolve into it, and GameRefreshed/tag sync is not raised;
+        // the store's CustomDataChanged side effects already cover the override edit itself.
+        public async Task ApplyAchievementIconOverridesAsync(
+            Guid gameId,
+            IReadOnlyCollection<string> changedApiNames,
+            CancellationToken cancel = default)
+        {
+            if (gameId == Guid.Empty ||
+                changedApiNames == null ||
+                changedApiNames.Count == 0 ||
+                _achievementIconService == null ||
+                _cacheService == null)
+            {
+                return;
+            }
+
+            var key = gameId.ToString();
+            var data = _cacheService.LoadGameData(key);
+            if (data?.Achievements == null || data.Achievements.Count == 0)
+            {
+                return;
+            }
+
+            var unlockedIconOverrides = GameCustomDataLookup.GetAchievementUnlockedIconOverrides(gameId);
+            var lockedIconOverrides = GameCustomDataLookup.GetAchievementLockedIconOverrides(gameId);
+            var forceApiNames = new HashSet<string>(changedApiNames, StringComparer.OrdinalIgnoreCase);
+
+            await _achievementIconService.PopulateAchievementIconCacheAsync(
+                    data,
+                    unlockedIconOverrides,
+                    lockedIconOverrides,
+                    cancel,
+                    onIconProgress: null,
+                    forceRefreshExistingTargets: false,
+                    forceOverrideApiNames: forceApiNames)
+                .ConfigureAwait(false);
+
+            var writeResult = _cacheService.SaveGameData(key, data);
+            if (writeResult == null || !writeResult.Success)
+            {
+                _logger?.Error(
+                    $"Persisting icon override apply failed. key={key}, code={writeResult?.ErrorCode ?? "unknown"}, message={writeResult?.ErrorMessage ?? "Unknown cache persistence failure."}");
             }
         }
 
@@ -1297,6 +1556,20 @@ namespace PlayniteAchievements.Services.Refresh
             if (string.IsNullOrWhiteSpace(resolvedMessage))
             {
                 resolvedMessage = defaultMessage;
+            }
+
+            if (payload?.FaultedProviderKeys?.Count > 0)
+            {
+                var failedFormat = ResourceProvider.GetString("LOCPlayAch_Error_RefreshFailed");
+                if (string.IsNullOrWhiteSpace(failedFormat))
+                {
+                    failedFormat = "Refresh failed: {0}";
+                }
+
+                resolvedMessage = string.Concat(
+                    resolvedMessage,
+                    " ",
+                    string.Format(failedFormat, string.Join(", ", payload.FaultedProviderKeys)));
             }
 
             if (payload?.AuthRequired == true)
@@ -1407,6 +1680,15 @@ namespace PlayniteAchievements.Services.Refresh
                 MessageBoxImage.Warning);
         }
 
+        private static bool HasSteamTransientAuthFailure(RefreshAuthContext authContext)
+        {
+            var result = authContext?.GetProbeResult("Steam");
+            return result != null &&
+                   !result.IsSuccess &&
+                   (result.Outcome == AuthOutcome.TimedOut ||
+                    result.Outcome == AuthOutcome.ProbeFailed);
+        }
+
         public Task ExecuteRefreshAsync(CustomRefreshOptions options, CancellationToken externalToken = default)
         {
             return ExecuteRefreshAsync(new RefreshRequest
@@ -1452,12 +1734,12 @@ namespace PlayniteAchievements.Services.Refresh
             var effectiveAuthContext = authContext;
             if (effectiveAuthContext == null)
             {
-                effectiveAuthContext = await GetRefreshAuthContextAsync(externalToken).ConfigureAwait(false);
+                effectiveAuthContext = await GetRefreshAuthContextAsync(request, externalToken).ConfigureAwait(false);
             }
 
             var effectiveAuthenticatedProviders = MaterializeProviderScope(
                 effectiveAuthContext?.AuthenticatedProviders);
-            var targetSelectionCache = new TargetSelectionCache();
+            var targetSelectionCache = effectiveAuthContext?.TargetSelectionCache ?? new TargetSelectionCache();
             var resolved = _refreshRequestPlanner.Resolve(
                 request,
                 effectiveAuthenticatedProviders,
@@ -1472,7 +1754,14 @@ namespace PlayniteAchievements.Services.Refresh
 
                 if (!string.IsNullOrWhiteSpace(resolved.UserMessage))
                 {
-                    ShowCustomRefreshMessage(resolved.UserMessage);
+                    if (HasSteamTransientAuthFailure(effectiveAuthContext))
+                    {
+                        _logger.Warn("Refresh selection produced no targets because Steam web authentication could not be verified; suppressing generic no-target modal.");
+                    }
+                    else
+                    {
+                        ShowCustomRefreshMessage(resolved.UserMessage);
+                    }
                 }
 
                 return;

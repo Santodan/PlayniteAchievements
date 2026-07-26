@@ -454,7 +454,7 @@ namespace PlayniteAchievements.Views.Controls
         private void OnPersistedSettingsChanged(object sender, PropertyChangedEventArgs e)
         {
             if (string.IsNullOrEmpty(e.PropertyName) ||
-                e.PropertyName == nameof(PersistedSettings.FriendsOverviewFriendSummariesLastUnlockDateMode))
+                e.PropertyName == nameof(PersistedSettings.UnlockDateDisplayMode))
             {
                 UpdateDateDisplayMode(PlayniteAchievementsPlugin.Instance?.Settings);
             }
@@ -464,7 +464,7 @@ namespace PlayniteAchievements.Views.Controls
         {
             if (settings?.Persisted != null)
             {
-                DateDisplayMode = settings.Persisted.FriendsOverviewFriendSummariesLastUnlockDateMode;
+                DateDisplayMode = settings.Persisted.UnlockDateDisplayMode;
             }
         }
 

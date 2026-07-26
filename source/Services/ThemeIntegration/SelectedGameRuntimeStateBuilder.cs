@@ -4,6 +4,7 @@ using PlayniteAchievements.Services.Achievements;
 using PlayniteAchievements.ViewModels;
 using PlayniteAchievements.Models.ThemeIntegration;
 using PlayniteAchievements.Services;
+using PlayniteAchievements.Services.Images;
 using PlayniteAchievements.Services.Summaries;
 using PlayniteAchievements.ViewModels.Items;
 using System;
@@ -145,14 +146,20 @@ namespace PlayniteAchievements.Services.ThemeIntegration
 
             CategoryImageOverrideData imageOverride = null;
             var category = AchievementCategoryTypeHelper.NormalizeCategoryOrDefault(achievement.Category);
+            achievement.CategoryOrderIndex =
+                AchievementCategoryFilterOrderHelper.ResolveCategoryOrderIndex(category, data?.AchievementCategoryOrder);
             if (!string.IsNullOrWhiteSpace(category) &&
                 data?.AchievementCategoryImageOverrides != null)
             {
                 data.AchievementCategoryImageOverrides.TryGetValue(category, out imageOverride);
             }
 
-            achievement.CategoryIconPath = NormalizeImageOverridePath(imageOverride?.Icon);
-            achievement.CategoryCoverPath = NormalizeImageOverridePath(imageOverride?.Cover);
+            // Default images are keyed by the provider label; renames only change Category.
+            var providerCategory = AchievementCategoryTypeHelper.NormalizeCategoryOrDefault(
+                achievement.ProviderCategory ?? achievement.Category);
+            achievement.CategoryArtPath =
+                NormalizeImageOverridePath(imageOverride?.Art) ??
+                CategoryDefaultImageResolver.Resolve(data?.PlayniteGameId, providerCategory);
         }
 
         private static string NormalizeImageOverridePath(string value)

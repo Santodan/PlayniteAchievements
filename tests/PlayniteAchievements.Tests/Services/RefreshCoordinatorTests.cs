@@ -241,7 +241,9 @@ namespace PlayniteAchievements.Services.Tests
             public RefreshRequest LastRequest { get; private set; }
             public IReadOnlyList<IDataProvider> LastAuthenticatedProviders { get; private set; }
 
-            internal override Task<RefreshAuthContext> GetRefreshAuthContextOrShowDialogAsync(CancellationToken externalToken = default)
+            internal override Task<RefreshAuthContext> GetRefreshAuthContextOrShowDialogAsync(
+                RefreshRequest request,
+                CancellationToken externalToken = default)
             {
                 ValidateCallCount++;
                 return Task.FromResult(RefreshAuthContext.FromAuthenticatedProviders(

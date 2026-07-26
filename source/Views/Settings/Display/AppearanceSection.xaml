@@ -318,23 +318,19 @@
                     </Border>
 
                     <!-- Advanced -->
-                    <Border Background="{StaticResource PlayAch.Brush.Overlay.Shade.12}"
-                            BorderBrush="{DynamicResource PlayAch.Brush.Border}"
-                            BorderThickness="{StaticResource PlayAch.Thickness.Border}"
-                            CornerRadius="{StaticResource PlayAch.Radius.Card}"
-                            Margin="0,16,0,0"
-                            Padding="{StaticResource PlayAch.Thickness.None}">
-                        <Expander IsExpanded="False"
-                                  Background="Transparent"
-                                  BorderThickness="0">
-                            <Expander.Header>
-                                <TextBlock Text="{DynamicResource LOCPlayAch_Settings_Advanced}"
-                                           Foreground="{DynamicResource PlayAch.Brush.Text}"
-                                           FontWeight="SemiBold"
-                                           Margin="8,8,0,8"/>
-                            </Expander.Header>
+                    <Expander IsExpanded="False"
+                              Background="{StaticResource PlayAch.Brush.Overlay.Shade.12}"
+                              BorderBrush="{DynamicResource PlayAch.Brush.Border}"
+                              BorderThickness="{StaticResource PlayAch.Thickness.Border}"
+                              Margin="0,16,0,0"
+                              Padding="12,10,12,12">
+                        <Expander.Header>
+                            <TextBlock Text="{DynamicResource LOCPlayAch_Settings_Advanced}"
+                                       Foreground="{DynamicResource PlayAch.Brush.Text}"
+                                       FontWeight="SemiBold"/>
+                        </Expander.Header>
 
-                            <StackPanel Margin="12,0,12,12">
+                        <StackPanel>
                                 <TextBlock Text="{DynamicResource LOCPlayAch_Settings_Appearance_AdvancedResources}"
                                            Style="{StaticResource SectionHeaderStyle}"
                                            Margin="{StaticResource PlayAch.Thickness.Bottom.Md}"/>
@@ -449,9 +445,8 @@
                                         </DataTemplate>
                                     </ItemsControl.ItemTemplate>
                                 </ItemsControl>
-                            </StackPanel>
-                        </Expander>
-                    </Border>
+                        </StackPanel>
+                    </Expander>
                 </StackPanel>
             </Border>
         </StackPanel>

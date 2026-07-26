@@ -60,7 +60,7 @@ namespace PlayniteAchievements.ViewModels
 
         public SeriesCollection TimelineSeries { get; } = new SeriesCollection();
         public ObservableCollection<string> TimelineLabels { get; } = new ObservableCollection<string>();
-        public Func<double, string> YAxisFormatter { get; } = value => value.ToString("N0");
+        public Func<double, string> YAxisFormatter { get; } = value => value.ToString("N0", FormattingCulture.Current);
         public ICommand SetTimeRangeCommand { get; }
 
         public void UpdateTimelineData()

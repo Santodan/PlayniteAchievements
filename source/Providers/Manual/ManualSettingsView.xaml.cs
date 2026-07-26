@@ -120,7 +120,7 @@ namespace PlayniteAchievements.Providers.Manual
 
             if (string.IsNullOrWhiteSpace(importPath) || !Directory.Exists(importPath))
             {
-                var invalidPathBase = L("LOCPlayAch_InvalidPath", "Directory does not exist");
+                var invalidPathBase = L("LOCPlayAch_InvalidPath");
                 var invalidPathMessage = string.IsNullOrWhiteSpace(importPath)
                     ? invalidPathBase
                     : string.Format("{0}: {1}", invalidPathBase, importPath);
@@ -148,7 +148,7 @@ namespace PlayniteAchievements.Providers.Manual
                 _logger?.Error(ex, "Legacy manual import failed.");
 
                 var failureMessage = string.Format(
-                    L("LOCPlayAch_Status_Failed", "Error: {0}"),
+                    L("LOCPlayAch_Status_Failed"),
                     ex.Message);
 
                 SetLegacyImportStatus(failureMessage);
@@ -302,10 +302,9 @@ namespace PlayniteAchievements.Providers.Manual
             }
         }
 
-        private static string L(string key, string fallback)
+        private static string L(string key)
         {
-            var value = ResourceProvider.GetString(key);
-            return string.IsNullOrWhiteSpace(value) ? fallback : value;
+            return ResourceProvider.GetString(key);
         }
     }
 }

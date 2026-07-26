@@ -27,6 +27,8 @@ namespace PlayniteAchievements.Models.Settings
 
         public Dictionary<string, CategoryImageOverrideData> AchievementCategoryImageOverrides { get; set; }
 
+        public GameSummaryCategoryData GameSummaryCategory { get; set; }
+
         public List<string> FilteredAchievementApiNames { get; set; }
 
         public List<string> SummaryFilteredAchievementApiNames { get; set; }
@@ -72,6 +74,7 @@ namespace PlayniteAchievements.Models.Settings
                     ? new List<string>(AchievementCategoryOrder)
                     : null,
                 AchievementCategoryImageOverrides = GameCustomDataFile.CloneCategoryImageOverrideMap(AchievementCategoryImageOverrides),
+                GameSummaryCategory = GameSummaryCategory?.Clone(),
                 FilteredAchievementApiNames = FilteredAchievementApiNames != null
                     ? new List<string>(FilteredAchievementApiNames)
                     : null,

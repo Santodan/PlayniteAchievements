@@ -1,16 +1,13 @@
-using HtmlAgilityPack;
 using Playnite.SDK;
 using Playnite.SDK.Models;
 using PlayniteAchievements.Models.Achievements;
 using PlayniteAchievements.Models.Friends;
 using PlayniteAchievements.Models;
 using PlayniteAchievements.Models.Settings;
+using PlayniteAchievements.Providers.Steam;
 using System;
 using System.Collections.Generic;
-using System.Globalization;
 using System.Linq;
-using System.Net;
-using System.Text.RegularExpressions;
 using System.Threading;
 using System.Threading.Tasks;
 
@@ -20,6 +17,7 @@ namespace PlayniteAchievements.Providers.Exophase
     {
         private const string Provider = "Exophase";
         private readonly ExophaseApiClient _apiClient;
+        private readonly ExophasePublicApiClient _publicApiClient;
         private readonly ExophaseSettings _settings;
         private readonly PlayniteAchievementsSettings _globalSettings;
         private readonly IPlayniteAPI _playniteApi;
@@ -27,11 +25,27 @@ namespace PlayniteAchievements.Providers.Exophase
         private readonly SemaphoreSlim _webViewGate = new SemaphoreSlim(1, 1);
 
         // Per-refresh map of (friend username + provider game key) -> the friend's per-game context id,
-        // parsed from the profile games page as the "#{id}" fragment on each game's achievements link.
-        // Used to build the friend-scoped achievement URL. Populated during the ownership pass (which
-        // always runs before achievements) and cleared each refresh.
+        // the "#{id}" fragment (master_playerid) on each game's achievements link. Sourced from the
+        // games-list API's endpoint_awards (or the profile-page scrape on the fallback path). Used to
+        // build the friend-scoped achievement URL. Populated during the ownership pass (which always
+        // runs before achievements) and cleared each refresh.
         private readonly Dictionary<string, string> _friendGameContextIds =
             new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+
+        // Per-refresh memo of each friend's fetched library so the Steam ownership supplement reuses
+        // the ownership fetch instead of re-scraping the profile. Cleared each refresh.
+        private readonly Dictionary<string, IReadOnlyList<ExophaseFriendGame>> _friendLibraryMemo =
+            new Dictionary<string, IReadOnlyList<ExophaseFriendGame>>(StringComparer.OrdinalIgnoreCase);
+
+        // Per-refresh memo of resolved profile identities (playerProfileId + SSR games blob + rendered
+        // HTML) so the metadata probe and the ownership pass share one profile-page fetch per friend.
+        private readonly Dictionary<string, ExophaseProfileIdentity> _friendIdentityMemo =
+            new Dictionary<string, ExophaseProfileIdentity>(StringComparer.OrdinalIgnoreCase);
+
+        // Per-refresh map of provider game key -> Exophase master_id (game-global, same for every
+        // friend), sourced from the games-list API. Consumed by the earned-awards endpoint.
+        private readonly Dictionary<string, long> _friendGameMasterIds =
+            new Dictionary<string, long>(StringComparer.OrdinalIgnoreCase);
 
         // Per-refresh index of the current user's cached games, keyed on the servicing provider label
         // the plugin stored at scan time (see CurrentUserGameLabel). Populated by the refresh runtime via
@@ -50,6 +64,7 @@ namespace PlayniteAchievements.Providers.Exophase
             ILogger logger)
         {
             _apiClient = apiClient ?? throw new ArgumentNullException(nameof(apiClient));
+            _publicApiClient = new ExophasePublicApiClient(_apiClient, logger);
             _settings = settings ?? throw new ArgumentNullException(nameof(settings));
             _globalSettings = globalSettings;
             _playniteApi = playniteApi;
@@ -61,13 +76,17 @@ namespace PlayniteAchievements.Providers.Exophase
         public Task<FriendsProviderResult<FriendsRefreshPreparation>> BeginRefreshAsync(CancellationToken cancel)
         {
             _friendGameContextIds.Clear();
+            _friendLibraryMemo.Clear();
+            _friendIdentityMemo.Clear();
+            _friendGameMasterIds.Clear();
             ClearCurrentUserGameIndex();
 
             // Load and validate the encrypted cookie snapshot once for this refresh; every per-friend
             // and per-game fetch reuses the cached cookies instead of decrypting the file per call.
-            // Exophase still fetches public profile/owned-games/definition pages without critical
-            // cookies, so achievements remain enabled regardless (the single log line surfaces any
-            // missing criticals), matching the prior warn-and-continue behavior.
+            // Exophase still fetches public profile pages, the games-list/earned JSON API, and
+            // definition pages without critical cookies, so achievements remain enabled regardless
+            // (the single log line surfaces any missing criticals), matching the prior
+            // warn-and-continue behavior.
             var hasCriticalCookies = _apiClient.BeginCookieSession();
             _logger?.Info($"[ExophaseFriends] BeginRefresh: cookie session prepared (allCriticalCookiesPresent={hasCriticalCookies}).");
 
@@ -80,6 +99,9 @@ namespace PlayniteAchievements.Providers.Exophase
         public void EndRefresh()
         {
             _friendGameContextIds.Clear();
+            _friendLibraryMemo.Clear();
+            _friendIdentityMemo.Clear();
+            _friendGameMasterIds.Clear();
             ClearCurrentUserGameIndex();
             _apiClient.EndCookieSession();
         }
@@ -201,10 +223,15 @@ namespace PlayniteAchievements.Providers.Exophase
                 return FriendsProviderResult<IReadOnlyList<FriendGameOwnership>>.FromData(Array.Empty<FriendGameOwnership>());
             }
 
-            // Exophase lists every platform's games together on a single profile page: there is no
-            // per-platform page and the ?environment= filter is ignored. Fetch the profile once (with
-            // scroll to load the lazily-appended entries) and filter to the friend's selected platforms.
+            // Exophase lists every platform's games together in one paginated API library: fetch it
+            // once (memoized per refresh) and filter to the friend's selected platforms.
             var allGames = await FetchOwnedGamesAsync(config.ExternalUserId, cancel).ConfigureAwait(false);
+            if (allGames == null)
+            {
+                return FriendsProviderResult<IReadOnlyList<FriendGameOwnership>>.Failed(
+                    $"Exophase games list unavailable for '{config.ExternalUserId}'.",
+                    transientFailure: true);
+            }
 
             // Compare on the canonical provider platform key rather than the raw scraped token so a
             // friend's game tagged e.g. "ps4"/"ps5"/"vita" matches the coarse "psn" selection, and
@@ -240,6 +267,12 @@ namespace PlayniteAchievements.Providers.Exophase
                     _friendGameContextIds[BuildContextMapKey(config.ExternalUserId, key)] = game.ContextId;
                 }
 
+                // Remember the game-global master_id for the earned-awards endpoint.
+                if (game.MasterId > 0)
+                {
+                    _friendGameMasterIds[key] = game.MasterId;
+                }
+
                 result.Add(new FriendGameOwnership
                 {
                     ProviderKey = Provider,
@@ -266,6 +299,29 @@ namespace PlayniteAchievements.Providers.Exophase
                 .OrderBy(item => item.GameName, StringComparer.OrdinalIgnoreCase)
                 .ToList();
 
+            // A friend can own several trophy lists of the same library game (e.g. the PS4 and PS5
+            // lists of one title). Only one row may carry the library mapping — the cache keeps one
+            // mapped proxy row per (provider, PlayniteGameId) — so keep it on the list the friend
+            // actually plays (most unlocks, then most recent activity) and leave the rest
+            // provider-only.
+            foreach (var group in deduped
+                .Where(item => item.PlayniteGameId.HasValue && item.PlayniteGameId.Value != Guid.Empty)
+                .GroupBy(item => item.PlayniteGameId.Value)
+                .Where(group => group.Count() > 1))
+            {
+                var winner = group
+                    .OrderByDescending(item => item.AchievementUnlocksHint ?? 0)
+                    .ThenByDescending(item => item.LastPlayedUtc ?? DateTime.MinValue)
+                    .ThenBy(item => item.ProviderGameKey, StringComparer.OrdinalIgnoreCase)
+                    .First();
+                foreach (var loser in group.Where(item => !ReferenceEquals(item, winner)))
+                {
+                    loser.PlayniteGameId = null;
+                }
+
+                _logger?.Info($"[ExophaseFriends] GetOwnedGames: '{config.ExternalUserId}' owns {group.Count()} lists mapping to library game {group.Key}; kept mapping on '{winner.ProviderGameKey}'.");
+            }
+
             _logger?.Info($"[ExophaseFriends] GetOwnedGames: '{config.ExternalUserId}' parsed {allGames.Count} profile game(s), " +
                 $"kept {deduped.Count} on selected platform(s) [{string.Join(", ", platforms)}] " +
                 $"(skipped {skippedOtherPlatform} on other platforms).");
@@ -285,6 +341,13 @@ namespace PlayniteAchievements.Providers.Exophase
 
             var username = externalUserId.Trim();
             var allGames = await FetchOwnedGamesAsync(username, cancel).ConfigureAwait(false);
+            if (allGames == null)
+            {
+                return FriendsProviderResult<IReadOnlyList<FriendGameOwnership>>.Failed(
+                    $"Exophase games list unavailable for '{username}'.",
+                    transientFailure: true);
+            }
+
             var steamLabelsByName = BuildUniqueSteamLabelsByNormalizedName(currentUserLabels);
             var knownSteamGames = BuildKnownSteamOwnershipIndex(knownSteamOwnership);
             var result = new List<FriendGameOwnership>();
@@ -362,8 +425,9 @@ namespace PlayniteAchievements.Providers.Exophase
                     ProviderGameKey = key,
                     ProviderPlatformKey = ExophaseDataProvider.MapSlugToProviderPlatformKey(game.Platform),
                     GameName = game.Title,
-                    IconUrl = game.ImageUrl,
-                    CoverUrl = game.ImageUrl,
+                    // Steam games surfaced via Exophase use Steam CDN images, not Exophase ones.
+                    IconUrl = SteamImageUrls.Icon(appId),
+                    CoverUrl = SteamImageUrls.Cover(appId),
                     PlaytimeForeverMinutes = Math.Max(0, game.PlaytimeMinutes),
                     Playtime2WeeksMinutes = game.RecentPlaytimeMinutes > 0
                         ? (int?)game.RecentPlaytimeMinutes
@@ -571,19 +635,24 @@ namespace PlayniteAchievements.Providers.Exophase
                 return FriendsProviderResult<FriendGameDefinition>.Failed("Exophase friend game key is missing a slug.");
             }
 
+            // One fetch serves both the schema and the header banner: the achievements page carries the
+            // game's banner in its layout, so parse it from the same rendered HTML instead of fetching
+            // the game overview page separately.
             var url = ExophaseApiClient.BuildUrlFromSlug(parsed.GameSlug, parsed.PlatformSlug);
-            var achievements = await _apiClient
-                .FetchAchievementsAsync(url, ExophaseApiClient.MapLanguageToAcceptLanguage("en-US"), cancel, waitForImages: true)
+            var fetched = await _apiClient
+                .FetchAchievementsWithHtmlAsync(url, ExophaseApiClient.MapLanguageToAcceptLanguage("en-US"), cancel, waitForImages: true)
                 .ConfigureAwait(false);
 
-            var rows = achievements ?? new List<AchievementDetail>();
+            var rows = fetched?.Achievements ?? new List<AchievementDetail>();
 
             // Reuse the main provider's rarity assignment so friend achievements get the same
             // percentage/rarity tiers instead of defaulting to Common.
             ExophaseDataProvider.ApplyProviderOwnedRarity(
                 rows,
                 ExophaseDataProvider.MapSlugToProviderPlatformKey(parsed.PlatformSlug));
-            var headerImageUrl = await FetchGameHeaderImageAsync(parsed.GameSlug, cancel).ConfigureAwait(false);
+            var headerImageUrl = string.IsNullOrEmpty(fetched?.Html)
+                ? null
+                : ExophaseFriendPageParser.ParseGameHeaderImageUrl(fetched.Html);
 
             return FriendsProviderResult<FriendGameDefinition>.FromData(new FriendGameDefinition
             {
@@ -613,74 +682,126 @@ namespace PlayniteAchievements.Providers.Exophase
                 return FriendsProviderResult<FriendGameAchievements>.Failed("Exophase friend id or game key is missing.");
             }
 
-            // The friend's games page links each game to /game/{slug}/achievements/#{contextId}, which
-            // renders that friend's unlock state. Reuse the main provider's achievement fetch+parse
-            // against that friend-scoped URL: FetchAchievementsAsync waits for the JS-loaded unlock data
-            // and ParseAchievementsHtml yields names, descriptions, full-size icons AND unlock times for
-            // the friend in one pass (no separate awards scrape).
-            var contextId = GetFriendGameContextId(friend.ExternalUserId, providerGameKey);
-            var achievementUrl = BuildFriendAchievementUrl(parsed.GameSlug, parsed.PlatformSlug, contextId);
-            var fetched = await _apiClient
-                .FetchAchievementsWithHtmlAsync(achievementUrl, ExophaseApiClient.MapLanguageToAcceptLanguage("en-US"), cancel, waitForImages: true)
+            // The earned-awards JSON endpoint returns the friend's unlocks for one game keyed by the
+            // stable award id with exact unix timestamps: locale-proof, no page render, no image
+            // warming. Names, descriptions, and icons come from the shared per-game definitions at
+            // read time (GetFriendGameDefinitionAsync), not from these rows.
+            var ids = await ResolveEarnedEndpointIdsAsync(friend.ExternalUserId, providerGameKey, cancel).ConfigureAwait(false);
+            if (ids == null)
+            {
+                return FriendsProviderResult<FriendGameAchievements>.Failed(
+                    $"Could not resolve Exophase player/game ids for '{providerGameKey}'.",
+                    transientFailure: true);
+            }
+
+            var earned = await _publicApiClient
+                .GetEarnedAwardsAsync(ids.Value.MasterPlayerId, ids.Value.MasterId, cancel)
                 .ConfigureAwait(false);
-            var achievements = fetched?.Achievements ?? new List<AchievementDetail>();
+            if (earned == null)
+            {
+                // Fetch failure (Cloudflare or transport); an empty list is a legitimate zero-unlock
+                // result and is handled below.
+                return FriendsProviderResult<FriendGameAchievements>.Failed(
+                    $"Exophase earned-awards fetch failed for '{providerGameKey}'.",
+                    transientFailure: true);
+            }
 
-            // The friend achievement page carries the game's header banner in its layout; parse it from the
-            // same HTML so provider-only friend games get a full-size icon/cover without a second request. For
-            // Exophase, definitions are seeded from this scrape (no separate GetFriendGameDefinitionAsync fetch),
-            // so this is the only chance to capture the banner during the provider-only probe.
-            var headerImageUrl = string.IsNullOrEmpty(fetched?.Html)
-                ? null
-                : ExophaseFriendPageParser.ParseGameHeaderImageUrl(fetched.Html);
-
-            // Reuse the main provider's rarity assignment (percentage -> rarity tier) so friend
-            // achievements are not all reported as Common.
-            ExophaseDataProvider.ApplyProviderOwnedRarity(
-                achievements,
-                ExophaseDataProvider.MapSlugToProviderPlatformKey(parsed.PlatformSlug));
-
-            var rows = achievements
-                .Where(achievement => achievement != null)
-                .Select(achievement => new FriendAchievementRow
+            var rows = earned
+                .Where(award => award != null && award.EffectiveAwardId > 0)
+                .Select(award => new FriendAchievementRow
                 {
-                    // Carry the stable, display-derived api name so the unlock rows match canonical
-                    // definitions by key (not just display text), and so definitions can be seeded from
-                    // this scrape when the game has none cached yet.
-                    ApiName = achievement.ApiName,
-                    DisplayName = achievement.DisplayName,
-                    Description = achievement.Description,
-                    IconUrl = achievement.Unlocked ? achievement.UnlockedIconPath : achievement.LockedIconPath,
-                    UnlockedIconUrl = achievement.UnlockedIconPath,
-                    LockedIconUrl = achievement.LockedIconPath,
-                    Points = achievement.Points,
-                    ScaledPoints = achievement.ScaledPoints,
-                    Category = achievement.Category,
-                    CategoryType = achievement.CategoryType,
-                    TrophyType = achievement.TrophyType,
-                    Hidden = achievement.Hidden,
-                    IsCapstone = achievement.IsCapstone,
-                    GlobalPercentUnlocked = achievement.GlobalPercentUnlocked,
-                    Rarity = achievement.Rarity,
-                    Unlocked = achievement.Unlocked,
-                    UnlockTimeUtc = achievement.UnlockTimeUtc,
-                    ProgressNum = achievement.ProgressNum,
-                    ProgressDenom = achievement.ProgressDenom
+                    ApiName = ExophaseApiClient.ExophaseStableApiNamePrefix +
+                        award.EffectiveAwardId.ToString(System.Globalization.CultureInfo.InvariantCulture),
+                    // The platform-native achievement key (Steam apiname, PSN trophy id, ...) so the
+                    // save can match definitions written by the platform's own provider for mapped games.
+                    ProviderNativeKey = award.CanonicalId,
+                    IconUrl = ExophasePublicApiClient.NormalizeImageUrl(award.Icons?.Original ?? award.Icons?.Medium),
+                    UnlockedIconUrl = ExophasePublicApiClient.NormalizeImageUrl(award.Icons?.Original ?? award.Icons?.Medium),
+                    Unlocked = true,
+                    UnlockTimeUtc = award.Timestamp > 0
+                        ? DateTimeOffset.FromUnixTimeSeconds(award.Timestamp).UtcDateTime
+                        : (DateTime?)null
                 })
                 .ToList();
 
             _logger?.Debug($"[ExophaseFriends] GetFriendGameAchievements: friend='{friend.ExternalUserId}', " +
-                $"gameKey='{providerGameKey}', contextId='{contextId ?? "(none)"}' -> " +
-                $"{achievements.Count} achievement(s), {rows.Count(row => row.Unlocked)} unlocked.");
+                $"gameKey='{providerGameKey}', masterPlayerId={ids.Value.MasterPlayerId}, masterId={ids.Value.MasterId} -> " +
+                $"{rows.Count} unlocked award(s).");
 
             return FriendsProviderResult<FriendGameAchievements>.FromData(new FriendGameAchievements
             {
                 Friend = friend,
                 ProviderGameKey = providerGameKey,
                 LastUpdatedUtc = DateTime.UtcNow,
-                StatsUnavailable = achievements.Count == 0,
-                IconUrl = headerImageUrl,
+                StatsUnavailable = false,
                 Rows = rows
             });
+        }
+
+        /// <summary>
+        /// Resolves the (master_playerid, master_id) pair the earned-awards endpoint needs for one
+        /// (friend, game). Ownership refreshes populate the per-refresh memos; cache-sourced candidates
+        /// (Recent/SelectedGame/Custom scopes) trigger one memoized ownership fetch for the friend.
+        /// </summary>
+        private async Task<(long MasterPlayerId, long MasterId)?> ResolveEarnedEndpointIdsAsync(
+            string username,
+            string providerGameKey,
+            CancellationToken cancel)
+        {
+            if (TryGetEarnedEndpointIds(username, providerGameKey, out var resolved))
+            {
+                return resolved;
+            }
+
+            // Ownership was not fetched this refresh (or the game key was filtered out); fetch the
+            // friend's library once (memoized per refresh) and index every game's ids, not just the
+            // selected platforms, so id resolution is independent of platform filtering.
+            var games = await FetchOwnedGamesAsync(username, cancel).ConfigureAwait(false);
+            foreach (var game in games ?? (IReadOnlyList<ExophaseFriendGame>)Array.Empty<ExophaseFriendGame>())
+            {
+                var key = ExophaseFriendGameKey.Build(game.Platform, game.Slug);
+                if (string.IsNullOrWhiteSpace(key))
+                {
+                    continue;
+                }
+
+                if (!string.IsNullOrWhiteSpace(game.ContextId))
+                {
+                    _friendGameContextIds[BuildContextMapKey(username, key)] = game.ContextId;
+                }
+
+                if (game.MasterId > 0)
+                {
+                    _friendGameMasterIds[key] = game.MasterId;
+                }
+            }
+
+            return TryGetEarnedEndpointIds(username, providerGameKey, out resolved)
+                ? resolved
+                : ((long MasterPlayerId, long MasterId)?)null;
+        }
+
+        private bool TryGetEarnedEndpointIds(
+            string username,
+            string providerGameKey,
+            out (long MasterPlayerId, long MasterId) ids)
+        {
+            ids = default((long, long));
+            var contextId = GetFriendGameContextId(username, providerGameKey);
+            if (string.IsNullOrWhiteSpace(contextId) ||
+                !long.TryParse(contextId.Trim(), out var masterPlayerId) ||
+                masterPlayerId <= 0)
+            {
+                return false;
+            }
+
+            if (!_friendGameMasterIds.TryGetValue(providerGameKey, out var masterId) || masterId <= 0)
+            {
+                return false;
+            }
+
+            ids = (masterPlayerId, masterId);
+            return true;
         }
 
         private List<FriendSettingsEntry> GetConfiguredFriends(bool includeIgnored)
@@ -791,85 +912,216 @@ namespace PlayniteAchievements.Providers.Exophase
             return DateTime.UtcNow - friend.LastProbedUtc.Value > TimeSpan.FromDays(7);
         }
 
+        // Marks the friend's persisted probe state so the settings UI shows why ownership data
+        // stopped refreshing (same mechanics the metadata probe uses).
+        private void RecordOwnershipProbeFailure(string username, string error)
+        {
+            var friend = GetConfiguredFriend(username);
+            if (friend == null)
+            {
+                return;
+            }
+
+            friend.LastProbedUtc = DateTime.UtcNow;
+            friend.LastProbeStatus = "failed";
+            friend.LastError = error;
+        }
+
         private async Task<ExophaseProfileMetadata> FetchProfileMetadataAsync(
             string username,
             CancellationToken cancel)
         {
+            // The identity fetch renders the same profile page and is memoized per refresh, so the
+            // metadata probe and the ownership pass share one fetch per friend.
+            var identity = await GetProfileIdentityAsync(username, cancel).ConfigureAwait(false);
+            if (!string.IsNullOrWhiteSpace(identity?.Html))
+            {
+                return ExophaseFriendPageParser.ParseProfile(identity.Html);
+            }
+
             var url = BuildProfileUrl(username);
-            var html = await FetchRenderedHtmlSerializedAsync(url, cancel, scrollToLoad: false).ConfigureAwait(false);
+            var html = await FetchRenderedHtmlSerializedAsync(url, cancel).ConfigureAwait(false);
             return ExophaseFriendPageParser.ParseProfile(html);
-        }
-
-        private async Task<string> FetchGameHeaderImageAsync(string gameSlug, CancellationToken cancel)
-        {
-            if (string.IsNullOrWhiteSpace(gameSlug))
-            {
-                return null;
-            }
-
-            try
-            {
-                var url = ExophaseApiClient.BuildUrlFromSlug(gameSlug);
-                var html = await FetchRenderedHtmlSerializedAsync(url, cancel, scrollToLoad: false).ConfigureAwait(false);
-                return ExophaseFriendPageParser.ParseGameHeaderImageUrl(html);
-            }
-            catch (OperationCanceledException)
-            {
-                throw;
-            }
-            catch (Exception ex)
-            {
-                _logger?.Debug(ex, $"[ExophaseFriends] Failed to fetch game header image for '{gameSlug}'.");
-                return null;
-            }
         }
 
         private async Task<IReadOnlyList<ExophaseFriendGame>> FetchOwnedGamesAsync(
             string username,
             CancellationToken cancel)
         {
-            var urls = new[]
+            // Memoized per refresh: the ownership pass and the Steam supplement pass both need the
+            // friend's library; one fetch serves both.
+            var memoKey = username?.Trim() ?? string.Empty;
+            if (_friendLibraryMemo.TryGetValue(memoKey, out var memoized))
             {
-                BuildProfileUrl(username),
-                BuildGamesUrl(username)
+                return memoized;
             }
-                .Where(url => !string.IsNullOrWhiteSpace(url))
-                .Distinct(StringComparer.OrdinalIgnoreCase)
-                .ToList();
 
-            var games = new List<ExophaseFriendGame>();
-            foreach (var url in urls)
+            var games = await FetchOwnedGamesViaApiAsync(username, cancel).ConfigureAwait(false);
+            if (games == null)
             {
-                cancel.ThrowIfCancellationRequested();
-                var html = await FetchRenderedHtmlSerializedAsync(url, cancel, scrollToLoad: true).ConfigureAwait(false);
-                if (string.IsNullOrWhiteSpace(html))
+                // API path unavailable: unresolvable playerProfileId (renamed/private profile),
+                // Cloudflare challenge, or a mid-pagination failure. Fail cleanly rather than
+                // persisting a truncated library; the null memo caps the cost at one attempt per
+                // refresh and callers surface a transient failure so cached data is kept.
+                _logger?.Warn($"[ExophaseFriends] Games-list API unavailable for '{username}' " +
+                    "(profile id unresolvable, Cloudflare challenge, or pagination failure); keeping cached data.");
+                RecordOwnershipProbeFailure(username,
+                    "Exophase games-list API unavailable (profile id unresolvable or fetch blocked).");
+            }
+
+            _friendLibraryMemo[memoKey] = games;
+            return games;
+        }
+
+        private async Task<IReadOnlyList<ExophaseFriendGame>> FetchOwnedGamesViaApiAsync(
+            string username,
+            CancellationToken cancel)
+        {
+            var identity = await GetProfileIdentityAsync(username, cancel).ConfigureAwait(false);
+            if (identity == null || identity.PlayerProfileId <= 0)
+            {
+                return null;
+            }
+
+            var apiGames = await _publicApiClient
+                .GetPlayerGamesAsync(identity.PlayerProfileId, cancel)
+                .ConfigureAwait(false);
+            if (apiGames == null)
+            {
+                return null;
+            }
+
+            // The SSR blob (recent 50 games) is the only source of the game-level Steam appid;
+            // index it by master_id so API rows pick their appid up for free.
+            var ssrAppIdsByMasterId = new Dictionary<long, int>();
+            foreach (var ssrGame in identity.SsrGames ?? new List<ExophasePlayerGame>())
+            {
+                if (ssrGame == null || ssrGame.MasterId <= 0)
                 {
-                    _logger?.Warn($"[ExophaseFriends] Profile fetch: empty or blocked HTML from {url}. " +
-                        "The page may require login, have been rate-limited, or failed to render.");
                     continue;
                 }
 
-                var page = ExophaseFriendPageParser.ParseGames(html);
-                games.AddRange(page.Games);
-                _logger?.Debug($"[ExophaseFriends] Profile fetch: {url} -> htmlLength={html.Length}, " +
-                    $"parsedGames={page.Games.Count}.");
+                var ssrAppId = ExophasePublicApiClient.GetSteamAppId(ssrGame);
+                if (ssrAppId > 0)
+                {
+                    ssrAppIdsByMasterId[ssrGame.MasterId] = ssrAppId;
+                }
+            }
+
+            var games = new List<ExophaseFriendGame>();
+            var skippedNoAwards = 0;
+            foreach (var apiGame in apiGames)
+            {
+                cancel.ThrowIfCancellationRequested();
+                var mapped = MapApiGameToFriendGame(apiGame, ssrAppIdsByMasterId);
+                if (mapped == null)
+                {
+                    skippedNoAwards++;
+                    continue;
+                }
+
+                games.Add(mapped);
             }
 
             var deduped = games
-                .Where(game => !string.IsNullOrWhiteSpace(game?.Slug))
                 .GroupBy(game => (game.Platform ?? string.Empty) + "|" + game.Slug, StringComparer.OrdinalIgnoreCase)
                 .Select(group => group.First())
                 .ToList();
-            _logger?.Debug($"[ExophaseFriends] Profile fetch: '{username}' -> parsedGames={games.Count}, uniqueGames={deduped.Count}.");
+            _logger?.Info($"[ExophaseFriends] Games-list API: '{username}' (profile {identity.PlayerProfileId}) -> " +
+                $"{apiGames.Count} game(s), kept {deduped.Count} with achievements " +
+                $"(skipped {skippedNoAwards} without an awards endpoint).");
             return deduped;
         }
 
-        private async Task<string> FetchRenderedHtmlSerializedAsync(string url, CancellationToken cancel, bool scrollToLoad = false)
+        private ExophaseFriendGame MapApiGameToFriendGame(
+            ExophasePlayerGame apiGame,
+            IReadOnlyDictionary<long, int> ssrAppIdsByMasterId)
+        {
+            // Rows without an awards endpoint are demos/tools with no achievements.
+            if (apiGame?.Meta == null || string.IsNullOrWhiteSpace(apiGame.Meta.EndpointAwards))
+            {
+                return null;
+            }
+
+            var slug = ExophasePublicApiClient.GetGameSlug(apiGame);
+            var platform = apiGame.Meta.EnvironmentSlug?.Trim();
+            if (string.IsNullOrWhiteSpace(slug) || string.IsNullOrWhiteSpace(platform))
+            {
+                return null;
+            }
+
+            var playtimeMinutes = ExophasePublicApiClient.GetPlaytimeMinutes(apiGame);
+            if (playtimeMinutes <= 0 && !string.IsNullOrWhiteSpace(apiGame.Playtime))
+            {
+                playtimeMinutes = ExophaseFriendPageParser.ParsePlaytimeMinutes(apiGame.Playtime);
+            }
+
+            var appId = 0;
+            if (ssrAppIdsByMasterId != null && apiGame.MasterId > 0)
+            {
+                ssrAppIdsByMasterId.TryGetValue(apiGame.MasterId, out appId);
+            }
+
+            return new ExophaseFriendGame
+            {
+                Slug = slug,
+                Title = apiGame.Meta.Title,
+                ImageUrl = ExophasePublicApiClient.NormalizeImageUrl(apiGame.ResourceStandard),
+                Platform = platform,
+                SteamAppId = appId,
+                ContextId = ExophasePublicApiClient.GetContextId(apiGame)
+                    ?? (apiGame.MasterPlayerId > 0 ? apiGame.MasterPlayerId.ToString() : null),
+                MasterId = apiGame.MasterId,
+                PlaytimeMinutes = Math.Max(0, playtimeMinutes),
+                RecentPlaytimeMinutes = 0,
+                LastPlayedUtc = ExophasePublicApiClient.FromUnixSeconds(apiGame.LastPlayedUtc),
+                AchievementsEarned = apiGame.EarnedAwards,
+                AchievementsTotal = apiGame.TotalAwards
+            };
+        }
+
+        private async Task<ExophaseProfileIdentity> GetProfileIdentityAsync(
+            string username,
+            CancellationToken cancel)
+        {
+            var memoKey = username?.Trim() ?? string.Empty;
+            if (memoKey.Length == 0)
+            {
+                return null;
+            }
+
+            if (_friendIdentityMemo.TryGetValue(memoKey, out var memoized))
+            {
+                return memoized;
+            }
+
+            await _webViewGate.WaitAsync(cancel).ConfigureAwait(false);
+            ExophaseProfileIdentity identity;
+            try
+            {
+                identity = await _publicApiClient.ResolveProfileIdentityAsync(memoKey, cancel).ConfigureAwait(false);
+            }
+            finally
+            {
+                _webViewGate.Release();
+            }
+
+            if (identity != null)
+            {
+                _friendIdentityMemo[memoKey] = identity;
+                _logger?.Debug($"[ExophaseFriends] Resolved profile identity for '{memoKey}': " +
+                    $"playerProfileId={identity.PlayerProfileId}, ssrGames={identity.SsrGames?.Count ?? 0}.");
+            }
+
+            return identity;
+        }
+
+        private async Task<string> FetchRenderedHtmlSerializedAsync(string url, CancellationToken cancel)
         {
             await _webViewGate.WaitAsync(cancel).ConfigureAwait(false);
             try
             {
-                return await _apiClient.FetchRenderedHtmlAsync(url, cancel, scrollToLoad: scrollToLoad).ConfigureAwait(false);
+                return await _apiClient.FetchRenderedHtmlAsync(url, cancel).ConfigureAwait(false);
             }
             finally
             {
@@ -1013,11 +1265,6 @@ namespace PlayniteAchievements.Providers.Exophase
             return $"https://www.exophase.com/user/{Uri.EscapeDataString(username.Trim())}/";
         }
 
-        private static string BuildGamesUrl(string username)
-        {
-            return $"https://www.exophase.com/user/{Uri.EscapeDataString(username.Trim())}/games/";
-        }
-
         private static string BuildContextMapKey(string username, string providerGameKey)
         {
             return (username?.Trim() ?? string.Empty) + "|" + (providerGameKey?.Trim() ?? string.Empty);
@@ -1028,18 +1275,6 @@ namespace PlayniteAchievements.Providers.Exophase
             return _friendGameContextIds.TryGetValue(BuildContextMapKey(username, providerGameKey), out var contextId)
                 ? contextId
                 : null;
-        }
-
-        private static string BuildFriendAchievementUrl(string gameSlug, string platformSlug, string contextId)
-        {
-            // Mirrors the games-page link: /game/{slug}/{endpoint}/#{contextId} renders the friend's
-            // unlock state. The endpoint (trophies/challenges/achievements) is resolved from the
-            // known platform so PSN/Ubisoft games hit the right page regardless of the slug suffix.
-            // Without a context id this falls back to the plain (viewer-scoped) page.
-            var url = ExophaseApiClient.BuildUrlFromSlug(gameSlug, platformSlug);
-            return string.IsNullOrWhiteSpace(contextId)
-                ? url
-                : url + "#" + contextId.Trim();
         }
 
         private static List<string> NormalizePlatforms(IEnumerable<string> platforms)
@@ -1074,9 +1309,14 @@ namespace PlayniteAchievements.Providers.Exophase
             public string Platform { get; set; }
             public int SteamAppId { get; set; }
 
-            // Friend's per-game context id from the games-page achievement link fragment
+            // Friend's per-game context id from the achievement link fragment
             // (/game/{slug}/achievements/#{ContextId}); scopes the achievement page to this friend.
+            // Equals the friend's per-service master_playerid on the API path.
             public string ContextId { get; set; }
+
+            // Exophase's internal game id (game-global, stable). Populated on the API path only;
+            // 0 when the row came from the profile-page scrape fallback.
+            public long MasterId { get; set; }
             public int PlaytimeMinutes { get; set; }
             public int RecentPlaytimeMinutes { get; set; }
             public DateTime? LastPlayedUtc { get; set; }
@@ -1086,17 +1326,6 @@ namespace PlayniteAchievements.Providers.Exophase
             // refresh gate can skip provider-only games the friend has not unlocked anything in.
             public int? AchievementsEarned { get; set; }
             public int? AchievementsTotal { get; set; }
-        }
-
-        private sealed class ParsedGamesPage
-        {
-            public List<ExophaseFriendGame> Games { get; set; } = new List<ExophaseFriendGame>();
-        }
-
-        private sealed class ExophaseProfileMetadata
-        {
-            public string DisplayName { get; set; }
-            public string AvatarUrl { get; set; }
         }
 
         private static class ExophaseFriendGameKey
@@ -1122,686 +1351,6 @@ namespace PlayniteAchievements.Providers.Exophase
                 return parts.Length == 2
                     ? (parts[0].Trim().ToLowerInvariant(), parts[1].Trim().ToLowerInvariant())
                     : (null, key.Trim().ToLowerInvariant());
-            }
-        }
-
-        private static class ExophaseFriendPageParser
-        {
-            private static readonly Regex ServiceIconPlatformRegex = new Regex(@"exo-icon-service-([a-z0-9]+)", RegexOptions.Compiled | RegexOptions.IgnoreCase);
-            private static readonly Regex ImageHostPlatformRegex = new Regex(@"exophase\.com/([a-z0-9]+)/(?:games|awards)/", RegexOptions.Compiled | RegexOptions.IgnoreCase);
-            private static readonly Regex PlaytimeHoursMinutesRegex = new Regex(@"(?:(\d+(?:[.,]\d+)?)\s*h(?:ours?)?)?\s*(?:(\d+)\s*m(?:in(?:utes?)?)?)?", RegexOptions.Compiled | RegexOptions.IgnoreCase);
-            private static readonly Regex EarnedTotalCountsRegex = new Regex(@"(\d+)\s*/\s*(\d+)", RegexOptions.Compiled);
-            private static readonly Regex RecentDateContextRegex = new Regex(
-                @"\b(today|yesterday|last\s+24\s+hours?|past\s+24\s+hours?|this\s+week|last\s+week|monday|tuesday|wednesday|thursday|friday|saturday|sunday)\b",
-                RegexOptions.Compiled | RegexOptions.IgnoreCase);
-            private static readonly Regex LastPlayedLabelRegex = new Regex(@"\b(last\s+played|played\s+on|recently\s+played)\b", RegexOptions.Compiled | RegexOptions.IgnoreCase);
-            private static readonly Regex TodayWordRegex = new Regex(@"\btoday\b", RegexOptions.Compiled | RegexOptions.IgnoreCase);
-            private static readonly Regex YesterdayWordRegex = new Regex(@"\byesterday\b", RegexOptions.Compiled | RegexOptions.IgnoreCase);
-            private static readonly Regex WeekdayNameRegex = new Regex(@"\b(monday|tuesday|wednesday|thursday|friday|saturday|sunday)\b", RegexOptions.Compiled | RegexOptions.IgnoreCase);
-            private static readonly Regex MonthDayDateRegex = new Regex(
-                @"\b(?:\d{1,2}\s+)?(?:jan(?:uary)?|feb(?:ruary)?|mar(?:ch)?|apr(?:il)?|may|jun(?:e)?|jul(?:y)?|aug(?:ust)?|sep(?:t(?:ember)?)?|oct(?:ober)?|nov(?:ember)?|dec(?:ember)?)\.?\s+\d{1,2}(?:,?\s+\d{4})?\b",
-                RegexOptions.Compiled | RegexOptions.IgnoreCase);
-            private static readonly Regex IsoDateRegex = new Regex(@"\b\d{4}-\d{1,2}-\d{1,2}\b", RegexOptions.Compiled | RegexOptions.IgnoreCase);
-            private static readonly Regex FourDigitYearRegex = new Regex(@"\b\d{4}\b", RegexOptions.Compiled);
-            private static readonly Regex HeadingTagNameRegex = new Regex(@"^h[1-6]$", RegexOptions.Compiled | RegexOptions.IgnoreCase);
-            private static readonly Regex DateHeaderClassRegex = new Regex(@"\b(date|day|activity|header|title)\b", RegexOptions.Compiled | RegexOptions.IgnoreCase);
-            private static readonly Regex CompactDayWordRegex = new Regex(
-                @"^(today|yesterday|monday|tuesday|wednesday|thursday|friday|saturday|sunday)$",
-                RegexOptions.Compiled | RegexOptions.IgnoreCase);
-            private static readonly Regex CompactMonthDayDateRegex = new Regex(
-                @"^(?:jan(?:uary)?|feb(?:ruary)?|mar(?:ch)?|apr(?:il)?|may|jun(?:e)?|jul(?:y)?|aug(?:ust)?|sep(?:t(?:ember)?)?|oct(?:ober)?|nov(?:ember)?|dec(?:ember)?)\.?\s+\d{1,2}(?:,?\s+\d{4})?$",
-                RegexOptions.Compiled | RegexOptions.IgnoreCase);
-            private static readonly Regex CompactIsoDateRegex = new Regex(@"^\d{4}-\d{1,2}-\d{1,2}$", RegexOptions.Compiled | RegexOptions.IgnoreCase);
-            private static readonly Regex WhitespaceRunRegex = new Regex(@"\s+", RegexOptions.Compiled);
-
-            public static ExophaseProfileMetadata ParseProfile(string html)
-            {
-                var doc = LoadDocument(html);
-                if (doc?.DocumentNode == null)
-                {
-                    return new ExophaseProfileMetadata();
-                }
-
-                var header = doc.DocumentNode.SelectSingleNode("//section[contains(@class, 'section-profile-header')]")
-                    ?? doc.DocumentNode;
-                return new ExophaseProfileMetadata
-                {
-                    DisplayName = FirstNonEmpty(
-                        Clean(header.SelectSingleNode(".//div[contains(@class, 'column-username')]//h2")?.InnerText),
-                        Clean(header.SelectSingleNode(".//h2")?.InnerText)),
-                    AvatarUrl = NormalizeUrl(FirstNonEmpty(
-                        header.SelectSingleNode(".//div[contains(@class, 'avatar')]//img")?.GetAttributeValue("src", null),
-                        header.SelectSingleNode(".//img[contains(@src, '/forums/data/avatars/')]")?.GetAttributeValue("src", null)))
-                };
-            }
-
-            public static string ParseGameHeaderImageUrl(string html)
-            {
-                var doc = LoadDocument(html);
-                if (doc?.DocumentNode == null)
-                {
-                    return null;
-                }
-
-                return NormalizeUrl(FirstNonEmpty(
-                    ExophaseApiClient.ResolveImageUrl(doc.DocumentNode.SelectSingleNode("//div[contains(@class, 'col-game-information')]//a[contains(@class, 'image')]")),
-                    ExophaseApiClient.ResolveImageUrl(doc.DocumentNode.SelectSingleNode("//div[contains(@class, 'feature-header')]")),
-                    ExophaseApiClient.ResolveImageUrl(doc.DocumentNode.SelectSingleNode("//a[contains(@class, 'image')]"))));
-            }
-
-            public static ParsedGamesPage ParseGames(string html)
-            {
-                var result = new ParsedGamesPage();
-                var doc = LoadDocument(html);
-                if (doc?.DocumentNode == null)
-                {
-                    return result;
-                }
-
-                // Each game row exposes its title as <h3><a href=".../game/{slug}/achievements/#id">Title</a>.
-                // Prefer the heading anchors so award-icon and navigation links are not mistaken for games;
-                // fall back to any /game/ anchor if the markup changes.
-                var links = doc.DocumentNode.SelectNodes("//h3/a[contains(@href, '/game/')]")
-                    ?? doc.DocumentNode.SelectNodes("//a[contains(@href, '/game/')]");
-
-                foreach (var link in Nodes(links))
-                {
-                    var rawHref = link.GetAttributeValue("href", null);
-                    var href = NormalizeUrl(rawHref);
-                    var slug = ExophaseApiClient.ExtractSlugFromUrl(href);
-                    if (string.IsNullOrWhiteSpace(slug))
-                    {
-                        continue;
-                    }
-
-                    var contextId = ExtractFragmentId(rawHref);
-                    var container = FindGameContainer(link);
-                    var platform = DerivePlatform(container, slug);
-                    var title = FirstNonEmpty(
-                        Clean(link.InnerText),
-                        Clean(link.GetAttributeValue("title", null)),
-                        Clean(container?.SelectSingleNode(".//div[contains(@class, 'col-image')]//img")?.GetAttributeValue("alt", null)),
-                        SlugToTitle(slug, platform));
-                    var image = NormalizeUrl(FirstNonEmpty(
-                        ExophaseApiClient.ResolveImageUrl(container?.SelectSingleNode(".//div[contains(@class, 'col-image')]")),
-                        ExophaseApiClient.ResolveImageUrl(container)));
-                    var recentDateContext = ResolveRecentDateContextUtc(container);
-                    // The games listing renders a per-game "last played" cell (<div class="lastplayed">July 1, 2026</div>);
-                    // prefer it as the recency signal before the generic attribute/heading fallbacks.
-                    DateTime? lastPlayedFromCell = null;
-                    if (TryParseDateText(
-                            container?.SelectSingleNode(".//div[contains(@class, 'lastplayed')]")?.InnerText,
-                            out var parsedLastPlayedCell))
-                    {
-                        lastPlayedFromCell = parsedLastPlayedCell;
-                    }
-
-                    var lastPlayedUtc = lastPlayedFromCell ?? ParseLastPlayedUtc(container) ?? recentDateContext;
-
-                    var (achievementsEarned, achievementsTotal) = ParseAchievementCounts(container);
-
-                    result.Games.Add(new ExophaseFriendGame
-                    {
-                        Slug = slug,
-                        Title = title,
-                        ImageUrl = image,
-                        Platform = platform,
-                        SteamAppId = ExophaseSteamAppIdParser.Extract(container?.OuterHtml),
-                        ContextId = contextId,
-                        PlaytimeMinutes = ParsePlaytimeMinutes(container?.InnerText),
-                        RecentPlaytimeMinutes = ParseRecentPlaytimeMinutes(container?.InnerText, recentDateContext.HasValue),
-                        LastPlayedUtc = lastPlayedUtc,
-                        AchievementsEarned = achievementsEarned,
-                        AchievementsTotal = achievementsTotal
-                    });
-                }
-
-                return result;
-            }
-
-            private static HtmlDocument LoadDocument(string html)
-            {
-                if (string.IsNullOrWhiteSpace(html))
-                {
-                    return null;
-                }
-
-                var doc = new HtmlDocument();
-                doc.LoadHtml(html);
-                return doc;
-            }
-
-            private static IEnumerable<HtmlNode> Nodes(HtmlNodeCollection nodes)
-            {
-                return nodes ?? Enumerable.Empty<HtmlNode>();
-            }
-
-            private static string ExtractFragmentId(string href)
-            {
-                if (string.IsNullOrWhiteSpace(href))
-                {
-                    return null;
-                }
-
-                var hashIndex = href.IndexOf('#');
-                if (hashIndex < 0 || hashIndex >= href.Length - 1)
-                {
-                    return null;
-                }
-
-                var fragment = href.Substring(hashIndex + 1).Trim();
-                return string.IsNullOrWhiteSpace(fragment) ? null : fragment;
-            }
-
-            private static HtmlNode FindGameContainer(HtmlNode link)
-            {
-                var current = link;
-                for (var i = 0; i < 8 && current?.ParentNode != null; i++)
-                {
-                    current = current.ParentNode;
-                    if (!HasGameRowSignals(current))
-                    {
-                        continue;
-                    }
-
-                    // Do not let a broad list/container node classify this row from a sibling's
-                    // service icon, image, playtime, or progress block. Row containers can legitimately
-                    // contain multiple links to the same game (image + title), so count distinct slugs.
-                    if (CountDistinctGameSlugs(current) <= 1)
-                    {
-                        return current;
-                    }
-                }
-
-                return link.ParentNode;
-            }
-
-            private static bool HasGameRowSignals(HtmlNode node)
-            {
-                return node != null &&
-                       (node.SelectSingleNode(".//div[contains(@class, 'col-image')]") != null ||
-                        node.SelectSingleNode(".//i[contains(@class, 'exo-icon-service-')]") != null ||
-                        node.SelectSingleNode(".//div[contains(@class, 'game-progress')]") != null ||
-                        node.SelectSingleNode(".//div[contains(@class, 'lastplayed')]") != null);
-            }
-
-            private static int CountDistinctGameSlugs(HtmlNode node)
-            {
-                var slugs = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-                foreach (var link in Nodes(node?.SelectNodes(".//a[contains(@href, '/game/')]")))
-                {
-                    var slug = ExophaseApiClient.ExtractSlugFromUrl(
-                        NormalizeUrl(link.GetAttributeValue("href", null)));
-                    if (!string.IsNullOrWhiteSpace(slug))
-                    {
-                        slugs.Add(slug);
-                    }
-                }
-
-                return slugs.Count;
-            }
-
-            private static string DerivePlatform(HtmlNode container, string slug)
-            {
-                // The slug is row-local and cannot be contaminated by sibling rows. Prefer it over
-                // service icons because broad profile containers may contain many platform icons.
-                var slugPlatform = ExophaseFriendPlatformMatcher.ExtractPlatformSlugFromGameSlug(slug);
-                if (!string.IsNullOrWhiteSpace(slugPlatform))
-                {
-                    return NormalizePlatformSlug(slugPlatform);
-                }
-
-                if (container != null)
-                {
-                    // The service icon carries the platform: <i class="exo-icon-service-origin ...">.
-                    var serviceIcon = container.SelectSingleNode(".//i[contains(@class, 'exo-icon-service-')]");
-                    var iconClass = serviceIcon?.GetAttributeValue("class", string.Empty) ?? string.Empty;
-                    var iconMatch = ServiceIconPlatformRegex.Match(iconClass);
-                    if (iconMatch.Success)
-                    {
-                        return NormalizePlatformSlug(iconMatch.Groups[1].Value);
-                    }
-
-                    // Fall back to the media host path: https://m.exophase.com/{platform}/games/...
-                    var imageSrc = ExophaseApiClient.ResolveImageUrl(container) ?? string.Empty;
-                    var imageMatch = ImageHostPlatformRegex.Match(imageSrc);
-                    if (imageMatch.Success)
-                    {
-                        return NormalizePlatformSlug(imageMatch.Groups[1].Value);
-                    }
-                }
-
-                // Last resort: the platform suffix embedded in the slug (e.g. dead-space-3-origin -> origin).
-                var lastDash = (slug ?? string.Empty).LastIndexOf('-');
-                if (lastDash > 0 && lastDash < slug.Length - 1)
-                {
-                    return NormalizePlatformSlug(slug.Substring(lastDash + 1));
-                }
-
-                return null;
-            }
-
-            private static string SlugToTitle(string slug, string platform)
-            {
-                var value = slug ?? string.Empty;
-                if (!string.IsNullOrWhiteSpace(platform) &&
-                    value.EndsWith("-" + platform, StringComparison.OrdinalIgnoreCase))
-                {
-                    value = value.Substring(0, value.Length - platform.Length - 1);
-                }
-
-                return CultureInfo.CurrentCulture.TextInfo.ToTitleCase(value.Replace('-', ' '));
-            }
-
-            private static int ParsePlaytimeMinutes(string text)
-            {
-                if (string.IsNullOrWhiteSpace(text))
-                {
-                    return 0;
-                }
-
-                var match = PlaytimeHoursMinutesRegex.Match(text);
-                if (!match.Success)
-                {
-                    return 0;
-                }
-
-                var total = 0;
-                // Accept a comma decimal (e.g. French "12,5 h") by normalizing it to a dot before
-                // parsing with the invariant culture.
-                var hoursText = match.Groups[1].Value.Replace(',', '.');
-                if (double.TryParse(hoursText, NumberStyles.Float, CultureInfo.InvariantCulture, out var hours))
-                {
-                    total += (int)Math.Round(hours * 60);
-                }
-
-                if (int.TryParse(match.Groups[2].Value, NumberStyles.Integer, CultureInfo.InvariantCulture, out var minutes))
-                {
-                    total += minutes;
-                }
-
-                return Math.Max(0, total);
-            }
-
-            // Reads the "earned/total" achievement count from a game row's game-progress block,
-            // rendered as an award icon followed by e.g. "6/37". Returns (null, null) when the row
-            // has no progress block (some platforms/games omit it) so the caller leaves the hint unset.
-            private static (int? Earned, int? Total) ParseAchievementCounts(HtmlNode container)
-            {
-                if (container == null)
-                {
-                    return (null, null);
-                }
-
-                var progressCol = container.SelectSingleNode(
-                    ".//div[contains(@class, 'game-progress')]//i[contains(@class, 'exo-icon-award')]/parent::div")
-                    ?? container.SelectSingleNode(".//div[contains(@class, 'game-progress')]//div[contains(@class, 'progress-units-top')]");
-                if (progressCol == null)
-                {
-                    return (null, null);
-                }
-
-                var match = EarnedTotalCountsRegex.Match(Clean(progressCol.InnerText) ?? string.Empty);
-                if (!match.Success ||
-                    !int.TryParse(match.Groups[1].Value, NumberStyles.Integer, CultureInfo.InvariantCulture, out var earned) ||
-                    !int.TryParse(match.Groups[2].Value, NumberStyles.Integer, CultureInfo.InvariantCulture, out var total))
-                {
-                    return (null, null);
-                }
-
-                return (Math.Max(0, earned), Math.Max(0, total));
-            }
-
-            private static int ParseRecentPlaytimeMinutes(string text, bool hasRecentDateContext)
-            {
-                text = Clean(text);
-                if (string.IsNullOrWhiteSpace(text))
-                {
-                    return 0;
-                }
-
-                if (!hasRecentDateContext &&
-                    !RecentDateContextRegex.IsMatch(text))
-                {
-                    return 0;
-                }
-
-                return ParsePlaytimeMinutes(text);
-            }
-
-            private static DateTime? ParseLastPlayedUtc(HtmlNode container)
-            {
-                if (container == null)
-                {
-                    return null;
-                }
-
-                var nodeDate = FindDateTimeInNode(container);
-                if (nodeDate.HasValue)
-                {
-                    return nodeDate.Value;
-                }
-
-                var text = Clean(container.InnerText);
-                if (LooksLikeLastPlayedText(text) &&
-                    TryParseDateText(text, out var parsed))
-                {
-                    return parsed;
-                }
-
-                return null;
-            }
-
-            private static bool LooksLikeLastPlayedText(string text)
-            {
-                return !string.IsNullOrWhiteSpace(text) &&
-                       LastPlayedLabelRegex.IsMatch(text);
-            }
-
-            private static DateTime? ResolveRecentDateContextUtc(HtmlNode container)
-            {
-                var current = container;
-                for (var depth = 0; depth < 8 && current != null; depth++, current = current.ParentNode)
-                {
-                    var isCurrentDateHeader = IsLikelyDateHeader(current);
-                    var nodeDate = isCurrentDateHeader
-                        ? FindDateTimeInNode(current, directOnly: true)
-                        : null;
-                    if (nodeDate.HasValue)
-                    {
-                        return nodeDate.Value;
-                    }
-
-                    if (TryParseDateText(Clean(current.InnerText), out var inlineDate) &&
-                        isCurrentDateHeader)
-                    {
-                        return inlineDate;
-                    }
-
-                    var previous = current.PreviousSibling;
-                    for (var i = 0; i < 12 && previous != null; i++, previous = previous.PreviousSibling)
-                    {
-                        if (string.IsNullOrWhiteSpace(previous.InnerText) &&
-                            !previous.HasChildNodes)
-                        {
-                            continue;
-                        }
-
-                        if (!IsLikelyDateHeader(previous))
-                        {
-                            continue;
-                        }
-
-                        nodeDate = FindDateTimeInNode(previous);
-                        if (nodeDate.HasValue)
-                        {
-                            return nodeDate.Value;
-                        }
-
-                        if (TryParseDateText(Clean(previous.InnerText), out var siblingDate) &&
-                            IsLikelyDateHeader(previous))
-                        {
-                            return siblingDate;
-                        }
-                    }
-                }
-
-                return null;
-            }
-
-            private static DateTime? FindDateTimeInNode(HtmlNode node, bool directOnly = false)
-            {
-                if (node == null)
-                {
-                    return null;
-                }
-
-                foreach (var candidate in EnumerateDateNodes(node, directOnly))
-                {
-                    var parsed = ParseDateTimeAttribute(candidate);
-                    if (parsed.HasValue)
-                    {
-                        return parsed.Value;
-                    }
-                }
-
-                return null;
-            }
-
-            private static IEnumerable<HtmlNode> EnumerateDateNodes(HtmlNode node, bool directOnly)
-            {
-                if (node == null)
-                {
-                    yield break;
-                }
-
-                if (HasDateAttribute(node))
-                {
-                    yield return node;
-                }
-
-                var xpath = directOnly
-                    ? "./*[@datetime or @data-date or @data-timestamp or @title]"
-                    : ".//*[@datetime or @data-date or @data-timestamp or @title]";
-                foreach (var child in Nodes(node.SelectNodes(xpath)))
-                {
-                    yield return child;
-                }
-            }
-
-            private static bool HasDateAttribute(HtmlNode node)
-            {
-                return node?.Attributes["datetime"] != null ||
-                       node?.Attributes["data-date"] != null ||
-                       node?.Attributes["data-timestamp"] != null ||
-                       node?.Attributes["title"] != null;
-            }
-
-            private static DateTime? ParseDateTimeAttribute(HtmlNode node)
-            {
-                var raw = FirstNonEmpty(
-                    node?.GetAttributeValue("datetime", null),
-                    node?.GetAttributeValue("data-date", null),
-                    node?.GetAttributeValue("data-timestamp", null),
-                    node?.GetAttributeValue("title", null));
-                if (string.IsNullOrWhiteSpace(raw))
-                {
-                    return null;
-                }
-
-                raw = WebUtility.HtmlDecode(raw.Trim());
-                if (long.TryParse(raw, NumberStyles.Integer, CultureInfo.InvariantCulture, out var unix))
-                {
-                    try
-                    {
-                        if (unix > 9999999999L)
-                        {
-                            unix /= 1000;
-                        }
-
-                        return DateTimeOffset.FromUnixTimeSeconds(unix).UtcDateTime;
-                    }
-                    catch
-                    {
-                        return null;
-                    }
-                }
-
-                if (DateTimeOffset.TryParse(
-                        raw,
-                        CultureInfo.InvariantCulture,
-                        DateTimeStyles.AllowWhiteSpaces | DateTimeStyles.AssumeUniversal | DateTimeStyles.AdjustToUniversal,
-                        out var offset))
-                {
-                    return offset.UtcDateTime;
-                }
-
-                return TryParseDateText(raw, out var parsed) ? parsed : (DateTime?)null;
-            }
-
-            private static bool TryParseDateText(string text, out DateTime dateUtc)
-            {
-                dateUtc = default(DateTime);
-                text = Clean(text);
-                if (string.IsNullOrWhiteSpace(text))
-                {
-                    return false;
-                }
-
-                var today = DateTime.UtcNow.Date;
-                if (TodayWordRegex.IsMatch(text))
-                {
-                    dateUtc = DateTime.SpecifyKind(today, DateTimeKind.Utc);
-                    return true;
-                }
-
-                if (YesterdayWordRegex.IsMatch(text))
-                {
-                    dateUtc = DateTime.SpecifyKind(today.AddDays(-1), DateTimeKind.Utc);
-                    return true;
-                }
-
-                var weekdayMatch = WeekdayNameRegex.Match(text);
-                if (weekdayMatch.Success &&
-                    TryParseWeekday(weekdayMatch.Groups[1].Value, out var weekday))
-                {
-                    var daysBack = ((int)today.DayOfWeek - (int)weekday + 7) % 7;
-                    dateUtc = DateTime.SpecifyKind(today.AddDays(-daysBack), DateTimeKind.Utc);
-                    return true;
-                }
-
-                var dateMatch = MonthDayDateRegex.Match(text);
-                if (!dateMatch.Success)
-                {
-                    dateMatch = IsoDateRegex.Match(text);
-                }
-
-                if (!dateMatch.Success)
-                {
-                    return false;
-                }
-
-                var value = dateMatch.Value;
-                if (!FourDigitYearRegex.IsMatch(value))
-                {
-                    value = value + " " + today.Year.ToString(CultureInfo.InvariantCulture);
-                }
-
-                if (!DateTime.TryParse(
-                        value,
-                        CultureInfo.InvariantCulture,
-                        DateTimeStyles.AllowWhiteSpaces | DateTimeStyles.AssumeUniversal | DateTimeStyles.AdjustToUniversal,
-                        out var parsedDate))
-                {
-                    return false;
-                }
-
-                dateUtc = DateTime.SpecifyKind(parsedDate.Date, DateTimeKind.Utc);
-                return true;
-            }
-
-            private static bool TryParseWeekday(string value, out DayOfWeek day)
-            {
-                switch ((value ?? string.Empty).Trim().ToLowerInvariant())
-                {
-                    case "sunday":
-                        day = DayOfWeek.Sunday;
-                        return true;
-                    case "monday":
-                        day = DayOfWeek.Monday;
-                        return true;
-                    case "tuesday":
-                        day = DayOfWeek.Tuesday;
-                        return true;
-                    case "wednesday":
-                        day = DayOfWeek.Wednesday;
-                        return true;
-                    case "thursday":
-                        day = DayOfWeek.Thursday;
-                        return true;
-                    case "friday":
-                        day = DayOfWeek.Friday;
-                        return true;
-                    case "saturday":
-                        day = DayOfWeek.Saturday;
-                        return true;
-                    default:
-                        day = default(DayOfWeek);
-                        return false;
-                }
-            }
-
-            private static bool IsLikelyDateHeader(HtmlNode node)
-            {
-                var text = Clean(node?.InnerText);
-                if (string.IsNullOrWhiteSpace(text))
-                {
-                    return false;
-                }
-
-                if (node.SelectSingleNode(".//a[contains(@href, '/game/')]") != null)
-                {
-                    return false;
-                }
-
-                var name = node?.Name ?? string.Empty;
-                if (HeadingTagNameRegex.IsMatch(name))
-                {
-                    return true;
-                }
-
-                var className = node?.GetAttributeValue("class", string.Empty) ?? string.Empty;
-                if (DateHeaderClassRegex.IsMatch(className))
-                {
-                    return true;
-                }
-
-                return IsCompactDateText(text);
-            }
-
-            private static bool IsCompactDateText(string text)
-            {
-                if (string.IsNullOrWhiteSpace(text) || text.Length > 48)
-                {
-                    return false;
-                }
-
-                return CompactDayWordRegex.IsMatch(text) ||
-                       CompactMonthDayDateRegex.IsMatch(text) ||
-                       CompactIsoDateRegex.IsMatch(text);
-            }
-
-            private static string NormalizeUrl(string url)
-            {
-                if (string.IsNullOrWhiteSpace(url))
-                {
-                    return null;
-                }
-
-                url = WebUtility.HtmlDecode(url.Trim());
-                if (url.StartsWith("//", StringComparison.Ordinal))
-                {
-                    return "https:" + url;
-                }
-
-                if (url.StartsWith("/", StringComparison.Ordinal))
-                {
-                    return "https://www.exophase.com" + url;
-                }
-
-                return url;
-            }
-
-            private static string Clean(string value)
-            {
-                return string.IsNullOrWhiteSpace(value)
-                    ? null
-                    : WhitespaceRunRegex.Replace(WebUtility.HtmlDecode(value), " ").Trim();
-            }
-
-            private static string FirstNonEmpty(params string[] values)
-            {
-                return values?.FirstOrDefault(value => !string.IsNullOrWhiteSpace(value));
             }
         }
     }

@@ -4,6 +4,7 @@ using PlayniteAchievements.Models.Achievements;
 using PlayniteAchievements.Providers.RetroAchievements.Hashing;
 using PlayniteAchievements.Providers.Settings;
 using PlayniteAchievements.Services;
+using PlayniteAchievements.Services.Images;
 using PlayniteAchievements.Services.Refresh;
 using Playnite.SDK;
 using Playnite.SDK.Models;
@@ -25,6 +26,7 @@ namespace PlayniteAchievements.Providers.RetroAchievements
         private readonly RetroAchievementsHashIndexStore _hashIndexStore;
         private readonly RetroAchievementsPathResolver _pathResolver;
         private readonly RetroAchievementsHashCacheStore _hashCache;
+        private readonly Func<DiskImageService> _diskImageServiceResolver;
         private readonly Dictionary<int, List<Models.RaGameListWithTitle>> _gameListCache = new();
 
         public RetroAchievementsScanner(
@@ -33,7 +35,8 @@ namespace PlayniteAchievements.Providers.RetroAchievements
             RetroAchievementsApiClient api,
             RetroAchievementsHashIndexStore hashIndexStore,
             RetroAchievementsPathResolver pathResolver,
-            RetroAchievementsHashCacheStore hashCache)
+            RetroAchievementsHashCacheStore hashCache,
+            Func<DiskImageService> diskImageServiceResolver = null)
         {
             _logger = logger;
             _settings = settings ?? throw new ArgumentNullException(nameof(settings));
@@ -41,6 +44,7 @@ namespace PlayniteAchievements.Providers.RetroAchievements
             _hashIndexStore = hashIndexStore ?? throw new ArgumentNullException(nameof(hashIndexStore));
             _pathResolver = pathResolver ?? throw new ArgumentNullException(nameof(pathResolver));
             _hashCache = hashCache ?? throw new ArgumentNullException(nameof(hashCache));
+            _diskImageServiceResolver = diskImageServiceResolver;
         }
 
         /// <summary>
@@ -416,60 +420,19 @@ namespace PlayniteAchievements.Providers.RetroAchievements
             {
                 var raSettings = ProviderRegistry.Settings<RetroAchievementsSettings>();
                 var gameInfo = await _api.GetGameInfoAndUserProgressAsync(gameId, cancel).ConfigureAwait(false);
-                var achievements = RetroAchievementsAchievementMapper.ParseAchievements(
-                    gameInfo,
-                    raSettings.RaRarityStats,
-                    categoryLabel: "Base",
-                    enableAutomaticCapstoneAssignment: raSettings.EnableAutomaticCapstoneAssignment);
-
-                _logger?.Info($"[RA] Parsed {achievements.Count} achievements for '{gameInfo?.GameTitle}'.");
-
                 var subsetConsoleId = RetroAchievementsSubsetConsoleResolver.Resolve(gameInfo, consoleId);
 
-                // Fetch subset achievements if enabled.
-                if (raSettings.EnableRaSubsetScanning && subsetConsoleId.HasValue)
-                {
-                    try
-                    {
-                        var subsets = await _hashIndexStore.GetSubsetsForGameAsync(gameId, subsetConsoleId.Value, cancel).ConfigureAwait(false);
-                        if (subsets != null && subsets.Count > 0)
-                        {
-                            foreach (var subset in subsets)
-                            {
-                                cancel.ThrowIfCancellationRequested();
+                var sets = await RetroAchievementsSetAssembler.AssembleAsync(
+                    gameInfo,
+                    gameId,
+                    subsetConsoleId,
+                    _hashIndexStore,
+                    raSettings,
+                    (setId, ct) => _api.GetGameInfoAndUserProgressAsync(setId, ct),
+                    _logger,
+                    cancel).ConfigureAwait(false);
 
-                                try
-                                {
-                                    var subsetInfo = await _api.GetGameInfoAndUserProgressAsync(subset.Id, cancel).ConfigureAwait(false);
-                                    var categoryLabel = ExtractCategoryLabel(subset.Title) ?? "Subset";
-                                    var subsetAchievements = RetroAchievementsAchievementMapper.ParseAchievements(
-                                        subsetInfo,
-                                        raSettings.RaRarityStats,
-                                        categoryLabel: categoryLabel,
-                                        enableAutomaticCapstoneAssignment: raSettings.EnableAutomaticCapstoneAssignment);
-
-                                    _logger?.Info($"[RA] Parsed {subsetAchievements.Count} achievements for subset '{subset.Title}' (category={categoryLabel}).");
-
-                                    achievements.AddRange(subsetAchievements);
-                                }
-                                catch (OperationCanceledException) { throw; }
-                                catch (Exception ex)
-                                {
-                                    _logger?.Warn(ex, $"[RA] Failed to fetch subset '{subset.Title}' (ID={subset.Id}): {ex.Message}");
-                                }
-                            }
-                        }
-                    }
-                    catch (OperationCanceledException) { throw; }
-                    catch (Exception ex)
-                    {
-                        _logger?.Warn(ex, $"[RA] Failed to look up subsets for gameId={gameId}: {ex.Message}");
-                    }
-                }
-                else if (raSettings.EnableRaSubsetScanning)
-                {
-                    _logger?.Info($"[RA] Skipping subset lookup for '{game?.Name}' because no console ID was resolved.");
-                }
+                await DownloadCategoryImagesAsync(game?.Id, sets.CategoryImageSources, cancel).ConfigureAwait(false);
 
                 return new GameAchievementData
                 {
@@ -478,15 +441,63 @@ namespace PlayniteAchievements.Providers.RetroAchievements
                     ProviderKey = "RetroAchievements",
                     LibrarySourceName = game?.Source?.Name,
                     LastUpdatedUtc = DateTime.UtcNow,
-                    HasAchievements = achievements.Count > 0,
+                    HasAchievements = sets.Achievements.Count > 0,
                     PlayniteGameId = game?.Id,
-                    Achievements = achievements
+                    Achievements = sets.Achievements
                 };
             }
             catch (Exception ex)
             {
                 _logger?.Error(ex, $"[RA] Failed to fetch game info for gameId={gameId}: {ex.Message}");
                 return BuildNoAchievements(game, appId: gameId);
+            }
+        }
+
+        // Downloads default category art for the base set and subsets to deterministic per-game
+        // cache paths. Best-effort: failures never fail the scan. Existing targets are skipped,
+        // so re-scans cost nothing.
+        private async Task DownloadCategoryImagesAsync(
+            Guid? playniteGameId,
+            IReadOnlyList<(string CategoryLabel, Models.RaGameInfoUserProgress Info)> sources,
+            CancellationToken cancel)
+        {
+            if (playniteGameId == null || playniteGameId.Value == Guid.Empty)
+            {
+                return;
+            }
+
+            var diskImageService = _diskImageServiceResolver?.Invoke();
+            if (diskImageService == null)
+            {
+                return;
+            }
+
+            var plan = RetroAchievementsCategoryImagePlanner.BuildCategoryImagePlan(sources);
+            if (plan.Count == 0)
+            {
+                return;
+            }
+
+            var gameIdText = playniteGameId.Value.ToString("D");
+            foreach (var entry in plan)
+            {
+                cancel.ThrowIfCancellationRequested();
+                try
+                {
+                    var artTarget = diskImageService.GetDefaultCategoryImagePath(
+                        gameIdText, entry.Label);
+                    // decodeSize 0 stores the original bytes: no square crop, original aspect.
+                    await diskImageService.GetOrDownloadIconToPathAsync(
+                        entry.ArtUrl, artTarget, decodeSize: 0, cancel).ConfigureAwait(false);
+                }
+                catch (OperationCanceledException) when (cancel.IsCancellationRequested)
+                {
+                    throw;
+                }
+                catch (Exception ex)
+                {
+                    _logger?.Debug(ex, $"[RA] Default category image download failed for category '{entry.Label}'.");
+                }
             }
         }
 
@@ -531,11 +542,6 @@ namespace PlayniteAchievements.Providers.RetroAchievements
         {
             if (hashes == null || hashes.Count == 0) return "(none)";
             return string.Join(",", hashes.Select(h => string.IsNullOrWhiteSpace(h) ? "?" : h));
-        }
-
-        internal static string ExtractCategoryLabel(string subsetTitle)
-        {
-            return RetroAchievementsAchievementMapper.ExtractCategoryLabel(subsetTitle);
         }
 
         private async Task<int> TryMatchGameByNameAsync(Game game, int consoleId, CancellationToken cancel)

@@ -4,6 +4,7 @@ using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
 using System.Windows.Media;
+using Playnite.SDK;
 
 namespace PlayniteAchievements.Views.Dialogs
 {
@@ -178,7 +179,7 @@ namespace PlayniteAchievements.Views.Dialogs
             }
             else
             {
-                ValidationText.Text = "Use #AARRGGBB, #RRGGBB, or a WPF color name.";
+                ValidationText.Text = ResourceProvider.GetString("LOCPlayAch_ColorPicker_InvalidColor");
             }
         }
 
@@ -196,7 +197,7 @@ namespace PlayniteAchievements.Views.Dialogs
         {
             if (!TryParseColor(HexTextBox.Text, out var color))
             {
-                ValidationText.Text = "Use #AARRGGBB, #RRGGBB, or a WPF color name.";
+                ValidationText.Text = ResourceProvider.GetString("LOCPlayAch_ColorPicker_InvalidColor");
                 return;
             }
 

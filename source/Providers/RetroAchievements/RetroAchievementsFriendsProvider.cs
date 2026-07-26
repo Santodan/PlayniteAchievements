@@ -595,88 +595,22 @@ namespace PlayniteAchievements.Providers.RetroAchievements
                                ? await api.GetGameInfoAndUserProgressAsync(gameId, userId, cancel).ConfigureAwait(false)
                                : await api.GetGameExtendedAsync(gameId, cancel).ConfigureAwait(false));
 
-            var achievements = RetroAchievementsAchievementMapper.ParseAchievements(
-                gameInfo,
-                raSettings.RaRarityStats,
-                categoryLabel: "Base",
-                enableAutomaticCapstoneAssignment: raSettings.EnableAutomaticCapstoneAssignment);
-
             var subsetConsoleId = RetroAchievementsSubsetConsoleResolver.Resolve(gameInfo, null);
-            if (raSettings.EnableRaSubsetScanning && subsetConsoleId.HasValue)
-            {
-                await AddSubsetAchievementsAsync(
-                    achievements,
-                    gameId,
-                    subsetConsoleId.Value,
-                    userId,
-                    useUserProgress,
-                    raSettings,
-                    cancel).ConfigureAwait(false);
-            }
-            else if (raSettings.EnableRaSubsetScanning)
-            {
-                _logger?.Debug($"[RAFriends] Skipping subset lookup for gameId={gameId}; no console id was resolved.");
-            }
 
-            return achievements;
-        }
+            var sets = await RetroAchievementsSetAssembler.AssembleAsync(
+                gameInfo,
+                gameId,
+                subsetConsoleId,
+                _hashIndexResolver(),
+                raSettings,
+                (setId, ct) => useUserProgress
+                    ? api.GetGameInfoAndUserProgressAsync(setId, userId, ct)
+                    : api.GetGameExtendedAsync(setId, ct),
+                _logger,
+                cancel,
+                logPrefix: "[RAFriends]").ConfigureAwait(false);
 
-        private async Task AddSubsetAchievementsAsync(
-            List<AchievementDetail> achievements,
-            int baseGameId,
-            int consoleId,
-            string userId,
-            bool useUserProgress,
-            RetroAchievementsSettings raSettings,
-            CancellationToken cancel)
-        {
-            List<RaSubsetEntry> subsets;
-            try
-            {
-                subsets = await _hashIndexResolver()
-                    .GetSubsetsForGameAsync(baseGameId, consoleId, cancel)
-                    .ConfigureAwait(false);
-            }
-            catch (OperationCanceledException) { throw; }
-            catch (Exception ex)
-            {
-                _logger?.Warn(ex, $"[RAFriends] Failed to look up subsets for gameId={baseGameId}.");
-                return;
-            }
-
-            if (subsets == null || subsets.Count == 0)
-            {
-                return;
-            }
-
-            var api = _apiResolver();
-            foreach (var subset in subsets)
-            {
-                cancel.ThrowIfCancellationRequested();
-                if (subset == null || subset.Id <= 0)
-                {
-                    continue;
-                }
-
-                try
-                {
-                    var subsetInfo = useUserProgress
-                        ? await api.GetGameInfoAndUserProgressAsync(subset.Id, userId, cancel).ConfigureAwait(false)
-                        : await api.GetGameExtendedAsync(subset.Id, cancel).ConfigureAwait(false);
-                    var categoryLabel = RetroAchievementsAchievementMapper.ExtractCategoryLabel(subset.Title) ?? "Subset";
-                    var subsetAchievements = RetroAchievementsAchievementMapper.ParseAchievements(
-                        subsetInfo,
-                        raSettings.RaRarityStats,
-                        categoryLabel: categoryLabel,
-                        enableAutomaticCapstoneAssignment: raSettings.EnableAutomaticCapstoneAssignment);
-                    achievements.AddRange(subsetAchievements);
-                }
-                catch (OperationCanceledException) { throw; }
-                catch (Exception ex)
-                {
-                    _logger?.Warn(ex, $"[RAFriends] Failed to fetch subset '{subset.Title}' (ID={subset.Id}).");
-                }
-            }
+            return sets.Achievements;
         }
 
         private static int ResolveGameId(string providerGameKey, int appId)

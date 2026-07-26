@@ -57,63 +57,58 @@ namespace PlayniteAchievements.Services.Friends
         public async Task<FriendsOverviewSnapshot> GetSnapshotAsync(int recentLimit, CancellationToken cancel)
         {
             var key = Math.Max(0, recentLimit);
-            while (true)
+            cancel.ThrowIfCancellationRequested();
+
+            Task<FriendsOverviewSnapshot> task;
+            lock (_syncRoot)
             {
-                cancel.ThrowIfCancellationRequested();
-
-                Task<FriendsOverviewSnapshot> task;
-                lock (_syncRoot)
+                ThrowIfDisposed();
+                if (_snapshots.TryGetValue(key, out var cached) &&
+                    cached.Version == _invalidationVersion)
                 {
-                    ThrowIfDisposed();
-                    if (_snapshots.TryGetValue(key, out var cached) &&
-                        cached.Version == _invalidationVersion)
-                    {
-                        return cached.Snapshot ?? new FriendsOverviewSnapshot();
-                    }
-
-                    if (_buildTasks.TryGetValue(key, out var running))
-                    {
-                        task = running.Task;
-                    }
-                    else
-                    {
-                        var version = _invalidationVersion;
-                        task = Task.Run(() => BuildSnapshot(key));
-                        _buildTasks[key] = new BuildEntry
-                        {
-                            Version = version,
-                            Task = task
-                        };
-                    }
+                    return cached.Snapshot ?? new FriendsOverviewSnapshot();
                 }
 
-                var snapshot = await task.ConfigureAwait(false);
-                cancel.ThrowIfCancellationRequested();
-
-                lock (_syncRoot)
+                if (_buildTasks.TryGetValue(key, out var running))
                 {
-                    if (_buildTasks.TryGetValue(key, out var running) &&
-                        ReferenceEquals(running.Task, task))
+                    task = running.Task;
+                }
+                else
+                {
+                    var version = _invalidationVersion;
+                    task = Task.Run(() => BuildSnapshot(key));
+                    _buildTasks[key] = new BuildEntry
                     {
-                        if (running.Version == _invalidationVersion)
-                        {
-                            _snapshots[key] = new CacheEntry
-                            {
-                                Version = running.Version,
-                                Snapshot = snapshot ?? new FriendsOverviewSnapshot()
-                            };
-                        }
-
-                        _buildTasks.Remove(key);
-                    }
-
-                    if (_snapshots.TryGetValue(key, out var cached) &&
-                        cached.Version == _invalidationVersion)
-                    {
-                        return cached.Snapshot ?? new FriendsOverviewSnapshot();
-                    }
+                        Version = version,
+                        Task = task
+                    };
                 }
             }
+
+            var snapshot = await task.ConfigureAwait(false);
+            cancel.ThrowIfCancellationRequested();
+
+            lock (_syncRoot)
+            {
+                if (_buildTasks.TryGetValue(key, out var running) &&
+                    ReferenceEquals(running.Task, task))
+                {
+                    if (running.Version == _invalidationVersion)
+                    {
+                        _snapshots[key] = new CacheEntry
+                        {
+                            Version = running.Version,
+                            Snapshot = snapshot ?? new FriendsOverviewSnapshot()
+                        };
+                    }
+
+                    _buildTasks.Remove(key);
+                }
+            }
+
+            // Bounded staleness: reflect the cache as of build start rather than rebuilding in a
+            // loop when invalidations land mid-build; the next SnapshotInvalidated fire converges.
+            return snapshot ?? new FriendsOverviewSnapshot();
         }
 
         public void Dispose()

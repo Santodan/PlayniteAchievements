@@ -54,7 +54,10 @@ namespace PlayniteAchievements.Views.Controls
 
         private void OnPreviewMouseLeftButtonDown(object sender, MouseButtonEventArgs e)
         {
-            if (DataContext is AchievementDisplayItem item && item.CanReveal)
+            // Consume only the click that reveals an obscured achievement; revealed
+            // (or never-obscured) items let the click continue so the hosting list can
+            // open the achievements window focused on this achievement.
+            if (DataContext is AchievementDisplayItem item && item.CanReveal && !item.IsRevealed)
             {
                 _reopenToolTipAfterReveal = ItemToolTip?.IsOpen == true;
                 item.ToggleReveal();

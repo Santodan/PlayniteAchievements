@@ -108,6 +108,9 @@ namespace PlayniteAchievements.Providers.GOG
 
         public async Task RefreshAuthStatusAsync()
         {
+            SetAuthStatusChecking();
+            AuthStatus = ResourceProvider.GetString("LOCPlayAch_Auth_Checking");
+
             AuthProbeResult result;
             try
             {

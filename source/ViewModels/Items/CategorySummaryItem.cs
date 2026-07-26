@@ -10,5 +10,12 @@ namespace PlayniteAchievements.ViewModels.Items
     public sealed class CategorySummaryItem : GameSummaryItem
     {
         public string CategoryLabel { get; set; }
+
+        /// <summary>
+        /// The category's group-based type token (one of Base/DLC/Update/Subset, or Default when the
+        /// bucket has no group membership). Carries the locale-independent classification so the
+        /// theme-facing summary can expose type flags (IsBaseCategory, etc.).
+        /// </summary>
+        public string CategoryType { get; set; }
     }
 }

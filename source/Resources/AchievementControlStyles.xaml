@@ -45,10 +45,18 @@
                             <Border x:Name="PART_Track"
                                     Background="{TemplateBinding Background}"
                                     CornerRadius="1"/>
+                            <!-- The fill paints at full track width inside a clipped indicator so
+                                 gradient fills (tier shine, completed gradient) keep a fixed
+                                 position on the track instead of compressing with the bar value. -->
                             <Border x:Name="PART_Indicator"
-                                    Background="{TemplateBinding Foreground}"
                                     HorizontalAlignment="Left"
-                                    CornerRadius="1"/>
+                                    CornerRadius="1"
+                                    ClipToBounds="True">
+                                <Border Background="{TemplateBinding Foreground}"
+                                        Width="{Binding ActualWidth, ElementName=PART_Track}"
+                                        HorizontalAlignment="Left"
+                                        CornerRadius="1"/>
+                            </Border>
                         </Grid>
                     </Border>
                 </ControlTemplate>

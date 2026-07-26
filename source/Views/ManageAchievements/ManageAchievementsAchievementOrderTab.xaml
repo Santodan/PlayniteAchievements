@@ -59,6 +59,7 @@
                    Visibility="{Binding HasAchievements, Converter={StaticResource InverseBoolToVis}}" />
 
         <DataGrid x:Name="AchievementOrderDataGrid"
+                  Style="{StaticResource PlayAch.DataGrid.BaseStyle}"
                   Grid.Row="2"
                   ItemsSource="{Binding AchievementRows}"
                   AutoGenerateColumns="False"

@@ -23,7 +23,6 @@ namespace PlayniteAchievements.Providers.Steam
 
         public ProviderOverrideDescriptor OverrideDescriptor { get; } = ProviderOverrideDescriptor.Text(
             "LOCPlayAch_ManageAchievements_Overrides_ProviderValueLabel_Steam",
-            "Steam AppID",
             raw =>
             {
                 if (int.TryParse((raw ?? string.Empty).Trim(), out var appId) && appId > 0)
@@ -32,8 +31,7 @@ namespace PlayniteAchievements.Providers.Steam
                 }
 
                 return ProviderOverrideValidation.Invalid(
-                    "LOCPlayAch_Menu_SteamAppId_InvalidId",
-                    "Please enter a valid positive integer Steam AppID.");
+                    "LOCPlayAch_Menu_SteamAppId_InvalidId");
             });
 
         private readonly SteamHttpClient _steamClient;
@@ -58,8 +56,15 @@ namespace PlayniteAchievements.Providers.Steam
             // Create Steam-specific dependencies
             _steamClient = new SteamHttpClient(api, logger, _sessionManager, pluginUserDataPath);
             var steamApiClient = new SteamApiClient(_steamClient.ApiHttpClient, logger);
-            var steamHuntersApiClient = new SteamHuntersApiClient(_steamClient.ApiHttpClient, logger);
-            _steamHuntersCategoryEnricher = new SteamHuntersCategoryEnricher(steamHuntersApiClient, logger);
+            // SteamHunters is fetched through the offscreen webview (the scan's shared leased
+            // view): its WAF tarpits the .NET HTTP stack's TLS fingerprint but accepts CEF's.
+            var steamHuntersApiClient = new SteamHuntersApiClient(
+                (url, ct) => _sessionManager.OffscreenViews.GetPageTextAsync(url, ct),
+                logger);
+            _steamHuntersCategoryEnricher = new SteamHuntersCategoryEnricher(
+                steamHuntersApiClient,
+                logger,
+                () => PlayniteAchievementsPlugin.Instance?.DiskImageService);
             _tokenResolver = new SteamWebApiTokenResolver(_sessionManager, logger);
             _sessionManager.SetClearInMemoryAuthState(_steamClient.ClearInMemoryAuthState);
             _scanner = new SteamScanner(settings, _steamClient, steamApiClient, _tokenResolver, _steamHuntersCategoryEnricher, api, logger);

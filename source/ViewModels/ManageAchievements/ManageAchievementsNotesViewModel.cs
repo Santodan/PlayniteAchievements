@@ -145,6 +145,14 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
                         .ToList();
                 }
 
+                // Per-game invariants hoisted out of the row loop: the appearance snapshot and
+                // category art/order resolution are identical for every row in this pass.
+                var appearanceSnapshot = AchievementDisplayItem.CreateAppearanceSettingsSnapshot(
+                    _settings,
+                    _gameId,
+                    projectionSource?.UseSeparateLockedIconsWhenAvailable);
+                var categoryMemo = new AchievementDisplayItem.CategoryPresentationMemo();
+
                 _allRows = orderedAchievements.Select(a =>
                 {
                     var apiName = (a.ApiName ?? string.Empty).Trim();
@@ -152,7 +160,9 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
                         projectionSource,
                         a,
                         _settings,
-                        playniteGameIdOverride: _gameId);
+                        playniteGameIdOverride: _gameId,
+                        appearanceSettings: appearanceSnapshot,
+                        categoryMemo: categoryMemo);
                     if (projected == null)
                     {
                         return null;
@@ -346,16 +356,15 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
         {
             return new[]
             {
-                new NoteStateOption(AchievementNoteStateFilter.All, L("LOCPlayAch_Common_All", "All")),
-                new NoteStateOption(AchievementNoteStateFilter.WithNotes, L("LOCPlayAch_ManageAchievements_Notes_WithNotes", "With Notes")),
-                new NoteStateOption(AchievementNoteStateFilter.WithoutNotes, L("LOCPlayAch_ManageAchievements_Notes_WithoutNotes", "Without Notes"))
+                new NoteStateOption(AchievementNoteStateFilter.All, L("LOCPlayAch_Common_All")),
+                new NoteStateOption(AchievementNoteStateFilter.WithNotes, L("LOCPlayAch_ManageAchievements_Notes_WithNotes")),
+                new NoteStateOption(AchievementNoteStateFilter.WithoutNotes, L("LOCPlayAch_ManageAchievements_Notes_WithoutNotes"))
             };
         }
 
-        private static string L(string key, string fallback)
+        private static string L(string key)
         {
-            var value = ResourceProvider.GetString(key);
-            return string.IsNullOrWhiteSpace(value) ? fallback : value;
+            return ResourceProvider.GetString(key);
         }
     }
 
@@ -364,8 +373,8 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
         public string NotePreview => AchievementNoteHelper.GetPreviewText(AchievementNote);
 
         public string NoteStatusText => HasAchievementNote
-            ? L("LOCPlayAch_ManageAchievements_Notes_HasNote", "Note added")
-            : L("LOCPlayAch_ManageAchievements_Notes_NoNote", "No note");
+            ? L("LOCPlayAch_ManageAchievements_Notes_HasNote")
+            : L("LOCPlayAch_ManageAchievements_Notes_NoNote");
 
         public string CategoryDisplay => AchievementCategoryTypeHelper.NormalizeCategoryOrDefault(CategoryLabel);
 
@@ -376,10 +385,9 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
             OnPropertyChanged(nameof(NoteStatusText));
         }
 
-        private static string L(string key, string fallback)
+        private static string L(string key)
         {
-            var value = ResourceProvider.GetString(key);
-            return string.IsNullOrWhiteSpace(value) ? fallback : value;
+            return ResourceProvider.GetString(key);
         }
     }
 

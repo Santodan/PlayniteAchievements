@@ -48,6 +48,19 @@ namespace PlayniteAchievements.Steam.Tests
         }
 
         [TestMethod]
+        public void Parse_PrefersPageSteamId_OverCookieSteamId()
+        {
+            const string source =
+                "var g_steamID = \"76561198000000002\";" +
+                "data-userinfo=\"{&quot;webapi_token&quot;:&quot;store-token&quot;}\"";
+
+            var session = SteamWebAuthParser.Parse(source, "76561198000000001", hasSteamSessionCookies: true);
+
+            Assert.IsTrue(session.IsComplete);
+            Assert.AreEqual("76561198000000002", session.SteamId64);
+        }
+
+        [TestMethod]
         public void Parse_DoesNotCompleteSession_WhenTokenMissing()
         {
             const string source = "var g_steamID = \"76561198000000000\";";

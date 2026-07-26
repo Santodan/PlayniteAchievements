@@ -2,6 +2,7 @@ using System;
 using System.Runtime.Serialization;
 using System.Windows.Input;
 using Playnite.SDK.Data;
+using PlayniteAchievements.Common;
 using PlayniteAchievements.Models.Achievements;
 using PlayniteAchievements.Services;
 using PlayniteAchievements.Services.Friends;
@@ -80,7 +81,8 @@ namespace PlayniteAchievements.Models.ThemeIntegration
             int unlockedCount = 0,
             int achievementCount = 0,
             ICommand openViewAchievementsWindow = null,
-            ICommand openManageAchievementsWindow = null)
+            ICommand openManageAchievementsWindow = null,
+            string sortingName = null)
             : base(
                 gameId,
                 name,
@@ -105,7 +107,8 @@ namespace PlayniteAchievements.Models.ThemeIntegration
                 unlockedCount,
                 achievementCount,
                 openViewAchievementsWindow,
-                openManageAchievementsWindow)
+                openManageAchievementsWindow,
+                sortingName)
         {
         }
 
@@ -223,7 +226,7 @@ namespace PlayniteAchievements.Models.ThemeIntegration
             : 0;
 
         public string FriendCompletionText => AchievementCount > 0
-            ? $"{FriendCompletionPercent:N0}%"
+            ? PercentFormatter.FormatWhole(FriendCompletionPercent)
             : string.Empty;
 
         public DateTime? LastFriendUnlockUtc

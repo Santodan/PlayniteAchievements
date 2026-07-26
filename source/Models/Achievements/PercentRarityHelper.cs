@@ -49,10 +49,10 @@ namespace PlayniteAchievements.Models.Achievements
         {
             return tier switch
             {
-                RarityTier.UltraRare => ResourceProvider.GetString("LOCPlayAch_Rarity_UltraRare") ?? "Ultra Rare",
-                RarityTier.Rare => ResourceProvider.GetString("LOCPlayAch_Rarity_Rare") ?? "Rare",
-                RarityTier.Uncommon => ResourceProvider.GetString("LOCPlayAch_Rarity_Uncommon") ?? "Uncommon",
-                _ => ResourceProvider.GetString("LOCPlayAch_Rarity_Common") ?? "Common"
+                RarityTier.UltraRare => ResourceProvider.GetString("LOCPlayAch_Rarity_UltraRare"),
+                RarityTier.Rare => ResourceProvider.GetString("LOCPlayAch_Rarity_Rare"),
+                RarityTier.Uncommon => ResourceProvider.GetString("LOCPlayAch_Rarity_Uncommon"),
+                _ => ResourceProvider.GetString("LOCPlayAch_Rarity_Common")
             };
         }
 

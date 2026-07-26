@@ -23,7 +23,7 @@ namespace PlayniteAchievements.Views.Settings.Controls
     /// Row capability flag defaults: every row a surface commonly shows defaults to true
     /// (ShowColumnHeadersRow, ShowControlBarRow, ShowRowHeightRow, ShowMaxRowsRow, ShowSortRow,
     /// ShowCoverImagesRow, ShowRarityGlowRow, ShowColorNamesRow, ShowDateModeRow,
-    /// ShowMetadataRows, ShowCompletionBorderRow); rows only a few surfaces show default to
+    /// ShowMetadataRows, ShowCompletionGlowRow); rows only a few surfaces show default to
     /// false (ShowMaxHeightRow, ShowCategoryModeRow). Chosen so the Overview display section
     /// needs few overrides: GameSummaries.Overview needs none, Achievement.OverviewRecent only
     /// disables the sort row, Achievement.OverviewSelectedGame disables cover images and enables
@@ -176,7 +176,7 @@ namespace PlayniteAchievements.Views.Settings.Controls
         public static readonly DependencyProperty ShowMetadataRowsProperty = RegisterFlag(nameof(ShowMetadataRows), true);
         public bool ShowMetadataRows { get => (bool)GetValue(ShowMetadataRowsProperty); set => SetValue(ShowMetadataRowsProperty, value); }
 
-        public static readonly DependencyProperty ShowCompletionBorderRowProperty = RegisterFlag(nameof(ShowCompletionBorderRow), true);
-        public bool ShowCompletionBorderRow { get => (bool)GetValue(ShowCompletionBorderRowProperty); set => SetValue(ShowCompletionBorderRowProperty, value); }
+        public static readonly DependencyProperty ShowCompletionGlowRowProperty = RegisterFlag(nameof(ShowCompletionGlowRow), true);
+        public bool ShowCompletionGlowRow { get => (bool)GetValue(ShowCompletionGlowRowProperty); set => SetValue(ShowCompletionGlowRowProperty, value); }
     }
 }

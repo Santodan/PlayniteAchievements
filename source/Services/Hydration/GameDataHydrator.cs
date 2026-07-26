@@ -68,6 +68,7 @@ namespace PlayniteAchievements.Services.Hydration
                                                      customData.AchievementCategoryImageOverrides.Count > 0
                 ? CloneCategoryImageOverrideMap(customData.AchievementCategoryImageOverrides, gameId)
                 : null;
+            data.GameSummaryCategory = customData.GameSummaryCategory;
 
             // Hydrate achievements with settings overlays (capstone + category/category-type overrides).
             if (data.Achievements != null && data.Achievements.Count > 0)
@@ -106,6 +107,7 @@ namespace PlayniteAchievements.Services.Hydration
                                                      customData.AchievementCategoryImageOverrides.Count > 0
                 ? CloneCategoryImageOverrideMap(customData.AchievementCategoryImageOverrides, gameId)
                 : null;
+            data.GameSummaryCategory = customData.GameSummaryCategory;
 
             if (data.Achievements != null && data.Achievements.Count > 0)
             {
@@ -245,8 +247,7 @@ namespace PlayniteAchievements.Services.Hydration
 
                 result[category] = new CategoryImageOverrideData
                 {
-                    Icon = ResolveIconOverridePath(pair.Value.Icon, gameIdText, managedCustomIconService),
-                    Cover = ResolveIconOverridePath(pair.Value.Cover, gameIdText, managedCustomIconService)
+                    Art = ResolveIconOverridePath(pair.Value.Art, gameIdText, managedCustomIconService)
                 };
             }
 

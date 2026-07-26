@@ -2,6 +2,7 @@ using PlayniteAchievements.Models;
 using PlayniteAchievements.Models.Achievements;
 using PlayniteAchievements.Models.Settings;
 using PlayniteAchievements.Providers;
+using PlayniteAchievements.Providers.EmuLibrary;
 using PlayniteAchievements.Providers.Overrides;
 using PlayniteAchievements.Providers.Settings;
 using Playnite.SDK;
@@ -23,12 +24,10 @@ namespace PlayniteAchievements.Providers.ShadPS4
     {
         public ProviderOverrideDescriptor OverrideDescriptor { get; } = ProviderOverrideDescriptor.Text(
             "LOCPlayAch_ManageAchievements_Overrides_ProviderValueLabel_ShadPS4",
-            "ShadPS4 Match ID",
             raw => ShadPS4MatchIdHelper.TryNormalize(raw, out var matchId)
                 ? ProviderOverrideValidation.Valid(matchId)
                 : ProviderOverrideValidation.Invalid(
-                    "LOCPlayAch_Menu_ShadPS4MatchId_InvalidId",
-                    "Please enter a valid ShadPS4 match ID such as CUSA00432 or NPWR12345_00."));
+                    "LOCPlayAch_Menu_ShadPS4MatchId_InvalidId"));
 
         private readonly ShadPS4Scanner _scanner;
         private readonly PlayniteAchievementsSettings _settings;
@@ -375,15 +374,16 @@ namespace PlayniteAchievements.Providers.ShadPS4
         }
 
         /// <summary>
-        /// Extracts the PS4 title ID from the game's install directory path.
+        /// Extracts the PS4 title ID from the game's install directory path,
+        /// falling back to the EmuLibrary source path for uninstalled EmuLibrary games.
         /// PS4 title IDs follow pattern: AAAA12345 (e.g., CUSA00432)
         /// </summary>
         private string ExtractTitleIdFromGame(Game game)
         {
-            var rawInstallDir = game?.InstallDirectory;
-            var installDir = ExpandGamePath(game, rawInstallDir);
+            var installDir = ExpandGamePath(game, game?.InstallDirectory);
 
-            if (string.IsNullOrWhiteSpace(installDir))
+            if (string.IsNullOrWhiteSpace(installDir) &&
+                !EmuLibraryPathResolver.TryResolveSourcePath(_playniteApi, game, out installDir))
             {
                 return null;
             }
@@ -580,12 +580,16 @@ namespace PlayniteAchievements.Providers.ShadPS4
 
         /// <summary>
         /// Resolves the npcommid for a game by parsing its sce_sys/npbind.dat file.
+        /// Falls back to the EmuLibrary source directory for uninstalled EmuLibrary games.
         /// </summary>
         internal string ResolveNpCommIdForGame(Game game)
         {
-            var rawInstallDir = game?.InstallDirectory;
-            var installDir = ExpandGamePath(game, rawInstallDir);
-            if (string.IsNullOrWhiteSpace(installDir)) return null;
+            var installDir = ExpandGamePath(game, game?.InstallDirectory);
+            if (string.IsNullOrWhiteSpace(installDir) &&
+                !EmuLibraryPathResolver.TryResolveSourceDirectory(_playniteApi, game, out installDir))
+            {
+                return null;
+            }
 
             var searchDirs = new List<string> { installDir };
 

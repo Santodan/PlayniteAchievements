@@ -93,6 +93,19 @@
     <SolidColorBrush x:Key="PlayAch.Brush.AuthSuccess" Color="{StaticResource PlayAch.Color.AuthSuccess}"/>
     <SolidColorBrush x:Key="PlayAch.Brush.ActionLink" Color="{StaticResource PlayAch.Color.ActionLink}"/>
     <SolidColorBrush x:Key="PlayAch.Brush.CompletedGame" Color="{StaticResource PlayAch.Color.CompletedGame}"/>
+
+    <!-- Completion glow defaults; PlayAchResourceService replaces these with the user's
+         configured completed-game gradient colors at runtime. -->
+    <DropShadowEffect x:Key="PlayAch.Effect.CompletedGlowStart" BlurRadius="14" ShadowDepth="2" Direction="135" Color="#9C27B0" Opacity="1"/>
+    <DropShadowEffect x:Key="PlayAch.Effect.CompletedGlowEnd" BlurRadius="14" ShadowDepth="2" Direction="315" Color="#2196F3" Opacity="1"/>
+
+    <!-- Completed progress fill default; PlayAchResourceService replaces this with the user's
+         configured completed-game gradient colors at runtime. The fill is a plain horizontal
+         CompletedStart -> CompletedEnd sweep. -->
+    <LinearGradientBrush x:Key="PlayAch.Brush.Progress.CompletedFill" StartPoint="0,0" EndPoint="1,0">
+        <GradientStop Offset="0.00" Color="#9C27B0"/>
+        <GradientStop Offset="1.00" Color="#2196F3"/>
+    </LinearGradientBrush>
     <SolidColorBrush x:Key="PlayAch.Brush.ErrorText" Color="{StaticResource PlayAch.Color.ErrorText}"/>
     <SolidColorBrush x:Key="PlayAch.Brush.ProviderSteam" Color="{StaticResource PlayAch.Color.ProviderSteam}"/>
     <SolidColorBrush x:Key="PlayAch.Brush.ProviderBattleNet" Color="{StaticResource PlayAch.Color.ProviderBattleNet}"/>

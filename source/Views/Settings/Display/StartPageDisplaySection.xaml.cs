@@ -92,8 +92,8 @@ namespace PlayniteAchievements.Views.Settings.Display
 
             var options = new[]
             {
-                new { Scope = GameActivityScope.Played, Label = L("LOCPlayAch_Filter_Played", "Played") },
-                new { Scope = GameActivityScope.Unplayed, Label = L("LOCPlayAch_Filter_Unplayed", "Unplayed") }
+                new { Scope = GameActivityScope.Played, Label = L("LOCPlayAch_Filter_Played") },
+                new { Scope = GameActivityScope.Unplayed, Label = L("LOCPlayAch_Filter_Unplayed") }
             };
 
             var menu = PrepareStartPageScopeContextMenu(button);
@@ -139,9 +139,9 @@ namespace PlayniteAchievements.Views.Settings.Display
 
             var options = new[]
             {
-                new { Scope = GameProgressScope.Completed, Label = L("LOCPlayAch_Filter_Complete", "Complete") },
-                new { Scope = GameProgressScope.InProgress, Label = L("LOCPlayAch_Filter_InProgress", "In Progress") },
-                new { Scope = GameProgressScope.NoProgress, Label = L("LOCPlayAch_Filter_NoProgress", "No Progress") }
+                new { Scope = GameProgressScope.Completed, Label = L("LOCPlayAch_Filter_Complete") },
+                new { Scope = GameProgressScope.InProgress, Label = L("LOCPlayAch_Filter_InProgress") },
+                new { Scope = GameProgressScope.NoProgress, Label = L("LOCPlayAch_Filter_NoProgress") }
             };
 
             var menu = PrepareStartPageScopeContextMenu(button);
@@ -252,23 +252,23 @@ namespace PlayniteAchievements.Views.Settings.Display
             scope = PersistedSettings.NormalizeStartPageActivityScope(scope);
             if (scope == GameActivityScope.None)
             {
-                return L("LOCPlayAch_Filter_ActivitySelectorPlaceholder", "Activity");
+                return L("LOCPlayAch_Filter_ActivitySelectorPlaceholder");
             }
 
             var labels = new List<string>();
             if (scope.HasFlag(GameActivityScope.Played))
             {
-                labels.Add(L("LOCPlayAch_Filter_Played", "Played"));
+                labels.Add(L("LOCPlayAch_Filter_Played"));
             }
 
             if (scope.HasFlag(GameActivityScope.Unplayed))
             {
-                labels.Add(L("LOCPlayAch_Filter_Unplayed", "Unplayed"));
+                labels.Add(L("LOCPlayAch_Filter_Unplayed"));
             }
 
             return labels.Count > 0
                 ? string.Join(", ", labels)
-                : L("LOCPlayAch_Filter_ActivitySelectorPlaceholder", "Activity");
+                : L("LOCPlayAch_Filter_ActivitySelectorPlaceholder");
         }
 
         private static string GetProgressScopeText(GameProgressScope scope)
@@ -276,28 +276,28 @@ namespace PlayniteAchievements.Views.Settings.Display
             scope = PersistedSettings.NormalizeStartPageProgressScope(scope);
             if (scope == GameProgressScope.None)
             {
-                return L("LOCPlayAch_Progress", "Progress");
+                return L("LOCPlayAch_Progress");
             }
 
             var labels = new List<string>();
             if (scope.HasFlag(GameProgressScope.Completed))
             {
-                labels.Add(L("LOCPlayAch_Filter_Complete", "Complete"));
+                labels.Add(L("LOCPlayAch_Filter_Complete"));
             }
 
             if (scope.HasFlag(GameProgressScope.InProgress))
             {
-                labels.Add(L("LOCPlayAch_Filter_InProgress", "In Progress"));
+                labels.Add(L("LOCPlayAch_Filter_InProgress"));
             }
 
             if (scope.HasFlag(GameProgressScope.NoProgress))
             {
-                labels.Add(L("LOCPlayAch_Filter_NoProgress", "No Progress"));
+                labels.Add(L("LOCPlayAch_Filter_NoProgress"));
             }
 
             return labels.Count > 0
                 ? string.Join(", ", labels)
-                : L("LOCPlayAch_Progress", "Progress");
+                : L("LOCPlayAch_Progress");
         }
 
         public void Dispose()
@@ -305,10 +305,9 @@ namespace PlayniteAchievements.Views.Settings.Display
             _persistedSubscription?.Dispose();
         }
 
-        private static string L(string key, string fallback)
+        private static string L(string key)
         {
-            var value = ResourceProvider.GetString(key);
-            return string.IsNullOrWhiteSpace(value) ? fallback : value;
+            return ResourceProvider.GetString(key);
         }
     }
 }

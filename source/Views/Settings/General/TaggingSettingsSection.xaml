@@ -3,6 +3,7 @@
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
              xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+             xmlns:sys="clr-namespace:System;assembly=mscorlib"
              mc:Ignorable="d"
              d:DesignHeight="600"
              d:DesignWidth="700">
@@ -42,6 +43,20 @@
                                   IsChecked="{Binding Persisted.TaggingSettings.SetCompletionStatus, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
                                   Margin="0,0,0,8"/>
 
+                        <StackPanel Orientation="Horizontal"
+                                    Margin="18,0,0,8"
+                                    Visibility="{Binding Persisted.TaggingSettings.SetCompletionStatus, Converter={StaticResource BooleanToVisibilityConverter}}">
+                            <TextBlock Text="{DynamicResource LOCCompletionStatus}"
+                                       VerticalAlignment="Center"
+                                       Margin="{StaticResource PlayAch.Thickness.Right.Sm}"/>
+                            <ComboBox x:Name="CompletionStatusComboBox"
+                                      MinWidth="200"
+                                      ItemsSource="{Binding CompletionStatuses, RelativeSource={RelativeSource AncestorType=UserControl}}"
+                                      DisplayMemberPath="Name"
+                                      SelectedValuePath="Id"
+                                      SelectedValue="{Binding Persisted.TaggingSettings.CompletionStatusId, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged, TargetNullValue={x:Static sys:Guid.Empty}}"/>
+                        </StackPanel>
+
                         <!-- Action Buttons -->
                         <StackPanel Orientation="Horizontal" Margin="0,8,0,0">
                             <Button Content="{DynamicResource LOCPlayAch_Settings_ApplyAndSync}"
@@ -55,24 +70,20 @@
                     </StackPanel>
 
                     <!-- Advanced: per-tag configuration - only visible when tagging is enabled -->
-                    <Border Background="{StaticResource PlayAch.Brush.Overlay.Shade.12}"
-                            BorderBrush="{DynamicResource PlayAch.Brush.Border}"
-                            BorderThickness="{StaticResource PlayAch.Thickness.Border}"
-                            CornerRadius="{StaticResource PlayAch.Radius.Card}"
-                            Margin="0,16,0,0"
-                            Padding="{StaticResource PlayAch.Thickness.None}"
-                            Visibility="{Binding Persisted.TaggingSettings.EnableTagging, Converter={StaticResource BooleanToVisibilityConverter}}">
-                        <Expander IsExpanded="False"
-                                  Background="Transparent"
-                                  BorderThickness="0">
-                            <Expander.Header>
-                                <TextBlock Text="{DynamicResource LOCPlayAch_Settings_Advanced}"
-                                           Foreground="{DynamicResource PlayAch.Brush.Text}"
-                                           FontWeight="SemiBold"
-                                           Margin="8,8,0,8"/>
-                            </Expander.Header>
+                    <Expander IsExpanded="False"
+                              Background="{StaticResource PlayAch.Brush.Overlay.Shade.12}"
+                              BorderBrush="{DynamicResource PlayAch.Brush.Border}"
+                              BorderThickness="{StaticResource PlayAch.Thickness.Border}"
+                              Margin="0,16,0,0"
+                              Padding="12,10,12,12"
+                              Visibility="{Binding Persisted.TaggingSettings.EnableTagging, Converter={StaticResource BooleanToVisibilityConverter}}">
+                        <Expander.Header>
+                            <TextBlock Text="{DynamicResource LOCPlayAch_Settings_Advanced}"
+                                       Foreground="{DynamicResource PlayAch.Brush.Text}"
+                                       FontWeight="SemiBold"/>
+                        </Expander.Header>
 
-                            <StackPanel Margin="12,0,12,12">
+                        <StackPanel>
                                 <TextBlock Text="{DynamicResource LOCPlayAch_Settings_TaggingSection}"
                                            FontWeight="SemiBold"
                                            Foreground="{DynamicResource PlayAch.Brush.Text}"
@@ -208,9 +219,8 @@
                                              Text="{Binding Persisted.TaggingSettings.ExcludedFromSummariesConfig.DisplayName, Mode=TwoWay, UpdateSourceTrigger=Explicit}"
                                              Margin="0,0,0,0"/>
                                 </Grid>
-                            </StackPanel>
-                        </Expander>
-                    </Border>
+                        </StackPanel>
+                    </Expander>
                 </StackPanel>
             </Border>
 

@@ -58,6 +58,7 @@
         </Border>
 
         <DataGrid x:Name="AchievementsDataGrid"
+                  Style="{StaticResource PlayAch.DataGrid.BaseStyle}"
                   Grid.Row="2"
                   Margin="0"
                   ItemsSource="{Binding AchievementOptions}"

@@ -1,34 +1,100 @@
 using Microsoft.VisualStudio.TestTools.UnitTesting;
+using PlayniteAchievements.Common;
+using PlayniteAchievements.Models.Settings;
 using PlayniteAchievements.Services;
 
 namespace PlayniteAchievements.Services.Tests
 {
     [TestClass]
+    [DoNotParallelize]
     public class PlayniteGameMetadataFormatterTests
     {
-        [TestMethod]
-        public void FormatPlaytime_FormatsZeroMinutes()
+        // Hour formatting depends on the plugin formatting culture; pin it for determinism.
+        [TestInitialize]
+        public void PinFormattingCulture()
         {
-            Assert.AreEqual("0m", PlayniteGameMetadataFormatter.FormatPlaytime(0));
+            FormattingCulture.Initialize(() => "english");
+        }
+
+        [TestCleanup]
+        public void RestoreFormattingCulture()
+        {
+            FormattingCulture.Initialize(() => "english");
         }
 
         [TestMethod]
-        public void FormatPlaytime_FormatsMinutesOnly()
+        public void FormatPlaytime_ReturnsEmptyForZeroPlaytime()
         {
-            Assert.AreEqual("59m", PlayniteGameMetadataFormatter.FormatPlaytime(59UL * 60));
+            Assert.AreEqual(string.Empty, PlayniteGameMetadataFormatter.FormatPlaytime(0));
+        }
+
+        [TestMethod]
+        public void FormatPlaytime_ReturnsEmptyForSubMinutePlaytime()
+        {
+            Assert.AreEqual(string.Empty, PlayniteGameMetadataFormatter.FormatPlaytime(30));
+        }
+
+        [TestMethod]
+        public void FormatPlaytime_FormatsSubHourPlaytimeAsLessThanOneHour()
+        {
+            Assert.AreEqual(
+                "<1h",
+                PlayniteGameMetadataFormatter.FormatPlaytime(59UL * 60, PlaytimeDisplayMode.HoursAndMinutes));
         }
 
         [TestMethod]
         public void FormatPlaytime_FormatsHoursOnly()
         {
-            Assert.AreEqual("4h", PlayniteGameMetadataFormatter.FormatPlaytime(4UL * 60 * 60));
+            Assert.AreEqual(
+                "4h",
+                PlayniteGameMetadataFormatter.FormatPlaytime(4UL * 60 * 60, PlaytimeDisplayMode.HoursAndMinutes));
         }
 
         [TestMethod]
         public void FormatPlaytime_FormatsHoursAndMinutes()
         {
             var playtimeSeconds = ((125UL * 60) + 28UL) * 60;
-            Assert.AreEqual("125h28m", PlayniteGameMetadataFormatter.FormatPlaytime(playtimeSeconds));
+            Assert.AreEqual(
+                "125h28m",
+                PlayniteGameMetadataFormatter.FormatPlaytime(playtimeSeconds, PlaytimeDisplayMode.HoursAndMinutes));
+        }
+
+        [TestMethod]
+        public void FormatPlaytime_HoursOnlyMode_DropsMinutes()
+        {
+            var playtimeSeconds = ((125UL * 60) + 28UL) * 60;
+            Assert.AreEqual(
+                "125h",
+                PlayniteGameMetadataFormatter.FormatPlaytime(playtimeSeconds, PlaytimeDisplayMode.HoursOnly));
+        }
+
+        [TestMethod]
+        public void FormatPlaytime_HoursOnlyMode_FormatsSubHourPlaytimeAsLessThanOneHour()
+        {
+            Assert.AreEqual(
+                "<1h",
+                PlayniteGameMetadataFormatter.FormatPlaytime(15UL * 60, PlaytimeDisplayMode.HoursOnly));
+        }
+
+        [TestMethod]
+        public void FormatPlaytime_UsesThousandsSeparatorForHours()
+        {
+            var playtimeSeconds = 1234UL * 60 * 60;
+            Assert.AreEqual(
+                "1,234h",
+                PlayniteGameMetadataFormatter.FormatPlaytime(playtimeSeconds, PlaytimeDisplayMode.HoursOnly));
+
+            FormattingCulture.Initialize(() => "german");
+            try
+            {
+                Assert.AreEqual(
+                    "1.234h",
+                    PlayniteGameMetadataFormatter.FormatPlaytime(playtimeSeconds, PlaytimeDisplayMode.HoursOnly));
+            }
+            finally
+            {
+                FormattingCulture.Initialize(() => "english");
+            }
         }
 
         [TestMethod]
@@ -68,8 +134,32 @@ namespace PlayniteAchievements.Services.Tests
         public void BuildOverviewMetadataText_ReturnsPlaytimeOnlyWhenOtherSegmentsMissing()
         {
             Assert.AreEqual(
-                "0m",
+                "59m",
+                PlayniteGameMetadataFormatter.BuildOverviewMetadataText(string.Empty, "59m", string.Empty));
+        }
+
+        [TestMethod]
+        public void BuildOverviewMetadataText_DropsZeroPlaytimeSegment()
+        {
+            Assert.AreEqual(
+                "PlayStation 3 • Japan",
+                PlayniteGameMetadataFormatter.BuildOverviewMetadataText("PlayStation 3", "0h", "Japan"));
+            Assert.AreEqual(
+                string.Empty,
                 PlayniteGameMetadataFormatter.BuildOverviewMetadataText(string.Empty, "0m", string.Empty));
+        }
+
+        [TestMethod]
+        public void IsZeroPlaytimeText_DetectsZeroDurationsAcrossUnitFormats()
+        {
+            Assert.IsTrue(PlayniteGameMetadataFormatter.IsZeroPlaytimeText("0m"));
+            Assert.IsTrue(PlayniteGameMetadataFormatter.IsZeroPlaytimeText("0h"));
+            Assert.IsTrue(PlayniteGameMetadataFormatter.IsZeroPlaytimeText("0h0m"));
+            Assert.IsTrue(PlayniteGameMetadataFormatter.IsZeroPlaytimeText("0 hours"));
+            Assert.IsFalse(PlayniteGameMetadataFormatter.IsZeroPlaytimeText("0h30m"));
+            Assert.IsFalse(PlayniteGameMetadataFormatter.IsZeroPlaytimeText("10h"));
+            Assert.IsFalse(PlayniteGameMetadataFormatter.IsZeroPlaytimeText(string.Empty));
+            Assert.IsFalse(PlayniteGameMetadataFormatter.IsZeroPlaytimeText("hours"));
         }
 
         [TestMethod]

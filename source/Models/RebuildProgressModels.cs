@@ -45,5 +45,11 @@ namespace PlayniteAchievements.Models
         /// Populated by the merge loop in RefreshRuntime from per-provider results.
         /// </summary>
         public List<string> FailedProviderKeys { get; set; } = new List<string>();
+
+        /// <summary>
+        /// Provider keys whose execution faulted with a non-auth, non-cancellation exception.
+        /// The rest of the run continues; these are surfaced in the completion message.
+        /// </summary>
+        public List<string> FaultedProviderKeys { get; set; } = new List<string>();
     }
 }

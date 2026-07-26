@@ -80,6 +80,43 @@
                                     <ComboBoxItem Content="{DynamicResource LOCPlayAch_Settings_GridVerticalAlignment_Bottom}" Tag="{x:Static settings:GridVerticalAlignment.Bottom}"/>
                                 </ComboBox>
                             </StackPanel>
+                            <StackPanel Orientation="Horizontal" Margin="{StaticResource PlayAch.Thickness.Bottom.Sm}">
+                                <TextBlock Text="{DynamicResource LOCPlayAch_Settings_UnlockDateDisplay}"
+                                           VerticalAlignment="Center"/>
+                                <ComboBox SelectedValue="{Binding Persisted.UnlockDateDisplayMode, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                          SelectedValuePath="Tag"
+                                          MinWidth="140"
+                                          Margin="{StaticResource PlayAch.Thickness.Left.Sm}">
+                                    <ComboBoxItem Content="{DynamicResource LOCPlayAch_Settings_DateDisplayMode_DateAndTime}" Tag="{x:Static settings:DateDisplayMode.DateAndTime}"/>
+                                    <ComboBoxItem Content="{DynamicResource LOCPlayAch_Settings_DateDisplayMode_DateOnly}" Tag="{x:Static settings:DateDisplayMode.DateOnly}"/>
+                                    <ComboBoxItem Content="{DynamicResource LOCPlayAch_Settings_DateDisplayMode_Relative}" Tag="{x:Static settings:DateDisplayMode.Relative}"/>
+                                </ComboBox>
+                            </StackPanel>
+                            <StackPanel Orientation="Horizontal" Margin="{StaticResource PlayAch.Thickness.Bottom.Sm}">
+                                <TextBlock Text="{DynamicResource LOCPlayAch_Settings_PlaytimeDisplay}"
+                                           VerticalAlignment="Center"/>
+                                <ComboBox SelectedValue="{Binding Persisted.PlaytimeDisplayMode, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                          SelectedValuePath="Tag"
+                                          MinWidth="140"
+                                          Margin="{StaticResource PlayAch.Thickness.Left.Sm}">
+                                    <ComboBoxItem Content="{DynamicResource LOCPlayAch_Settings_PlaytimeDisplayMode_HoursMinutes}" Tag="{x:Static settings:PlaytimeDisplayMode.HoursAndMinutes}"/>
+                                    <ComboBoxItem Content="{DynamicResource LOCPlayAch_Settings_PlaytimeDisplayMode_HoursOnly}" Tag="{x:Static settings:PlaytimeDisplayMode.HoursOnly}"/>
+                                </ComboBox>
+                            </StackPanel>
+                            <CheckBox Content="{DynamicResource LOCPlayAch_Settings_RoundRarityPercentages}"
+                                      IsChecked="{Binding Persisted.RoundRarityPercentages}"
+                                      Margin="{StaticResource PlayAch.Thickness.Bottom.Xs}"/>
+                            <TextBlock Text="{DynamicResource LOCPlayAch_Settings_RoundRarityPercentages_Help}"
+                                       Style="{StaticResource MutedTextStyle}"
+                                       Margin="24,0,0,10"
+                                       TextWrapping="Wrap"/>
+                            <CheckBox Content="{DynamicResource LOCPlayAch_Settings_ShowCompletedProgressColoring}"
+                                      IsChecked="{Binding Persisted.ShowCompletedProgressColoring}"
+                                      Margin="{StaticResource PlayAch.Thickness.Bottom.Xs}"/>
+                            <TextBlock Text="{DynamicResource LOCPlayAch_Settings_ShowCompletedProgressColoring_Help}"
+                                       Style="{StaticResource MutedTextStyle}"
+                                       Margin="24,0,0,10"
+                                       TextWrapping="Wrap"/>
                             <CheckBox Content="{DynamicResource LOCPlayAch_Settings_ShowTopMenuBarButton}"
                                       IsChecked="{Binding Persisted.ShowTopMenuBarButton}"
                                       Margin="{StaticResource PlayAch.Thickness.Bottom.Xs}"/>
@@ -103,14 +140,14 @@
                                        Margin="{StaticResource PlayAch.Thickness.Bottom.Xs}"/>
                             <TextBlock Text="{DynamicResource LOCPlayAch_Settings_HiddenAchievements_Description}"
                                        Style="{StaticResource MutedTextStyle}" Margin="{StaticResource PlayAch.Thickness.Bottom.Sm}"/>
-                            <TextBlock Text="PREVIEW"
+                            <TextBlock Text="{DynamicResource LOCPlayAch_Settings_Context_Preview}"
                                        Style="{StaticResource ContextLabelStyle}"/>
                             <modern:AchievementDataGridControl
                                 Style="{StaticResource PreviewThemeControlStyle}"
                                 ThemeDataOverride="{Binding AchievementVisibilityPreviewThemeData, RelativeSource={RelativeSource AncestorType=UserControl}}"
                                 PreviewMaxHeightOverride="220"
                                 Margin="{StaticResource PlayAch.Thickness.Bottom.Md}"/>
-                            <TextBlock Text="SETTINGS"
+                            <TextBlock Text="{DynamicResource LOCPlayAch_Settings_Context_Settings}"
                                        Style="{StaticResource ContextLabelStyle}"/>
                             <StackPanel>
                                 <CheckBox Content="{DynamicResource LOCPlayAch_Settings_RevealLockedIcon}"
@@ -135,23 +172,19 @@
             </Border>
 
             <!-- Advanced -->
-            <Border Background="{StaticResource PlayAch.Brush.Overlay.Shade.12}"
-                    BorderBrush="{DynamicResource PlayAch.Brush.Border}"
-                    BorderThickness="{StaticResource PlayAch.Thickness.Border}"
-                    CornerRadius="{StaticResource PlayAch.Radius.Card}"
-                    Margin="0,16,0,0"
-                    Padding="{StaticResource PlayAch.Thickness.None}">
-                <Expander IsExpanded="False"
-                          Background="Transparent"
-                          BorderThickness="0">
-                    <Expander.Header>
-                        <TextBlock Text="{DynamicResource LOCPlayAch_Settings_Advanced}"
-                                   Foreground="{DynamicResource PlayAch.Brush.Text}"
-                                   FontWeight="SemiBold"
-                                   Margin="8,8,0,8"/>
-                    </Expander.Header>
+            <Expander IsExpanded="False"
+                      Background="{StaticResource PlayAch.Brush.Overlay.Shade.12}"
+                      BorderBrush="{DynamicResource PlayAch.Brush.Border}"
+                      BorderThickness="{StaticResource PlayAch.Thickness.Border}"
+                      Margin="0,16,0,0"
+                      Padding="12,10,12,12">
+                <Expander.Header>
+                    <TextBlock Text="{DynamicResource LOCPlayAch_Settings_Advanced}"
+                               Foreground="{DynamicResource PlayAch.Brush.Text}"
+                               FontWeight="SemiBold"/>
+                </Expander.Header>
 
-                    <StackPanel Margin="12,0,12,12">
+                <StackPanel>
                         <Border Style="{StaticResource SettingGroupCardStyle}">
                             <StackPanel>
                                 <TextBlock Text="{DynamicResource LOCPlayAch_Settings_AchievementIconCache_Title}"
@@ -165,13 +198,6 @@
                                           IsChecked="{Binding Persisted.UseSeparateLockedIconsWhenAvailable}"
                                           Margin="{StaticResource PlayAch.Thickness.Bottom.Xs}"/>
                                 <TextBlock Text="{DynamicResource LOCPlayAch_Settings_UseSeparateLockedIconsWhenAvailable_Help}"
-                                           Style="{StaticResource MutedTextStyle}"
-                                           Margin="24,0,0,10"
-                                           TextWrapping="Wrap"/>
-                                <CheckBox Content="{DynamicResource LOCPlayAch_Settings_PreserveAchievementIconResolution}"
-                                          IsChecked="{Binding Persisted.PreserveAchievementIconResolution}"
-                                          Margin="{StaticResource PlayAch.Thickness.Bottom.Xs}"/>
-                                <TextBlock Text="{DynamicResource LOCPlayAch_Settings_PreserveAchievementIconResolution_Help}"
                                            Style="{StaticResource MutedTextStyle}"
                                            Margin="24,0,0,0"
                                            TextWrapping="Wrap"/>
@@ -196,9 +222,8 @@
                                 </StackPanel>
                             </DockPanel>
                         </Border>
-                    </StackPanel>
-                </Expander>
-            </Border>
+                </StackPanel>
+            </Expander>
         </StackPanel>
     </ScrollViewer>
 </UserControl>

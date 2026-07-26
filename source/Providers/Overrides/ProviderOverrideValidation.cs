@@ -8,13 +8,11 @@ namespace PlayniteAchievements.Providers.Overrides
         private ProviderOverrideValidation(
             bool isValid,
             string normalizedValue,
-            string errorMessageKey,
-            string errorMessageFallback)
+            string errorMessageKey)
         {
             IsValid = isValid;
             NormalizedValue = normalizedValue;
             ErrorMessageKey = errorMessageKey;
-            ErrorMessageFallback = errorMessageFallback;
         }
 
         public bool IsValid { get; }
@@ -25,13 +23,10 @@ namespace PlayniteAchievements.Providers.Overrides
         /// <summary>Localization key for the validation error when <see cref="IsValid"/> is false.</summary>
         public string ErrorMessageKey { get; }
 
-        /// <summary>Fallback text for the validation error when the localization key is missing.</summary>
-        public string ErrorMessageFallback { get; }
-
         public static ProviderOverrideValidation Valid(string normalizedValue)
-            => new ProviderOverrideValidation(true, normalizedValue, null, null);
+            => new ProviderOverrideValidation(true, normalizedValue, null);
 
-        public static ProviderOverrideValidation Invalid(string errorMessageKey, string errorMessageFallback)
-            => new ProviderOverrideValidation(false, null, errorMessageKey, errorMessageFallback);
+        public static ProviderOverrideValidation Invalid(string errorMessageKey)
+            => new ProviderOverrideValidation(false, null, errorMessageKey);
     }
 }

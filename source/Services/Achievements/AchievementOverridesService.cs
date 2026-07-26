@@ -35,7 +35,7 @@ namespace PlayniteAchievements.Services.Achievements
                 return CacheWriteResult.CreateFailure(
                     string.Empty,
                     "invalid_game_id",
-                    ResourceProvider.GetString("LOCPlayAch_Error_RebuildFailed") ?? "Refresh failed");
+                    ResourceProvider.GetString("LOCPlayAch_Error_RebuildFailed"));
             }
 
             try
@@ -124,7 +124,8 @@ namespace PlayniteAchievements.Services.Achievements
         public void SetAchievementCategoryMetadata(
             Guid gameId,
             IReadOnlyList<string> categoryOrder,
-            IReadOnlyDictionary<string, CategoryImageOverrideData> categoryImageOverrides)
+            IReadOnlyDictionary<string, CategoryImageOverrideData> categoryImageOverrides,
+            GameSummaryCategoryData gameSummaryCategory)
         {
             if (gameId == Guid.Empty)
             {
@@ -135,6 +136,7 @@ namespace PlayniteAchievements.Services.Achievements
             {
                 customData.AchievementCategoryOrder = CopyCategoryOrder(categoryOrder);
                 customData.AchievementCategoryImageOverrides = CopyCategoryImageOverrides(categoryImageOverrides);
+                customData.GameSummaryCategory = GameCustomDataNormalizer.NormalizeGameSummaryCategory(gameSummaryCategory);
             });
         }
 
@@ -244,6 +246,12 @@ namespace PlayniteAchievements.Services.Achievements
                 ClearGameData(playniteGameId, clearIconCache: false, persistAfter: false);
             }
         }
+
+        public bool IsExcludedFromSummaries(Guid playniteGameId) =>
+            GameCustomDataLookup.IsExcludedFromSummaries(playniteGameId, null, _gameCustomDataStore);
+
+        public bool IsExcludedFromRefreshes(Guid playniteGameId) =>
+            GameCustomDataLookup.IsExcludedFromRefreshes(playniteGameId, null, _gameCustomDataStore);
 
         public void SetExcludedFromSummaries(Guid playniteGameId, bool excluded)
         {
@@ -398,18 +406,15 @@ namespace PlayniteAchievements.Services.Achievements
             foreach (var pair in values)
             {
                 var key = AchievementCategoryTypeHelper.NormalizeCategoryOrDefault(pair.Key);
-                var icon = NormalizeText(pair.Value?.Icon);
-                var cover = NormalizeText(pair.Value?.Cover);
-                if (string.IsNullOrWhiteSpace(key) ||
-                    (string.IsNullOrWhiteSpace(icon) && string.IsNullOrWhiteSpace(cover)))
+                var art = NormalizeText(pair.Value?.Art);
+                if (string.IsNullOrWhiteSpace(key) || string.IsNullOrWhiteSpace(art))
                 {
                     continue;
                 }
 
                 copy[key] = new CategoryImageOverrideData
                 {
-                    Icon = icon,
-                    Cover = cover
+                    Art = art
                 };
             }
 

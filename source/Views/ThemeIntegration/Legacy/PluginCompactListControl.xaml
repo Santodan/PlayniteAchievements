@@ -75,6 +75,7 @@
             <ListBox.ItemTemplate>
                 <DataTemplate>
                     <Grid HorizontalAlignment="Left"
+                          Cursor="Hand"
                           MouseLeftButtonDown="AchievementGrid_MouseLeftButtonDown"
                           localLegacy:HiddenRevealHelper.IsRevealed="False">
                         <StackPanel Margin="2" HorizontalAlignment="Left">

@@ -12,8 +12,8 @@ namespace PlayniteAchievements.Common
         // Diagnostic toggle for perf tracing. Flip to true and rebuild to emit timing logs; set
         // back to false to disable (Start/StartStartup then return null, so `using` scopes are a
         // no-op with zero overhead). Kept runtime-evaluated to avoid constant-folded unreachable
-        // branches.
-        private static readonly bool PerfTracingEnabled = true;
+        // branches. Also gates MemoryDiagnostics [MemPerf] lines.
+        internal static readonly bool PerfTracingEnabled = true;
 
         private readonly ILogger _logger;
         private readonly string _tag;

@@ -4,18 +4,22 @@
              xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
              xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
              xmlns:helpers="clr-namespace:PlayniteAchievements.Views.Helpers"
+             xmlns:converters="clr-namespace:PlayniteAchievements.Views.Converters"
              xmlns:vm="clr-namespace:PlayniteAchievements.ViewModels.Items"
              xmlns:modern="clr-namespace:PlayniteAchievements.Views.ThemeIntegration.Modern"
              mc:Ignorable="d"
              d:DesignHeight="48" d:DesignWidth="48"
              d:DataContext="{d:DesignInstance vm:AchievementDisplayItem}"
              UseLayoutRounding="True"
-             SnapsToDevicePixels="True">
+             SnapsToDevicePixels="True"
+             Cursor="Hand">
     <UserControl.Resources>
         <ResourceDictionary>
             <ResourceDictionary.MergedDictionaries>
                 <ResourceDictionary Source="pack://application:,,,/PlayniteAchievements;component/Resources/AchievementResources.xaml"/>
             </ResourceDictionary.MergedDictionaries>
+            <converters:RarityPercentToTextConverter x:Key="RarityPercentToTextConverter"/>
+            <converters:WholePercentToTextConverter x:Key="WholePercentToText"/>
         </ResourceDictionary>
     </UserControl.Resources>
 
@@ -78,7 +82,7 @@
                             <TextBlock Text=" ("
                                        FontSize="{DynamicResource PlayAch.FontSize.Caption}"
                                        Opacity="{StaticResource PlayAch.Opacity.Placeholder}"/>
-                            <TextBlock Text="{Binding ProgressPercent, Mode=OneWay, StringFormat={}{0:F0}%}"
+                            <TextBlock Text="{Binding ProgressPercent, Mode=OneWay, Converter={StaticResource WholePercentToText}}"
                                        FontSize="{DynamicResource PlayAch.FontSize.Caption}"
                                        Opacity="{StaticResource PlayAch.Opacity.Subtle}"/>
                             <TextBlock Text=")"
@@ -195,7 +199,7 @@
                          Background="{StaticResource PlayAch.Brush.Overlay.Shade.80}"
                          Foreground="{DynamicResource PlayAch.Brush.Accent}"
                          BorderThickness="0"/>
-            <TextBlock Text="{Binding RarityPercentValue, Mode=OneWay, StringFormat={}{0:F0}%}"
+            <TextBlock Text="{Binding RarityPercentValue, Mode=OneWay, Converter={StaticResource RarityPercentToTextConverter}}"
                        Style="{StaticResource PlayAch.TextBlock.BaseStyle}"
                        HorizontalAlignment="Center"
                        VerticalAlignment="Center"

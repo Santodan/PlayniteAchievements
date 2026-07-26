@@ -87,12 +87,22 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
                     orderedAchievements = achievements;
                 }
 
+                // Per-game invariants hoisted out of the row loop: the appearance snapshot and
+                // category art/order resolution are identical for every row in this pass.
+                var appearanceSnapshot = AchievementDisplayItem.CreateAppearanceSettingsSnapshot(
+                    _settings,
+                    _gameId,
+                    gameData?.UseSeparateLockedIconsWhenAvailable);
+                var categoryMemo = new AchievementDisplayItem.CategoryPresentationMemo();
+
                 var rows = orderedAchievements
                     .Select(a => AchievementDisplayItem.Create(
                         gameData,
                         a,
                         _settings,
-                        playniteGameIdOverride: _gameId))
+                        playniteGameIdOverride: _gameId,
+                        appearanceSettings: appearanceSnapshot,
+                        categoryMemo: categoryMemo))
                     .Where(a => a != null && !string.IsNullOrWhiteSpace(a.ApiName))
                     .ToList();
 

@@ -28,6 +28,7 @@ namespace PlayniteAchievements.Views
         private readonly AchievementOverridesService _achievementOverridesService;
         private readonly ICacheManager _cacheManager;
         private DataGridRow _pendingRightClickRow;
+        private string _pendingFocusAchievementId;
 
         public ViewAchievementsControl()
         {
@@ -116,6 +117,59 @@ namespace PlayniteAchievements.Views
             {
                 Dispatcher.BeginInvoke(new Action(UpdateDefaultSortIndicator));
             }
+
+            if (e.PropertyName == nameof(ViewAchievementsViewModel.IsLoading))
+            {
+                Dispatcher.BeginInvoke(
+                    new Action(ApplyPendingAchievementFocus),
+                    System.Windows.Threading.DispatcherPriority.Loaded);
+            }
+        }
+
+        /// <summary>
+        /// Requests that the achievement identified by <paramref name="achievementId"/>
+        /// (ApiName, or DisplayName as a fallback) is selected and scrolled into view once
+        /// the achievement data has loaded.
+        /// </summary>
+        public void FocusAchievement(string achievementId)
+        {
+            if (string.IsNullOrWhiteSpace(achievementId))
+            {
+                return;
+            }
+
+            _pendingFocusAchievementId = achievementId;
+            Dispatcher.BeginInvoke(
+                new Action(ApplyPendingAchievementFocus),
+                System.Windows.Threading.DispatcherPriority.Loaded);
+        }
+
+        private void ApplyPendingAchievementFocus()
+        {
+            var achievementId = _pendingFocusAchievementId;
+            if (string.IsNullOrWhiteSpace(achievementId) || ViewModel == null || ViewModel.IsLoading)
+            {
+                return;
+            }
+
+            // Data has loaded; the request is consumed whether or not a match is found so a
+            // later reload does not yank the scroll position back.
+            _pendingFocusAchievementId = null;
+
+            var items = ViewModel.Achievements;
+            var target = items?.FirstOrDefault(item =>
+                             !string.IsNullOrWhiteSpace(item?.ApiName) &&
+                             string.Equals(item.ApiName, achievementId, StringComparison.OrdinalIgnoreCase))
+                         ?? items?.FirstOrDefault(item =>
+                             string.Equals(item?.DisplayName, achievementId, StringComparison.OrdinalIgnoreCase));
+            if (target == null)
+            {
+                return;
+            }
+
+            // Drills into the achievement's category first when the grid opened in category
+            // mode, so the clicked achievement ends up visible and highlighted.
+            AchievementsDataGridControl?.FocusAchievementItem(target);
         }
 
         private void UpdateDefaultSortIndicator()

@@ -42,9 +42,9 @@
             <Style x:Key="FriendsOverviewRefreshButtonStyle"
                    TargetType="Button"
                    BasedOn="{StaticResource PlayAch.Button.BaseStyle}">
-                <Setter Property="Padding" Value="10,3"/>
-                <Setter Property="MinWidth" Value="88"/>
-                <Setter Property="Height" Value="24"/>
+                <Setter Property="Padding" Value="0"/>
+                <Setter Property="MinWidth" Value="0"/>
+                <Setter Property="MinHeight" Value="0"/>
                 <Setter Property="Margin" Value="0"/>
             </Style>
 
@@ -85,51 +85,6 @@
                 </Setter>
             </Style>
 
-            <Style x:Key="FriendsOverviewClearSelectionButtonStyle"
-                   TargetType="Button"
-                   BasedOn="{StaticResource PlayAch.Button.BaseStyle}">
-                <Setter Property="Width" Value="18"/>
-                <Setter Property="Height" Value="18"/>
-                <Setter Property="Padding" Value="0"/>
-                <Setter Property="Background" Value="{DynamicResource PlayAch.Brush.Button.Background}"/>
-                <Setter Property="Foreground" Value="{DynamicResource PlayAch.Brush.Text}"/>
-                <Setter Property="BorderThickness" Value="0"/>
-                <Setter Property="FontSize" Value="12"/>
-                <Setter Property="FontWeight" Value="SemiBold"/>
-                <Setter Property="Opacity" Value="0.72"/>
-                <Setter Property="Cursor" Value="Hand"/>
-                <Setter Property="VerticalAlignment" Value="Center"/>
-                <Setter Property="FocusVisualStyle" Value="{x:Null}"/>
-                <Setter Property="Template">
-                    <Setter.Value>
-                        <ControlTemplate TargetType="Button">
-                            <Border x:Name="Chrome"
-                                    Background="{TemplateBinding Background}"
-                                    CornerRadius="{StaticResource PlayAch.Radius.Small}"
-                                    SnapsToDevicePixels="True">
-                                <TextBlock Text="{TemplateBinding Content}"
-                                           Foreground="{TemplateBinding Foreground}"
-                                           FontSize="{TemplateBinding FontSize}"
-                                           FontWeight="{TemplateBinding FontWeight}"
-                                           FontFamily="{TemplateBinding FontFamily}"
-                                           HorizontalAlignment="Center"
-                                           VerticalAlignment="Center"/>
-                            </Border>
-                            <ControlTemplate.Triggers>
-                                <Trigger Property="IsMouseOver" Value="True">
-                                    <Setter TargetName="Chrome" Property="Background" Value="{DynamicResource PlayAch.Brush.Button.Background.Hover}"/>
-                                    <Setter Property="Foreground" Value="{DynamicResource PlayAch.Brush.Accent}"/>
-                                    <Setter Property="Opacity" Value="1"/>
-                                </Trigger>
-                                <Trigger Property="IsKeyboardFocused" Value="True">
-                                    <Setter TargetName="Chrome" Property="Background" Value="{DynamicResource PlayAch.Brush.Button.Background.Hover}"/>
-                                    <Setter Property="Opacity" Value="1"/>
-                                </Trigger>
-                            </ControlTemplate.Triggers>
-                        </ControlTemplate>
-                    </Setter.Value>
-                </Setter>
-            </Style>
         </ResourceDictionary>
     </UserControl.Resources>
 
@@ -155,7 +110,7 @@
         <Border Grid.Row="0"
                 Background="Transparent"
                 BorderBrush="{DynamicResource PlayAch.Brush.ControlBorder}"
-                Padding="16,0,16,4">
+                Padding="8,0,8,4">
             <Border.Style>
                 <Style TargetType="Border">
                     <Setter Property="BorderThickness" Value="0,0,0,1"/>
@@ -218,9 +173,17 @@
                             </Button.ContextMenu>
                         </Button>
 
-                        <Button Content="{Binding RefreshOrCancelButtonText}"
-                                Command="{Binding RefreshOrCancelCommand}"
-                                Style="{StaticResource FriendsOverviewRefreshButtonStyle}"/>
+                        <Button Command="{Binding RefreshOrCancelCommand}"
+                                ToolTip="{Binding RefreshOrCancelButtonText}"
+                                Style="{StaticResource FriendsOverviewRefreshButtonStyle}"
+                                Height="{Binding ActualHeight, ElementName=RefreshModeSelectionButton}"
+                                Width="{Binding ActualHeight, ElementName=RefreshModeSelectionButton}">
+                            <TextBlock Text="{Binding RefreshOrCancelButtonGlyph}"
+                                       FontFamily="{DynamicResource PlayAch.FontFamily.Icon}"
+                                       FontSize="14"
+                                       HorizontalAlignment="Center"
+                                       VerticalAlignment="Center"/>
+                        </Button>
                     </StackPanel>
                 </StackPanel>
 
@@ -229,7 +192,7 @@
                         Content="&#x2715;"
                         ToolTip="{DynamicResource LOCPlayAch_FriendsOverview_ClearSelection}"
                         Click="ClearSelection_Click"
-                        Style="{StaticResource FriendsOverviewClearSelectionButtonStyle}"
+                        Style="{StaticResource ClearGameSelectionButtonStyle}"
                         Visibility="{Binding HasAnySelection, Converter={StaticResource BoolToVis}}"/>
             </Grid>
         </Border>
@@ -238,7 +201,7 @@
         <Border Grid.Row="1"
                 Background="Transparent"
                 BorderBrush="{DynamicResource PlayAch.Brush.ControlBorder}"
-                Padding="16,8">
+                Padding="8,8">
             <Border.Style>
                 <Style TargetType="Border">
                     <Setter Property="BorderThickness" Value="0,0,0,1"/>
@@ -270,11 +233,11 @@
         <!-- ROW 2: Three connected grids -->
         <Grid Grid.Row="2">
             <Grid.ColumnDefinitions>
-                <ColumnDefinition Width="1.1*" MinWidth="260"/>
+                <ColumnDefinition x:Name="FriendsOverviewFriendColumn" Width="1.1*" MinWidth="260"/>
                 <ColumnDefinition Width="4"/>
-                <ColumnDefinition Width="1.35*" MinWidth="320"/>
+                <ColumnDefinition x:Name="FriendsOverviewGameColumn" Width="1.35*" MinWidth="320"/>
                 <ColumnDefinition Width="4"/>
-                <ColumnDefinition Width="2.1*" MinWidth="440"/>
+                <ColumnDefinition x:Name="FriendsOverviewAchievementColumn" Width="2.1*" MinWidth="440"/>
             </Grid.ColumnDefinitions>
             <Grid.RowDefinitions>
                 <RowDefinition Height="Auto"/>
@@ -285,7 +248,7 @@
             <Border Grid.Row="0" Grid.Column="0"
                     Background="Transparent"
                     Height="{StaticResource PlayAch.Size.Header.Height}"
-                    Padding="16,0"
+                    Padding="8,0"
                     BorderBrush="{DynamicResource PlayAch.Brush.ControlBorder}"
                     BorderThickness="0,0,0,1">
                 <Grid>
@@ -303,7 +266,7 @@
                             Content="&#x2715;"
                             ToolTip="{DynamicResource LOCPlayAch_FriendsOverview_ClearSelection}"
                             Click="ClearFriendSelection_Click"
-                            Style="{StaticResource FriendsOverviewClearSelectionButtonStyle}"
+                            Style="{StaticResource ClearGameSelectionButtonStyle}"
                             Visibility="{Binding HasFriendSelection, Converter={StaticResource BoolToVis}}"/>
                 </Grid>
             </Border>
@@ -312,7 +275,7 @@
             <Border Grid.Row="0" Grid.Column="2"
                     Background="Transparent"
                     Height="{StaticResource PlayAch.Size.Header.Height}"
-                    Padding="16,0"
+                    Padding="8,0"
                     BorderBrush="{DynamicResource PlayAch.Brush.ControlBorder}"
                     BorderThickness="0,0,0,1">
                 <Grid>
@@ -330,7 +293,7 @@
                             Content="&#x2715;"
                             ToolTip="{DynamicResource LOCPlayAch_FriendsOverview_ClearSelection}"
                             Click="ClearGameSelection_Click"
-                            Style="{StaticResource FriendsOverviewClearSelectionButtonStyle}"
+                            Style="{StaticResource ClearGameSelectionButtonStyle}"
                             Visibility="{Binding HasGameSelection, Converter={StaticResource BoolToVis}}"/>
                 </Grid>
             </Border>
@@ -339,7 +302,7 @@
             <Border Grid.Row="0" Grid.Column="4"
                     Background="Transparent"
                     Height="{StaticResource PlayAch.Size.Header.Height}"
-                    Padding="16,0"
+                    Padding="8,0"
                     BorderBrush="{DynamicResource PlayAch.Brush.ControlBorder}"
                     BorderThickness="0,0,0,1">
                 <StackPanel Orientation="Horizontal"
@@ -386,7 +349,7 @@
                     <Button Content="&#x2715;"
                             ToolTip="{DynamicResource LOCPlayAch_FriendsOverview_ClearSelection}"
                             Click="ClearSelection_Click"
-                            Style="{StaticResource FriendsOverviewClearSelectionButtonStyle}"
+                            Style="{StaticResource ClearGameSelectionButtonStyle}"
                             Margin="10,0,0,0"
                             Visibility="{Binding HasAnySelection, Converter={StaticResource BoolToVis}}"/>
                 </StackPanel>
@@ -394,11 +357,13 @@
 
             <GridSplitter Grid.Row="0" Grid.RowSpan="2" Grid.Column="1"
                           Style="{StaticResource CenterLineSplitterStyle}"
+                          DragCompleted="FriendsOverviewGridSplitter_DragCompleted"
                           Focusable="False"
                           IsTabStop="False"/>
 
             <GridSplitter Grid.Row="0" Grid.RowSpan="2" Grid.Column="3"
                           Style="{StaticResource CenterLineSplitterStyle}"
+                          DragCompleted="FriendsOverviewGridSplitter_DragCompleted"
                           Focusable="False"
                           IsTabStop="False"/>
 
@@ -406,7 +371,7 @@
             <controls:FriendSummariesGridControl x:Name="FriendSummariesGridControl"
                                                  Grid.Row="1"
                                                  Grid.Column="0"
-                                                 Margin="16,8,16,0"
+                                                 Margin="8,8,8,0"
                                                  ControlBar="{Binding FriendSummariesControlBar}"
                                                  ShowControlBar="{Binding Settings.Persisted.ShowFriendsOverviewFriendSummariesGridControlBar}"
                                                  ItemsSource="{Binding FilteredFriends}"
@@ -423,7 +388,7 @@
             <controls:GameSummariesGridControl x:Name="FriendGameSummariesGridControl"
                                                Grid.Row="1"
                                                Grid.Column="2"
-                                               Margin="16,8,16,0"
+                                               Margin="8,8,8,0"
                                                ControlBar="{Binding GameSummariesControlBar}"
                                                ShowControlBar="{Binding Settings.Persisted.ShowFriendsOverviewGameSummariesGridControlBar}"
                                                Visibility="{Binding HasFriendSelection, Converter={StaticResource InverseBoolToVis}}"
@@ -434,7 +399,7 @@
                                                ShowMetadataPlatform="{Binding Settings.Persisted.FriendsOverviewGameSummariesShowMetadataPlatform}"
                                                ShowMetadataPlaytime="{Binding Settings.Persisted.FriendsOverviewGameSummariesShowMetadataPlaytime}"
                                                ShowMetadataRegion="{Binding Settings.Persisted.FriendsOverviewGameSummariesShowMetadataRegion}"
-                                               ShowCompletionBorder="False"
+                                               ShowCompletionGlow="False"
                                                ShowColumnHeaders="{Binding Settings.Persisted.ShowFriendsOverviewGameSummariesGridColumnHeaders}"
                                                FixedRowHeight="{Binding Settings.Persisted.FriendsOverviewGameSummariesGridRowHeight}"
                                                DelayInitialRenderUntilNormalized="True"
@@ -446,7 +411,7 @@
             <controls:GameSummariesGridControl x:Name="SelectedFriendGameSummariesGridControl"
                                                Grid.Row="1"
                                                Grid.Column="2"
-                                               Margin="16,8,16,0"
+                                               Margin="8,8,8,0"
                                                ControlBar="{Binding GameSummariesControlBar}"
                                                ShowControlBar="{Binding Settings.Persisted.ShowFriendsOverviewGameSummariesGridControlBar}"
                                                Visibility="{Binding HasFriendSelection, Converter={StaticResource BoolToVis}}"
@@ -457,7 +422,7 @@
                                                ShowMetadataPlatform="{Binding Settings.Persisted.FriendsOverviewGameSummariesShowMetadataPlatform}"
                                                ShowMetadataPlaytime="{Binding Settings.Persisted.FriendsOverviewGameSummariesShowMetadataPlaytime}"
                                                ShowMetadataRegion="{Binding Settings.Persisted.FriendsOverviewGameSummariesShowMetadataRegion}"
-                                               ShowCompletionBorder="False"
+                                               ShowCompletionGlow="{Binding Settings.Persisted.FriendsOverviewGameSummariesShowCompletionGlow}"
                                                ShowColumnHeaders="{Binding Settings.Persisted.ShowFriendsOverviewGameSummariesGridColumnHeaders}"
                                                FixedRowHeight="{Binding Settings.Persisted.FriendsOverviewGameSummariesGridRowHeight}"
                                                DelayInitialRenderUntilNormalized="True"
@@ -469,25 +434,28 @@
             <!-- Achievements -->
             <Grid Grid.Row="1" Grid.Column="4">
                 <controls:AchievementDataGridControl x:Name="FriendsAchievementsGrid"
-                                                     Margin="16,8,16,0"
+                                                     Margin="8,8,8,0"
                                                      ControlBar="{Binding AchievementsControlBar}"
                                                      ShowControlBar="{Binding Settings.Persisted.ShowFriendsOverviewAchievementsGridControlBar}"
                                                      ItemsSource="{Binding DisplayedAchievements}"
-                                                     ColumnSettingsKey="FriendsOverviewRecentAchievements"
+                                                     CategorySummarySource="{Binding SelectedFriendGameAllAchievements}"
+                                                     ColumnSettingsKey="{Binding AchievementColumnSettingsKey}"
                                                      EnableCategoryMode="{Binding HasFriendGameSelection}"
                                                      HideBackButton="True"
                                                      HideCategorySummaryRow="{Binding Settings.Persisted.FriendsOverviewAchievementsHideCategorySummaryRow}"
                                                      DrilledCategory="{Binding SelectedCategoryName, Mode=OneWayToSource}"
                                                      CategoryUseCoverImages="{Binding Settings.Persisted.FriendsOverviewCategorySummariesUseCoverImages}"
+                                                     CategoryShowCompletionGlow="{Binding Settings.Persisted.FriendsOverviewCategorySummariesShowCompletionGlow}"
                                                      CategoryShowColumnHeaders="{Binding Settings.Persisted.ShowFriendsOverviewCategorySummariesGridColumnHeaders}"
                                                      CategoryFixedRowHeight="{Binding Settings.Persisted.FriendsOverviewCategorySummariesGridRowHeight}"
                                                      CategoryColumnSettingsKey="FriendsOverviewCategorySummaries"
                                                      ShowGameColumn="True"
                                                      ShowFriendColumn="True"
-                                                     HideStatusColumn="True"
+                                                     HideStatusColumn="False"
                                                      UseCoverImages="{Binding Settings.Persisted.FriendsOverviewAchievementsUseCoverImages}"
                                                      ShowRarityGlow="{Binding Settings.Persisted.FriendsOverviewAchievementsShowRarityGlow}"
                                                      ColorNamesByRarity="{Binding Settings.Persisted.FriendsOverviewAchievementsColorNamesByRarity}"
+                                                     ColorRarityColumnsByRarity="{Binding Settings.Persisted.FriendsOverviewAchievementsColorRarityColumnsByRarity}"
                                                      ShowColumnHeaders="{Binding Settings.Persisted.ShowFriendsOverviewAchievementsGridColumnHeaders}"
                                                      FixedRowHeight="{Binding Settings.Persisted.FriendsOverviewAchievementsGridRowHeight}"
                                                      DataGridMaxHeight="{x:Static sys:Double.NaN}"
@@ -508,6 +476,27 @@
                 </Border>
             </Grid>
         </Grid>
+
+        <!-- Initial-load overlay: mirrors the main overview's loading indicator while the first
+             friends snapshot builds. -->
+        <Border Grid.Row="0"
+                Grid.RowSpan="3"
+                Background="{DynamicResource PlayAch.Brush.Window.Background}"
+                Visibility="{Binding IsLoading, Converter={StaticResource BoolToVis}}">
+            <StackPanel HorizontalAlignment="Center"
+                        VerticalAlignment="Center"
+                        MaxWidth="360">
+                <TextBlock Text="{DynamicResource LOCPlayAch_Status_LoadingAchievements}"
+                           Style="{DynamicResource PlayAch.TextBlock.BaseStyle}"
+                           Foreground="{DynamicResource PlayAch.Brush.Text}"
+                           FontWeight="SemiBold"
+                           HorizontalAlignment="Center"
+                           Margin="{StaticResource PlayAch.Thickness.Bottom.Compact}"/>
+                <ProgressBar Height="6"
+                             Width="240"
+                             IsIndeterminate="True"/>
+            </StackPanel>
+        </Border>
     </Grid>
     </Border>
 </UserControl>

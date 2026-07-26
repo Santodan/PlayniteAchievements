@@ -9,6 +9,7 @@ using PlayniteAchievements.Services.Friends;
 using PlayniteAchievements.Services.Refresh;
 using PlayniteAchievements.Services.Search;
 using PlayniteAchievements.ViewModels.Items;
+using PlayniteAchievements.Views.Helpers;
 using System;
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
@@ -105,6 +106,12 @@ namespace PlayniteAchievements.ViewModels
         public BulkObservableCollection<FriendAchievementDisplayItem> Achievements { get; } =
             new BulkObservableCollection<FriendAchievementDisplayItem>();
 
+        // Unfiltered selected-friend comparison rows in canonical definition order feeding the
+        // grid's CategorySummarySource so category ordering does not follow the configured or
+        // live sort.
+        public BulkObservableCollection<FriendAchievementDisplayItem> SelectedFriendAllAchievements { get; } =
+            new BulkObservableCollection<FriendAchievementDisplayItem>();
+
         public BulkObservableCollection<FriendGameSummaryItem> SummaryItems { get; } =
             new BulkObservableCollection<FriendGameSummaryItem>();
 
@@ -136,6 +143,7 @@ namespace PlayniteAchievements.ViewModels
                 if (SetValueAndReturn(ref _selectedFriend, value))
                 {
                     OnPropertyChanged(nameof(HasFriendSelection));
+                    OnPropertyChanged(nameof(AchievementColumnSettingsKey));
                     OnPropertyChanged(nameof(AchievementSectionTitle));
                     OnPropertyChanged(nameof(AchievementCountText));
                     UpdateSummaryItems();
@@ -145,6 +153,9 @@ namespace PlayniteAchievements.ViewModels
         }
 
         public bool HasFriendSelection => SelectedFriend != null;
+        public string AchievementColumnSettingsKey => HasFriendSelection
+            ? "ViewFriendsAchievementsSelectedFriendAchievements"
+            : "ViewFriendsAchievements";
 
         // Category the achievement grid is currently drilled into (null when not drilled), pushed
         // up from AchievementDataGridControl so a breadcrumb header can be shown above the grid.
@@ -239,9 +250,9 @@ namespace PlayniteAchievements.ViewModels
 
         public string AchievementSectionTitle => SelectedFriend != null
             ? string.Format(
-                L("LOCPlayAch_FriendsOverview_SelectedFriendAchievements", "{0} Achievements"),
+                L("LOCPlayAch_FriendsOverview_SelectedFriendAchievements"),
                 SelectedFriend.DisplayName)
-            : L("LOCPlayAch_ViewFriendsAchievements_TitleFallback", "Friends Achievements");
+            : L("LOCPlayAch_ViewFriendsAchievements_TitleFallback");
 
         public string AchievementCountText
         {
@@ -262,9 +273,9 @@ namespace PlayniteAchievements.ViewModels
 
                 return string.Format(
                     format,
-                    unlocked,
-                    total,
-                    L("LOCPlayAch_Achievements", "Achievements"));
+                    unlocked.ToString("N0", FormattingCulture.Current),
+                    total.ToString("N0", FormattingCulture.Current),
+                    L("LOCPlayAch_Achievements"));
             }
         }
 
@@ -275,6 +286,8 @@ namespace PlayniteAchievements.ViewModels
         public bool SummaryShowMetadataPlaytime => GameSummaryOptions?.ShowMetadataPlaytime ?? true;
 
         public bool SummaryShowMetadataRegion => GameSummaryOptions?.ShowMetadataRegion ?? true;
+
+        public bool SummaryShowCompletionGlow => GameSummaryOptions?.ShowCompletionGlow ?? true;
 
         public bool SummaryShowColumnHeaders => GameSummaryOptions?.ShowColumnHeaders ?? true;
 
@@ -307,6 +320,9 @@ namespace PlayniteAchievements.ViewModels
         public bool ColorNamesByRarity =>
             AchievementGridOptions?.ColorNamesByRarity ?? false;
 
+        public bool ColorRarityColumnsByRarity =>
+            AchievementGridOptions?.ColorRarityColumnsByRarity ?? false;
+
         public bool HideCategorySummaryRow =>
             AchievementGridOptions?.HideCategorySummaryRow ?? false;
 
@@ -318,6 +334,9 @@ namespace PlayniteAchievements.ViewModels
 
         public bool CategorySummariesUseCoverImages =>
             CategorySummaryOptions?.UseCoverImages ?? false;
+
+        public bool CategorySummariesShowCompletionGlow =>
+            CategorySummaryOptions?.ShowCompletionGlow ?? true;
 
         private AchievementGridOptions AchievementGridOptions =>
             _settings?.Persisted?.GridOptions?.GetAchievement(GridOptionKeys.Achievement.ViewFriendsAchievements);
@@ -343,7 +362,7 @@ namespace PlayniteAchievements.ViewModels
 
             IsLoading = true;
             ProgressPercent = 0;
-            ProgressMessage = L("LOCPlayAch_Status_LoadingAchievements", "Loading achievements");
+            ProgressMessage = L("LOCPlayAch_Status_LoadingAchievements");
 
             try
             {
@@ -363,7 +382,7 @@ namespace PlayniteAchievements.ViewModels
             catch (Exception ex)
             {
                 _logger?.Error(ex, $"Failed to load friend achievements for {_gameId}.");
-                StatusText = L("LOCPlayAch_FriendsOverview_LoadFailed", "Failed to load friends achievements.");
+                StatusText = L("LOCPlayAch_FriendsOverview_LoadFailed");
             }
             finally
             {
@@ -486,12 +505,13 @@ namespace PlayniteAchievements.ViewModels
                 .ToList();
             Friends.ReplaceAll(friends);
 
-            IEnumerable<FriendAchievementDisplayItem> source = _allAchievements;
-            if (SelectedFriend != null)
-            {
-                source = source.Where(achievement =>
-                    FriendOverviewProjection.IsSameFriend(achievement, SelectedFriend));
-            }
+            // The game is fixed here, so a selected friend forms a single friend+game pair: show the
+            // full comparison list including the friend's locked achievements. The all-friends view is
+            // aggregated and shows unlocked rows only.
+            IEnumerable<FriendAchievementDisplayItem> source = SelectedFriend != null
+                ? _allAchievements.Where(achievement =>
+                    FriendOverviewProjection.IsSameFriend(achievement, SelectedFriend))
+                : _allAchievements.Where(achievement => achievement?.Unlocked == true);
 
             var filtered = _achievementControlBar
                 .Apply(source)
@@ -500,9 +520,18 @@ namespace PlayniteAchievements.ViewModels
             SortAchievements(filtered);
 
             var maxRows = AchievementGridOptions?.MaxRows;
+
+            // Keep the unfiltered category-summary source current; achievement filters and grid
+            // sorts never touch it, so the category fallback order stays the definition-ordered
+            // snapshot loaded from the cache. Replaced before Achievements so the grid's
+            // items-source reset rebuilds category rollups from the new selection's rows.
+            SelectedFriendAllAchievements.ReplaceAll(SelectedFriend != null
+                ? _allAchievements.Where(achievement =>
+                    FriendOverviewProjection.IsSameFriend(achievement, SelectedFriend))
+                : Enumerable.Empty<FriendAchievementDisplayItem>());
             Achievements.ReplaceAll(DisplayGridRowLimitHelper.Limit(filtered, maxRows));
             StatusText = _allAchievements.Count == 0
-                ? L("LOCPlayAch_ViewFriendsAchievements_NoData", "No friend achievement data for this game yet.")
+                ? L("LOCPlayAch_ViewFriendsAchievements_NoData")
                 : string.Empty;
             OnPropertyChanged(nameof(AchievementSectionTitle));
             OnPropertyChanged(nameof(AchievementCountText));
@@ -600,7 +629,7 @@ namespace PlayniteAchievements.ViewModels
 
             IsRefreshing = true;
             ProgressPercent = 0;
-            ProgressMessage = L("LOCPlayAch_FriendsOverview_Refreshing", "Refreshing friends...");
+            ProgressMessage = L("LOCPlayAch_FriendsOverview_Refreshing");
             try
             {
                 await _refreshEntryPoint.ExecuteAsync(
@@ -615,13 +644,13 @@ namespace PlayniteAchievements.ViewModels
                 _dataCoordinator.Invalidate();
                 await LoadAsync();
                 ProgressPercent = 100;
-                ProgressMessage = L("LOCPlayAch_Status_RefreshComplete", "Refresh complete");
+                ProgressMessage = L("LOCPlayAch_Status_RefreshComplete");
             }
             catch (Exception ex)
             {
                 _logger?.Error(ex, $"Failed to refresh friend achievements for {_gameId}.");
                 ProgressMessage = string.Format(
-                    L("LOCPlayAch_Error_RefreshFailed", "Refresh failed: {0}"),
+                    L("LOCPlayAch_Error_RefreshFailed"),
                     ex.Message);
             }
             finally
@@ -705,7 +734,9 @@ namespace PlayniteAchievements.ViewModels
             OnPropertyChanged(nameof(UseCoverImages));
             OnPropertyChanged(nameof(ShowRarityGlow));
             OnPropertyChanged(nameof(ColorNamesByRarity));
+            OnPropertyChanged(nameof(ColorRarityColumnsByRarity));
             OnPropertyChanged(nameof(SummaryUseCoverImages));
+            OnPropertyChanged(nameof(SummaryShowCompletionGlow));
             OnPropertyChanged(nameof(SummaryShowMetadataPlatform));
             OnPropertyChanged(nameof(SummaryShowMetadataPlaytime));
             OnPropertyChanged(nameof(SummaryShowMetadataRegion));
@@ -715,6 +746,7 @@ namespace PlayniteAchievements.ViewModels
             OnPropertyChanged(nameof(CategorySummariesShowColumnHeaders));
             OnPropertyChanged(nameof(CategorySummariesGridRowHeight));
             OnPropertyChanged(nameof(CategorySummariesUseCoverImages));
+            OnPropertyChanged(nameof(CategorySummariesShowCompletionGlow));
         }
 
         private void OpenGameInLibrary()
@@ -724,6 +756,7 @@ namespace PlayniteAchievements.ViewModels
                 var game = _playniteApi?.Database?.Games?.Get(_gameId);
                 if (game != null)
                 {
+                    PlayniteUiProvider.RestoreMainView();
                     _playniteApi?.MainView?.SelectGame(_gameId);
                 }
             }
@@ -748,13 +781,12 @@ namespace PlayniteAchievements.ViewModels
                 _logger?.Debug(ex, $"Failed to resolve game name for {_gameId}.");
             }
 
-            return L("LOCPlayAch_ViewFriendsAchievements_TitleFallback", "Friends Achievements");
+            return L("LOCPlayAch_ViewFriendsAchievements_TitleFallback");
         }
 
-        private static string L(string key, string fallback)
+        private static string L(string key)
         {
-            var value = ResourceProvider.GetString(key);
-            return string.IsNullOrWhiteSpace(value) ? fallback : value;
+            return ResourceProvider.GetString(key);
         }
     }
 }

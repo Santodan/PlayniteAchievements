@@ -10,7 +10,7 @@ namespace PlayniteAchievements
     {
         private void ShowRefreshProgressControlAndRun(Func<Task> refreshTask, Guid? singleGameRefreshId = null)
         {
-            _windowService.ShowRefreshProgressControlAndRun(refreshTask, OpenViewAchievementsWindow, singleGameRefreshId);
+            _windowService.ShowRefreshProgressControlAndRun(refreshTask, gameId => OpenViewAchievementsWindow(gameId), singleGameRefreshId);
         }
 
         private void ShowRefreshProgressControl(
@@ -18,16 +18,18 @@ namespace PlayniteAchievements
             Func<Task> refreshTask = null,
             bool validateCanStart = false)
         {
-            _windowService.ShowRefreshProgressControl(singleGameRefreshId, refreshTask, OpenViewAchievementsWindow, validateCanStart);
+            _windowService.ShowRefreshProgressControl(singleGameRefreshId, refreshTask, gameId => OpenViewAchievementsWindow(gameId), validateCanStart);
         }
 
         /// <summary>
         /// Opens the View Achievements window for the specified game.
         /// Public for access from theme integration controls.
+        /// When <paramref name="focusAchievementId"/> is provided (ApiName, or DisplayName as a
+        /// fallback), the matching achievement row is selected and scrolled into view.
         /// </summary>
-        public void OpenViewAchievementsWindow(Guid gameId)
+        public void OpenViewAchievementsWindow(Guid gameId, string focusAchievementId = null)
         {
-            _windowService.OpenViewAchievementsWindow(gameId);
+            _windowService.OpenViewAchievementsWindow(gameId, focusAchievementId);
         }
 
         public void OpenViewFriendsAchievementsWindow(Guid gameId)

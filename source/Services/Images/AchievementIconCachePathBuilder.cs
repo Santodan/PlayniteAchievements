@@ -13,17 +13,14 @@ namespace PlayniteAchievements.Services.Images
         Locked = 1
     }
 
-    public enum CategoryImageKind
-    {
-        Icon = 0,
-        Cover = 1
-    }
-
     internal static class AchievementIconCachePathBuilder
     {
         private const string FallbackStem = "achievement";
         private const int MaxStemLength = 96;
         private const string CustomFolderName = "custom";
+        private const string ModeFolderName = "original";
+        internal const string LegacyCompressedModeFolderName = "128";
+        internal const string DefaultCategoryFolderName = "category_defaults";
         private static readonly HashSet<string> ReservedFileNames = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
         {
             "CON",
@@ -49,11 +46,6 @@ namespace PlayniteAchievements.Services.Images
             "LPT8",
             "LPT9"
         };
-
-        public static string GetModeFolder(bool preserveOriginalResolution)
-        {
-            return preserveOriginalResolution ? "original" : "128";
-        }
 
         public static string GetCustomFolder()
         {
@@ -108,7 +100,25 @@ namespace PlayniteAchievements.Services.Images
 
         public static string BuildRelativePath(
             string gameId,
-            bool preserveOriginalResolution,
+            string fileStem,
+            AchievementIconVariant variant)
+        {
+            return BuildModeRelativePath(gameId, ModeFolderName, fileStem, variant);
+        }
+
+        // Path of the retired compressed 128px cache mode. Only used to serve pre-existing files
+        // until each game's next refresh replaces and deletes them; never written to.
+        internal static string BuildLegacyCompressedRelativePath(
+            string gameId,
+            string fileStem,
+            AchievementIconVariant variant)
+        {
+            return BuildModeRelativePath(gameId, LegacyCompressedModeFolderName, fileStem, variant);
+        }
+
+        private static string BuildModeRelativePath(
+            string gameId,
+            string modeFolder,
             string fileStem,
             AchievementIconVariant variant)
         {
@@ -125,7 +135,7 @@ namespace PlayniteAchievements.Services.Images
             return Path.Combine(
                 "icon_cache",
                 gameId.Trim(),
-                GetModeFolder(preserveOriginalResolution),
+                modeFolder,
                 fileName);
         }
 
@@ -153,8 +163,7 @@ namespace PlayniteAchievements.Services.Images
 
         public static string BuildCustomCategoryRelativePath(
             string gameId,
-            string fileStem,
-            CategoryImageKind kind)
+            string fileStem)
         {
             if (string.IsNullOrWhiteSpace(gameId))
             {
@@ -162,13 +171,38 @@ namespace PlayniteAchievements.Services.Images
             }
 
             var stem = string.IsNullOrWhiteSpace(fileStem) ? FallbackStem : fileStem.Trim();
-            var suffix = kind == CategoryImageKind.Cover ? ".cover.png" : ".icon.png";
-            var fileName = "category_" + stem + suffix;
+            var fileName = "category_" + stem + ".png";
 
             return Path.Combine(
                 "icon_cache",
                 gameId.Trim(),
                 CustomFolderName,
+                fileName);
+        }
+
+        // Builds the deterministic path for the provider-supplied default category art file. The
+        // path is a pure function of (gameId, normalized category label) so the write side
+        // (enrichment download) and the read side (display probe) agree without persisting anything
+        // in the database. Lives outside the custom folder so cache clears wipe defaults but keep
+        // user files.
+        public static string BuildDefaultCategoryRelativePath(
+            string gameId,
+            string categoryLabel)
+        {
+            if (string.IsNullOrWhiteSpace(gameId))
+            {
+                gameId = Guid.Empty.ToString("D");
+            }
+
+            var normalizedLabel = (categoryLabel ?? string.Empty).Trim();
+            var stem = SanitizeSegment(normalizedLabel);
+            var suffix = "_" + GetApiNameHashSuffix(normalizedLabel.ToLowerInvariant());
+            var fileName = "category_" + TrimStemForSuffix(stem, suffix.Length) + suffix + ".jpg";
+
+            return Path.Combine(
+                "icon_cache",
+                gameId.Trim(),
+                DefaultCategoryFolderName,
                 fileName);
         }
 

@@ -9,7 +9,7 @@ namespace PlayniteAchievements.Services.Cache
     {
         event EventHandler<GameCacheUpdatedEventArgs> GameCacheUpdated;
         event EventHandler<CacheDeltaEventArgs> CacheDeltaUpdated;
-        event EventHandler CacheInvalidated;
+        event EventHandler<CacheInvalidatedEventArgs> CacheInvalidated;
 
         void EnsureDiskCacheOrClearMemory();
         bool CacheFileExists();
@@ -23,6 +23,12 @@ namespace PlayniteAchievements.Services.Cache
         void RemoveGameData(Guid playniteGameId);
         void RemoveGameCache(Guid playniteGameId);
         void NotifyCacheInvalidated();
+
+        /// <summary>
+        /// Scoped variant naming the Playnite games whose cached data changed. Null, empty, or
+        /// over-large lists degrade to a full invalidation.
+        /// </summary>
+        void NotifyCacheInvalidated(IReadOnlyList<Guid> changedGameIds);
 
         void ClearCache();
 

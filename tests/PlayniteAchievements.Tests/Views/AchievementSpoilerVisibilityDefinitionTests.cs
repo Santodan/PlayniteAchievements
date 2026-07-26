@@ -57,6 +57,29 @@ namespace PlayniteAchievements.Tests.Views
                 "Visibility=\"{Binding Persisted.EnableFriendsFeatures, Converter={StaticResource BoolToVis}}\"");
         }
 
+        [TestMethod]
+        public void DisplaySettings_RoundRarityPercentagesLivesInGridDefaults()
+        {
+            var general = File.ReadAllText(FindRepoFile("source", "Views", "Settings", "Display", "DisplayGeneralSection.xaml"));
+            var appearance = File.ReadAllText(FindRepoFile("source", "Views", "Settings", "Display", "AppearanceSection.xaml"));
+            var previewProperties = File.ReadAllText(FindRepoFile("source", "Views", "Settings", "Display", "DisplayPreviewProperties.cs"));
+
+            var gridDefaultsIndex = general.IndexOf("LOCPlayAch_Settings_Display_GridDefaults", StringComparison.Ordinal);
+            var roundRarityIndex = general.IndexOf("LOCPlayAch_Settings_RoundRarityPercentages", StringComparison.Ordinal);
+
+            Assert.IsTrue(gridDefaultsIndex >= 0, "Grid Defaults section missing.");
+            Assert.IsTrue(roundRarityIndex > gridDefaultsIndex, "Round rarity setting must live under Grid Defaults.");
+            Assert.IsFalse(appearance.Contains("LOCPlayAch_Settings_RoundRarityPercentages"),
+                "Round rarity setting should not live in Appearance.");
+            AssertContainsAll(
+                general,
+                "IsChecked=\"{Binding Persisted.RoundRarityPercentages}\"",
+                "LOCPlayAch_Settings_RoundRarityPercentages_Help");
+            AssertContainsAll(
+                previewProperties,
+                "nameof(PersistedSettings.RoundRarityPercentages)");
+        }
+
         private static void AssertContainsAll(string content, params string[] expected)
         {
             var missing = expected

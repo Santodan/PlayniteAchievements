@@ -280,7 +280,7 @@ namespace PlayniteAchievements.ViewModels
                     .ToDictionary(group => group.Key, group => group.First().IsRevealed, StringComparer.OrdinalIgnoreCase);
 
                 var game = _playniteApi?.Database?.Games?.Get(_gameId);
-                GameName = game?.Name ?? ResourceProvider.GetString("LOCPlayAch_Text_UnknownGame") ?? "Unknown Game";
+                GameName = game?.Name ?? ResourceProvider.GetString("LOCPlayAch_Text_UnknownGame");
 
                 UseCoverAspect = _settings?.Persisted?.OverviewGameSummariesUseCoverImages ?? true;
 
@@ -309,6 +309,14 @@ namespace PlayniteAchievements.ViewModels
                     .ThenBy(a => a.DisplayName ?? a.ApiName, StringComparer.CurrentCultureIgnoreCase)
                     .ToList();
 
+                // Per-game invariants hoisted out of the row loop: the appearance snapshot and
+                // category art/order resolution are identical for every row in this pass.
+                var appearanceSnapshot = AchievementDisplayItem.CreateAppearanceSettingsSnapshot(
+                    _settings,
+                    _gameId,
+                    gameData?.UseSeparateLockedIconsWhenAvailable);
+                var categoryMemo = new AchievementDisplayItem.CategoryPresentationMemo();
+
                 _allOptions.Clear();
                 CapstoneOptionItem currentMarkerOption = null;
                 for (int i = 0; i < sortedAchievements.Count; i++)
@@ -318,7 +326,9 @@ namespace PlayniteAchievements.ViewModels
                         gameData,
                         achievement,
                         _settings,
-                        playniteGameIdOverride: _gameId);
+                        playniteGameIdOverride: _gameId,
+                        appearanceSettings: appearanceSnapshot,
+                        categoryMemo: categoryMemo);
                     var option = CreateOptionItem(projected, achievement, currentCapstoneApiName);
                     if (option == null)
                     {
@@ -447,7 +457,7 @@ namespace PlayniteAchievements.ViewModels
 
         private void SetCurrentMarkerText(string markerDisplayName)
         {
-            var fallback = ResourceProvider.GetString("LOCPlayAch_Common_None") ?? "None";
+            var fallback = ResourceProvider.GetString("LOCPlayAch_Common_None");
             var markerText = string.IsNullOrWhiteSpace(markerDisplayName) ? fallback : markerDisplayName.Trim();
             var format = ResourceProvider.GetString("LOCPlayAch_Capstone_Current");
             if (string.IsNullOrWhiteSpace(format))

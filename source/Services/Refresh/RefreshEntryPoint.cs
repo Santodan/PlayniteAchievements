@@ -62,6 +62,13 @@ namespace PlayniteAchievements.Services.Refresh
 
         public DateTime CreatedUtc { get; }
 
+        /// <summary>
+        /// Capability results gathered while filtering the auth-probe candidate set, carried
+        /// forward so request resolution and plan building reuse them instead of re-running
+        /// per-game capability checks.
+        /// </summary>
+        internal TargetSelectionCache TargetSelectionCache { get; set; }
+
         public IReadOnlyList<IDataProvider> AuthenticatedProviders
         {
             get
@@ -251,7 +258,7 @@ namespace PlayniteAchievements.Services.Refresh
                 if (authContext == null)
                 {
                     authContext = await _refreshService
-                        .GetRefreshAuthContextOrShowDialogAsync(policy.ExternalCancellationToken)
+                        .GetRefreshAuthContextOrShowDialogAsync(request, policy.ExternalCancellationToken)
                         .ConfigureAwait(false);
                 }
 

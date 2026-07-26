@@ -188,6 +188,8 @@ namespace PlayniteAchievements.Providers.Manual
             }
         }
 
+        public string ResolveProviderPlatformKey(string sourceGameId) => "Steam";
+
         public void BeginRefreshAuthContext(RefreshAuthContext context)
         {
             _refreshTokenResolution = null;
@@ -275,8 +277,8 @@ namespace PlayniteAchievements.Providers.Manual
                         ApiName = ach.InternalName,
                         DisplayName = ach.LocalizedName ?? ach.InternalName,
                         Description = ach.LocalizedDesc ?? string.Empty,
-                        UnlockedIconPath = $"https://cdn.akamai.steamstatic.com/steamcommunity/public/images/apps/{appId}/{ach.Icon}",
-                        LockedIconPath = $"https://cdn.akamai.steamstatic.com/steamcommunity/public/images/apps/{appId}/{ach.IconGray}",
+                        UnlockedIconPath = SteamApiClient.BuildAchievementIconUrl(appId, ach.Icon),
+                        LockedIconPath = SteamApiClient.BuildAchievementIconUrl(appId, ach.IconGray),
                         Hidden = ach.Hidden,
                         Unlocked = false,
                         UnlockTimeUtc = null,

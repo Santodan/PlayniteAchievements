@@ -53,5 +53,30 @@ namespace PlayniteAchievements.Services.Achievements
 
             return ordered;
         }
+
+        /// <summary>
+        /// Index of a normalized category label in the game's custom category order, or
+        /// <see cref="int.MaxValue"/> when there is no custom order or the label is absent.
+        /// </summary>
+        public static int ResolveCategoryOrderIndex(string categoryLabel, IReadOnlyList<string> categoryOrder)
+        {
+            if (string.IsNullOrWhiteSpace(categoryLabel) || categoryOrder == null || categoryOrder.Count == 0)
+            {
+                return int.MaxValue;
+            }
+
+            for (var i = 0; i < categoryOrder.Count; i++)
+            {
+                if (string.Equals(
+                    AchievementCategoryTypeHelper.NormalizeCategoryOrDefault(categoryOrder[i]),
+                    categoryLabel,
+                    StringComparison.OrdinalIgnoreCase))
+                {
+                    return i;
+                }
+            }
+
+            return int.MaxValue;
+        }
     }
 }

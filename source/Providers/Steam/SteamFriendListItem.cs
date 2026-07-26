@@ -27,7 +27,7 @@ namespace PlayniteAchievements.Providers.Steam
         /// Label for the ignore/unignore action button, flipping with <see cref="IsIgnored"/>.
         /// </summary>
         public string IgnoreActionLabel => IsIgnored
-            ? (ResourceProvider.GetString("LOCPlayAch_Menu_UnignoreFriend") ?? "Unignore")
-            : (ResourceProvider.GetString("LOCPlayAch_Menu_IgnoreFriend") ?? "Ignore");
+            ? (ResourceProvider.GetString("LOCPlayAch_Menu_UnignoreFriend"))
+            : (ResourceProvider.GetString("LOCPlayAch_Menu_IgnoreFriend"));
     }
 }

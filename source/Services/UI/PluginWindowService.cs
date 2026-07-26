@@ -462,7 +462,7 @@ namespace PlayniteAchievements.Services.UI
                 if (validateAuthentication)
                 {
                     authContext = await _refreshService
-                        .GetRefreshAuthContextOrShowDialogAsync(progress.CancelToken)
+                        .GetRefreshAuthContextOrShowDialogAsync(request, progress.CancelToken)
                         .ConfigureAwait(false);
                     if (authContext == null || !authContext.HasAuthenticatedProviders)
                     {
@@ -732,7 +732,7 @@ namespace PlayniteAchievements.Services.UI
                 _logger.Error(ex, "Failed to open Achievements Overview window");
                 _api?.Dialogs?.ShowErrorMessage(
                     $"Failed to open achievements overview: {ex.Message}",
-                    ResourceProvider.GetString("LOCPlayAch_Title_PluginName") ?? "Playnite Achievements");
+                    ResourceProvider.GetString("LOCPlayAch_Title_PluginName"));
             }
         }
 
@@ -1113,8 +1113,7 @@ namespace PlayniteAchievements.Services.UI
 
                 var window = CreateManagedPopoutWindow(
                     ResourceProvider.GetString("LOCPlayAch_Menu_OpenOverview") ??
-                    ResourceProvider.GetString("LOCPlayAch_Title_PluginName") ??
-                    "Achievements Overview",
+                    ResourceProvider.GetString("LOCPlayAch_Title_PluginName"),
                     view,
                     windowOptions,
                     isFullscreen,
@@ -1136,15 +1135,15 @@ namespace PlayniteAchievements.Services.UI
                 _logger.Error(ex, "Failed to open Achievements Overview window");
                 _api?.Dialogs?.ShowErrorMessage(
                     $"Failed to open achievements overview: {ex.Message}",
-                    ResourceProvider.GetString("LOCPlayAch_Title_PluginName") ?? "Playnite Achievements");
+                    ResourceProvider.GetString("LOCPlayAch_Title_PluginName"));
             }
         }
 
-        public void OpenViewAchievementsWindow(Guid gameId)
+        public void OpenViewAchievementsWindow(Guid gameId, string focusAchievementId = null)
         {
             try
             {
-                InvokeOnUiThread(() => OpenViewAchievementsWindowCore(gameId));
+                InvokeOnUiThread(() => OpenViewAchievementsWindowCore(gameId, focusAchievementId));
             }
             catch (Exception ex)
             {
@@ -1155,10 +1154,17 @@ namespace PlayniteAchievements.Services.UI
             }
         }
 
-        private void OpenViewAchievementsWindowCore(Guid gameId)
+        private void OpenViewAchievementsWindowCore(Guid gameId, string focusAchievementId = null)
         {
             if (TryActivateTrackedWindow(AchievementWindowKind.ViewAchievements, gameId))
             {
+                if (!string.IsNullOrWhiteSpace(focusAchievementId) &&
+                    TryGetTrackedWindow(AchievementWindowKind.ViewAchievements, gameId, out var existingWindow) &&
+                    TryGetWindowContent<ViewAchievementsControl>(existingWindow, out var existingView))
+                {
+                    existingView.FocusAchievement(focusAchievementId);
+                }
+
                 return;
             }
 
@@ -1177,6 +1183,11 @@ namespace PlayniteAchievements.Services.UI
                     _settings,
                     _achievementOverridesService,
                     _cacheManager);
+
+                if (!string.IsNullOrWhiteSpace(focusAchievementId))
+                {
+                    view.FocusAchievement(focusAchievementId);
+                }
 
                 var windowOptions = new WindowOptions
                 {

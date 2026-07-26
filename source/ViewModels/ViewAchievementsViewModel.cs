@@ -274,6 +274,10 @@ namespace PlayniteAchievements.ViewModels
         // Achievement list
         public ObservableCollection<AchievementDisplayItem> Achievements { get; } = new BulkObservableCollection<AchievementDisplayItem>();
 
+        // Unfiltered achievements in canonical definition/custom order; feeds the grid's
+        // CategorySummarySource so category ordering does not follow the configured or live sort.
+        public ObservableCollection<AchievementDisplayItem> AllAchievements { get; } = new BulkObservableCollection<AchievementDisplayItem>();
+
         // Single-row game summary grid (standardized header surface).
         public ObservableCollection<GameSummaryItem> SummaryItems { get; } = new ObservableCollection<GameSummaryItem>();
 
@@ -285,7 +289,7 @@ namespace PlayniteAchievements.ViewModels
 
         public bool SummaryShowMetadataRegion => _settings?.Persisted?.ViewAchievementsGameSummariesShowMetadataRegion ?? true;
 
-        public bool SummaryShowCompletionBorder => _settings?.Persisted?.ViewAchievementsGameSummariesShowCompletionBorder ?? true;
+        public bool SummaryShowCompletionGlow => _settings?.Persisted?.ViewAchievementsGameSummariesShowCompletionGlow ?? true;
 
         public bool SummaryShowColumnHeaders => _settings?.Persisted?.ShowViewAchievementsGameSummariesGridColumnHeaders ?? true;
 
@@ -371,6 +375,8 @@ namespace PlayniteAchievements.ViewModels
 
         public bool CategorySummariesUseCoverImages => _settings?.Persisted?.ViewAchievementsCategorySummariesUseCoverImages ?? false;
 
+        public bool CategorySummariesShowCompletionGlow => _settings?.Persisted?.ViewAchievementsCategorySummariesShowCompletionGlow ?? true;
+
         public double? SingleGameGridRowHeight => _settings?.Persisted?.SingleGameGridRowHeight;
 
         // The Manage Achievements window follows the Overview "Selected Game Achievements" glow setting.
@@ -378,6 +384,8 @@ namespace PlayniteAchievements.ViewModels
 
         // The Manage Achievements window follows the Overview "Selected Game Achievements" name-color setting.
         public bool ColorNamesByRarity => _settings?.Persisted?.OverviewSelectedGameColorNamesByRarity ?? false;
+
+        public bool ColorRarityColumnsByRarity => _settings?.Persisted?.ViewAchievementsAchievementGridColorRarityColumnsByRarity ?? false;
 
         #endregion
 
@@ -512,6 +520,7 @@ namespace PlayniteAchievements.ViewModels
                         // The control bar's filter option collections are UI-bound.
                         _controlBar.Clear();
                         Achievements.Clear();
+                        AllAchievements.Clear();
                     });
 
                     Timeline.SetCounts(null);
@@ -562,7 +571,10 @@ namespace PlayniteAchievements.ViewModels
 
                 // The control bar's filter option collections are UI-bound.
                 System.Windows.Application.Current?.Dispatcher?.Invoke(() =>
-                    _controlBar.UpdateOptions(_allAchievements));
+                {
+                    _controlBar.UpdateOptions(_allAchievements);
+                    CollectionHelper.Replace(AllAchievements, _allAchievements);
+                });
                 ApplySearchFilter();
 
                 Timeline.SetCounts(unlockCounts);
@@ -638,7 +650,7 @@ namespace PlayniteAchievements.ViewModels
             OnPropertyChanged(nameof(SummaryShowMetadataPlatform));
             OnPropertyChanged(nameof(SummaryShowMetadataPlaytime));
             OnPropertyChanged(nameof(SummaryShowMetadataRegion));
-            OnPropertyChanged(nameof(SummaryShowCompletionBorder));
+            OnPropertyChanged(nameof(SummaryShowCompletionGlow));
             OnPropertyChanged(nameof(SummaryShowColumnHeaders));
             OnPropertyChanged(nameof(SummaryGridRowHeight));
         }
@@ -785,6 +797,8 @@ namespace PlayniteAchievements.ViewModels
                 OnPropertyChanged(nameof(CategorySummariesShowColumnHeaders));
                 OnPropertyChanged(nameof(CategorySummariesGridRowHeight));
                 OnPropertyChanged(nameof(CategorySummariesUseCoverImages));
+                OnPropertyChanged(nameof(CategorySummariesShowCompletionGlow));
+                OnPropertyChanged(nameof(ColorRarityColumnsByRarity));
                 RaiseSummaryAppearanceProperties();
                 ApplySavedTimelineState();
                 ApplySearchFilter(skipDefaultSort: CurrentSortDirection.HasValue, refreshOrder: true);
@@ -835,6 +849,12 @@ namespace PlayniteAchievements.ViewModels
                 return;
             }
 
+            if (e?.PropertyName == nameof(PersistedSettings.ViewAchievementsCategorySummariesShowCompletionGlow))
+            {
+                OnPropertyChanged(nameof(CategorySummariesShowCompletionGlow));
+                return;
+            }
+
             if (e?.PropertyName == nameof(PersistedSettings.OverviewSelectedGameShowRarityGlow))
             {
                 OnPropertyChanged(nameof(ShowRarityGlow));
@@ -844,6 +864,12 @@ namespace PlayniteAchievements.ViewModels
             if (e?.PropertyName == nameof(PersistedSettings.OverviewSelectedGameColorNamesByRarity))
             {
                 OnPropertyChanged(nameof(ColorNamesByRarity));
+                return;
+            }
+
+            if (e?.PropertyName == nameof(PersistedSettings.ViewAchievementsAchievementGridColorRarityColumnsByRarity))
+            {
+                OnPropertyChanged(nameof(ColorRarityColumnsByRarity));
                 return;
             }
 
@@ -857,7 +883,7 @@ namespace PlayniteAchievements.ViewModels
                 e?.PropertyName == nameof(PersistedSettings.ViewAchievementsGameSummariesShowMetadataPlatform) ||
                 e?.PropertyName == nameof(PersistedSettings.ViewAchievementsGameSummariesShowMetadataPlaytime) ||
                 e?.PropertyName == nameof(PersistedSettings.ViewAchievementsGameSummariesShowMetadataRegion) ||
-                e?.PropertyName == nameof(PersistedSettings.ViewAchievementsGameSummariesShowCompletionBorder) ||
+                e?.PropertyName == nameof(PersistedSettings.ViewAchievementsGameSummariesShowCompletionGlow) ||
                 e?.PropertyName == nameof(PersistedSettings.ShowViewAchievementsGameSummariesGridColumnHeaders) ||
                 e?.PropertyName == nameof(PersistedSettings.ViewAchievementsGameSummariesGridRowHeight))
             {

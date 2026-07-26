@@ -44,7 +44,7 @@
                             </Image.Source>
                         </Image>
                     </Grid>
-                    <TextBlock Text="{Binding Count}"
+                    <TextBlock Text="{Binding Count, StringFormat={}{0:N0}}"
                                Style="{DynamicResource PlayAch.TextBlock.BaseStyle}"
                                Foreground="{DynamicResource PlayAch.Brush.Text}"
                                FontSize="{DynamicResource PlayAch.FontSize.Caption}"
@@ -81,51 +81,6 @@
                                 </Trigger>
                                 <Trigger Property="IsKeyboardFocused" Value="True">
                                     <Setter TargetName="border" Property="Background" Value="{StaticResource PlayAch.Brush.Overlay.Tint.20}"/>
-                                </Trigger>
-                            </ControlTemplate.Triggers>
-                        </ControlTemplate>
-                    </Setter.Value>
-                </Setter>
-            </Style>
-
-            <!-- Compact, square close button for the selected-game header (kept small so it
-                 does not expand the header row like the larger circular NavigationButtonStyle). -->
-            <Style x:Key="ClearGameSelectionButtonStyle" TargetType="Button">
-                <Setter Property="Width" Value="18"/>
-                <Setter Property="Height" Value="18"/>
-                <Setter Property="Padding" Value="0"/>
-                <Setter Property="Background" Value="{DynamicResource PlayAch.Brush.Button.Background}"/>
-                <Setter Property="Foreground" Value="{DynamicResource PlayAch.Brush.Text}"/>
-                <Setter Property="BorderThickness" Value="0"/>
-                <Setter Property="FontSize" Value="12"/>
-                <Setter Property="FontWeight" Value="SemiBold"/>
-                <Setter Property="Opacity" Value="0.72"/>
-                <Setter Property="Cursor" Value="Hand"/>
-                <Setter Property="VerticalAlignment" Value="Center"/>
-                <Setter Property="FocusVisualStyle" Value="{x:Null}"/>
-                <Setter Property="Template">
-                    <Setter.Value>
-                        <ControlTemplate TargetType="Button">
-                            <Border x:Name="Chrome"
-                                    Background="{TemplateBinding Background}"
-                                    CornerRadius="{StaticResource PlayAch.Radius.Small}"
-                                    SnapsToDevicePixels="True">
-                                <TextBlock Text="{TemplateBinding Content}"
-                                           Foreground="{TemplateBinding Foreground}"
-                                           FontSize="{TemplateBinding FontSize}"
-                                           FontWeight="{TemplateBinding FontWeight}"
-                                           HorizontalAlignment="Center"
-                                           VerticalAlignment="Center"/>
-                            </Border>
-                            <ControlTemplate.Triggers>
-                                <Trigger Property="IsMouseOver" Value="True">
-                                    <Setter TargetName="Chrome" Property="Background" Value="{DynamicResource PlayAch.Brush.Button.Background.Hover}"/>
-                                    <Setter Property="Foreground" Value="{DynamicResource PlayAch.Brush.Accent}"/>
-                                    <Setter Property="Opacity" Value="1"/>
-                                </Trigger>
-                                <Trigger Property="IsKeyboardFocused" Value="True">
-                                    <Setter TargetName="Chrome" Property="Background" Value="{DynamicResource PlayAch.Brush.Button.Background.Hover}"/>
-                                    <Setter Property="Opacity" Value="1"/>
                                 </Trigger>
                             </ControlTemplate.Triggers>
                         </ControlTemplate>
@@ -211,8 +166,10 @@
             </Style>
 
             <!-- Underline tab style for the Overview/Friends view switch.
-                 Text-only tabs; the active tab (Tag="active") gets accent text and
-                 an accent underline bar. No chevron, no border, no fill. -->
+                 Text-only tabs; the active tab (Tag="active") gets full text-brush
+                 text and an accent underline bar (the accent stays on the bar only
+                 because it can resolve to a gradient on some themes). The single-cell
+                 grid keeps the label vertically centered with the window title. -->
             <Style x:Key="OverviewSubViewSwitchButtonStyle" TargetType="Button" BasedOn="{StaticResource PlayAch.Button.BaseStyle}">
                 <Setter Property="MinHeight" Value="24"/>
                 <Setter Property="Padding" Value="2,2"/>
@@ -229,12 +186,7 @@
                     <Setter.Value>
                         <ControlTemplate TargetType="Button">
                             <Grid Background="Transparent">
-                                <Grid.RowDefinitions>
-                                    <RowDefinition Height="*"/>
-                                    <RowDefinition Height="2"/>
-                                </Grid.RowDefinitions>
                                 <TextBlock x:Name="Label"
-                                           Grid.Row="0"
                                            Text="{TemplateBinding Content}"
                                            Style="{DynamicResource PlayAch.TextBlock.BaseStyle}"
                                            FontWeight="{TemplateBinding FontWeight}"
@@ -244,7 +196,6 @@
                                            VerticalAlignment="Center"
                                            TextWrapping="NoWrap"/>
                                 <Border x:Name="Underline"
-                                        Grid.Row="1"
                                         Height="2"
                                         Margin="2,0"
                                         VerticalAlignment="Bottom"
@@ -260,7 +211,7 @@
                                     <Setter TargetName="Underline" Property="Opacity" Value="0.4"/>
                                 </Trigger>
                                 <Trigger Property="Tag" Value="active">
-                                    <Setter TargetName="Label" Property="Foreground" Value="{DynamicResource PlayAch.Brush.Accent}"/>
+                                    <Setter TargetName="Label" Property="Foreground" Value="{DynamicResource PlayAch.Brush.Text}"/>
                                     <Setter TargetName="Underline" Property="Visibility" Value="Visible"/>
                                     <Setter TargetName="Underline" Property="Opacity" Value="1"/>
                                 </Trigger>
@@ -273,11 +224,11 @@
                 </Setter>
             </Style>
 
-            <!-- Button style that disables during refresh -->
+            <!-- Icon button style that disables during refresh -->
         <Style x:Key="RefreshButtonStyle" TargetType="Button" BasedOn="{StaticResource PlayAch.Button.BaseStyle}">
-                <Setter Property="Padding" Value="10,3"/>
-                <Setter Property="MinWidth" Value="88"/>
-                <Setter Property="Height" Value="24"/>
+                <Setter Property="Padding" Value="0"/>
+                <Setter Property="MinWidth" Value="0"/>
+                <Setter Property="MinHeight" Value="0"/>
                 <Setter Property="Margin" Value="0,0,6,0"/>
             </Style>
 
@@ -352,7 +303,7 @@
         <Border Grid.Row="0"
                 Background="Transparent"
                 BorderBrush="{DynamicResource PlayAch.Brush.ControlBorder}"
-                Padding="16,0,16,4"
+                Padding="8,0,8,4"
                 WindowChrome.IsHitTestVisibleInChrome="True">
             <Border.Style>
                 <Style TargetType="Border">
@@ -387,6 +338,12 @@
                             Style="{StaticResource NavigationButtonStyle}"
                             ToolTip="{Binding CloseViewToolTip}"/>
 
+                    <Image Source="{StaticResource PlayAch.Image.Logo}"
+                           Width="34"
+                           Height="34"
+                           VerticalAlignment="Center"
+                           Margin="{StaticResource PlayAch.Thickness.Left.Md}"/>
+
                     <TextBlock Text="{DynamicResource LOCPlayAch_Title_PluginName}"
                                Style="{DynamicResource PlayAch.TextBlock.BaseStyle}"
                                FontWeight="Bold"
@@ -399,8 +356,19 @@
 
                     <StackPanel Orientation="Horizontal"
                                 VerticalAlignment="Center"
-                                Margin="18,0,0,0"
-                                Visibility="{Binding EnableFriendsFeatures, Converter={StaticResource BoolToVis}}">
+                                Margin="18,0,0,0">
+                        <StackPanel.Style>
+                            <Style TargetType="StackPanel">
+                                <Setter Property="Visibility" Value="{Binding EnableFriendsFeatures, Converter={StaticResource BoolToVis}}"/>
+                                <Style.Triggers>
+                                    <!-- Keep the subview switch reachable while the friends view is
+                                         active so disabling the feature never traps the user there. -->
+                                    <DataTrigger Binding="{Binding ActiveSubView, ElementName=OverviewControlRoot}" Value="{x:Static rootModels:OverviewSubView.Friends}">
+                                        <Setter Property="Visibility" Value="Visible"/>
+                                    </DataTrigger>
+                                </Style.Triggers>
+                            </Style>
+                        </StackPanel.Style>
                         <Button x:Name="OverviewSubViewButton"
                                 Content="{DynamicResource LOCPlayAch_ManageAchievements_Tab_Overview}"
                                 Click="OverviewSubViewButton_Click">
@@ -452,10 +420,18 @@
                         </Button>
 
                         <Button x:Name="RefreshActionButton"
-                                Content="{Binding ActiveRefreshHeader.RefreshOrCancelButtonText, ElementName=OverviewControlRoot}"
                                 Command="{Binding ActiveRefreshHeader.RefreshOrCancelCommand, ElementName=OverviewControlRoot}"
+                                ToolTip="{Binding ActiveRefreshHeader.RefreshOrCancelButtonText, ElementName=OverviewControlRoot}"
                                 Style="{StaticResource RefreshButtonStyle}"
-                                Margin="0"/>
+                                Height="{Binding ActualHeight, ElementName=RefreshModeSelectionButton}"
+                                Width="{Binding ActualHeight, ElementName=RefreshModeSelectionButton}"
+                                Margin="0">
+                            <TextBlock Text="{Binding ActiveRefreshHeader.RefreshOrCancelButtonGlyph, ElementName=OverviewControlRoot}"
+                                       FontFamily="{DynamicResource PlayAch.FontFamily.Icon}"
+                                       FontSize="14"
+                                       HorizontalAlignment="Center"
+                                       VerticalAlignment="Center"/>
+                        </Button>
                     </StackPanel>
                 </StackPanel>
 
@@ -529,7 +505,7 @@
                 Background="Transparent"
                 BorderBrush="{DynamicResource PlayAch.Brush.ControlBorder}"
                 BorderThickness="0,0,0,1"
-                Padding="16,8"
+                Padding="8,8"
                 Visibility="{Binding ActiveRefreshHeader.ShowProgress, ElementName=OverviewControlRoot, Converter={StaticResource BoolToVis}}">
             <StackPanel VerticalAlignment="Center">
                 <TextBlock Text="{Binding ActiveRefreshHeader.ProgressMessage, ElementName=OverviewControlRoot}"
@@ -575,7 +551,7 @@
                     <Border Grid.Row="0" Grid.Column="0"
                             Background="Transparent"
                             Height="{StaticResource PlayAch.Size.Header.Height}"
-                            Padding="16,0"
+                            Padding="8,0"
                             BorderBrush="{DynamicResource PlayAch.Brush.ControlBorder}"
                             BorderThickness="0,0,0,1">
                         <Grid>
@@ -597,7 +573,7 @@
                             </Grid.RowDefinitions>
                         <controls:GameSummariesGridControl x:Name="GameSummariesGridControl"
                                                                 Grid.Row="0"
-                                                                Margin="16,8,16,0"
+                                                                Margin="8,8,8,0"
                                                                 KeyboardNavigation.DirectionalNavigation="Contained"
                                                                 ItemsSource="{Binding GameSummaries}"
                                                                 SelectedItem="{Binding SelectedGame, Mode=OneWay}"
@@ -605,7 +581,7 @@
                                                                 ShowMetadataPlatform="{Binding ShowOverviewGameMetadataPlatform}"
                                                                 ShowMetadataPlaytime="{Binding ShowOverviewGameMetadataPlaytime}"
                                                                 ShowMetadataRegion="{Binding ShowOverviewGameMetadataRegion}"
-                                                                ShowCompletionBorder="{Binding ShowCompletionBorder}"
+                                                                ShowCompletionGlow="{Binding ShowCompletionGlow}"
                                                                 ShowColumnHeaders="{Binding ShowOverviewGameSummariesGridColumnHeaders}"
                                                                 FixedRowHeight="{Binding OverviewGameSummariesGridRowHeight}"
                                                                 DelayInitialRenderUntilNormalized="True"
@@ -627,7 +603,7 @@
                                 BorderBrush="{DynamicResource PlayAch.Brush.ControlBorder}"
                                 BorderThickness="0,0,0,1"
                                 Height="{StaticResource PlayAch.Size.Header.Height}"
-                                Padding="16,0"
+                                Padding="8,0"
                                 Visibility="{Binding ShowRecentAchievementsPanel, Converter={StaticResource BoolToVis}}">
                             <TextBlock Text="{DynamicResource LOCPlayAch_RecentAchievements}"
                                        Style="{DynamicResource PlayAch.TextBlock.BaseStyle}"
@@ -641,7 +617,7 @@
                                 BorderBrush="{DynamicResource PlayAch.Brush.ControlBorder}"
                                 BorderThickness="0,0,0,1"
                                 Height="{StaticResource PlayAch.Size.Header.Height}"
-                                Padding="16,0"
+                                Padding="8,0"
                                 Visibility="{Binding IsSelectedGameContentReady, Converter={StaticResource BoolToVis}}">
 
                             <StackPanel Orientation="Horizontal"
@@ -705,12 +681,6 @@
                             BorderThickness="1,0,0,1"
                             IsHitTestVisible="False"/>
 
-                    <Border Grid.Row="1"
-                            Grid.Column="1"
-                            BorderBrush="{DynamicResource PlayAch.Brush.ControlBorder}"
-                            BorderThickness="0,0,0,1"
-                            IsHitTestVisible="False"/>
-                    
                     <!-- RIGHT: Content (Recent List OR Game Details) -->
                     <Grid Grid.Row="1" Grid.Column="2">
                         <Grid.RowDefinitions>
@@ -729,7 +699,7 @@
 
                             <controls:AchievementDataGridControl x:Name="RecentAchievementsDataGrid"
                                                                  Grid.Row="0"
-                                                                 Margin="16,8,16,0"
+                                                                 Margin="8,8,8,0"
                                                                  KeyboardNavigation.DirectionalNavigation="Contained"
                                                                  ItemsSource="{Binding RecentAchievements}"
                                                                  ColumnSettingsKey="OverviewRecentAchievements"
@@ -737,6 +707,7 @@
                                                                  UseCoverImages="{Binding UseCoverImagesRecentAchievements}"
                                                                  ShowRarityGlow="{Binding ShowRarityGlowRecentAchievements}"
                                                                  ColorNamesByRarity="{Binding ColorNamesByRarityRecentAchievements}"
+                                                                 ColorRarityColumnsByRarity="{Binding ColorRarityColumnsByRarityRecentAchievements}"
                                                                  ShowColumnHeaders="{Binding ShowOverviewRecentAchievementsGridColumnHeaders}"
                                                                  FixedRowHeight="{Binding OverviewRecentAchievementsGridRowHeight}"
                                                                  DataGridMaxHeight="{x:Static sys:Double.NaN}"
@@ -759,14 +730,16 @@
                             <!-- Game Achievements List -->
                             <controls:AchievementDataGridControl x:Name="GameAchievementsGrid"
                                                                  Grid.Row="0"
-                                                                 Margin="16,8,16,0"
+                                                                 Margin="8,8,8,0"
                                                                  KeyboardNavigation.DirectionalNavigation="Contained"
                                                                  ItemsSource="{Binding SelectedGameAchievements}"
                                                                  ColumnSettingsKey="OverviewSelectedGameAchievements"
+                                                                 ShowGameColumn="True"
                                                                  EnableCategoryMode="True"
                                                                  HideBackButton="True"
                                                                  HideCategorySummaryRow="{Binding OverviewSelectedGameAchievementsHideCategorySummaryRow}"
                                                                  CategoryUseCoverImages="{Binding OverviewSelectedGameCategorySummariesUseCoverImages}"
+                                                                 CategoryShowCompletionGlow="{Binding OverviewSelectedGameCategorySummariesShowCompletionGlow}"
                                                                  CategoryShowColumnHeaders="{Binding ShowOverviewSelectedGameCategorySummariesGridColumnHeaders}"
                                                                  CategoryFixedRowHeight="{Binding OverviewSelectedGameCategorySummariesGridRowHeight}"
                                                                  CategoryColumnSettingsKey="OverviewSelectedGameCategorySummaries"
@@ -775,6 +748,7 @@
                                                                  DataGridMaxHeight="{x:Static sys:Double.NaN}"
                                                                  ShowRarityGlow="{Binding ShowRarityGlowSelectedGame}"
                                                                  ColorNamesByRarity="{Binding ColorNamesByRaritySelectedGame}"
+                                                                 ColorRarityColumnsByRarity="{Binding ColorRarityColumnsByRaritySelectedGame}"
                                                                  ShowColumnHeaders="{Binding ShowOverviewSelectedGameGridColumnHeaders}"
                                                                  FixedRowHeight="{Binding OverviewSelectedGameGridRowHeight}"
                                                                  DelayInitialRenderUntilNormalized="True"

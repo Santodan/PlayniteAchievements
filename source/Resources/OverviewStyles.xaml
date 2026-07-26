@@ -8,12 +8,8 @@
         <ResourceDictionary Source="pack://application:,,,/PlayniteAchievements;component/Resources/AchievementResources.xaml"/>
     </ResourceDictionary.MergedDictionaries>
 
-    <!--
-        Cell content wrapper providing consistent per-cell padding. The completion border is no
-        longer drawn here; it is a single overlay border at the DataGridRow level (see
-        GameSummariesGridRowBaseStyle) so it adapts automatically to column show/hide/reorder.
-    -->
-    <Style x:Key="OverviewCompletedCellFrameStyle" TargetType="ContentControl">
+    <!-- Cell content wrapper providing consistent per-cell padding. -->
+    <Style x:Key="OverviewCellFrameStyle" TargetType="ContentControl">
         <Setter Property="Focusable" Value="False"/>
         <Setter Property="HorizontalContentAlignment" Value="Stretch"/>
         <Setter Property="VerticalContentAlignment" Value="Stretch"/>
@@ -39,7 +35,7 @@
     </Style>
 
     <Style x:Key="GameSummariesGridCellStyle" TargetType="DataGridCell">
-        <Setter Property="Background" Value="{DynamicResource PlayAch.Brush.Grid.RowBackground}"/>
+        <Setter Property="Background" Value="Transparent"/>
         <Setter Property="BorderThickness" Value="0"/>
         <Setter Property="Focusable" Value="True"/>
         <Setter Property="IsTabStop" Value="True"/>
@@ -58,34 +54,6 @@
                 </ControlTemplate>
             </Setter.Value>
         </Setter>
-        <Style.Triggers>
-            <DataTrigger Binding="{Binding RelativeSource={RelativeSource AncestorType=DataGridRow}, Path=ContextMenu.IsOpen}" Value="True">
-                <Setter Property="Background" Value="{DynamicResource PlayAch.Brush.Grid.RowHoverBackground}"/>
-            </DataTrigger>
-            <DataTrigger Binding="{Binding RelativeSource={RelativeSource AncestorType=DataGridRow}, Path=IsMouseOver}" Value="True">
-                <Setter Property="Background" Value="{DynamicResource PlayAch.Brush.Grid.RowHoverBackground}"/>
-            </DataTrigger>
-            <DataTrigger Binding="{Binding RelativeSource={RelativeSource AncestorType=DataGridRow}, Path=IsSelected}" Value="True">
-                <Setter Property="Background" Value="{DynamicResource PlayAch.Brush.Grid.RowSelectedBackground}"/>
-            </DataTrigger>
-            <DataTrigger Binding="{Binding RelativeSource={RelativeSource AncestorType=DataGridRow}, Path=IsKeyboardFocusWithin}" Value="True">
-                <Setter Property="Background" Value="{DynamicResource PlayAch.Brush.Grid.RowHoverBackground}"/>
-            </DataTrigger>
-            <MultiDataTrigger>
-                <MultiDataTrigger.Conditions>
-                    <Condition Binding="{Binding RelativeSource={RelativeSource AncestorType=DataGridRow}, Path=IsMouseOver}" Value="True"/>
-                    <Condition Binding="{Binding RelativeSource={RelativeSource AncestorType=DataGridRow}, Path=IsSelected}" Value="True"/>
-                </MultiDataTrigger.Conditions>
-                <Setter Property="Background" Value="{DynamicResource PlayAch.Brush.Grid.RowSelectedBackground}"/>
-            </MultiDataTrigger>
-            <MultiDataTrigger>
-                <MultiDataTrigger.Conditions>
-                    <Condition Binding="{Binding RelativeSource={RelativeSource AncestorType=DataGridRow}, Path=IsSelected}" Value="True"/>
-                    <Condition Binding="{Binding RelativeSource={RelativeSource AncestorType=DataGridRow}, Path=IsKeyboardFocusWithin}" Value="True"/>
-                </MultiDataTrigger.Conditions>
-                <Setter Property="Background" Value="{DynamicResource PlayAch.Brush.Grid.RowSelectedBackground}"/>
-            </MultiDataTrigger>
-        </Style.Triggers>
     </Style>
 
     <Style x:Key="GameSummariesImageCellStyle" TargetType="DataGridCell" BasedOn="{StaticResource GameSummariesGridCellStyle}">
@@ -132,48 +100,37 @@
                                                SelectiveScrollingGrid.SelectiveScrollingOrientation="Vertical"
                                                Visibility="{Binding HeadersVisibility, ConverterParameter={x:Static DataGridHeadersVisibility.Row}, Converter={x:Static DataGrid.HeadersVisibilityConverter}, RelativeSource={RelativeSource AncestorType={x:Type DataGrid}}}"/>
 
-                            <!--
-                                Single completion border overlaid on the cells region. Because it sits
-                                in the same star column as the cells presenter, its edges always bound
-                                exactly the visible cells regardless of which columns are shown/reordered.
-                            -->
-                            <Border x:Name="CompletionBorder"
-                                    Grid.Column="1"
-                                    IsHitTestVisible="False"
-                                    BorderBrush="{DynamicResource PlayAch.Brush.CompletedGame}"
-                                    SnapsToDevicePixels="True">
-                                <Border.Style>
-                                    <Style TargetType="Border">
-                                        <Setter Property="BorderThickness" Value="0"/>
-                                        <Style.Triggers>
-                                            <MultiDataTrigger>
-                                                <MultiDataTrigger.Conditions>
-                                                    <Condition Binding="{Binding IsCompleted}" Value="True"/>
-                                                    <Condition Binding="{Binding ShowCompletionBorder, RelativeSource={RelativeSource AncestorType=controls:GameSummariesGridControl}}" Value="True"/>
-                                                </MultiDataTrigger.Conditions>
-                                                <Setter Property="BorderThickness" Value="2"/>
-                                            </MultiDataTrigger>
-                                        </Style.Triggers>
-                                    </Style>
-                                </Border.Style>
-                            </Border>
                         </SelectiveScrollingGrid>
                     </Border>
+                    <ControlTemplate.Triggers>
+                        <DataTrigger Binding="{Binding ContextMenu.IsOpen, RelativeSource={RelativeSource TemplatedParent}}" Value="True">
+                            <Setter TargetName="DGR_Border" Property="Background" Value="{DynamicResource PlayAch.Brush.Grid.RowHoverBackground}"/>
+                        </DataTrigger>
+                        <Trigger Property="IsMouseOver" Value="True">
+                            <Setter TargetName="DGR_Border" Property="Background" Value="{DynamicResource PlayAch.Brush.Grid.RowHoverBackground}"/>
+                        </Trigger>
+                        <Trigger Property="IsKeyboardFocusWithin" Value="True">
+                            <Setter TargetName="DGR_Border" Property="Background" Value="{DynamicResource PlayAch.Brush.Grid.RowHoverBackground}"/>
+                        </Trigger>
+                        <Trigger Property="IsSelected" Value="True">
+                            <Setter TargetName="DGR_Border" Property="Background" Value="{DynamicResource PlayAch.Brush.Grid.RowSelectedBackground}"/>
+                        </Trigger>
+                        <MultiTrigger>
+                            <MultiTrigger.Conditions>
+                                <Condition Property="IsMouseOver" Value="True"/>
+                                <Condition Property="IsSelected" Value="True"/>
+                            </MultiTrigger.Conditions>
+                            <Setter TargetName="DGR_Border" Property="Background" Value="{DynamicResource PlayAch.Brush.Grid.RowSelectedBackground}"/>
+                        </MultiTrigger>
+                        <MultiTrigger>
+                            <MultiTrigger.Conditions>
+                                <Condition Property="IsSelected" Value="True"/>
+                                <Condition Property="IsKeyboardFocusWithin" Value="True"/>
+                            </MultiTrigger.Conditions>
+                            <Setter TargetName="DGR_Border" Property="Background" Value="{DynamicResource PlayAch.Brush.Grid.RowSelectedBackground}"/>
+                        </MultiTrigger>
+                    </ControlTemplate.Triggers>
                 </ControlTemplate>
-            </Setter.Value>
-        </Setter>
-    </Style>
-
-    <Style x:Key="GameImageBorderBaseStyle" TargetType="Border">
-        <Setter Property="RenderOptions.BitmapScalingMode" Value="HighQuality"/>
-        <Setter Property="UseLayoutRounding" Value="True"/>
-        <Setter Property="SnapsToDevicePixels" Value="True"/>
-        <Setter Property="ClipToBounds" Value="True"/>
-        <Setter Property="Background">
-            <Setter.Value>
-                <ImageBrush Stretch="Uniform"
-                            helpers:AsyncImage.Uri="{Binding GameLogo, Converter={StaticResource DefaultGameImage}, ConverterParameter=icon}"
-                            helpers:AsyncImage.DecodePixel="160"/>
             </Setter.Value>
         </Setter>
     </Style>
@@ -186,6 +143,16 @@
         <Setter Property="TextWrapping" Value="Wrap"/>
         <Setter Property="TextAlignment"
                 Value="{Binding RelativeSource={RelativeSource AncestorType={x:Type DataGridCell}}, Path=Column.(helpers:DataGridAlignmentBehavior.CellTextAlignment)}"/>
+    </Style>
+
+    <Style x:Key="OverviewProgressNameTextStyle" TargetType="TextBlock" BasedOn="{StaticResource GameSummaryNameTextStyle}">
+        <Setter Property="Margin" Value="0,0,0,6"/>
+        <Setter Property="Visibility" Value="Collapsed"/>
+        <Style.Triggers>
+            <DataTrigger Binding="{Binding ShowNameAboveProgress, RelativeSource={RelativeSource AncestorType=controls:GameSummariesGridControl}}" Value="True">
+                <Setter Property="Visibility" Value="Visible"/>
+            </DataTrigger>
+        </Style.Triggers>
     </Style>
 
     <Style x:Key="OverviewGameMetadataTextStyle" TargetType="TextBlock">
@@ -225,18 +192,30 @@
             </Setter.Value>
         </Setter>
         <Style.Triggers>
-            <Trigger Property="VerticalAlignment" Value="Center">
+            <!-- Bar-centering nudge for the bar+badges layout; with the name row shown the
+                 stack is symmetric around the bar, so plain centering is already correct. -->
+            <MultiDataTrigger>
+                <MultiDataTrigger.Conditions>
+                    <Condition Binding="{Binding VerticalAlignment, RelativeSource={RelativeSource Self}}" Value="Center"/>
+                    <Condition Binding="{Binding ShowNameAboveProgress, RelativeSource={RelativeSource AncestorType=controls:GameSummariesGridControl}}" Value="False"/>
+                </MultiDataTrigger.Conditions>
                 <Setter Property="RenderTransform">
                     <Setter.Value>
-                        <TranslateTransform Y="10"/>
+                        <TranslateTransform Y="11"/>
                     </Setter.Value>
                 </Setter>
-            </Trigger>
+            </MultiDataTrigger>
         </Style.Triggers>
     </Style>
 
     <Style x:Key="OverviewProgressBarStyle" TargetType="ProgressBar" BasedOn="{StaticResource GameProgressBar}">
         <Setter Property="Height" Value="22"/>
+        <Style.Triggers>
+            <DataTrigger Binding="{Binding IsCompleted}" Value="True">
+                <Setter Property="Foreground" Value="{DynamicResource PlayAch.Brush.Progress.CompletedFill}"/>
+                <Setter Property="BorderBrush" Value="{DynamicResource PlayAch.Brush.Progress.CompletedFill}"/>
+            </DataTrigger>
+        </Style.Triggers>
     </Style>
 
     <Style x:Key="OverviewProgressPercentTextStyle" TargetType="TextBlock" BasedOn="{StaticResource PlayAch.TextBlock.BaseStyle}">
@@ -246,6 +225,15 @@
         <Setter Property="HorizontalAlignment" Value="Center"/>
         <Setter Property="TextAlignment" Value="Center"/>
         <Setter Property="Margin" Value="0"/>
+        <Setter Property="Effect">
+            <Setter.Value>
+                <DropShadowEffect Color="{StaticResource PlayAch.Color.Shadow}"
+                                  BlurRadius="2"
+                                  ShadowDepth="1"
+                                  Direction="315"
+                                  Opacity="0.55"/>
+            </Setter.Value>
+        </Setter>
     </Style>
 
     <Style x:Key="OverviewProgressMetaRowStyle" TargetType="StackPanel">
@@ -255,7 +243,7 @@
 
     <Style x:Key="OverviewProgressFooterStyle" TargetType="Grid">
         <Setter Property="HorizontalAlignment" Value="Stretch"/>
-        <Setter Property="Margin" Value="0,5,0,0"/>
+        <Setter Property="Margin" Value="0,7,0,0"/>
         <Setter Property="MinHeight" Value="{StaticResource PlayAch.Size.Icon.Tiny}"/>
     </Style>
 
@@ -280,6 +268,73 @@
         <Setter Property="Margin" Value="3,0,0,0"/>
     </Style>
 
+    <!-- Per-tier variants: when the host grid's ColorRarityColumnsByRarity option is on, each
+         count label takes its tier's configured color (published by RarityAppearanceHelper),
+         mirroring the achievement grids' rarity column coloring. -->
+    <Style x:Key="OverviewMiniBadgeTextUltraRareStyle" TargetType="TextBlock" BasedOn="{StaticResource OverviewMiniBadgeTextStyle}">
+        <Style.Triggers>
+            <DataTrigger Binding="{Binding ColorRarityColumnsByRarity, RelativeSource={RelativeSource AncestorType=controls:GameSummariesGridControl}}" Value="True">
+                <Setter Property="Foreground" Value="{DynamicResource PlayAch.Brush.Rarity.UltraRare}"/>
+            </DataTrigger>
+        </Style.Triggers>
+    </Style>
+
+    <Style x:Key="OverviewMiniBadgeTextRareStyle" TargetType="TextBlock" BasedOn="{StaticResource OverviewMiniBadgeTextStyle}">
+        <Style.Triggers>
+            <DataTrigger Binding="{Binding ColorRarityColumnsByRarity, RelativeSource={RelativeSource AncestorType=controls:GameSummariesGridControl}}" Value="True">
+                <Setter Property="Foreground" Value="{DynamicResource PlayAch.Brush.Rarity.Rare}"/>
+            </DataTrigger>
+        </Style.Triggers>
+    </Style>
+
+    <Style x:Key="OverviewMiniBadgeTextUncommonStyle" TargetType="TextBlock" BasedOn="{StaticResource OverviewMiniBadgeTextStyle}">
+        <Style.Triggers>
+            <DataTrigger Binding="{Binding ColorRarityColumnsByRarity, RelativeSource={RelativeSource AncestorType=controls:GameSummariesGridControl}}" Value="True">
+                <Setter Property="Foreground" Value="{DynamicResource PlayAch.Brush.Rarity.Uncommon}"/>
+            </DataTrigger>
+        </Style.Triggers>
+    </Style>
+
+    <Style x:Key="OverviewMiniBadgeTextCommonStyle" TargetType="TextBlock" BasedOn="{StaticResource OverviewMiniBadgeTextStyle}">
+        <Style.Triggers>
+            <DataTrigger Binding="{Binding ColorRarityColumnsByRarity, RelativeSource={RelativeSource AncestorType=controls:GameSummariesGridControl}}" Value="True">
+                <Setter Property="Foreground" Value="{DynamicResource PlayAch.Brush.Rarity.Common}"/>
+            </DataTrigger>
+        </Style.Triggers>
+    </Style>
+
+    <Style x:Key="OverviewMiniBadgeTextTrophyPlatinumStyle" TargetType="TextBlock" BasedOn="{StaticResource OverviewMiniBadgeTextStyle}">
+        <Style.Triggers>
+            <DataTrigger Binding="{Binding ColorRarityColumnsByRarity, RelativeSource={RelativeSource AncestorType=controls:GameSummariesGridControl}}" Value="True">
+                <Setter Property="Foreground" Value="{DynamicResource PlayAch.Brush.Trophy.Platinum}"/>
+            </DataTrigger>
+        </Style.Triggers>
+    </Style>
+
+    <Style x:Key="OverviewMiniBadgeTextTrophyGoldStyle" TargetType="TextBlock" BasedOn="{StaticResource OverviewMiniBadgeTextStyle}">
+        <Style.Triggers>
+            <DataTrigger Binding="{Binding ColorRarityColumnsByRarity, RelativeSource={RelativeSource AncestorType=controls:GameSummariesGridControl}}" Value="True">
+                <Setter Property="Foreground" Value="{DynamicResource PlayAch.Brush.Trophy.Gold}"/>
+            </DataTrigger>
+        </Style.Triggers>
+    </Style>
+
+    <Style x:Key="OverviewMiniBadgeTextTrophySilverStyle" TargetType="TextBlock" BasedOn="{StaticResource OverviewMiniBadgeTextStyle}">
+        <Style.Triggers>
+            <DataTrigger Binding="{Binding ColorRarityColumnsByRarity, RelativeSource={RelativeSource AncestorType=controls:GameSummariesGridControl}}" Value="True">
+                <Setter Property="Foreground" Value="{DynamicResource PlayAch.Brush.Trophy.Silver}"/>
+            </DataTrigger>
+        </Style.Triggers>
+    </Style>
+
+    <Style x:Key="OverviewMiniBadgeTextTrophyBronzeStyle" TargetType="TextBlock" BasedOn="{StaticResource OverviewMiniBadgeTextStyle}">
+        <Style.Triggers>
+            <DataTrigger Binding="{Binding ColorRarityColumnsByRarity, RelativeSource={RelativeSource AncestorType=controls:GameSummariesGridControl}}" Value="True">
+                <Setter Property="Foreground" Value="{DynamicResource PlayAch.Brush.Trophy.Bronze}"/>
+            </DataTrigger>
+        </Style.Triggers>
+    </Style>
+
     <Style x:Key="OverviewCompletedFooterIconStyle" TargetType="Image" BasedOn="{StaticResource OverviewMiniBadgeImageStyle}">
         <Setter Property="HorizontalAlignment" Value="Left"/>
         <Setter Property="VerticalAlignment" Value="Center"/>
@@ -296,19 +351,19 @@
                         Visibility="{Binding HasTrophyTypes, Converter={StaticResource InverseBoolToVis}}">
                 <StackPanel Style="{StaticResource OverviewMiniBadgeItemStyle}" Visibility="{Binding UltraRareCount, Converter={StaticResource IntToVis}}" ToolTip="{DynamicResource LOCPlayAch_Rarity_UltraRare}">
                     <Image Source="{DynamicResource BadgeRarityUltraRare}" Style="{StaticResource OverviewMiniBadgeImageStyle}"/>
-                    <TextBlock Text="{Binding UltraRareCount}" Style="{StaticResource OverviewMiniBadgeTextStyle}"/>
+                    <TextBlock Text="{Binding UltraRareCount, StringFormat={}{0:N0}}" Style="{StaticResource OverviewMiniBadgeTextUltraRareStyle}"/>
                 </StackPanel>
                 <StackPanel Style="{StaticResource OverviewMiniBadgeItemStyle}" Visibility="{Binding RareCount, Converter={StaticResource IntToVis}}" ToolTip="{DynamicResource LOCPlayAch_Rarity_Rare}">
                     <Image Source="{DynamicResource BadgeRarityRare}" Style="{StaticResource OverviewMiniBadgeImageStyle}"/>
-                    <TextBlock Text="{Binding RareCount}" Style="{StaticResource OverviewMiniBadgeTextStyle}"/>
+                    <TextBlock Text="{Binding RareCount, StringFormat={}{0:N0}}" Style="{StaticResource OverviewMiniBadgeTextRareStyle}"/>
                 </StackPanel>
                 <StackPanel Style="{StaticResource OverviewMiniBadgeItemStyle}" Visibility="{Binding UncommonCount, Converter={StaticResource IntToVis}}" ToolTip="{DynamicResource LOCPlayAch_Rarity_Uncommon}">
                     <Image Source="{DynamicResource BadgeRarityUncommon}" Style="{StaticResource OverviewMiniBadgeImageStyle}"/>
-                    <TextBlock Text="{Binding UncommonCount}" Style="{StaticResource OverviewMiniBadgeTextStyle}"/>
+                    <TextBlock Text="{Binding UncommonCount, StringFormat={}{0:N0}}" Style="{StaticResource OverviewMiniBadgeTextUncommonStyle}"/>
                 </StackPanel>
                 <StackPanel Style="{StaticResource OverviewMiniBadgeItemStyle}" Visibility="{Binding CommonCount, Converter={StaticResource IntToVis}}" ToolTip="{DynamicResource LOCPlayAch_Rarity_Common}">
                     <Image Source="{DynamicResource BadgeRarityCommon}" Style="{StaticResource OverviewMiniBadgeImageStyle}"/>
-                    <TextBlock Text="{Binding CommonCount}" Style="{StaticResource OverviewMiniBadgeTextStyle}"/>
+                    <TextBlock Text="{Binding CommonCount, StringFormat={}{0:N0}}" Style="{StaticResource OverviewMiniBadgeTextCommonStyle}"/>
                 </StackPanel>
             </StackPanel>
 
@@ -316,19 +371,19 @@
                         Visibility="{Binding HasTrophyTypes, Converter={StaticResource BoolToVis}}">
                 <StackPanel Style="{StaticResource OverviewMiniBadgeItemStyle}" Visibility="{Binding TrophyPlatinumCount, Converter={StaticResource IntToVis}}" ToolTip="{DynamicResource LOCPlayAch_Trophy_Platinum}">
                     <Image Source="{DynamicResource TrophyPlatinum}" Style="{StaticResource OverviewMiniBadgeImageStyle}"/>
-                    <TextBlock Text="{Binding TrophyPlatinumCount}" Style="{StaticResource OverviewMiniBadgeTextStyle}"/>
+                    <TextBlock Text="{Binding TrophyPlatinumCount, StringFormat={}{0:N0}}" Style="{StaticResource OverviewMiniBadgeTextTrophyPlatinumStyle}"/>
                 </StackPanel>
                 <StackPanel Style="{StaticResource OverviewMiniBadgeItemStyle}" Visibility="{Binding TrophyGoldCount, Converter={StaticResource IntToVis}}" ToolTip="{DynamicResource LOCPlayAch_Trophy_Gold}">
                     <Image Source="{DynamicResource TrophyGold}" Style="{StaticResource OverviewMiniBadgeImageStyle}"/>
-                    <TextBlock Text="{Binding TrophyGoldCount}" Style="{StaticResource OverviewMiniBadgeTextStyle}"/>
+                    <TextBlock Text="{Binding TrophyGoldCount, StringFormat={}{0:N0}}" Style="{StaticResource OverviewMiniBadgeTextTrophyGoldStyle}"/>
                 </StackPanel>
                 <StackPanel Style="{StaticResource OverviewMiniBadgeItemStyle}" Visibility="{Binding TrophySilverCount, Converter={StaticResource IntToVis}}" ToolTip="{DynamicResource LOCPlayAch_Trophy_Silver}">
                     <Image Source="{DynamicResource TrophySilver}" Style="{StaticResource OverviewMiniBadgeImageStyle}"/>
-                    <TextBlock Text="{Binding TrophySilverCount}" Style="{StaticResource OverviewMiniBadgeTextStyle}"/>
+                    <TextBlock Text="{Binding TrophySilverCount, StringFormat={}{0:N0}}" Style="{StaticResource OverviewMiniBadgeTextTrophySilverStyle}"/>
                 </StackPanel>
                 <StackPanel Style="{StaticResource OverviewMiniBadgeItemStyle}" Visibility="{Binding TrophyBronzeCount, Converter={StaticResource IntToVis}}" ToolTip="{DynamicResource LOCPlayAch_Trophy_Bronze}">
                     <Image Source="{DynamicResource TrophyBronze}" Style="{StaticResource OverviewMiniBadgeImageStyle}"/>
-                    <TextBlock Text="{Binding TrophyBronzeCount}" Style="{StaticResource OverviewMiniBadgeTextStyle}"/>
+                    <TextBlock Text="{Binding TrophyBronzeCount, StringFormat={}{0:N0}}" Style="{StaticResource OverviewMiniBadgeTextTrophyBronzeStyle}"/>
                 </StackPanel>
             </StackPanel>
         </Grid>
@@ -397,6 +452,51 @@
     </DataTemplate>
 
     <Style x:Key="OverviewChartColumnSeriesStyle" TargetType="lvc:ColumnSeries" BasedOn="{StaticResource PlayAch.ChartColumnSeriesStyle}"/>
+
+    <!-- Compact, square close button for selected-item headers (kept small so it
+         does not expand the header row like the larger circular NavigationButtonStyle). -->
+    <Style x:Key="ClearGameSelectionButtonStyle" TargetType="Button">
+        <Setter Property="Width" Value="18"/>
+        <Setter Property="Height" Value="18"/>
+        <Setter Property="Padding" Value="0"/>
+        <Setter Property="Background" Value="{DynamicResource PlayAch.Brush.Button.Background}"/>
+        <Setter Property="Foreground" Value="{DynamicResource PlayAch.Brush.Text}"/>
+        <Setter Property="BorderThickness" Value="0"/>
+        <Setter Property="FontSize" Value="12"/>
+        <Setter Property="FontWeight" Value="SemiBold"/>
+        <Setter Property="Opacity" Value="0.72"/>
+        <Setter Property="Cursor" Value="Hand"/>
+        <Setter Property="VerticalAlignment" Value="Center"/>
+        <Setter Property="FocusVisualStyle" Value="{x:Null}"/>
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="Button">
+                    <Border x:Name="Chrome"
+                            Background="{TemplateBinding Background}"
+                            CornerRadius="{StaticResource PlayAch.Radius.Small}"
+                            SnapsToDevicePixels="True">
+                        <TextBlock Text="{TemplateBinding Content}"
+                                   Foreground="{TemplateBinding Foreground}"
+                                   FontSize="{TemplateBinding FontSize}"
+                                   FontWeight="{TemplateBinding FontWeight}"
+                                   HorizontalAlignment="Center"
+                                   VerticalAlignment="Center"/>
+                    </Border>
+                    <ControlTemplate.Triggers>
+                        <Trigger Property="IsMouseOver" Value="True">
+                            <Setter TargetName="Chrome" Property="Background" Value="{DynamicResource PlayAch.Brush.Button.Background.Hover}"/>
+                            <Setter Property="Foreground" Value="{DynamicResource PlayAch.Brush.Accent}"/>
+                            <Setter Property="Opacity" Value="1"/>
+                        </Trigger>
+                        <Trigger Property="IsKeyboardFocused" Value="True">
+                            <Setter TargetName="Chrome" Property="Background" Value="{DynamicResource PlayAch.Brush.Button.Background.Hover}"/>
+                            <Setter Property="Opacity" Value="1"/>
+                        </Trigger>
+                    </ControlTemplate.Triggers>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+    </Style>
 
     <!-- Draggable center divider used to split the Overview/Friends columns. Draws its own themed
          vertical line so a single element serves as both the visible seam and the resize handle. -->

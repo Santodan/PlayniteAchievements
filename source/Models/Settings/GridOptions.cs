@@ -14,7 +14,11 @@ namespace PlayniteAchievements.Models.Settings
             public const string OverviewRecent = "OverviewRecent";
             public const string OverviewSelectedGame = "OverviewSelectedGame";
             public const string FriendsOverviewRecent = "FriendsOverviewRecent";
+            public const string FriendsOverviewSelectedFriend = "FriendsOverviewSelectedFriend";
+            public const string FriendsOverviewSelectedGame = "FriendsOverviewSelectedGame";
+            public const string FriendsOverviewSelectedFriendGame = "FriendsOverviewSelectedFriendGame";
             public const string ViewFriendsAchievements = "ViewFriendsAchievements";
+            public const string ViewFriendsAchievementsSelectedFriend = "ViewFriendsAchievementsSelectedFriend";
             public const string StartPageRecent = "StartPageRecent";
             public const string StartPageFriendAchievements = "StartPageFriendAchievements";
             public const string DesktopTheme = "DesktopTheme";
@@ -257,6 +261,7 @@ namespace PlayniteAchievements.Models.Settings
         private bool _useCoverImages;
         private bool _showRarityGlow = true;
         private bool _colorNamesByRarity;
+        private bool _colorRarityColumnsByRarity;
         private DateDisplayMode _unlockDateMode = DateDisplayMode.DateAndTime;
         private CompactListSortMode _sortMode = CompactListSortMode.UnlockTime;
         private bool _sortDescending = true;
@@ -280,6 +285,12 @@ namespace PlayniteAchievements.Models.Settings
         {
             get => _colorNamesByRarity;
             set => SetValue(ref _colorNamesByRarity, value);
+        }
+
+        public bool ColorRarityColumnsByRarity
+        {
+            get => _colorRarityColumnsByRarity;
+            set => SetValue(ref _colorRarityColumnsByRarity, value);
         }
 
         public DateDisplayMode UnlockDateMode
@@ -327,6 +338,7 @@ namespace PlayniteAchievements.Models.Settings
             clone.UseCoverImages = UseCoverImages;
             clone.ShowRarityGlow = ShowRarityGlow;
             clone.ColorNamesByRarity = ColorNamesByRarity;
+            clone.ColorRarityColumnsByRarity = ColorRarityColumnsByRarity;
             clone.UnlockDateMode = UnlockDateMode;
             clone.SortMode = SortMode;
             clone.SortDescending = SortDescending;
@@ -343,7 +355,9 @@ namespace PlayniteAchievements.Models.Settings
         private bool _showMetadataPlatform = true;
         private bool _showMetadataPlaytime = true;
         private bool _showMetadataRegion = true;
-        private bool _showCompletionBorder = true;
+        private bool _showCompletionGlow = true;
+        private bool _colorRarityColumnsByRarity;
+        private bool _showNameAboveProgress;
         private DateDisplayMode _lastPlayedDateMode = DateDisplayMode.DateAndTime;
         private GameSummariesSortMode _sortMode = GameSummariesSortMode.RecentUnlock;
         private bool _sortDescending = true;
@@ -372,10 +386,25 @@ namespace PlayniteAchievements.Models.Settings
             set => SetValue(ref _showMetadataRegion, value);
         }
 
-        public bool ShowCompletionBorder
+        public bool ShowCompletionGlow
         {
-            get => _showCompletionBorder;
-            set => SetValue(ref _showCompletionBorder, value);
+            get => _showCompletionGlow;
+            set => SetValue(ref _showCompletionGlow, value);
+        }
+
+        // Colors the progress-footer badge count labels with the tier's configured rarity color,
+        // mirroring the achievement grids' ColorRarityColumnsByRarity option.
+        public bool ColorRarityColumnsByRarity
+        {
+            get => _colorRarityColumnsByRarity;
+            set => SetValue(ref _colorRarityColumnsByRarity, value);
+        }
+
+        // Renders the game name above the progress bar inside the progress cell.
+        public bool ShowNameAboveProgress
+        {
+            get => _showNameAboveProgress;
+            set => SetValue(ref _showNameAboveProgress, value);
         }
 
         public DateDisplayMode LastPlayedDateMode
@@ -404,7 +433,9 @@ namespace PlayniteAchievements.Models.Settings
             clone.ShowMetadataPlatform = ShowMetadataPlatform;
             clone.ShowMetadataPlaytime = ShowMetadataPlaytime;
             clone.ShowMetadataRegion = ShowMetadataRegion;
-            clone.ShowCompletionBorder = ShowCompletionBorder;
+            clone.ShowCompletionGlow = ShowCompletionGlow;
+            clone.ColorRarityColumnsByRarity = ColorRarityColumnsByRarity;
+            clone.ShowNameAboveProgress = ShowNameAboveProgress;
             clone.LastPlayedDateMode = LastPlayedDateMode;
             clone.SortMode = SortMode;
             clone.SortDescending = SortDescending;
@@ -453,6 +484,9 @@ namespace PlayniteAchievements.Models.Settings
         private bool _showColumnHeaders = true;
         private double? _rowHeight;
         private bool _useCoverImages;
+        private bool _showCompletionGlow = true;
+        private bool _colorRarityColumnsByRarity;
+        private bool _showNameAboveProgress;
 
         public GridColumnLayoutOptions Columns
         {
@@ -472,12 +506,33 @@ namespace PlayniteAchievements.Models.Settings
             set => SetValue(ref _rowHeight, PersistedSettings.NormalizeGridRowHeight(value));
         }
 
-        // Categories show achievement icons by default (matching the achievement grid), not the
-        // larger cover art game-summary grids default to.
+        // Selects the fallback for categories without art: game cover when true, game icon
+        // when false. Category art itself always wins in both modes.
         public bool UseCoverImages
         {
             get => _useCoverImages;
             set => SetValue(ref _useCoverImages, value);
+        }
+
+        public bool ShowCompletionGlow
+        {
+            get => _showCompletionGlow;
+            set => SetValue(ref _showCompletionGlow, value);
+        }
+
+        // Colors the progress-footer badge count labels with the tier's configured rarity color,
+        // mirroring the achievement grids' ColorRarityColumnsByRarity option.
+        public bool ColorRarityColumnsByRarity
+        {
+            get => _colorRarityColumnsByRarity;
+            set => SetValue(ref _colorRarityColumnsByRarity, value);
+        }
+
+        // Renders the category name above the progress bar inside the progress cell.
+        public bool ShowNameAboveProgress
+        {
+            get => _showNameAboveProgress;
+            set => SetValue(ref _showNameAboveProgress, value);
         }
 
         public CategorySummaryGridOptions Clone()
@@ -487,7 +542,10 @@ namespace PlayniteAchievements.Models.Settings
                 Columns = Columns?.Clone() ?? GridColumnLayoutOptions.CreateWithProgressRightAlignment(),
                 ShowColumnHeaders = ShowColumnHeaders,
                 RowHeight = RowHeight,
-                UseCoverImages = UseCoverImages
+                UseCoverImages = UseCoverImages,
+                ShowCompletionGlow = ShowCompletionGlow,
+                ColorRarityColumnsByRarity = ColorRarityColumnsByRarity,
+                ShowNameAboveProgress = ShowNameAboveProgress
             };
         }
     }
@@ -664,9 +722,17 @@ namespace PlayniteAchievements.Models.Settings
                     return GridOptionKeys.Achievement.OverviewRecent;
                 case "FriendsOverviewRecentAchievements":
                     return GridOptionKeys.Achievement.FriendsOverviewRecent;
+                case "FriendsOverviewSelectedFriendAchievements":
+                    return GridOptionKeys.Achievement.FriendsOverviewSelectedFriend;
+                case "FriendsOverviewSelectedGameAchievements":
+                    return GridOptionKeys.Achievement.FriendsOverviewSelectedGame;
+                case "FriendsOverviewSelectedFriendGameAchievements":
+                    return GridOptionKeys.Achievement.FriendsOverviewSelectedFriendGame;
                 case "ViewFriendsAchievements":
                 case "ViewFriendsAchievementsAchievements":
                     return GridOptionKeys.Achievement.ViewFriendsAchievements;
+                case "ViewFriendsAchievementsSelectedFriendAchievements":
+                    return GridOptionKeys.Achievement.ViewFriendsAchievementsSelectedFriend;
                 case "OverviewSelectedGameAchievements":
                 case "OverviewGame":
                     return GridOptionKeys.Achievement.OverviewSelectedGame;
@@ -741,7 +807,11 @@ namespace PlayniteAchievements.Models.Settings
             Ensure(_achievement, GridOptionKeys.Achievement.OverviewRecent, () => CreateDefaultAchievement(GridOptionKeys.Achievement.OverviewRecent));
             Ensure(_achievement, GridOptionKeys.Achievement.OverviewSelectedGame, () => CreateDefaultAchievement(GridOptionKeys.Achievement.OverviewSelectedGame));
             Ensure(_achievement, GridOptionKeys.Achievement.FriendsOverviewRecent, () => CreateDefaultAchievement(GridOptionKeys.Achievement.FriendsOverviewRecent));
+            Ensure(_achievement, GridOptionKeys.Achievement.FriendsOverviewSelectedFriend, () => CreateDefaultAchievement(GridOptionKeys.Achievement.FriendsOverviewSelectedFriend));
+            Ensure(_achievement, GridOptionKeys.Achievement.FriendsOverviewSelectedGame, () => CreateDefaultAchievement(GridOptionKeys.Achievement.FriendsOverviewSelectedGame));
+            Ensure(_achievement, GridOptionKeys.Achievement.FriendsOverviewSelectedFriendGame, () => CreateDefaultAchievement(GridOptionKeys.Achievement.FriendsOverviewSelectedFriendGame));
             Ensure(_achievement, GridOptionKeys.Achievement.ViewFriendsAchievements, () => CreateDefaultAchievement(GridOptionKeys.Achievement.ViewFriendsAchievements));
+            Ensure(_achievement, GridOptionKeys.Achievement.ViewFriendsAchievementsSelectedFriend, () => CreateDefaultAchievement(GridOptionKeys.Achievement.ViewFriendsAchievementsSelectedFriend));
             Ensure(_achievement, GridOptionKeys.Achievement.StartPageRecent, () => CreateDefaultAchievement(GridOptionKeys.Achievement.StartPageRecent));
             Ensure(_achievement, GridOptionKeys.Achievement.StartPageFriendAchievements, () => CreateDefaultAchievement(GridOptionKeys.Achievement.StartPageFriendAchievements));
             Ensure(_achievement, GridOptionKeys.Achievement.DesktopTheme, () => CreateDefaultAchievement(GridOptionKeys.Achievement.DesktopTheme));

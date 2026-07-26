@@ -189,22 +189,26 @@ namespace PlayniteAchievements.ViewModels
 
         private static void ValidateAchievementHotkeys(PersistedSettings persisted, List<string> errors)
         {
-            var viewLabel = L("LOCPlayAch_Menu_ViewAchievements", "View Achievements");
-            var manageLabel = L("LOCPlayAch_Menu_ManageAchievements", "Manage Achievements");
-            var overviewLabel = L("LOCPlayAch_Menu_OpenOverview", "Achievements Overview");
-            var invalidMessage = L(
-                "LOCPlayAch_Hotkeys_InvalidShortcut",
-                "Unsupported shortcut. Press a letter, digit, function key, or a modified shortcut.");
-            var duplicateMessage = L("LOCPlayAch_Hotkeys_DuplicateShortcut", "That shortcut is already assigned.");
+            var viewLabel = L("LOCPlayAch_Menu_ViewAchievements");
+            var manageLabel = L("LOCPlayAch_Menu_ManageAchievements");
+            var overviewLabel = L("LOCPlayAch_Menu_OpenOverview");
+            var openSettingsLabel = L("LOCPlayAch_Landing_OpenSettings");
+            var categoryModeLabel = L("LOCPlayAch_CategorySummaries_ToggleToolTip");
+            var invalidMessage = L("LOCPlayAch_Hotkeys_InvalidShortcut");
+            var duplicateMessage = L("LOCPlayAch_Hotkeys_DuplicateShortcut");
 
             var viewValid = TryValidateHotkey(viewLabel, persisted.ViewAchievementsHotkey, invalidMessage, errors, out var viewGesture);
             var manageValid = TryValidateHotkey(manageLabel, persisted.ManageAchievementsHotkey, invalidMessage, errors, out var manageGesture);
             var overviewValid = TryValidateHotkey(overviewLabel, persisted.OverviewHotkey, invalidMessage, errors, out var overviewGesture);
+            var openSettingsValid = TryValidateHotkey(openSettingsLabel, persisted.OpenSettingsHotkey, invalidMessage, errors, out var openSettingsGesture);
+            var categoryModeValid = TryValidateHotkey(categoryModeLabel, persisted.CategoryModeHotkey, invalidMessage, errors, out var categoryModeGesture);
 
             var assignedGestures = new List<AchievementHotkeyGesture>();
             AddDuplicateHotkeyError(viewValid, viewGesture, assignedGestures, duplicateMessage, errors);
             AddDuplicateHotkeyError(manageValid, manageGesture, assignedGestures, duplicateMessage, errors);
             AddDuplicateHotkeyError(overviewValid, overviewGesture, assignedGestures, duplicateMessage, errors);
+            AddDuplicateHotkeyError(openSettingsValid, openSettingsGesture, assignedGestures, duplicateMessage, errors);
+            AddDuplicateHotkeyError(categoryModeValid, categoryModeGesture, assignedGestures, duplicateMessage, errors);
         }
 
         private void ApplyThemeResources()
@@ -212,7 +216,10 @@ namespace PlayniteAchievements.ViewModels
             var resources = Application.Current?.Resources;
             if (resources != null)
             {
-                PlayAchResourceService.Apply(resources, Settings?.Persisted?.ResourceOverrides);
+                PlayAchResourceService.Apply(
+                    resources,
+                    Settings?.Persisted?.ResourceOverrides,
+                    Settings?.Persisted);
             }
         }
 
@@ -266,9 +273,9 @@ namespace PlayniteAchievements.ViewModels
             return false;
         }
 
-        private static string L(string key, string fallback)
+        private static string L(string key)
         {
-            return ResourceProvider.GetString(key) ?? fallback;
+            return ResourceProvider.GetString(key);
         }
 
         private PlayniteAchievementsSettings _editingClone;

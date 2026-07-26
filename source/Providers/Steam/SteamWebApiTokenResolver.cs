@@ -57,6 +57,14 @@ namespace PlayniteAchievements.Providers.Steam
                     session.WebApiToken);
             }
 
+            if (session?.IsTransientFailure == true)
+            {
+                return SteamWebApiTokenResolution.Fail(AuthProbeResult.Create(
+                    session.TransientFailureOutcome.Value,
+                    "LOCPlayAch_Common_NotAuthenticated",
+                    userId: session.SteamId64));
+            }
+
             if (!string.IsNullOrWhiteSpace(session?.SteamId64))
             {
                 _logger?.Warn("[SteamAch] Steam session has a user ID, but the web API token could not be resolved.");

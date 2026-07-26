@@ -27,6 +27,9 @@ namespace PlayniteAchievements.Common
             " - Standard Edition",
             " - Ultimate Edition",
             " - Premium Edition",
+            " - Director's Cut",
+            " - Director’s Cut",
+            " - Directors Cut",
             " Definitive Edition",
             " Game of the Year Edition",
             " Complete Edition",
@@ -35,6 +38,9 @@ namespace PlayniteAchievements.Common
             " Standard Edition",
             " Ultimate Edition",
             " Premium Edition",
+            " Director's Cut",
+            " Director’s Cut",
+            " Directors Cut",
             " (Definitive Edition)",
             " (Game of the Year Edition)",
             " (Complete Edition)",
@@ -42,7 +48,10 @@ namespace PlayniteAchievements.Common
             " (Deluxe Edition)",
             " (Standard Edition)",
             " (Ultimate Edition)",
-            " (Premium Edition)"
+            " (Premium Edition)",
+            " (Director's Cut)",
+            " (Director’s Cut)",
+            " (Directors Cut)"
         };
 
         /// <summary>Removes registered/trademark/copyright symbols.</summary>

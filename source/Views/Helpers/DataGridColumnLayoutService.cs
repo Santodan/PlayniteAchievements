@@ -805,9 +805,6 @@ namespace PlayniteAchievements.Views.Helpers
                 if (ForcedCollapsedKeys.Contains(key))
                 {
                     column.Visibility = Visibility.Collapsed;
-                    column.MinWidth = 0;
-                    column.MaxWidth = 0;
-                    column.Width = new DataGridLength(0, DataGridLengthUnitType.Pixel);
                     continue;
                 }
 

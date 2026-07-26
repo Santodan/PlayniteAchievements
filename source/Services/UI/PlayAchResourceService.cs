@@ -130,7 +130,10 @@ namespace PlayniteAchievements.Services.UI
                 .ToList()
                 .AsReadOnly();
 
-        public static void Apply(ResourceDictionary resources, IDictionary<string, ResourceOverrideSetting> overrides)
+        public static void Apply(
+            ResourceDictionary resources,
+            IDictionary<string, ResourceOverrideSetting> overrides,
+            PersistedSettings settings = null)
         {
             if (resources == null)
             {
@@ -147,7 +150,9 @@ namespace PlayniteAchievements.Services.UI
                 resources[alias.ResourceKey] = ResolveAlias(resources, alias);
             }
 
-            RarityAppearanceHelper.ApplyCompletedGameBrushResource(resources);
+            RarityAppearanceHelper.ApplyCompletedGameBrushResource(resources, settings);
+            RarityAppearanceHelper.ApplyCompletedGlowEffectResources(resources, settings);
+            RarityAppearanceHelper.ApplyCompletedProgressFillResource(resources, settings);
         }
 
         private static TokenDefinition Brush(

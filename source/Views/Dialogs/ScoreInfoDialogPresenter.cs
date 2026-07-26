@@ -10,7 +10,7 @@ namespace PlayniteAchievements.Views.Dialogs
         {
             var dialog = new ScoreInfoDialog();
             var window = PlayniteUiProvider.CreateExtensionWindow(
-                L("LOCPlayAch_Score_Info_WindowTitle", "Collection and Prestige Scores"),
+                L("LOCPlayAch_Score_Info_WindowTitle"),
                 dialog,
                 new WindowOptions
                 {
@@ -26,22 +26,9 @@ namespace PlayniteAchievements.Views.Dialogs
             window.ShowDialog();
         }
 
-        private static string L(string key, string fallback)
+        private static string L(string key)
         {
-            var value = ResourceProvider.GetString(key);
-            if (string.IsNullOrWhiteSpace(value))
-            {
-                return fallback;
-            }
-
-            if (value.Length > 4 &&
-                value.StartsWith("<!", StringComparison.Ordinal) &&
-                value.EndsWith("!>", StringComparison.Ordinal))
-            {
-                return fallback;
-            }
-
-            return value;
+            return ResourceProvider.GetString(key);
         }
     }
 }

@@ -43,6 +43,7 @@ namespace PlayniteAchievements.Views
         private readonly IFriendCacheManager _friendCache;
         private readonly AchievementOverridesService _achievementOverridesService;
         private readonly Action _persistSettingsForUi;
+        private const double FriendsOverviewColumnRatioChangeThreshold = 0.001d;
         private bool _loaded;
         private DataGridRow _pendingRightClickRow;
 
@@ -125,6 +126,7 @@ namespace PlayniteAchievements.Views
             }
 
             _loaded = true;
+            ApplyFriendsOverviewColumnRatios();
 
             if (_viewModel != null)
             {
@@ -499,6 +501,102 @@ namespace PlayniteAchievements.Views
                 _viewModel?.Settings?.Persisted,
                 AchievementSortSurface.FriendsOverviewRecentAchievements,
                 (sortPath, sortDirection) => FriendsAchievementsGrid?.SetSortIndicator(sortPath, sortDirection));
+        }
+
+        private void ApplyFriendsOverviewColumnRatios()
+        {
+            var persisted = _viewModel?.Settings?.Persisted;
+            SetFriendsOverviewColumnRatios(
+                persisted?.FriendsOverviewFriendColumnRatio ?? PersistedSettings.DefaultFriendsOverviewFriendColumnRatio,
+                persisted?.FriendsOverviewGameColumnRatio ?? PersistedSettings.DefaultFriendsOverviewGameColumnRatio);
+        }
+
+        private void FriendsOverviewGridSplitter_DragCompleted(object sender, DragCompletedEventArgs e)
+        {
+            Dispatcher.BeginInvoke(new Action(PersistFriendsOverviewColumnRatios), DispatcherPriority.Background);
+        }
+
+        private void PersistFriendsOverviewColumnRatios()
+        {
+            var persisted = _viewModel?.Settings?.Persisted;
+            if (persisted == null || !TryGetFriendsOverviewColumnRatios(out var friendRatio, out var gameRatio))
+            {
+                return;
+            }
+
+            if (Math.Abs(persisted.FriendsOverviewFriendColumnRatio - friendRatio) <= FriendsOverviewColumnRatioChangeThreshold &&
+                Math.Abs(persisted.FriendsOverviewGameColumnRatio - gameRatio) <= FriendsOverviewColumnRatioChangeThreshold)
+            {
+                SetFriendsOverviewColumnRatios(friendRatio, gameRatio);
+                return;
+            }
+
+            persisted.FriendsOverviewFriendColumnRatio = friendRatio;
+            persisted.FriendsOverviewGameColumnRatio = gameRatio;
+            SetFriendsOverviewColumnRatios(
+                persisted.FriendsOverviewFriendColumnRatio,
+                persisted.FriendsOverviewGameColumnRatio);
+            _persistSettingsForUi?.Invoke();
+        }
+
+        private bool TryGetFriendsOverviewColumnRatios(out double friendRatio, out double gameRatio)
+        {
+            friendRatio = PersistedSettings.DefaultFriendsOverviewFriendColumnRatio;
+            gameRatio = PersistedSettings.DefaultFriendsOverviewGameColumnRatio;
+
+            var friend = FriendsOverviewFriendColumn?.ActualWidth ?? 0d;
+            var game = FriendsOverviewGameColumn?.ActualWidth ?? 0d;
+            var achievements = FriendsOverviewAchievementColumn?.ActualWidth ?? 0d;
+            if (!ColumnWidthNormalization.IsValidWidth(friend) ||
+                !ColumnWidthNormalization.IsValidWidth(game) ||
+                !ColumnWidthNormalization.IsValidWidth(achievements))
+            {
+                return false;
+            }
+
+            var combined = friend + game + achievements;
+            if (!ColumnWidthNormalization.IsValidWidth(combined))
+            {
+                return false;
+            }
+
+            friendRatio = NormalizeFriendsOverviewColumnRatio(friend / combined);
+            gameRatio = NormalizeFriendsOverviewColumnRatio(game / combined);
+            return friendRatio + gameRatio < 1d;
+        }
+
+        private void SetFriendsOverviewColumnRatios(double friendRatio, double gameRatio)
+        {
+            if (FriendsOverviewFriendColumn == null ||
+                FriendsOverviewGameColumn == null ||
+                FriendsOverviewAchievementColumn == null)
+            {
+                return;
+            }
+
+            friendRatio = NormalizeFriendsOverviewColumnRatio(friendRatio);
+            gameRatio = NormalizeFriendsOverviewColumnRatio(gameRatio);
+            if (friendRatio + gameRatio >= 1d)
+            {
+                friendRatio = PersistedSettings.DefaultFriendsOverviewFriendColumnRatio;
+                gameRatio = PersistedSettings.DefaultFriendsOverviewGameColumnRatio;
+            }
+
+            FriendsOverviewFriendColumn.Width = new GridLength(friendRatio, GridUnitType.Star);
+            FriendsOverviewGameColumn.Width = new GridLength(gameRatio, GridUnitType.Star);
+            FriendsOverviewAchievementColumn.Width = new GridLength(1d - friendRatio - gameRatio, GridUnitType.Star);
+        }
+
+        private static double NormalizeFriendsOverviewColumnRatio(double ratio)
+        {
+            if (double.IsNaN(ratio) || double.IsInfinity(ratio) || ratio <= 0d || ratio >= 1d)
+            {
+                return PersistedSettings.MinFriendsOverviewColumnRatio;
+            }
+
+            return Math.Max(
+                PersistedSettings.MinFriendsOverviewColumnRatio,
+                Math.Min(PersistedSettings.MaxFriendsOverviewColumnRatio, ratio));
         }
 
         private void ViewModel_PropertyChanged(object sender, PropertyChangedEventArgs e)

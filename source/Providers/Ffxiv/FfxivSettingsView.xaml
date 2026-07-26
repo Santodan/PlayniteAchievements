@@ -94,11 +94,11 @@
                                                   SelectedValuePath="Tag"
                                                   MinWidth="160"
                                                   HorizontalAlignment="Left">
-                                            <ComboBoxItem Content="North America" Tag="na"/>
-                                            <ComboBoxItem Content="Europe" Tag="eu"/>
-                                            <ComboBoxItem Content="Germany" Tag="de"/>
-                                            <ComboBoxItem Content="France" Tag="fr"/>
-                                            <ComboBoxItem Content="Japan" Tag="jp"/>
+                                            <ComboBoxItem Content="{DynamicResource LOCPlayAch_Region_NorthAmerica}" Tag="na"/>
+                                            <ComboBoxItem Content="{DynamicResource LOCPlayAch_Region_Europe}" Tag="eu"/>
+                                            <ComboBoxItem Content="{DynamicResource LOCPlayAch_Region_Germany}" Tag="de"/>
+                                            <ComboBoxItem Content="{DynamicResource LOCPlayAch_Region_France}" Tag="fr"/>
+                                            <ComboBoxItem Content="{DynamicResource LOCPlayAch_Region_Japan}" Tag="jp"/>
                                         </ComboBox>
 
                                         <TextBlock Text="{DynamicResource LOCPlayAch_Settings_FFXIV_PublicNote}"

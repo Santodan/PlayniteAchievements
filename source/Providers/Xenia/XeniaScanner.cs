@@ -5,6 +5,7 @@ using Playnite.SDK.Models;
 using PlayniteAchievements.Common;
 using PlayniteAchievements.Models;
 using PlayniteAchievements.Models.Achievements;
+using PlayniteAchievements.Providers.EmuLibrary;
 using PlayniteAchievements.Providers.Exophase;
 using PlayniteAchievements.Providers.Xenia.Models;
 using PlayniteAchievements.Services;
@@ -100,7 +101,7 @@ namespace PlayniteAchievements.Providers.Xenia
         {
             if (!ResolveTitleID(game, out var titleID))
             {
-                _playniteApi.Notifications.Add(new NotificationMessage("PA_Xenia", $"[Xenia] TitleID not found for {game.Name}! Has the game been launched?", NotificationType.Error));
+                _playniteApi.Notifications.Add(new NotificationMessage("PA_Xenia", string.Format(ResourceProvider.GetString("LOCPlayAch_Xenia_NotFoundWarning"), "TitleID", game.Name), NotificationType.Error));
                 return null;
             }
 
@@ -108,7 +109,7 @@ namespace PlayniteAchievements.Providers.Xenia
 
             if (!File.Exists($"{_providerSettings.AccountPath}\\{titleID}.gpd"))
             {
-                _playniteApi.Notifications.Add(new NotificationMessage("PA_Xenia", $"[Xenia] {titleID}.gpd file not found for {game.Name}! Has the game been launched?", NotificationType.Info));
+                _playniteApi.Notifications.Add(new NotificationMessage("PA_Xenia", string.Format(ResourceProvider.GetString("LOCPlayAch_Xenia_NotFoundWarning"), $"{titleID}.gpd", game.Name), NotificationType.Info));
                 _logger.Warn($"[Xenia] {titleID}.gpd file in {_providerSettings.AccountPath} not found for {game.Name}!");
                 data = new GameAchievementData
                 {
@@ -230,17 +231,11 @@ namespace PlayniteAchievements.Providers.Xenia
                 return true;
             }
 
+            var candidatePaths = GetCandidateRomPaths(game);
+
             // Try to find game in recent.toml
-            foreach (var rom in game.Roms)
+            foreach (var path in candidatePaths)
             {
-                var path = PathExpansion.ExpandGamePath(_playniteApi, game, rom?.Path);
-                if (string.IsNullOrWhiteSpace(path))
-                {
-                    continue;
-                }
-
-                path = path.Replace("\\\\", "\\").Trim('"');
-
                 var xeniapath = _providerSettings.AccountPath + "\\..\\..\\..\\..\\..\\";
                 if (File.Exists($"{xeniapath}recent.toml"))
                 {
@@ -305,15 +300,12 @@ namespace PlayniteAchievements.Providers.Xenia
 
             // Try to find TitleID in file
             int exeAreaSize = 300;
-            foreach (var rom in game.Roms)
+            foreach (var path in candidatePaths)
             {
-                var path = PathExpansion.ExpandGamePath(_playniteApi, game, rom?.Path);
-                if (string.IsNullOrWhiteSpace(path))
+                if (!File.Exists(path))
                 {
                     continue;
                 }
-
-                path = path.Replace("\\\\", "\\").Trim('"');
 
                 if (path.EndsWith(".iso") || path.EndsWith(".xex") || string.IsNullOrEmpty(Path.GetExtension(path)))
                 {
@@ -406,6 +398,45 @@ namespace PlayniteAchievements.Providers.Xenia
 
             titleID = "";
             return false;
+        }
+
+        /// <summary>
+        /// Collects normalized candidate rom paths for a game: explicit rom entries plus,
+        /// for uninstalled EmuLibrary games, the source file decoded from the game id.
+        /// </summary>
+        private List<string> GetCandidateRomPaths(Game game)
+        {
+            var paths = new List<string>();
+            var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+
+            if (game?.Roms != null)
+            {
+                foreach (var rom in game.Roms)
+                {
+                    AddCandidateRomPath(paths, seen, PathExpansion.ExpandGamePath(_playniteApi, game, rom?.Path));
+                }
+            }
+
+            if (EmuLibraryPathResolver.TryResolveSourceFilePath(_playniteApi, game, out var emuLibrarySourceFile))
+            {
+                AddCandidateRomPath(paths, seen, emuLibrarySourceFile);
+            }
+
+            return paths;
+        }
+
+        private static void AddCandidateRomPath(List<string> paths, HashSet<string> seen, string path)
+        {
+            if (string.IsNullOrWhiteSpace(path))
+            {
+                return;
+            }
+
+            var normalized = path.Replace("\\\\", "\\").Trim('"');
+            if (!string.IsNullOrWhiteSpace(normalized) && seen.Add(normalized))
+            {
+                paths.Add(normalized);
+            }
         }
 
         internal bool TryGetCachedTitleId(Guid gameId, out string titleId)

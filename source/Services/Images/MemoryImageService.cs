@@ -52,11 +52,12 @@ namespace PlayniteAchievements.Services.Images
             _logger = logger ?? StaticLogger;
             _diskService = diskService ?? throw new ArgumentNullException(nameof(diskService));
             _maxItems = Math.Max(64, maxItems);
+            _diskService.ImageFileOverwritten += OnImageFileOverwritten;
         }
 
         public void Dispose()
         {
-            // No unmanaged resources to dispose.
+            _diskService.ImageFileOverwritten -= OnImageFileOverwritten;
         }
 
         public void Clear()
@@ -65,6 +66,55 @@ namespace PlayniteAchievements.Services.Images
             {
                 _cache.Clear();
                 _lru.Clear();
+            }
+        }
+
+        private void OnImageFileOverwritten(string path)
+        {
+            EvictByUriSegment(path);
+        }
+
+        /// <summary>
+        /// Removes every cached bitmap whose key contains the given segment
+        /// (case-insensitive). Because keys are "{size}{uri}" and the uri may carry
+        /// gray:/cachebust prefixes, a path or path fragment matches all of its decode-size
+        /// and prefix variants.
+        /// </summary>
+        public void EvictByUriSegment(string segment)
+        {
+            if (string.IsNullOrWhiteSpace(segment))
+            {
+                return;
+            }
+
+            lock (_cacheLock)
+            {
+                List<string> keysToEvict = null;
+                foreach (var key in _cache.Keys)
+                {
+                    if (key.IndexOf(segment, StringComparison.OrdinalIgnoreCase) >= 0)
+                    {
+                        (keysToEvict ?? (keysToEvict = new List<string>())).Add(key);
+                    }
+                }
+
+                if (keysToEvict == null)
+                {
+                    return;
+                }
+
+                foreach (var key in keysToEvict)
+                {
+                    if (_cache.TryGetValue(key, out var entry))
+                    {
+                        if (entry?.Node != null)
+                        {
+                            _lru.Remove(entry.Node);
+                        }
+
+                        _cache.Remove(key);
+                    }
+                }
             }
         }
 
@@ -84,7 +134,9 @@ namespace PlayniteAchievements.Services.Images
         public void ClearGameCache(string gameId)
         {
             _diskService.ClearGameCache(gameId);
-            Clear();
+            // Game icon paths always contain the game id segment (icon_cache/<gameId>/...),
+            // so evict just that game's bitmaps instead of wiping the whole memory cache.
+            EvictByUriSegment(gameId);
         }
 
         private const string GrayPrefix = "gray:";
@@ -153,7 +205,11 @@ namespace PlayniteAchievements.Services.Images
                 }
                 else
                 {
-                    bmp = LoadLocal(uri, decodePixel);
+                    // Decode off the calling thread; GetAsync runs synchronously up to the first
+                    // await, so an inline decode would run on the UI thread that requested the
+                    // image. The bitmap is frozen below before crossing back. Mirrors the
+                    // disk-cache path's Task.Run decode.
+                    bmp = await Task.Run(() => LoadLocal(uri, decodePixel)).ConfigureAwait(false);
                 }
 
                 if (gray && bmp != null)
@@ -300,7 +356,13 @@ namespace PlayniteAchievements.Services.Images
 
         private static int NormalizeDecodePixel(int decodePixel)
         {
-            if (decodePixel <= 0)
+            if (decodePixel < 0)
+            {
+                // Negative requests native-resolution decode (no DecodePixelWidth).
+                return 0;
+            }
+
+            if (decodePixel == 0)
             {
                 return DefaultDecodePixel;
             }
@@ -345,7 +407,10 @@ namespace PlayniteAchievements.Services.Images
                 var bitmap = new BitmapImage();
                 bitmap.BeginInit();
                 bitmap.CacheOption = BitmapCacheOption.OnLoad;
-                bitmap.CreateOptions = BitmapCreateOptions.IgnoreColorProfile;
+                // IgnoreImageCache bypasses WPF's URI-keyed decode cache, which would
+                // otherwise serve stale pixels for files overwritten at the same path.
+                // This service is the caching layer, so the WPF cache is redundant here.
+                bitmap.CreateOptions = BitmapCreateOptions.IgnoreColorProfile | BitmapCreateOptions.IgnoreImageCache;
 
                 if (!isGif && decodePixel > 0)
                 {
@@ -395,7 +460,7 @@ namespace PlayniteAchievements.Services.Images
                     var bitmap = new BitmapImage();
                     bitmap.BeginInit();
                     bitmap.CacheOption = BitmapCacheOption.OnLoad;
-                    bitmap.CreateOptions = BitmapCreateOptions.IgnoreColorProfile;
+                    bitmap.CreateOptions = BitmapCreateOptions.IgnoreColorProfile | BitmapCreateOptions.IgnoreImageCache;
                     if (!isGif && decodePixel > 0)
                     {
                         bitmap.DecodePixelWidth = decodePixel;

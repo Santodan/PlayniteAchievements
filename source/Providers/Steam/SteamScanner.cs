@@ -119,7 +119,9 @@ namespace PlayniteAchievements.Providers.Steam
                     onGameError: (game, ex, consecutiveErrors) =>
                     {
                         var appIdText = TryGetPlatformAppId(game, out var appId) ? appId.ToString() : "?";
-                        _logger?.Warn($"[SteamAch] Skipping game after retries: {game?.Name} (appId={appIdText}). Consecutive errors={consecutiveErrors}. {ex.GetType().Name}: {ex.Message}");
+                        // Log the exception object so the stack trace identifies where a silent
+                        // timeout (e.g. HttpClient's TaskCanceledException) actually originated.
+                        _logger?.Warn(ex, $"[SteamAch] Skipping game after retries: {game?.Name} (appId={appIdText}). Consecutive errors={consecutiveErrors}. {ex.GetType().Name}: {ex.Message}");
                     },
                     rateLimiter,
                     cancel).ConfigureAwait(false);
@@ -307,7 +309,7 @@ namespace PlayniteAchievements.Providers.Steam
                     gameData.Achievements.Add(detail);
                 }
 
-                await EnrichSteamHuntersCategoriesAsync(appId, gameData.GameName, gameData.Achievements, cancel).ConfigureAwait(false);
+                await EnrichSteamHuntersCategoriesAsync(appId, gameData.GameName, gameData.Achievements, gameData.PlayniteGameId, cancel).ConfigureAwait(false);
             }
 
             return gameData;
@@ -317,6 +319,7 @@ namespace PlayniteAchievements.Providers.Steam
             int appId,
             string gameName,
             IList<AchievementDetail> achievements,
+            Guid? playniteGameId,
             CancellationToken cancel)
         {
             if (_steamHuntersCategoryEnricher == null ||
@@ -325,7 +328,7 @@ namespace PlayniteAchievements.Providers.Steam
                 return Task.CompletedTask;
             }
 
-            return _steamHuntersCategoryEnricher.EnrichAsync(appId, gameName, achievements, cancel);
+            return _steamHuntersCategoryEnricher.EnrichAsync(appId, gameName, achievements, playniteGameId, cancel);
         }
 
         private static bool ShouldUseSteamHuntersForCategories()
@@ -375,10 +378,12 @@ namespace PlayniteAchievements.Providers.Steam
                 scraped = await ScrapeAchievementsAsync(steamUserId, appId, accessToken, cancel, includeLocked: true, gameName: gameName)
                     .ConfigureAwait(false);
             }
-            catch (OperationCanceledException) { throw; }
+            catch (OperationCanceledException) when (cancel.IsCancellationRequested) { throw; }
             catch (Exception ex)
             {
-                if (IsTransientError(ex))
+                // A timeout-shaped OperationCanceledException (HttpClient timeout) without the run
+                // token being cancelled is transient, not a user cancel.
+                if (ex is OperationCanceledException || IsTransientError(ex))
                 {
                     throw new SteamTransientException($"[SteamAch] Transient scrape exception for appId={appId}.", ex);
                 }

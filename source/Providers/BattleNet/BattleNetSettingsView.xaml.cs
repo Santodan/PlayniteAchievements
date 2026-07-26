@@ -145,6 +145,9 @@ namespace PlayniteAchievements.Providers.BattleNet
         {
             PersistCurrentSettingsForAuth();
 
+            SetAuthStatusChecking();
+            AuthStatus = ResourceProvider.GetString("LOCPlayAch_Auth_Checking");
+
             AuthProbeResult result;
             try
             {

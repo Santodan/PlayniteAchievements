@@ -457,8 +457,8 @@ namespace PlayniteAchievements.Views.Settings.Display
 
             var items = CompletedBadgeAppearanceItems;
             items.Clear();
-            items.Add(new CompletedBadgeAppearanceItem("Gradient start", true, persisted, ApplyRarityAppearanceOverrides));
-            items.Add(new CompletedBadgeAppearanceItem("Gradient end", false, persisted, ApplyRarityAppearanceOverrides));
+            items.Add(new CompletedBadgeAppearanceItem(ResourceProvider.GetString("LOCPlayAch_Settings_Appearance_GradientStart"), true, persisted, ApplyRarityAppearanceOverrides));
+            items.Add(new CompletedBadgeAppearanceItem(ResourceProvider.GetString("LOCPlayAch_Settings_Appearance_GradientEnd"), false, persisted, ApplyRarityAppearanceOverrides));
         }
 
         private void RebuildTrophyAppearanceItems()
@@ -471,10 +471,10 @@ namespace PlayniteAchievements.Views.Settings.Display
 
             var items = TrophyAppearanceItems;
             items.Clear();
-            items.Add(new TrophyAppearanceItem("Bronze", "TrophyBronze", persisted, ApplyRarityAppearanceOverrides));
-            items.Add(new TrophyAppearanceItem("Silver", "TrophySilver", persisted, ApplyRarityAppearanceOverrides));
-            items.Add(new TrophyAppearanceItem("Gold", "TrophyGold", persisted, ApplyRarityAppearanceOverrides));
-            items.Add(new TrophyAppearanceItem("Platinum", "TrophyPlatinum", persisted, ApplyRarityAppearanceOverrides));
+            items.Add(new TrophyAppearanceItem(ResourceProvider.GetString("LOCPlayAch_Trophy_Bronze"), "TrophyBronze", persisted, ApplyRarityAppearanceOverrides));
+            items.Add(new TrophyAppearanceItem(ResourceProvider.GetString("LOCPlayAch_Trophy_Silver"), "TrophySilver", persisted, ApplyRarityAppearanceOverrides));
+            items.Add(new TrophyAppearanceItem(ResourceProvider.GetString("LOCPlayAch_Trophy_Gold"), "TrophyGold", persisted, ApplyRarityAppearanceOverrides));
+            items.Add(new TrophyAppearanceItem(ResourceProvider.GetString("LOCPlayAch_Trophy_Platinum"), "TrophyPlatinum", persisted, ApplyRarityAppearanceOverrides));
         }
 
         /// <summary>
@@ -498,7 +498,8 @@ namespace PlayniteAchievements.Views.Settings.Display
             {
                 PlayAchResourceService.Apply(
                     resources,
-                    _settings?.Persisted?.ResourceOverrides);
+                    _settings?.Persisted?.ResourceOverrides,
+                    _settings?.Persisted);
             }
         }
 

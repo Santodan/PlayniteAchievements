@@ -42,7 +42,7 @@ namespace PlayniteAchievements.ViewModels.StartPage
 
         public bool UseCoverImages => WidgetSettings.UseCoverImages;
 
-        public bool ShowCompletionBorder => WidgetSettings.ShowCompletionBorder;
+        public bool ShowCompletionGlow => WidgetSettings.ShowCompletionGlow;
 
         public bool ShowColumnHeaders => WidgetSettings.ShowColumnHeaders;
 
@@ -60,7 +60,7 @@ namespace PlayniteAchievements.ViewModels.StartPage
             OnPropertyChanged(nameof(ShowMetadataPlaytime));
             OnPropertyChanged(nameof(ShowMetadataRegion));
             OnPropertyChanged(nameof(UseCoverImages));
-            OnPropertyChanged(nameof(ShowCompletionBorder));
+            OnPropertyChanged(nameof(ShowCompletionGlow));
             OnPropertyChanged(nameof(ShowColumnHeaders));
             OnPropertyChanged(nameof(ShowControlBar));
             OnPropertyChanged(nameof(RowHeight));
@@ -110,9 +110,9 @@ namespace PlayniteAchievements.ViewModels.StartPage
             }
 
             if (string.IsNullOrEmpty(propertyName) ||
-                IsWidgetSettingsProperty(propertyName, nameof(StartPageGameSummariesGridSettings.ShowCompletionBorder)))
+                IsWidgetSettingsProperty(propertyName, nameof(StartPageGameSummariesGridSettings.ShowCompletionGlow)))
             {
-                OnPropertyChanged(nameof(ShowCompletionBorder));
+                OnPropertyChanged(nameof(ShowCompletionGlow));
             }
 
             if (string.IsNullOrEmpty(propertyName) ||

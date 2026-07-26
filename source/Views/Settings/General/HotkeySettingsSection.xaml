@@ -133,6 +133,71 @@
                                 MinWidth="{StaticResource PlayAch.Size.Button.ResetMinWidth}"/>
                     </Grid>
 
+                    <Grid Style="{StaticResource SettingRowStyle}">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*"/>
+                            <ColumnDefinition Width="150"/>
+                            <ColumnDefinition Width="Auto"/>
+                        </Grid.ColumnDefinitions>
+
+                        <StackPanel Grid.Column="0" VerticalAlignment="Center">
+                            <TextBlock Text="{DynamicResource LOCPlayAch_Landing_OpenSettings}"
+                                       Foreground="{DynamicResource PlayAch.Brush.Text}"
+                                       FontWeight="SemiBold"/>
+                        </StackPanel>
+
+                        <Button x:Name="OpenSettingsHotkeyCaptureButton"
+                                Grid.Column="1"
+                                Content="{Binding OpenSettingsHotkeyButtonText, ElementName=HotkeySettingsSectionRoot}"
+                                Click="HotkeyCapture_Click"
+                                CommandParameter="OpenSettings"
+                                PreviewKeyDown="HotkeyCapture_PreviewKeyDown"
+                                IsEnabled="{Binding Persisted.EnableAchievementHotkeys}"
+                                Margin="12,0,8,0"/>
+
+                        <Button Grid.Column="2"
+                                Content="{DynamicResource LOCPlayAch_Button_Reset}"
+                                Click="ResetHotkey_Click"
+                                CommandParameter="OpenSettings"
+                                IsEnabled="{Binding Persisted.EnableAchievementHotkeys}"
+                                MinWidth="{StaticResource PlayAch.Size.Button.ResetMinWidth}"/>
+                    </Grid>
+
+                    <Grid Style="{StaticResource SettingRowStyle}">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*"/>
+                            <ColumnDefinition Width="150"/>
+                            <ColumnDefinition Width="Auto"/>
+                        </Grid.ColumnDefinitions>
+
+                        <StackPanel Grid.Column="0" VerticalAlignment="Center">
+                            <TextBlock Text="{DynamicResource LOCPlayAch_CategorySummaries_ToggleToolTip}"
+                                       Foreground="{DynamicResource PlayAch.Brush.Text}"
+                                       FontWeight="SemiBold"/>
+                        </StackPanel>
+
+                        <Button x:Name="CategoryModeHotkeyCaptureButton"
+                                Grid.Column="1"
+                                Content="{Binding CategoryModeHotkeyButtonText, ElementName=HotkeySettingsSectionRoot}"
+                                Click="HotkeyCapture_Click"
+                                CommandParameter="CategoryMode"
+                                PreviewKeyDown="HotkeyCapture_PreviewKeyDown"
+                                IsEnabled="{Binding Persisted.EnableAchievementHotkeys}"
+                                Margin="12,0,8,0"/>
+
+                        <Button Grid.Column="2"
+                                Content="{DynamicResource LOCPlayAch_Button_Reset}"
+                                Click="ResetHotkey_Click"
+                                CommandParameter="CategoryMode"
+                                IsEnabled="{Binding Persisted.EnableAchievementHotkeys}"
+                                MinWidth="{StaticResource PlayAch.Size.Button.ResetMinWidth}"/>
+                    </Grid>
+
+                    <TextBlock Text="{DynamicResource LOCPlayAch_Hotkeys_CategoryModeHelp}"
+                               Style="{StaticResource MutedTextStyle}"
+                               Margin="0,0,0,14"
+                               TextWrapping="Wrap"/>
+
                     <TextBlock Text="{Binding HotkeyCaptureStatusText, ElementName=HotkeySettingsSectionRoot}"
                                Style="{StaticResource MutedTextStyle}"
                                TextWrapping="Wrap"/>

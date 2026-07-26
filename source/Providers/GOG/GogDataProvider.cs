@@ -25,7 +25,6 @@ namespace PlayniteAchievements.Providers.GOG
     {
         public ProviderOverrideDescriptor OverrideDescriptor { get; } = ProviderOverrideDescriptor.Text(
             "LOCPlayAch_ManageAchievements_Overrides_ProviderValueLabel_GOG",
-            "GOG Product ID",
             ProviderOverrideValidators.RequiredText);
 
         internal static readonly Guid GogPluginId = Guid.Parse("AEBE8B7C-6DC3-4A66-AF31-E7375C6B5E9E");

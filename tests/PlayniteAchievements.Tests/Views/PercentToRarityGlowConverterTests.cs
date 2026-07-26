@@ -1,3 +1,4 @@
+using System.Windows.Media;
 using System.Windows.Media.Effects;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
 using PlayniteAchievements.Models.Achievements;
@@ -19,6 +20,16 @@ namespace PlayniteAchievements.Tests.Views
         }
 
         [TestMethod]
+        public void Convert_ReturnsNullGlowForCommonRarityTier()
+        {
+            var converter = new PercentToRarityGlowConverter();
+
+            var result = converter.Convert(RarityTier.Common, null, null, null);
+
+            Assert.IsNull(result);
+        }
+
+        [TestMethod]
         public void Convert_ReturnsNullForPercentInput()
         {
             var converter = new PercentToRarityGlowConverter();
@@ -26,6 +37,16 @@ namespace PlayniteAchievements.Tests.Views
             var result = converter.Convert(5.0d, null, null, null);
 
             Assert.IsNull(result);
+        }
+
+        [TestMethod]
+        public void ShineConvert_ReturnsBorderBrushForCommonRarityTier()
+        {
+            var converter = new RarityToShineBrushConverter();
+
+            var result = converter.Convert(RarityTier.Common, null, null, null);
+
+            Assert.IsInstanceOfType(result, typeof(LinearGradientBrush));
         }
     }
 }

@@ -180,6 +180,24 @@ namespace PlayniteAchievements.Services.Refresh
             return payload;
         }
 
+        /// <summary>
+        /// Work volume of the friend scrape portion of a run, for the shared LOH compaction gate
+        /// in RefreshRuntime. Zero when the payload carries no friend summary (e.g. current-user
+        /// only runs).
+        /// </summary>
+        internal static int GetFriendScrapeVolume(RebuildPayload payload)
+        {
+            var summary = payload?.FriendSummary;
+            if (summary == null)
+            {
+                return 0;
+            }
+
+            return Math.Max(
+                summary.CandidatesRefreshed,
+                Math.Max(summary.OwnershipRowsWritten, summary.AchievementsSaved));
+        }
+
         internal async Task RefreshPreparedFriendContextsAsync(
             IReadOnlyList<FriendProviderRefreshContext> contexts,
             FriendRefreshOptions options,
@@ -325,7 +343,38 @@ namespace PlayniteAchievements.Services.Refresh
                 {
                     _logger?.Debug(ex, $"Failed to end friend refresh for {context?.ProviderKey}.");
                 }
+
+                try
+                {
+                    ReleaseContextScrapeState(context);
+                }
+                catch (Exception ex)
+                {
+                    _logger?.Debug(ex, $"Failed to release friend refresh context state for {context?.ProviderKey}.");
+                }
             }
+        }
+
+        // The per-run scrape state holds several overlapping full copies of every friend-game row
+        // (ownership snapshots, the grouped definition-plan copy, the current-user label set), and
+        // the contexts can stay reachable past the run's hot path (combined runs hold them until
+        // the whole plan finishes). Drop the big collections here so the LOH compaction at
+        // refresh end can actually return their space. Friends/ScopedFriends stay intact: they
+        // are small identity lists and perf logging reads them.
+        private static void ReleaseContextScrapeState(FriendProviderRefreshContext context)
+        {
+            if (context == null)
+            {
+                return;
+            }
+
+            context.OwnershipSnapshots = null;
+            context.DefinitionPlan = null;
+            context.CurrentUserLabelIndex = null;
+            context.CurrentUserLabels = Array.Empty<CurrentUserGameLabel>();
+            context.ProbedProviderOnlyAchievementKeys.Clear();
+            context.RecencyFreshKeys.Clear();
+            context.OwnershipFetchedFriendIds.Clear();
         }
 
         /// <summary>
@@ -587,6 +636,32 @@ namespace PlayniteAchievements.Services.Refresh
             }
         }
 
+        private static IReadOnlyDictionary<string, Guid> BuildCurrentUserLabelIndex(
+            string providerKey,
+            IReadOnlyList<CurrentUserGameLabel> labels)
+        {
+            var index = new Dictionary<string, Guid>(StringComparer.OrdinalIgnoreCase);
+            foreach (var label in labels ?? Enumerable.Empty<CurrentUserGameLabel>())
+            {
+                if (label == null ||
+                    label.PlayniteGameId == Guid.Empty ||
+                    !string.Equals(label.ProviderKey, providerKey, StringComparison.OrdinalIgnoreCase))
+                {
+                    continue;
+                }
+
+                var cacheKey = GetProviderGameCacheKey(label.AppId, label.ProviderGameKey);
+                if (string.IsNullOrWhiteSpace(cacheKey) || index.ContainsKey(cacheKey))
+                {
+                    continue;
+                }
+
+                index.Add(cacheKey, label.PlayniteGameId);
+            }
+
+            return index;
+        }
+
         internal async Task<FriendProviderRefreshContext> PrepareProviderRefreshAsync(
             IFriendsProvider friendsProvider,
             FriendRefreshOptions options,
@@ -634,6 +709,9 @@ namespace PlayniteAchievements.Services.Refresh
 
             var currentUserLabels = LoadCurrentUserGameLabelsForFriendMatching();
             context.CurrentUserLabels = currentUserLabels;
+            context.CurrentUserLabelIndex = FriendRefreshWorkPolicy.ShouldMapOwnershipFromCurrentUserLabels(providerKey)
+                ? BuildCurrentUserLabelIndex(providerKey, currentUserLabels)
+                : null;
             PromoteProviderOnlyFriendGamesFromCurrentUserLabels(providerKey, currentUserLabels);
 
             if (friendsProvider is ICurrentUserGameLabelReceiver labelReceiver)
@@ -745,6 +823,8 @@ namespace PlayniteAchievements.Services.Refresh
                     context.OwnershipSnapshots,
                     context.RecencyFreshKeys,
                     context.OwnershipFetchedFriendIds,
+                    context.CurrentUserLabelIndex,
+                    context.CurrentUserLabels,
                     cancel).ConfigureAwait(false);
                 if (!shouldContinue)
                 {
@@ -1107,6 +1187,7 @@ namespace PlayniteAchievements.Services.Refresh
             string providerKey,
             FriendIdentity friend,
             string exophaseSteamOwnershipUserId,
+            IReadOnlyList<CurrentUserGameLabel> currentUserLabels,
             RateLimiter limiter,
             CancellationToken cancel)
         {
@@ -1124,6 +1205,7 @@ namespace PlayniteAchievements.Services.Refresh
                 friend,
                 exophaseSteamOwnershipUserId,
                 ownershipResult.Data,
+                currentUserLabels,
                 limiter,
                 cancel).ConfigureAwait(false);
             return augmentedResult ?? ownershipResult;
@@ -1134,6 +1216,7 @@ namespace PlayniteAchievements.Services.Refresh
             FriendIdentity steamFriend,
             string exophaseUserId,
             IReadOnlyList<FriendGameOwnership> knownSteamOwnership,
+            IReadOnlyList<CurrentUserGameLabel> currentUserLabels,
             RateLimiter limiter,
             CancellationToken cancel)
         {
@@ -1152,9 +1235,12 @@ namespace PlayniteAchievements.Services.Refresh
 
             try
             {
-                var currentUserLabels = LoadCurrentUserGameLabelsForFriendMatching();
+                // Reuse the labels resolved once during provider preparation instead of
+                // re-materializing the whole current-user library (and the Playnite games list)
+                // for every friend; fall back to a fresh load only if they were not supplied.
+                var resolvedLabels = currentUserLabels ?? LoadCurrentUserGameLabelsForFriendMatching();
                 var exophaseResult = await limiter.ExecuteWithRetryAsync(
-                    () => source.GetSteamOwnedGamesAsync(exophaseUserId, currentUserLabels, knownSteamOwnership, cancel),
+                    () => source.GetSteamOwnedGamesAsync(exophaseUserId, resolvedLabels, knownSteamOwnership, cancel),
                     FriendRefreshWorkPolicy.IsTransientError,
                     cancel).ConfigureAwait(false);
                 if (exophaseResult?.Success != true)
@@ -1328,6 +1414,8 @@ namespace PlayniteAchievements.Services.Refresh
             List<FriendOwnershipSnapshot> ownershipSnapshots,
             HashSet<string> recencyFreshKeys,
             HashSet<string> ownershipFetchedFriendIds,
+            IReadOnlyDictionary<string, Guid> currentUserLabelIndex,
+            IReadOnlyList<CurrentUserGameLabel> currentUserLabels,
             CancellationToken cancel)
         {
             if (friend == null || string.IsNullOrWhiteSpace(friend.ExternalUserId))
@@ -1341,6 +1429,7 @@ namespace PlayniteAchievements.Services.Refresh
                 providerKey,
                 friend,
                 exophaseSteamOwnershipUserId,
+                currentUserLabels,
                 limiter,
                 cancel).ConfigureAwait(false);
             if (ownershipResult?.Success != true)
@@ -1376,6 +1465,7 @@ namespace PlayniteAchievements.Services.Refresh
 
             var scopedOwnedGames = ScopeOwnedGamesForRefresh(ownershipResult.Data, options);
             var ownedGames = FilterOwnedGamesForProviderRefresh(providerKey, scopedOwnedGames);
+            StampPlayniteGameIdsFromCurrentUserLabels(ownedGames, currentUserLabelIndex);
             _logger?.Debug(
                 $"[RefreshPerf] phase=friend.ownership.provider provider={providerKey} friend={friend.ExternalUserId} returned={ownershipResult.Data?.Count ?? 0} scoped={scopedOwnedGames?.Count ?? 0} filtered={ownedGames.Count} scope={options?.Scope}.");
             // Retain the fresh, hint-bearing ownership snapshot for the game-centric candidate builder.
@@ -1515,14 +1605,65 @@ namespace PlayniteAchievements.Services.Refresh
             var dueProviderGameKeys = FriendRefreshWorkPolicy.ShouldSeedDefinitionsFromFriendAchievementScrape(providerKey)
                 ? new List<string>()
                 : options?.ForceDefinitionRefresh == true
-                    ? providerGameKeys
+                    ? providerGameKeys.ToList()
                     : providerGameKeys
                         .Where(key => FriendRefreshWorkPolicy.IsDefinitionCheckDue(states.TryGetValue(key, out var state) ? state : null))
                         .ToList();
 
+            // Games whose cached definitions still carry legacy display-derived Exophase keys are
+            // definition-due regardless of check freshness: the definition fetch performs the
+            // in-place rename to stable ids, which must happen before locale-independent unlock
+            // rows can match.
+            var legacyKeyedGameKeySet = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            if (!FriendRefreshWorkPolicy.ShouldSeedDefinitionsFromFriendAchievementScrape(providerKey))
+            {
+                var legacyKeyedGameKeys = _friendCache.LoadLegacyKeyedDefinitionGameKeys(providerKey, providerGameKeys);
+                if (legacyKeyedGameKeys?.Count > 0)
+                {
+                    var dueKeySet = new HashSet<string>(dueProviderGameKeys, StringComparer.OrdinalIgnoreCase);
+                    foreach (var legacyKey in legacyKeyedGameKeys)
+                    {
+                        legacyKeyedGameKeySet.Add(legacyKey);
+                        if (dueKeySet.Add(legacyKey))
+                        {
+                            dueProviderGameKeys.Add(legacyKey);
+                        }
+                    }
+
+                    _logger?.Info($"[FriendRefresh] {legacyKeyedGameKeys.Count} {providerKey} games have legacy-keyed definitions; queued for definition refresh to migrate to stable ids.");
+                }
+            }
+
             plan.OwnershipByKey = ownershipByKey;
             plan.ProviderGameKeys = providerGameKeys;
             plan.DueProviderGameKeys = dueProviderGameKeys;
+
+            // Defer the definition fetch for provider-only games whose owners all carry an unknown
+            // unlock hint: the probe (which runs anyway) decides first whether the friend has unlocks,
+            // and the definition is only fetched/saved once one owner is confirmed. This keeps
+            // zero-unlock unowned games from persisting definition rows, a provider-only Games row, or
+            // images. Mapped, explicitly-targeted, positive-hint and legacy-key-migration games stay
+            // eager (the in-place key rename must run unconditionally).
+            if (FriendRefreshWorkPolicy.ShouldGuardProviderOnlyZeroUnlocks(providerKey))
+            {
+                var eagerKeys = new List<string>();
+                var deferredKeys = new List<string>();
+                foreach (var key in dueProviderGameKeys)
+                {
+                    var owners = ownershipByKey.TryGetValue(key, out var rows) ? rows : null;
+                    var mustFetchEagerly =
+                        owners == null ||
+                        legacyKeyedGameKeySet.Contains(key) ||
+                        owners.Any(item => item != null &&
+                            (IsPlayniteLibraryFriendGame(providerKey, item) ||
+                             FriendRefreshWorkPolicy.IsExplicitProviderGameTarget(options, item.AppId, item.ProviderGameKey) ||
+                             FriendRefreshWorkPolicy.HasPositiveUnlockHint(item)));
+                    (mustFetchEagerly ? eagerKeys : deferredKeys).Add(key);
+                }
+
+                plan.DueProviderGameKeys = eagerKeys;
+                plan.DeferredProviderGameKeys = deferredKeys;
+            }
 
             // Provider-only probe scrapes only happen for providers that guard zero-unlock games; count
             // exactly the items the probe loop below will visit so the definitions total stays exact.
@@ -1574,79 +1715,44 @@ namespace PlayniteAchievements.Services.Refresh
                 {
                     cancel.ThrowIfCancellationRequested();
                     var providerGameKey = dueProviderGameKeys[i];
-                    var ownershipRows = ownershipByKey[providerGameKey];
-                    var sample = ownershipRows.FirstOrDefault(item => item != null);
-                    var appId = Math.Max(0, sample?.AppId ?? 0);
-                    var gameName = ResolveOwnershipGameName(ownershipRows, providerKey, providerGameKey);
-                    progress?.ReportDefinitionCheckActive(gameName);
-
-                    await limiter.DelayBeforeNextAsync(cancel).ConfigureAwait(false);
-                    var definitionResult = await limiter.ExecuteWithRetryAsync(
-                        () => friendsProvider.GetFriendGameDefinitionAsync(providerGameKey, appId, gameName, cancel),
-                        FriendRefreshWorkPolicy.IsTransientError,
+                    var definition = await FetchAndPersistFriendGameDefinitionAsync(
+                        friendsProvider,
+                        providerKey,
+                        providerGameKey,
+                        ownershipByKey[providerGameKey],
+                        $"{i + 1}/{dueProviderGameKeys.Count}",
+                        limiter,
+                        payload,
+                        payloadLock,
+                        progress,
+                        friendInvalidationBatch,
+                        invalidationFlushState,
                         cancel).ConfigureAwait(false);
-
-                    if (definitionResult?.AuthRequired == true)
+                    if (definition == null)
                     {
-                        lock (payloadLock)
-                        {
-                            MarkAuthFailure(payload, providerKey, true);
-                        }
-
                         return;
-                    }
-
-                    var definition = definitionResult?.Data ?? new FriendGameDefinition
-                    {
-                        ProviderKey = providerKey,
-                        AppId = appId,
-                        ProviderGameKey = providerGameKey,
-                        GameName = gameName,
-                        Status = definitionResult?.TransientFailure == true
-                            ? FriendGameDefinitionStatus.Transient
-                            : FriendGameDefinitionStatus.Unavailable,
-                        LastCheckedUtc = DateTime.UtcNow
-                    };
-
-                    definition.ProviderKey = providerKey;
-                    definition.AppId = appId;
-                    definition.ProviderGameKey = providerGameKey;
-                    if (string.IsNullOrWhiteSpace(definition.GameName))
-                    {
-                        definition.GameName = gameName;
-                    }
-
-                    await DownloadDefinitionAchievementIconsAsync(definition, cancel, progress).ConfigureAwait(false);
-
-                    var writeDefinition = _friendCache.SaveFriendGameDefinition(providerKey, definition);
-                    if (writeDefinition?.Success != true)
-                    {
-                        _logger?.Warn($"Failed to save friend game definition for {providerKey}/{providerGameKey}: {writeDefinition?.ErrorMessage}");
                     }
 
                     if (definition.Status == FriendGameDefinitionStatus.NoAchievements)
                     {
                         noAchievementDefinitionKeys.Add(providerGameKey);
                     }
-
-                    // Download the achievements-page header banner and store it as the game's local
-                    // icon+cover paths, mirroring the Steam owned-game image flow. The URL is never
-                    // persisted.
-                    await DownloadDefinitionGameImageAsync(providerKey, providerGameKey, appId, definition.IconUrl, definition.GameName, cancel, progress)
-                        .ConfigureAwait(false);
-                    progress?.ReportDefinitionCheckCompleted(gameName);
-                    MaybeFlushFriendInvalidations(friendInvalidationBatch, invalidationFlushState);
                 }
             }
 
             var discoveredProviderGameKeys = new HashSet<string>(providerGameKeys, StringComparer.OrdinalIgnoreCase);
             var providerOnlyProbeLimiter = CreateScanRateLimiter();
+
+            // Probe game-major so a deferred game's definition decision is made once per game across
+            // all its owners: the first friend whose probe confirms unlocks triggers the (memoized)
+            // definition fetch; a game every owner probes empty is reported as a skipped definition
+            // check and leaves no trace.
+            var probeOwnersByKey = new Dictionary<string, List<KeyValuePair<FriendIdentity, FriendGameOwnership>>>(StringComparer.OrdinalIgnoreCase);
             foreach (var snapshot in snapshots)
             {
                 foreach (var item in snapshot.Ownership
                     .Where(item => FriendRefreshWorkPolicy.HasProviderGameIdentity(item) && discoveredProviderGameKeys.Contains(GetProviderGameCacheKey(item))))
                 {
-                    var providerGameKey = GetProviderGameCacheKey(item);
                     // Mapped (Playnite-library) games are already persisted by the per-friend ownership
                     // save; only provider-only games need the probe to confirm unlocks before persisting.
                     if (IsPlayniteLibraryFriendGame(providerKey, item))
@@ -1654,13 +1760,68 @@ namespace PlayniteAchievements.Services.Refresh
                         continue;
                     }
 
-                    if (noAchievementDefinitionKeys.Contains(providerGameKey))
+                    var providerGameKey = GetProviderGameCacheKey(item);
+                    if (!probeOwnersByKey.TryGetValue(providerGameKey, out var owners))
+                    {
+                        owners = new List<KeyValuePair<FriendIdentity, FriendGameOwnership>>();
+                        probeOwnersByKey.Add(providerGameKey, owners);
+                    }
+
+                    owners.Add(new KeyValuePair<FriendIdentity, FriendGameOwnership>(snapshot.Friend, item));
+                }
+            }
+
+            var deferredKeySet = new HashSet<string>(plan.DeferredProviderGameKeys, StringComparer.OrdinalIgnoreCase);
+            var confirmedDeferredKeys = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            foreach (var probeGameKey in providerGameKeys)
+            {
+                if (!probeOwnersByKey.TryGetValue(probeGameKey, out var probeOwners))
+                {
+                    continue;
+                }
+
+                // Memoized per game: the first confirmed-unlock probe fetches and persists the
+                // definition (schema + icons + banner) exactly once; later owners of the same game
+                // reuse the completed task.
+                Task<FriendGameDefinition> deferredDefinitionTask = null;
+                Func<Task<bool>> ensureDefinitionAsync = null;
+                if (deferredKeySet.Contains(probeGameKey))
+                {
+                    var ownershipRows = ownershipByKey[probeGameKey];
+                    ensureDefinitionAsync = async () =>
+                    {
+                        if (deferredDefinitionTask == null)
+                        {
+                            confirmedDeferredKeys.Add(probeGameKey);
+                            deferredDefinitionTask = FetchAndPersistFriendGameDefinitionAsync(
+                                friendsProvider,
+                                providerKey,
+                                probeGameKey,
+                                ownershipRows,
+                                "deferred",
+                                providerOnlyProbeLimiter,
+                                payload,
+                                payloadLock,
+                                progress,
+                                friendInvalidationBatch,
+                                invalidationFlushState,
+                                cancel);
+                        }
+
+                        return await deferredDefinitionTask.ConfigureAwait(false) != null;
+                    };
+                }
+
+                foreach (var probeOwner in probeOwners)
+                {
+                    var item = probeOwner.Value;
+                    if (noAchievementDefinitionKeys.Contains(probeGameKey))
                     {
                         noAchievementProbeSkips++;
                         if (FriendRefreshWorkPolicy.ShouldGuardProviderOnlyZeroUnlocks(providerKey))
                         {
                             progress?.ReportDefinitionCheckCompleted(
-                                ResolveOwnershipGameName(new[] { item }, providerKey, providerGameKey));
+                                ResolveOwnershipGameName(new[] { item }, providerKey, probeGameKey));
                         }
 
                         continue;
@@ -1669,14 +1830,15 @@ namespace PlayniteAchievements.Services.Refresh
                     var shouldContinue = await ProbeAndPersistProviderOnlyFriendGameAsync(
                         friendsProvider,
                         providerKey,
-                        snapshot.Friend,
+                        probeOwner.Key,
                         item,
                         probedProviderOnlyAchievementKeys,
                         providerOnlyProbeLimiter,
                         payload,
                         payloadLock,
                         progress,
-                        cancel).ConfigureAwait(false);
+                        cancel,
+                        ensureDefinitionAsync).ConfigureAwait(false);
                     // Provider-only probes are network scrapes counted in the definitions total (see
                     // ComputeUnownedDefinitionPlan); report one completion each so the bar advances
                     // through them. Gated on the same guard used to count them so total and completions
@@ -1694,20 +1856,109 @@ namespace PlayniteAchievements.Services.Refresh
                         return;
                     }
                 }
+
+                // Every deferred key was counted as one definition check in the plan total; a game no
+                // owner confirmed resolves that count as a skip (nothing was fetched or written).
+                if (deferredKeySet.Contains(probeGameKey) && !confirmedDeferredKeys.Contains(probeGameKey))
+                {
+                    progress?.ReportDefinitionCheckCompleted(
+                        ResolveOwnershipGameName(ownershipByKey[probeGameKey], providerKey, probeGameKey));
+                }
             }
 
-            // Seed-from-scrape providers (Exophase) acquire provider-only images from the game header banner in
-            // ProbeAndPersistProviderOnlyFriendGameAsync above. Skip the profile-thumbnail download here: it runs
-            // after the probe loop and, because SaveProviderGameImagePaths lets a non-null value win via
+            // Banner-preferring providers (Exophase) acquire provider-only images from the game header
+            // banner during the definition fetch above. Skip the profile-thumbnail download for them: it
+            // runs after that loop and, because SaveProviderGameImagePaths lets a non-null value win via
             // COALESCE, a small thumbnail would overwrite the higher-quality banner.
-            if (!FriendRefreshWorkPolicy.ShouldSeedDefinitionsFromFriendAchievementScrape(providerKey))
+            if (!FriendRefreshWorkPolicy.PrefersDefinitionHeaderBannerImages(providerKey))
             {
-                await DownloadUnownedGameImagesAsync(providerKey, discoveredProviderGameKeys, ownershipByKey, cancel, progress).ConfigureAwait(false);
+                // Deferred games nobody confirmed have no Games row; downloading their thumbnails would
+                // leave orphan image files on disk for games that must leave no trace.
+                var unownedImageKeys = new HashSet<string>(discoveredProviderGameKeys, StringComparer.OrdinalIgnoreCase);
+                unownedImageKeys.RemoveWhere(key => deferredKeySet.Contains(key) && !confirmedDeferredKeys.Contains(key));
+                await DownloadUnownedGameImagesAsync(providerKey, unownedImageKeys, ownershipByKey, cancel, progress).ConfigureAwait(false);
             }
 
             MaybeFlushFriendInvalidations(friendInvalidationBatch, invalidationFlushState, force: true);
             _logger?.Debug(
-                $"[RefreshPerf] phase=friend.definitions.provider provider={providerKey} providerKeys={providerGameKeys.Count} dueDefinitions={dueProviderGameKeys.Count} probeItems={plan.ProbeItemCount} noAchievementDefinitionKeys={noAchievementDefinitionKeys.Count} noAchievementProbeSkips={noAchievementProbeSkips}");
+                $"[RefreshPerf] phase=friend.definitions.provider provider={providerKey} providerKeys={providerGameKeys.Count} dueDefinitions={dueProviderGameKeys.Count} deferredDefinitions={plan.DeferredProviderGameKeys.Count} confirmedDeferred={confirmedDeferredKeys.Count} probeItems={plan.ProbeItemCount} noAchievementDefinitionKeys={noAchievementDefinitionKeys.Count} noAchievementProbeSkips={noAchievementProbeSkips}");
+        }
+
+        // Fetches one provider game's definition, persists it, and downloads its achievement icons and
+        // header banner. Returns the definition, or null when the provider demanded authentication (the
+        // caller aborts the phase). Used eagerly for due keys and lazily (post-probe) for deferred keys.
+        private async Task<FriendGameDefinition> FetchAndPersistFriendGameDefinitionAsync(
+            IFriendsProvider friendsProvider,
+            string providerKey,
+            string providerGameKey,
+            IReadOnlyList<FriendGameOwnership> ownershipRows,
+            string fetchLogLabel,
+            RateLimiter limiter,
+            RebuildPayload payload,
+            object payloadLock,
+            FriendRefreshProgressSession progress,
+            IFriendCacheInvalidationBatch friendInvalidationBatch,
+            FriendInvalidationFlushState invalidationFlushState,
+            CancellationToken cancel)
+        {
+            var sample = ownershipRows?.FirstOrDefault(item => item != null);
+            var appId = Math.Max(0, sample?.AppId ?? 0);
+            var gameName = ResolveOwnershipGameName(ownershipRows, providerKey, providerGameKey);
+            progress?.ReportDefinitionCheckActive(gameName);
+
+            await limiter.DelayBeforeNextAsync(cancel).ConfigureAwait(false);
+            _logger?.Info($"[FriendRefresh] Fetching game definition {fetchLogLabel} for {providerKey}/{providerGameKey} ('{gameName}').");
+            var definitionResult = await limiter.ExecuteWithRetryAsync(
+                () => friendsProvider.GetFriendGameDefinitionAsync(providerGameKey, appId, gameName, cancel),
+                FriendRefreshWorkPolicy.IsTransientError,
+                cancel).ConfigureAwait(false);
+
+            if (definitionResult?.AuthRequired == true)
+            {
+                lock (payloadLock)
+                {
+                    MarkAuthFailure(payload, providerKey, true);
+                }
+
+                return null;
+            }
+
+            var definition = definitionResult?.Data ?? new FriendGameDefinition
+            {
+                ProviderKey = providerKey,
+                AppId = appId,
+                ProviderGameKey = providerGameKey,
+                GameName = gameName,
+                Status = definitionResult?.TransientFailure == true
+                    ? FriendGameDefinitionStatus.Transient
+                    : FriendGameDefinitionStatus.Unavailable,
+                LastCheckedUtc = DateTime.UtcNow
+            };
+
+            definition.ProviderKey = providerKey;
+            definition.AppId = appId;
+            definition.ProviderGameKey = providerGameKey;
+            if (string.IsNullOrWhiteSpace(definition.GameName))
+            {
+                definition.GameName = gameName;
+            }
+
+            await DownloadDefinitionAchievementIconsAsync(definition, cancel, progress).ConfigureAwait(false);
+
+            var writeDefinition = _friendCache.SaveFriendGameDefinition(providerKey, definition);
+            if (writeDefinition?.Success != true)
+            {
+                _logger?.Warn($"Failed to save friend game definition for {providerKey}/{providerGameKey}: {writeDefinition?.ErrorMessage}");
+            }
+
+            // Download the achievements-page header banner and store it as the game's local
+            // icon+cover paths, mirroring the Steam owned-game image flow. The URL is never
+            // persisted.
+            await DownloadDefinitionGameImageAsync(providerKey, providerGameKey, appId, definition.IconUrl, definition.GameName, cancel, progress)
+                .ConfigureAwait(false);
+            progress?.ReportDefinitionCheckCompleted(gameName);
+            MaybeFlushFriendInvalidations(friendInvalidationBatch, invalidationFlushState);
+            return definition;
         }
 
         private async Task<bool> ProbeAndPersistProviderOnlyFriendGameAsync(
@@ -1720,7 +1971,8 @@ namespace PlayniteAchievements.Services.Refresh
             RebuildPayload payload,
             object payloadLock,
             FriendRefreshProgressSession progress,
-            CancellationToken cancel)
+            CancellationToken cancel,
+            Func<Task<bool>> ensureDefinitionAsync = null)
         {
             if (friendsProvider == null ||
                 friend == null ||
@@ -1775,6 +2027,16 @@ namespace PlayniteAchievements.Services.Refresh
             if (!FriendRefreshWorkPolicy.HasAnyUnlockedFriendAchievements(achievements))
             {
                 return true;
+            }
+
+            // Deferred definition fetch (unknown-hint provider-only games): the game's schema is only
+            // fetched and persisted once a probe has confirmed unlocks. Must run before the ownership
+            // and achievements saves so stable-keyed rows (Exophase) can match AchievementDefinitions.
+            // A false return means the definition fetch hit an auth wall; abort like the eager path.
+            if (ensureDefinitionAsync != null &&
+                !await ensureDefinitionAsync().ConfigureAwait(false))
+            {
+                return false;
             }
 
             var writeOwnership = _friendCache.SaveFriendOwnership(
@@ -2940,6 +3202,37 @@ namespace PlayniteAchievements.Services.Refresh
                 : $"{providerKey} Game {providerGameKey}";
         }
 
+        // Stamps the current-user library mapping onto freshly-fetched ownership items so the shared
+        // ownership save can create/upgrade a library-mapped Games row (via the same inline-id channel
+        // Exophase uses) instead of silently skipping games that have no pre-existing mapped row. This
+        // is what makes a shared game appear in the friends overview even when the friend has no
+        // unlocks, and what routes it through the mapped scrape instead of the provider-only probe.
+        private static void StampPlayniteGameIdsFromCurrentUserLabels(
+            IReadOnlyList<FriendGameOwnership> ownedGames,
+            IReadOnlyDictionary<string, Guid> currentUserLabelIndex)
+        {
+            if (ownedGames == null || currentUserLabelIndex == null || currentUserLabelIndex.Count == 0)
+            {
+                return;
+            }
+
+            foreach (var item in ownedGames)
+            {
+                if (item == null ||
+                    (item.PlayniteGameId.HasValue && item.PlayniteGameId.Value != Guid.Empty))
+                {
+                    continue;
+                }
+
+                var cacheKey = GetProviderGameCacheKey(item);
+                if (!string.IsNullOrWhiteSpace(cacheKey) &&
+                    currentUserLabelIndex.TryGetValue(cacheKey, out var playniteGameId))
+                {
+                    item.PlayniteGameId = playniteGameId;
+                }
+            }
+        }
+
         private static string GetProviderGameCacheKey(FriendGameOwnership ownership)
         {
             return ownership == null ? null : GetProviderGameCacheKey(ownership.AppId, ownership.ProviderGameKey);
@@ -3100,6 +3393,11 @@ namespace PlayniteAchievements.Services.Refresh
             public List<FriendIdentity> ScopedFriends { get; set; } = new List<FriendIdentity>();
             public IReadOnlyList<CurrentUserGameLabel> CurrentUserLabels { get; set; } =
                 new List<CurrentUserGameLabel>();
+            // (AppId/ProviderGameKey) cache key -> PlayniteGameId, for providers where friend
+            // ownership items are stamped with the current-user library mapping before the shared
+            // ownership save (see FriendRefreshWorkPolicy.ShouldMapOwnershipFromCurrentUserLabels).
+            // Built once in the sequential prepare phase; read-only afterwards.
+            public IReadOnlyDictionary<string, Guid> CurrentUserLabelIndex { get; set; }
             public string RosterSource { get; set; } = "unknown";
             public bool DiscoverUnowned { get; set; }
             public bool CanContinue { get; set; }
@@ -3172,11 +3470,16 @@ namespace PlayniteAchievements.Services.Refresh
                 new Dictionary<string, List<FriendGameOwnership>>(StringComparer.OrdinalIgnoreCase);
             public List<string> ProviderGameKeys { get; set; } = new List<string>();
             public List<string> DueProviderGameKeys { get; set; } = new List<string>();
+            // Definition-due provider-only games whose owners all have an unknown unlock hint. Their
+            // definition is fetched lazily — only after a probe confirms the friend has unlocks — so a
+            // zero-unlock unowned game leaves no trace (no definition rows, no Games row, no image).
+            public List<string> DeferredProviderGameKeys { get; set; } = new List<string>();
             public int ProbeItemCount { get; set; }
 
-            // Total number of network-backed game checks the definitions phase will perform: one per due
-            // definition fetch plus one per provider-only probe scrape.
-            public int TotalDefinitionChecks => DueProviderGameKeys.Count + ProbeItemCount;
+            // Total number of definitions-phase progress completions: one per eager definition fetch,
+            // one per deferred key (resolved exactly once — fetched on first confirmed unlock, or
+            // reported as skipped after every owner probes empty) plus one per provider-only probe.
+            public int TotalDefinitionChecks => DueProviderGameKeys.Count + DeferredProviderGameKeys.Count + ProbeItemCount;
         }
 
         internal sealed class FriendRefreshPerfSession
@@ -3186,6 +3489,8 @@ namespace PlayniteAchievements.Services.Refresh
             private readonly int _providerCount;
             private readonly string _kind;
             private readonly Stopwatch _total = Stopwatch.StartNew();
+            private readonly MemorySnapshot _memBaseline =
+                MemoryDiagnostics.Enabled ? MemoryDiagnostics.Capture() : default(MemorySnapshot);
 
             public FriendRefreshPerfSession(
                 ILogger logger,
@@ -3274,7 +3579,9 @@ namespace PlayniteAchievements.Services.Refresh
 
             private void Log(string phase, string detail)
             {
-                _logger?.Debug($"[RefreshPerf] kind={_kind} phase={phase} {detail}");
+                // Memory fields are appended at the end so the established
+                // "[RefreshPerf] kind=... phase=... {detail}" prefix stays grep-stable.
+                _logger?.Debug($"[RefreshPerf] kind={_kind} phase={phase} {detail}{MemoryDiagnostics.FormatInlineSuffix(_memBaseline)}");
             }
 
             private static long Elapsed(Stopwatch timer)

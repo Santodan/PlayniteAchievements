@@ -53,18 +53,6 @@
 
             <Border Style="{StaticResource SectionBorderStyle}">
                 <StackPanel>
-                    <TextBlock Text="{DynamicResource LOCPlayAch_Overview_GameSummaries}"
-                               Style="{StaticResource SectionHeaderStyle}"
-                               Margin="{StaticResource PlayAch.Thickness.Bottom.Md}"/>
-                    <Border Style="{StaticResource SectionAccentRuleStyle}"/>
-                    <Border Style="{StaticResource SettingGroupCardStyle}">
-                        <controls:GridOptionsEditor Options="{Binding Persisted.GridOptions.GameSummaries[ViewFriendsAchievementsSelectedFriend]}"/>
-                    </Border>
-                </StackPanel>
-            </Border>
-
-            <Border Style="{StaticResource SectionBorderStyle}">
-                <StackPanel>
                     <TextBlock Text="{DynamicResource LOCPlayAch_Achievements}"
                                Style="{StaticResource SectionHeaderStyle}"
                                Margin="{StaticResource PlayAch.Thickness.Bottom.Md}"/>
@@ -78,7 +66,12 @@
                                Style="{StaticResource SubSectionHeaderStyle}"
                                Margin="{StaticResource PlayAch.Thickness.Top.Md}"/>
                     <Border Style="{StaticResource SettingGroupCardStyle}">
-                        <controls:GridOptionsEditor Options="{Binding Persisted.GridOptions.CategorySummaries[ViewFriendsAchievements]}"/>
+                        <StackPanel>
+                            <CheckBox Content="{DynamicResource LOCPlayAch_Settings_HideCategorySummaryRow}"
+                                      IsChecked="{Binding Persisted.GridOptions.Achievement[ViewFriendsAchievements].HideCategorySummaryRow}"
+                                      Margin="{StaticResource PlayAch.Thickness.Bottom.Md}"/>
+                            <controls:GridOptionsEditor Options="{Binding Persisted.GridOptions.CategorySummaries[ViewFriendsAchievements]}"/>
+                        </StackPanel>
                     </Border>
                 </StackPanel>
             </Border>

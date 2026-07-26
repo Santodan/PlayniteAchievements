@@ -68,12 +68,11 @@ namespace PlayniteAchievements.Tests.Services
             Assert.AreEqual(Utc(2026, 1, 4), selectedRow.LastPlayed);
             Assert.AreEqual(Utc(2026, 1, 3), selectedRow.LastUnlockUtc);
             Assert.AreEqual(90, selectedRow.TotalFriendPlaytimeMinutes);
-            Assert.IsTrue(projection.HasAnyFriendUnlocks(game));
-            Assert.IsTrue(projection.HasUnlocksForFriendGame(friend, game));
+            Assert.IsTrue(projection.HasFriendGamePairData(friend, game));
         }
 
         [TestMethod]
-        public void SelectedFriendGames_IgnoresOwnershipOnlyLinks()
+        public void SelectedFriendGames_IncludeOwnershipOnlyLinks()
         {
             var gameId = Guid.Parse("22222222-2222-2222-2222-222222222222");
             var friend = new FriendSummaryItem
@@ -109,10 +108,49 @@ namespace PlayniteAchievements.Tests.Services
             };
 
             var projection = new FriendOverviewProjection(data);
+            var selectedRow = projection.GetSelectedFriendGames(friend).Single();
 
-            Assert.AreEqual(0, projection.GetSelectedFriendGames(friend).Count);
-            Assert.IsFalse(projection.HasAnyFriendUnlocks(game));
-            Assert.IsFalse(projection.HasUnlocksForFriendGame(friend, game));
+            // A shared library game the friend never played still gets a per-friend row (0/N),
+            // carrying ownership-derived playtime.
+            Assert.AreEqual(0, selectedRow.UnlockedAchievements);
+            Assert.AreEqual(12, selectedRow.TotalAchievements);
+            Assert.AreEqual(45UL * 60UL, selectedRow.PlaytimeSeconds);
+            Assert.IsTrue(projection.HasFriendGamePairData(friend, game));
+        }
+
+        [TestMethod]
+        public void PairData_RequiresUnlocksOrOwnership_LockedRowsDoNotCount()
+        {
+            var friend = new FriendSummaryItem
+            {
+                ProviderKey = "Steam",
+                ExternalUserId = "alice",
+                DisplayName = "Alice"
+            };
+            // Provider-only game (no PlayniteGameId): the friend has only locked rows and no
+            // ownership link, matching the cache invariant that provider-only ownership is only
+            // persisted once the friend has unlocks.
+            var game = new FriendGameSummaryItem
+            {
+                ProviderKey = "Steam",
+                AppId = 30,
+                GameName = "Unowned Locked Only",
+                TotalAchievements = 5
+            };
+            var locked = Achievement("Steam", "alice", 30, Guid.Empty, "Unowned Locked Only", "LockedOne", Utc(2026, 1, 1), RarityTier.Common);
+            locked.Unlocked = false;
+            locked.UnlockTimeUtc = null;
+            locked.PlayniteGameId = null;
+            var data = new FriendsOverviewData
+            {
+                Friends = new List<FriendSummaryItem> { friend },
+                Games = new List<FriendGameSummaryItem> { game },
+                AllAchievements = new List<FriendAchievementDisplayItem> { locked }
+            };
+
+            var projection = new FriendOverviewProjection(data);
+
+            Assert.IsFalse(projection.HasFriendGamePairData(friend, game));
         }
 
         [TestMethod]
@@ -211,8 +249,8 @@ namespace PlayniteAchievements.Tests.Services
             Assert.AreEqual(2, selectedGames.Count);
             Assert.IsTrue(selectedGames.Any(game => game.ProviderKey == "Steam" && game.GameName == "Steam Game"));
             Assert.IsTrue(selectedGames.Any(game => game.ProviderKey == "Exophase" && game.GameName == "Exo Game"));
-            Assert.IsTrue(projection.HasUnlocksForFriendGame(merged, data.Games[0]));
-            Assert.IsTrue(projection.HasUnlocksForFriendGame(merged, data.Games[1]));
+            Assert.IsTrue(projection.HasFriendGamePairData(merged, data.Games[0]));
+            Assert.IsTrue(projection.HasFriendGamePairData(merged, data.Games[1]));
             Assert.IsTrue(projection.AllAchievements.All(achievement => achievement.FriendGroupId == group.Id));
             Assert.IsTrue(projection.AllAchievements.All(achievement => achievement.FriendName == "Alice Unified"));
 

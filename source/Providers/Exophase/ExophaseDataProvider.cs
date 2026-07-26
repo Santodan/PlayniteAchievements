@@ -24,7 +24,6 @@ namespace PlayniteAchievements.Providers.Exophase
         // Optional value: an empty slug means auto-detect via game-name/platform search.
         public ProviderOverrideDescriptor OverrideDescriptor { get; } = ProviderOverrideDescriptor.Text(
             "LOCPlayAch_ManageAchievements_Overrides_ProviderValueLabel_Exophase",
-            "Exophase game ID or slug",
             raw =>
             {
                 var trimmed = (raw ?? string.Empty).Trim();
@@ -40,15 +39,16 @@ namespace PlayniteAchievements.Providers.Exophase
         private readonly ExophaseSessionManager _sessionManager;
         private readonly ExophaseApiClient _apiClient;
         private readonly ExophaseFriendsProvider _friendsProvider;
-        private readonly Dictionary<Guid, string> _slugCache = new Dictionary<Guid, string>();
-        private readonly object _slugCacheLock = new object();
-        private static readonly TimeSpan SlugCacheTtl = TimeSpan.FromHours(1);
+        // Session-scoped memo of resolved slugs, cleared at the start of each refresh.
+        // Slug mappings are permanently stable; re-resolution only happens to recover
+        // from a bad historical match, not because the mapping can expire.
+        private readonly Dictionary<Guid, string> _slugMemo = new Dictionary<Guid, string>();
+        private readonly object _slugMemoLock = new object();
         private static readonly string[] KnownExophasePlatformTokens =
         {
             "steam", "gog", "epic", "blizzard", "origin", "psn", "ps3", "ps4", "ps5", "vita",
             "xbox", "xbox-one", "xbox-360", "retro", "android", "apple", "ubisoft", "uplay"
         };
-        private readonly Dictionary<Guid, DateTime> _slugCacheTimestamps = new Dictionary<Guid, DateTime>();
 
         #endregion
 
@@ -156,23 +156,15 @@ namespace PlayniteAchievements.Providers.Exophase
                 return false;
             }
 
-            lock (_slugCacheLock)
+            lock (_slugMemoLock)
             {
-                if (!_slugCache.TryGetValue(gameId, out var cachedSlug) ||
-                    string.IsNullOrWhiteSpace(cachedSlug))
+                if (_slugMemo.TryGetValue(gameId, out var memoSlug) &&
+                    !string.IsNullOrWhiteSpace(memoSlug))
                 {
-                    return false;
-                }
-
-                if (_slugCacheTimestamps.TryGetValue(gameId, out var timestamp) &&
-                    DateTime.UtcNow - timestamp < SlugCacheTtl)
-                {
-                    slug = cachedSlug;
+                    slug = memoSlug;
                     return true;
                 }
 
-                _slugCache.Remove(gameId);
-                _slugCacheTimestamps.Remove(gameId);
                 return false;
             }
         }
@@ -285,6 +277,13 @@ namespace PlayniteAchievements.Providers.Exophase
             var language = _settings.Persisted.GlobalLanguage ?? "english";
             _logger?.Debug($"[Exophase] Using language: {language}");
 
+            // Fresh session: drop memoized slug resolutions so a bad historical match
+            // gets one re-resolution opportunity per refresh.
+            lock (_slugMemoLock)
+            {
+                _slugMemo.Clear();
+            }
+
             // Load and validate the cookie snapshot once for the whole loop; every per-game fetch
             // reuses the cached cookies instead of decrypting the snapshot file per game.
             _apiClient.BeginCookieSession();
@@ -335,6 +334,7 @@ namespace PlayniteAchievements.Providers.Exophase
                     }
 
                     summary.GamesRefreshed++;
+                    summary.RefreshedGameIds.Add(game.Id);
                     if (data != null && data.HasAchievements)
                     {
                         summary.GamesWithAchievements++;
@@ -862,21 +862,10 @@ namespace PlayniteAchievements.Providers.Exophase
                 return overrideSlug;
             }
 
-            // Check cache.
-            lock (_slugCacheLock)
+            // Check the session memo.
+            if (TryGetCachedSlug(game.Id, out var memoSlug))
             {
-                if (_slugCache.TryGetValue(game.Id, out var cachedSlug))
-                {
-                    if (_slugCacheTimestamps.TryGetValue(game.Id, out var timestamp) &&
-                        DateTime.UtcNow - timestamp < SlugCacheTtl)
-                    {
-                        return cachedSlug;
-                    }
-
-                    // Cache expired, remove.
-                    _slugCache.Remove(game.Id);
-                    _slugCacheTimestamps.Remove(game.Id);
-                }
+                return memoSlug;
             }
 
             var platformSlug = NormalizePlatformTokenForExophaseSlug(GetExophasePlatformSlug(game));
@@ -913,10 +902,9 @@ namespace PlayniteAchievements.Providers.Exophase
                     return null;
                 }
 
-                lock (_slugCacheLock)
+                lock (_slugMemoLock)
                 {
-                    _slugCache[game.Id] = slug;
-                    _slugCacheTimestamps[game.Id] = DateTime.UtcNow;
+                    _slugMemo[game.Id] = slug;
                 }
 
                 _logger?.Debug($"[Exophase] Resolved '{game.Name}' -> {slug}");

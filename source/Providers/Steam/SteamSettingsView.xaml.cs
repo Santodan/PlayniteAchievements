@@ -102,6 +102,8 @@ namespace PlayniteAchievements.Providers.Steam
         {
             try
             {
+                SetAuthStatusChecking();
+                WebAuthStatus = ResourceProvider.GetString("LOCPlayAch_Auth_Checking");
                 var result = await _sessionManager.ProbeAuthStateAsync(CancellationToken.None);
                 UpdateAuthStatusFromResult(result);
             }

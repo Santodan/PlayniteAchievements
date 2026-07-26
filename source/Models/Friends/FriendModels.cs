@@ -115,6 +115,11 @@ namespace PlayniteAchievements.Models.Friends
         public IReadOnlyCollection<string> FriendExternalUserIds { get; set; }
         public bool ForceDefinitionRefresh { get; set; }
 
+        // Reuse cached Ok schemas even for scopes that normally force a definition re-fetch
+        // (SelectedGame/Full). Set by latency-sensitive programmatic callers such as the
+        // in-game poller; user-initiated refreshes leave this false.
+        public bool PreferCachedDefinitions { get; set; }
+
         public FriendCustomRefreshOptions Clone()
         {
             return new FriendCustomRefreshOptions
@@ -144,7 +149,8 @@ namespace PlayniteAchievements.Models.Friends
                     .Select(id => id.Trim())
                     .Distinct(StringComparer.OrdinalIgnoreCase)
                     .ToList(),
-                ForceDefinitionRefresh = ForceDefinitionRefresh
+                ForceDefinitionRefresh = ForceDefinitionRefresh,
+                PreferCachedDefinitions = PreferCachedDefinitions
             };
         }
 
@@ -207,6 +213,14 @@ namespace PlayniteAchievements.Models.Friends
         /// achievement definitions. Null for providers that expose no stable key.
         /// </summary>
         public string ApiName { get; set; }
+
+        /// <summary>
+        /// The servicing platform's native achievement key (e.g. the Steam apiname, or a PSN
+        /// trophy id) when the source can supply one. Bridges unlock rows sourced from an
+        /// aggregator onto definitions keyed by the platform provider's own scheme for mapped
+        /// games. Null when the source has no native key.
+        /// </summary>
+        public string ProviderNativeKey { get; set; }
         public string DisplayName { get; set; }
         public string Description { get; set; }
         public string IconUrl { get; set; }

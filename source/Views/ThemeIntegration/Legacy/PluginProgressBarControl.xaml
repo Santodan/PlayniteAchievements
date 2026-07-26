@@ -14,6 +14,7 @@
             <ResourceDictionary.MergedDictionaries>
                 <ResourceDictionary Source="pack://application:,,,/PlayniteAchievements;component/Resources/AchievementControlStyles.xaml"/>
             </ResourceDictionary.MergedDictionaries>
+            <converters:WholePercentToTextConverter x:Key="WholePercentToText"/>
         </ResourceDictionary>
     </local:ThemeControlBase.Resources>
 
@@ -29,7 +30,7 @@
                Margin="0,0,10,0"
                Visibility="{Binding RelativeSource={RelativeSource AncestorType=PluginUserControl}, Path=IntegrationShowProgressBarIndicator, Converter={StaticResource BooleanToVisibilityConverter}}">
             <Label.Content>
-                <MultiBinding StringFormat="{}{0}/{1}">
+                <MultiBinding StringFormat="{}{0:N0}/{1:N0}">
                     <Binding Path="UnlockedCount" FallbackValue="0" />
                     <Binding Path="AchievementCount" FallbackValue="0" />
                 </MultiBinding>
@@ -45,7 +46,7 @@
 
         <!-- Percent label overlay -->
         <TextBlock Grid.Column="1"
-                   Text="{Binding ProgressPercentage, Mode=OneWay, StringFormat={}{0:F0}%, FallbackValue=30%}"
+                   Text="{Binding ProgressPercentage, Mode=OneWay, Converter={StaticResource WholePercentToText}, FallbackValue=30%}"
                    HorizontalAlignment="Center"
                    VerticalAlignment="Center"
                    TextAlignment="Center"

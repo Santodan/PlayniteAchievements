@@ -167,5 +167,18 @@ namespace PlayniteAchievements.Providers.Manual
             }
         }
 
+        public string ResolveProviderPlatformKey(string sourceGameId) =>
+            ResolveProviderPlatformKeyFromSlug(sourceGameId);
+
+        /// <summary>
+        /// Resolves the display platform provider key from an Exophase game slug
+        /// (e.g. "shogun-showdown-steam" resolves to "Steam"). Returns null when the
+        /// slug carries no recognizable platform token.
+        /// </summary>
+        internal static string ResolveProviderPlatformKeyFromSlug(string sourceGameId)
+        {
+            var platformSlug = ExophaseFriendPlatformMatcher.ExtractPlatformSlugFromGameSlug(sourceGameId);
+            return ExophaseFriendPlatformMatcher.ResolveProviderPlatformKey(platformSlug);
+        }
     }
 }

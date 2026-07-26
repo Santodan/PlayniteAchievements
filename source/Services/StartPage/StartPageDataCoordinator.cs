@@ -38,7 +38,6 @@ namespace PlayniteAchievements.Services.StartPage
                     {
                         return libraryProjectionService.GetOverviewSnapshot(
                             settings,
-                            new HashSet<string>(StringComparer.OrdinalIgnoreCase),
                             CancellationToken.None);
                     }
 
@@ -47,10 +46,7 @@ namespace PlayniteAchievements.Services.StartPage
                         providers,
                         playniteApi,
                         logger);
-                    return builder.Build(
-                        settings,
-                        new HashSet<string>(StringComparer.OrdinalIgnoreCase),
-                        CancellationToken.None);
+                    return builder.Build(settings, CancellationToken.None);
                 },
                 logger)
         {

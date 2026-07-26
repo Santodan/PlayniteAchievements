@@ -156,7 +156,12 @@
                                Style="{StaticResource SubSectionHeaderStyle}"
                                Margin="{StaticResource PlayAch.Thickness.Top.Md}"/>
                     <Border Style="{StaticResource SettingGroupCardStyle}">
-                        <controls:GridOptionsEditor Options="{Binding Persisted.GridOptions.CategorySummaries[OverviewSelectedGame]}"/>
+                        <StackPanel>
+                            <CheckBox Content="{DynamicResource LOCPlayAch_Settings_HideCategorySummaryRow}"
+                                      IsChecked="{Binding Persisted.GridOptions.Achievement[OverviewSelectedGame].HideCategorySummaryRow}"
+                                      Margin="{StaticResource PlayAch.Thickness.Bottom.Md}"/>
+                            <controls:GridOptionsEditor Options="{Binding Persisted.GridOptions.CategorySummaries[OverviewSelectedGame]}"/>
+                        </StackPanel>
                     </Border>
                 </StackPanel>
             </Border>
