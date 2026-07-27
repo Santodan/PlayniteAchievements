@@ -53,18 +53,41 @@ namespace PlayniteAchievements.ViewModels
 
         public bool IsCompareAvailable => _options.Count > 0;
 
-        public bool HasCompareSelection => _selected != null;
-
         public string CompareSelectionText => _selected?.DisplayName
             ?? ResourceProvider.GetString("LOCPlayAch_Filter_CompareSelectorPlaceholder");
 
-        public IReadOnlyList<Option> Options => _options;
+        // Key-based accessors for the control-bar dropdown (its options are plain strings).
 
-        public bool IsSelected(Option option)
+        public IEnumerable<string> OptionKeys => _options.Select(option => option.Key);
+
+        public bool IsKeySelected(string key)
         {
             return _selected != null &&
-                   option != null &&
-                   string.Equals(_selected.Key, option.Key, StringComparison.OrdinalIgnoreCase);
+                   string.Equals(_selected.Key, key, StringComparison.OrdinalIgnoreCase);
+        }
+
+        public string GetDisplayNameForKey(string key)
+        {
+            return _options.FirstOrDefault(option =>
+                string.Equals(option.Key, key, StringComparison.OrdinalIgnoreCase))?.DisplayName ?? key;
+        }
+
+        // Single-select semantics over checkable menu items: checking a friend replaces any
+        // other selection; unchecking the selected friend clears the comparison.
+        public void SelectKey(string key, bool isSelected)
+        {
+            if (!isSelected)
+            {
+                if (IsKeySelected(key))
+                {
+                    Select(null);
+                }
+
+                return;
+            }
+
+            Select(_options.FirstOrDefault(option =>
+                string.Equals(option.Key, key, StringComparison.OrdinalIgnoreCase)));
         }
 
         /// <summary>
@@ -98,7 +121,7 @@ namespace PlayniteAchievements.ViewModels
             ApplySelection();
         }
 
-        public void Select(Option option)
+        private void Select(Option option)
         {
             var next = option != null && _options.Contains(option) ? option : null;
             if (ReferenceEquals(_selected, next))
@@ -144,7 +167,7 @@ namespace PlayniteAchievements.ViewModels
 
                     _friendRows = rows ?? new List<FriendAchievementDisplayItem>();
                     _options = BuildOptions(_friendRows);
-                    OnPropertyChanged(nameof(Options));
+                    OnPropertyChanged(nameof(OptionKeys));
                     OnPropertyChanged(nameof(IsCompareAvailable));
                     ApplySelection();
                 }
@@ -259,7 +282,6 @@ namespace PlayniteAchievements.ViewModels
 
         private void NotifyCompareStateChanged()
         {
-            OnPropertyChanged(nameof(HasCompareSelection));
             OnPropertyChanged(nameof(CompareSelectionText));
             OnPropertyChanged(nameof(IsCompareAvailable));
         }

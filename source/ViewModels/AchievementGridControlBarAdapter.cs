@@ -28,6 +28,8 @@ namespace PlayniteAchievements.ViewModels
         private bool _hasUnlocked;
         private bool _hasLocked;
         private bool _hasHiddenLocked;
+        private FriendCompareController _friendCompare;
+        private GridMultiSelectFilter _friendCompareFilter;
 
         public AchievementGridControlBarAdapter()
         {
@@ -39,6 +41,23 @@ namespace PlayniteAchievements.ViewModels
         public event EventHandler FilterChanged;
 
         public GridControlBarViewModel ControlBar { get; }
+
+        /// <summary>
+        /// Wires the compare-friend controller into the bar's pre-built Compare dropdown (the
+        /// last item, after the unlock-state toggles). The slot exists on every adapter bar and
+        /// stays hidden until a controller is attached and a friend has data for the game.
+        /// </summary>
+        public void AttachFriendCompare(FriendCompareController controller)
+        {
+            if (controller == null || _friendCompare != null)
+            {
+                return;
+            }
+
+            _friendCompare = controller;
+            controller.PropertyChanged += (_, __) => _friendCompareFilter?.Refresh();
+            _friendCompareFilter?.Refresh();
+        }
 
         public string SearchText
         {
@@ -406,6 +425,20 @@ namespace PlayniteAchievements.ViewModels
                 value => ShowHidden = value,
                 GridToggleFilterIcon.Hidden,
                 () => _hasHiddenLocked));
+            _friendCompareFilter = new GridMultiSelectFilter(
+                this,
+                null,
+                () => _friendCompare?.CompareSelectionText ?? L("LOCPlayAch_Filter_CompareSelectorPlaceholder"),
+                () => _friendCompare?.OptionKeys ?? Enumerable.Empty<string>(),
+                key => _friendCompare?.IsKeySelected(key) == true,
+                (key, isSelected) => _friendCompare?.SelectKey(key, isSelected),
+                key => _friendCompare?.GetDisplayNameForKey(key) ?? key,
+                () => _friendCompare?.IsCompareAvailable == true)
+            {
+                Width = 140,
+                ToolTip = L("LOCPlayAch_Filter_CompareSelectorPlaceholder")
+            };
+            controlBar.Items.Add(_friendCompareFilter);
             return controlBar;
         }
 
