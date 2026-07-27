@@ -324,7 +324,33 @@ namespace PlayniteAchievements.Services.UI
                 return;
             }
 
-            _softCloseCoordinator.Register(window, EnsureOwner(window));
+            // The owner is resolved at click time, not captured here: hotkey-opened windows can
+            // register before any Playnite window is resolvable as owner.
+            _softCloseCoordinator.Register(window, () => ResolveSoftCloseOwner(window));
+        }
+
+        private Window ResolveSoftCloseOwner(Window window)
+        {
+            try
+            {
+                if (window.Owner != null)
+                {
+                    return window.Owner;
+                }
+
+                var current = _api?.Dialogs?.GetCurrentAppWindow();
+                if (current != null && !ReferenceEquals(current, window))
+                {
+                    return current;
+                }
+
+                var main = Application.Current?.MainWindow;
+                return ReferenceEquals(main, window) ? null : main;
+            }
+            catch
+            {
+                return null;
+            }
         }
 
         public void ShowRefreshProgressControlAndRun(Func<Task> refreshTask, Action<Guid> openViewAchievementsWindow, Guid? singleGameRefreshId = null)
