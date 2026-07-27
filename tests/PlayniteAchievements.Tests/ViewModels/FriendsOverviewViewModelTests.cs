@@ -392,6 +392,124 @@ namespace PlayniteAchievements.Tests.ViewModels
         }
 
         [TestMethod]
+        public void UnlockStateTogglesFilterPairAchievementsByFriendUnlockState()
+        {
+            var data = CreateData();
+            var locked = CreateAchievement(
+                "Steam",
+                "alice",
+                "Alice",
+                "https://cdn.example/alice.png",
+                10,
+                data.Games[0].PlayniteGameId.Value,
+                "Game One",
+                "Alice Locked",
+                "Story",
+                "Main",
+                new DateTime(2026, 1, 1, 0, 0, 0, DateTimeKind.Utc));
+            locked.Unlocked = false;
+            locked.UnlockTimeUtc = null;
+            var hiddenLocked = CreateAchievement(
+                "Steam",
+                "alice",
+                "Alice",
+                "https://cdn.example/alice.png",
+                10,
+                data.Games[0].PlayniteGameId.Value,
+                "Game One",
+                "Alice Hidden Locked",
+                "Story",
+                "Main",
+                new DateTime(2026, 1, 1, 0, 0, 0, DateTimeKind.Utc));
+            hiddenLocked.Unlocked = false;
+            hiddenLocked.UnlockTimeUtc = null;
+            hiddenLocked.Hidden = true;
+            data.AllAchievements = data.AllUnlockedAchievements.ToList();
+            var cache = new StubFriendCache(data)
+            {
+                PairAchievements = data.AllUnlockedAchievements.Concat(new[] { locked, hiddenLocked }).ToList()
+            };
+
+            var viewModel = CreateViewModel(cache);
+            viewModel.LoadAsync().GetAwaiter().GetResult();
+
+            viewModel.SelectedFriend = data.Friends[0];
+            viewModel.SelectedGame = data.Games[0];
+            viewModel.PairAchievementsFetchTask?.GetAwaiter().GetResult();
+
+            CollectionAssert.AreEquivalent(
+                new[] { "Recent Only", "Alice Locked", "Alice Hidden Locked" },
+                viewModel.DisplayedAchievements.Select(item => item.DisplayName).ToArray());
+
+            // Unlocked/Locked filter by the friend's unlock state.
+            viewModel.ShowLockedAchievements = false;
+            CollectionAssert.AreEquivalent(
+                new[] { "Recent Only" },
+                viewModel.DisplayedAchievements.Select(item => item.DisplayName).ToArray());
+
+            viewModel.ShowLockedAchievements = true;
+            viewModel.ShowUnlockedAchievements = false;
+            CollectionAssert.AreEquivalent(
+                new[] { "Alice Locked", "Alice Hidden Locked" },
+                viewModel.DisplayedAchievements.Select(item => item.DisplayName).ToArray());
+
+            // Hidden removes only rows hidden-and-locked for the friend.
+            viewModel.ShowUnlockedAchievements = true;
+            viewModel.ShowHiddenAchievements = false;
+            CollectionAssert.AreEquivalent(
+                new[] { "Recent Only", "Alice Locked" },
+                viewModel.DisplayedAchievements.Select(item => item.DisplayName).ToArray());
+        }
+
+        [TestMethod]
+        public void UnlockStateTogglesResetWhenLeavingPairState()
+        {
+            var data = CreateData();
+            var locked = CreateAchievement(
+                "Steam",
+                "alice",
+                "Alice",
+                "https://cdn.example/alice.png",
+                10,
+                data.Games[0].PlayniteGameId.Value,
+                "Game One",
+                "Alice Locked",
+                "Story",
+                "Main",
+                new DateTime(2026, 1, 1, 0, 0, 0, DateTimeKind.Utc));
+            locked.Unlocked = false;
+            locked.UnlockTimeUtc = null;
+            data.AllAchievements = data.AllUnlockedAchievements.ToList();
+            var cache = new StubFriendCache(data)
+            {
+                PairAchievements = data.AllUnlockedAchievements.Concat(new[] { locked }).ToList()
+            };
+
+            var viewModel = CreateViewModel(cache);
+            viewModel.LoadAsync().GetAwaiter().GetResult();
+
+            viewModel.SelectedFriend = data.Friends[0];
+            viewModel.SelectedGame = data.Games[0];
+            viewModel.PairAchievementsFetchTask?.GetAwaiter().GetResult();
+
+            viewModel.ShowUnlockedAchievements = false;
+            viewModel.ShowHiddenAchievements = false;
+            CollectionAssert.AreEquivalent(
+                new[] { "Alice Locked" },
+                viewModel.DisplayedAchievements.Select(item => item.DisplayName).ToArray());
+
+            // Leaving the pair state resets the toggles so the aggregated friend-only view is
+            // unaffected by stale unlock-state filtering.
+            viewModel.ClearGameSelection();
+            Assert.IsTrue(viewModel.ShowUnlockedAchievements);
+            Assert.IsTrue(viewModel.ShowLockedAchievements);
+            Assert.IsTrue(viewModel.ShowHiddenAchievements);
+            CollectionAssert.AreEquivalent(
+                new[] { "Recent Only", "Alice Game Two" },
+                viewModel.DisplayedAchievements.Select(item => item.DisplayName).ToArray());
+        }
+
+        [TestMethod]
         public void SelectedFriendGamesUseFriendScopedSummaryRows()
         {
             var data = CreateData();
