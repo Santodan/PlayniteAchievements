@@ -3065,6 +3065,9 @@ namespace PlayniteAchievements.ThemeIntegration.Tests
             public FriendsOverviewData LoadFriendGameAchievementData(Guid playniteGameId) =>
                 Data;
 
+            public IReadOnlyCollection<Guid> LoadFriendDataPlayniteGameIds() =>
+                Array.Empty<Guid>();
+
             public FriendsOverviewData LoadFriendRecentUnlocksData(int recentLimit) =>
                 Data;
 
