@@ -315,17 +315,13 @@ namespace PlayniteAchievements.ViewModels
         public bool HasAnySelection => SelectedFriend != null || SelectedGame != null;
         public bool HasFriendGameSelection => SelectedFriend != null && SelectedGame != null;
 
-        public FriendSummaryItem CompareFriend => _compareFriend;
-
-        public bool HasCompareSelection => _compareFriend != null;
-
         public string CompareSelectionText => _compareFriend?.DisplayName
             ?? ResourceProvider.GetString("LOCPlayAch_Filter_CompareSelectorPlaceholder");
 
         public bool IsCompareAvailable => HasFriendGameSelection && GetCompareFriendOptions().Count > 0;
 
         // Friends other than the selected one that have cached data for the selected game.
-        public IReadOnlyList<FriendSummaryItem> GetCompareFriendOptions()
+        private IReadOnlyList<FriendSummaryItem> GetCompareFriendOptions()
         {
             if (!HasFriendGameSelection)
             {
@@ -339,12 +335,7 @@ namespace PlayniteAchievements.ViewModels
                 .ToList();
         }
 
-        public bool IsCompareFriend(FriendSummaryItem friend)
-        {
-            return _compareFriend != null && friend != null && IsSameFriend(friend, _compareFriend);
-        }
-
-        public void SetCompareFriend(FriendSummaryItem friend)
+        private void SetCompareFriend(FriendSummaryItem friend)
         {
             if (friend != null && IsSameFriend(friend, SelectedFriend))
             {
@@ -805,7 +796,56 @@ namespace PlayniteAchievements.ViewModels
                 value => ShowHiddenAchievements = value,
                 GridToggleFilterIcon.Hidden,
                 () => _hasPairHiddenLocked));
+            controlBar.Items.Add(new GridMultiSelectFilter(
+                this,
+                nameof(CompareSelectionText),
+                () => CompareSelectionText,
+                () => GetCompareFriendOptions().Select(FriendOverviewProjection.GetFriendScopeKey),
+                IsCompareKeySelected,
+                SetCompareKeySelected,
+                GetCompareFriendDisplayName,
+                () => IsCompareAvailable)
+            {
+                Width = 140,
+                ToolTip = ResourceProvider.GetString("LOCPlayAch_Filter_CompareSelectorPlaceholder")
+            });
             return controlBar;
+        }
+
+        private bool IsCompareKeySelected(string key)
+        {
+            return _compareFriend != null && string.Equals(
+                FriendOverviewProjection.GetFriendScopeKey(_compareFriend),
+                key,
+                StringComparison.OrdinalIgnoreCase);
+        }
+
+        // Single-select semantics over checkable menu items: checking a friend replaces any
+        // other selection; unchecking the selected friend clears the comparison.
+        private void SetCompareKeySelected(string key, bool isSelected)
+        {
+            if (!isSelected)
+            {
+                if (IsCompareKeySelected(key))
+                {
+                    SetCompareFriend(null);
+                }
+
+                return;
+            }
+
+            SetCompareFriend(GetCompareFriendOptions().FirstOrDefault(friend => string.Equals(
+                FriendOverviewProjection.GetFriendScopeKey(friend),
+                key,
+                StringComparison.OrdinalIgnoreCase)));
+        }
+
+        private string GetCompareFriendDisplayName(string key)
+        {
+            return GetCompareFriendOptions().FirstOrDefault(friend => string.Equals(
+                FriendOverviewProjection.GetFriendScopeKey(friend),
+                key,
+                StringComparison.OrdinalIgnoreCase))?.DisplayName ?? key;
         }
 
         public Task LoadAsync()
@@ -2586,8 +2626,6 @@ namespace PlayniteAchievements.ViewModels
 
         private void NotifyCompareStateChanged()
         {
-            OnPropertyChanged(nameof(CompareFriend));
-            OnPropertyChanged(nameof(HasCompareSelection));
             OnPropertyChanged(nameof(CompareSelectionText));
             OnPropertyChanged(nameof(IsCompareAvailable));
         }
