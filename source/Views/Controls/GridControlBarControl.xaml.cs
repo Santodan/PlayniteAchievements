@@ -133,14 +133,29 @@ namespace PlayniteAchievements.Views.Controls
                     Header = filter.GetDisplayLabel(value),
                     IsCheckable = true,
                     StaysOpenOnClick = true,
-                    IsChecked = filter.IsSelected(value)
+                    IsChecked = filter.IsSelected(value),
+                    Tag = value
                 };
                 if (itemStyle != null)
                 {
                     item.Style = itemStyle;
                 }
 
-                item.Click += (_, __) => filter.SetSelected(value, item.IsChecked);
+                item.Click += (_, __) =>
+                {
+                    filter.SetSelected(value, item.IsChecked);
+
+                    // Re-sync every sibling checkmark from the filter while the menu stays
+                    // open: single-select-style filters (e.g. Compare) uncheck the previous
+                    // option when a new one is selected. No-op for plain multi-selects.
+                    foreach (var sibling in menu.Items.OfType<MenuItem>())
+                    {
+                        if (sibling.Tag is string optionValue)
+                        {
+                            sibling.IsChecked = filter.IsSelected(optionValue);
+                        }
+                    }
+                };
                 menu.Items.Add(item);
             }
 
