@@ -278,6 +278,29 @@ namespace PlayniteAchievements.ViewModels
             }
         }
 
+        // Reset only the unlocked/locked/hidden toggles to "show everything". Leaves search
+        // text and category selections untouched (used when a selection change invalidates
+        // the unlock-state toggles but the remaining filters still apply).
+        public void ResetVisibilityToggles(bool raiseChanged = false)
+        {
+            if (_showUnlocked && _showLocked && _showHidden)
+            {
+                return;
+            }
+
+            _showUnlocked = true;
+            _showLocked = true;
+            _showHidden = true;
+
+            OnPropertyChanged(nameof(ShowUnlocked));
+            OnPropertyChanged(nameof(ShowLocked));
+            OnPropertyChanged(nameof(ShowHidden));
+            if (raiseChanged)
+            {
+                RaiseFilterChanged();
+            }
+        }
+
         // Reset visibility toggles and category selections to "show everything". Leaves the
         // search text untouched (callers that share a search box reset it explicitly).
         public void ResetFilters(bool raiseChanged = false)
