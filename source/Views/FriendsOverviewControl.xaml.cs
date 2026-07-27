@@ -228,6 +228,32 @@ namespace PlayniteAchievements.Views
                 selectedKey => _viewModel.SelectedRefreshMode = selectedKey);
         }
 
+        private void CompareSelectionButton_Click(object sender, RoutedEventArgs e)
+        {
+            if (_viewModel == null)
+            {
+                return;
+            }
+
+            var options = new List<CompareMenuOption>
+            {
+                new CompareMenuOption
+                {
+                    Label = GetText("LOCPlayAch_Common_None", "None"),
+                    IsChecked = !_viewModel.HasCompareSelection,
+                    OnSelected = () => _viewModel.SetCompareFriend(null)
+                }
+            };
+            options.AddRange(_viewModel.GetCompareFriendOptions().Select(friend => new CompareMenuOption
+            {
+                Label = friend.DisplayName,
+                IsChecked = _viewModel.IsCompareFriend(friend),
+                OnSelected = () => _viewModel.SetCompareFriend(friend)
+            }));
+
+            CompareFriendMenuHelper.Open(CompareSelectionButton, options);
+        }
+
         private static void OpenSingleSelectRefreshModeContextMenu(
             Button button,
             IEnumerable<RefreshMode> modes,
