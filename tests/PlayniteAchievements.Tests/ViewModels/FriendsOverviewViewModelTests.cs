@@ -1799,6 +1799,9 @@ namespace PlayniteAchievements.Tests.ViewModels
             public FriendsOverviewData LoadFriendGameAchievementData(Guid playniteGameId) =>
                 Data;
 
+            public IReadOnlyCollection<Guid> LoadFriendDataPlayniteGameIds() =>
+                Array.Empty<Guid>();
+
             public int PairAchievementLoadCalls { get; private set; }
 
             // When set, blocks the on-demand pair load until released so tests can observe

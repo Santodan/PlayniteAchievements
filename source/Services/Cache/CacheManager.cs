@@ -99,6 +99,9 @@ namespace PlayniteAchievements.Services.Cache
         // drained on every flush so scope travels with the event, not the batch lifetime.
         private readonly FriendCacheInvalidationScopeAccumulator _friendCacheInvalidationScope =
             new FriendCacheInvalidationScopeAccumulator();
+        private readonly object _friendDataGameIdIndexSync = new object();
+        private IReadOnlyCollection<Guid> _friendDataPlayniteGameIds;
+        private int _friendDataGameIdIndexVersion;
 
         // Bumped under _sync on every in-memory mutation. LoadAllGameDataFast reads the
         // whole-library snapshot off _sync, so it uses this to detect writes that landed during
@@ -276,6 +279,12 @@ namespace PlayniteAchievements.Services.Cache
         private void RaiseFriendCacheInvalidatedEvent(FriendCacheInvalidatedEventArgs args)
         {
             args = args ?? FriendCacheInvalidatedEventArgs.FullInvalidation;
+            lock (_sync)
+            {
+                _friendDataPlayniteGameIds = null;
+                _friendDataGameIdIndexVersion++;
+            }
+
             _logger?.Debug(
                 $"[RefreshPerf] kind=friends phase=invalidation.raise full={args.IsFull} changes={args.Changes.Count}");
             try { FriendCacheInvalidated?.Invoke(this, args); }
@@ -1317,6 +1326,51 @@ namespace PlayniteAchievements.Services.Cache
             EnsureReadyForRead("LoadFriendGameAchievementData");
             return _store.LoadFriendGameAchievementData(playniteGameId) ??
                    new FriendsOverviewData();
+        }
+
+        IReadOnlyCollection<Guid> IFriendCacheManager.LoadFriendDataPlayniteGameIds()
+        {
+            EnsureReadyForRead("LoadFriendDataPlayniteGameIds");
+            lock (_sync)
+            {
+                if (_friendDataPlayniteGameIds != null)
+                {
+                    return _friendDataPlayniteGameIds;
+                }
+            }
+
+            // Multiple compare surfaces can select a game during the same layout pass. Coalesce
+            // their cold-start reads while keeping the database call off the general cache lock.
+            lock (_friendDataGameIdIndexSync)
+            {
+                while (true)
+                {
+                    int version;
+                    lock (_sync)
+                    {
+                        if (_friendDataPlayniteGameIds != null)
+                        {
+                            return _friendDataPlayniteGameIds;
+                        }
+
+                        version = _friendDataGameIdIndexVersion;
+                    }
+
+                    var loaded = _store.LoadFriendDataPlayniteGameIds() ?? Array.Empty<Guid>();
+                    lock (_sync)
+                    {
+                        // A write landed during the query, so retry rather than publishing or
+                        // returning a stale availability answer to the active compare surface.
+                        if (version != _friendDataGameIdIndexVersion)
+                        {
+                            continue;
+                        }
+
+                        _friendDataPlayniteGameIds = loaded;
+                        return _friendDataPlayniteGameIds;
+                    }
+                }
+            }
         }
 
         FriendsOverviewData IFriendCacheManager.LoadFriendGameAchievementData(FriendCacheChange gameScope)

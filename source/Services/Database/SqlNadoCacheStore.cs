@@ -100,6 +100,11 @@ namespace PlayniteAchievements.Services.Database
             public string CacheKey { get; set; }
         }
 
+        private sealed class FriendDataGameIdRow
+        {
+            public string PlayniteGameId { get; set; }
+        }
+
         private sealed class ProgressGameJoinRow
         {
             public long UserGameProgressId { get; set; }
@@ -2792,6 +2797,43 @@ namespace PlayniteAchievements.Services.Database
                 using (PerfScope.Start(_logger, "Friends.ApplySummaryScores", thresholdMs: 15))
                 FriendsOverviewDerivations.Apply(data, recentLimit);
                 return data;
+            });
+        }
+
+        /// <summary>
+        /// Distinct PlayniteGameIds any active friend has cached progress for. Cheap availability
+        /// index for the compare-friend dropdown: membership means the per-game friend row load
+        /// will yield at least one friend, so the dropdown can show without waiting on that load.
+        /// </summary>
+        public IReadOnlyCollection<Guid> LoadFriendDataPlayniteGameIds()
+        {
+            return WithReadDb(db =>
+            {
+                var result = new HashSet<Guid>();
+                var rows = db.Load<FriendDataGameIdRow>(
+                    @"SELECT DISTINCT g.PlayniteGameId AS PlayniteGameId
+                      FROM Users u
+                      INNER JOIN UserGameProgress ugp ON ugp.UserId = u.Id
+                      INNER JOIN Games g ON g.Id = ugp.GameId
+                      INNER JOIN FriendOwnership fo ON fo.UserId = u.Id AND fo.GameId = g.Id
+                      WHERE " + ActiveFriendPredicateSql + @"
+                        AND g.PlayniteGameId IS NOT NULL
+                        AND TRIM(g.PlayniteGameId) <> ''
+                        AND EXISTS (
+                            SELECT 1
+                            FROM AchievementDefinitions ad
+                            WHERE ad.GameId = g.Id
+                        );");
+                foreach (var row in rows)
+                {
+                    var gameId = ParseGuid(row?.PlayniteGameId);
+                    if (gameId.HasValue)
+                    {
+                        result.Add(gameId.Value);
+                    }
+                }
+
+                return (IReadOnlyCollection<Guid>)result;
             });
         }
 
