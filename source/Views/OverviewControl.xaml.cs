@@ -120,7 +120,8 @@ namespace PlayniteAchievements.Views
                 api,
                 logger,
                 settings,
-                launchContext);
+                launchContext,
+                _friendCache);
             DataContext = _viewModel;
             _viewModel.PropertyChanged += ViewModel_PropertyChanged;
             _viewModel.SetActive(false);
@@ -527,6 +528,33 @@ namespace PlayniteAchievements.Views
         {
             _viewModel?.ClearGameSelection();
             _lastSelectedOverviewGameId = null;
+        }
+
+        private void CompareSelectionButton_Click(object sender, RoutedEventArgs e)
+        {
+            var compare = _viewModel?.FriendCompare;
+            if (compare == null)
+            {
+                return;
+            }
+
+            var options = new List<CompareMenuOption>
+            {
+                new CompareMenuOption
+                {
+                    Label = ResourceProvider.GetString("LOCPlayAch_Common_None"),
+                    IsChecked = !compare.HasCompareSelection,
+                    OnSelected = () => compare.Select(null)
+                }
+            };
+            options.AddRange(compare.Options.Select(option => new CompareMenuOption
+            {
+                Label = option.DisplayName,
+                IsChecked = compare.IsSelected(option),
+                OnSelected = () => compare.Select(option)
+            }));
+
+            CompareFriendMenuHelper.Open(CompareSelectionButton, options);
         }
 
         private void GameNameBreadcrumb_Click(object sender, MouseButtonEventArgs e)
