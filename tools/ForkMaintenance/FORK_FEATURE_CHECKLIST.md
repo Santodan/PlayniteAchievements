@@ -74,6 +74,9 @@ Primary fork areas:
 - Automatic migration handles first-time themes and upgraded themes.
 - The non-scrollable legacy option, scrollable option, revert, and StartPage
   compatibility apply/revert actions work.
+- The StartPage add-on's Recent Achievements widget sorts achievements globally
+  by unlock time while still respecting both its total maximum and its
+  maximum-per-game setting.
 
 Primary fork areas:
 

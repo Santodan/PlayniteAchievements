@@ -129,35 +129,9 @@ WHERE ProviderKey = 'Local'
 
                     long gameIdRows = db.ExecuteScalar<long>("SELECT changes();");
 
-                    // Fix 2: Backfill UnlockTimeUtc for Local unlocked achievements where it is
-                    // NULL. The upstream StartPage sorts by UnlockTimeUtc DESC, so NULL values
-                    // always sink to the bottom and never appear in the limited result window.
-                    // Using ugp.LastUpdatedUtc as a proxy for when the achievements were recorded.
-                    db.ExecuteNonQuery(@"
-UPDATE UserAchievements
-SET UnlockTimeUtc = (
-    SELECT ugp.LastUpdatedUtc
-    FROM UserGameProgress ugp
-    JOIN Games g ON g.Id = ugp.GameId
-    WHERE ugp.Id = UserAchievements.UserGameProgressId
-      AND g.ProviderKey = 'Local'
-      AND ugp.LastUpdatedUtc IS NOT NULL
-      AND ugp.LastUpdatedUtc != ''
-    LIMIT 1
-)
-WHERE Unlocked = 1
-  AND (UnlockTimeUtc IS NULL OR trim(UnlockTimeUtc) = '')
-  AND EXISTS (
-      SELECT 1
-      FROM UserGameProgress ugp
-      JOIN Games g ON g.Id = ugp.GameId
-      WHERE ugp.Id = UserAchievements.UserGameProgressId
-        AND g.ProviderKey = 'Local'
-  );");
-
-                    long timestampRows = db.ExecuteScalar<long>("SELECT changes();");
-
-                    updatedRows = gameIdRows + timestampRows;
+                    // Never infer an achievement's unlock time from the game's cache update
+                    // time. A library import or provider refresh is not an achievement unlock.
+                    updatedRows = gameIdRows;
 
                     alreadyCompatibleRows = db.ExecuteScalar<long>(@"
 SELECT COUNT(1)
@@ -167,7 +141,7 @@ WHERE g.ProviderKey = 'Local'
                 }
 
                 var message = updatedRows > 0
-                    ? $"StartPage compatibility applied. Fixed {updatedRows} row(s) in the achievements cache (missing game IDs and/or unlock timestamps for Local provider)."
+                    ? $"StartPage compatibility applied. Fixed {updatedRows} Local provider game ID row(s) in the achievements cache."
                     : "StartPage compatibility is already up to date. No Local cache rows needed changes.";
 
                 if (dllStaged)

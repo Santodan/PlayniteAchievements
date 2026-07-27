@@ -100,6 +100,7 @@ The entries below are fork-side changes, grouped by date. When a date includes a
 ## Next release - TBD
 
 - v3.0.0 merge
+- `Start-page` migration fixed to not show the friend's achievements
 
 ## 2026-07-27 - v2.5.3.4
 

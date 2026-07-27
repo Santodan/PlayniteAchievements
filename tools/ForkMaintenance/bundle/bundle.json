@@ -1,6 +1,6 @@
 {
     "schemaVersion":  1,
-    "generatedUtc":  "2026-07-27T13:44:51.2822310Z",
+    "generatedUtc":  "2026-07-27T15:15:35.7734262Z",
     "baselineRef":  "upstream/main",
     "baselineCommit":  "21f3b22393c99a80aee0f49b9bdca1aa80686f23",
     "protectedPaths":  [
@@ -220,7 +220,7 @@
                          },
                          {
                              "path":  "source/Resources/StartPage/StartPagePlugin.dll",
-                             "sha256":  "1FE92142644F083FD4A7BB147D462B1A03B5D5934BEA40C5A447A5C3218B0127"
+                             "sha256":  "1F756C6D59E12029B329AF90651E927449FBEA3FEC37E7F350C607F97AB2340F"
                          },
                          {
                              "path":  "source/Services/Exophase/ExophaseGameAchievementMonitor.cs",
@@ -256,7 +256,7 @@
                          },
                          {
                              "path":  "source/Services/ThemeMigration/StartPageCompatibilityService.cs",
-                             "sha256":  "689CA8A5C9C6476E55724E8D8C89A8458850027F444FBAAC11AD01AE03E84B81"
+                             "sha256":  "9AB2F4E9EFF26776497DDD753ACEB792B2F14F251843B1D52D870CC2DBC7D3C5"
                          },
                          {
                              "path":  "source/ViewModels/GameOptionsCustomSchemaTab.cs",
@@ -541,6 +541,14 @@
                          {
                              "path":  "tools/SAN-source/sound/notify.wav",
                              "sha256":  "50080D415816437B19570E7591BC1AA27862A2B396154E643658B34BE35A81C9"
+                         },
+                         {
+                             "path":  "tools/StartPageCompatibility/Patch-GlobalRecentAchievements.ps1",
+                             "sha256":  "412148CF8C6A6A89C28708D9F934D80DAD39E451FCB67824D67A1EF3CE2FB0FB"
+                         },
+                         {
+                             "path":  "tools/StartPageCompatibility/README.md",
+                             "sha256":  "A9E82A709779B0DE03974BA830BDBCB60EE4DE5EA578F4AF6E83D5D97989577B"
                          }
                      ]
 }
