@@ -462,6 +462,62 @@ namespace PlayniteAchievements.Tests.ViewModels
         }
 
         [TestMethod]
+        public void UnlockStateTogglesAvailableImmediatelyWhilePairFetchInFlight()
+        {
+            var data = CreateData();
+            var locked = CreateAchievement(
+                "Steam",
+                "alice",
+                "Alice",
+                "https://cdn.example/alice.png",
+                10,
+                data.Games[0].PlayniteGameId.Value,
+                "Game One",
+                "Alice Locked",
+                "Story",
+                "Main",
+                new DateTime(2026, 1, 1, 0, 0, 0, DateTimeKind.Utc));
+            locked.Unlocked = false;
+            locked.UnlockTimeUtc = null;
+            data.AllAchievements = data.AllUnlockedAchievements.ToList();
+            using (var gate = new ManualResetEventSlim(false))
+            {
+                var cache = new StubFriendCache(data)
+                {
+                    PairAchievements = data.AllUnlockedAchievements.Concat(new[] { locked }).ToList(),
+                    PairLoadGate = gate
+                };
+
+                var viewModel = CreateViewModel(cache);
+                viewModel.LoadAsync().GetAwaiter().GetResult();
+
+                var toggles = viewModel.AchievementsControlBar.Items.OfType<GridToggleFilter>().ToList();
+                Assert.AreEqual(3, toggles.Count);
+                Assert.IsFalse(toggles.Any(toggle => toggle.EffectiveIsVisible));
+
+                // Pair selection: the row fetch is gated (still in flight), so availability must
+                // come from the friend-scoped game summary counts (1 of 4 unlocked) instead of
+                // lagging behind the rest of the control bar until the rows land.
+                viewModel.SelectedFriend = data.Friends[0];
+                viewModel.SelectedGame = data.Games[0];
+                Assert.IsTrue(toggles.All(toggle => toggle.EffectiveIsVisible));
+
+                gate.Set();
+                viewModel.PairAchievementsFetchTask?.GetAwaiter().GetResult();
+
+                // The exact row-based pass settles availability: unlocked and locked rows both
+                // exist, but this pair has no hidden-locked row, so the optimistic Hidden
+                // estimate resolves to hidden.
+                Assert.IsTrue(toggles
+                    .Where(toggle => toggle.Icon != GridToggleFilterIcon.Hidden)
+                    .All(toggle => toggle.EffectiveIsVisible));
+                Assert.IsFalse(toggles
+                    .Single(toggle => toggle.Icon == GridToggleFilterIcon.Hidden)
+                    .EffectiveIsVisible);
+            }
+        }
+
+        [TestMethod]
         public void UnlockStateTogglesResetWhenLeavingPairState()
         {
             var data = CreateData();
@@ -1745,10 +1801,15 @@ namespace PlayniteAchievements.Tests.ViewModels
 
             public int PairAchievementLoadCalls { get; private set; }
 
+            // When set, blocks the on-demand pair load until released so tests can observe
+            // the in-flight (summary-estimated) state deterministically.
+            public ManualResetEventSlim PairLoadGate { get; set; }
+
             // On-demand pair rows (locked included): serves the game-scoped subset of
             // PairAchievements when set, else of Data.AllAchievements.
             public FriendsOverviewData LoadFriendGameAchievementData(FriendCacheChange gameScope)
             {
+                PairLoadGate?.Wait(TimeSpan.FromSeconds(5));
                 PairAchievementLoadCalls++;
                 var source = PairAchievements ?? Data?.AllAchievements ?? new List<FriendAchievementDisplayItem>();
                 var rows = source
