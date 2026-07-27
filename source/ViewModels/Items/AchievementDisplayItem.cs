@@ -106,6 +106,122 @@ namespace PlayniteAchievements.ViewModels.Items
             set => SetValue(ref _friendAvatarPath, value);
         }
 
+        // --- Friend comparison (session-only; set by the hosting view model when a
+        //     compare friend is selected, cleared when the selection changes) ---
+
+        private bool _hasComparison;
+        private string _comparisonFriendName;
+        private string _comparisonFriendAvatarPath;
+        private DateTime? _comparisonUnlockTimeUtc;
+        private bool _comparisonUnlocked;
+
+        [DontSerialize]
+        [IgnoreDataMember]
+        public bool HasComparison
+        {
+            get => _hasComparison;
+            private set => SetValue(ref _hasComparison, value);
+        }
+
+        [DontSerialize]
+        [IgnoreDataMember]
+        public string ComparisonFriendName
+        {
+            get => _comparisonFriendName;
+            private set
+            {
+                if (SetValueAndReturn(ref _comparisonFriendName, value))
+                {
+                    OnPropertyChanged(nameof(ComparisonToolTip));
+                }
+            }
+        }
+
+        [DontSerialize]
+        [IgnoreDataMember]
+        public string ComparisonFriendAvatarPath
+        {
+            get => _comparisonFriendAvatarPath;
+            private set => SetValue(ref _comparisonFriendAvatarPath, value);
+        }
+
+        [DontSerialize]
+        [IgnoreDataMember]
+        public DateTime? ComparisonUnlockTimeUtc
+        {
+            get => _comparisonUnlockTimeUtc;
+            private set
+            {
+                if (SetValueAndReturn(ref _comparisonUnlockTimeUtc, value))
+                {
+                    OnPropertyChanged(nameof(ComparisonUnlockTimeLocal));
+                    OnPropertyChanged(nameof(ComparisonToolTip));
+                }
+            }
+        }
+
+        [DontSerialize]
+        [IgnoreDataMember]
+        public bool ComparisonUnlocked
+        {
+            get => _comparisonUnlocked;
+            private set
+            {
+                if (SetValueAndReturn(ref _comparisonUnlocked, value))
+                {
+                    OnPropertyChanged(nameof(ComparisonToolTip));
+                }
+            }
+        }
+
+        [DontSerialize]
+        [IgnoreDataMember]
+        public DateTime? ComparisonUnlockTimeLocal =>
+            _comparisonUnlockTimeUtc.HasValue
+                ? DateTimeUtilities.AsLocalFromUtc(_comparisonUnlockTimeUtc.Value)
+                : (DateTime?)null;
+
+        [DontSerialize]
+        [IgnoreDataMember]
+        public string ComparisonToolTip
+        {
+            get
+            {
+                if (!_hasComparison || string.IsNullOrWhiteSpace(_comparisonFriendName))
+                {
+                    return null;
+                }
+
+                if (!_comparisonUnlocked)
+                {
+                    return $"{_comparisonFriendName} · {ResourceProvider.GetString("LOCPlayAch_Common_Locked")}";
+                }
+
+                var local = ComparisonUnlockTimeLocal;
+                return local.HasValue
+                    ? $"{_comparisonFriendName} · {local.Value.ToString("G", FormattingCulture.Current)}"
+                    : _comparisonFriendName;
+            }
+        }
+
+        public void ApplyComparison(string friendName, string friendAvatarPath, DateTime? unlockTimeUtc, bool unlocked)
+        {
+            ComparisonFriendName = friendName;
+            ComparisonFriendAvatarPath = friendAvatarPath;
+            ComparisonUnlockTimeUtc = unlockTimeUtc;
+            ComparisonUnlocked = unlocked;
+            HasComparison = true;
+        }
+
+        public void ClearComparison()
+        {
+            HasComparison = false;
+            ComparisonFriendName = null;
+            ComparisonFriendAvatarPath = null;
+            ComparisonUnlockTimeUtc = null;
+            ComparisonUnlocked = false;
+        }
+
         public string DisplayName
         {
             get => _source?.DisplayName;
