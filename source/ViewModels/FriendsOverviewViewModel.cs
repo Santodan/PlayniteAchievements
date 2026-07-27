@@ -2365,25 +2365,42 @@ namespace PlayniteAchievements.ViewModels
             GameSummariesControlBar?.Refresh();
         }
 
-        // Unlocked/locked/hidden toggle availability reflects the friend+game pair rows (the only
-        // source carrying locked rows). Outside the pair state the flags go false so the toggles
-        // auto-hide via GridToggleFilter.HasAvailableAction, and the toggle values reset to
-        // "show everything" so stale filtering never silently carries into a later selection.
-        // Runs from ApplyFilters after the achievement source pick, so unlike
-        // UpdateScopedFilterOptions it sees the on-demand pair rows rather than the
-        // unlocked-only snapshot list.
+        // Unlocked/locked/hidden toggle availability for the friend+game pair state: exact from
+        // the loaded pair rows, estimated from the friend-scoped game summary counts while the
+        // on-demand row fetch is in flight so the buttons never lag the rest of the control bar.
+        // Outside the pair state the flags go false so the toggles auto-hide via
+        // GridToggleFilter.HasAvailableAction, and the toggle values reset to "show everything"
+        // so stale filtering never silently carries into a later selection.
         private void UpdateUnlockStateToggleAvailability(IReadOnlyList<FriendAchievementDisplayItem> achievementSource)
         {
             if (HasFriendGameSelection)
             {
-                var pairRows = (achievementSource ?? Array.Empty<FriendAchievementDisplayItem>())
-                    .Where(achievement => MatchesProvider(achievement?.ProviderKey))
-                    .Where(achievement => IsSameFriend(achievement, SelectedFriend))
-                    .Where(achievement => IsSameGame(achievement, SelectedGame))
-                    .ToList();
-                _hasPairUnlocked = pairRows.Any(achievement => achievement.Unlocked);
-                _hasPairLocked = pairRows.Any(achievement => !achievement.Unlocked);
-                _hasPairHiddenLocked = pairRows.Any(achievement => achievement.Hidden && !achievement.Unlocked);
+                if (ReferenceEquals(achievementSource, _pairGameAchievements))
+                {
+                    var pairRows = achievementSource
+                        .Where(achievement => MatchesProvider(achievement?.ProviderKey))
+                        .Where(achievement => IsSameFriend(achievement, SelectedFriend))
+                        .Where(achievement => IsSameGame(achievement, SelectedGame))
+                        .ToList();
+                    _hasPairUnlocked = pairRows.Any(achievement => achievement.Unlocked);
+                    _hasPairLocked = pairRows.Any(achievement => !achievement.Unlocked);
+                    _hasPairHiddenLocked = pairRows.Any(achievement => achievement.Hidden && !achievement.Unlocked);
+                }
+                else
+                {
+                    // The on-demand pair row load has not landed yet (or loaded empty), so the
+                    // toggles must not wait on it: the friend-scoped game summary already carries
+                    // the exact unlocked/total counts, making the buttons available together with
+                    // the rest of the control bar. Hidden-locked existence is only knowable from
+                    // rows, so it is assumed alongside locked rows and settled by the exact pass
+                    // when the fetch completes.
+                    var summary = GetSelectedFriendGameForHeader();
+                    var unlocked = summary?.UnlockedAchievements ?? 0;
+                    var total = summary?.TotalAchievements ?? 0;
+                    _hasPairUnlocked = unlocked > 0;
+                    _hasPairLocked = total > unlocked;
+                    _hasPairHiddenLocked = _hasPairLocked;
+                }
             }
             else
             {
