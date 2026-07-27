@@ -993,11 +993,18 @@ namespace PlayniteAchievements.Views.Controls
 
             if (!ReferenceEquals(_controlBarWithToggle, ControlBar))
             {
-                // The last multi-select filter is the category-label dropdown (Type is added first);
-                // it becomes the right half of the segmented unit in flat mode.
+                // The category-label dropdown is the last multi-select filter BEFORE the
+                // unlock-state toggles (Type is added first; dropdowns after the toggles,
+                // like Compare, are unrelated). It becomes the right half of the segmented
+                // unit in flat mode.
                 GridMultiSelectFilter labelFilter = null;
                 for (var i = 0; i < ControlBar.Items.Count; i++)
                 {
+                    if (ControlBar.Items[i] is GridToggleFilter)
+                    {
+                        break;
+                    }
+
                     if (ControlBar.Items[i] is GridMultiSelectFilter filter)
                     {
                         labelFilter = filter;
@@ -1073,9 +1080,17 @@ namespace PlayniteAchievements.Views.Controls
 
             if (!bar.Items.Contains(_modeToggle))
             {
+                // Splice the toggle immediately before the category-label dropdown: the last
+                // multi-select filter before the unlock-state toggles (dropdowns after the
+                // toggles, like Compare, must not attract the segmented unit).
                 var insertIndex = bar.Items.Count;
                 for (var i = 0; i < bar.Items.Count; i++)
                 {
+                    if (bar.Items[i] is GridToggleFilter)
+                    {
+                        break;
+                    }
+
                     if (bar.Items[i] is GridMultiSelectFilter)
                     {
                         insertIndex = i;

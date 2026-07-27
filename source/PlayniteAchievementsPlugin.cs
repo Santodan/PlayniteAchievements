@@ -141,6 +141,7 @@ namespace PlayniteAchievements
         public ThemeIntegrationService ThemeUpdateService => _themeIntegrationService;
         public TagSyncService TagSyncService => _tagSyncService;
         internal RefreshEntryPoint RefreshEntryPoint => _refreshCoordinator;
+        internal Services.Friends.IFriendCacheManager FriendCacheManager => _friendCacheManager;
         public static PlayniteAchievementsPlugin Instance { get; private set; }
 
         /// <summary>

@@ -113,10 +113,17 @@ namespace PlayniteAchievements.Views.ThemeIntegration.Modern
 
         public bool HasSummaryItem => (bool)GetValue(HasSummaryItemProperty);
 
+        private readonly FriendCompareController _friendCompare;
+
         public AchievementDataGridControl()
         {
             _controlBarAdapter = new AchievementGridControlBarAdapter();
             _controlBarAdapter.FilterChanged += (_, __) => LoadData(forceReload: true);
+            _friendCompare = new FriendCompareController(
+                PlayniteAchievementsPlugin.Instance?.FriendCacheManager,
+                PlayniteAchievementsPlugin.Instance?.Settings,
+                Logger);
+            _controlBarAdapter.AttachFriendCompare(_friendCompare);
             SetValue(SummaryItemsPropertyKey, new ObservableCollection<GameSummaryItem>());
             InitializeComponent();
             Loaded += OnLoaded;
@@ -350,6 +357,11 @@ namespace PlayniteAchievements.Views.ThemeIntegration.Modern
                     (target, source) => target.UpdateFrom(source));
             }
 
+            // Retarget the comparison AFTER the display sync: the collection reuses row
+            // instances by position, so each instance may now represent a different
+            // achievement and its comparison fields must be re-resolved.
+            _friendCompare.SetGame(theme?.SelectedGameId, DisplayItems.ToList());
+
             if (useSourceOrder)
             {
                 AchievementsGrid?.SetSortIndicator(null, null);
@@ -520,6 +532,7 @@ namespace PlayniteAchievements.Views.ThemeIntegration.Modern
 
             // Synchronize in place to trigger efficient UI updates
             CollectionHelper.SynchronizeCollection(DisplayItems, displayItems);
+            _friendCompare.SetTargetItems(DisplayItems.ToList());
             ApplyCurrentSortIndicator(EffectiveTheme);
         }
 
@@ -558,6 +571,7 @@ namespace PlayniteAchievements.Views.ThemeIntegration.Modern
             }
 
             _controlBarAdapter.Clear();
+            _friendCompare.SetGame(null, null);
             if (AchievementsGrid != null)
             {
                 AchievementsGrid.CategorySummarySource = null;

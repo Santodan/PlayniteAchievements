@@ -3659,6 +3659,11 @@ namespace PlayniteAchievements.ViewModels
         /// </summary>
         private async Task LoadSelectedGameAchievementsAndNotifyAsync(Guid? targetGameId, CancellationToken cancellationToken)
         {
+            // Kick the compare-friend rows load immediately so the control bar's Compare
+            // dropdown is available together with the rest of the bar instead of trailing
+            // the achievements load; the loaded items are retargeted onto it below.
+            FriendCompare?.SetGame(targetGameId, null);
+
             var loadApplied = await LoadSelectedGameAchievementsAsync(targetGameId, cancellationToken).ConfigureAwait(true);
             if (cancellationToken.IsCancellationRequested)
             {
@@ -3713,7 +3718,6 @@ namespace PlayniteAchievements.ViewModels
                 _allSelectedGameAchievements = new List<AchievementDisplayItem>();
                 _selectedGameDefaultOrderedAchievements = new List<AchievementDisplayItem>();
                 _filteredSelectedGameAchievements = new List<AchievementDisplayItem>();
-                FriendCompare?.SetGame(null, null);
                 UpdateSelectedGameAchievementFilterOptions(null);
                 SelectedGameHasCustomAchievementOrder = false;
                 SyncSelectedGameAchievementsDisplay();
@@ -3749,7 +3753,7 @@ namespace PlayniteAchievements.ViewModels
 
                 _allSelectedGameAchievements = items;
                 _selectedGameDefaultOrderedAchievements = new List<AchievementDisplayItem>(items);
-                FriendCompare?.SetGame(gameId, items);
+                FriendCompare?.SetTargetItems(items);
                 UpdateSelectedGameAchievementFilterOptions(_allSelectedGameAchievements);
                 ApplyRightFilters();
 
