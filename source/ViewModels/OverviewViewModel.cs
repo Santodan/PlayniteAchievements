@@ -124,6 +124,7 @@ namespace PlayniteAchievements.ViewModels
             IFriendCacheManager friendCache = null)
         {
             FriendCompare = new FriendCompareController(friendCache, settings, logger);
+            _selectedGameControlBar.AttachFriendCompare(FriendCompare);
             _refreshService = refreshRuntime ?? throw new ArgumentNullException(nameof(refreshRuntime));
             _persistSettingsForUi = persistSettingsForUi ?? throw new ArgumentNullException(nameof(persistSettingsForUi));
             _achievementDataService = achievementDataService ?? throw new ArgumentNullException(nameof(achievementDataService));
