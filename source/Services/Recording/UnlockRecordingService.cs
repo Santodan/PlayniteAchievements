@@ -8,6 +8,7 @@ using System.Threading;
 using System.Threading.Tasks;
 using Playnite.SDK;
 using PlayniteAchievements.Models;
+using PlayniteAchievements.Models.Achievements;
 using PlayniteAchievements.Models.Settings;
 using PlayniteAchievements.Services.UI;
 
@@ -742,6 +743,17 @@ namespace PlayniteAchievements.Services.Recording
 
             if (_isProviderRecordingEnabled?.Invoke(e.ProviderKey) == false)
             {
+                return;
+            }
+
+            var persisted = _settings.Persisted;
+            if (!UnlockCaptureRarityFilter.ShouldCapture(
+                    e,
+                    persisted.UnlockRecordingMinimumRarity,
+                    persisted.UnlockRecordingAlwaysCaptureCompletion))
+            {
+                _logger?.Debug(
+                    $"[Recording] Unlock '{e.DisplayName}' is below the minimum recording rarity; no clip.");
                 return;
             }
 

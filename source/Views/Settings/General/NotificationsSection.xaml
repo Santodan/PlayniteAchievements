@@ -4,6 +4,7 @@
              xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
              xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
              xmlns:settings="clr-namespace:PlayniteAchievements.Models.Settings"
+             xmlns:ach="clr-namespace:PlayniteAchievements.Models.Achievements"
              xmlns:helpers="clr-namespace:PlayniteAchievements.Views.Helpers"
              xmlns:vm="clr-namespace:PlayniteAchievements.ViewModels"
              mc:Ignorable="d"
@@ -150,6 +151,30 @@
                                           IsChecked="{Binding Persisted.UnlockScreenshotFramed}"
                                           Margin="0,0,14,8"/>
                             </WrapPanel>
+
+                            <Grid Margin="0,0,0,8">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*"/>
+                                    <ColumnDefinition Width="Auto"/>
+                                </Grid.ColumnDefinitions>
+                                <TextBlock Grid.Column="0"
+                                           Text="{DynamicResource LOCPlayAch_Settings_CaptureMinimumRarity}"
+                                           Foreground="{DynamicResource PlayAch.Brush.Text}"
+                                           VerticalAlignment="Center"
+                                           Margin="0,0,8,0"/>
+                                <ComboBox Grid.Column="1"
+                                          SelectedValue="{Binding Persisted.UnlockScreenshotMinimumRarity, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                          SelectedValuePath="Tag"
+                                          MinWidth="140">
+                                    <ComboBoxItem Content="{DynamicResource LOCPlayAch_Common_All}" Tag="{x:Static ach:RarityTier.Common}"/>
+                                    <ComboBoxItem Content="{DynamicResource LOCPlayAch_Rarity_Uncommon}" Tag="{x:Static ach:RarityTier.Uncommon}"/>
+                                    <ComboBoxItem Content="{DynamicResource LOCPlayAch_Rarity_Rare}" Tag="{x:Static ach:RarityTier.Rare}"/>
+                                    <ComboBoxItem Content="{DynamicResource LOCPlayAch_Rarity_UltraRare}" Tag="{x:Static ach:RarityTier.UltraRare}"/>
+                                </ComboBox>
+                            </Grid>
+                            <CheckBox Content="{DynamicResource LOCPlayAch_Settings_AlwaysCaptureCompletion}"
+                                      IsChecked="{Binding Persisted.UnlockScreenshotAlwaysCaptureCompletion}"
+                                      Margin="0,0,0,10"/>
 
                             <TextBlock Text="{DynamicResource LOCPlayAch_Settings_ScreenshotSuffixes}"
                                        Foreground="{DynamicResource PlayAch.Brush.Text}"
@@ -299,6 +324,7 @@
                                     <RowDefinition Height="Auto"/>
                                     <RowDefinition Height="Auto"/>
                                     <RowDefinition Height="Auto"/>
+                                    <RowDefinition Height="Auto"/>
                                 </Grid.RowDefinitions>
 
                                 <TextBlock Grid.Row="0" Grid.Column="0"
@@ -359,17 +385,36 @@
                                            Text="{DynamicResource LOCPlayAch_Settings_RecordingCaptureBackend}"
                                            Foreground="{DynamicResource PlayAch.Brush.Text}"
                                            VerticalAlignment="Center"
-                                           Margin="0,0,8,0"/>
+                                           Margin="0,0,8,8"/>
                                 <ComboBox Grid.Row="4" Grid.Column="1"
                                           SelectedValue="{Binding Persisted.RecordingCaptureBackend, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
                                           SelectedValuePath="Tag"
-                                          MinWidth="140">
+                                          MinWidth="140"
+                                          Margin="0,0,0,8">
                                     <ComboBoxItem Content="{DynamicResource LOCPlayAch_Settings_RecordingAuto}" Tag="{x:Static settings:RecordingCaptureBackend.Auto}"/>
                                     <ComboBoxItem Content="GDI (gdigrab)" Tag="{x:Static settings:RecordingCaptureBackend.Gdigrab}"/>
                                     <ComboBoxItem Content="DirectX (ddagrab)" Tag="{x:Static settings:RecordingCaptureBackend.Ddagrab}"/>
                                 </ComboBox>
+
+                                <TextBlock Grid.Row="5" Grid.Column="0"
+                                           Text="{DynamicResource LOCPlayAch_Settings_CaptureMinimumRarity}"
+                                           Foreground="{DynamicResource PlayAch.Brush.Text}"
+                                           VerticalAlignment="Center"
+                                           Margin="0,0,8,0"/>
+                                <ComboBox Grid.Row="5" Grid.Column="1"
+                                          SelectedValue="{Binding Persisted.UnlockRecordingMinimumRarity, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                          SelectedValuePath="Tag"
+                                          MinWidth="140">
+                                    <ComboBoxItem Content="{DynamicResource LOCPlayAch_Common_All}" Tag="{x:Static ach:RarityTier.Common}"/>
+                                    <ComboBoxItem Content="{DynamicResource LOCPlayAch_Rarity_Uncommon}" Tag="{x:Static ach:RarityTier.Uncommon}"/>
+                                    <ComboBoxItem Content="{DynamicResource LOCPlayAch_Rarity_Rare}" Tag="{x:Static ach:RarityTier.Rare}"/>
+                                    <ComboBoxItem Content="{DynamicResource LOCPlayAch_Rarity_UltraRare}" Tag="{x:Static ach:RarityTier.UltraRare}"/>
+                                </ComboBox>
                             </Grid>
 
+                            <CheckBox Content="{DynamicResource LOCPlayAch_Settings_AlwaysCaptureCompletion}"
+                                      IsChecked="{Binding Persisted.UnlockRecordingAlwaysCaptureCompletion}"
+                                      Margin="0,10,0,0"/>
                             <CheckBox Content="{DynamicResource LOCPlayAch_Settings_RecordingIncludeAudio}"
                                       IsChecked="{Binding Persisted.RecordingIncludeAudio}"
                                       Margin="0,10,0,0"/>

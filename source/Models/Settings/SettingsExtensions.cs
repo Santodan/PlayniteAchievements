@@ -119,6 +119,8 @@ namespace PlayniteAchievements.Models.Settings
             target.FrameRarityColoredName = source.FrameRarityColoredName;
             target.FrameShowUnlockTime = source.FrameShowUnlockTime;
             target.UnlockScreenshotDirectory = source.UnlockScreenshotDirectory;
+            target.UnlockScreenshotMinimumRarity = source.UnlockScreenshotMinimumRarity;
+            target.UnlockScreenshotAlwaysCaptureCompletion = source.UnlockScreenshotAlwaysCaptureCompletion;
             target.EnableUnlockRecordings = source.EnableUnlockRecordings;
             target.FfmpegPath = source.FfmpegPath;
             target.UnlockRecordingDirectory = source.UnlockRecordingDirectory;
@@ -128,6 +130,8 @@ namespace PlayniteAchievements.Models.Settings
             target.RecordingEncoder = source.RecordingEncoder;
             target.RecordingCaptureBackend = source.RecordingCaptureBackend;
             target.RecordingIncludeAudio = source.RecordingIncludeAudio;
+            target.UnlockRecordingMinimumRarity = source.UnlockRecordingMinimumRarity;
+            target.UnlockRecordingAlwaysCaptureCompletion = source.UnlockRecordingAlwaysCaptureCompletion;
             target.ProviderNotificationOverrides = source.ProviderNotificationOverrides != null
                 ? source.ProviderNotificationOverrides.ToDictionary(
                     kvp => kvp.Key,
