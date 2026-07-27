@@ -2704,6 +2704,14 @@
                                              LostFocus="ApiVerificationPollingIntervalSecondsTextBox_LostFocus"/>
                                 </Grid>
 
+                                <CheckBox Content="Debug notification overlay logging"
+                                          IsChecked="{Binding EnableOverlayDebugLogging, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                          Margin="0,0,0,4"/>
+                                <TextBlock Text="Writes detailed monitor, DPI, window-position, animation, topmost, and SAN renderer diagnostics to playniteachievements.log."
+                                           Style="{StaticResource MutedTextStyle}"
+                                           Margin="18,0,0,12"
+                                           TextWrapping="Wrap"/>
+
                                 <!-- Notification Options -->
                                 <Border Style="{StaticResource SettingGroupCardStyle}"
                                         IsEnabled="{Binding EnableActiveGameMonitoring}">

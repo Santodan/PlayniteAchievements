@@ -404,6 +404,14 @@ namespace PlayniteAchievements.Services
             _logger?.Info(
                 $"[LocalOverlay] Dispatching unlock popup provider='{providerKey}', mode='{mode}', style='{style}', " +
                 $"transition='{localSettings?.UnlockOverlayTransitionStyle}', sanElement='{localSettings?.OverlayCustomSanElementPresetId ?? string.Empty}'.");
+            if (localSettings?.EnableOverlayDebugLogging == true)
+            {
+                _logger?.Info(
+                    $"[LocalOverlayDebug] Settings position='{localSettings.UnlockOverlayPosition}', " +
+                    $"followActiveMonitor='{localSettings.ShowOverlayOnActiveGameMonitor}', " +
+                    $"customSize='{localSettings.OverlayCustomWidth:0.###}x{localSettings.OverlayCustomHeight:0.###}', " +
+                    $"customOpacity='{localSettings.OverlayCustomOpacity:0.###}'.");
+            }
 
             if (mode == LocalUnlockNotificationDeliveryMode.Overlay || mode == LocalUnlockNotificationDeliveryMode.Hybrid)
             {
@@ -979,6 +987,7 @@ steamImage +
                 var position = localSettings?.UnlockOverlayPosition ?? LocalUnlockOverlayPosition.TopRight;
                 var overlayOpacity = GetOverlayOpacity(localSettings, style);
                 var overlayScale = GetOverlayScale(localSettings, style);
+                var debugLoggingEnabled = localSettings?.EnableOverlayDebugLogging == true;
 
                 RunOnUiThread(() =>
                 {
@@ -1068,11 +1077,12 @@ steamImage +
                         }
 
                         overlayWindow.Content = BuildOverlayContent(title, safeGameName, safeAchievement, achievementIconPath, style, providerKey, localSettings, overlayScale, game, achievementDescription, achievementPoints, achievementRarity, achievementTrophy);
-                        AttachOverlayTopmostGuard(overlayWindow);
+                        AttachOverlayTopmostGuard(overlayWindow, debugLoggingEnabled);
                         var overlayState = persistentPreviewRequested
                             ? null
                             : RegisterOverlayWindow(overlayWindow, position);
-                        PositionOverlayWindow(overlayWindow, position, GetOverlayStackIndex(overlayState), localSettings?.ShowOverlayOnActiveGameMonitor != false);
+                        PositionOverlayWindow(overlayWindow, position, GetOverlayStackIndex(overlayState), localSettings?.ShowOverlayOnActiveGameMonitor == true, debugLoggingEnabled);
+                        LogOverlayWindowLifecycle(overlayWindow, "WPF", "positioned-before-show", overlayOpacity, debugLoggingEnabled);
 
                         overlayWindow.Loaded += (sender, args) =>
                         {
@@ -1080,10 +1090,24 @@ steamImage +
                             {
                                 if (autoResizeCustom)
                                 {
-                                    PositionOverlayWindow(overlayWindow, position, GetOverlayStackIndex(overlayState), localSettings?.ShowOverlayOnActiveGameMonitor != false);
+                                    PositionOverlayWindow(overlayWindow, position, GetOverlayStackIndex(overlayState), localSettings?.ShowOverlayOnActiveGameMonitor == true, debugLoggingEnabled);
                                 }
 
+                                LogOverlayWindowLifecycle(overlayWindow, "WPF", "loaded-before-animation", overlayOpacity, debugLoggingEnabled);
                                 ApplyOverlayEnterAnimation(overlayWindow, overlayOpacity, fadeInMs, transitionStyle, slideDistance);
+                                if (debugLoggingEnabled)
+                                {
+                                    _logger?.Info(
+                                        $"[LocalOverlayDebug] WPF enter animation started targetOpacity='{overlayOpacity:0.###}', " +
+                                        $"fadeInMs='{fadeInMs}', transition='{transitionStyle}', slideDistance='{slideDistance}'.");
+                                    ScheduleOverlayWindowLifecycleSample(
+                                        overlayWindow,
+                                        "WPF",
+                                        "post-enter-animation",
+                                        Math.Max(50, fadeInMs + 100),
+                                        overlayOpacity,
+                                        debugLoggingEnabled);
+                                }
 
                                 if (persistentPreviewRequested)
                                 {
@@ -1123,6 +1147,7 @@ steamImage +
 
                         overlayWindow.Closed += (_, __) =>
                         {
+                            LogOverlayWindowLifecycle(overlayWindow, "WPF", "closed", overlayOpacity, debugLoggingEnabled);
                             if (ReferenceEquals(_persistentSettingsPreviewOverlay, overlayWindow))
                             {
                                 _persistentSettingsPreviewOverlay = null;
@@ -1140,6 +1165,7 @@ steamImage +
                         }
 
                         overlayWindow.Show();
+                        LogOverlayWindowLifecycle(overlayWindow, "WPF", "show-returned", overlayOpacity, debugLoggingEnabled);
                     }
                     catch (Exception uiEx)
                     {
@@ -1168,11 +1194,12 @@ steamImage +
             return "Local Achievement Unlocked";
         }
 
-        private static void PositionOverlayWindow(
+        private void PositionOverlayWindow(
             Window window,
             LocalUnlockOverlayPosition position,
             int stackIndex = 0,
-            bool followActiveGameMonitor = true)
+            bool followActiveGameMonitor = true,
+            bool debugLoggingEnabled = false)
         {
             if (window == null)
             {
@@ -1181,9 +1208,15 @@ steamImage +
 
             const double margin = 16;
             const double spacing = 8;
-            var workArea = followActiveGameMonitor
-                ? GetForegroundMonitorWorkArea()
-                : SystemParameters.WorkArea;
+            var systemWorkArea = SystemParameters.WorkArea;
+            var monitorDiagnostics = new OverlayMonitorDiagnostics();
+            var foregroundWorkArea = systemWorkArea;
+            if (followActiveGameMonitor || debugLoggingEnabled)
+            {
+                foregroundWorkArea = GetForegroundMonitorWorkArea(out monitorDiagnostics);
+            }
+
+            var workArea = followActiveGameMonitor ? foregroundWorkArea : systemWorkArea;
             var stackOffset = Math.Max(0, stackIndex) * (GetOverlayWindowHeight(window) + spacing);
             switch (position)
             {
@@ -1211,6 +1244,19 @@ steamImage +
                     window.Left = workArea.Right - window.Width - margin;
                     window.Top = workArea.Top + margin + stackOffset;
                     break;
+            }
+
+            if (debugLoggingEnabled)
+            {
+                var wpfDpi = VisualTreeHelper.GetDpi(window);
+                _logger?.Info(
+                    $"[LocalOverlayDebug] Positioned renderer='{ResolveOverlayRendererName(window)}', position='{position}', stackIndex='{stackIndex}', " +
+                    $"followActiveMonitor='{followActiveGameMonitor}', foregroundHwnd='{FormatHandle(monitorDiagnostics.ForegroundWindow)}', " +
+                    $"monitorHandle='{FormatHandle(monitorDiagnostics.Monitor)}', monitorInfo='{monitorDiagnostics.HasMonitorInfo}', " +
+                    $"monitorBoundsRaw='{FormatNativeRect(monitorDiagnostics.MonitorBounds)}', monitorWorkRaw='{FormatNativeRect(monitorDiagnostics.WorkArea)}', " +
+                    $"foregroundDpi='{monitorDiagnostics.ForegroundDpi}', wpfScale='{wpfDpi.DpiScaleX:0.###}x{wpfDpi.DpiScaleY:0.###}', " +
+                    $"selectedWorkArea='{FormatRect(workArea)}', systemWorkAreaDip='{FormatRect(systemWorkArea)}', " +
+                    $"windowBoundsDip='{window.Left:0.###},{window.Top:0.###},{window.Width:0.###},{GetOverlayWindowHeight(window):0.###}'.");
             }
         }
 
@@ -1252,7 +1298,7 @@ steamImage +
             return state;
         }
 
-        private static void UnregisterOverlayWindow(OverlayWindowState state)
+        private void UnregisterOverlayWindow(OverlayWindowState state)
         {
             if (state == null)
             {
@@ -1276,7 +1322,7 @@ steamImage +
                 .Count();
         }
 
-        private static void RepositionActiveOverlayWindows(LocalUnlockOverlayPosition position)
+        private void RepositionActiveOverlayWindows(LocalUnlockOverlayPosition position)
         {
             var overlays = ActiveOverlayWindows
                 .Where(item => item != null && item.Position == position && !item.IsClosing && item.Window?.IsVisible == true)
@@ -1289,7 +1335,8 @@ steamImage +
                     overlays[i].Window,
                     position,
                     i,
-                    settings?.ShowOverlayOnActiveGameMonitor != false);
+                    settings?.ShowOverlayOnActiveGameMonitor == true,
+                    settings?.EnableOverlayDebugLogging == true);
             }
         }
 
@@ -1366,6 +1413,8 @@ steamImage +
                 return false;
             }
 
+            var debugLoggingEnabled = settings.EnableOverlayDebugLogging;
+
             try
             {
                 var canvasWidth = (int)Math.Ceiling(Math.Max(1, width));
@@ -1414,13 +1463,15 @@ steamImage +
                 window.IsHitTestVisible = false;
                 window.Focusable = false;
                 window.Opacity = isSanTransition || persistentPreviewRequested ? 1 : 0;
-                AttachOverlayTopmostGuard(window);
+                AttachOverlayTopmostGuard(window, debugLoggingEnabled);
 
                 var overlayState = persistentPreviewRequested ? null : RegisterOverlayWindow(window, position);
-                PositionOverlayWindow(window, position, GetOverlayStackIndex(overlayState), settings.ShowOverlayOnActiveGameMonitor);
+                PositionOverlayWindow(window, position, GetOverlayStackIndex(overlayState), settings.ShowOverlayOnActiveGameMonitor, debugLoggingEnabled);
+                LogOverlayWindowLifecycle(window, "SAN-WebView2", "positioned-before-show", overlayOpacity, debugLoggingEnabled);
 
                 window.Closed += (_, __) =>
                 {
+                    LogOverlayWindowLifecycle(window, "SAN-WebView2", "closed", overlayOpacity, debugLoggingEnabled);
                     if (ReferenceEquals(_persistentSettingsPreviewOverlay, window))
                     {
                         _persistentSettingsPreviewOverlay = null;
@@ -1446,10 +1497,23 @@ steamImage +
                 {
                     try
                     {
+                        LogOverlayWindowLifecycle(window, "SAN-WebView2", "loaded-before-webview-init", overlayOpacity, debugLoggingEnabled);
                         var environment = await GetSanWebView2EnvironmentAsync();
                         await webView.EnsureCoreWebView2Async(environment);
+                        LogOverlayWindowLifecycle(window, "SAN-WebView2", "webview-controller-ready", overlayOpacity, debugLoggingEnabled);
                         webView.CoreWebView2.Settings.AreDefaultContextMenusEnabled = false;
                         webView.CoreWebView2.Settings.AreDevToolsEnabled = false;
+                        webView.CoreWebView2.NavigationCompleted += (_, navigationArgs) =>
+                        {
+                            if (debugLoggingEnabled)
+                            {
+                                _logger?.Info(
+                                    $"[LocalOverlayDebug] SAN navigation completed success='{navigationArgs.IsSuccess}', " +
+                                    $"webErrorStatus='{navigationArgs.WebErrorStatus}', source='{webView.Source}'.");
+                            }
+
+                            LogOverlayWindowLifecycle(window, "SAN-WebView2", "navigation-completed", overlayOpacity, debugLoggingEnabled);
+                        };
                         if (autoResizeToContent)
                         {
                             webView.CoreWebView2.WebMessageReceived += (_, messageArgs) =>
@@ -1473,13 +1537,26 @@ steamImage +
                                 }
 
                                 window.Height = resizedHeight;
-                                PositionOverlayWindow(window, position, GetOverlayStackIndex(overlayState), settings.ShowOverlayOnActiveGameMonitor);
+                                PositionOverlayWindow(window, position, GetOverlayStackIndex(overlayState), settings.ShowOverlayOnActiveGameMonitor, debugLoggingEnabled);
+                                LogOverlayWindowLifecycle(window, "SAN-WebView2", "content-height-resized", overlayOpacity, debugLoggingEnabled);
                             };
                         }
                         webView.CoreWebView2.Navigate(new Uri(htmlPath).AbsoluteUri);
+                        if (debugLoggingEnabled)
+                        {
+                            _logger?.Info($"[LocalOverlayDebug] SAN navigation started source='{new Uri(htmlPath).AbsoluteUri}'.");
+                        }
+
                         if (!isSanTransition && !persistentPreviewRequested)
                         {
                             ApplyOverlayEnterAnimation(window, overlayOpacity, fadeInMs, settings.UnlockOverlayTransitionStyle, slideDistance);
+                            ScheduleOverlayWindowLifecycleSample(
+                                window,
+                                "SAN-WebView2",
+                                "post-enter-animation",
+                                Math.Max(50, fadeInMs + 100),
+                                overlayOpacity,
+                                debugLoggingEnabled);
                         }
                     }
                     catch (Exception ex)
@@ -1499,6 +1576,7 @@ steamImage +
                 {
                     _persistentSettingsPreviewOverlay = window;
                     window.Show();
+                    LogOverlayWindowLifecycle(window, "SAN-WebView2", "show-returned-persistent", overlayOpacity, debugLoggingEnabled);
                     return true;
                 }
 
@@ -1541,6 +1619,7 @@ steamImage +
                 };
                 closeTimer.Start();
                 window.Show();
+                LogOverlayWindowLifecycle(window, "SAN-WebView2", "show-returned", overlayOpacity, debugLoggingEnabled);
                 return true;
             }
             catch (Exception ex)
@@ -1593,12 +1672,16 @@ steamImage +
             }
         }
 
-        private static Rect GetForegroundMonitorWorkArea()
+        private static Rect GetForegroundMonitorWorkArea(out OverlayMonitorDiagnostics diagnostics)
         {
+            diagnostics = new OverlayMonitorDiagnostics();
             try
             {
                 var foregroundWindow = GetForegroundWindow();
+                diagnostics.ForegroundWindow = foregroundWindow;
+                diagnostics.ForegroundDpi = TryGetWindowDpi(foregroundWindow);
                 var monitor = MonitorFromWindow(foregroundWindow, MonitorDefaultToPrimary);
+                diagnostics.Monitor = monitor;
                 if (monitor != IntPtr.Zero)
                 {
                     var monitorInfo = new MonitorInfo
@@ -1608,6 +1691,9 @@ steamImage +
 
                     if (GetMonitorInfo(monitor, ref monitorInfo))
                     {
+                        diagnostics.HasMonitorInfo = true;
+                        diagnostics.MonitorBounds = monitorInfo.Monitor;
+                        diagnostics.WorkArea = monitorInfo.Work;
                         return new Rect(
                             monitorInfo.Work.Left,
                             monitorInfo.Work.Top,
@@ -1623,7 +1709,129 @@ steamImage +
             return SystemParameters.WorkArea;
         }
 
+        private void LogOverlayWindowLifecycle(
+            Window window,
+            string renderer,
+            string phase,
+            double targetOpacity,
+            bool debugLoggingEnabled)
+        {
+            if (window == null || !debugLoggingEnabled)
+            {
+                return;
+            }
+
+            try
+            {
+                var handle = new WindowInteropHelper(window).Handle;
+                var nativeBounds = new NativeRect();
+                var hasNativeBounds = handle != IntPtr.Zero && GetWindowRect(handle, out nativeBounds);
+                var dpi = VisualTreeHelper.GetDpi(window);
+                var source = PresentationSource.FromVisual(window);
+                var transform = source?.CompositionTarget?.TransformToDevice ?? Matrix.Identity;
+
+                _logger?.Info(
+                    $"[LocalOverlayDebug] Window lifecycle renderer='{renderer}', phase='{phase}', hwnd='{FormatHandle(handle)}', " +
+                    $"hasPresentationSource='{source != null}', isLoaded='{window.IsLoaded}', isVisible='{window.IsVisible}', " +
+                    $"windowState='{window.WindowState}', topmost='{window.Topmost}', allowsTransparency='{window.AllowsTransparency}', " +
+                    $"opacity='{window.Opacity:0.###}', targetOpacity='{targetOpacity:0.###}', " +
+                    $"boundsDip='{window.Left:0.###},{window.Top:0.###},{window.Width:0.###},{GetOverlayWindowHeight(window):0.###}', " +
+                    $"actualSizeDip='{window.ActualWidth:0.###}x{window.ActualHeight:0.###}', " +
+                    $"wpfScale='{dpi.DpiScaleX:0.###}x{dpi.DpiScaleY:0.###}', " +
+                    $"sourceTransform='{transform.M11:0.###}x{transform.M22:0.###}', " +
+                    $"nativeDpi='{TryGetWindowDpi(handle)}', nativeBoundsPx='{(hasNativeBounds ? FormatNativeRect(nativeBounds) : "unavailable")}'.");
+            }
+            catch (Exception ex)
+            {
+                _logger?.Debug(ex, $"[LocalOverlay] Failed to collect window diagnostics for renderer='{renderer}', phase='{phase}'.");
+            }
+        }
+
+        private void ScheduleOverlayWindowLifecycleSample(
+            Window window,
+            string renderer,
+            string phase,
+            int delayMilliseconds,
+            double targetOpacity,
+            bool debugLoggingEnabled)
+        {
+            if (window == null || !debugLoggingEnabled)
+            {
+                return;
+            }
+
+            var timer = new DispatcherTimer
+            {
+                Interval = TimeSpan.FromMilliseconds(Math.Max(1, delayMilliseconds))
+            };
+            timer.Tick += (_, __) =>
+            {
+                timer.Stop();
+                LogOverlayWindowLifecycle(window, renderer, phase, targetOpacity, debugLoggingEnabled);
+            };
+            timer.Start();
+        }
+
+        private static string ResolveOverlayRendererName(Window window)
+        {
+            return window?.Content is WebView2 ? "SAN-WebView2" : "WPF";
+        }
+
+        private static string FormatHandle(IntPtr handle)
+        {
+            return $"0x{handle.ToInt64():X}";
+        }
+
+        private static string FormatRect(Rect rect)
+        {
+            return string.Format(
+                CultureInfo.InvariantCulture,
+                "{0:0.###},{1:0.###},{2:0.###},{3:0.###}",
+                rect.Left,
+                rect.Top,
+                rect.Width,
+                rect.Height);
+        }
+
+        private static string FormatNativeRect(NativeRect rect)
+        {
+            return string.Format(
+                CultureInfo.InvariantCulture,
+                "{0},{1},{2},{3}",
+                rect.Left,
+                rect.Top,
+                rect.Right,
+                rect.Bottom);
+        }
+
+        private static uint TryGetWindowDpi(IntPtr window)
+        {
+            if (window == IntPtr.Zero)
+            {
+                return 0;
+            }
+
+            try
+            {
+                return GetDpiForWindow(window);
+            }
+            catch
+            {
+                return 0;
+            }
+        }
+
         private const uint MonitorDefaultToPrimary = 1;
+
+        private sealed class OverlayMonitorDiagnostics
+        {
+            public IntPtr ForegroundWindow { get; set; }
+            public IntPtr Monitor { get; set; }
+            public bool HasMonitorInfo { get; set; }
+            public NativeRect MonitorBounds { get; set; }
+            public NativeRect WorkArea { get; set; }
+            public uint ForegroundDpi { get; set; }
+        }
 
         [StructLayout(LayoutKind.Sequential)]
         private struct NativeRect
@@ -1653,7 +1861,14 @@ steamImage +
         [return: MarshalAs(UnmanagedType.Bool)]
         private static extern bool GetMonitorInfo(IntPtr monitor, ref MonitorInfo monitorInfo);
 
-        private static void AttachOverlayTopmostGuard(Window window)
+        [DllImport("user32.dll")]
+        private static extern uint GetDpiForWindow(IntPtr window);
+
+        [DllImport("user32.dll", SetLastError = true)]
+        [return: MarshalAs(UnmanagedType.Bool)]
+        private static extern bool GetWindowRect(IntPtr window, out NativeRect rect);
+
+        private void AttachOverlayTopmostGuard(Window window, bool debugLoggingEnabled)
         {
             if (window == null)
             {
@@ -1661,6 +1876,8 @@ steamImage +
             }
 
             DispatcherTimer topmostTimer = null;
+            var loggedSuccess = false;
+            var loggedFailure = false;
             Action enforceTopmost = () =>
             {
                 try
@@ -1668,7 +1885,7 @@ steamImage +
                     var handle = new WindowInteropHelper(window).Handle;
                     if (handle != IntPtr.Zero)
                     {
-                        SetWindowPos(
+                        var succeeded = SetWindowPos(
                             handle,
                             HwndTopmost,
                             0,
@@ -1679,10 +1896,30 @@ steamImage +
                             SetWindowPosNoSize |
                             SetWindowPosNoActivate |
                             SetWindowPosShowWindow);
+
+                        if (succeeded && !loggedSuccess && debugLoggingEnabled)
+                        {
+                            loggedSuccess = true;
+                            _logger?.Info(
+                                $"[LocalOverlayDebug] Topmost guard succeeded renderer='{ResolveOverlayRendererName(window)}', " +
+                                $"hwnd='{FormatHandle(handle)}'.");
+                        }
+                        else if (!succeeded && !loggedFailure)
+                        {
+                            loggedFailure = true;
+                            _logger?.Warn(
+                                $"[LocalOverlay] Topmost guard failed renderer='{ResolveOverlayRendererName(window)}', " +
+                                $"hwnd='{FormatHandle(handle)}', win32Error='{Marshal.GetLastWin32Error()}'.");
+                        }
                     }
                 }
-                catch
+                catch (Exception ex)
                 {
+                    if (!loggedFailure)
+                    {
+                        loggedFailure = true;
+                        _logger?.Warn(ex, "[LocalOverlay] Topmost guard threw an exception.");
+                    }
                 }
             };
 

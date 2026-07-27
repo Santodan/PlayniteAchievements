@@ -108,6 +108,7 @@ The entries below are fork-side changes, grouped by date. When a date includes a
 - Added `Opacity` setting for the `Achievement Notification`
 - Fixed `Banner opacity` changing the notification opacity
 - Fixed the defined overrides not appearing in the `Overview` tab
+- Added Debug mode for the achievement notification to generate additional logs
 
 ## 2026-07-20 - v2.5.3.3
 - Trying to make the WebView notification quicker
