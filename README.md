@@ -99,6 +99,10 @@ The entries below are fork-side changes, grouped by date. When a date includes a
 
 ## Next release - TBD
 
+- v3.0.0 merge
+
+## 2026-07-27 - v2.5.3.4
+
 - Fixed `RetroAchievements Game ID Override` displaying `No override set` after setting an override
 - Removed `Display Order` column since the third click feature sorts with the correct RA order
 - Restored the third click in the header to remove the column sort
@@ -109,6 +113,7 @@ The entries below are fork-side changes, grouped by date. When a date includes a
 - Fixed `Banner opacity` changing the notification opacity
 - Fixed the defined overrides not appearing in the `Overview` tab
 - Added Debug mode for the achievement notification to generate additional logs
+- The setting to have the overlay in the same monitor as the game for multiple monitors is set to false as default
 
 ## 2026-07-20 - v2.5.3.3
 - Trying to make the WebView notification quicker
@@ -151,6 +156,9 @@ The entries below are fork-side changes, grouped by date. When a date includes a
 - `Achievement notification` reimagined (`SAN-Integration` branch merged)
   - You can see the changelog in https://github.com/Santodan/PlayniteAchievements/issues/5#issuecomment-4877909986
 
+## Old Changelogs
+<details>
+
 ## 2026-06-22 - v2.5.3.1
 - v2.5.2 + v2.5.3 merge
 - Fixed the missing `Collection Score`, `Prestige Score` and `Points` columns from the `Game Summary` tab
@@ -163,8 +171,6 @@ The entries below are fork-side changes, grouped by date. When a date includes a
 - Fixed the wrong placement for the level and points in `Prestige Score` and the `Collection Score`
 - Added support for achievement with progress bar
 
-## Old Changelogs
-<details>
 
 ## 2026-06-18 - v2.5.1.1
 - v2.5.1 merge

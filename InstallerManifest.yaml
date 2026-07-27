@@ -1,8 +1,25 @@
 AddonId: PlayniteAchievementsSantodan
 Packages:
+  - Version: 2.5.3.4
+    RequiredApiVersion: 6.14.0
+    ReleaseDate: 2026-07-27
+    PackageUrl: https://github.com/santodan/PlayniteAchievements/releases/download/v2.5.3.4/PlayniteAchievementsSantodan_2_5_3_4.pext
+    Changelog:
+    - "Fixed `RetroAchievements Game ID Override` displaying `No override set` after setting an override"
+    - "Removed `Display Order` column since the third click feature sorts with the correct RA order"
+    - "Restored the third click in the header to remove the column sort"
+    - "Fixed an error in the WebView2 warm-up window"
+    - "Fixed an issue where the `Achievement Notification` wasn't trigger any custom setting"
+    - "Fixed the first click in the column header is always ascending, the second descending and the third removes the sort"
+    - "Added `Opacity` setting for the `Achievement Notification`"
+    - "Fixed `Banner opacity` changing the notification opacity"
+    - "Fixed the defined overrides not appearing in the `Overview` tab"
+    - "Added Debug mode for the achievement notification to generate additional logs"
+    - "The setting to have the overlay in the same monitor as the game for multiple monitors is set to false as default"
+
   - Version: 2.5.3.3
     RequiredApiVersion: 6.14.0
-    ReleaseDate: 2026-07-09
+    ReleaseDate: 2026-07-20
     PackageUrl: https://github.com/santodan/PlayniteAchievements/releases/download/v2.5.3.3/PlayniteAchievementsSantodan_2_5_3_3.pext
     Changelog:
     - "Trying to make the WebView notification quicker"
