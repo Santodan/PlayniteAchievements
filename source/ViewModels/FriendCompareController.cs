@@ -5,7 +5,7 @@ using System.Threading;
 using System.Threading.Tasks;
 using Playnite.SDK;
 using PlayniteAchievements.Common;
-using PlayniteAchievements.Models.Settings;
+using PlayniteAchievements.Models;
 using PlayniteAchievements.Services.Friends;
 using PlayniteAchievements.ViewModels.Items;
 
@@ -41,7 +41,7 @@ namespace PlayniteAchievements.ViewModels
         private IReadOnlyList<AchievementDisplayItem> _targetItems;
         private readonly List<AchievementDisplayItem> _appliedItems = new List<AchievementDisplayItem>();
 
-        public FriendCompareController(
+        internal FriendCompareController(
             IFriendCacheManager friendCache,
             PlayniteAchievementsSettings settings,
             ILogger logger)
@@ -56,7 +56,7 @@ namespace PlayniteAchievements.ViewModels
         public bool HasCompareSelection => _selected != null;
 
         public string CompareSelectionText => _selected?.DisplayName
-            ?? ResourceProvider.GetString("LOCPlayAch_Compare_Label");
+            ?? ResourceProvider.GetString("LOCPlayAch_Filter_CompareSelectorPlaceholder");
 
         public IReadOnlyList<Option> Options => _options;
 

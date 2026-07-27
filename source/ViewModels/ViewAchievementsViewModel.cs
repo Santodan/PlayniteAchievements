@@ -72,7 +72,7 @@ namespace PlayniteAchievements.ViewModels
 
         private static GridStateSnapshot _lastGridState;
 
-        public ViewAchievementsViewModel(
+        internal ViewAchievementsViewModel(
             Guid gameId,
             RefreshRuntime refreshRuntime,
             AchievementDataService achievementDataService,
