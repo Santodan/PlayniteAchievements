@@ -138,6 +138,8 @@ namespace PlayniteAchievements.Models.Settings
         private bool _useTrophiesForRarity = false;
         private bool _roundRarityPercentages = false;
         private RarityColorSettings _rarityColors = RarityColorSettings.CreateDefault();
+        private Dictionary<string, string> _providerColorOverrides =
+            new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
         private bool _includeUnplayedGames = true;
         private bool _showOverviewCollectionScoreCard = true;
         private bool _showOverviewPrestigeScoreCard = true;
@@ -1446,6 +1448,20 @@ namespace PlayniteAchievements.Models.Settings
             set => SetValue(ref _rarityColors, value?.Clone() ?? RarityColorSettings.CreateDefault());
         }
 
+        /// <summary>
+        /// User-selected provider colors keyed by provider key. Providers without an entry use
+        /// the brand color supplied by their IDataProvider implementation.
+        /// </summary>
+        public Dictionary<string, string> ProviderColorOverrides
+        {
+            get => _providerColorOverrides;
+            set => SetValue(
+                ref _providerColorOverrides,
+                value != null
+                    ? new Dictionary<string, string>(value, StringComparer.OrdinalIgnoreCase)
+                    : new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase));
+        }
+
         public bool IncludeUnplayedGames
         {
             get => _includeUnplayedGames;
@@ -2411,6 +2427,11 @@ namespace PlayniteAchievements.Models.Settings
                 UseTrophiesForRarity = this.UseTrophiesForRarity,
                 RoundRarityPercentages = this.RoundRarityPercentages,
                 RarityColors = this.RarityColors?.Clone() ?? RarityColorSettings.CreateDefault(),
+                ProviderColorOverrides = this.ProviderColorOverrides != null
+                    ? new Dictionary<string, string>(
+                        this.ProviderColorOverrides,
+                        StringComparer.OrdinalIgnoreCase)
+                    : new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase),
                 IncludeUnplayedGames = this.IncludeUnplayedGames,
                 ShowOverviewCollectionScoreCard = this.ShowOverviewCollectionScoreCard,
                 ShowOverviewPrestigeScoreCard = this.ShowOverviewPrestigeScoreCard,
@@ -2555,6 +2576,7 @@ namespace PlayniteAchievements.Models.Settings
             UseTrophiesForRarity = defaults.UseTrophiesForRarity;
             RoundRarityPercentages = defaults.RoundRarityPercentages;
             RarityColors = RarityColorSettings.CreateDefault();
+            ProviderColorOverrides = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
             ResourceOverrides = CreateDefaultResourceOverrides();
 
             ShowOverviewCollectionScoreCard = defaults.ShowOverviewCollectionScoreCard;

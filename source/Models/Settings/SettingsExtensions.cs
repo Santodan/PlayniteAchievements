@@ -151,6 +151,11 @@ namespace PlayniteAchievements.Models.Settings
             target.UseTrophiesForRarity = source.UseTrophiesForRarity;
             target.RoundRarityPercentages = source.RoundRarityPercentages;
             target.RarityColors = source.RarityColors?.Clone() ?? RarityColorSettings.CreateDefault();
+            target.ProviderColorOverrides = source.ProviderColorOverrides != null
+                ? new Dictionary<string, string>(
+                    source.ProviderColorOverrides,
+                    StringComparer.OrdinalIgnoreCase)
+                : new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
             target.IncludeUnplayedGames = source.IncludeUnplayedGames;
             target.ShowOverviewCollectionScoreCard = source.ShowOverviewCollectionScoreCard;
             target.ShowOverviewPrestigeScoreCard = source.ShowOverviewPrestigeScoreCard;

@@ -182,6 +182,8 @@ namespace PlayniteAchievements.Models.Achievements
 
         public bool HasAchievements { get; set; } = true;
 
+        public bool ExcludedFromSummaries { get; set; }
+
         public string GameName { get; set; }
 
         public int AppId { get; set; }

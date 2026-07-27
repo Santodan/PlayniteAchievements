@@ -269,13 +269,35 @@ namespace PlayniteAchievements.ViewModels.Items
         public string Provider { get => _provider; set => SetValue(ref _provider, value); }
 
         private string _providerKey;
-        public string ProviderKey { get => _providerKey; set => SetValue(ref _providerKey, value); }
+        public string ProviderKey
+        {
+            get => _providerKey;
+            set
+            {
+                if (SetValueAndReturn(ref _providerKey, value))
+                {
+                    OnPropertyChanged(nameof(ProviderFilterKey));
+                    OnPropertyChanged(nameof(ProviderColorHex));
+                }
+            }
+        }
 
         // Runtime-only display identity for surfaces where ProviderKey stays the raw aggregator key
         // (e.g. friend games routed through Exophase keep ProviderKey = "Exophase" for refresh
         // targeting while displaying the underlying provider such as EA). Never persisted.
         private string _displayProviderKey;
-        public string DisplayProviderKey { get => _displayProviderKey; set => SetValue(ref _displayProviderKey, value); }
+        public string DisplayProviderKey
+        {
+            get => _displayProviderKey;
+            set
+            {
+                if (SetValueAndReturn(ref _displayProviderKey, value))
+                {
+                    OnPropertyChanged(nameof(ProviderFilterKey));
+                    OnPropertyChanged(nameof(ProviderColorHex));
+                }
+            }
+        }
 
         /// <summary>
         /// Provider identity used by the provider/platform filter: the display provider when one is
@@ -288,7 +310,26 @@ namespace PlayniteAchievements.ViewModels.Items
         public string ProviderIconKey { get => _providerIconKey; set => SetValue(ref _providerIconKey, value); }
 
         private string _providerColorHex;
-        public string ProviderColorHex { get => _providerColorHex; set => SetValue(ref _providerColorHex, value); }
+        public string ProviderColorHex
+        {
+            get
+            {
+                return Providers.ProviderRegistry.TryResolveProviderVisuals(
+                    ProviderFilterKey,
+                    out _,
+                    out var colorHex) &&
+                    !string.IsNullOrWhiteSpace(colorHex)
+                    ? colorHex
+                    : _providerColorHex;
+            }
+            set => SetValue(ref _providerColorHex, value);
+        }
+
+        public void RefreshProviderAppearance()
+        {
+            OnPropertyChanged(nameof(ProviderIconKey));
+            OnPropertyChanged(nameof(ProviderColorHex));
+        }
 
 
         public int Progression => AchievementCompletionPercentCalculator.ComputeRoundedPercent(UnlockedAchievements, TotalAchievements);

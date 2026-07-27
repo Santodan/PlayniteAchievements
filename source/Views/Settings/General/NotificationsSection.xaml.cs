@@ -31,6 +31,7 @@ namespace PlayniteAchievements.Views.Settings.General
             nameof(PersistedSettings.UseSeparateLockedIconsWhenAvailable),
             nameof(PersistedSettings.UseUniformRarityBadges),
             nameof(PersistedSettings.RarityColors),
+            nameof(PersistedSettings.ProviderColorOverrides),
             nameof(PersistedSettings.ToastShowHeader),
             nameof(PersistedSettings.ToastShowName),
             nameof(PersistedSettings.ToastShowRarityBadge),
@@ -97,6 +98,12 @@ namespace PlayniteAchievements.Views.Settings.General
 
         private void OnPersistedPropertyChanged(object sender, PropertyChangedEventArgs e)
         {
+            if (string.IsNullOrEmpty(e?.PropertyName) ||
+                e.PropertyName == nameof(PersistedSettings.ProviderColorOverrides))
+            {
+                _providerOverridesViewModel?.RefreshProviderAppearance();
+            }
+
             if (ToastRefreshProperties.Contains(e.PropertyName))
             {
                 UpdateToastMockup();

@@ -597,7 +597,8 @@ namespace PlayniteAchievements.ViewModels
         // merged-friend membership checks stay key-based).
         public string SelectedFriendProviderFilterText =>
             _selectedFriendProviderFilters.Count == 1
-                ? ProviderRegistry.GetLocalizedName(_selectedFriendProviderFilters.First())
+                ? PlayniteAchievements.Providers.ProviderRegistry.GetLocalizedName(
+                    _selectedFriendProviderFilters.First())
                 : GetSelectedFilterText(
                     _selectedFriendProviderFilters,
                     FriendProviderFilterOptions,
@@ -699,7 +700,7 @@ namespace PlayniteAchievements.ViewModels
                 () => FriendProviderFilterOptions,
                 IsFriendProviderFilterSelected,
                 SetFriendProviderFilterSelected,
-                ProviderRegistry.GetLocalizedName)
+                PlayniteAchievements.Providers.ProviderRegistry.GetLocalizedName)
             {
                 Width = 118
             });
@@ -2777,6 +2778,20 @@ namespace PlayniteAchievements.ViewModels
         private void OnPersistedSettingsChanged(object sender, PropertyChangedEventArgs e)
         {
             var propertyName = e?.PropertyName;
+            if (string.IsNullOrWhiteSpace(propertyName) ||
+                propertyName == nameof(PersistedSettings.ProviderColorOverrides))
+            {
+                foreach (var friend in _allFriends)
+                {
+                    friend?.RefreshProviderAppearance();
+                }
+
+                foreach (var game in _allGames)
+                {
+                    game?.RefreshProviderAppearance();
+                }
+            }
+
             if (string.IsNullOrWhiteSpace(propertyName) ||
                 propertyName == nameof(PersistedSettings.ShowFriendSpoilers))
             {

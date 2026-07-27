@@ -724,6 +724,20 @@ namespace PlayniteAchievements.ViewModels
         private void OnPersistedSettingsChanged(object sender, PropertyChangedEventArgs e)
         {
             NotifySettingProperties();
+            if (string.IsNullOrEmpty(e?.PropertyName) ||
+                e.PropertyName == nameof(PersistedSettings.ProviderColorOverrides))
+            {
+                foreach (var friend in _allFriends)
+                {
+                    friend?.RefreshProviderAppearance();
+                }
+
+                foreach (var game in SummaryItems)
+                {
+                    game?.RefreshProviderAppearance();
+                }
+            }
+
             if (e?.PropertyName == nameof(PersistedSettings.ShowFriendSpoilers) ||
                 e?.PropertyName == nameof(PersistedSettings.Friends) ||
                 e?.PropertyName == nameof(PersistedSettings.FriendMergeGroups))

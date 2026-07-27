@@ -2531,6 +2531,15 @@ namespace PlayniteAchievements.ViewModels
             {
                 SyncSelectedGameAchievementsDisplay();
             }
+            else if (propertyName == nameof(PersistedSettings.ProviderColorOverrides))
+            {
+                foreach (var item in _allGameSummaries)
+                {
+                    item?.RefreshProviderAppearance();
+                }
+
+                UpdateAggregatePieCharts();
+            }
             else if (RarityAppearanceHelper.IsAppearanceSettingPropertyName(propertyName))
             {
                 OnPropertyChanged(nameof(UseUniformRarityBadges));
@@ -3226,7 +3235,13 @@ namespace PlayniteAchievements.ViewModels
             var providerLookup = new Dictionary<string, (string iconKey, string colorHex)>(StringComparer.OrdinalIgnoreCase);
             foreach (var provider in _refreshService.Providers)
             {
-                providerLookup[provider.ProviderKey] = (provider.ProviderIconKey, provider.ProviderColorHex);
+                if (ProviderRegistry.TryResolveProviderVisuals(
+                    provider.ProviderKey,
+                    out var iconKey,
+                    out var colorHex))
+                {
+                    providerLookup[provider.ProviderKey] = (iconKey, colorHex);
+                }
             }
             return providerLookup;
         }

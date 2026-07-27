@@ -7,6 +7,7 @@ using Microsoft.VisualStudio.TestTools.UnitTesting;
 using Playnite.SDK.Models;
 using PlayniteAchievements.Models;
 using PlayniteAchievements.Models.Achievements;
+using PlayniteAchievements.Models.Settings;
 using PlayniteAchievements.Providers;
 using PlayniteAchievements.Providers.Exophase;
 using PlayniteAchievements.Providers.Settings;
@@ -115,6 +116,76 @@ namespace PlayniteAchievements.Providers.Tests
             Assert.IsTrue(liveSettings.ManagedProviders.Contains("origin"));
             Assert.IsFalse(persistedManagedProviders.Contains("steam"));
             Assert.IsTrue(persistedManagedProviders.Contains("origin"));
+        }
+
+        [TestMethod]
+        public void ProviderColorOverride_ValidRgbAndArgbValuesOverrideProviderDefault()
+        {
+            var context = CreateRegistryContext("path");
+            context.Settings.Persisted.ProviderColorOverrides =
+                new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
+                {
+                    ["xEnIa"] = "#123456"
+                };
+
+            Assert.IsTrue(context.Registry.TryGetProviderVisuals(
+                "Xenia",
+                out var iconKey,
+                out var colorHex));
+            Assert.AreEqual("ProviderIconXenia", iconKey);
+            Assert.AreEqual("#123456", colorHex);
+            Assert.AreEqual("#123456", ProviderRegistry.GetProviderColorHex("XENIA"));
+
+            context.Settings.Persisted.ProviderColorOverrides["Xenia"] = "#80123456";
+            Assert.AreEqual("#80123456", ProviderRegistry.GetProviderColorHex("Xenia"));
+        }
+
+        [TestMethod]
+        public void ProviderColorOverride_InvalidOrBlankValuesFallBackToProviderDefault()
+        {
+            var context = CreateRegistryContext("path");
+            var expected = context.Provider.ProviderColorHex;
+
+            foreach (var invalidValue in new[] { null, string.Empty, "not-a-color", "#12" })
+            {
+                context.Settings.Persisted.ProviderColorOverrides =
+                    new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
+                    {
+                        ["Xenia"] = invalidValue
+                    };
+
+                Assert.AreEqual(expected, ProviderRegistry.GetProviderColorHex("Xenia"));
+            }
+
+            Assert.AreEqual(
+                "#777777",
+                ProviderRegistry.GetProviderColorHex("UnknownProvider", "#777777"));
+        }
+
+        [TestMethod]
+        public void ProviderColorOverrides_CloneAndCopyAreDeepAndResetRestoresEmptyDefaults()
+        {
+            var source = new PersistedSettings
+            {
+                ProviderColorOverrides = new Dictionary<string, string>(
+                    StringComparer.OrdinalIgnoreCase)
+                {
+                    ["Xenia"] = "#123456"
+                }
+            };
+
+            var clone = source.Clone();
+            var copy = new PersistedSettings();
+            copy.CopyFrom(source);
+            source.ProviderColorOverrides["Xenia"] = "#654321";
+
+            Assert.AreEqual("#123456", clone.ProviderColorOverrides["xenia"]);
+            Assert.AreEqual("#123456", copy.ProviderColorOverrides["XENIA"]);
+            Assert.AreNotSame(source.ProviderColorOverrides, clone.ProviderColorOverrides);
+            Assert.AreNotSame(source.ProviderColorOverrides, copy.ProviderColorOverrides);
+
+            source.ResetDisplaySettingsToDefaults();
+            Assert.AreEqual(0, source.ProviderColorOverrides.Count);
         }
 
         private static RegistryContext CreateRegistryContext(string initialAccountPath)

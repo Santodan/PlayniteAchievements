@@ -117,7 +117,8 @@ namespace PlayniteAchievements.Views
                 GeneralSettingsContent.Content = _generalSettingsTab;
             }
 
-            _settingsViewModel.Settings.Persisted.PropertyChanged += Persisted_PropertyChanged;
+            _settingsViewModel.Settings.PropertyChanged += Settings_PropertyChanged;
+            AttachPersistedSettings(_settingsViewModel.Settings.Persisted);
 
             // Debug logging to verify DataContext and Settings values
             _logger?.Info($"SettingsControl created. DataContext type: {DataContext?.GetType().Name}");
@@ -410,18 +411,64 @@ namespace PlayniteAchievements.Views
             _autoAuthDebounceCts?.Cancel();
             _autoAuthDebounceCts?.Dispose();
             _autoAuthDebounceCts = null;
-            _settingsViewModel.Settings.Persisted.PropertyChanged -= Persisted_PropertyChanged;
+            _settingsViewModel.Settings.PropertyChanged -= Settings_PropertyChanged;
+            AttachPersistedSettings(null);
             _displaySettingsTab?.Dispose();
             _generalSettingsTab?.Dispose();
         }
 
         private void Persisted_PropertyChanged(object sender, System.ComponentModel.PropertyChangedEventArgs e)
         {
+            if (string.IsNullOrEmpty(e?.PropertyName) ||
+                e.PropertyName == nameof(PersistedSettings.ProviderColorOverrides))
+            {
+                foreach (var item in ProviderNavigationItems)
+                {
+                    item.RefreshProviderAppearance();
+                }
+            }
+
             if (e.PropertyName == nameof(PersistedSettings.EnableFriendsFeatures)
                 && !_settingsViewModel.Settings.Persisted.EnableFriendsFeatures
                 && SettingsTabControl.SelectedItem == FriendsTab)
             {
                 SettingsTabControl.SelectedItem = GeneralTab;
+            }
+        }
+
+        private PersistedSettings _subscribedPersistedSettings;
+
+        private void Settings_PropertyChanged(
+            object sender,
+            System.ComponentModel.PropertyChangedEventArgs e)
+        {
+            if (string.IsNullOrEmpty(e?.PropertyName) ||
+                e.PropertyName == nameof(PlayniteAchievementsSettings.Persisted))
+            {
+                AttachPersistedSettings(_settingsViewModel.Settings.Persisted);
+                foreach (var item in ProviderNavigationItems)
+                {
+                    item.RefreshProviderAppearance();
+                }
+            }
+        }
+
+        private void AttachPersistedSettings(PersistedSettings persisted)
+        {
+            if (ReferenceEquals(_subscribedPersistedSettings, persisted))
+            {
+                return;
+            }
+
+            if (_subscribedPersistedSettings != null)
+            {
+                _subscribedPersistedSettings.PropertyChanged -= Persisted_PropertyChanged;
+            }
+
+            _subscribedPersistedSettings = persisted;
+            if (_subscribedPersistedSettings != null)
+            {
+                _subscribedPersistedSettings.PropertyChanged += Persisted_PropertyChanged;
             }
         }
     }

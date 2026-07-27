@@ -78,7 +78,7 @@ namespace PlayniteAchievements.Views.Settings.Display
                     ResourceProvider.GetString("LOCPlayAch_Settings_Appearance"),
                     iconGlyph: "",
                     viewFactory: () => _appearanceSection =
-                        new AppearanceSection(settings, pickColor)),
+                        new AppearanceSection(settings, plugin.ProviderRegistry, pickColor)),
                 new SettingsNavigationItem(
                     "Overview",
                     ResourceProvider.GetString("LOCPlayAch_ManageAchievements_Tab_Overview"),

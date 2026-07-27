@@ -160,6 +160,12 @@ namespace PlayniteAchievements.ViewModels.Items
         public string ProviderColorHex =>
             IsMergedFriend ? null : PlayniteAchievements.Providers.ProviderRegistry.GetProviderColorHex(ProviderKey);
 
+        public void RefreshProviderAppearance()
+        {
+            OnPropertyChanged(nameof(ProviderIconKey));
+            OnPropertyChanged(nameof(ProviderColorHex));
+        }
+
         public string DisplayName
         {
             get => _displayName;
