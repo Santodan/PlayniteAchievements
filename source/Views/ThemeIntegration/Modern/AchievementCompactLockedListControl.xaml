@@ -19,6 +19,17 @@
         </ResourceDictionary>
     </modern:AchievementCompactListControlBase.Resources>
 
+    <modern:AchievementCompactListControlBase.Style>
+        <Style TargetType="modern:AchievementCompactListControlBase">
+            <Style.Triggers>
+                <DataTrigger Binding="{Binding Persisted.EnableAchievementCompactLockedListControl}"
+                             Value="False">
+                    <Setter Property="Visibility" Value="Collapsed"/>
+                </DataTrigger>
+            </Style.Triggers>
+        </Style>
+    </modern:AchievementCompactListControlBase.Style>
+
     <Grid>
     <!-- Virtualized horizontal compact list -->
     <ItemsControl x:Name="AchievementsList"
@@ -28,16 +39,6 @@
                   VirtualizingPanel.ScrollUnit="Pixel"
                   UseLayoutRounding="True"
                   SnapsToDevicePixels="True">
-        <ItemsControl.Style>
-            <Style TargetType="ItemsControl">
-                <Style.Triggers>
-                    <DataTrigger Binding="{Binding Persisted.EnableAchievementCompactLockedListControl, RelativeSource={RelativeSource AncestorType=local:ThemeControlBase}}"
-                                 Value="False">
-                        <Setter Property="Visibility" Value="Collapsed"/>
-                    </DataTrigger>
-                </Style.Triggers>
-            </Style>
-        </ItemsControl.Style>
         <ItemsControl.Template>
             <ControlTemplate TargetType="ItemsControl">
                 <ScrollViewer CanContentScroll="True"
@@ -91,10 +92,6 @@
                     <DataTrigger Binding="{Binding DisplayItems.Count, RelativeSource={RelativeSource AncestorType=modern:AchievementCompactListControlBase}}"
                                  Value="0">
                         <Setter Property="Visibility" Value="Visible"/>
-                    </DataTrigger>
-                    <DataTrigger Binding="{Binding Persisted.EnableAchievementCompactLockedListControl, RelativeSource={RelativeSource AncestorType=local:ThemeControlBase}}"
-                                 Value="False">
-                        <Setter Property="Visibility" Value="Collapsed"/>
                     </DataTrigger>
                 </Style.Triggers>
             </Style>
