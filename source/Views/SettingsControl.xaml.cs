@@ -129,6 +129,12 @@ namespace PlayniteAchievements.Views
                     _legacyNotificationSettingsControl.DetachAchievementNotificationsContent();
             }
 
+            if (ForkThemeMigrationContent != null && _legacyNotificationSettingsControl != null)
+            {
+                ForkThemeMigrationContent.Content =
+                    _legacyNotificationSettingsControl.DetachThemeMigrationContent();
+            }
+
             _settingsViewModel.Settings.Persisted.PropertyChanged += Persisted_PropertyChanged;
 
             // Debug logging to verify DataContext and Settings values
@@ -372,6 +378,10 @@ namespace PlayniteAchievements.Views
                 BuildProviderNavigationItems(selectDefault: string.IsNullOrWhiteSpace(PendingNavigationProviderKey));
                 NavigateToPendingProvider();
             }
+            else if (string.Equals(name, "ForkThemeMigrationTab", StringComparison.OrdinalIgnoreCase))
+            {
+                _legacyNotificationSettingsControl?.RefreshThemeMigrationContent();
+            }
         }
 
         // Quick navigation callback used by the General tab's quick-link buttons
@@ -387,8 +397,7 @@ namespace PlayniteAchievements.Views
                     tab = ProvidersTab;
                     break;
                 case "ThemeMigration":
-                    // Theme migration now lives inside the Display tab's navigation.
-                    tab = DisplayTab;
+                    tab = ForkThemeMigrationTab;
                     break;
                 default:
                     return;
@@ -403,11 +412,6 @@ namespace PlayniteAchievements.Views
             if (ReferenceEquals(tab, ProvidersTab))
             {
                 BuildProviderNavigationItems();
-            }
-
-            if (string.Equals(tabKey, "ThemeMigration", StringComparison.Ordinal))
-            {
-                _displaySettingsTab?.NavigateToPage("Migration");
             }
 
             tab.BringIntoView();

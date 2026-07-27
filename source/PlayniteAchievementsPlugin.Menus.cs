@@ -1,11 +1,13 @@
 using System;
 using System.Collections.Generic;
+using System.IO;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using System.Windows;
 using PlayniteAchievements.Models;
 using PlayniteAchievements.Models.Achievements;
+using PlayniteAchievements.Providers.Local;
 using PlayniteAchievements.Services;
 using PlayniteAchievements.Services.GameCustomData;
 using PlayniteAchievements.Services.Refresh;
@@ -20,6 +22,7 @@ namespace PlayniteAchievements
     public partial class PlayniteAchievementsPlugin
     {
         private static string PluginGameMenuSection => ResourceProvider.GetString("LOCPlayAch_Title_PluginName");
+        private static string PluginLocalGameMenuSection => PluginGameMenuSection + "|Local Saves";
         private static string PluginMainMenuSection => "@" + ResourceProvider.GetString("LOCPlayAch_Title_PluginName");
         private int _fullscreenMenuGlobalProgressActive;
 
@@ -350,6 +353,111 @@ namespace PlayniteAchievements
                     OpenManageAchievementsView(game.Id);
                 }
             };
+
+            yield return new GameMenuItem
+            {
+                Description = ResourceProvider.GetString("LOCPlayAch_Menu_LocalExpectedJson_Download"),
+                MenuSection = PluginLocalGameMenuSection,
+                Action = _ => DownloadExpectedAchievementsJson(game)
+            };
+
+            var hasLocalAppIdOverride = LocalSavesProvider.TryGetAppIdOverride(game.Id, out _);
+            yield return new GameMenuItem
+            {
+                Description = ResourceProvider.GetString(hasLocalAppIdOverride
+                    ? "LOCPlayAch_Menu_LocalAppId_Change"
+                    : "LOCPlayAch_Menu_LocalAppId_Set"),
+                MenuSection = PluginLocalGameMenuSection,
+                Action = _ => SetLocalSteamAppIdOverride(game)
+            };
+            if (hasLocalAppIdOverride)
+            {
+                yield return new GameMenuItem
+                {
+                    Description = ResourceProvider.GetString("LOCPlayAch_Menu_LocalAppId_Clear"),
+                    MenuSection = PluginLocalGameMenuSection,
+                    Action = _ => ClearLocalSteamAppIdOverride(game)
+                };
+            }
+
+            var selectedLocalUser = LocalSavesProvider.TryGetSteamAppCacheUserOverride(
+                game.Id,
+                out var localUserOverride)
+                ? localUserOverride
+                : string.Empty;
+            var localUserSection = PluginLocalGameMenuSection + "|" +
+                ResourceProvider.GetString("LOCPlayAch_Menu_LocalSteamUser_Change");
+            yield return new GameMenuItem
+            {
+                Description = FormatLocalProviderMenuLabel(
+                    ResourceProvider.GetString("LOCPlayAch_Menu_LocalSteamUser_Automatic"),
+                    string.IsNullOrWhiteSpace(selectedLocalUser)),
+                MenuSection = localUserSection,
+                Action = _ => ChangeLocalSteamUserOverride(game, null)
+            };
+            var localProvider = Providers?.OfType<LocalSavesProvider>().FirstOrDefault();
+            foreach (var user in localProvider?.GetAvailableSteamAppCacheUsers() ??
+                     Enumerable.Empty<LocalSteamAppCacheUserOption>())
+            {
+                var userId = user.UserId;
+                var userLabel = string.IsNullOrWhiteSpace(user.DisplayName) ? userId : user.DisplayName;
+                yield return new GameMenuItem
+                {
+                    Description = FormatLocalProviderMenuLabel(
+                        userLabel,
+                        string.Equals(selectedLocalUser, userId, StringComparison.OrdinalIgnoreCase)),
+                    MenuSection = localUserSection,
+                    Action = _ => ChangeLocalSteamUserOverride(game, userId)
+                };
+            }
+
+            var hasLocalFolderOverride = LocalSavesProvider.TryGetFolderOverride(game.Id, out _);
+            yield return new GameMenuItem
+            {
+                Description = ResourceProvider.GetString(hasLocalFolderOverride
+                    ? "LOCPlayAch_Menu_LocalFolder_Change"
+                    : "LOCPlayAch_Menu_LocalFolder_Set"),
+                MenuSection = PluginLocalGameMenuSection,
+                Action = _ => SetLocalFolderOverride(game)
+            };
+            if (hasLocalFolderOverride)
+            {
+                yield return new GameMenuItem
+                {
+                    Description = ResourceProvider.GetString("LOCPlayAch_Menu_LocalFolder_Clear"),
+                    MenuSection = PluginLocalGameMenuSection,
+                    Action = _ => ClearLocalFolderOverride(game)
+                };
+            }
+
+            var preferredProvider = _achievementOverridesService?.GetPreferredProviderOverride(game.Id);
+            var providerSection = PluginLocalGameMenuSection + "|" +
+                ResourceProvider.GetString("LOCPlayAch_Menu_LocalProvider_Change");
+            yield return new GameMenuItem
+            {
+                Description = FormatLocalProviderMenuLabel(
+                    ResourceProvider.GetString("LOCPlayAch_Menu_LocalProvider_Automatic"),
+                    string.IsNullOrWhiteSpace(preferredProvider)),
+                MenuSection = providerSection,
+                Action = _ => ChangePreferredProvider(game, null)
+            };
+            foreach (var providerKey in GetSelectableProviderKeys())
+            {
+                var capturedProviderKey = providerKey;
+                var providerLabel = PlayniteAchievements.Providers.ProviderRegistry.GetLocalizedName(
+                    capturedProviderKey);
+                yield return new GameMenuItem
+                {
+                    Description = FormatLocalProviderMenuLabel(
+                        providerLabel,
+                        string.Equals(
+                            preferredProvider,
+                            capturedProviderKey,
+                            StringComparison.OrdinalIgnoreCase)),
+                    MenuSection = providerSection,
+                    Action = _ => ChangePreferredProvider(game, capturedProviderKey)
+                };
+            }
 
             yield return new GameMenuItem
             {

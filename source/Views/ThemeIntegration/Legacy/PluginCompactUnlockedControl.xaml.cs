@@ -1,5 +1,6 @@
 // --SUCCESSSTORY--
 using System.Collections.Generic;
+using System.Windows;
 using System.Windows.Controls;
 using PlayniteAchievements.Models.Achievements;
 using PlayniteAchievements.Models.ThemeIntegration;
@@ -13,12 +14,29 @@ namespace PlayniteAchievements.Views.ThemeIntegration.Legacy
     /// </summary>
     public partial class PluginCompactUnlockedControl : CompactAchievementControlBase
     {
+        public static readonly DependencyProperty FeaturedAchievementProperty =
+            DependencyProperty.Register(
+                nameof(FeaturedAchievement),
+                typeof(AchievementDetail),
+                typeof(PluginCompactUnlockedControl),
+                new PropertyMetadata(null));
+
         protected override Grid CompactViewGrid => PART_ScCompactView;
+
+        protected override int CompactRowStartIndex => FeaturedAchievement == null ? 0 : 1;
+
+        protected override double CompactRowLeftPadding => 5;
 
         public PluginCompactUnlockedControl()
         {
             InitializeComponent();
             DataContext = this;
+        }
+
+        public AchievementDetail FeaturedAchievement
+        {
+            get => (AchievementDetail)GetValue(FeaturedAchievementProperty);
+            private set => SetValue(FeaturedAchievementProperty, value);
         }
 
         protected override List<AchievementDetail> GetSourceAchievements()
@@ -80,6 +98,13 @@ namespace PlayniteAchievements.Views.ThemeIntegration.Legacy
         public bool HasUnlocked => GetTotalCount() > 0;
 
         public int TotalUnlocked => GetTotalCount();
+
+        protected override void OnVisibleAchievementsChanged()
+        {
+            FeaturedAchievement = VisibleAchievements.Count > 0
+                ? VisibleAchievements[0]
+                : null;
+        }
 
         // RemainingCount is provided by the base class
     }

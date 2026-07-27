@@ -63,7 +63,7 @@ namespace PlayniteAchievements
 
         public void OpenManageAchievementsLocalFolderOverrideView(Guid gameId)
         {
-            _windowService.OpenManageAchievementsView(gameId, ManageAchievementsTab.Overview);
+            _windowService.OpenManageAchievementsLocalFolderOverrideView(gameId);
         }
 
         public void OpenCapstoneView(Guid gameId)

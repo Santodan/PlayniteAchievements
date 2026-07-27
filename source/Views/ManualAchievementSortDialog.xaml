@@ -76,9 +76,8 @@
                                                          Grid.Row="1"
                                                          DataContext="{Binding SettingsContext, RelativeSource={RelativeSource AncestorType=UserControl}}"
                                                          ItemsSource="{Binding RecentItems, RelativeSource={RelativeSource AncestorType=UserControl}}"
-                                                         ColumnSettingsKey="Sidebar"
+                                                         ColumnSettingsKey="OverviewRecentAchievements"
                                                          ShowGameColumn="True"
-                                                         HideStatusColumn="True"
                                                          UseExternalSorting="True"
                                                          Sorting="RecentPreviewGrid_Sorting"/>
                 </Grid>
@@ -104,7 +103,7 @@
                                                          Grid.Row="1"
                                                          DataContext="{Binding SettingsContext, RelativeSource={RelativeSource AncestorType=UserControl}}"
                                                          ItemsSource="{Binding AllItems, RelativeSource={RelativeSource AncestorType=UserControl}}"
-                                                         ColumnSettingsKey="SidebarAll"
+                                                         ColumnSettingsKey="OverviewRecentAchievements"
                                                          ShowGameColumn="True"
                                                          UseExternalSorting="True"
                                                          Sorting="AllPreviewGrid_Sorting"/>
@@ -131,7 +130,8 @@
                                                          Grid.Row="1"
                                                          DataContext="{Binding SettingsContext, RelativeSource={RelativeSource AncestorType=UserControl}}"
                                                          ItemsSource="{Binding SelectedItems, RelativeSource={RelativeSource AncestorType=UserControl}}"
-                                                         ColumnSettingsKey="SidebarGame"
+                                                         ColumnSettingsKey="OverviewSelectedGameAchievements"
+                                                         ShowGameColumn="True"
                                                          UseExternalSorting="True"
                                                          Sorting="SelectedPreviewGrid_Sorting"/>
                 </Grid>

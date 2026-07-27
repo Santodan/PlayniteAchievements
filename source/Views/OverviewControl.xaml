@@ -800,7 +800,7 @@
                                                                  Margin="8,8,8,0"
                                                                  KeyboardNavigation.DirectionalNavigation="Contained"
                                                                  ItemsSource="{Binding SidebarAllAchievements}"
-                                                                 ColumnSettingsKey="SidebarAll"
+                                                                 ColumnSettingsKey="OverviewRecentAchievements"
                                                                  ShowGameColumn="True"
                                                                  EnableCategoryMode="True"
                                                                  HideBackButton="True"

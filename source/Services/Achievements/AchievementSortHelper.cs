@@ -176,7 +176,7 @@ namespace PlayniteAchievements.Services.Achievements
                 return;
             }
 
-            var configuredSort = GetConfiguredDefaultSort(settings, surface);
+            var configuredSort = GetGridInteractionDefaultSort(settings, surface);
             applyIndicator(
                 configuredSort.SortMemberPath,
                 configuredSort.PreservesSourceOrder ? (ListSortDirection?)null : configuredSort.Direction);
@@ -195,7 +195,7 @@ namespace PlayniteAchievements.Services.Achievements
                 return AchievementGridSortAction.None();
             }
 
-            var configuredSort = GetConfiguredDefaultSort(settings, surface);
+            var configuredSort = GetGridInteractionDefaultSort(settings, surface);
             var isConfiguredDefaultColumn =
                 !configuredSort.PreservesSourceOrder &&
                 string.Equals(configuredSort.SortMemberPath, clickedSortMemberPath, StringComparison.Ordinal);
@@ -235,6 +235,35 @@ namespace PlayniteAchievements.Services.Achievements
             return AchievementGridSortAction.ApplySort(
                 clickedSortMemberPath,
                 cycleDirections[currentDirectionIndex + 1]);
+        }
+
+        private static AchievementSortSpec GetGridInteractionDefaultSort(
+            PersistedSettings settings,
+            AchievementSortSurface surface)
+        {
+            // The Overview's Custom (Manual) selector owns these two grids. When its saved
+            // configuration says source order, the Display > Overview grid default must not
+            // reappear as either the visible sort indicator or the third-click reset target.
+            if (settings?.DefaultAchievementSortMode == CompactListSortMode.Custom)
+            {
+                if (surface == AchievementSortSurface.OverviewRecentAchievements &&
+                    settings.RecentAchievementsCustomSortUsesSourceOrder)
+                {
+                    return new AchievementSortSpec(
+                        CompactListSortMode.None,
+                        ListSortDirection.Ascending);
+                }
+
+                if (surface == AchievementSortSurface.OverviewSelectedGame &&
+                    settings.SidebarSelectedGameCustomSortUsesSourceOrder)
+                {
+                    return new AchievementSortSpec(
+                        CompactListSortMode.None,
+                        ListSortDirection.Ascending);
+                }
+            }
+
+            return GetConfiguredDefaultSort(settings, surface);
         }
 
         public static List<AchievementDetail> ResolveSelectedGameAchievements(

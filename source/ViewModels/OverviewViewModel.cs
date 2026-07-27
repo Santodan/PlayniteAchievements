@@ -1912,6 +1912,7 @@ namespace PlayniteAchievements.ViewModels
             if (DefaultAchievementSortMode == CompactListSortMode.Custom)
             {
                 LoadManualSortSettings();
+                LogManualSortState("ApplySnapshot");
             }
 
             _selectedGamePipeline.InvalidateAll();
@@ -3250,7 +3251,9 @@ namespace PlayniteAchievements.ViewModels
                 GameSummariesSortHelper.SortByConfiguredDefault(_allGameSummaries, _settings?.Persisted);
             }
 
-            if (string.IsNullOrEmpty(_recentSortPath))
+            if (string.IsNullOrEmpty(_recentSortPath) &&
+                !(DefaultAchievementSortMode == CompactListSortMode.Custom &&
+                  _settings?.Persisted?.RecentAchievementsCustomSortUsesSourceOrder == true))
             {
                 _allRecentAchievements = AchievementSortHelper.CreateDefaultSortedList(
                     _allRecentAchievements,
@@ -4151,9 +4154,15 @@ namespace PlayniteAchievements.ViewModels
         private void ResetRecentSortToDefault()
         {
             _recentSecondarySorts.Clear();
-            _allRecentAchievements = AchievementSortHelper.CreateDefaultSortedList(
-                _allRecentAchievements,
-                AchievementSortScope.RecentAchievements);
+            var useManualSourceOrder =
+                DefaultAchievementSortMode == CompactListSortMode.Custom &&
+                _settings?.Persisted?.RecentAchievementsCustomSortUsesSourceOrder == true;
+            if (!useManualSourceOrder)
+            {
+                _allRecentAchievements = AchievementSortHelper.CreateDefaultSortedList(
+                    _allRecentAchievements,
+                    AchievementSortScope.RecentAchievements);
+            }
             _recentSortPath = null;
             _recentSortDirection = AchievementSortHelper.GetConfiguredDefaultSort(
                 _settings?.Persisted,
@@ -4271,6 +4280,21 @@ namespace PlayniteAchievements.ViewModels
             ReplaceSecondarySorts(
                 _selectedGameSecondarySorts,
                 persisted.SidebarSelectedGameCustomSecondarySorts);
+        }
+
+        private void LogManualSortState(string context)
+        {
+            var persisted = _settings?.Persisted;
+            if (persisted == null)
+            {
+                return;
+            }
+
+            _logger?.Debug(
+                $"[OverviewSort] context={context} mode={persisted.DefaultAchievementSortMode} " +
+                $"recentPath='{_recentSortPath ?? "<source>"}' recentSource={persisted.RecentAchievementsCustomSortUsesSourceOrder} " +
+                $"selectedPath='{_selectedGameSortPath ?? "<source>"}' selectedSource={persisted.SidebarSelectedGameCustomSortUsesSourceOrder} " +
+                $"displaySelectedMode={persisted.OverviewSelectedGameGridSortMode}");
         }
 
         public void ApplyDefaultSidebarAllSort()
@@ -4397,6 +4421,7 @@ namespace PlayniteAchievements.ViewModels
                     _settings?.Persisted?.SidebarSelectedGameGridSortMode == CompactListSortMode.Custom)
                 {
                     LoadManualSortSettings();
+                    LogManualSortState("SelectedGameLoaded");
                 }
                 ApplyRightFilters();
 

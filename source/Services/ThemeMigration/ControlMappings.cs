@@ -8,13 +8,14 @@ namespace PlayniteAchievements.Services.ThemeMigration
     /// </summary>
     public static class ControlMappings
     {
-        public static readonly HashSet<string> CompactAchievementListControlNames =
-            new HashSet<string>
-            {
-                "PluginCompactList",
-                "PluginCompactLocked",
-                "PluginCompactUnlocked"
-            };
+        public static readonly HashSet<string> CompactAchievementListControlNames = new HashSet<string>
+        {
+            "PluginCompactList",
+            "PluginCompactLocked",
+            "PluginCompactUnlocked",
+            "PluginList"
+        };
+
         /// <summary>
         /// Maps Legacy control names to Modern control names.
         /// Keys are the legacy names (without underscore prefix), values are the modern names.

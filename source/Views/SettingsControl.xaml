@@ -70,6 +70,19 @@
                 <ContentControl x:Name="AchievementNotificationsContent"/>
             </TabItem>
 
+            <!-- Fork migration workflow retained as a separate page alongside v3 migration. -->
+            <TabItem x:Name="ForkThemeMigrationTab"
+                     AutomationProperties.Name="{DynamicResource LOCPlayAch_ThemeMigration_Title}">
+                <TabItem.Header>
+                    <StackPanel Style="{StaticResource TabHeaderWithIconStyle}">
+                        <TextBlock Style="{StaticResource HeaderIconStyle}" Text="&#xEFD2;"/>
+                        <TextBlock Text="{DynamicResource LOCPlayAch_ThemeMigration_Title}"
+                                   VerticalAlignment="Center"/>
+                    </StackPanel>
+                </TabItem.Header>
+                <ContentControl x:Name="ForkThemeMigrationContent"/>
+            </TabItem>
+
             <!-- ================== TAB: DISPLAY ================== -->
             <TabItem x:Name="DisplayTab" AutomationProperties.Name="{DynamicResource LOCPlayAch_Settings_TabDisplay}">
                 <TabItem.Header>

@@ -107,6 +107,10 @@
                                  Style="{StaticResource NavTabRadioStyle}"
                                  Visibility="{Binding ShowManualTrackingTab, Converter={StaticResource BoolToVis}}"
                                  IsChecked="{Binding SelectedTab, Mode=TwoWay, Converter={StaticResource EnumToBool}, ConverterParameter=ManualTracking}" />
+                    <RadioButton x:Name="CustomSchemaTabButton"
+                                 Content="{DynamicResource LOCPlayAch_GameOptions_Tab_CustomSchema}"
+                                 Style="{StaticResource NavTabRadioStyle}"
+                                 IsChecked="{Binding SelectedTab, Mode=TwoWay, Converter={StaticResource EnumToBool}, ConverterParameter=CustomSchema}" />
                     <RadioButton x:Name="CapstonesTabButton"
                                  Content="{DynamicResource LOCPlayAch_ManageAchievements_Tab_Capstones}"
                                  Style="{StaticResource NavTabRadioStyle}"
@@ -165,6 +169,206 @@
                         </Style>
                     </views:ManageAchievementsOverviewTab.Style>
                 </views:ManageAchievementsOverviewTab>
+
+                <Grid x:Name="CustomSchemaControlRoot">
+                    <Grid.Style>
+                        <Style TargetType="{x:Type Grid}">
+                            <Setter Property="Visibility" Value="Collapsed" />
+                            <Style.Triggers>
+                                <DataTrigger Binding="{Binding SelectedTab}" Value="CustomSchema">
+                                    <Setter Property="Visibility" Value="Visible" />
+                                </DataTrigger>
+                            </Style.Triggers>
+                        </Style>
+                    </Grid.Style>
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto" />
+                        <RowDefinition Height="12" />
+                        <RowDefinition Height="*" />
+                    </Grid.RowDefinitions>
+
+                    <StackPanel Grid.Row="0" Orientation="Horizontal">
+                        <RadioButton Content="{DynamicResource LOCPlayAch_GameOptions_Tab_Schema}"
+                                     Style="{StaticResource NavTabRadioStyle}"
+                                     Margin="0"
+                                     IsChecked="{Binding SelectedCustomSchemaTab, Mode=TwoWay, Converter={StaticResource EnumToBool}, ConverterParameter=SchemaJson}" />
+                        <RadioButton Content="{DynamicResource LOCPlayAch_GameOptions_Tab_Capstones}"
+                                     Style="{StaticResource NavTabRadioStyle}"
+                                     Margin="8,0,0,0"
+                                     IsChecked="{Binding SelectedCustomSchemaTab, Mode=TwoWay, Converter={StaticResource EnumToBool}, ConverterParameter=Capstones}" />
+                        <RadioButton Content="{DynamicResource LOCPlayAch_GameOptions_Tab_Category}"
+                                     Style="{StaticResource NavTabRadioStyle}"
+                                     Margin="8,0,0,0"
+                                     IsChecked="{Binding SelectedCustomSchemaTab, Mode=TwoWay, Converter={StaticResource EnumToBool}, ConverterParameter=Category}" />
+                        <RadioButton Content="{DynamicResource LOCPlayAch_GameOptions_Tab_AchievementOrder}"
+                                     Style="{StaticResource NavTabRadioStyle}"
+                                     Margin="8,0,0,0"
+                                     IsChecked="{Binding SelectedCustomSchemaTab, Mode=TwoWay, Converter={StaticResource EnumToBool}, ConverterParameter=AchievementOrder}" />
+                        <RadioButton Content="{DynamicResource LOCPlayAch_GameOptions_Tab_CustomIcons}"
+                                     Style="{StaticResource NavTabRadioStyle}"
+                                     Margin="8,0,0,0"
+                                     IsChecked="{Binding SelectedCustomSchemaTab, Mode=TwoWay, Converter={StaticResource EnumToBool}, ConverterParameter=CustomIcons}" />
+                    </StackPanel>
+
+                    <Grid Grid.Row="2">
+                        <Grid>
+                            <Grid.Style>
+                                <Style TargetType="{x:Type Grid}">
+                                    <Setter Property="Visibility" Value="Collapsed" />
+                                    <Style.Triggers>
+                                        <DataTrigger Binding="{Binding SelectedCustomSchemaTab}" Value="SchemaJson">
+                                            <Setter Property="Visibility" Value="Visible" />
+                                        </DataTrigger>
+                                    </Style.Triggers>
+                                </Style>
+                            </Grid.Style>
+                            <Grid.RowDefinitions>
+                                <RowDefinition Height="Auto" />
+                                <RowDefinition Height="Auto" />
+                                <RowDefinition Height="Auto" />
+                                <RowDefinition Height="Auto" />
+                                <RowDefinition Height="*" />
+                                <RowDefinition Height="Auto" />
+                            </Grid.RowDefinitions>
+                            <TextBlock Grid.Row="0"
+                                       Text="{Binding LocalCustomSchemaStatusText}"
+                                       Foreground="{DynamicResource PlayAch.Brush.Text}"
+                                       TextWrapping="Wrap"
+                                       Margin="{StaticResource PlayAch.Thickness.Bottom.Sm}" />
+                            <CheckBox Grid.Row="1"
+                                      Content="{DynamicResource LOCPlayAch_GameOptions_CustomSchemaEnabled}"
+                                      IsChecked="{Binding LocalCustomSchemaEnabled, Mode=TwoWay}"
+                                      Margin="{StaticResource PlayAch.Thickness.Bottom.Sm}" />
+                            <Grid Grid.Row="2" Margin="{StaticResource PlayAch.Thickness.Bottom.Sm}">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="Auto" />
+                                    <ColumnDefinition Width="Auto" />
+                                    <ColumnDefinition Width="Auto" />
+                                </Grid.ColumnDefinitions>
+                                <TextBox Grid.Column="0"
+                                         Text="{Binding LocalCustomSchemaOverrideInput, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                         Padding="8,6" />
+                                <Button Grid.Column="1"
+                                        Content="{DynamicResource LOCPlayAch_Button_Browse}"
+                                        Command="{Binding BrowseLocalCustomSchemaOverrideCommand}"
+                                        Padding="{StaticResource PlayAch.Thickness.ButtonPadding}"
+                                        Margin="{StaticResource PlayAch.Thickness.Left.Sm}" />
+                                <Button Grid.Column="2"
+                                        Content="{DynamicResource LOCPlayAch_Button_Apply}"
+                                        Command="{Binding ApplyLocalCustomSchemaOverrideCommand}"
+                                        Padding="{StaticResource PlayAch.Thickness.ButtonPadding}"
+                                        Margin="{StaticResource PlayAch.Thickness.Left.Sm}" />
+                                <Button Grid.Column="3"
+                                        Content="{DynamicResource LOCPlayAch_Button_Clear}"
+                                        Command="{Binding ClearLocalCustomSchemaOverrideCommand}"
+                                        Padding="{StaticResource PlayAch.Thickness.ButtonPadding}"
+                                        Margin="{StaticResource PlayAch.Thickness.Left.Sm}" />
+                            </Grid>
+                            <StackPanel Grid.Row="3"
+                                        Orientation="Horizontal"
+                                        Margin="{StaticResource PlayAch.Thickness.Bottom.Sm}">
+                                <Button Content="{DynamicResource LOCPlayAch_Button_Reload}"
+                                        Command="{Binding ReloadCustomSchemaEditorCommand}"
+                                        Padding="{StaticResource PlayAch.Thickness.ButtonPadding}"
+                                        Margin="{StaticResource PlayAch.Thickness.Right.Sm}" />
+                                <Button Content="{DynamicResource LOCPlayAch_Button_Save}"
+                                        Command="{Binding SaveCustomSchemaEditorCommand}"
+                                        Padding="{StaticResource PlayAch.Thickness.ButtonPadding}" />
+                            </StackPanel>
+                            <TextBox Grid.Row="4"
+                                     Text="{Binding CustomSchemaEditorText, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                     AcceptsReturn="True"
+                                     AcceptsTab="True"
+                                     VerticalScrollBarVisibility="Auto"
+                                     HorizontalScrollBarVisibility="Auto"
+                                     TextWrapping="NoWrap"
+                                     FontFamily="Consolas"
+                                     FontSize="12"
+                                     Padding="8" />
+                            <TextBlock Grid.Row="5"
+                                       Text="{Binding CustomSchemaEditorStatus}"
+                                       Foreground="{DynamicResource PlayAch.Brush.Text}"
+                                       Margin="{StaticResource PlayAch.Thickness.Top.Sm}"
+                                       TextWrapping="Wrap"
+                                       Opacity="0.82">
+                                <TextBlock.Style>
+                                    <Style TargetType="TextBlock">
+                                        <Style.Triggers>
+                                            <DataTrigger Binding="{Binding CustomSchemaEditorStatusIsError}" Value="True">
+                                                <Setter Property="Foreground" Value="#FFE07070" />
+                                                <Setter Property="Opacity" Value="1" />
+                                            </DataTrigger>
+                                        </Style.Triggers>
+                                    </Style>
+                                </TextBlock.Style>
+                            </TextBlock>
+                        </Grid>
+
+                        <Grid>
+                            <Grid.Style>
+                                <Style TargetType="{x:Type Grid}">
+                                    <Setter Property="Visibility" Value="Collapsed" />
+                                    <Style.Triggers>
+                                        <DataTrigger Binding="{Binding SelectedCustomSchemaTab}" Value="Capstones">
+                                            <Setter Property="Visibility" Value="Visible" />
+                                        </DataTrigger>
+                                    </Style.Triggers>
+                                </Style>
+                            </Grid.Style>
+                            <TextBlock Text="{Binding CapstoneEmptyMessage}"
+                                       Foreground="{DynamicResource PlayAch.Brush.Text}"
+                                       Opacity="0.78"
+                                       TextWrapping="Wrap"
+                                       Margin="4"
+                                       Visibility="{Binding HasCapstoneData, Converter={StaticResource InverseBoolToVis}}" />
+                            <ContentControl x:Name="CustomSchemaCapstoneHost"
+                                            Visibility="{Binding HasCapstoneData, Converter={StaticResource BoolToVis}}" />
+                        </Grid>
+
+                        <Grid>
+                            <Grid.Style>
+                                <Style TargetType="{x:Type Grid}">
+                                    <Setter Property="Visibility" Value="Collapsed" />
+                                    <Style.Triggers>
+                                        <DataTrigger Binding="{Binding SelectedCustomSchemaTab}" Value="AchievementOrder">
+                                            <Setter Property="Visibility" Value="Visible" />
+                                        </DataTrigger>
+                                    </Style.Triggers>
+                                </Style>
+                            </Grid.Style>
+                            <ContentControl x:Name="CustomSchemaAchievementOrderHost" />
+                        </Grid>
+
+                        <Grid>
+                            <Grid.Style>
+                                <Style TargetType="{x:Type Grid}">
+                                    <Setter Property="Visibility" Value="Collapsed" />
+                                    <Style.Triggers>
+                                        <DataTrigger Binding="{Binding SelectedCustomSchemaTab}" Value="Category">
+                                            <Setter Property="Visibility" Value="Visible" />
+                                        </DataTrigger>
+                                    </Style.Triggers>
+                                </Style>
+                            </Grid.Style>
+                            <ContentControl x:Name="CustomSchemaCategoryHost" />
+                        </Grid>
+
+                        <Grid>
+                            <Grid.Style>
+                                <Style TargetType="{x:Type Grid}">
+                                    <Setter Property="Visibility" Value="Collapsed" />
+                                    <Style.Triggers>
+                                        <DataTrigger Binding="{Binding SelectedCustomSchemaTab}" Value="CustomIcons">
+                                            <Setter Property="Visibility" Value="Visible" />
+                                        </DataTrigger>
+                                    </Style.Triggers>
+                                </Style>
+                            </Grid.Style>
+                            <ContentControl x:Name="CustomSchemaAchievementIconsHost" />
+                        </Grid>
+                    </Grid>
+                </Grid>
 
                 <views:ManageAchievementsOverridesTab x:Name="OverridesTabControl">
                     <views:ManageAchievementsOverridesTab.Style>

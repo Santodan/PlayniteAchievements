@@ -224,6 +224,7 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
                     _achievementOverridesService?.SetSeparateLockedIconOverride(_gameId, value);
                     RefreshCustomDataState();
                     OnPropertyChanged(nameof(SeparateLockedIconsStatusText));
+                    RefreshOverviewOverrides();
                 }
             }
         }
@@ -288,6 +289,7 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
                 {
                     OnPropertyChanged(nameof(ProviderOverrideStatusText));
                     OnPropertyChanged(nameof(ProviderOverrideSummaryText));
+                    OnPropertyChanged(nameof(HasProviderOverrideSummary));
                     RaiseCommandStates();
                 }
             }
@@ -365,7 +367,12 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
             }
         }
 
-        public string ProviderOverrideSummaryText => ProviderOverrideStatusText;
+        public string ProviderOverrideSummaryText =>
+            HasProviderOverride
+                ? GetProviderOverrideDisplayName(_providerOverrideKey)
+                : string.Empty;
+
+        public bool HasProviderOverrideSummary => HasProviderOverride;
 
         public bool HasGame
         {
@@ -706,6 +713,7 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
                     currentCustomData?.UseSeparateLockedIconsOverride == true);
                 OnPropertyChanged(nameof(SeparateLockedIconsStatusText));
                 ReloadProviderOverrideState(currentCustomData);
+                RefreshForkOverrideState();
 
                 ManualAchievementLink manualLink;
                 var hasManualLink = ManualAchievementsProvider.TryGetManualLink(_gameId, out manualLink);

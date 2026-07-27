@@ -8187,6 +8187,29 @@ namespace PlayniteAchievements.Views
             return content;
         }
 
+        public object DetachThemeMigrationContent()
+        {
+            if (!_themeMigrationLoaded)
+            {
+                RefreshThemeMigrationContent();
+            }
+
+            var content = ThemeMigrationTab?.Content;
+            if (ThemeMigrationTab != null)
+            {
+                ThemeMigrationTab.Content = null;
+            }
+
+            return content;
+        }
+
+        public void RefreshThemeMigrationContent()
+        {
+            LoadThemes();
+            RefreshStartPageCompatibilityState();
+            _themeMigrationLoaded = true;
+        }
+
         public void Dispose()
         {
             _notificationAutoPopupPreviewTimer?.Stop();

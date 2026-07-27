@@ -37,6 +37,7 @@ namespace PlayniteAchievements.Views.ThemeIntegration.Base
         private double _lastLayoutIconHeight;
         private int _lastLayoutRemaining;
         private bool _lastLayoutShowHidden;
+        private int _lastLayoutRowStartIndex;
 
         protected override bool EnableAutomaticThemeDataUpdates => true;
         protected override bool UsesLegacyThemeBindings => true;
@@ -62,6 +63,19 @@ namespace PlayniteAchievements.Views.ThemeIntegration.Base
         }
 
         #endregion
+
+        public static readonly DependencyProperty CompactFirstItemOffsetProperty =
+            DependencyProperty.Register(
+                nameof(CompactFirstItemOffset),
+                typeof(double),
+                typeof(CompactAchievementControlBase),
+                new FrameworkPropertyMetadata(0.0));
+
+        public double CompactFirstItemOffset
+        {
+            get => (double)GetValue(CompactFirstItemOffsetProperty);
+            protected set => SetValue(CompactFirstItemOffsetProperty, value);
+        }
 
         #region ShowHiddenIcon Property
 
@@ -279,6 +293,7 @@ namespace PlayniteAchievements.Views.ThemeIntegration.Base
             OnPropertyChanged(GetHasAchievementPropertyName());
             OnPropertyChanged(GetTotalCountPropertyName());
             OnPropertyChanged(nameof(RemainingCount));
+            OnVisibleAchievementsChanged();
 
             // Defer layout update to ensure the element has been rendered
             Dispatcher?.BeginInvoke(new Action(() => UpdateCompactLayout()), System.Windows.Threading.DispatcherPriority.Loaded);
@@ -292,6 +307,20 @@ namespace PlayniteAchievements.Views.ThemeIntegration.Base
         protected virtual int GetRemainingTotalCount()
         {
             return GetTotalCount();
+        }
+
+        /// <summary>
+        /// Number of leading achievements displayed by a derived featured-preview area.
+        /// </summary>
+        protected virtual int CompactRowStartIndex => 0;
+
+        /// <summary>
+        /// Left padding before the compact row's first icon slot.
+        /// </summary>
+        protected virtual double CompactRowLeftPadding => 0;
+
+        protected virtual void OnVisibleAchievementsChanged()
+        {
         }
 
         private void UpdateCompactLayout()
@@ -310,6 +339,29 @@ namespace PlayniteAchievements.Views.ThemeIntegration.Base
                 _moreBadge = null;
                 _layoutColumnCount = 0;
                 _lastLayoutAchievements = null;
+                CompactFirstItemOffset = 0;
+                return;
+            }
+
+            int rowStartIndex = Math.Max(
+                0,
+                Math.Min(CompactRowStartIndex, _visibleAchievements.Count));
+            int rowItemCount = Math.Max(
+                0,
+                _visibleAchievements.Count - rowStartIndex);
+            int rowTotalCount = Math.Max(
+                0,
+                GetRemainingTotalCount() - rowStartIndex);
+
+            if (rowItemCount == 0)
+            {
+                grid.Children.Clear();
+                grid.ColumnDefinitions.Clear();
+                _imageChildren.Clear();
+                _moreBadge = null;
+                _layoutColumnCount = 0;
+                _lastLayoutAchievements = null;
+                CompactFirstItemOffset = 0;
                 return;
             }
 
@@ -317,7 +369,10 @@ namespace PlayniteAchievements.Views.ThemeIntegration.Base
             double iconSize = IconHeight + 10;
             double layoutWidth = actualWidth > 0 ? actualWidth : iconSize;
             int nbGrid = Math.Max(1, (int)(layoutWidth / iconSize));
-            int remaining = GetRemainingTotalCount() - (nbGrid - 1);
+            double columnWidth = layoutWidth / nbGrid;
+            CompactFirstItemOffset =
+                CompactRowLeftPadding + Math.Max(0, (columnWidth - IconHeight) / 2);
+            int remaining = rowTotalCount - (nbGrid - 1);
 
             // Skip the pass when nothing that determines the output has changed
             // (e.g. per-pixel SizeChanged within the same column count).
@@ -325,7 +380,8 @@ namespace PlayniteAchievements.Views.ThemeIntegration.Base
                 _layoutColumnCount == nbGrid &&
                 _lastLayoutIconHeight == IconHeight &&
                 _lastLayoutRemaining == remaining &&
-                _lastLayoutShowHidden == ShowHiddenIcon)
+                _lastLayoutShowHidden == ShowHiddenIcon &&
+                _lastLayoutRowStartIndex == rowStartIndex)
             {
                 return;
             }
@@ -345,7 +401,7 @@ namespace PlayniteAchievements.Views.ThemeIntegration.Base
 
             // Achievement images occupy columns 0..nbGrid-2; the last column is reserved
             // for the "+X more" badge when achievements remain beyond the visible columns.
-            int imageCount = Math.Min(_visibleAchievements.Count, nbGrid - 1);
+            int imageCount = Math.Min(rowItemCount, nbGrid - 1);
 
             while (_imageChildren.Count > imageCount)
             {
@@ -368,7 +424,7 @@ namespace PlayniteAchievements.Views.ThemeIntegration.Base
                     grid.Children.Add(image);
                 }
 
-                ApplyAchievementToImage(image, _visibleAchievements[i]);
+                ApplyAchievementToImage(image, _visibleAchievements[rowStartIndex + i]);
                 image.SetValue(Grid.ColumnProperty, i);
             }
 
@@ -400,6 +456,7 @@ namespace PlayniteAchievements.Views.ThemeIntegration.Base
             _lastLayoutIconHeight = IconHeight;
             _lastLayoutRemaining = remaining;
             _lastLayoutShowHidden = ShowHiddenIcon;
+            _lastLayoutRowStartIndex = rowStartIndex;
         }
 
         public List<AchievementDetail> VisibleAchievements => _visibleAchievements;
@@ -413,7 +470,9 @@ namespace PlayniteAchievements.Views.ThemeIntegration.Base
                 int nbGrid = _layoutColumnCount > 0
                     ? _layoutColumnCount
                     : Math.Max(1, (int)(actualWidth / (IconHeight + 10)));
-                int total = GetRemainingTotalCount();
+                int total = Math.Max(
+                    0,
+                    GetRemainingTotalCount() - Math.Max(0, CompactRowStartIndex));
                 if (nbGrid >= total) return 0;
                 return Math.Max(0, total - (nbGrid - 1));
             }

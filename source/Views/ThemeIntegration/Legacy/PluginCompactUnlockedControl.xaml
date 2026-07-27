@@ -23,7 +23,68 @@
         </ResourceDictionary>
     </local:CompactAchievementControlBase.Resources>
 
-    <Grid>
+    <StackPanel ClipToBounds="False">
+        <Border Padding="0,0,0,8"
+                DataContext="{Binding FeaturedAchievement, RelativeSource={RelativeSource AncestorType=local:CompactAchievementControlBase}}">
+            <Border.Style>
+                <Style TargetType="{x:Type Border}">
+                    <Setter Property="Visibility" Value="Visible" />
+                    <Style.Triggers>
+                        <DataTrigger Binding="{Binding}" Value="{x:Null}">
+                            <Setter Property="Visibility" Value="Collapsed" />
+                        </DataTrigger>
+                    </Style.Triggers>
+                </Style>
+            </Border.Style>
+
+            <Grid>
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="Auto" />
+                    <ColumnDefinition Width="Auto" />
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="Auto" />
+                </Grid.ColumnDefinitions>
+
+                <Border Grid.Column="0"
+                        Width="{Binding CompactFirstItemOffset, RelativeSource={RelativeSource AncestorType=local:CompactAchievementControlBase}}" />
+
+                <localControls:AchievementImage Grid.Column="1"
+                                                Width="44"
+                                                Height="44"
+                                                Margin="0,0,10,0"
+                                                ToolTip="{Binding DisplayName}"
+                                                Icon="{Binding UnlockedIconDisplay}"
+                                                IconCustom="{Binding LockedIconDisplay}"
+                                                IsLocked="False"
+                                                Percent="{Binding RarityPercentValue}"
+                                                HasRarityPercent="{Binding HasRarityPercent}"
+                                                Rarity="{Binding Rarity}"
+                                                RarityText="{Binding RarityText}"
+                                                EnableRaretyIndicator="True"
+                                                DisplayRaretyValue="True"
+                                                HorizontalAlignment="Center"
+                                                VerticalAlignment="Center" />
+
+                <StackPanel Grid.Column="2"
+                            VerticalAlignment="Center">
+                    <TextBlock Text="{Binding DisplayName}"
+                               FontWeight="SemiBold"
+                               Foreground="{DynamicResource PlayAch.Brush.Text}"
+                               TextWrapping="Wrap" />
+                    <TextBlock Text="{Binding Description}"
+                               Foreground="{DynamicResource PlayAch.Brush.Text.Secondary}"
+                               TextWrapping="Wrap"
+                               TextTrimming="CharacterEllipsis" />
+                </StackPanel>
+
+                <TextBlock Grid.Column="3"
+                           Margin="10,0,0,0"
+                           VerticalAlignment="Top"
+                           Foreground="{DynamicResource PlayAch.Brush.Text}"
+                           Text="{Binding DateUnlocked, StringFormat={}{0:g}}" />
+            </Grid>
+        </Border>
+
         <Border CornerRadius="{DynamicResource ControlCornerRadius}"
                 BorderThickness="{DynamicResource ControlBorderThickness}"
                 Background="Transparent"
@@ -52,5 +113,5 @@
                 </TextBlock>
             </Grid>
         </Border>
-    </Grid>
+    </StackPanel>
 </local:CompactAchievementControlBase>

@@ -579,6 +579,13 @@ namespace PlayniteAchievements.Services.Overview
                 }
             }
 
+            var persisted = settings?.Persisted;
+            if (persisted?.DefaultAchievementSortMode == CompactListSortMode.Custom &&
+                persisted.RecentAchievementsCustomSortUsesSourceOrder)
+            {
+                return items;
+            }
+
             return AchievementSortHelper.CreateDefaultSortedList(
                 items,
                 AchievementSortScope.RecentAchievements);
