@@ -671,22 +671,6 @@
                                         Click="ClearGameSelection_Click"
                                         Margin="10,0,0,0"/>
 
-                                <Button x:Name="CompareSelectionButton"
-                                        Style="{StaticResource AchievementSelectorButtonStyle}"
-                                        Content="{Binding FriendCompare.CompareSelectionText}"
-                                        Click="CompareSelectionButton_Click"
-                                        HorizontalContentAlignment="Center"
-                                        MinWidth="94"
-                                        MinHeight="22"
-                                        Margin="10,0,0,0"
-                                        VerticalAlignment="Center"
-                                        Visibility="{Binding FriendCompare.IsCompareAvailable, Converter={StaticResource BoolToVis}}">
-                                    <Button.ContextMenu>
-                                        <ContextMenu Style="{StaticResource AchievementSelectorContextMenuStyle}"
-                                                     ItemContainerStyle="{StaticResource AchievementMultiSelectMenuItemStyle}"/>
-                                    </Button.ContextMenu>
-                                </Button>
-
                             </StackPanel>
                         </Border>
                     </Grid>

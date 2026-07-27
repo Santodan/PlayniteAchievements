@@ -346,21 +346,6 @@
                             Style="{StaticResource ClearGameSelectionButtonStyle}"
                             Margin="10,0,0,0"
                             Visibility="{Binding HasAnySelection, Converter={StaticResource BoolToVis}}"/>
-                    <Button x:Name="CompareSelectionButton"
-                            Style="{StaticResource AchievementSelectorButtonStyle}"
-                            Content="{Binding CompareSelectionText}"
-                            Click="CompareSelectionButton_Click"
-                            HorizontalContentAlignment="Center"
-                            MinWidth="94"
-                            MinHeight="22"
-                            Margin="10,0,0,0"
-                            VerticalAlignment="Center"
-                            Visibility="{Binding IsCompareAvailable, Converter={StaticResource BoolToVis}}">
-                        <Button.ContextMenu>
-                            <ContextMenu Style="{StaticResource AchievementSelectorContextMenuStyle}"
-                                         ItemContainerStyle="{StaticResource AchievementMultiSelectMenuItemStyle}"/>
-                        </Button.ContextMenu>
-                    </Button>
                 </StackPanel>
             </Border>
 
