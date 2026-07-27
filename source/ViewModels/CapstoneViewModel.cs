@@ -2,6 +2,9 @@ using Playnite.SDK;
 using PlayniteAchievements.Models;
 using PlayniteAchievements.Models.Achievements;
 using PlayniteAchievements.Services;
+using PlayniteAchievements.Services.Achievements;
+using PlayniteAchievements.Services.Search;
+using PlayniteAchievements.ViewModels.Items;
 using System;
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
@@ -35,6 +38,9 @@ namespace PlayniteAchievements.ViewModels
         private readonly ILogger _logger;
         private readonly PlayniteAchievementsSettings _settings;
         private List<CapstoneOptionItem> _allOptions = new List<CapstoneOptionItem>();
+        private readonly SearchTextIndex<CapstoneOptionItem> _searchIndex =
+            new SearchTextIndex<CapstoneOptionItem>(item =>
+                SearchTextBuilder.ForCapstone(item?.DisplayName, item?.Description));
         private string _searchText = string.Empty;
         private string _persistedMarkerApiName;
         private int _capstoneWriteVersion;
@@ -62,7 +68,7 @@ namespace PlayniteAchievements.ViewModels
         }
 
         public ObservableCollection<CapstoneOptionItem> AchievementOptions { get; } =
-            new ObservableCollection<CapstoneOptionItem>();
+            new PlayniteAchievements.Common.BulkObservableCollection<CapstoneOptionItem>();
 
         private string _gameName;
         public string GameName
@@ -161,6 +167,7 @@ namespace PlayniteAchievements.ViewModels
             if (item != null && item.CanReveal)
             {
                 item.ToggleReveal();
+                _searchIndex.Invalidate(item);
             }
         }
 
@@ -230,17 +237,26 @@ namespace PlayniteAchievements.ViewModels
         private void ApplyFilter()
         {
             var filtered = _allOptions.AsEnumerable();
+            var searchQuery = SearchQuery.From(SearchText);
 
-            if (!string.IsNullOrEmpty(SearchText))
+            if (searchQuery.HasValue)
             {
-                filtered = filtered.Where(item =>
-                    (item.DisplayName?.IndexOf(SearchText, StringComparison.OrdinalIgnoreCase) >= 0) ||
-                    (item.Description?.IndexOf(SearchText, StringComparison.OrdinalIgnoreCase) >= 0));
+                filtered = filtered.Where(item => _searchIndex.Matches(item, searchQuery));
             }
 
-            PlayniteAchievements.Common.CollectionHelper.SynchronizeCollection(
-                AchievementOptions,
-                filtered.ToList());
+            ReplaceAchievementOptions(filtered.ToList());
+        }
+
+        private void ReplaceAchievementOptions(IEnumerable<CapstoneOptionItem> options)
+        {
+            if (AchievementOptions is PlayniteAchievements.Common.BulkObservableCollection<CapstoneOptionItem> bulk)
+            {
+                bulk.ReplaceAll(options);
+            }
+            else
+            {
+                PlayniteAchievements.Common.CollectionHelper.SynchronizeCollection(AchievementOptions, options);
+            }
         }
 
         public void ClearSearch()
@@ -264,9 +280,9 @@ namespace PlayniteAchievements.ViewModels
                     .ToDictionary(group => group.Key, group => group.First().IsRevealed, StringComparer.OrdinalIgnoreCase);
 
                 var game = _playniteApi?.Database?.Games?.Get(_gameId);
-                GameName = game?.Name ?? ResourceProvider.GetString("LOCPlayAch_Text_UnknownGame") ?? "Unknown Game";
+                GameName = game?.Name ?? ResourceProvider.GetString("LOCPlayAch_Text_UnknownGame");
 
-                UseCoverAspect = _settings?.Persisted?.UseCoverImages ?? false;
+                UseCoverAspect = _settings?.Persisted?.OverviewGameSummariesUseCoverImages ?? true;
 
                 if (game != null)
                 {
@@ -293,6 +309,14 @@ namespace PlayniteAchievements.ViewModels
                     .ThenBy(a => a.DisplayName ?? a.ApiName, StringComparer.CurrentCultureIgnoreCase)
                     .ToList();
 
+                // Per-game invariants hoisted out of the row loop: the appearance snapshot and
+                // category art/order resolution are identical for every row in this pass.
+                var appearanceSnapshot = AchievementDisplayItem.CreateAppearanceSettingsSnapshot(
+                    _settings,
+                    _gameId,
+                    gameData?.UseSeparateLockedIconsWhenAvailable);
+                var categoryMemo = new AchievementDisplayItem.CategoryPresentationMemo();
+
                 _allOptions.Clear();
                 CapstoneOptionItem currentMarkerOption = null;
                 for (int i = 0; i < sortedAchievements.Count; i++)
@@ -302,7 +326,9 @@ namespace PlayniteAchievements.ViewModels
                         gameData,
                         achievement,
                         _settings,
-                        playniteGameIdOverride: _gameId);
+                        playniteGameIdOverride: _gameId,
+                        appearanceSettings: appearanceSnapshot,
+                        categoryMemo: categoryMemo);
                     var option = CreateOptionItem(projected, achievement, currentCapstoneApiName);
                     if (option == null)
                     {
@@ -324,6 +350,7 @@ namespace PlayniteAchievements.ViewModels
                     _allOptions.Add(option);
                 }
 
+                _searchIndex.Rebuild(_allOptions);
                 ApplyFilter();
                 _persistedMarkerApiName = currentCapstoneApiName;
                 SetCurrentMarkerText(currentMarkerOption?.DisplayName);
@@ -331,6 +358,7 @@ namespace PlayniteAchievements.ViewModels
             catch (Exception ex)
             {
                 _logger?.Error(ex, $"Failed loading capstone options for gameId={_gameId}");
+                _searchIndex.Clear();
                 SetCurrentMarkerText(null);
             }
         }
@@ -358,6 +386,7 @@ namespace PlayniteAchievements.ViewModels
                 LockedIconPath = projected.LockedIconPath,
                 UnlockTimeUtc = projected.UnlockTimeUtc,
                 GlobalPercentUnlocked = projected.GlobalPercentUnlocked,
+                Rarity = projected.Rarity,
                 PointsValue = projected.PointsValue,
                 ProgressNum = projected.ProgressNum,
                 ProgressDenom = projected.ProgressDenom,
@@ -367,7 +396,6 @@ namespace PlayniteAchievements.ViewModels
                 ShowHiddenIcon = projected.ShowHiddenIcon,
                 ShowHiddenTitle = projected.ShowHiddenTitle,
                 ShowHiddenDescription = projected.ShowHiddenDescription,
-                ShowRarityGlow = projected.ShowRarityGlow,
                 ShowRarityBar = projected.ShowRarityBar,
                 ShowHiddenSuffix = projected.ShowHiddenSuffix,
                 ShowLockedIcon = projected.ShowLockedIcon,
@@ -429,7 +457,7 @@ namespace PlayniteAchievements.ViewModels
 
         private void SetCurrentMarkerText(string markerDisplayName)
         {
-            var fallback = ResourceProvider.GetString("LOCPlayAch_CustomRefresh_None") ?? "None";
+            var fallback = ResourceProvider.GetString("LOCPlayAch_Common_None");
             var markerText = string.IsNullOrWhiteSpace(markerDisplayName) ? fallback : markerDisplayName.Trim();
             var format = ResourceProvider.GetString("LOCPlayAch_Capstone_Current");
             if (string.IsNullOrWhiteSpace(format))

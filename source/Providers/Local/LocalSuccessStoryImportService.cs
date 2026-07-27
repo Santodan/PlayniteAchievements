@@ -6,6 +6,8 @@ using Playnite.SDK.Plugins;
 using PlayniteAchievements.Models.Achievements;
 using PlayniteAchievements.Providers.ImportedGameMetadata;
 using PlayniteAchievements.Services;
+using PlayniteAchievements.Services.Achievements;
+using PlayniteAchievements.Services.Cache;
 using System;
 using System.Collections.Generic;
 using System.Globalization;

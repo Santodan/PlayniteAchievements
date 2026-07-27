@@ -2,6 +2,8 @@ using Microsoft.VisualStudio.TestTools.UnitTesting;
 using PlayniteAchievements.Models.Achievements;
 using PlayniteAchievements.Models.Settings;
 using PlayniteAchievements.Services;
+using PlayniteAchievements.Services.Achievements;
+using PlayniteAchievements.Services.GameCustomData;
 using PlayniteAchievements.Services.Hydration;
 using System;
 using System.Collections.Generic;
@@ -50,6 +52,27 @@ namespace PlayniteAchievements.Services.Tests
                     AchievementCategoryTypeOverrides = new Dictionary<string, string>
                     {
                         ["ach_one"] = "DLC"
+                    }
+                },
+                new GameCustomDataFile
+                {
+                    AchievementCategoryOrder = new List<string> { "DLC" }
+                },
+                new GameCustomDataFile
+                {
+                    AchievementCategoryImageOverrides = new Dictionary<string, CategoryImageOverrideData>
+                    {
+                        ["DLC"] = new CategoryImageOverrideData
+                        {
+                            Art = "https://example.com/art.png"
+                        }
+                    }
+                },
+                new GameCustomDataFile
+                {
+                    GameSummaryCategory = new GameSummaryCategoryData
+                    {
+                        Label = "DLC"
                     }
                 },
                 new GameCustomDataFile
@@ -131,7 +154,7 @@ namespace PlayniteAchievements.Services.Tests
                 },
                 gameId);
 
-            Assert.AreEqual(4, normalized.SchemaVersion);
+            Assert.AreEqual(5, normalized.SchemaVersion);
             AssertProviderOverride(normalized, "Steam", "480");
             AssertLegacyProviderFieldsCleared(normalized);
         }
@@ -160,6 +183,226 @@ namespace PlayniteAchievements.Services.Tests
             Assert.AreEqual("second note\nline", normalized.AchievementNotes["ach_one"]);
             Assert.AreEqual(AchievementNoteHelper.MaxNoteLength, normalized.AchievementNotes["ach_long"].Length);
             Assert.IsTrue(GameCustomDataNormalizer.HasVisibleCustomization(normalized));
+        }
+
+        [TestMethod]
+        public void NormalizeInternal_CategoryMetadata_NormalizesOrderAndImages()
+        {
+            var gameId = Guid.NewGuid();
+            var normalized = GameCustomDataNormalizer.NormalizeInternal(
+                new GameCustomDataFile
+                {
+                    PlayniteGameId = gameId,
+                    AchievementCategoryOrder = new List<string>
+                    {
+                        " DLC ",
+                        "Base",
+                        "dlc"
+                    },
+                    AchievementCategoryImageOverrides = new Dictionary<string, CategoryImageOverrideData>
+                    {
+                        [" DLC "] = new CategoryImageOverrideData
+                        {
+                            Art = " https://example.com/art.png "
+                        },
+                        ["Base"] = new CategoryImageOverrideData
+                        {
+                            Art = "managed://art.png"
+                        },
+                        ["Empty"] = new CategoryImageOverrideData
+                        {
+                            Art = " "
+                        }
+                    }
+                },
+                gameId);
+
+            CollectionAssert.AreEqual(
+                new[] { "DLC", "Base" },
+                normalized.AchievementCategoryOrder);
+            Assert.AreEqual(2, normalized.AchievementCategoryImageOverrides.Count);
+            Assert.AreEqual("https://example.com/art.png", normalized.AchievementCategoryImageOverrides["DLC"].Art);
+            Assert.AreEqual("managed://art.png", normalized.AchievementCategoryImageOverrides["Base"].Art);
+            Assert.IsFalse(normalized.AchievementCategoryImageOverrides.ContainsKey("Empty"));
+            Assert.IsTrue(GameCustomDataNormalizer.HasVisibleCustomization(normalized));
+        }
+
+        [TestMethod]
+        public void HasInternalData_GameSummaryCategoryOnly_ReturnsTrue()
+        {
+            var data = new GameCustomDataFile
+            {
+                GameSummaryCategory = new GameSummaryCategoryData
+                {
+                    Label = "DLC",
+                    ProviderLabel = "Phantom Liberty"
+                }
+            };
+
+            Assert.IsTrue(GameCustomDataNormalizer.HasInternalData(data));
+            Assert.IsTrue(GameCustomDataNormalizer.HasPortableData(data));
+        }
+
+        [TestMethod]
+        public void NormalizeInternal_GameSummaryCategory_NormalizesLabelsAndDefaultsProviderLabel()
+        {
+            var gameId = Guid.NewGuid();
+            var normalized = GameCustomDataNormalizer.NormalizeInternal(
+                new GameCustomDataFile
+                {
+                    PlayniteGameId = gameId,
+                    GameSummaryCategory = new GameSummaryCategoryData
+                    {
+                        Label = " DLC ",
+                        ProviderLabel = " "
+                    }
+                },
+                gameId);
+
+            Assert.IsNotNull(normalized.GameSummaryCategory);
+            Assert.AreEqual("DLC", normalized.GameSummaryCategory.Label);
+            Assert.AreEqual("DLC", normalized.GameSummaryCategory.ProviderLabel);
+        }
+
+        [TestMethod]
+        public void NormalizeInternal_GameSummaryCategory_BlankLabel_DropsSelection()
+        {
+            var gameId = Guid.NewGuid();
+            var normalized = GameCustomDataNormalizer.NormalizeInternal(
+                new GameCustomDataFile
+                {
+                    PlayniteGameId = gameId,
+                    GameSummaryCategory = new GameSummaryCategoryData
+                    {
+                        Label = " ",
+                        ProviderLabel = "Phantom Liberty"
+                    }
+                },
+                gameId);
+
+            Assert.IsNull(normalized.GameSummaryCategory);
+        }
+
+        [TestMethod]
+        public void NormalizePortable_GameSummaryCategory_KeepsDistinctProviderLabel()
+        {
+            var gameId = Guid.NewGuid();
+            var normalized = GameCustomDataNormalizer.NormalizePortable(
+                new GameCustomDataPortableFile
+                {
+                    PlayniteGameId = gameId,
+                    GameSummaryCategory = new GameSummaryCategoryData
+                    {
+                        Label = "My Renamed DLC",
+                        ProviderLabel = " Phantom Liberty "
+                    }
+                },
+                gameId);
+
+            Assert.IsNotNull(normalized.GameSummaryCategory);
+            Assert.AreEqual("My Renamed DLC", normalized.GameSummaryCategory.Label);
+            Assert.AreEqual("Phantom Liberty", normalized.GameSummaryCategory.ProviderLabel);
+        }
+
+        [TestMethod]
+        public void MergePreferExisting_GameSummaryCategory_PrefersExistingThenLegacy()
+        {
+            var existing = new GameCustomDataFile
+            {
+                GameSummaryCategory = new GameSummaryCategoryData
+                {
+                    Label = "Existing",
+                    ProviderLabel = "Existing"
+                }
+            };
+            var legacy = new GameCustomDataFile
+            {
+                GameSummaryCategory = new GameSummaryCategoryData
+                {
+                    Label = "Legacy",
+                    ProviderLabel = "Legacy"
+                }
+            };
+
+            var merged = GameCustomDataNormalizer.MergePreferExisting(existing, legacy);
+            Assert.AreEqual("Existing", merged.GameSummaryCategory.Label);
+
+            var mergedFromLegacy = GameCustomDataNormalizer.MergePreferExisting(new GameCustomDataFile(), legacy);
+            Assert.AreEqual("Legacy", mergedFromLegacy.GameSummaryCategory.Label);
+        }
+
+        [TestMethod]
+        public void GameCustomDataFiles_CloneAndPortableRoundTrip_DeepCopyGameSummaryCategory()
+        {
+            var internalData = new GameCustomDataFile
+            {
+                PlayniteGameId = Guid.NewGuid(),
+                GameSummaryCategory = new GameSummaryCategoryData
+                {
+                    Label = "DLC",
+                    ProviderLabel = "Phantom Liberty"
+                }
+            };
+
+            var internalClone = internalData.Clone();
+            internalClone.GameSummaryCategory.Label = "Changed";
+            Assert.AreEqual("DLC", internalData.GameSummaryCategory.Label);
+
+            var portable = internalData.ToPortable();
+            portable.GameSummaryCategory.Label = "Portable";
+            Assert.AreEqual("DLC", internalData.GameSummaryCategory.Label);
+
+            var portableClone = portable.Clone();
+            portableClone.GameSummaryCategory.Label = "Clone";
+            Assert.AreEqual("Portable", portable.GameSummaryCategory.Label);
+
+            var imported = GameCustomDataFile.FromPortable(portable, Guid.NewGuid(), false, false);
+            Assert.AreEqual("Portable", imported.GameSummaryCategory.Label);
+            Assert.AreEqual("Phantom Liberty", imported.GameSummaryCategory.ProviderLabel);
+            imported.GameSummaryCategory.Label = "Import";
+            Assert.AreEqual("Portable", portable.GameSummaryCategory.Label);
+        }
+
+        [TestMethod]
+        public void GameCustomDataFiles_CloneAndPortableRoundTrip_DeepCopyCategoryMetadata()
+        {
+            var gameId = Guid.NewGuid();
+            var internalData = new GameCustomDataFile
+            {
+                PlayniteGameId = gameId,
+                AchievementCategoryOrder = new List<string> { "DLC" },
+                AchievementCategoryImageOverrides = new Dictionary<string, CategoryImageOverrideData>
+                {
+                    ["DLC"] = new CategoryImageOverrideData
+                    {
+                        Art = "art.png"
+                    }
+                }
+            };
+
+            var internalClone = internalData.Clone();
+            internalClone.AchievementCategoryOrder[0] = "Base";
+            internalClone.AchievementCategoryImageOverrides["DLC"].Art = "changed.png";
+            Assert.AreEqual("DLC", internalData.AchievementCategoryOrder[0]);
+            Assert.AreEqual("art.png", internalData.AchievementCategoryImageOverrides["DLC"].Art);
+
+            var portable = internalData.ToPortable();
+            portable.AchievementCategoryOrder[0] = "Portable";
+            portable.AchievementCategoryImageOverrides["DLC"].Art = "portable.png";
+            Assert.AreEqual("DLC", internalData.AchievementCategoryOrder[0]);
+            Assert.AreEqual("art.png", internalData.AchievementCategoryImageOverrides["DLC"].Art);
+
+            var portableClone = portable.Clone();
+            portableClone.AchievementCategoryOrder[0] = "Clone";
+            portableClone.AchievementCategoryImageOverrides["DLC"].Art = "clone.png";
+            Assert.AreEqual("Portable", portable.AchievementCategoryOrder[0]);
+            Assert.AreEqual("portable.png", portable.AchievementCategoryImageOverrides["DLC"].Art);
+
+            var imported = GameCustomDataFile.FromPortable(portable, Guid.NewGuid(), false, false);
+            imported.AchievementCategoryOrder[0] = "Import";
+            imported.AchievementCategoryImageOverrides["DLC"].Art = "import.png";
+            Assert.AreEqual("Portable", portable.AchievementCategoryOrder[0]);
+            Assert.AreEqual("portable.png", portable.AchievementCategoryImageOverrides["DLC"].Art);
         }
 
         [TestMethod]
@@ -218,6 +461,36 @@ namespace PlayniteAchievements.Services.Tests
             Assert.AreEqual(1, details.Count(a => a.Unlocked));
             Assert.IsFalse(details.Any(a => a.IsFiltered));
             Assert.IsFalse(details.Any(a => a.IsFilteredFromSummaries));
+        }
+
+        [TestMethod]
+        public void AchievementDetailHydrator_KeepsProviderCategoryStableAcrossRenames()
+        {
+            var gameId = Guid.NewGuid();
+            var details = new List<AchievementDetail>
+            {
+                new AchievementDetail { ApiName = "dlc_ach", Category = "Phantom Liberty", CategoryType = "DLC" }
+            };
+            var renamed = new ResolvedGameCustomData
+            {
+                AchievementCategoryOverrides = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
+                {
+                    ["dlc_ach"] = "My Renamed DLC"
+                }
+            };
+
+            var hydrator = new AchievementDetailHydrator(new PersistedSettings());
+            hydrator.HydrateAllWithCapstoneOverride(details, gameId, "Steam", renamed);
+
+            Assert.AreEqual("My Renamed DLC", details[0].Category);
+            Assert.AreEqual("Phantom Liberty", details[0].ProviderCategory);
+
+            // Re-hydrating the same mutated instance without the rename override must
+            // restore the provider label rather than treat the rename as provider data.
+            hydrator.HydrateAllWithCapstoneOverride(details, gameId, "Steam", new ResolvedGameCustomData());
+
+            Assert.AreEqual("Phantom Liberty", details[0].Category);
+            Assert.AreEqual("Phantom Liberty", details[0].ProviderCategory);
         }
 
         [TestMethod]
@@ -313,6 +586,25 @@ namespace PlayniteAchievements.Services.Tests
                 gameId);
 
             AssertProviderOverride(normalized, "Exophase", null);
+        }
+
+        [TestMethod]
+        public void NormalizeInternal_FfxivProviderOverride_PreservesKeyWithNullValue()
+        {
+            var gameId = Guid.NewGuid();
+            var normalized = GameCustomDataNormalizer.NormalizeInternal(
+                new GameCustomDataFile
+                {
+                    PlayniteGameId = gameId,
+                    ProviderOverride = new ProviderOverrideData
+                    {
+                        ProviderKey = "ffxiv",
+                        Value = null
+                    }
+                },
+                gameId);
+
+            AssertProviderOverride(normalized, "FFXIV", null);
         }
 
         [TestMethod]

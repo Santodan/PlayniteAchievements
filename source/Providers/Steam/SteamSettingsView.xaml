@@ -337,6 +337,17 @@
                         </Border>
                     </Grid>
 
+                    <Border Style="{StaticResource SectionBorderStyle}" Margin="0,12,0,0">
+                        <StackPanel>
+                            <CheckBox Content="{DynamicResource LOCPlayAch_Settings_SteamHuntersCategories}"
+                                      IsChecked="{Binding Settings.UseSteamHuntersForCategories, Mode=TwoWay}"
+                                      FontWeight="SemiBold"/>
+                            <TextBlock Text="{DynamicResource LOCPlayAch_Settings_SteamHuntersCategories_Help}"
+                                       Style="{StaticResource MutedTextStyle}"
+                                       Margin="18,6,0,0"
+                                       TextWrapping="Wrap"/>
+                        </StackPanel>
+                    </Border>
                 </StackPanel>
             </Border>
         </StackPanel>

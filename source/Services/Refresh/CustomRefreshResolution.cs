@@ -2,7 +2,7 @@ using PlayniteAchievements.Providers;
 using System;
 using System.Collections.Generic;
 
-namespace PlayniteAchievements.Services
+namespace PlayniteAchievements.Services.Refresh
 {
     internal sealed class CustomRefreshResolution
     {

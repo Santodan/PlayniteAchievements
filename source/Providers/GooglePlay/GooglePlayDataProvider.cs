@@ -10,17 +10,13 @@ using PlayniteAchievements.Providers.Settings;
 
 namespace PlayniteAchievements.Providers.GooglePlay
 {
-    public sealed class GooglePlayDataProvider : IDataProvider
+    public sealed class GooglePlayDataProvider : DataProviderBase<GooglePlaySettings>, IDataProvider
     {
-        private GooglePlaySettings _providerSettings;
-
         public GooglePlayDataProvider(ILogger logger, PlayniteAchievementsSettings settings, IPlayniteAPI playniteApi)
         {
             _ = logger ?? throw new ArgumentNullException(nameof(logger));
             _ = settings ?? throw new ArgumentNullException(nameof(settings));
             _ = playniteApi ?? throw new ArgumentNullException(nameof(playniteApi));
-
-            _providerSettings = ProviderRegistry.Settings<GooglePlaySettings>();
         }
 
         public string ProviderName => ResourceProvider.GetString("LOCPlayAch_Provider_GooglePlay");
@@ -29,6 +25,8 @@ namespace PlayniteAchievements.Providers.GooglePlay
         public string ProviderColorHex => "#0F9D58";
         public bool IsAuthenticated => false;
         public ISessionManager AuthSession => null;
+
+        public PlayniteAchievements.Models.Friends.IFriendsProvider Friends => null;
 
         public bool IsCapable(Game game) => false;
 
@@ -42,16 +40,6 @@ namespace PlayniteAchievements.Providers.GooglePlay
             {
                 Summary = new RebuildSummary()
             });
-        }
-
-        public IProviderSettings GetSettings() => _providerSettings;
-
-        public void ApplySettings(IProviderSettings settings)
-        {
-            if (settings is GooglePlaySettings googlePlaySettings)
-            {
-                _providerSettings.CopyFrom(googlePlaySettings);
-            }
         }
 
         public ProviderSettingsViewBase CreateSettingsView() => null;

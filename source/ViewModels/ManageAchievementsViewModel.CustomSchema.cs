@@ -8,7 +8,7 @@ using Newtonsoft.Json.Linq;
 using PlayniteAchievements.Providers.Local;
 using RelayCommand = PlayniteAchievements.Common.RelayCommand;
 
-namespace PlayniteAchievements.ViewModels
+namespace PlayniteAchievements.ViewModels.ManageAchievements
 {
     public sealed partial class ManageAchievementsViewModel
     {

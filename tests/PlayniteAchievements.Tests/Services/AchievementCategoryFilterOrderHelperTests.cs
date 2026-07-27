@@ -1,7 +1,9 @@
 using Microsoft.VisualStudio.TestTools.UnitTesting;
 using PlayniteAchievements.Services;
+using PlayniteAchievements.Services.Achievements;
 using PlayniteAchievements.Services.Overview;
 using PlayniteAchievements.ViewModels;
+using PlayniteAchievements.ViewModels.Items;
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -49,6 +51,27 @@ namespace PlayniteAchievements.Services.Tests
 
             CollectionAssert.AreEqual(
                 new[] { "Default", "DLC 1" },
+                ordered);
+        }
+
+        [TestMethod]
+        public void BuildOrderedCategoryLabels_AppliesPreferredOrderBeforeFirstSeenRemainder()
+        {
+            var items = new[]
+            {
+                new AchievementDisplayItem { CategoryLabel = "Base Game" },
+                new AchievementDisplayItem { CategoryLabel = "DLC 2" },
+                new AchievementDisplayItem { CategoryLabel = "DLC 1" },
+                new AchievementDisplayItem { CategoryLabel = "Event" }
+            };
+
+            var ordered = AchievementCategoryFilterOrderHelper.BuildOrderedCategoryLabels(
+                items,
+                item => item?.CategoryLabel,
+                new[] { "dlc 1", "Missing", "base game", "DLC 1" });
+
+            CollectionAssert.AreEqual(
+                new[] { "DLC 1", "Base Game", "DLC 2", "Event" },
                 ordered);
         }
 

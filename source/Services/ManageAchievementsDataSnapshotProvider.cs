@@ -1,4 +1,5 @@
 using PlayniteAchievements.Models.Achievements;
+using PlayniteAchievements.Services.Achievements;
 using System;
 
 namespace PlayniteAchievements.Services

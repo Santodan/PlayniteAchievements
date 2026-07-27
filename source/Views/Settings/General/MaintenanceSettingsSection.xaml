@@ -1,0 +1,199 @@
+<UserControl x:Class="PlayniteAchievements.Views.Settings.General.MaintenanceSettingsSection"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+             mc:Ignorable="d"
+             d:DesignHeight="600"
+             d:DesignWidth="700">
+    <UserControl.Resources>
+        <ResourceDictionary>
+            <ResourceDictionary.MergedDictionaries>
+                <ResourceDictionary Source="pack://application:,,,/PlayniteAchievements;component/Resources/SettingsScopedControlStyles.xaml"/>
+            </ResourceDictionary.MergedDictionaries>
+        </ResourceDictionary>
+    </UserControl.Resources>
+    <ScrollViewer VerticalScrollBarVisibility="Auto"
+                  HorizontalScrollBarVisibility="Disabled">
+        <StackPanel Margin="20">
+
+            <!-- ================== MAINTENANCE ================== -->
+            <Border Style="{StaticResource SectionBorderStyle}">
+                <StackPanel>
+                    <TextBlock Text="{DynamicResource LOCPlayAch_Settings_Maintenance_Title}"
+                               Style="{StaticResource SectionHeaderStyle}"/>
+                    <TextBlock Text="{DynamicResource LOCPlayAch_Settings_Maintenance_Description}"
+                               Style="{StaticResource MutedTextStyle}"
+                               Margin="{StaticResource PlayAch.Thickness.Bottom.Lg}"/>
+
+                    <Border Style="{StaticResource SettingGroupCardStyle}">
+                        <StackPanel>
+                            <TextBlock Text="{DynamicResource LOCPlayAch_Settings_CachedAchievementData_Title}"
+                                       Style="{StaticResource SubSectionHeaderStyle}"
+                                       Margin="{StaticResource PlayAch.Thickness.Bottom.Xs}"/>
+                            <TextBlock Text="{DynamicResource LOCPlayAch_Settings_CachedAchievementData_Description}"
+                                       Style="{StaticResource MutedTextStyle}"
+                                       Margin="{StaticResource PlayAch.Thickness.Bottom.Md}"/>
+
+                            <Grid>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*"/>
+                                    <ColumnDefinition Width="Auto"/>
+                                </Grid.ColumnDefinitions>
+
+                                <TextBlock Grid.Column="0"
+                                           Text="{DynamicResource LOCPlayAch_Settings_CachedAchievementData_ClearDescription}"
+                                           Style="{StaticResource MutedTextStyle}"
+                                           VerticalAlignment="Center"/>
+
+                                <Button Grid.Column="1"
+                                        Content="{DynamicResource LOCPlayAch_Button_Clear}"
+                                        Click="WipeCache_Click"
+                                        Padding="{StaticResource PlayAch.Thickness.ButtonPadding.Wide}"
+                                        Margin="16,0,0,0"
+                                        MinWidth="130"/>
+                            </Grid>
+
+                            <Grid Style="{StaticResource SettingRowStyle}">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*"/>
+                                    <ColumnDefinition Width="Auto"/>
+                                </Grid.ColumnDefinitions>
+
+                                <TextBlock Grid.Column="0"
+                                           Text="{DynamicResource LOCPlayAch_Settings_ClearUnownedFriendData_Description}"
+                                           Style="{StaticResource MutedTextStyle}"
+                                           VerticalAlignment="Center"/>
+
+                                <Button Grid.Column="1"
+                                        Content="{DynamicResource LOCPlayAch_Button_Clear}"
+                                        Click="ClearUnownedFriendGameData_Click"
+                                        Padding="{StaticResource PlayAch.Thickness.ButtonPadding.Wide}"
+                                        Margin="16,0,0,0"
+                                        MinWidth="130"/>
+                            </Grid>
+                        </StackPanel>
+                    </Border>
+
+                    <Border Style="{StaticResource SettingGroupCardStyle}">
+                        <StackPanel>
+                            <TextBlock Text="{DynamicResource LOCPlayAch_Settings_AchievementIconCache_Title}"
+                                       Style="{StaticResource SubSectionHeaderStyle}"
+                                       Margin="{StaticResource PlayAch.Thickness.Bottom.Xs}"/>
+                            <TextBlock Text="{DynamicResource LOCPlayAch_Settings_IconCache_Description}"
+                                       Style="{StaticResource MutedTextStyle}"
+                                       Margin="{StaticResource PlayAch.Thickness.Bottom.Md}"/>
+
+                            <Grid Style="{StaticResource SettingRowStyle}">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*"/>
+                                    <ColumnDefinition Width="Auto"/>
+                                </Grid.ColumnDefinitions>
+
+                                <TextBlock Grid.Column="0"
+                                           Text="{DynamicResource LOCPlayAch_Settings_IconCache_ClearAllDescription}"
+                                           Style="{StaticResource MutedTextStyle}"
+                                           VerticalAlignment="Center"/>
+
+                                <Button Grid.Column="1"
+                                        Content="{DynamicResource LOCPlayAch_Button_Clear}"
+                                        Click="ClearAllIconCache_Click"
+                                        Padding="{StaticResource PlayAch.Thickness.ButtonPadding.Wide}"
+                                        Margin="16,0,0,0"
+                                        MinWidth="130"/>
+                            </Grid>
+
+                            <Grid>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*"/>
+                                    <ColumnDefinition Width="Auto"/>
+                                </Grid.ColumnDefinitions>
+
+                                <TextBlock Grid.Column="0"
+                                           Text="{DynamicResource LOCPlayAch_Settings_IconCache_ClearLockedDescription}"
+                                           Style="{StaticResource MutedTextStyle}"
+                                           VerticalAlignment="Center"/>
+
+                                <Button Grid.Column="1"
+                                        Content="{DynamicResource LOCPlayAch_Button_Clear}"
+                                        Click="ClearLockedIconCache_Click"
+                                        Padding="{StaticResource PlayAch.Thickness.ButtonPadding.Wide}"
+                                        Margin="16,0,0,0"
+                                        MinWidth="130"/>
+                            </Grid>
+                        </StackPanel>
+                    </Border>
+
+                    <Border Style="{StaticResource SettingGroupCardStyle}">
+                        <StackPanel>
+                            <TextBlock Text="{DynamicResource LOCPlayAch_Settings_Utilities_Title}"
+                                       Style="{StaticResource SubSectionHeaderStyle}"
+                                       Margin="{StaticResource PlayAch.Thickness.Bottom.Xs}"/>
+                            <TextBlock Text="{DynamicResource LOCPlayAch_Settings_Utilities_Description}"
+                                       Style="{StaticResource MutedTextStyle}"
+                                       Margin="{StaticResource PlayAch.Thickness.Bottom.Md}"/>
+
+                            <Grid Style="{StaticResource SettingRowStyle}">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*"/>
+                                    <ColumnDefinition Width="Auto"/>
+                                </Grid.ColumnDefinitions>
+
+                                <TextBlock Grid.Column="0"
+                                           Text="{DynamicResource LOCPlayAch_Settings_ResetFirstTimeSetup}"
+                                           Style="{StaticResource MutedTextStyle}"
+                                           VerticalAlignment="Center"/>
+
+                                <Button Grid.Column="1"
+                                        Content="{DynamicResource LOCPlayAch_Settings_ResetFirstTimeSetupButton}"
+                                        Click="ResetFirstTimeSetup_Click"
+                                        Padding="{StaticResource PlayAch.Thickness.ButtonPadding.Wide}"
+                                        Margin="16,0,0,0"
+                                        MinWidth="130"/>
+                            </Grid>
+
+                            <Grid Style="{StaticResource SettingRowStyle}">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*"/>
+                                    <ColumnDefinition Width="Auto"/>
+                                </Grid.ColumnDefinitions>
+
+                                <TextBlock Grid.Column="0"
+                                           Text="{DynamicResource LOCPlayAch_Settings_ExportDatabase}"
+                                           Style="{StaticResource MutedTextStyle}"
+                                           VerticalAlignment="Center"/>
+
+                                <Button Grid.Column="1"
+                                        Content="{DynamicResource LOCPlayAch_Settings_ExportDatabaseButton}"
+                                        Click="ExportDatabase_Click"
+                                        Padding="{StaticResource PlayAch.Thickness.ButtonPadding.Wide}"
+                                        Margin="16,0,0,0"
+                                        MinWidth="130"/>
+                            </Grid>
+
+                            <Grid>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*"/>
+                                    <ColumnDefinition Width="Auto"/>
+                                </Grid.ColumnDefinitions>
+
+                                <TextBlock Grid.Column="0"
+                                           Text="{DynamicResource LOCPlayAch_Settings_OpenDataFolder}"
+                                           Style="{StaticResource MutedTextStyle}"
+                                           VerticalAlignment="Center"/>
+
+                                <Button Grid.Column="1"
+                                        Content="{DynamicResource LOCPlayAch_Settings_OpenDataFolderButton}"
+                                        Click="OpenDataFolder_Click"
+                                        Padding="{StaticResource PlayAch.Thickness.ButtonPadding.Wide}"
+                                        Margin="16,0,0,0"
+                                        MinWidth="130"/>
+                            </Grid>
+                        </StackPanel>
+                    </Border>
+                </StackPanel>
+            </Border>
+
+        </StackPanel>
+    </ScrollViewer>
+</UserControl>

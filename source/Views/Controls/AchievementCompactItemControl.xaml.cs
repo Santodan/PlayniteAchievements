@@ -4,6 +4,7 @@ using System.Windows.Controls;
 using System.Windows.Input;
 using System.Windows.Threading;
 using PlayniteAchievements.ViewModels;
+using PlayniteAchievements.ViewModels.Items;
 
 namespace PlayniteAchievements.Views.Controls
 {
@@ -27,42 +28,6 @@ namespace PlayniteAchievements.Views.Controls
         {
             get => (double)GetValue(IconSizeProperty);
             set => SetValue(IconSizeProperty, value);
-        }
-
-        /// <summary>
-        /// Identifies the ShowRarityGlow dependency property.
-        /// When set, overrides the item's ShowRarityGlow property.
-        /// </summary>
-        public static readonly DependencyProperty ShowRarityGlowOverrideProperty =
-            DependencyProperty.Register(nameof(ShowRarityGlowOverride), typeof(bool?),
-                typeof(AchievementCompactItemControl), new PropertyMetadata(null));
-
-        /// <summary>
-        /// Gets or sets an override for the rarity glow visibility.
-        /// When null, uses the item's ShowRarityGlow property.
-        /// </summary>
-        public bool? ShowRarityGlowOverride
-        {
-            get => (bool?)GetValue(ShowRarityGlowOverrideProperty);
-            set => SetValue(ShowRarityGlowOverrideProperty, value);
-        }
-
-        /// <summary>
-        /// Identifies the ShowRarityBarOverride dependency property.
-        /// When set, overrides the item's ShowRarityBar property.
-        /// </summary>
-        public static readonly DependencyProperty ShowRarityBarOverrideProperty =
-            DependencyProperty.Register(nameof(ShowRarityBarOverride), typeof(bool?),
-                typeof(AchievementCompactItemControl), new PropertyMetadata(null));
-
-        /// <summary>
-        /// Gets or sets an override for the rarity bar visibility.
-        /// When null, uses the item's ShowRarityBar property.
-        /// </summary>
-        public bool? ShowRarityBarOverride
-        {
-            get => (bool?)GetValue(ShowRarityBarOverrideProperty);
-            set => SetValue(ShowRarityBarOverrideProperty, value);
         }
 
         private static void OnIconSizeChanged(DependencyObject d, DependencyPropertyChangedEventArgs e)
@@ -89,7 +54,10 @@ namespace PlayniteAchievements.Views.Controls
 
         private void OnPreviewMouseLeftButtonDown(object sender, MouseButtonEventArgs e)
         {
-            if (DataContext is AchievementDisplayItem item && item.CanReveal)
+            // Consume only the click that reveals an obscured achievement; revealed
+            // (or never-obscured) items let the click continue so the hosting list can
+            // open the achievements window focused on this achievement.
+            if (DataContext is AchievementDisplayItem item && item.CanReveal && !item.IsRevealed)
             {
                 _reopenToolTipAfterReveal = ItemToolTip?.IsOpen == true;
                 item.ToggleReveal();

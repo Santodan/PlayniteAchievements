@@ -10,17 +10,13 @@ using PlayniteAchievements.Providers.Settings;
 
 namespace PlayniteAchievements.Providers.Apple
 {
-    public sealed class AppleDataProvider : IDataProvider
+    public sealed class AppleDataProvider : DataProviderBase<AppleSettings>, IDataProvider
     {
-        private AppleSettings _providerSettings;
-
         public AppleDataProvider(ILogger logger, PlayniteAchievementsSettings settings, IPlayniteAPI playniteApi)
         {
             _ = logger ?? throw new ArgumentNullException(nameof(logger));
             _ = settings ?? throw new ArgumentNullException(nameof(settings));
             _ = playniteApi ?? throw new ArgumentNullException(nameof(playniteApi));
-
-            _providerSettings = ProviderRegistry.Settings<AppleSettings>();
         }
 
         public string ProviderName => ResourceProvider.GetString("LOCPlayAch_Provider_Apple");
@@ -29,6 +25,8 @@ namespace PlayniteAchievements.Providers.Apple
         public string ProviderColorHex => "#E5E5E5";
         public bool IsAuthenticated => false;
         public ISessionManager AuthSession => null;
+
+        public PlayniteAchievements.Models.Friends.IFriendsProvider Friends => null;
 
         public bool IsCapable(Game game) => false;
 
@@ -42,16 +40,6 @@ namespace PlayniteAchievements.Providers.Apple
             {
                 Summary = new RebuildSummary()
             });
-        }
-
-        public IProviderSettings GetSettings() => _providerSettings;
-
-        public void ApplySettings(IProviderSettings settings)
-        {
-            if (settings is AppleSettings appleSettings)
-            {
-                _providerSettings.CopyFrom(appleSettings);
-            }
         }
 
         public ProviderSettingsViewBase CreateSettingsView() => null;

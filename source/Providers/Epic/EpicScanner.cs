@@ -2,6 +2,8 @@ using PlayniteAchievements.Common;
 using PlayniteAchievements.Models;
 using PlayniteAchievements.Models.Achievements;
 using PlayniteAchievements.Services;
+using PlayniteAchievements.Services.GameCustomData;
+using PlayniteAchievements.Services.Refresh;
 using Playnite.SDK;
 using Playnite.SDK.Models;
 using System;
@@ -11,12 +13,13 @@ using System.Threading.Tasks;
 
 namespace PlayniteAchievements.Providers.Epic
 {
-    internal sealed class EpicScanner
+    internal sealed class EpicScanner : IRefreshAuthContextReceiver
     {
         private readonly PlayniteAchievementsSettings _settings;
         private readonly EpicApiClient _apiClient;
         private readonly EpicSessionManager _sessionManager;
         private readonly ILogger _logger;
+        private RefreshAuthContext _authContext;
 
         public EpicScanner(
             PlayniteAchievementsSettings settings,
@@ -36,15 +39,18 @@ namespace PlayniteAchievements.Providers.Epic
             Func<Game, GameAchievementData, Task> onGameCompleted,
             CancellationToken cancel)
         {
-            var probeResult = await _sessionManager.ProbeAuthStateAsync(cancel).ConfigureAwait(false);
-            if (!probeResult.IsSuccess)
+            if (!HasSuccessfulScopedAuth())
             {
-                _logger?.Warn("[EpicAch] Epic not authenticated - cannot scan achievements.");
-                return new RebuildPayload
+                var probeResult = await _sessionManager.ProbeAuthStateAsync(cancel).ConfigureAwait(false);
+                if (!probeResult.IsSuccess)
                 {
-                    Summary = new RebuildSummary(),
-                    AuthRequired = true
-                };
+                    _logger?.Warn("[EpicAch] Epic not authenticated - cannot scan achievements.");
+                    return new RebuildPayload
+                    {
+                        Summary = new RebuildSummary(),
+                        AuthRequired = true
+                    };
+                }
             }
 
             if (gamesToRefresh == null || gamesToRefresh.Count == 0)
@@ -62,6 +68,13 @@ namespace PlayniteAchievements.Providers.Epic
                 async (game, token) =>
                 {
                     var gameId = game?.GameId?.Trim();
+                    if (game != null &&
+                        GameCustomDataLookup.TryGetProviderOverrideValue(game.Id, "Epic", out var overrideId) &&
+                        !string.IsNullOrWhiteSpace(overrideId))
+                    {
+                        gameId = overrideId.Trim();
+                    }
+
                     if (string.IsNullOrWhiteSpace(gameId))
                     {
                         return ProviderRefreshExecutor.ProviderGameResult.Skipped();
@@ -83,9 +96,26 @@ namespace PlayniteAchievements.Providers.Epic
                 {
                     _logger?.Debug(ex, $"[EpicAch] Failed to scan {game?.Name} after {consecutiveErrors} consecutive errors.");
                 },
-                delayBetweenGamesAsync: (index, token) => rateLimiter.DelayBeforeNextAsync(token),
-                delayAfterErrorAsync: (consecutiveErrors, token) => rateLimiter.DelayAfterErrorAsync(consecutiveErrors, token),
+                rateLimiter,
                 cancel).ConfigureAwait(false);
+        }
+
+        public void BeginRefreshAuthContext(RefreshAuthContext context)
+        {
+            _authContext = context;
+        }
+
+        public void EndRefreshAuthContext(RefreshAuthContext context)
+        {
+            if (ReferenceEquals(_authContext, context))
+            {
+                _authContext = null;
+            }
+        }
+
+        private bool HasSuccessfulScopedAuth()
+        {
+            return _authContext?.IsProviderAuthenticated("Epic") == true;
         }
 
         private async Task<GameAchievementData> FetchGameDataAsync(Game game, string gameId, CancellationToken cancel)

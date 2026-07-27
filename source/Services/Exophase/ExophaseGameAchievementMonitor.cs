@@ -11,6 +11,7 @@ using PlayniteAchievements.Providers;
 using PlayniteAchievements.Providers.Exophase;
 using PlayniteAchievements.Services;
 using PlayniteAchievements.Services.Local;
+using PlayniteAchievements.Services.Cache;
 
 namespace PlayniteAchievements.Services.Exophase
 {
@@ -307,7 +308,7 @@ namespace PlayniteAchievements.Services.Exophase
         private AchievementSnapshot CaptureSnapshot(Guid gameId)
         {
             var cacheManager = _cacheManager as CacheManager;
-            var data = cacheManager?.LoadGameData(gameId.ToString(), "Exophase");
+            var data = cacheManager?.LoadGameData(gameId.ToString());
             return BuildSnapshot(data);
         }
 

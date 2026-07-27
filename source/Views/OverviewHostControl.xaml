@@ -6,19 +6,29 @@
              mc:Ignorable="d"
              d:DesignHeight="700"
              d:DesignWidth="350">
+
+    <UserControl.Resources>
+        <ResourceDictionary>
+            <ResourceDictionary.MergedDictionaries>
+                <ResourceDictionary Source="pack://application:,,,/PlayniteAchievements;component/Resources/CommonResources.xaml"/>
+            </ResourceDictionary.MergedDictionaries>
+        </ResourceDictionary>
+    </UserControl.Resources>
     <Grid>
         <ContentPresenter x:Name="PART_Content" />
 
         <!-- Lightweight placeholder shown until the real overview is created -->
         <Border x:Name="PART_Loading"
                 Background="Transparent"
-                Padding="12">
+                Padding="{StaticResource PlayAch.Thickness.CardPadding}">
             <StackPanel>
-                <TextBlock Text="Loading…"
+                <TextBlock Text="{DynamicResource LOCPlayAch_Status_LoadingAchievements}"
                            FontWeight="SemiBold"
-                           Margin="0,0,0,6" />
+                           Foreground="{DynamicResource PlayAch.Brush.Text}"
+                           Margin="{StaticResource PlayAch.Thickness.Bottom.Compact}" />
                 <ProgressBar Height="4"
-                             IsIndeterminate="True" />
+                             IsIndeterminate="True"
+                             Style="{StaticResource PlayAch.ProgressBar.BaseStyle}" />
             </StackPanel>
         </Border>
     </Grid>

@@ -14,8 +14,18 @@
                    MaxHeight="{Binding RelativeSource={RelativeSource AncestorType=ContentControl}, Path=MaxHeight}">
 
     <local:ThemeControlBase.Resources>
-        <converters:BooleanConverter x:Key="BooleanToVisibilityConverter" Mode="ToVisibility" />
-        <converters:BooleanConverter x:Key="InvertedBooleanToVisibilityConverter" Mode="InvertedToVisibility" />
+        <ResourceDictionary>
+            <ResourceDictionary.MergedDictionaries>
+                <ResourceDictionary Source="pack://application:,,,/PlayniteAchievements;component/Resources/CommonResources.xaml"/>
+            </ResourceDictionary.MergedDictionaries>
+
+            <!-- Uses the active Playnite theme's ToggleButton chrome so the chart controls blend
+                 into the hosting theme. -->
+            <Style x:Key="LegacyChartRangeToggleButtonStyle" TargetType="ToggleButton" BasedOn="{StaticResource {x:Type ToggleButton}}">
+                <Setter Property="Padding" Value="8,4"/>
+                <Setter Property="FontSize" Value="{DynamicResource PlayAch.FontSize.Caption}"/>
+            </Style>
+        </ResourceDictionary>
     </local:ThemeControlBase.Resources>
 
     <Grid>
@@ -33,11 +43,13 @@
             </Grid.ColumnDefinitions>
 
             <ToggleButton Grid.Column="1" Content="{DynamicResource LOCPlayAch_ChartCut}" IsChecked="{Binding CutPeriod}" IsEnabled="{Binding CutEnabled}"
+                          Style="{StaticResource LegacyChartRangeToggleButtonStyle}"
                           Visibility="{Binding ElementName=PART_AllPeriod, Path=IsChecked, Converter={StaticResource BooleanToVisibilityConverter}}"
                           Click="ToggleButtonCut_Click" />
 
-            <ToggleButton Grid.Column="3" Content="{DynamicResource LOCPlayAch_TimeRange_All}" IsChecked="{Binding AllPeriod, FallbackValue=True}"
+            <ToggleButton Grid.Column="3" Content="{DynamicResource LOCPlayAch_Common_All}" IsChecked="{Binding AllPeriod, FallbackValue=True}"
                           Name="PART_AllPeriod"
+                          Style="{StaticResource LegacyChartRangeToggleButtonStyle}"
                           Click="ToggleButtonAllPeriod_Click" />
         </Grid>
 

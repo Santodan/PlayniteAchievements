@@ -178,7 +178,7 @@ namespace PlayniteAchievements.Providers.Steam
             {
                 lock (_cookieLock)
                 {
-                    SteamSessionManager.LoadCefCookiesIntoJar(_api, _logger, _cookieJar);
+                    _sessionManager.LoadCefCookiesIntoJar(_cookieJar);
                 }
             }
         }
@@ -218,7 +218,7 @@ namespace PlayniteAchievements.Providers.Steam
             {
                 return await SteamAsyncConfigTokenHelper.ResolveTokenAsync(
                     RequestStoreAsyncConfigAsync,
-                    _sessionManager.WarmStoreSessionAsync,
+                    WarmStoreSessionAsync,
                     () => SyncCookieJarFromCefIfNeeded(force: true),
                     _logger,
                     ct).ConfigureAwait(false);
@@ -229,6 +229,14 @@ namespace PlayniteAchievements.Providers.Steam
                 _logger?.Debug(ex, "[SteamAch] Store token request failed.");
                 return null;
             }
+        }
+
+        private async Task<bool> WarmStoreSessionAsync(CancellationToken ct)
+        {
+            var result = await _sessionManager.GetSteamPageAsyncCef(
+                "https://store.steampowered.com/",
+                ct).ConfigureAwait(false);
+            return !string.IsNullOrWhiteSpace(result.Html);
         }
 
         private async Task<SteamAsyncConfigRequestResult> RequestStoreAsyncConfigAsync(CancellationToken ct)
@@ -444,6 +452,27 @@ namespace PlayniteAchievements.Providers.Steam
 
         public Task<SteamPageResult> GetAchievementsPageAsync(string steamId64, int appId, string language, CancellationToken ct)
             => GetSteamPageAsync($"https://steamcommunity.com/profiles/{steamId64}/stats/{appId}/?tab=achievements&l={language ?? "english"}", true, ct);
+
+        public Task<SteamPageResult> GetFriendsPageAsync(string steamId64, CancellationToken ct)
+        {
+            return string.IsNullOrWhiteSpace(steamId64)
+                ? Task.FromResult(new SteamPageResult())
+                : GetSteamPageAsync($"https://steamcommunity.com/profiles/{steamId64.Trim()}/friends?ajax=1", true, ct);
+        }
+
+        public Task<SteamPageResult> GetOwnedGamesPageAsync(string steamId64, CancellationToken ct)
+        {
+            return string.IsNullOrWhiteSpace(steamId64)
+                ? Task.FromResult(new SteamPageResult())
+                : GetSteamPageAsync($"https://steamcommunity.com/profiles/{steamId64.Trim()}/games?tab=all", true, ct);
+        }
+
+        public Task<SteamPageResult> GetProfileXmlPageAsync(string steamId64, CancellationToken ct)
+        {
+            return string.IsNullOrWhiteSpace(steamId64)
+                ? Task.FromResult(new SteamPageResult())
+                : GetSteamPageAsync($"https://steamcommunity.com/profiles/{steamId64.Trim()}/?xml=1", true, ct);
+        }
 
         public Task<SteamPageResult> GetAchievementsPageByKeyAsync(string steamId64, string statsKey, string language, CancellationToken ct)
         {
@@ -1242,6 +1271,18 @@ namespace PlayniteAchievements.Providers.Steam
         public static bool LooksLoggedOutHeader(string html)
         {
             return SteamStatsPageClassifier.LooksLoggedOutHeader(html);
+        }
+
+        public static bool LooksUnauthenticatedSteamPage(string html, string finalUrl = null)
+        {
+            return (!string.IsNullOrWhiteSpace(finalUrl) &&
+                    (finalUrl.IndexOf("/login", StringComparison.OrdinalIgnoreCase) >= 0 ||
+                     finalUrl.IndexOf("openid", StringComparison.OrdinalIgnoreCase) >= 0 ||
+                     finalUrl.IndexOf("login.steampowered.com", StringComparison.OrdinalIgnoreCase) >= 0)) ||
+                   LooksLoggedOutHeader(html) ||
+                   LooksUnauthenticatedStatsPayload(html, finalUrl) ||
+                   (!string.IsNullOrWhiteSpace(html) &&
+                    html.IndexOf("<title>Sign In</title>", StringComparison.OrdinalIgnoreCase) >= 0);
         }
 
         public static bool HasAnyAchievementRows(string html)

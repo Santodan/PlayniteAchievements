@@ -387,12 +387,10 @@ namespace PlayniteAchievements.Providers.Xbox
 
         private async Task<LiveTokens> ExecuteTokenRequestAsync(string formData)
         {
-            using (var client = new HttpClient())
+            using (var response = await HttpClientFactory.Shared.PostAsync(
+                TokenUrl,
+                new StringContent(formData, Encoding.ASCII, "application/x-www-form-urlencoded")).ConfigureAwait(false))
             {
-                var response = await client.PostAsync(
-                    TokenUrl,
-                    new StringContent(formData, Encoding.ASCII, "application/x-www-form-urlencoded")).ConfigureAwait(false);
-
                 response.EnsureSuccessStatusCode();
                 var content = await response.Content.ReadAsStringAsync().ConfigureAwait(false);
                 return Serialization.FromJson<LiveTokens>(content);
@@ -418,85 +416,96 @@ namespace PlayniteAchievements.Providers.Xbox
 
         private async Task AuthenticateXboxLiveAsync(string accessToken)
         {
-            using (var client = new HttpClient())
+            // Authenticate with Xbox Live
+            var authRequest = new XboxAuthRequest
             {
-                client.DefaultRequestHeaders.Add("x-xbl-contract-version", "1");
+                Properties = { RpsTicket = $"d={accessToken}" }
+            };
 
-                // Authenticate with Xbox Live
-                var authRequest = new XboxAuthRequest
+            var authContent = new StringContent(
+                Serialization.ToJson(authRequest),
+                Encoding.UTF8,
+                "application/json");
+
+            string authResponseContent;
+            using (var authMessage = new HttpRequestMessage(HttpMethod.Post, XboxAuthUrl) { Content = authContent })
+            {
+                authMessage.Headers.Add("x-xbl-contract-version", "1");
+                using (var authResponse = await HttpClientFactory.Shared.SendAsync(authMessage).ConfigureAwait(false))
                 {
-                    Properties = { RpsTicket = $"d={accessToken}" }
-                };
+                    authResponseContent = await authResponse.Content.ReadAsStringAsync().ConfigureAwait(false);
 
-                var authContent = new StringContent(
-                    Serialization.ToJson(authRequest),
+                    if (!authResponse.IsSuccessStatusCode)
+                    {
+                        _logger?.Error($"[XboxAch] Xbox auth failed: {authResponse.StatusCode} - {authResponseContent}");
+                        throw new Exception("Xbox Live authentication failed.");
+                    }
+                }
+            }
+
+            var authTokens = Serialization.FromJson<AuthorizationData>(authResponseContent);
+
+            // Authorize with XSTS
+            var xstsRequest = new XstsRequest
+            {
+                Properties = { UserTokens = new List<string> { authTokens.Token } }
+            };
+
+            var xstsContent = new StringContent(
+                Serialization.ToJson(xstsRequest),
+                Encoding.UTF8,
+                "application/json");
+
+            string xstsResponseContent;
+            bool xstsSucceeded;
+            using (var xstsMessage = new HttpRequestMessage(HttpMethod.Post, XstsAuthUrl) { Content = xstsContent })
+            {
+                xstsMessage.Headers.Add("x-xbl-contract-version", "1");
+                using (var xstsResponse = await HttpClientFactory.Shared.SendAsync(xstsMessage).ConfigureAwait(false))
+                {
+                    xstsResponseContent = await xstsResponse.Content.ReadAsStringAsync().ConfigureAwait(false);
+                    xstsSucceeded = xstsResponse.IsSuccessStatusCode;
+                }
+            }
+
+            if (!xstsSucceeded)
+            {
+                // Check for XSTS error
+                var xstsError = Serialization.FromJson<XstsResponse>(xstsResponseContent);
+                var errorCode = xstsError?.XErr?.XErr ?? 0;
+                var errorMessage = xstsError?.XErr?.Message ?? "Unknown error";
+
+                _logger?.Error($"[XboxAch] XSTS authorization failed: {errorCode} - {errorMessage}");
+
+                if (errorCode == 2148916233)
+                {
+                    throw new Exception("The account doesn't have an Xbox account.");
+                }
+                else if (errorCode == 2148916235)
+                {
+                    throw new Exception("Xbox Live is not available in your region.");
+                }
+                else if (errorCode == 2148916236 || errorCode == 2148916237)
+                {
+                    throw new Exception("Adult verification required. Please login to Xbox.com to verify your account.");
+                }
+                else if (errorCode == 2148916238)
+                {
+                    throw new Exception("The account belongs to a minor without Xbox profile.");
+                }
+
+                throw new Exception($"XSTS authorization failed: {errorMessage}");
+            }
+
+            // Save XSTS tokens encrypted
+            var currentUser = WindowsIdentity.GetCurrent().User?.Value;
+            if (!string.IsNullOrEmpty(currentUser))
+            {
+                Encryption.EncryptToFile(
+                    _xstsTokensPath,
+                    xstsResponseContent,
                     Encoding.UTF8,
-                    "application/json");
-
-                var authResponse = await client.PostAsync(XboxAuthUrl, authContent).ConfigureAwait(false);
-                var authResponseContent = await authResponse.Content.ReadAsStringAsync().ConfigureAwait(false);
-
-                if (!authResponse.IsSuccessStatusCode)
-                {
-                    _logger?.Error($"[XboxAch] Xbox auth failed: {authResponse.StatusCode} - {authResponseContent}");
-                    throw new Exception("Xbox Live authentication failed.");
-                }
-
-                var authTokens = Serialization.FromJson<AuthorizationData>(authResponseContent);
-
-                // Authorize with XSTS
-                var xstsRequest = new XstsRequest
-                {
-                    Properties = { UserTokens = new List<string> { authTokens.Token } }
-                };
-
-                var xstsContent = new StringContent(
-                    Serialization.ToJson(xstsRequest),
-                    Encoding.UTF8,
-                    "application/json");
-
-                var xstsResponse = await client.PostAsync(XstsAuthUrl, xstsContent).ConfigureAwait(false);
-                var xstsResponseContent = await xstsResponse.Content.ReadAsStringAsync().ConfigureAwait(false);
-
-                if (!xstsResponse.IsSuccessStatusCode)
-                {
-                    // Check for XSTS error
-                    var xstsError = Serialization.FromJson<XstsResponse>(xstsResponseContent);
-                    var errorCode = xstsError?.XErr?.XErr ?? 0;
-                    var errorMessage = xstsError?.XErr?.Message ?? "Unknown error";
-
-                    _logger?.Error($"[XboxAch] XSTS authorization failed: {errorCode} - {errorMessage}");
-
-                    if (errorCode == 2148916233)
-                    {
-                        throw new Exception("The account doesn't have an Xbox account.");
-                    }
-                    else if (errorCode == 2148916235)
-                    {
-                        throw new Exception("Xbox Live is not available in your region.");
-                    }
-                    else if (errorCode == 2148916236 || errorCode == 2148916237)
-                    {
-                        throw new Exception("Adult verification required. Please login to Xbox.com to verify your account.");
-                    }
-                    else if (errorCode == 2148916238)
-                    {
-                        throw new Exception("The account belongs to a minor without Xbox profile.");
-                    }
-
-                    throw new Exception($"XSTS authorization failed: {errorMessage}");
-                }
-
-                // Save XSTS tokens encrypted
-                var currentUser = WindowsIdentity.GetCurrent().User?.Value;
-                if (!string.IsNullOrEmpty(currentUser))
-                {
-                    Encryption.EncryptToFile(
-                        _xstsTokensPath,
-                        xstsResponseContent,
-                        Encoding.UTF8,
-                        currentUser);
-                }
+                    currentUser);
             }
         }
 
@@ -511,21 +520,22 @@ namespace PlayniteAchievements.Providers.Xbox
                 }
 
                 // Verify session is still valid
-                using (var client = new HttpClient())
+                var profileRequest = new ProfileRequest
                 {
-                    SetAuthenticationHeaders(client.DefaultRequestHeaders, authData);
+                    settings = new List<string> { "GameDisplayName" },
+                    userIds = new List<ulong> { ulong.Parse(authData.DisplayClaims.xui[0].xid) }
+                };
 
-                    var profileRequest = new ProfileRequest
+                using (var request = new HttpRequestMessage(HttpMethod.Post, ProfileUrl)
+                {
+                    Content = new StringContent(Serialization.ToJson(profileRequest), Encoding.UTF8, "application/json")
+                })
+                {
+                    SetAuthenticationHeaders(request.Headers, authData);
+                    using (var response = await HttpClientFactory.Shared.SendAsync(request).ConfigureAwait(false))
                     {
-                        settings = new List<string> { "GameDisplayName" },
-                        userIds = new List<ulong> { ulong.Parse(authData.DisplayClaims.xui[0].xid) }
-                    };
-
-                    var response = await client.PostAsync(
-                        ProfileUrl,
-                        new StringContent(Serialization.ToJson(profileRequest), Encoding.UTF8, "application/json")).ConfigureAwait(false);
-
-                    return response.IsSuccessStatusCode;
+                        return response.IsSuccessStatusCode;
+                    }
                 }
             }
             catch (Exception ex)

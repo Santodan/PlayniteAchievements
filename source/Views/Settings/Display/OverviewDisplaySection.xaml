@@ -1,0 +1,170 @@
+<UserControl x:Class="PlayniteAchievements.Views.Settings.Display.OverviewDisplaySection"
+             x:Name="OverviewDisplaySectionRoot"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+             xmlns:controls="clr-namespace:PlayniteAchievements.Views.Settings.Controls"
+             mc:Ignorable="d"
+             d:DesignHeight="600"
+             d:DesignWidth="700">
+    <UserControl.Resources>
+        <ResourceDictionary>
+            <ResourceDictionary.MergedDictionaries>
+                <ResourceDictionary Source="pack://application:,,,/PlayniteAchievements;component/Resources/SettingsScopedControlStyles.xaml"/>
+                <ResourceDictionary Source="pack://application:,,,/PlayniteAchievements;component/Resources/RarityBadges.xaml"/>
+                <ResourceDictionary Source="pack://application:,,,/PlayniteAchievements;component/Resources/CommonResources.xaml"/>
+            </ResourceDictionary.MergedDictionaries>
+        </ResourceDictionary>
+    </UserControl.Resources>
+    <ScrollViewer VerticalScrollBarVisibility="Auto"
+                  HorizontalScrollBarVisibility="Disabled">
+        <StackPanel Margin="20">
+            <Border Style="{StaticResource SectionBorderStyle}"
+                    Background="{DynamicResource PlayAch.Brush.Panel}"
+                    BorderBrush="{DynamicResource PlayAch.Brush.Border}">
+                <TextBlock Text="{DynamicResource LOCPlayAch_ManageAchievements_Tab_Overview}"
+                           Style="{StaticResource SectionHeaderStyle}"
+                           Margin="0"/>
+            </Border>
+
+            <Border Style="{StaticResource SectionBorderStyle}">
+                <StackPanel>
+                    <TextBlock Text="{DynamicResource LOCPlayAch_Settings_Display_OverviewLayout}"
+                               Style="{StaticResource SectionHeaderStyle}"
+                               Margin="{StaticResource PlayAch.Thickness.Bottom.Md}"/>
+                    <Border Style="{StaticResource SectionAccentRuleStyle}"/>
+
+                    <Border Style="{StaticResource SettingGroupCardStyle}">
+                        <StackPanel>
+                            <CheckBox Content="{DynamicResource LOCPlayAch_Settings_ShowOverviewCollectionScoreCard}"
+                                      IsChecked="{Binding Persisted.ShowOverviewCollectionScoreCard}"
+                                      Margin="{StaticResource PlayAch.Thickness.Bottom.Sm}"/>
+                            <CheckBox Content="{DynamicResource LOCPlayAch_Settings_ShowOverviewPrestigeScoreCard}"
+                                      IsChecked="{Binding Persisted.ShowOverviewPrestigeScoreCard}"/>
+                        </StackPanel>
+                    </Border>
+
+                    <Border Style="{StaticResource SettingGroupCardStyle}">
+                        <StackPanel>
+                            <TextBlock Text="{DynamicResource LOCPlayAch_Settings_Display_OverviewCharts}"
+                                       Style="{StaticResource SubSectionHeaderStyle}"
+                                       Margin="0,0,0,10"/>
+
+                            <CheckBox Content="{DynamicResource LOCPlayAch_Settings_ShowOverviewGamesPieChart}"
+                                      IsChecked="{Binding Persisted.ShowOverviewGamesPieChart}"
+                                      Margin="{StaticResource PlayAch.Thickness.Bottom.Sm}"/>
+                            <CheckBox Content="{DynamicResource LOCPlayAch_Settings_ShowOverviewProviderPieChart}"
+                                      IsChecked="{Binding Persisted.ShowOverviewProviderPieChart}"
+                                      Margin="{StaticResource PlayAch.Thickness.Bottom.Sm}"/>
+                            <CheckBox Content="{DynamicResource LOCPlayAch_Settings_ShowOverviewRarityPieChart}"
+                                      IsChecked="{Binding Persisted.ShowOverviewRarityPieChart}"
+                                      Margin="{StaticResource PlayAch.Thickness.Bottom.Sm}"/>
+                            <CheckBox Content="{DynamicResource LOCPlayAch_Settings_ShowOverviewTrophyPieChart}"
+                                      IsChecked="{Binding Persisted.ShowOverviewTrophyPieChart}"
+                                      Margin="{StaticResource PlayAch.Thickness.Bottom.Sm}"/>
+                            <CheckBox Content="{DynamicResource LOCPlayAch_Settings_ShowOverviewPiePercentages}"
+                                      IsChecked="{Binding Persisted.ShowOverviewPiePercentages}"
+                                      Margin="{StaticResource PlayAch.Thickness.Bottom.Sm}"/>
+                            <CheckBox Content="{DynamicResource LOCPlayAch_Settings_ShowOverviewBarCharts}"
+                                      IsChecked="{Binding Persisted.ShowOverviewBarCharts}"
+                                      Margin="{StaticResource PlayAch.Thickness.Bottom.Md}"/>
+                            <TextBlock Text="{DynamicResource LOCPlayAch_Settings_OverviewPieSmallSliceMode}"
+                                       Style="{StaticResource SubSectionHeaderStyle}"
+                                       Margin="{StaticResource PlayAch.Thickness.Bottom.Sm}"/>
+
+                            <StackPanel Margin="{StaticResource PlayAch.Thickness.Bottom.Sm}">
+                                <RadioButton Content="{DynamicResource LOCPlayAch_Settings_OverviewPieSmallSliceMode_Exact}"
+                                             GroupName="OverviewPieSmallSliceMode"
+                                             Style="{StaticResource OverviewPieModeRadioButtonStyle}"
+                                             IsChecked="{Binding Persisted.OverviewPieSmallSliceMode, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged, Converter={StaticResource EnumToBool}, ConverterParameter=Exact}"/>
+                                <TextBlock Text="{DynamicResource LOCPlayAch_Settings_OverviewPieSmallSliceMode_Exact_Description}"
+                                           Style="{StaticResource MutedTextStyle}"
+                                           TextWrapping="Wrap"
+                                           Margin="24,0,0,0"/>
+                            </StackPanel>
+
+                            <StackPanel Margin="{StaticResource PlayAch.Thickness.Bottom.Sm}">
+                                <RadioButton Content="{DynamicResource LOCPlayAch_Common_Hide}"
+                                             GroupName="OverviewPieSmallSliceMode"
+                                             Style="{StaticResource OverviewPieModeRadioButtonStyle}"
+                                             IsChecked="{Binding Persisted.OverviewPieSmallSliceMode, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged, Converter={StaticResource EnumToBool}, ConverterParameter=Hide}"/>
+                                <TextBlock Text="{DynamicResource LOCPlayAch_Settings_OverviewPieSmallSliceMode_Hide_Description}"
+                                           Style="{StaticResource MutedTextStyle}"
+                                           TextWrapping="Wrap"
+                                           Margin="24,0,0,0"/>
+                            </StackPanel>
+
+                            <StackPanel Margin="{StaticResource PlayAch.Thickness.Bottom.Sm}">
+                                <RadioButton Content="{DynamicResource LOCPlayAch_Settings_OverviewPieSmallSliceMode_Round}"
+                                             GroupName="OverviewPieSmallSliceMode"
+                                             Style="{StaticResource OverviewPieModeRadioButtonStyle}"
+                                             IsChecked="{Binding Persisted.OverviewPieSmallSliceMode, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged, Converter={StaticResource EnumToBool}, ConverterParameter=Round}"/>
+                                <TextBlock Text="{DynamicResource LOCPlayAch_Settings_OverviewPieSmallSliceMode_Round_Description}"
+                                           Style="{StaticResource MutedTextStyle}"
+                                           TextWrapping="Wrap"
+                                           Margin="24,0,0,0"/>
+                            </StackPanel>
+
+                            <TextBlock Text="{DynamicResource LOCPlayAch_Settings_OverviewPieSmallSliceMode_Note}"
+                                       Style="{StaticResource MutedTextStyle}"
+                                       TextWrapping="Wrap"
+                                       Margin="0"/>
+                        </StackPanel>
+                    </Border>
+                </StackPanel>
+            </Border>
+
+            <Border Style="{StaticResource SectionBorderStyle}">
+                <StackPanel>
+                    <TextBlock Text="{DynamicResource LOCPlayAch_Settings_GameSummariesGridSort}"
+                               Style="{StaticResource SectionHeaderStyle}"
+                               Margin="{StaticResource PlayAch.Thickness.Bottom.Md}"/>
+                    <Border Style="{StaticResource SectionAccentRuleStyle}"/>
+                    <Border Style="{StaticResource SettingGroupCardStyle}">
+                        <controls:GridOptionsEditor Options="{Binding Persisted.GridOptions.GameSummaries[Overview]}"/>
+                    </Border>
+                </StackPanel>
+            </Border>
+
+            <Border Style="{StaticResource SectionBorderStyle}">
+                <StackPanel>
+                    <TextBlock Text="{DynamicResource LOCPlayAch_Settings_OverviewRecentAchievementsGrid}"
+                               Style="{StaticResource SectionHeaderStyle}"
+                               Margin="{StaticResource PlayAch.Thickness.Bottom.Md}"/>
+                    <Border Style="{StaticResource SectionAccentRuleStyle}"/>
+                    <Border Style="{StaticResource SettingGroupCardStyle}">
+                        <controls:GridOptionsEditor Options="{Binding Persisted.GridOptions.Achievement[OverviewRecent]}"
+                                                    ShowSortRow="False"/>
+                    </Border>
+                </StackPanel>
+            </Border>
+
+            <Border Style="{StaticResource SectionBorderStyle}">
+                <StackPanel>
+                    <TextBlock Text="{DynamicResource LOCPlayAch_Settings_SelectedGameGridSort}"
+                               Style="{StaticResource SectionHeaderStyle}"
+                               Margin="{StaticResource PlayAch.Thickness.Bottom.Md}"/>
+                    <Border Style="{StaticResource SectionAccentRuleStyle}"/>
+                    <Border Style="{StaticResource SettingGroupCardStyle}">
+                        <controls:GridOptionsEditor Options="{Binding Persisted.GridOptions.Achievement[OverviewSelectedGame]}"
+                                                    ShowCoverImagesRow="False"
+                                                    ShowCategoryModeRow="True"/>
+                    </Border>
+
+                    <TextBlock Text="{DynamicResource LOCPlayAch_Settings_CategoryGrid}"
+                               Style="{StaticResource SubSectionHeaderStyle}"
+                               Margin="{StaticResource PlayAch.Thickness.Top.Md}"/>
+                    <Border Style="{StaticResource SettingGroupCardStyle}">
+                        <StackPanel>
+                            <CheckBox Content="{DynamicResource LOCPlayAch_Settings_HideCategorySummaryRow}"
+                                      IsChecked="{Binding Persisted.GridOptions.Achievement[OverviewSelectedGame].HideCategorySummaryRow}"
+                                      Margin="{StaticResource PlayAch.Thickness.Bottom.Md}"/>
+                            <controls:GridOptionsEditor Options="{Binding Persisted.GridOptions.CategorySummaries[OverviewSelectedGame]}"/>
+                        </StackPanel>
+                    </Border>
+                </StackPanel>
+            </Border>
+        </StackPanel>
+    </ScrollViewer>
+</UserControl>

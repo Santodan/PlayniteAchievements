@@ -12,6 +12,8 @@ using PlayniteAchievements.Models.Achievements;
 using PlayniteAchievements.Providers;
 using PlayniteAchievements.Providers.Steam;
 using PlayniteAchievements.Providers.Steam.Models;
+using PlayniteAchievements.Services;
+using PlayniteAchievements.Services.Refresh;
 
 namespace PlayniteAchievements.Providers.Manual
 {
@@ -19,7 +21,7 @@ namespace PlayniteAchievements.Providers.Manual
     /// Manual source implementation for Steam.
     /// Uses Steam Store API for search and Steam Web API for achievement schema.
     /// </summary>
-    internal sealed class SteamManualSource : IManualSource
+    internal sealed class SteamManualSource : IManualSource, IRefreshAuthContextReceiver
     {
         private const string StoreSearchUrl = "https://store.steampowered.com/api/storesearch/";
         private const string AppDetailsUrl = "https://store.steampowered.com/api/appdetails";
@@ -36,6 +38,7 @@ namespace PlayniteAchievements.Providers.Manual
         private readonly HttpClient _httpClient;
         private readonly ILogger _logger;
         private readonly SteamWebApiTokenResolver _tokenResolver;
+        private SteamWebApiTokenResolution _refreshTokenResolution;
 
         public string SourceKey => "Steam";
         public string SourceName => ResourceProvider.GetString("LOCPlayAch_Provider_Steam");
@@ -152,7 +155,7 @@ namespace PlayniteAchievements.Providers.Manual
 
             try
             {
-                var tokenResolution = await _tokenResolver.ResolveAsync(ct).ConfigureAwait(false);
+                var tokenResolution = await ResolveTokenForRefreshAsync(ct).ConfigureAwait(false);
                 if (!tokenResolution.IsSuccess)
                 {
                     throw ManualSourceAuthentication.CreateException(this, tokenResolution.ProbeResult ?? AuthProbeResult.NotAuthenticated());
@@ -183,6 +186,36 @@ namespace PlayniteAchievements.Providers.Manual
                 _logger?.Error(ex, $"Failed to fetch Steam achievements for appId={appId}");
                 return null;
             }
+        }
+
+        public string ResolveProviderPlatformKey(string sourceGameId) => "Steam";
+
+        public void BeginRefreshAuthContext(RefreshAuthContext context)
+        {
+            _refreshTokenResolution = null;
+            _tokenResolver?.BeginRefreshAuthContext(context);
+        }
+
+        public void EndRefreshAuthContext(RefreshAuthContext context)
+        {
+            _refreshTokenResolution = null;
+            _tokenResolver?.EndRefreshAuthContext(context);
+        }
+
+        private async Task<SteamWebApiTokenResolution> ResolveTokenForRefreshAsync(CancellationToken ct)
+        {
+            if (_refreshTokenResolution?.IsSuccess == true)
+            {
+                return _refreshTokenResolution;
+            }
+
+            var resolution = await _tokenResolver.ResolveAsync(ct).ConfigureAwait(false);
+            if (resolution?.IsSuccess == true)
+            {
+                _refreshTokenResolution = resolution;
+            }
+
+            return resolution;
         }
 
         private async Task<List<AchievementDetail>> FetchAchievementsAsync(
@@ -244,8 +277,8 @@ namespace PlayniteAchievements.Providers.Manual
                         ApiName = ach.InternalName,
                         DisplayName = ach.LocalizedName ?? ach.InternalName,
                         Description = ach.LocalizedDesc ?? string.Empty,
-                        UnlockedIconPath = $"https://shared.fastly.steamstatic.com/community_assets/images/apps/{appId}/{ach.Icon}",
-                        LockedIconPath = $"https://shared.fastly.steamstatic.com/community_assets/images/apps/{appId}/{ach.IconGray}",
+                        UnlockedIconPath = SteamApiClient.BuildAchievementIconUrl(appId, ach.Icon),
+                        LockedIconPath = SteamApiClient.BuildAchievementIconUrl(appId, ach.IconGray),
                         Hidden = ach.Hidden,
                         Unlocked = false,
                         UnlockTimeUtc = null,

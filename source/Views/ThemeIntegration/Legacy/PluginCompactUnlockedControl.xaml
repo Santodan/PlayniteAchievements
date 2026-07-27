@@ -15,77 +15,20 @@
         SuccessStory-compatible compact unlocked control for theme integration.
         Programmatically creates grid columns to fit achievements, with "+X more" in the last column.
     -->
-<local:CompactAchievementControlBase.Resources>
-        <BooleanToVisibilityConverter x:Key="BooleanToVisibilityConverter" />
+    <local:CompactAchievementControlBase.Resources>
+        <ResourceDictionary>
+            <ResourceDictionary.MergedDictionaries>
+                <ResourceDictionary Source="pack://application:,,,/PlayniteAchievements;component/Resources/CommonResources.xaml"/>
+            </ResourceDictionary.MergedDictionaries>
+        </ResourceDictionary>
     </local:CompactAchievementControlBase.Resources>
 
-    <StackPanel ClipToBounds="False">
-        <Border Padding="0,0,0,8"
-                DataContext="{Binding FeaturedAchievement, RelativeSource={RelativeSource AncestorType=local:CompactAchievementControlBase}}">
-            <Border.Style>
-                <Style TargetType="{x:Type Border}">
-                    <Setter Property="Visibility" Value="Visible" />
-                    <Style.Triggers>
-                        <DataTrigger Binding="{Binding}" Value="{x:Null}">
-                            <Setter Property="Visibility" Value="Collapsed" />
-                        </DataTrigger>
-                    </Style.Triggers>
-                </Style>
-            </Border.Style>
-
-            <Grid>
-                <Grid.ColumnDefinitions>
-                    <ColumnDefinition Width="Auto" />
-                    <ColumnDefinition Width="Auto" />
-                    <ColumnDefinition Width="*" />
-                    <ColumnDefinition Width="Auto" />
-                </Grid.ColumnDefinitions>
-
-                <Border Grid.Column="0"
-                        Width="{Binding CompactFirstItemOffset, RelativeSource={RelativeSource AncestorType=local:CompactAchievementControlBase}}" />
-
-                <localControls:AchievementImage Grid.Column="1"
-                                                Width="44"
-                                                Height="44"
-                                                Margin="0,0,10,0"
-                                                ToolTip="{Binding DisplayName}"
-                                                Icon="{Binding UnlockedIconDisplay}"
-                                                IconCustom="{Binding LockedIconDisplay}"
-                                                IsLocked="False"
-                                                Percent="{Binding RarityPercentValue}"
-                                                HasRarityPercent="{Binding HasRarityPercent}"
-                                                Rarity="{Binding Rarity}"
-                                                RarityText="{Binding RarityText}"
-                                                EnableRaretyIndicator="True"
-                                                DisplayRaretyValue="True"
-                                                HorizontalAlignment="Center"
-                                                VerticalAlignment="Center" />
-
-                <StackPanel Grid.Column="2"
-                            VerticalAlignment="Center">
-                    <TextBlock Text="{Binding DisplayName}"
-                               FontWeight="SemiBold"
-                               Foreground="{DynamicResource TextBrush}"
-                               TextWrapping="Wrap" />
-                    <TextBlock Text="{Binding Description}"
-                               Foreground="{DynamicResource TextBrushDarker}"
-                               TextWrapping="Wrap"
-                               TextTrimming="CharacterEllipsis" />
-                </StackPanel>
-
-                <TextBlock Grid.Column="3"
-                           Margin="10,0,0,0"
-                           VerticalAlignment="Top"
-                           Foreground="{DynamicResource TextBrush}"
-                           Text="{Binding DateUnlocked, StringFormat={}{0:g}}" />
-            </Grid>
-        </Border>
-
+    <Grid>
         <Border CornerRadius="{DynamicResource ControlCornerRadius}"
                 BorderThickness="{DynamicResource ControlBorderThickness}"
                 Background="Transparent"
                 Padding="5"
-                BorderBrush="{DynamicResource NormalBorderBrush}">
+                BorderBrush="{DynamicResource PlayAch.Brush.Border}">
             <Grid Name="PART_GridContener"
                   MinHeight="{Binding RelativeSource={RelativeSource AncestorType=UserControl}, Path=IconHeight}"
                   Tag="{Binding RelativeSource={RelativeSource AncestorType=UserControl}, Path=IconHeight}">
@@ -95,7 +38,7 @@
                 <TextBlock Text="{DynamicResource LOCPlayAch_NoUnlockedAchievements}"
                            HorizontalAlignment="Center"
                            VerticalAlignment="Center"
-                           Foreground="{DynamicResource TextBrushDarker}">
+                           Foreground="{DynamicResource PlayAch.Brush.Text.Secondary}">
                     <TextBlock.Style>
                         <Style TargetType="{x:Type TextBlock}">
                             <Style.Triggers>
@@ -109,5 +52,5 @@
                 </TextBlock>
             </Grid>
         </Border>
-    </StackPanel>
+    </Grid>
 </local:CompactAchievementControlBase>

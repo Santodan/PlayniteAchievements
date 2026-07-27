@@ -3,6 +3,8 @@ using PlayniteAchievements.Models;
 using PlayniteAchievements.Models.Achievements;
 using PlayniteAchievements.Providers.Exophase;
 using PlayniteAchievements.Services;
+using PlayniteAchievements.Services.GameCustomData;
+using PlayniteAchievements.Services.Refresh;
 using Playnite.SDK;
 using Playnite.SDK.Models;
 using System;
@@ -13,7 +15,7 @@ using System.Threading.Tasks;
 
 namespace PlayniteAchievements.Providers.EA
 {
-    internal sealed class EAScanner
+    internal sealed class EAScanner : IRefreshAuthContextReceiver
     {
         private readonly PlayniteAchievementsSettings _settings;
         private readonly EASettings _providerSettings;
@@ -22,6 +24,7 @@ namespace PlayniteAchievements.Providers.EA
         private readonly ILogger _logger;
         private readonly IPlayniteAPI _playniteApi;
         private readonly string _pluginUserDataPath;
+        private RefreshAuthContext _authContext;
 
         public EAScanner(
             PlayniteAchievementsSettings settings,
@@ -47,15 +50,18 @@ namespace PlayniteAchievements.Providers.EA
             Func<Game, GameAchievementData, Task> onGameCompleted,
             CancellationToken cancel)
         {
-            var probeResult = await _sessionManager.ProbeAuthStateAsync(cancel).ConfigureAwait(false);
-            if (!probeResult.IsSuccess)
+            if (!HasSuccessfulScopedAuth())
             {
-                _logger?.Warn("[EAAch] EA not authenticated - cannot scan achievements.");
-                return new RebuildPayload
+                var probeResult = await _sessionManager.ProbeAuthStateAsync(cancel).ConfigureAwait(false);
+                if (!probeResult.IsSuccess)
                 {
-                    Summary = new RebuildSummary(),
-                    AuthRequired = true
-                };
+                    _logger?.Warn("[EAAch] EA not authenticated - cannot scan achievements.");
+                    return new RebuildPayload
+                    {
+                        Summary = new RebuildSummary(),
+                        AuthRequired = true
+                    };
+                }
             }
 
             if (gamesToRefresh == null || gamesToRefresh.Count == 0)
@@ -68,38 +74,62 @@ namespace PlayniteAchievements.Providers.EA
                 _settings.Persisted.MaxRetryAttempts);
             var metadataEnricher = await CreateMetadataEnricherAsync(cancel).ConfigureAwait(false);
 
-            return await ProviderRefreshExecutor.RunProviderGamesAsync(
-                gamesToRefresh,
-                onGameStarting,
-                async (game, token) =>
-                {
-                    var gameId = game?.GameId?.Trim();
-                    if (string.IsNullOrWhiteSpace(gameId))
+            try
+            {
+                return await ProviderRefreshExecutor.RunProviderGamesAsync(
+                    gamesToRefresh,
+                    onGameStarting,
+                    async (game, token) =>
                     {
-                        return ProviderRefreshExecutor.ProviderGameResult.Skipped();
-                    }
+                        var gameId = game?.GameId?.Trim();
+                        if (string.IsNullOrWhiteSpace(gameId))
+                        {
+                            return ProviderRefreshExecutor.ProviderGameResult.Skipped();
+                        }
 
-                    var data = await rateLimiter.ExecuteWithRetryAsync(
-                        () => FetchGameDataAsync(game, gameId, token),
-                        EAApiClient.IsTransientError,
-                        token).ConfigureAwait(false);
+                        var data = await rateLimiter.ExecuteWithRetryAsync(
+                            () => FetchGameDataAsync(game, gameId, token),
+                            EAApiClient.IsTransientError,
+                            token).ConfigureAwait(false);
 
-                    await EnrichMetadataAsync(game, data, metadataEnricher, token).ConfigureAwait(false);
+                        await EnrichMetadataAsync(game, data, metadataEnricher, token).ConfigureAwait(false);
 
-                    return new ProviderRefreshExecutor.ProviderGameResult
+                        return new ProviderRefreshExecutor.ProviderGameResult
+                        {
+                            Data = data
+                        };
+                    },
+                    onGameCompleted,
+                    isAuthRequiredException: ex => ex is EaAuthRequiredException,
+                    onGameError: (game, ex, consecutiveErrors) =>
                     {
-                        Data = data
-                    };
-                },
-                onGameCompleted,
-                isAuthRequiredException: ex => ex is EaAuthRequiredException,
-                onGameError: (game, ex, consecutiveErrors) =>
-                {
-                    _logger?.Debug(ex, $"[EAAch] Failed to scan {game?.Name} after {consecutiveErrors} consecutive errors.");
-                },
-                delayBetweenGamesAsync: (index, token) => rateLimiter.DelayBeforeNextAsync(token),
-                delayAfterErrorAsync: (consecutiveErrors, token) => rateLimiter.DelayAfterErrorAsync(consecutiveErrors, token),
-                cancel).ConfigureAwait(false);
+                        _logger?.Debug(ex, $"[EAAch] Failed to scan {game?.Name} after {consecutiveErrors} consecutive errors.");
+                    },
+                    rateLimiter,
+                    cancel).ConfigureAwait(false);
+            }
+            finally
+            {
+                metadataEnricher?.Dispose();
+            }
+        }
+
+        public void BeginRefreshAuthContext(RefreshAuthContext context)
+        {
+            _authContext = context;
+        }
+
+        public void EndRefreshAuthContext(RefreshAuthContext context)
+        {
+            if (ReferenceEquals(_authContext, context))
+            {
+                _authContext = null;
+            }
+        }
+
+        private bool HasSuccessfulScopedAuth()
+        {
+            return _authContext?.IsProviderAuthenticated("EA") == true;
         }
 
         private async Task<GameAchievementData> FetchGameDataAsync(Game game, string gameId, CancellationToken cancel)
@@ -113,8 +143,22 @@ namespace PlayniteAchievements.Providers.EA
             }
 
             var ownedGames = await _apiClient.GetOwnedGamesAsync(cancel).ConfigureAwait(false);
-            var matched = EAProviderSupport.MatchGame(ownedGames, game, gameId);
-            var offerIdCandidates = EAProviderSupport.BuildOfferIdCandidates(matched?.OriginOfferId, gameId);
+
+            EaOwnedGame matched = null;
+            IReadOnlyList<string> offerIdCandidates;
+            if (game != null &&
+                GameCustomDataLookup.TryGetProviderOverrideValue(game.Id, "EA", out var overrideOfferId) &&
+                !string.IsNullOrWhiteSpace(overrideOfferId))
+            {
+                // A per-game override forces a single offer ID, bypassing owned-game matching.
+                offerIdCandidates = new List<string> { overrideOfferId.Trim() };
+                _logger?.Debug($"[EAAch] Using EA offer ID override for {game?.Name}: {overrideOfferId.Trim()}.");
+            }
+            else
+            {
+                matched = EAProviderSupport.MatchGame(ownedGames, game, gameId);
+                offerIdCandidates = EAProviderSupport.BuildOfferIdCandidates(matched?.OriginOfferId, gameId);
+            }
 
             if (offerIdCandidates.Count == 0)
             {

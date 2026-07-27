@@ -9,6 +9,7 @@ namespace PlayniteAchievements.Models
     {
         private string label;
         private string iconKey;
+        private int iconRefreshKey;
         private string colorHex;
         private int count;
         private double x;
@@ -26,6 +27,12 @@ namespace PlayniteAchievements.Models
         {
             get => iconKey;
             set => SetValue(ref iconKey, value);
+        }
+
+        public int IconRefreshKey
+        {
+            get => iconRefreshKey;
+            set => SetValue(ref iconRefreshKey, value);
         }
 
         public string ColorHex

@@ -1,7 +1,9 @@
 using Microsoft.VisualStudio.TestTools.UnitTesting;
 using PlayniteAchievements.Models;
+using PlayniteAchievements.Models.Friends;
 using PlayniteAchievements.Providers;
 using PlayniteAchievements.Services;
+using PlayniteAchievements.Services.Refresh;
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -83,7 +85,7 @@ namespace PlayniteAchievements.Services.Tests
         }
 
         [TestMethod]
-        public async Task ExecuteAsync_CustomMode_PreservesCustomOptions()
+        public async Task ExecuteAsync_CustomMode_PreservesUnifiedOptions()
         {
             var manager = new FakeAchievementService();
             var coordinator = CreateCoordinator(manager);
@@ -101,21 +103,52 @@ namespace PlayniteAchievements.Services.Tests
             await coordinator.ExecuteAsync(new RefreshRequest
             {
                 Mode = RefreshModeType.Custom,
-                CustomOptions = customOptions
+                Options = RefreshOptions.FromCustom(customOptions)
             }).ConfigureAwait(false);
 
             Assert.AreEqual(1, manager.ExecuteCallCount);
             Assert.AreEqual(RefreshModeType.Custom, manager.LastRequest.Mode);
-            Assert.IsNotNull(manager.LastRequest.CustomOptions);
+            Assert.IsNotNull(manager.LastRequest.Options);
             CollectionAssert.AreEquivalent(
                 new[] { "Steam", "Epic" },
-                manager.LastRequest.CustomOptions.ProviderKeys.ToList());
+                manager.LastRequest.Options.ProviderKeys.ToList());
             CollectionAssert.AreEquivalent(
                 new[] { gameId },
-                manager.LastRequest.CustomOptions.IncludeGameIds.ToList());
-            Assert.AreEqual(CustomGameScope.Explicit, manager.LastRequest.CustomOptions.Scope);
-            Assert.IsFalse(manager.LastRequest.CustomOptions.RespectUserExclusions);
-            Assert.AreEqual(false, manager.LastRequest.CustomOptions.RunProvidersInParallelOverride);
+                manager.LastRequest.Options.PlayniteGameIds.ToList());
+            Assert.AreEqual(RefreshGameScope.Explicit, manager.LastRequest.Options.Scope);
+            Assert.IsFalse(manager.LastRequest.Options.RespectUserExclusions);
+            Assert.AreEqual(false, manager.LastRequest.Options.RunProvidersInParallelOverride);
+        }
+
+        [TestMethod]
+        public async Task ExecuteAsync_UnifiedOptions_PreservesCurrentAndFriendOptions()
+        {
+            var manager = new FakeAchievementService();
+            var coordinator = CreateCoordinator(manager);
+            var currentGameId = Guid.NewGuid();
+            var friendGameId = Guid.NewGuid();
+
+            await coordinator.ExecuteAsync(new RefreshRequest
+            {
+                Mode = RefreshModeType.Custom,
+                Options = new RefreshOptions
+                {
+                    Subjects = RefreshSubjects.All,
+                    ProviderKeys = new[] { "Steam" },
+                    Scope = RefreshGameScope.SelectedGame,
+                    PlayniteGameIds = new[] { currentGameId, friendGameId },
+                    ForceIconRefresh = true
+                }
+            }).ConfigureAwait(false);
+
+            Assert.AreEqual(1, manager.ExecuteCallCount);
+            Assert.AreEqual(RefreshModeType.Custom, manager.LastRequest.Mode);
+            Assert.IsNotNull(manager.LastRequest.Options);
+            Assert.IsTrue(manager.LastRequest.Options.ForceIconRefresh);
+            Assert.AreEqual(RefreshSubjects.All, manager.LastRequest.Options.Subjects);
+            CollectionAssert.AreEquivalent(
+                new[] { currentGameId, friendGameId },
+                manager.LastRequest.Options.PlayniteGameIds.ToList());
         }
 
         [TestMethod]
@@ -133,6 +166,27 @@ namespace PlayniteAchievements.Services.Tests
 
             Assert.AreEqual(1, manager.ValidateCallCount);
             Assert.AreEqual(0, manager.ExecuteCallCount);
+        }
+
+        [TestMethod]
+        public async Task ExecuteAsync_PassesValidatedAuthContextToRuntime()
+        {
+            var provider = new StubDataProvider("Steam");
+            var manager = new FakeAchievementService
+            {
+                AuthenticatedProvidersToReturn = new List<IDataProvider> { provider }
+            };
+            var coordinator = CreateCoordinator(manager);
+
+            await coordinator.ExecuteAsync(
+                new RefreshRequest { Mode = RefreshModeType.Recent },
+                new RefreshExecutionPolicy { ValidateAuthentication = true }).ConfigureAwait(false);
+
+            Assert.AreEqual(1, manager.ValidateCallCount);
+            Assert.AreEqual(1, manager.ExecuteCallCount);
+            Assert.IsNotNull(manager.LastAuthenticatedProviders);
+            Assert.AreEqual(1, manager.LastAuthenticatedProviders.Count);
+            Assert.AreSame(provider, manager.LastAuthenticatedProviders[0]);
         }
 
         [TestMethod]
@@ -187,24 +241,27 @@ namespace PlayniteAchievements.Services.Tests
             public RefreshRequest LastRequest { get; private set; }
             public IReadOnlyList<IDataProvider> LastAuthenticatedProviders { get; private set; }
 
-            public override Task<IReadOnlyList<IDataProvider>> GetAuthenticatedProvidersOrShowDialogAsync(CancellationToken externalToken = default)
+            internal override Task<RefreshAuthContext> GetRefreshAuthContextOrShowDialogAsync(
+                RefreshRequest request,
+                CancellationToken externalToken = default)
             {
                 ValidateCallCount++;
-                return Task.FromResult(AuthenticatedProvidersToReturn ?? (IReadOnlyList<IDataProvider>)Array.Empty<IDataProvider>());
+                return Task.FromResult(RefreshAuthContext.FromAuthenticatedProviders(
+                    AuthenticatedProvidersToReturn ?? (IReadOnlyList<IDataProvider>)Array.Empty<IDataProvider>()));
             }
 
-            public override Task ExecuteRefreshAsync(
+            internal override Task ExecuteRefreshAsync(
                 RefreshRequest request,
-                IReadOnlyList<IDataProvider> authenticatedProviders,
+                RefreshAuthContext authContext,
                 CancellationToken externalToken = default)
             {
                 ExecuteCallCount++;
-                LastAuthenticatedProviders = authenticatedProviders;
+                LastAuthenticatedProviders = authContext?.AuthenticatedProviders;
                 LastRequest = CloneRequest(request);
                 return Task.CompletedTask;
             }
 
-            public override Task ExecuteRefreshAsync(RefreshRequest request)
+            public override Task ExecuteRefreshAsync(RefreshRequest request, CancellationToken externalToken = default)
             {
                 ExecuteCallCount++;
                 LastRequest = CloneRequest(request);
@@ -221,7 +278,7 @@ namespace PlayniteAchievements.Services.Tests
                         ModeKey = request.ModeKey,
                         SingleGameId = request.SingleGameId,
                         GameIds = request.GameIds?.ToList(),
-                        CustomOptions = request.CustomOptions?.Clone()
+                        Options = request.Options?.Clone()
                     };
             }
         }
@@ -246,6 +303,7 @@ namespace PlayniteAchievements.Services.Tests
             public bool IsAuthenticated => true;
 
             public ISessionManager AuthSession => null;
+            public PlayniteAchievements.Models.Friends.IFriendsProvider Friends => null;
 
             public Task<RebuildPayload> RefreshAsync(
                 IReadOnlyList<Playnite.SDK.Models.Game> gamesToRefresh,

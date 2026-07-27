@@ -2,7 +2,7 @@ using System;
 using System.Globalization;
 using System.Threading;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
-using PlayniteAchievements.ViewModels;
+using PlayniteAchievements.ViewModels.Items;
 
 namespace PlayniteAchievements.Tests.ViewModels
 {
@@ -43,6 +43,12 @@ namespace PlayniteAchievements.Tests.ViewModels
                 Assert.AreEqual("0/0", item.CollectionScoreFractionText);
                 Assert.AreEqual("0/5,678", item.PrestigeScoreFractionText);
             });
+        }
+
+        [TestMethod]
+        public void OwnedText_IsNotExposed()
+        {
+            Assert.IsNull(typeof(GameSummaryItem).GetProperty("OwnedText"));
         }
 
         private static void WithUsCulture(Action action)

@@ -23,9 +23,12 @@ using PlayniteAchievements.Providers.Steam.Models;
 
 using PlayniteAchievements.Models;
 using PlayniteAchievements.Models.Achievements;
+using PlayniteAchievements.Models.Friends;
 using PlayniteAchievements.Providers.Settings;
 using PlayniteAchievements.Models.Settings;
 using PlayniteAchievements.Services;
+using PlayniteAchievements.Services.Cache;
+using PlayniteAchievements.Services.GameCustomData;
 
 namespace PlayniteAchievements.Providers.Local
 {
@@ -154,6 +157,7 @@ namespace PlayniteAchievements.Providers.Local
 
         public bool IsAuthenticated => true;
         public ISessionManager AuthSession => null;
+        public IFriendsProvider Friends => null;
 
         private void Log(string msg)
         {
@@ -672,8 +676,6 @@ namespace PlayniteAchievements.Providers.Local
 
                 if (steamLocalProgress != null && steamLocalProgress.TotalCount > 0)
                 {
-                    data.AggregateAchievementCount = steamLocalProgress.TotalCount;
-                    data.AggregateUnlockedCount = steamLocalProgress.UnlockedCount;
                     data.HasAchievements = true;
                     Log($"INFO: {game.Name} - Loaded Steam local aggregate progress {data.UnlockedCount}/{data.AchievementCount} from {steamLocalProgress.SourcePath}.");
                     return data;

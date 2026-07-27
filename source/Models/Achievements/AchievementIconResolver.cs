@@ -14,43 +14,13 @@ namespace PlayniteAchievements.Models.Achievements
         private const string CacheBustPrefix = "cachebust|";
 
         /// <summary>
-        /// Resolve the display icon for an achievement based on its unlock state.
-        /// </summary>
-        public static string GetDisplayIcon(bool unlocked, string iconPath)
-        {
-            return unlocked
-                ? GetUnlockedDisplayIcon(iconPath)
-                : GetLockedDisplayIcon(iconPath, null);
-        }
-
-        public static string NormalizeIconPath(string iconPath)
-        {
-            return NormalizeDisplaySource(iconPath);
-        }
-
-        /// <summary>
-        /// True if two icon identifiers are the same (case-insensitive, trimmed).
-        /// Kept for compatibility with existing code.
-        /// </summary>
-        public static bool AreSameIcon(string left, string right)
-        {
-            if (string.IsNullOrWhiteSpace(left) || string.IsNullOrWhiteSpace(right))
-            {
-                return true;
-            }
-
-            return string.Equals(
-                NormalizeIconPath(left),
-                NormalizeIconPath(right),
-                StringComparison.OrdinalIgnoreCase);
-        }
-
-        /// <summary>
         /// Get the default hidden icon pack URI.
         /// </summary>
         public static string GetDefaultIcon() => DefaultIconPackUri;
 
         public static string GetDefaultUnlockedIcon() => DefaultUnlockedIconPackUri;
+
+        public static string NormalizeIconPath(string iconPath) => NormalizeDisplaySource(iconPath);
 
         /// <summary>
         /// Returns a plain path/pack URI without cache-busting or grayscale prefixes.
@@ -62,16 +32,6 @@ namespace PlayniteAchievements.Models.Achievements
             return string.IsNullOrWhiteSpace(normalized)
                 ? DefaultIconPackUri
                 : normalized;
-        }
-
-        public static string GetLegacyCompatibleLockedIcon(string unlockedIconPath, string lockedIconPath)
-        {
-            if (HasExplicitLockedIcon(lockedIconPath, unlockedIconPath))
-            {
-                return GetLegacyCompatibleIcon(lockedIconPath);
-            }
-
-            return GetLegacyCompatibleIcon(unlockedIconPath);
         }
 
         public static string GetUnlockedDisplayIcon(string unlockedIconPath) =>
@@ -113,6 +73,34 @@ namespace PlayniteAchievements.Models.Achievements
                 NormalizeIcon(normalizedLockedIconPath),
                 NormalizeIcon(normalizedUnlockedIconPath),
                 StringComparison.OrdinalIgnoreCase);
+        }
+
+        /// <summary>
+        /// Wraps a local file path with a cache-bust token derived from the file's
+        /// last write time and length so overwriting the file at the same path
+        /// produces a new cache key. Idempotent: any existing token is replaced
+        /// and an existing grayscale marker is preserved.
+        /// Non-file sources are returned normalized and unwrapped.
+        /// </summary>
+        public static string ApplyCacheBust(string path) => BuildDisplayIcon(path, gray: ContainsGrayMarker(path));
+
+        private static bool ContainsGrayMarker(string value)
+        {
+            var normalized = NormalizeIcon(value);
+            while (!string.IsNullOrWhiteSpace(normalized) &&
+                   normalized.StartsWith(CacheBustPrefix, StringComparison.OrdinalIgnoreCase))
+            {
+                var firstSeparator = normalized.IndexOf('|');
+                var secondSeparator = firstSeparator >= 0 ? normalized.IndexOf('|', firstSeparator + 1) : -1;
+                if (secondSeparator < 0 || secondSeparator + 1 >= normalized.Length)
+                {
+                    break;
+                }
+
+                normalized = normalized.Substring(secondSeparator + 1);
+            }
+
+            return normalized?.StartsWith(GrayPrefix, StringComparison.OrdinalIgnoreCase) == true;
         }
 
         /// <summary>
@@ -223,17 +211,6 @@ namespace PlayniteAchievements.Models.Achievements
                 {
                     break;
                 }
-            }
-
-            if (string.Equals(normalized, "Resources/UnlockedAchIcon.png", StringComparison.OrdinalIgnoreCase) ||
-                string.Equals(normalized, "UnlockedAchIcon.png", StringComparison.OrdinalIgnoreCase))
-            {
-                normalized = DefaultUnlockedIconPackUri;
-            }
-            else if (string.Equals(normalized, "Resources/HiddenAchIcon.png", StringComparison.OrdinalIgnoreCase) ||
-                     string.Equals(normalized, "HiddenAchIcon.png", StringComparison.OrdinalIgnoreCase))
-            {
-                normalized = DefaultIconPackUri;
             }
 
             return NormalizeIcon(normalized);

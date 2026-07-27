@@ -21,10 +21,16 @@ namespace PlayniteAchievements.Providers.GOG
         private const string UrlAccountInfo = "https://menu.gog.com/v1/account/basic";
         private static readonly TimeSpan InteractiveAuthTimeout = TimeSpan.FromMinutes(3);
 
+        private static readonly TimeSpan TokenExpiryMargin = TimeSpan.FromSeconds(60);
+        private static readonly TimeSpan TokenFallbackLifetime = TimeSpan.FromMinutes(5);
+
         private (bool Success, string UserId) _authResult;
         private int _authCheckInProgress;
         private readonly IPlayniteAPI _api;
         private readonly ILogger _logger;
+        private readonly object _tokenLock = new object();
+        private string _cachedAccessToken;
+        private DateTime _cachedTokenValidUntilUtc;
 
         public string ProviderKey => "GOG";
 
@@ -43,26 +49,61 @@ namespace PlayniteAchievements.Providers.GOG
         }
 
         /// <summary>
-        /// Gets the current access token by probing from source of truth.
+        /// Gets the current access token, reusing a cached token until shortly before it expires.
         /// Throws if not authenticated.
         /// </summary>
-        public string GetAccessToken()
+        public async Task<string> GetAccessTokenAsync(CancellationToken ct)
         {
-            var probeTask = ProbeAuthStateAsync(CancellationToken.None);
-            probeTask.ConfigureAwait(false).GetAwaiter().GetResult();
-
-            if (probeTask.Result.IsSuccess)
+            lock (_tokenLock)
             {
-                var apiResponse = CallAccountInfoApiAsync(timeoutMs: 6000)
-                    .ConfigureAwait(false).GetAwaiter().GetResult();
-
-                if (apiResponse != null && !string.IsNullOrWhiteSpace(apiResponse.ResolvedAccessToken))
+                if (!string.IsNullOrWhiteSpace(_cachedAccessToken) &&
+                    DateTime.UtcNow < _cachedTokenValidUntilUtc)
                 {
-                    return apiResponse.ResolvedAccessToken;
+                    return _cachedAccessToken;
                 }
             }
 
+            ct.ThrowIfCancellationRequested();
+
+            var response = await CallAccountInfoApiAsync(timeoutMs: 6000).ConfigureAwait(false);
+            if (response != null && response.IsLoggedIn &&
+                !string.IsNullOrWhiteSpace(response.ResolvedAccessToken))
+            {
+                CacheAccessToken(response);
+                return response.ResolvedAccessToken;
+            }
+
             throw new AuthRequiredException("GOG authentication required. Please login.");
+        }
+
+        /// <summary>
+        /// Drops the cached access token so the next request re-probes the web session.
+        /// </summary>
+        public void InvalidateAccessToken()
+        {
+            lock (_tokenLock)
+            {
+                _cachedAccessToken = null;
+                _cachedTokenValidUntilUtc = DateTime.MinValue;
+            }
+        }
+
+        private void CacheAccessToken(GogAccountInfoResponse response)
+        {
+            var token = response?.ResolvedAccessToken;
+            if (string.IsNullOrWhiteSpace(token))
+                return;
+
+            var expiresUtc = GetTokenExpiryUtc(response);
+            var validUntilUtc = expiresUtc.HasValue
+                ? expiresUtc.Value - TokenExpiryMargin
+                : DateTime.UtcNow + TokenFallbackLifetime;
+
+            lock (_tokenLock)
+            {
+                _cachedAccessToken = token;
+                _cachedTokenValidUntilUtc = validUntilUtc;
+            }
         }
 
         /// <summary>
@@ -93,6 +134,8 @@ namespace PlayniteAchievements.Providers.GOG
                             gogSettings.UserId = userId;
                             ProviderRegistry.Write(gogSettings, persistToDisk: true);
                         }
+
+                        CacheAccessToken(response);
 
                         var expiresUtc = GetTokenExpiryUtc(response);
                         return AuthProbeResult.AlreadyAuthenticated(userId, expiresUtc);
@@ -224,6 +267,7 @@ namespace PlayniteAchievements.Providers.GOG
         {
             _logger?.Info("[GogAuth] Clearing session.");
             _authResult = (false, null);
+            InvalidateAccessToken();
 
             var gogSettings = ProviderRegistry.Settings<GogSettings>();
             if (!string.IsNullOrWhiteSpace(gogSettings.UserId))
@@ -232,21 +276,7 @@ namespace PlayniteAchievements.Providers.GOG
                 ProviderRegistry.Write(gogSettings, persistToDisk: true);
             }
 
-            try
-            {
-                _api.MainView.UIDispatcher.Invoke(() =>
-                {
-                    using (var view = _api.WebViews.CreateOffscreenView())
-                    {
-                        view.DeleteDomainCookies(".gog.com");
-                        view.DeleteDomainCookies("gog.com");
-                    }
-                });
-            }
-            catch (Exception ex)
-            {
-                _logger?.Debug(ex, "[GogAuth] Failed to clear GOG cookies from CEF.");
-            }
+            _api.DeleteDomainCookies(_logger, "[GogAuth]", ".gog.com", "gog.com");
         }
 
         // ---------------------------------------------------------------------
@@ -257,22 +287,8 @@ namespace PlayniteAchievements.Providers.GOG
         {
             using (PerfScope.Start(_logger, "GOG.CallAccountInfoApiAsync", thresholdMs: 50, context: $"timeoutMs={timeoutMs}"))
             {
-                var dispatchOperation = _api.MainView.UIDispatcher.InvokeAsync(async () =>
-                {
-                    using (var view = _api.WebViews.CreateOffscreenView())
-                    {
-                        await view.NavigateAndWaitAsync(UrlAccountInfo, timeoutMs: timeoutMs);
-                        var responseText = await view.GetPageTextAsync();
-                        if (TryParseAccountInfo(responseText, out var response))
-                        {
-                            return response;
-                        }
-                    }
-                    return null;
-                });
-
-                var responseTask = await dispatchOperation.Task.ConfigureAwait(false);
-                return await responseTask.ConfigureAwait(false);
+                var responseText = await _api.GetPageTextViaOffscreenViewAsync(UrlAccountInfo, timeoutMs).ConfigureAwait(false);
+                return TryParseAccountInfo(responseText, out var response) ? response : null;
             }
         }
 

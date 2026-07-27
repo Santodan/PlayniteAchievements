@@ -4,25 +4,23 @@
              xmlns:converters="clr-namespace:PlayniteAchievements.Views.Converters"
              x:Name="Root"
              FontFamily="{DynamicResource CommonFont}"
-             FontSize="{DynamicResource FontSize}"
+             FontSize="{DynamicResource PlayAch.FontSize.Body}"
              UseLayoutRounding="True"
              SnapsToDevicePixels="True">
     <UserControl.Resources>
         <ResourceDictionary>
             <ResourceDictionary.MergedDictionaries>
-                <ResourceDictionary Source="pack://application:,,,/PlayniteAchievements;component/Resources/AchievementTemplates.xaml"/>
+                <ResourceDictionary Source="pack://application:,,,/PlayniteAchievements;component/Resources/AchievementResources.xaml"/>
             </ResourceDictionary.MergedDictionaries>
-            <converters:ResourceKeyToImageSourceConverter x:Key="ResourceKeyToImage"/>
-
             <Style x:Key="ScoreInfoButtonStyle" TargetType="Button">
                 <Setter Property="Background" Value="Transparent"/>
-                <Setter Property="Foreground" Value="{DynamicResource TextBrush}"/>
+                <Setter Property="Foreground" Value="{DynamicResource PlayAch.Brush.Text}"/>
                 <Setter Property="BorderThickness" Value="0"/>
                 <Setter Property="Padding" Value="0"/>
                 <Setter Property="Width" Value="18"/>
                 <Setter Property="Height" Value="18"/>
                 <Setter Property="FontFamily" Value="Segoe MDL2 Assets"/>
-                <Setter Property="FontSize" Value="{DynamicResource FontSizeSmall}"/>
+                <Setter Property="FontSize" Value="{DynamicResource PlayAch.FontSize.Caption}"/>
                 <Setter Property="Opacity" Value="0.72"/>
                 <Setter Property="Cursor" Value="Hand"/>
                 <Setter Property="ToolTip" Value="{DynamicResource LOCPlayAch_Score_Info_ButtonTooltip}"/>
@@ -43,11 +41,11 @@
                             </Border>
                             <ControlTemplate.Triggers>
                                 <Trigger Property="IsMouseOver" Value="True">
-                                    <Setter TargetName="border" Property="Background" Value="#22FFFFFF"/>
+                                    <Setter TargetName="border" Property="Background" Value="{StaticResource PlayAch.Brush.Overlay.Tint.22}"/>
                                     <Setter Property="Opacity" Value="1"/>
                                 </Trigger>
                                 <Trigger Property="IsKeyboardFocused" Value="True">
-                                    <Setter TargetName="border" Property="Background" Value="#22FFFFFF"/>
+                                    <Setter TargetName="border" Property="Background" Value="{StaticResource PlayAch.Brush.Overlay.Tint.22}"/>
                                     <Setter Property="Opacity" Value="1"/>
                                 </Trigger>
                             </ControlTemplate.Triggers>
@@ -56,25 +54,25 @@
                 </Setter>
             </Style>
 
-            <Style x:Key="ScoreCardLabelTextStyle" TargetType="TextBlock" BasedOn="{StaticResource {x:Type TextBlock}}">
-                <Setter Property="FontSize" Value="{DynamicResource FontSizeSmall}"/>
+            <Style x:Key="ScoreCardLabelTextStyle" TargetType="TextBlock" BasedOn="{StaticResource PlayAch.TextBlock.BaseStyle}">
+                <Setter Property="FontSize" Value="{DynamicResource PlayAch.FontSize.Caption}"/>
                 <Setter Property="FontWeight" Value="Bold"/>
-                <Setter Property="Foreground" Value="{DynamicResource TextBrush}"/>
+                <Setter Property="Foreground" Value="{DynamicResource PlayAch.Brush.Text}"/>
                 <Setter Property="Opacity" Value="0.86"/>
                 <Setter Property="TextTrimming" Value="CharacterEllipsis"/>
             </Style>
 
-            <Style x:Key="ScoreCardTierTextStyle" TargetType="TextBlock" BasedOn="{StaticResource {x:Type TextBlock}}">
-                <Setter Property="FontSize" Value="{DynamicResource FontSize}"/>
+            <Style x:Key="ScoreCardTierTextStyle" TargetType="TextBlock" BasedOn="{StaticResource PlayAch.TextBlock.BaseStyle}">
+                <Setter Property="FontSize" Value="{DynamicResource PlayAch.FontSize.Body}"/>
                 <Setter Property="FontWeight" Value="ExtraBold"/>
                 <Setter Property="TextTrimming" Value="CharacterEllipsis"/>
                 <Setter Property="VerticalAlignment" Value="Center"/>
             </Style>
 
-            <Style x:Key="ScoreCardMetricTextStyle" TargetType="TextBlock" BasedOn="{StaticResource {x:Type TextBlock}}">
-                <Setter Property="FontSize" Value="{DynamicResource FontSizeSmall}"/>
+            <Style x:Key="ScoreCardMetricTextStyle" TargetType="TextBlock" BasedOn="{StaticResource PlayAch.TextBlock.BaseStyle}">
+                <Setter Property="FontSize" Value="{DynamicResource PlayAch.FontSize.Caption}"/>
                 <Setter Property="FontWeight" Value="Bold"/>
-                <Setter Property="Foreground" Value="{DynamicResource TextBrush}"/>
+                <Setter Property="Foreground" Value="{DynamicResource PlayAch.Brush.Text}"/>
                 <Setter Property="TextTrimming" Value="CharacterEllipsis"/>
                 <Setter Property="VerticalAlignment" Value="Center"/>
             </Style>
@@ -82,7 +80,7 @@
             <Style x:Key="ScoreCardPanelStyle" TargetType="Border">
                 <Setter Property="CornerRadius" Value="6"/>
                 <Setter Property="BorderThickness" Value="0"/>
-                <Setter Property="Padding" Value="8,2"/>
+                <Setter Property="Padding" Value="8,5"/>
                 <Setter Property="VerticalAlignment" Value="Center"/>
                 <Setter Property="SnapsToDevicePixels" Value="True"/>
             </Style>
@@ -93,7 +91,7 @@
             </Style>
 
             <Style x:Key="ScoreCardTooltipBorderStyle" TargetType="Border">
-                <Setter Property="Background" Value="{DynamicResource PopupBackgroundBrush}"/>
+                <Setter Property="Background" Value="{DynamicResource PlayAch.Brush.PopupSurface}"/>
                 <Setter Property="BorderThickness" Value="1"/>
                 <Setter Property="CornerRadius" Value="8"/>
                 <Setter Property="Padding" Value="12"/>
@@ -103,16 +101,16 @@
             </Style>
 
             <Style x:Key="ScoreCardTooltipLineBorderStyle" TargetType="Border">
-                <Setter Property="Background" Value="#14FFFFFF"/>
+                <Setter Property="Background" Value="{StaticResource PlayAch.Brush.Overlay.Tint.14}"/>
                 <Setter Property="CornerRadius" Value="4"/>
                 <Setter Property="Padding" Value="8,5"/>
                 <Setter Property="Margin" Value="0,4,0,0"/>
                 <Setter Property="HorizontalAlignment" Value="Stretch"/>
             </Style>
 
-            <Style x:Key="ScoreCardTooltipLineTextStyle" TargetType="TextBlock" BasedOn="{StaticResource {x:Type TextBlock}}">
-                <Setter Property="Foreground" Value="{DynamicResource TextBrush}"/>
-                <Setter Property="FontSize" Value="{DynamicResource FontSizeLarge}"/>
+            <Style x:Key="ScoreCardTooltipLineTextStyle" TargetType="TextBlock" BasedOn="{StaticResource PlayAch.TextBlock.BaseStyle}">
+                <Setter Property="Foreground" Value="{DynamicResource PlayAch.Brush.Text}"/>
+                <Setter Property="FontSize" Value="{DynamicResource PlayAch.FontSize.Title}"/>
                 <Setter Property="FontWeight" Value="SemiBold"/>
                 <Setter Property="HorizontalAlignment" Value="Center"/>
                 <Setter Property="TextAlignment" Value="Center"/>
@@ -131,9 +129,9 @@
                          HorizontalOffset="0"
                          VerticalOffset="4"
                          Width="300"
-                         Padding="0"
+                         Padding="{StaticResource PlayAch.Thickness.None}"
                          BorderThickness="0"
-                         Background="{DynamicResource PopupBackgroundBrush}"
+                         Background="{DynamicResource PlayAch.Brush.PopupSurface}"
                          HorizontalContentAlignment="Stretch"
                          HasDropShadow="True">
                     <Border Style="{StaticResource ScoreCardTooltipBorderStyle}"
@@ -158,9 +156,9 @@
             </Border.ToolTip>
             <Grid>
                 <Grid.RowDefinitions>
-                    <RowDefinition Height="Auto"/>
-                    <RowDefinition Height="Auto"/>
-                    <RowDefinition Height="Auto"/>
+                    <RowDefinition Height="18"/>
+                    <RowDefinition Height="8"/>
+                    <RowDefinition Height="18"/>
                 </Grid.RowDefinitions>
                 <Grid.ColumnDefinitions>
                     <ColumnDefinition Width="44"/>
@@ -170,14 +168,15 @@
                        Grid.RowSpan="3"
                        Grid.Column="0"
                        Width="30"
-                       Height="30"
+                       Height="{StaticResource PlayAch.Size.Control.Height}"
                        Margin="0,0,10,0"
                        VerticalAlignment="Center"
                        Source="{Binding BadgeIconKey, Converter={StaticResource ResourceKeyToImage}}"
                        Effect="{StaticResource BadgeShadow}"
                        Style="{StaticResource RarityIcon}"/>
                 <Grid Grid.Row="0"
-                      Grid.Column="1">
+                      Grid.Column="1"
+                      Margin="0,-3,0,0">
                     <Grid.ColumnDefinitions>
                         <ColumnDefinition Width="Auto"/>
                         <ColumnDefinition Width="Auto"/>
@@ -209,10 +208,11 @@
                              Style="{StaticResource ScoreCardProgressBarStyle}"
                              BorderBrush="{Binding AccentBrush}"
                              Foreground="{Binding AccentBrush}"
-                             Margin="0,3,0,0"/>
+                             VerticalAlignment="Center"
+                             Margin="0"/>
                 <Grid Grid.Row="2"
                       Grid.Column="1"
-                      Margin="0,1,0,0"
+                      Margin="0"
                       ClipToBounds="True">
                     <Grid.ColumnDefinitions>
                         <ColumnDefinition Width="*"/>
@@ -230,7 +230,7 @@
                                Foreground="{Binding AccentBrush}"
                                TextAlignment="Left"
                                MaxWidth="150"
-                               Margin="10,1,0,0"/>
+                               Margin="10,0,0,0"/>
                 </Grid>
             </Grid>
         </Border>

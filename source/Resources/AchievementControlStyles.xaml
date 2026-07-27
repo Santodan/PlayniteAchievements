@@ -1,0 +1,198 @@
+<ResourceDictionary xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+                    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+                    xmlns:models="clr-namespace:PlayniteAchievements.Models.Achievements"
+                    xmlns:helpers="clr-namespace:PlayniteAchievements.Views.Helpers"
+                    xmlns:converters="clr-namespace:PlayniteAchievements.Views.Converters"
+                    xmlns:controls="clr-namespace:PlayniteAchievements.Views.Controls">
+    <ResourceDictionary.MergedDictionaries>
+        <ResourceDictionary Source="pack://application:,,,/PlayniteAchievements;component/Resources/CommonResources.xaml"/>
+    </ResourceDictionary.MergedDictionaries>
+
+    <!-- =======================
+         CONTROL STYLES
+         ======================= -->
+
+    <!-- Search TextBox Style -->
+    <Style x:Key="SearchTextBoxStyle" TargetType="TextBox" BasedOn="{StaticResource PlayAch.TextBox.BaseStyle}">
+        <Setter Property="VerticalContentAlignment" Value="Center"/>
+        <Setter Property="Padding" Value="6,2"/>
+        <Setter Property="Background" Value="{DynamicResource PlayAch.Brush.Input.Background}"/>
+    </Style>
+
+    <Style x:Key="ClearableSearchTextBoxStyle"
+           TargetType="TextBox"
+           BasedOn="{StaticResource SearchTextBoxStyle}">
+        <Setter Property="Padding" Value="7,2,30,2"/>
+    </Style>
+
+    <!-- Progress bar style -->
+    <Style x:Key="GameProgressBar" TargetType="ProgressBar">
+        <Setter Property="Height" Value="18"/>
+        <Setter Property="Minimum" Value="0"/>
+        <Setter Property="Maximum" Value="100"/>
+        <Setter Property="Background" Value="{DynamicResource PlayAch.Brush.Progress.Track}"/>
+        <Setter Property="Foreground" Value="{DynamicResource PlayAch.Brush.Progress.Fill}"/>
+        <Setter Property="BorderBrush" Value="{DynamicResource PlayAch.Brush.Progress.Border}"/>
+        <Setter Property="BorderThickness" Value="1"/>
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="ProgressBar">
+                    <Border BorderBrush="{TemplateBinding BorderBrush}"
+                            BorderThickness="{TemplateBinding BorderThickness}"
+                            CornerRadius="2"
+                            SnapsToDevicePixels="True">
+                        <Grid Margin="1">
+                            <Border x:Name="PART_Track"
+                                    Background="{TemplateBinding Background}"
+                                    CornerRadius="1"/>
+                            <!-- The fill paints at full track width inside a clipped indicator so
+                                 gradient fills (tier shine, completed gradient) keep a fixed
+                                 position on the track instead of compressing with the bar value. -->
+                            <Border x:Name="PART_Indicator"
+                                    HorizontalAlignment="Left"
+                                    CornerRadius="1"
+                                    ClipToBounds="True">
+                                <Border Background="{TemplateBinding Foreground}"
+                                        Width="{Binding ActualWidth, ElementName=PART_Track}"
+                                        HorizontalAlignment="Left"
+                                        CornerRadius="1"/>
+                            </Border>
+                        </Grid>
+                    </Border>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+    </Style>
+
+    <!-- Time range button style -->
+    <Style x:Key="TimeRangeButtonStyle" TargetType="RadioButton">
+        <Setter Property="Background" Value="{DynamicResource PlayAch.Brush.Button.Background}"/>
+        <Setter Property="Foreground" Value="{DynamicResource PlayAch.Brush.Text}"/>
+        <Setter Property="BorderBrush" Value="{DynamicResource PlayAch.Brush.Button.Border}"/>
+        <Setter Property="Padding" Value="8,4"/>
+        <Setter Property="Margin" Value="0,0,4,0"/>
+        <Setter Property="FontSize" Value="{DynamicResource PlayAch.FontSize.Caption}"/>
+        <Setter Property="Cursor" Value="Hand"/>
+        <Setter Property="FocusVisualStyle" Value="{x:Null}"/>
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="RadioButton">
+                    <Border x:Name="border"
+                            Background="{TemplateBinding Background}"
+                            BorderBrush="{TemplateBinding BorderBrush}"
+                            BorderThickness="{StaticResource PlayAch.Thickness.Border}"
+                            CornerRadius="3"
+                            Padding="{TemplateBinding Padding}">
+                        <ContentPresenter HorizontalAlignment="Center"
+                                          VerticalAlignment="Center"/>
+                    </Border>
+                    <ControlTemplate.Triggers>
+                        <Trigger Property="IsMouseOver" Value="True">
+                            <Setter TargetName="border" Property="Background" Value="{DynamicResource PlayAch.Brush.Button.Background.Hover}"/>
+                            <Setter TargetName="border" Property="BorderBrush" Value="{DynamicResource PlayAch.Brush.Accent}"/>
+                        </Trigger>
+                        <Trigger Property="IsKeyboardFocused" Value="True">
+                            <Setter TargetName="border" Property="BorderBrush" Value="{DynamicResource PlayAch.Brush.Selection}"/>
+                            <Setter TargetName="border" Property="Background" Value="{DynamicResource PlayAch.Brush.Button.Background.Hover}"/>
+                        </Trigger>
+                        <Trigger Property="IsChecked" Value="True">
+                            <Setter TargetName="border" Property="Background" Value="{DynamicResource PlayAch.Brush.Button.Background.Selected}"/>
+                            <Setter TargetName="border" Property="BorderBrush" Value="{DynamicResource PlayAch.Brush.Accent}"/>
+                            <Setter Property="Foreground" Value="{DynamicResource PlayAch.Brush.Text}"/>
+                            <Setter Property="FontWeight" Value="SemiBold"/>
+                        </Trigger>
+                        <MultiTrigger>
+                            <MultiTrigger.Conditions>
+                                <Condition Property="IsChecked" Value="True"/>
+                                <Condition Property="IsMouseOver" Value="True"/>
+                            </MultiTrigger.Conditions>
+                            <Setter TargetName="border" Property="Background" Value="{DynamicResource PlayAch.Brush.Button.Background.Selected}"/>
+                            <Setter TargetName="border" Property="BorderBrush" Value="{DynamicResource PlayAch.Brush.Accent}"/>
+                        </MultiTrigger>
+                        <MultiTrigger>
+                            <MultiTrigger.Conditions>
+                                <Condition Property="IsChecked" Value="True"/>
+                                <Condition Property="IsKeyboardFocused" Value="True"/>
+                            </MultiTrigger.Conditions>
+                            <Setter TargetName="border" Property="Background" Value="{DynamicResource PlayAch.Brush.Button.Background.Selected}"/>
+                            <Setter TargetName="border" Property="BorderBrush" Value="{DynamicResource PlayAch.Brush.Accent}"/>
+                        </MultiTrigger>
+                        <Trigger Property="IsEnabled" Value="False">
+                            <Setter Property="Opacity" Value="0.45"/>
+                        </Trigger>
+                    </ControlTemplate.Triggers>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+    </Style>
+
+    <!-- Inline clear button for search boxes -->
+    <Style x:Key="ClearSearchButtonStyle" TargetType="Button">
+        <Setter Property="Content" Value="✕"/>
+        <Setter Property="Width" Value="20"/>
+        <Setter Property="Height" Value="20"/>
+        <Setter Property="Padding" Value="0"/>
+        <Setter Property="Margin" Value="0,0,6,0"/>
+        <Setter Property="HorizontalAlignment" Value="Right"/>
+        <Setter Property="VerticalAlignment" Value="Center"/>
+        <Setter Property="Panel.ZIndex" Value="2"/>
+        <Setter Property="Focusable" Value="False"/>
+        <Setter Property="Cursor" Value="Hand"/>
+        <Setter Property="BorderThickness" Value="0"/>
+        <Setter Property="Background" Value="{DynamicResource PlayAch.Brush.Button.Background}"/>
+        <Setter Property="Foreground" Value="{DynamicResource PlayAch.Brush.Text}"/>
+        <Setter Property="FontSize" Value="12"/>
+        <Setter Property="FontWeight" Value="SemiBold"/>
+        <Setter Property="Opacity" Value="0.72"/>
+        <Setter Property="ToolTip" Value="{DynamicResource LOCPlayAch_Button_Clear}"/>
+        <Setter Property="Visibility" Value="Visible"/>
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="Button">
+                    <Border x:Name="Chrome"
+                            Width="{TemplateBinding Width}"
+                            Height="{TemplateBinding Height}"
+                            Background="{TemplateBinding Background}"
+                            CornerRadius="10"
+                            SnapsToDevicePixels="True">
+                        <TextBlock Text="{TemplateBinding Content}"
+                                   Foreground="{TemplateBinding Foreground}"
+                                   FontSize="{TemplateBinding FontSize}"
+                                   FontWeight="{TemplateBinding FontWeight}"
+                                   HorizontalAlignment="Center"
+                                   VerticalAlignment="Center"/>
+                    </Border>
+                    <ControlTemplate.Triggers>
+                        <Trigger Property="IsMouseOver" Value="True">
+                            <Setter TargetName="Chrome" Property="Background" Value="{DynamicResource PlayAch.Brush.Button.Background.Hover}"/>
+                            <Setter Property="Foreground" Value="{DynamicResource PlayAch.Brush.Accent}"/>
+                            <Setter Property="Opacity" Value="1"/>
+                        </Trigger>
+                        <Trigger Property="IsPressed" Value="True">
+                            <Setter TargetName="Chrome" Property="Background" Value="{DynamicResource PlayAch.Brush.Button.Background.Pressed}"/>
+                            <Setter Property="Opacity" Value="1"/>
+                        </Trigger>
+                        <Trigger Property="IsKeyboardFocused" Value="True">
+                            <Setter TargetName="Chrome" Property="Background" Value="{DynamicResource PlayAch.Brush.Button.Background.Hover}"/>
+                            <Setter Property="Foreground" Value="{DynamicResource PlayAch.Brush.Text}"/>
+                            <Setter Property="Opacity" Value="1"/>
+                        </Trigger>
+                        <Trigger Property="IsEnabled" Value="False">
+                            <Setter Property="Opacity" Value="0.3"/>
+                        </Trigger>
+                    </ControlTemplate.Triggers>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+        <Style.Triggers>
+            <DataTrigger Binding="{Binding RelativeSource={RelativeSource Self}, Path=Tag}" Value="">
+                <Setter Property="Visibility" Value="Collapsed"/>
+            </DataTrigger>
+            <DataTrigger Binding="{Binding RelativeSource={RelativeSource Self}, Path=Tag}" Value="{x:Null}">
+                <Setter Property="Visibility" Value="Collapsed"/>
+            </DataTrigger>
+        </Style.Triggers>
+    </Style>
+
+
+</ResourceDictionary>

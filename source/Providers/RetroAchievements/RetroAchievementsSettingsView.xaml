@@ -11,7 +11,7 @@
     <UserControl.Resources>
         <ResourceDictionary>
             <ResourceDictionary.MergedDictionaries>
-                <ResourceDictionary Source="pack://application:,,,/PlayniteAchievements;component/Providers/ProviderSettingsStyles.xaml"/>
+                <ResourceDictionary Source="pack://application:,,,/PlayniteAchievements;component/Providers/ProviderSettingsScopedControlStyles.xaml"/>
             </ResourceDictionary.MergedDictionaries>
         </ResourceDictionary>
     </UserControl.Resources>
@@ -21,43 +21,29 @@
         <StackPanel Margin="20">
 
             <!-- Provider Header -->
-            <StackPanel Orientation="Horizontal" Margin="0,0,0,16">
-                <Viewbox Width="28" Height="28" Margin="0,0,12,0" VerticalAlignment="Center">
-                    <Path Data="{StaticResource GeoRetroAchievements}" Fill="#FFD700"/>
+            <StackPanel Style="{StaticResource ProviderHeaderPanelStyle}">
+                <Viewbox Style="{StaticResource ProviderHeaderIconStyle}">
+                    <Path Data="{StaticResource GeoRetroAchievements}" Fill="{StaticResource PlayAch.Brush.ProviderRetroAchievements}"/>
                 </Viewbox>
-                <TextBlock Text="{DynamicResource LOCPlayAch_Provider_RetroAchievements}"
-                           FontSize="20" FontWeight="Bold" VerticalAlignment="Center"
-                           Foreground="{DynamicResource TextBrush}"/>
+                <TextBlock Text="{DynamicResource LOCPlayAch_Provider_RetroAchievements}" Style="{StaticResource ProviderTitleTextStyle}"/>
             </StackPanel>
 
             <!-- Provider Enable Toggle -->
-            <Border Style="{StaticResource SectionBorderStyle}" Margin="0,0,0,12">
+            <Border Style="{StaticResource ProviderEnableToggleBorderStyle}">
                 <CheckBox Content="{DynamicResource LOCPlayAch_Settings_ProviderEnabled}"
                           IsChecked="{Binding Settings.IsEnabled, Mode=TwoWay}"
                           FontWeight="SemiBold"
-                          FontSize="{DynamicResource FontSize}"/>
+                          FontSize="{DynamicResource PlayAch.FontSize.Body}"/>
             </Border>
 
             <!-- Provider Disabled Message -->
-            <TextBlock Text="{DynamicResource LOCPlayAch_Settings_ProviderDisabledMessage}"
-                       Margin="0,0,0,16">
-                <TextBlock.Style>
-                    <Style TargetType="TextBlock" BasedOn="{StaticResource MutedTextStyle}">
-                        <Setter Property="Visibility" Value="Collapsed"/>
-                        <Style.Triggers>
-                            <DataTrigger Binding="{Binding Settings.IsEnabled}" Value="False">
-                                <Setter Property="Visibility" Value="Visible"/>
-                            </DataTrigger>
-                        </Style.Triggers>
-                    </Style>
-                </TextBlock.Style>
-            </TextBlock>
+            <TextBlock Text="{DynamicResource LOCPlayAch_Settings_ProviderDisabledMessage}" Style="{StaticResource ProviderDisabledMessageStyle}"/>
 
             <!-- RetroAchievements Settings -->
             <Border Style="{StaticResource SectionBorderStyle}"
                     IsEnabled="{Binding Settings.IsEnabled}">
                 <StackPanel>
-                    <Grid Margin="0,0,0,16">
+                    <Grid Margin="{StaticResource PlayAch.Thickness.Bottom.Lg}">
                         <Grid.ColumnDefinitions>
                             <ColumnDefinition Width="180"/>
                             <ColumnDefinition Width="*"/>
@@ -65,27 +51,12 @@
 
                         <TextBlock Grid.Column="0"
                                    x:Name="AuthLabel"
-                                   Foreground="{DynamicResource TextBrush}"
+                                   Foreground="{DynamicResource PlayAch.Brush.Text}"
                                    TextWrapping="Wrap"
                                    VerticalAlignment="Top"
-                                   Margin="0,8,0,0"/>
+                                   Margin="{StaticResource PlayAch.Thickness.Top.Sm}"/>
 
-                        <Border Grid.Column="1"
-                                Background="{DynamicResource PanelBackgroundBrush}"
-                                CornerRadius="8"
-                                Padding="16"
-                                BorderThickness="1">
-                            <Border.Style>
-                                <Style TargetType="Border">
-                                    <Setter Property="BorderBrush" Value="#F72585"/>
-                                    <Style.Triggers>
-                                        <DataTrigger Binding="{Binding IsAuthenticated, RelativeSource={RelativeSource AncestorType=UserControl}}"
-                                                     Value="True">
-                                            <Setter Property="BorderBrush" Value="#06FFA5"/>
-                                        </DataTrigger>
-                                    </Style.Triggers>
-                                </Style>
-                            </Border.Style>
+                        <Border Grid.Column="1" Style="{StaticResource ProviderConfigStatusBorderStyle}">
 
                             <StackPanel>
                                 <Grid Margin="0,0,0,10">
@@ -95,26 +66,10 @@
                                     </Grid.ColumnDefinitions>
 
                                     <TextBlock Grid.Column="0"
-                                               FontFamily="Segoe MDL2 Assets"
-                                               FontSize="{DynamicResource FontSize}"
-                                               Margin="0,0,12,0"
-                                               VerticalAlignment="Center">
+                                               Style="{StaticResource ProviderConfigStatusIconStyle}">
                                         <TextBlock.RenderTransform>
                                             <ScaleTransform ScaleX="1.5" ScaleY="1.5"/>
                                         </TextBlock.RenderTransform>
-                                        <TextBlock.Style>
-                                            <Style TargetType="TextBlock">
-                                                <Setter Property="Text" Value="&#xE783;"/>
-                                                <Setter Property="Foreground" Value="#F72585"/>
-                                                <Style.Triggers>
-                                                    <DataTrigger Binding="{Binding IsAuthenticated, RelativeSource={RelativeSource AncestorType=UserControl}}"
-                                                                 Value="True">
-                                                        <Setter Property="Text" Value="&#xE73E;"/>
-                                                        <Setter Property="Foreground" Value="#06FFA5"/>
-                                                    </DataTrigger>
-                                                </Style.Triggers>
-                                            </Style>
-                                        </TextBlock.Style>
                                     </TextBlock>
 
                                     <TextBlock Grid.Column="1"
@@ -128,12 +83,12 @@
                                         Padding="0,12,0,0">
                                     <StackPanel>
                                         <TextBlock Text="{DynamicResource LOCPlayAch_Settings_RaUsername}"
-                                                   Margin="0,0,0,8"/>
+                                                   Margin="{StaticResource PlayAch.Thickness.Bottom.Sm}"/>
                                         <TextBox Text="{Binding Settings.RaUsername, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
                                                  Padding="4"/>
                                         <TextBlock Text="{DynamicResource LOCPlayAch_Settings_RaUsername_Help}"
                                                    Style="{StaticResource MutedTextStyle}"
-                                                   Margin="0,8,0,0"
+                                                   Margin="{StaticResource PlayAch.Thickness.Top.Sm}"
                                                    TextWrapping="Wrap"/>
 
                                         <TextBlock Text="{DynamicResource LOCPlayAch_Settings_RaWebApiKey}"
@@ -142,7 +97,7 @@
                                                  Padding="4"/>
                                         <TextBlock Text="{DynamicResource LOCPlayAch_Settings_RaWebApiKey_Help}"
                                                    Style="{StaticResource MutedTextStyle}"
-                                                   Margin="0,8,0,0"
+                                                   Margin="{StaticResource PlayAch.Thickness.Top.Sm}"
                                                    TextWrapping="Wrap"/>
                                     </StackPanel>
                                 </Border>
@@ -163,7 +118,7 @@
 
                         <TextBlock Grid.Row="0" Grid.Column="0"
                                    Text="{DynamicResource LOCPlayAch_Settings_RaRarityStats}"
-                                   Foreground="{DynamicResource TextBrush}"
+                                   Foreground="{DynamicResource PlayAch.Brush.Text}"
                                    VerticalAlignment="Center"/>
 
                         <ComboBox Grid.Row="0" Grid.Column="1"
@@ -174,12 +129,11 @@
                                   HorizontalAlignment="Left">
                             <ComboBoxItem Content="{DynamicResource LOCPlayAch_Settings_RaRarityStats_Casual}" Tag="casual"/>
                             <ComboBoxItem Content="{DynamicResource LOCPlayAch_Settings_RaRarityStats_Hardcore}" Tag="hardcore"/>
-                            <ComboBoxItem Content="{DynamicResource LOCPlayAch_Settings_RaRarityStats_Combined}" Tag="combined"/>
                         </ComboBox>
 
                         <TextBlock Grid.Row="1" Grid.Column="1"
                                    Text="{DynamicResource LOCPlayAch_Settings_RaRarityStats_Description}"
-                                   Margin="0,6,0,0"
+                                   Margin="{StaticResource PlayAch.Thickness.Top.Compact}"
                                    Style="{StaticResource MutedTextStyle}"/>
                     </Grid>
 
@@ -196,7 +150,7 @@
 
                         <TextBlock Grid.Row="0" Grid.Column="0"
                                    Text="{DynamicResource LOCPlayAch_Settings_RaPointsMode}"
-                                   Foreground="{DynamicResource TextBrush}"
+                                   Foreground="{DynamicResource PlayAch.Brush.Text}"
                                    VerticalAlignment="Center"/>
 
                         <ComboBox Grid.Row="0" Grid.Column="1"
@@ -211,7 +165,7 @@
 
                         <TextBlock Grid.Row="1" Grid.Column="1"
                                    Text="{DynamicResource LOCPlayAch_Settings_RaPointsMode_Description}"
-                                   Margin="0,6,0,0"
+                                   Margin="{StaticResource PlayAch.Thickness.Top.Compact}"
                                    Style="{StaticResource MutedTextStyle}"/>
                     </Grid>
 
@@ -245,7 +199,7 @@
 
                         <TextBlock Grid.Column="0"
                                    Text="{DynamicResource LOCPlayAch_Settings_HashIndexMaxAgeDays}"
-                                   Foreground="{DynamicResource TextBrush}"
+                                   Foreground="{DynamicResource PlayAch.Brush.Text}"
                                    VerticalAlignment="Center"/>
 
                         <TextBox Grid.Column="1"
@@ -269,7 +223,7 @@
                         <Button Grid.Column="1"
                                 Content="{DynamicResource LOCPlayAch_Settings_RebuildNow}"
                                 Click="ForceRebuildHashIndex_Click"
-                                Padding="14,6"
+                                Padding="{StaticResource PlayAch.Thickness.ButtonPadding.Wide}"
                                 Margin="16,0,0,0"
                                 MinWidth="90"/>
                     </Grid>

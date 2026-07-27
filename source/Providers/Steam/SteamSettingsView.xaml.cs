@@ -14,6 +14,7 @@ using PlayniteAchievements.Providers.Settings;
 using PlayniteAchievements.Services.Logging;
 using PlayniteAchievements.Models;
 using PlayniteAchievements.Views;
+using PlayniteAchievements.Views.Dialogs;
 using PlayniteAchievements.Views.Helpers;
 
 namespace PlayniteAchievements.Providers.Steam

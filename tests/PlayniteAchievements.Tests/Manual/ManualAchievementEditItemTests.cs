@@ -1,6 +1,7 @@
 using Microsoft.VisualStudio.TestTools.UnitTesting;
 using PlayniteAchievements.Models.Achievements;
 using PlayniteAchievements.ViewModels;
+using PlayniteAchievements.ViewModels.Items;
 using System;
 
 namespace PlayniteAchievements.Manual.Tests

@@ -10,6 +10,7 @@ using PlayniteAchievements.Models.Achievements;
 using PlayniteAchievements.Providers;
 using PlayniteAchievements.Providers.RetroAchievements;
 using PlayniteAchievements.Services.Local;
+using PlayniteAchievements.Services.Cache;
 
 namespace PlayniteAchievements.Services.RetroAchievements
 {
@@ -331,7 +332,7 @@ namespace PlayniteAchievements.Services.RetroAchievements
         private AchievementSnapshot CaptureSnapshot(Guid gameId)
         {
             var cacheManager = _cacheManager as CacheManager;
-            var data = cacheManager?.LoadGameData(gameId.ToString(), "RetroAchievements");
+            var data = cacheManager?.LoadGameData(gameId.ToString());
             return BuildSnapshot(data);
         }
 

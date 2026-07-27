@@ -13,12 +13,9 @@
 
     <UserControl.Resources>
         <ResourceDictionary>
-            <converters:BooleanConverter x:Key="InvertedBooleanToVisibilityConverter" Mode="InvertedToVisibility" />
-            <converters:BooleanConverter x:Key="BooleanToVisibilityConverter" Mode="ToVisibility" />
-            <converters:LocalDateTimeConverter x:Key="LocalDateTimeConverter" />
-            <converters:PercentToRarityGlowConverter x:Key="PercentToRarityGlowConverter" />
-            <converters:PercentToRarityBadgeConverter x:Key="PercentToRarityBadgeConverter" />
-            <converters:LockedIconSelectorConverter x:Key="LockedIconSelectorConverter" />
+            <ResourceDictionary.MergedDictionaries>
+                <ResourceDictionary Source="pack://application:,,,/PlayniteAchievements;component/Resources/CommonResources.xaml"/>
+            </ResourceDictionary.MergedDictionaries>
         </ResourceDictionary>
     </UserControl.Resources>
 
@@ -66,6 +63,17 @@
                                     <Setter Property="Visibility" Value="Visible"/>
                                     <Setter Property="Effect" Value="{Binding RelativeSource={RelativeSource AncestorType=UserControl}, Path=Rarity, Converter={StaticResource PercentToRarityGlowConverter}}"/>
                                 </MultiDataTrigger>
+                                <!-- Hardcore achievements use a solid border instead of the soft glow. -->
+                                <MultiDataTrigger>
+                                    <MultiDataTrigger.Conditions>
+                                        <Condition Binding="{Binding RelativeSource={RelativeSource AncestorType=UserControl}, Path=EnableRaretyIndicator}" Value="True"/>
+                                        <Condition Binding="{Binding RelativeSource={RelativeSource AncestorType=UserControl}, Path=IsLocked}" Value="False"/>
+                                        <Condition Binding="{Binding RelativeSource={RelativeSource AncestorType=UserControl}, Path=ShowRarityGlow}" Value="True"/>
+                                        <Condition Binding="{Binding RelativeSource={RelativeSource AncestorType=UserControl}, Path=IsHardcore}" Value="True"/>
+                                    </MultiDataTrigger.Conditions>
+                                    <Setter Property="Visibility" Value="Collapsed"/>
+                                    <Setter Property="Effect" Value="{x:Null}"/>
+                                </MultiDataTrigger>
                             </Style.Triggers>
                         </Style>
                     </Image.Style>
@@ -91,13 +99,39 @@
             </Grid>
         </Border>
 
+        <!-- Solid rarity border for Hardcore achievements (replaces the glow).
+             Negative margin draws the border just OUTSIDE the icon so it never shrinks it. -->
+        <Border Margin="-3"
+                BorderThickness="3"
+                Background="Transparent"
+                IsHitTestVisible="False"
+                SnapsToDevicePixels="True"
+                BorderBrush="{Binding RelativeSource={RelativeSource AncestorType=UserControl}, Path=Rarity, Converter={StaticResource RarityToShineBrush}}">
+            <Border.Style>
+                <Style TargetType="Border">
+                    <Setter Property="Visibility" Value="Collapsed"/>
+                    <Style.Triggers>
+                        <MultiDataTrigger>
+                            <MultiDataTrigger.Conditions>
+                                <Condition Binding="{Binding RelativeSource={RelativeSource AncestorType=UserControl}, Path=EnableRaretyIndicator}" Value="True"/>
+                                <Condition Binding="{Binding RelativeSource={RelativeSource AncestorType=UserControl}, Path=IsLocked}" Value="False"/>
+                                <Condition Binding="{Binding RelativeSource={RelativeSource AncestorType=UserControl}, Path=ShowRarityGlow}" Value="True"/>
+                                <Condition Binding="{Binding RelativeSource={RelativeSource AncestorType=UserControl}, Path=IsHardcore}" Value="True"/>
+                            </MultiDataTrigger.Conditions>
+                            <Setter Property="Visibility" Value="Visible"/>
+                        </MultiDataTrigger>
+                    </Style.Triggers>
+                </Style>
+            </Border.Style>
+        </Border>
+
         <!-- Custom icon text overlay (only shown when using custom locked icon) -->
         <TextBlock Text="{Binding RelativeSource={RelativeSource AncestorType=UserControl}, Path=IconText, FallbackValue='🔒'}"
                    VerticalAlignment="Center" HorizontalAlignment="Center" FontSize="20" Name="PART_IconText" FontWeight="Bold"
                    Foreground="Black"
                    Visibility="Collapsed">
             <TextBlock.Effect>
-                <DropShadowEffect Color="White" Opacity="0.75" BlurRadius="3" ShadowDepth="0" />
+                <DropShadowEffect Color="White" Opacity="{StaticResource PlayAch.Opacity.Hint}" BlurRadius="3" ShadowDepth="0" />
             </TextBlock.Effect>
         </TextBlock>
 

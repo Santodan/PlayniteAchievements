@@ -1,4 +1,5 @@
 using Playnite.SDK.Models;
+using PlayniteAchievements.Common;
 using PlayniteAchievements.Models.Achievements;
 using System;
 using System.Collections.Generic;
@@ -187,20 +188,11 @@ namespace PlayniteAchievements.Providers.EA
 
         public static bool IsTransientError(Exception ex)
         {
-            if (ex is EaTransientException)
-            {
-                return true;
-            }
-
-            if (ex is EaApiHttpException httpEx)
-            {
-                var code = (int)httpEx.StatusCode;
-                return code == 429 || code >= 500;
-            }
-
-            return ex is TaskCanceledException ||
-                ex is TimeoutException ||
-                ex is HttpRequestException;
+            return TransientErrorClassifier.IsTransient(ex, e =>
+                e is EaTransientException ? true :
+                e is TaskCanceledException ? true :
+                e is EaApiHttpException httpEx ? TransientErrorClassifier.IsTransientStatusCode((int)httpEx.StatusCode) :
+                (bool?)null);
         }
 
         private static void AddCandidate(HashSet<string> candidates, string value)

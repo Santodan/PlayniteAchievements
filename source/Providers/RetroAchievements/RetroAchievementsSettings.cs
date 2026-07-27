@@ -21,12 +21,24 @@ namespace PlayniteAchievements.Providers.RetroAchievements
         private bool _enableFuzzyNameMatching = true;
         private bool _enableRaSubsetScanning = true;
         private bool _enableAutomaticCapstoneAssignment = false;
-        private bool _enableActiveMonitoring = false;
-        private int _monitoringIntervalSeconds = 300;
         private Dictionary<Guid, int> _raGameIdOverrides = new Dictionary<Guid, int>();
+        private bool _enableActiveMonitoring = true;
+        private int _monitoringIntervalSeconds = 30;
 
         /// <inheritdoc />
         public override string ProviderKey => "RetroAchievements";
+
+        public bool EnableActiveMonitoring
+        {
+            get => _enableActiveMonitoring;
+            set => SetValue(ref _enableActiveMonitoring, value);
+        }
+
+        public int MonitoringIntervalSeconds
+        {
+            get => _monitoringIntervalSeconds;
+            set => SetValue(ref _monitoringIntervalSeconds, Math.Max(5, value));
+        }
 
         /// <summary>
         /// Gets or sets the RetroAchievements username.
@@ -47,7 +59,8 @@ namespace PlayniteAchievements.Providers.RetroAchievements
         }
 
         /// <summary>
-        /// RetroAchievements rarity stats mode: "casual", "hardcore", or "combined".
+        /// RetroAchievements rarity stats mode for locked achievements: "casual" or "hardcore".
+        /// Unlocked achievements derive rarity from their own unlock mode instead.
         /// </summary>
         public string RaRarityStats
         {
@@ -56,7 +69,6 @@ namespace PlayniteAchievements.Providers.RetroAchievements
             {
                 var mode = (value ?? string.Empty).Trim();
                 if (string.Equals(mode, "hardcore", StringComparison.OrdinalIgnoreCase) ||
-                    string.Equals(mode, "combined", StringComparison.OrdinalIgnoreCase) ||
                     string.Equals(mode, "casual", StringComparison.OrdinalIgnoreCase))
                 {
                     SetValue(ref _raRarityStats, mode.ToLowerInvariant());
@@ -147,25 +159,6 @@ namespace PlayniteAchievements.Providers.RetroAchievements
         {
             get => _enableAutomaticCapstoneAssignment;
             set => SetValue(ref _enableAutomaticCapstoneAssignment, value);
-        }
-
-        /// <summary>
-        /// When true, polls the RetroAchievements API during gameplay to detect newly unlocked
-        /// achievements and show the configured real-time unlock notification.
-        /// </summary>
-        public bool EnableActiveMonitoring
-        {
-            get => _enableActiveMonitoring;
-            set => SetValue(ref _enableActiveMonitoring, value);
-        }
-
-        /// <summary>
-        /// How often to poll the RetroAchievements API while a monitored game is running.
-        /// </summary>
-        public int MonitoringIntervalSeconds
-        {
-            get => _monitoringIntervalSeconds;
-            set => SetValue(ref _monitoringIntervalSeconds, Math.Max(30, Math.Min(3600, value)));
         }
 
         /// <summary>

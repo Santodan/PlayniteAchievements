@@ -7,20 +7,28 @@
              d:DesignHeight="200"
              d:DesignWidth="800">
 
+    <UserControl.Resources>
+        <ResourceDictionary>
+            <ResourceDictionary.MergedDictionaries>
+                <ResourceDictionary Source="pack://application:,,,/PlayniteAchievements;component/Resources/CommonResources.xaml"/>
+            </ResourceDictionary.MergedDictionaries>
+        </ResourceDictionary>
+    </UserControl.Resources>
+
     <Grid>
         <ContentPresenter x:Name="PART_Content" />
 
         <Border x:Name="PART_Empty"
-                Background="{DynamicResource ControlBackgroundBrush}"
-                BorderBrush="{DynamicResource NormalBorderBrush}"
-                BorderThickness="1"
-                CornerRadius="6"
-                Padding="12"
+                Background="{DynamicResource PlayAch.Brush.Surface}"
+                BorderBrush="{DynamicResource PlayAch.Brush.Border}"
+                BorderThickness="{StaticResource PlayAch.Thickness.Border}"
+                CornerRadius="{StaticResource PlayAch.Radius.Card}"
+                Padding="{StaticResource PlayAch.Thickness.CardPadding}"
                 Visibility="Collapsed">
             <TextBlock x:Name="PART_EmptyText"
                        TextWrapping="Wrap"
-                       Foreground="{DynamicResource TextBrush}"
-                       Opacity="0.7">
+                       Foreground="{DynamicResource PlayAch.Brush.Text}"
+                       Opacity="{StaticResource PlayAch.Opacity.Subtle}">
                 Control not available (returned null).
             </TextBlock>
         </Border>

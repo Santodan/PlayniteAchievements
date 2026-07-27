@@ -2,9 +2,11 @@ using PlayniteAchievements.Models;
 using PlayniteAchievements.Models.Achievements;
 using PlayniteAchievements.Models.Settings;
 using PlayniteAchievements.Providers;
+using PlayniteAchievements.Providers.Overrides;
 using PlayniteAchievements.Providers.RetroAchievements.Hashing;
 using PlayniteAchievements.Providers.Settings;
 using PlayniteAchievements.Services;
+using PlayniteAchievements.Services.GameCustomData;
 using Playnite.SDK;
 using Playnite.SDK.Models;
 using System;
@@ -17,19 +19,32 @@ using System.Threading.Tasks;
 
 namespace PlayniteAchievements.Providers.RetroAchievements
 {
-    internal sealed class RetroAchievementsDataProvider : IDataProvider, IAchievementPageLinkProvider, IDisposable
+    internal sealed class RetroAchievementsDataProvider : DataProviderBase<RetroAchievementsSettings>, IDataProvider, IAchievementPageLinkProvider, IProviderOverride, IDisposable
     {
+        public ProviderOverrideDescriptor OverrideDescriptor { get; } = ProviderOverrideDescriptor.Text(
+            "LOCPlayAch_ManageAchievements_Overrides_ProviderValueLabel_RetroAchievements",
+            raw =>
+            {
+                if (int.TryParse((raw ?? string.Empty).Trim(), out var gameId) && gameId > 0)
+                {
+                    return ProviderOverrideValidation.Valid(gameId.ToString(CultureInfo.InvariantCulture));
+                }
+
+                return ProviderOverrideValidation.Invalid(
+                    "LOCPlayAch_Menu_RaGameId_InvalidId");
+            });
+
         private readonly ILogger _logger;
         private readonly PlayniteAchievementsSettings _settings;
         private readonly string _pluginUserDataPath;
         private readonly RetroAchievementsPathResolver _pathResolver;
-        private RetroAchievementsSettings _providerSettings;
 
         private readonly object _initLock = new object();
         private RetroAchievementsApiClient _apiClient;
         private RetroAchievementsHashIndexStore _hashIndexStore;
         private RetroAchievementsHashCacheStore _hashCacheStore;
         private RetroAchievementsScanner _scanner;
+        private RetroAchievementsFriendsProvider _friendsProvider;
 
         private string _clientUsername;
         private string _clientApiKey;
@@ -41,14 +56,26 @@ namespace PlayniteAchievements.Providers.RetroAchievements
             _settings = settings ?? throw new ArgumentNullException(nameof(settings));
             _pluginUserDataPath = pluginUserDataPath ?? string.Empty;
             _pathResolver = new RetroAchievementsPathResolver(playniteApi);
-
-            _providerSettings = ProviderRegistry.Settings<RetroAchievementsSettings>();
         }
         public string ProviderName => ResourceProvider.GetString("LOCPlayAch_Provider_RetroAchievements");
         public string ProviderKey => "RetroAchievements";
         public string ProviderIconKey => "ProviderIconRetroAchievements";
         public string ProviderColorHex => "#FFD700";
         public ISessionManager AuthSession => null;
+
+        public PlayniteAchievements.Models.Friends.IFriendsProvider Friends =>
+            _friendsProvider ?? (_friendsProvider = new RetroAchievementsFriendsProvider(
+                _logger,
+                () =>
+                {
+                    EnsureInitialized();
+                    return _apiClient;
+                },
+                () =>
+                {
+                    EnsureInitialized();
+                    return _hashIndexStore;
+                }));
 
         /// <summary>
         /// Checks if RetroAchievements authentication is properly configured.
@@ -213,7 +240,14 @@ namespace PlayniteAchievements.Providers.RetroAchievements
                 _apiClient = new RetroAchievementsApiClient(_logger, username, apiKey, language);
                 _hashIndexStore = new RetroAchievementsHashIndexStore(_logger, _settings, _apiClient, _pluginUserDataPath);
                 _hashCacheStore = new RetroAchievementsHashCacheStore(_logger, _pluginUserDataPath);
-                _scanner = new RetroAchievementsScanner(_logger, _settings, _apiClient, _hashIndexStore, _pathResolver, _hashCacheStore);
+                _scanner = new RetroAchievementsScanner(
+                    _logger,
+                    _settings,
+                    _apiClient,
+                    _hashIndexStore,
+                    _pathResolver,
+                    _hashCacheStore,
+                    () => PlayniteAchievementsPlugin.Instance?.DiskImageService);
 
                 _clientUsername = username;
                 _clientApiKey = apiKey;
@@ -316,18 +350,6 @@ namespace PlayniteAchievements.Providers.RetroAchievements
         {
             return string.Equals(gameData?.ProviderKey, "RetroAchievements", StringComparison.OrdinalIgnoreCase) &&
                    string.Equals(ProviderRegistry.Settings<RetroAchievementsSettings>().RaPointsMode, "scaled", StringComparison.OrdinalIgnoreCase);
-        }
-
-        /// <inheritdoc />
-        public IProviderSettings GetSettings() => _providerSettings;
-
-        /// <inheritdoc />
-        public void ApplySettings(IProviderSettings settings)
-        {
-            if (settings is RetroAchievementsSettings raSettings)
-            {
-                _providerSettings.CopyFrom(raSettings);
-            }
         }
 
         /// <inheritdoc />

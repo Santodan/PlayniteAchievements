@@ -1,0 +1,41 @@
+<ResourceDictionary xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+                    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+
+    <!--
+        Shared implicit control styles for the plugin's own windows. Declares implicit styles
+        (BasedOn the PlayAch.*.BaseStyle keyed styles) so plain controls inside a plugin window pick
+        up the plugin's look instead of Playnite defaults.
+
+        Merged by the per-window *ScopedControlStyles dictionaries (Settings, ViewAchievements,
+        ManageAchievements, ProviderSettings, Overview, CustomRefresh). Deliberately NOT merged by
+        CommonResources/AchievementResources, so these implicit styles never leak into the
+        theme-integration controls embedded in the user's theme.
+
+        Holds every control type whose base style lives in CommonResources. The only window-specific
+        exception is DatePicker, whose base-style cluster (Calendar/CalendarItem/CalendarButton/etc.)
+        lives in ManageAchievementsStyles and is used only by that window, so its implicit style stays
+        declared in ManageAchievementsScopedControlStyles.
+    -->
+    <ResourceDictionary.MergedDictionaries>
+        <ResourceDictionary Source="pack://application:,,,/PlayniteAchievements;component/Resources/CommonResources.xaml"/>
+    </ResourceDictionary.MergedDictionaries>
+
+    <Style TargetType="Button" BasedOn="{StaticResource PlayAch.Button.BaseStyle}"/>
+    <Style TargetType="ToolTip" BasedOn="{StaticResource PlayAch.ToolTip.BaseStyle}"/>
+    <Style TargetType="ToggleButton" BasedOn="{StaticResource PlayAch.ToggleButton.BaseStyle}"/>
+    <Style TargetType="RadioButton" BasedOn="{StaticResource PlayAch.RadioButton.BaseStyle}"/>
+    <Style TargetType="TextBox" BasedOn="{StaticResource PlayAch.TextBox.BaseStyle}"/>
+    <Style TargetType="PasswordBox" BasedOn="{StaticResource PlayAch.PasswordBox.BaseStyle}"/>
+    <Style TargetType="CheckBox" BasedOn="{StaticResource PlayAch.CheckBox.BaseStyle}"/>
+    <Style TargetType="ComboBox" BasedOn="{StaticResource PlayAch.ComboBox.BaseStyle}"/>
+    <Style TargetType="ComboBoxItem" BasedOn="{StaticResource PlayAch.ComboBoxItem.BaseStyle}"/>
+    <Style TargetType="ListBox" BasedOn="{StaticResource PlayAch.ListBox.BaseStyle}"/>
+    <Style TargetType="ListBoxItem" BasedOn="{StaticResource PlayAch.ListBoxItem.BaseStyle}"/>
+    <Style TargetType="ScrollBar" BasedOn="{StaticResource PlayAch.ScrollBar.BaseStyle}"/>
+    <Style TargetType="ScrollViewer" BasedOn="{StaticResource PlayAch.ScrollViewer.BaseStyle}"/>
+    <Style TargetType="TabControl" BasedOn="{StaticResource PlayAch.TabControl.BaseStyle}"/>
+    <Style TargetType="TabItem" BasedOn="{StaticResource PlayAch.TabItem.BaseStyle}"/>
+    <Style TargetType="ProgressBar" BasedOn="{StaticResource PlayAch.ProgressBar.BaseStyle}"/>
+    <Style TargetType="Expander" BasedOn="{StaticResource PlayAch.Expander.BaseStyle}"/>
+
+</ResourceDictionary>

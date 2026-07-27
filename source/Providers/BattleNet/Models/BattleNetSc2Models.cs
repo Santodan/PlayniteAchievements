@@ -9,8 +9,43 @@ namespace PlayniteAchievements.Providers.BattleNet.Models
         [DataMember(Name = "access_token")]
         public string AccessToken { get; set; }
 
+        [DataMember(Name = "refresh_token")]
+        public string RefreshToken { get; set; }
+
+        [DataMember(Name = "token_type")]
+        public string TokenType { get; set; }
+
+        [DataMember(Name = "scope")]
+        public string Scope { get; set; }
+
         [DataMember(Name = "expires_in")]
         public int ExpiresIn { get; set; }
+    }
+
+    [DataContract]
+    public sealed class BattleNetUserInfoResponse
+    {
+        [DataMember(Name = "sub")]
+        public string Sub { get; set; }
+
+        [DataMember(Name = "battletag")]
+        public string BattleTag { get; set; }
+    }
+
+    [DataContract]
+    public sealed class Sc2PlayerProfile
+    {
+        [DataMember(Name = "regionId")]
+        public int RegionId { get; set; }
+
+        [DataMember(Name = "realmId")]
+        public int RealmId { get; set; }
+
+        [DataMember(Name = "profileId")]
+        public int ProfileId { get; set; }
+
+        [DataMember(Name = "displayName")]
+        public string DisplayName { get; set; }
     }
 
     [DataContract]

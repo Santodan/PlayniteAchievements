@@ -14,10 +14,12 @@ namespace PlayniteAchievements.Models.ThemeIntegration
         public const string AchievementSpecialGroup = "Special";
         public const string AchievementRarityGroup = "Rarity";
         public const string AchievementTrophyGroup = "Trophy";
+        public const string AchievementCategoryTypeGroup = "CategoryTypeFilter";
         public const string GameCompletionGroup = "Completion";
         public const string GameStartedGroup = "Started";
         public const string GameActivityGroup = "Activity";
         public const string GameLastUnlockGroup = "LastUnlock";
+        public const string FriendLastUnlockGroup = "FriendLastUnlock";
 
         public static readonly string[] AchievementCustomizationGroups =
         {
@@ -70,6 +72,19 @@ namespace PlayniteAchievements.Models.ThemeIntegration
             DynamicThemeViewKeys.Bronze
         };
 
+        // Canonical category-type vocabulary minus "Default" ("no type filter" is expressed
+        // by All, and "Default" would collide with the Default sort key's label).
+        private static readonly string[] CategoryTypeKeys =
+            Services.Achievements.AchievementCategoryTypeHelper.AllowedCategoryTypes
+                .Where(type => !string.Equals(
+                    type,
+                    Services.Achievements.AchievementCategoryTypeHelper.DefaultCategoryType,
+                    StringComparison.OrdinalIgnoreCase))
+                .ToArray();
+
+        public static readonly string[] AchievementCategoryTypeFilterKeys =
+            new[] { DynamicThemeViewKeys.All }.Concat(CategoryTypeKeys).ToArray();
+
         public static readonly string[] AchievementCustomizationFilterKeys =
         {
             DynamicThemeViewKeys.All,
@@ -103,11 +118,19 @@ namespace PlayniteAchievements.Models.ThemeIntegration
             AchievementProgressFilterKeys,
             AchievementCustomizationFilterKeys,
             AchievementRarityFilterKeys,
-            AchievementTrophyFilterKeys);
+            AchievementTrophyFilterKeys,
+            AchievementCategoryTypeFilterKeys);
 
         public static readonly string[] GameSummaryFilterKeys = Merge(
             GameProgressFilterKeys,
             GameActivityFilterKeys);
+
+        public static readonly string[] FriendSummaryFilterKeys =
+        {
+            DynamicThemeViewKeys.All,
+            DynamicThemeViewKeys.HasLastUnlock,
+            DynamicThemeViewKeys.NoLastUnlock
+        };
 
         public static readonly string[] SelectedGameAchievementSortKeys =
         {
@@ -144,6 +167,21 @@ namespace PlayniteAchievements.Models.ThemeIntegration
             DynamicThemeViewKeys.Notes
         };
 
+        public static readonly string[] CategorySummaryFilterKeys =
+        {
+            DynamicThemeViewKeys.All,
+            DynamicThemeViewKeys.Completed,
+            DynamicThemeViewKeys.Incomplete
+        };
+
+        // Default preserves the builder's order (the game's custom category order).
+        public static readonly string[] CategorySummarySortKeys =
+        {
+            DynamicThemeViewKeys.Default,
+            DynamicThemeViewKeys.Name,
+            DynamicThemeViewKeys.Progress
+        };
+
         public static readonly string[] GameSummarySortKeys =
         {
             DynamicThemeViewKeys.Name,
@@ -153,6 +191,15 @@ namespace PlayniteAchievements.Models.ThemeIntegration
             DynamicThemeViewKeys.LastPlayed,
             DynamicThemeViewKeys.UnlockedCount,
             DynamicThemeViewKeys.AchievementCount
+        };
+
+        public static readonly string[] FriendSummarySortKeys =
+        {
+            DynamicThemeViewKeys.Name,
+            DynamicThemeViewKeys.Provider,
+            DynamicThemeViewKeys.LastUnlock,
+            DynamicThemeViewKeys.UnlockedCount,
+            DynamicThemeViewKeys.SharedGamesCount
         };
 
         public static readonly string[] SortDirectionKeys =
@@ -188,6 +235,15 @@ namespace PlayniteAchievements.Models.ThemeIntegration
         public static readonly IReadOnlyDictionary<string, string> GameSummaryFilterKeyMap =
             CreateCanonicalKeyMap(GameSummaryFilterKeys);
 
+        public static readonly IReadOnlyDictionary<string, string> CategorySummaryFilterKeyMap =
+            CreateCanonicalKeyMap(CategorySummaryFilterKeys);
+
+        public static readonly IReadOnlyDictionary<string, string> CategorySummarySortKeyMap =
+            CreateCanonicalKeyMap(CategorySummarySortKeys);
+
+        public static readonly IReadOnlyDictionary<string, string> FriendSummaryFilterKeyMap =
+            CreateCanonicalKeyMap(FriendSummaryFilterKeys);
+
         public static readonly IReadOnlyDictionary<string, string> SelectedGameAchievementSortKeyMap =
             CreateCanonicalKeyMap(SelectedGameAchievementSortKeys);
 
@@ -196,6 +252,9 @@ namespace PlayniteAchievements.Models.ThemeIntegration
 
         public static readonly IReadOnlyDictionary<string, string> GameSummarySortKeyMap =
             CreateCanonicalKeyMap(GameSummarySortKeys);
+
+        public static readonly IReadOnlyDictionary<string, string> FriendSummarySortKeyMap =
+            CreateFriendSummarySortKeyMap();
 
         public static readonly IReadOnlyDictionary<string, string> SortDirectionKeyMap =
             CreateCanonicalKeyMap(SortDirectionKeys);
@@ -208,7 +267,8 @@ namespace PlayniteAchievements.Models.ThemeIntegration
                 Group(AchievementNotesGroup, DynamicThemeViewKeys.HasNotes, DynamicThemeViewKeys.NoNotes),
                 Group(AchievementSpecialGroup, DynamicThemeViewKeys.Capstone),
                 Group(AchievementRarityGroup, DynamicThemeViewKeys.Common, DynamicThemeViewKeys.Uncommon, DynamicThemeViewKeys.Rare, DynamicThemeViewKeys.UltraRare),
-                Group(AchievementTrophyGroup, DynamicThemeViewKeys.Platinum, DynamicThemeViewKeys.Gold, DynamicThemeViewKeys.Silver, DynamicThemeViewKeys.Bronze));
+                Group(AchievementTrophyGroup, DynamicThemeViewKeys.Platinum, DynamicThemeViewKeys.Gold, DynamicThemeViewKeys.Silver, DynamicThemeViewKeys.Bronze),
+                Group(AchievementCategoryTypeGroup, CategoryTypeKeys));
 
         public static readonly IReadOnlyDictionary<string, string> GameSummaryFilterGroupMap =
             CreateGroupMap(
@@ -216,6 +276,10 @@ namespace PlayniteAchievements.Models.ThemeIntegration
                 Group(GameStartedGroup, DynamicThemeViewKeys.Started, DynamicThemeViewKeys.NotStarted),
                 Group(GameActivityGroup, DynamicThemeViewKeys.Played, DynamicThemeViewKeys.Unplayed),
                 Group(GameLastUnlockGroup, DynamicThemeViewKeys.HasLastUnlock, DynamicThemeViewKeys.NoLastUnlock));
+
+        public static readonly IReadOnlyDictionary<string, string> FriendSummaryFilterGroupMap =
+            CreateGroupMap(
+                Group(FriendLastUnlockGroup, DynamicThemeViewKeys.HasLastUnlock, DynamicThemeViewKeys.NoLastUnlock));
 
         public static string GetGroupSelection(
             string filterExpression,
@@ -332,6 +396,18 @@ namespace PlayniteAchievements.Models.ThemeIntegration
                 }
             }
 
+            return map;
+        }
+
+        private static IReadOnlyDictionary<string, string> CreateFriendSummarySortKeyMap()
+        {
+            var map = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+            foreach (var key in FriendSummarySortKeys)
+            {
+                map[key] = key;
+            }
+
+            map[DynamicThemeViewKeys.AchievementCount] = DynamicThemeViewKeys.SharedGamesCount;
             return map;
         }
 

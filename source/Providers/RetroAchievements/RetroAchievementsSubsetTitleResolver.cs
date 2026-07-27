@@ -26,7 +26,32 @@ namespace PlayniteAchievements.Providers.RetroAchievements
                 return subsetTitle.Substring(0, parenStart).Trim();
             }
 
+            var plainSubsetStart = subsetTitle.IndexOf(" Subset ", StringComparison.OrdinalIgnoreCase);
+            if (plainSubsetStart > 0)
+            {
+                return subsetTitle.Substring(0, plainSubsetStart).Trim();
+            }
+
             return null;
+        }
+
+        internal static bool IsSubsetLikeTitle(string title)
+        {
+            if (string.IsNullOrWhiteSpace(title))
+            {
+                return false;
+            }
+
+            var titleLower = title.ToLowerInvariant();
+            return titleLower.Contains("[subset") ||
+                   titleLower.Contains("[tournament") ||
+                   titleLower.Contains("[event") ||
+                   titleLower.Contains("[bonus") ||
+                   titleLower.Contains("[hub") ||
+                   titleLower.Contains("[specialty") ||
+                   titleLower.Contains("[exclusive") ||
+                   titleLower.Contains("(subset") ||
+                   title.IndexOf(" Subset ", StringComparison.OrdinalIgnoreCase) > 0;
         }
 
         internal static IReadOnlyList<string> ExtractAlternateBaseTitleCandidates(string baseTitle)

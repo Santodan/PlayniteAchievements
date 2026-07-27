@@ -56,8 +56,6 @@ namespace PlayniteAchievements.Providers.Settings
 
         /// <summary>
         /// Populates settings from a JSON string.
-        /// Uses ObjectCreationHandling.Replace to ensure collections are replaced rather than
-        /// appended to, which prevents unbounded collection growth on repeated saves.
         /// </summary>
         /// <param name="json">JSON string containing settings data.</param>
         public virtual void DeserializeFromJson(string json)

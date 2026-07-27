@@ -11,6 +11,7 @@ using System.Windows.Threading;
 using Playnite.SDK;
 using Playnite.SDK.Events;
 using PlayniteAchievements.ViewModels;
+using PlayniteAchievements.ViewModels.Items;
 using PlayniteAchievements.Views.Helpers;
 
 namespace PlayniteAchievements.Services.UI
@@ -253,9 +254,9 @@ namespace PlayniteAchievements.Services.UI
             else if (input == ControllerInput.DPadLeft || input == ControllerInput.LeftStickLeft) direction = FocusNavigationDirection.Left;
             else if (input == ControllerInput.DPadRight || input == ControllerInput.LeftStickRight) direction = FocusNavigationDirection.Right;
 
-            // For multiline textboxes, we might want to check caret position,
+            // For multiline textboxes, we might want to check caret position, 
             // but for simple search boxes, we just want to escape.
-            if (!textBox.AcceptsReturn ||
+            if (!textBox.AcceptsReturn || 
                 (direction == FocusNavigationDirection.Up && textBox.GetLineIndexFromCharacterIndex(textBox.CaretIndex) == 0) ||
                 (direction == FocusNavigationDirection.Down && textBox.GetLineIndexFromCharacterIndex(textBox.CaretIndex) == textBox.LineCount - 1))
             {
@@ -771,7 +772,7 @@ namespace PlayniteAchievements.Services.UI
                     displayItem.ToggleReveal();
                     return true;
                 }
-
+                
                 if (dataContext is ManualAchievementEditItem manualItem)
                 {
                     manualItem.ToggleReveal();
@@ -1073,18 +1074,47 @@ namespace PlayniteAchievements.Services.UI
             }), DispatcherPriority.Input);
         }
 
-        private static List<MenuItem> GetFocusableMenuItems(ContextMenu menu)
+        private static List<UIElement> GetFocusableMenuItems(ContextMenu menu)
         {
             if (menu == null)
             {
-                return new List<MenuItem>();
+                return new List<UIElement>();
             }
 
             menu.UpdateLayout();
-            return menu.Items
-                .OfType<MenuItem>()
-                .Where(item => item.IsEnabled && item.Visibility == Visibility.Visible)
-                .ToList();
+            var elements = new List<UIElement>();
+            foreach (var item in menu.Items.OfType<MenuItem>())
+            {
+                AddFocusableContextMenuElements(item, elements);
+            }
+
+            return elements;
+        }
+
+        private static void AddFocusableContextMenuElements(MenuItem item, List<UIElement> elements)
+        {
+            if (item == null ||
+                elements == null ||
+                !item.IsEnabled ||
+                item.Visibility != Visibility.Visible)
+            {
+                return;
+            }
+
+            if (item.Header is DependencyObject header)
+            {
+                foreach (var button in EnumerateVisualDescendants<ButtonBase>(header)
+                             .Where(button => button.IsEnabled && button.Visibility == Visibility.Visible))
+                {
+                    elements.Add(button);
+                }
+            }
+
+            var localFocusable = item.ReadLocalValue(UIElement.FocusableProperty);
+            if (!(localFocusable is bool isFocusable && !isFocusable))
+            {
+                elements.Add(item);
+            }
         }
 
         private static int FindFocusedElementIndex(IList<UIElement> elements, DependencyObject focused)

@@ -112,6 +112,37 @@ namespace PlayniteAchievements.Models.Achievements.Scoring
                 : GetBadgeIconKey(AchievementRank.Bronze5, useUniformRarityBadges);
         }
 
+        public static string GetScoreCardBadgeIconKey(
+            AchievementRank rank,
+            bool useUniformRarityBadges = false)
+        {
+            if (rank.ToString().StartsWith("Master", StringComparison.Ordinal))
+            {
+                return "ScoreBadgeCompletedGame";
+            }
+
+            switch (GetRarityTier(rank))
+            {
+                case RarityTier.UltraRare:
+                    return "ScoreBadgePlatinumHexagon";
+                case RarityTier.Rare:
+                    return useUniformRarityBadges ? "ScoreBadgeGoldHexagon" : "ScoreBadgeGoldPentagon";
+                case RarityTier.Uncommon:
+                    return useUniformRarityBadges ? "ScoreBadgeSilverHexagon" : "ScoreBadgeSilverSquare";
+                default:
+                    return useUniformRarityBadges ? "ScoreBadgeBronzeHexagon" : "ScoreBadgeBronzeTriangle";
+            }
+        }
+
+        public static string GetScoreCardBadgeIconKey(
+            string rank,
+            bool useUniformRarityBadges = false)
+        {
+            return TryParseRank(rank, out var parsed)
+                ? GetScoreCardBadgeIconKey(parsed, useUniformRarityBadges)
+                : GetScoreCardBadgeIconKey(AchievementRank.Bronze5, useUniformRarityBadges);
+        }
+
         public static RarityTier GetRarityTier(AchievementRank rank)
         {
             var rankText = rank.ToString();

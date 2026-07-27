@@ -82,25 +82,25 @@ namespace PlayniteAchievements.Tests.Models
                 Achievement(RarityTier.Common, unlocked: true, percent: null)));
             Assert.AreEqual(300, AchievementScoreCalculator.GetPrestigeValue(
                 Achievement(RarityTier.UltraRare, unlocked: true, percent: -5.0)));
-            Assert.AreEqual(0, AchievementScoreCalculator.GetPrestigeValue(
+            Assert.AreEqual(1, AchievementScoreCalculator.GetPrestigeValue(
                 Achievement(RarityTier.UltraRare, unlocked: true, percent: 250.0)));
         }
 
         [TestMethod]
         public void GetPrestigeValue_UsesAggressiveRarityCurve()
         {
-            Assert.AreEqual(0, AchievementScoreCalculator.GetPrestigeValue(100, RarityTier.Common));
+            Assert.AreEqual(1, AchievementScoreCalculator.GetPrestigeValue(100, RarityTier.Common));
             Assert.AreEqual(2, AchievementScoreCalculator.GetPrestigeValue(90, RarityTier.Common));
             Assert.AreEqual(5, AchievementScoreCalculator.GetPrestigeValue(75, RarityTier.Common));
             Assert.AreEqual(10, AchievementScoreCalculator.GetPrestigeValue(50, RarityTier.Common));
-            Assert.AreEqual(25, AchievementScoreCalculator.GetPrestigeValue(35, RarityTier.Uncommon));
-            Assert.AreEqual(40, AchievementScoreCalculator.GetPrestigeValue(30, RarityTier.Uncommon));
-            Assert.AreEqual(100, AchievementScoreCalculator.GetPrestigeValue(25, RarityTier.Uncommon));
-            Assert.AreEqual(125, AchievementScoreCalculator.GetPrestigeValue(20, RarityTier.Uncommon));
-            Assert.AreEqual(163, AchievementScoreCalculator.GetPrestigeValue(12.5, RarityTier.Rare));
-            Assert.AreEqual(175, AchievementScoreCalculator.GetPrestigeValue(10, RarityTier.Rare));
-            Assert.AreEqual(200, AchievementScoreCalculator.GetPrestigeValue(5, RarityTier.Rare));
-            Assert.AreEqual(251, AchievementScoreCalculator.GetPrestigeValue(2.5, RarityTier.UltraRare));
+            Assert.AreEqual(22, AchievementScoreCalculator.GetPrestigeValue(35, RarityTier.Uncommon));
+            Assert.AreEqual(32, AchievementScoreCalculator.GetPrestigeValue(30, RarityTier.Uncommon));
+            Assert.AreEqual(50, AchievementScoreCalculator.GetPrestigeValue(25, RarityTier.Uncommon));
+            Assert.AreEqual(90, AchievementScoreCalculator.GetPrestigeValue(20, RarityTier.Uncommon));
+            Assert.AreEqual(145, AchievementScoreCalculator.GetPrestigeValue(12.5, RarityTier.Rare));
+            Assert.AreEqual(162, AchievementScoreCalculator.GetPrestigeValue(10, RarityTier.Rare));
+            Assert.AreEqual(210, AchievementScoreCalculator.GetPrestigeValue(5, RarityTier.Rare));
+            Assert.AreEqual(255, AchievementScoreCalculator.GetPrestigeValue(2.5, RarityTier.UltraRare));
             Assert.AreEqual(300, AchievementScoreCalculator.GetPrestigeValue(0.1, RarityTier.UltraRare));
         }
 

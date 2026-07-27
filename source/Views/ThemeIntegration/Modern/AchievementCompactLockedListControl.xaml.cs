@@ -1,5 +1,6 @@
 using PlayniteAchievements.Models.Achievements;
 using PlayniteAchievements.Services;
+using PlayniteAchievements.Services.Achievements;
 
 namespace PlayniteAchievements.Views.ThemeIntegration.Modern
 {
@@ -24,8 +25,6 @@ namespace PlayniteAchievements.Views.ThemeIntegration.Modern
         /// Uses the shared selected-game sort source, then filters to locked achievements.
         /// </summary>
         protected override AchievementSortSurface SortSurface => AchievementSortSurface.CompactLockedList;
-
-        protected override bool UseAdaptiveOverflowPreview => false;
 
         /// <summary>
         /// Refreshes the ItemsControl ItemsSource binding.

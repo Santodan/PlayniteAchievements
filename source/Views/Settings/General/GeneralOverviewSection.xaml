@@ -1,0 +1,161 @@
+<UserControl x:Class="PlayniteAchievements.Views.Settings.General.GeneralOverviewSection"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+             mc:Ignorable="d"
+             d:DesignHeight="600"
+             d:DesignWidth="700">
+    <UserControl.Resources>
+        <ResourceDictionary>
+            <ResourceDictionary.MergedDictionaries>
+                <ResourceDictionary Source="pack://application:,,,/PlayniteAchievements;component/Resources/SettingsScopedControlStyles.xaml"/>
+                <ResourceDictionary Source="pack://application:,,,/PlayniteAchievements;component/Resources/LogoResources.xaml"/>
+            </ResourceDictionary.MergedDictionaries>
+        </ResourceDictionary>
+    </UserControl.Resources>
+    <ScrollViewer VerticalScrollBarVisibility="Auto"
+                  HorizontalScrollBarVisibility="Disabled">
+        <StackPanel Margin="20">
+
+            <!-- Settings Header -->
+            <Border Style="{StaticResource SectionBorderStyle}"
+                    Background="{DynamicResource PlayAch.Brush.Panel}"
+                    BorderBrush="{DynamicResource PlayAch.Brush.Border}">
+                <StackPanel Orientation="Horizontal">
+                    <Image Source="{StaticResource PlayAch.Image.Logo}"
+                           Width="32"
+                           Height="32"
+                           VerticalAlignment="Center"
+                           Margin="{StaticResource PlayAch.Thickness.Right.Compact}"/>
+                    <TextBlock Text="{DynamicResource LOCPlayAch_Settings_Description}"
+                               Style="{StaticResource SectionHeaderStyle}"
+                               VerticalAlignment="Center"
+                               Margin="0"/>
+                </StackPanel>
+            </Border>
+
+            <!-- Prominent quick links to other settings tabs -->
+            <Grid Margin="0,12,0,18">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*"/>
+                    <ColumnDefinition Width="*"/>
+                    <ColumnDefinition Width="*"/>
+                </Grid.ColumnDefinitions>
+
+                <Button Grid.Column="0" Style="{StaticResource ProminentLinkButtonStyle}"
+                        Click="JumpToTab_Click"
+                        CommandParameter="Display"
+                        ToolTip="{DynamicResource LOCPlayAch_Settings_TabDisplay}"
+                        AutomationProperties.Name="{DynamicResource LOCPlayAch_Settings_TabDisplay}">
+                    <StackPanel Orientation="Horizontal" HorizontalAlignment="Center">
+                        <TextBlock FontFamily="{DynamicResource PlayAch.FontFamily.Icon}"
+                                   FontSize="20" Margin="0,0,10,0" Text="&#xEFB3;" Foreground="{DynamicResource PlayAch.Brush.Accent}"/>
+                        <TextBlock Text="{DynamicResource LOCPlayAch_Settings_TabDisplay}" VerticalAlignment="Center" FontWeight="SemiBold"/>
+                    </StackPanel>
+                </Button>
+
+                <Button Grid.Column="1" Style="{StaticResource ProminentLinkButtonStyle}"
+                        Click="JumpToTab_Click"
+                        CommandParameter="Providers"
+                        ToolTip="{DynamicResource LOCPlayAch_CustomRefresh_ProvidersHeader}"
+                        AutomationProperties.Name="{DynamicResource LOCPlayAch_CustomRefresh_ProvidersHeader}">
+                    <StackPanel Orientation="Horizontal" HorizontalAlignment="Center">
+                        <TextBlock FontFamily="{DynamicResource PlayAch.FontFamily.Icon}"
+                                   FontSize="20" Margin="0,0,10,0" Text="&#xEF7B;" Foreground="{DynamicResource PlayAch.Brush.Accent}"/>
+                        <TextBlock Text="{DynamicResource LOCPlayAch_CustomRefresh_ProvidersHeader}" VerticalAlignment="Center" FontWeight="SemiBold"/>
+                    </StackPanel>
+                </Button>
+
+                <Button Grid.Column="2" Style="{StaticResource ProminentLinkButtonStyle}"
+                        Click="JumpToTab_Click"
+                        CommandParameter="ThemeMigration"
+                        ToolTip="{DynamicResource LOCPlayAch_ThemeMigration_Title}"
+                        AutomationProperties.Name="{DynamicResource LOCPlayAch_ThemeMigration_Title}">
+                    <StackPanel Orientation="Horizontal" HorizontalAlignment="Center">
+                        <TextBlock FontFamily="{DynamicResource PlayAch.FontFamily.Icon}"
+                                   FontSize="20" Margin="0,0,10,0" Text="&#xEFD2;" Foreground="{DynamicResource PlayAch.Brush.Accent}"/>
+                        <TextBlock Text="{DynamicResource LOCPlayAch_ThemeMigration_Title}" VerticalAlignment="Center" FontWeight="SemiBold"/>
+                    </StackPanel>
+                </Button>
+            </Grid>
+
+            <!-- ================== FRIENDS ================== -->
+            <Border Style="{StaticResource SectionBorderStyle}">
+                <StackPanel>
+                    <TextBlock Text="{DynamicResource LOCPlayAch_Settings_Friends}"
+                               Style="{StaticResource SectionHeaderStyle}"/>
+
+                    <StackPanel>
+                        <CheckBox Content="{DynamicResource LOCPlayAch_Settings_EnableFriendsFeatures}"
+                                  IsChecked="{Binding Persisted.EnableFriendsFeatures}"
+                                  VerticalAlignment="Center"/>
+                        <TextBlock Text="{DynamicResource LOCPlayAch_Settings_EnableFriendsFeatures_Description}"
+                                   Style="{StaticResource MutedTextStyle}"
+                                   Margin="18,2,0,0"
+                                   TextWrapping="Wrap"/>
+                    </StackPanel>
+                </StackPanel>
+            </Border>
+
+            <!-- ================== LANGUAGE ================== -->
+            <Border Style="{StaticResource SectionBorderStyle}">
+                <StackPanel>
+                    <TextBlock Text="{DynamicResource LOCPlayAch_Settings_Language}"
+                               Style="{StaticResource SectionHeaderStyle}"/>
+
+                    <Grid Style="{StaticResource SettingRowStyle}">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*"/>
+                            <ColumnDefinition Width="Auto"/>
+                        </Grid.ColumnDefinitions>
+
+                        <StackPanel Grid.Column="0">
+                            <TextBlock Text="{DynamicResource LOCPlayAch_Settings_Language}"
+                                       Foreground="{DynamicResource PlayAch.Brush.Text}"
+                                       FontWeight="SemiBold"
+                                       Margin="0,0,0,2"/>
+                            <TextBlock Text="{DynamicResource LOCPlayAch_Settings_LanguageHint}"
+                                       Style="{StaticResource MutedTextStyle}"/>
+                        </StackPanel>
+
+                        <ComboBox Grid.Column="1"
+                                  Width="200"
+                                  SelectedValuePath="Tag"
+                                  SelectedValue="{Binding Persisted.GlobalLanguage, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}">
+                            <ComboBoxItem Content="English" Tag="english"/>
+                            <ComboBoxItem Content="German (Deutsch)" Tag="german"/>
+                            <ComboBoxItem Content="French (Français)" Tag="french"/>
+                            <ComboBoxItem Content="Spanish (Español)" Tag="spanish"/>
+                            <ComboBoxItem Content="Italian (Italiano)" Tag="italian"/>
+                            <ComboBoxItem Content="Portuguese (Português)" Tag="portuguese"/>
+                            <ComboBoxItem Content="Brazilian Portuguese (Português brasileiro)" Tag="brazilian"/>
+                            <ComboBoxItem Content="Russian (Русский)" Tag="russian"/>
+                            <ComboBoxItem Content="Polish (Polski)" Tag="polish"/>
+                            <ComboBoxItem Content="Dutch (Nederlands)" Tag="dutch"/>
+                            <ComboBoxItem Content="Swedish (Svenska)" Tag="swedish"/>
+                            <ComboBoxItem Content="Finnish (Suomi)" Tag="finnish"/>
+                            <ComboBoxItem Content="Danish (Dansk)" Tag="danish"/>
+                            <ComboBoxItem Content="Norwegian (Norsk)" Tag="norwegian"/>
+                            <ComboBoxItem Content="Hungarian (Magyar)" Tag="hungarian"/>
+                            <ComboBoxItem Content="Czech (Čeština)" Tag="czech"/>
+                            <ComboBoxItem Content="Romanian (Română)" Tag="romanian"/>
+                            <ComboBoxItem Content="Turkish (Türkçe)" Tag="turkish"/>
+                            <ComboBoxItem Content="Greek (Ελληνικά)" Tag="greek"/>
+                            <ComboBoxItem Content="Bulgarian (Български)" Tag="bulgarian"/>
+                            <ComboBoxItem Content="Ukrainian (Українська)" Tag="ukrainian"/>
+                            <ComboBoxItem Content="Thai (ไทย)" Tag="thai"/>
+                            <ComboBoxItem Content="Vietnamese (Tiếng Việt)" Tag="vietnamese"/>
+                            <ComboBoxItem Content="Japanese (日本語)" Tag="japanese"/>
+                            <ComboBoxItem Content="Korean (한국어)" Tag="koreana"/>
+                            <ComboBoxItem Content="Simplified Chinese (简体中文)" Tag="schinese"/>
+                            <ComboBoxItem Content="Traditional Chinese (繁體中文)" Tag="tchinese"/>
+                            <ComboBoxItem Content="Arabic (العربية)" Tag="arabic"/>
+                        </ComboBox>
+                    </Grid>
+                </StackPanel>
+            </Border>
+
+        </StackPanel>
+    </ScrollViewer>
+</UserControl>

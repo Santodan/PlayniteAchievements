@@ -12,7 +12,9 @@ using Playnite.SDK;
 using PlayniteAchievements.Models;
 using PlayniteAchievements.Models.Settings;
 using PlayniteAchievements.Services;
+using PlayniteAchievements.Services.Achievements;
 using PlayniteAchievements.ViewModels;
+using PlayniteAchievements.ViewModels.Items;
 using PlayniteAchievements.Views.Controls;
 using PlayniteAchievements.Views.Helpers;
 
@@ -614,7 +616,7 @@ namespace PlayniteAchievements.Views
             var items = _overviewSource.ToList();
             var currentPath = sortPath;
             var currentDirection = direction;
-            if (!GameSummariesSortHelper.TrySortItems(items, sortPath, direction, secondaries, ref currentPath, ref currentDirection))
+            if (!GameSummariesSortHelper.TrySortItems(items, sortPath, direction, ref currentPath, ref currentDirection))
             {
                 return;
             }
@@ -638,7 +640,8 @@ namespace PlayniteAchievements.Views
                     direction,
                     scope,
                     ref currentPath,
-                    ref currentDirection))
+                    ref currentDirection,
+                    null))
             {
                 return;
             }
@@ -1126,6 +1129,10 @@ namespace PlayniteAchievements.Views
         private void PersistSortSettings()
         {
             var persisted = _settings.Persisted;
+            // Saving this dialog is an explicit request to use these four manual sort
+            // configurations. Keep the selector and persisted paths atomic so a later
+            // snapshot cannot apply the Display > Overview defaults instead.
+            persisted.DefaultAchievementSortMode = CompactListSortMode.Custom;
             persisted.GamesOverviewCustomSortPath = _overviewSortPath;
             persisted.GamesOverviewCustomSortDescending = _overviewSortDirection == ListSortDirection.Descending;
             persisted.GamesOverviewCustomSecondarySorts = SerializeSecondarySorts(_overviewSecondarySorts);

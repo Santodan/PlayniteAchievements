@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Linq;
 using PlayniteAchievements.Models.Settings;
 using PlayniteAchievements.ViewModels;
+using PlayniteAchievements.ViewModels.Items;
 
 namespace PlayniteAchievements.Services.Overview
 {
@@ -59,6 +60,106 @@ namespace PlayniteAchievements.Services.Overview
             }
 
             return filtered;
+        }
+
+        /// <summary>
+        /// Filters games by the active provider/platform selection. A game passes when its provider
+        /// is fully selected (all platforms), or the provider is partially selected and the game's
+        /// platforms overlap the selected set. An empty selection leaves the games unfiltered.
+        /// </summary>
+        public static IEnumerable<TGame> ApplyProviderPlatformFilter<TGame>(
+            IEnumerable<TGame> games,
+            IEnumerable<ProviderFilterGroup> providerGroups)
+            where TGame : GameSummaryItem
+        {
+            var filtered = games ?? Enumerable.Empty<TGame>();
+
+            var activeGroups = (providerGroups ?? Enumerable.Empty<ProviderFilterGroup>())
+                .Where(group => group != null && group.HasAnySelected)
+                .ToList();
+            if (activeGroups.Count == 0)
+            {
+                return filtered;
+            }
+
+            var fullySelectedProviders = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            var selectedPlatformsByProvider =
+                new Dictionary<string, HashSet<string>>(StringComparer.OrdinalIgnoreCase);
+            foreach (var group in activeGroups)
+            {
+                if (group.IsFullySelected)
+                {
+                    fullySelectedProviders.Add(group.ProviderKey);
+                }
+                else
+                {
+                    selectedPlatformsByProvider[group.ProviderKey] =
+                        new HashSet<string>(group.SelectedPlatformNames, StringComparer.OrdinalIgnoreCase);
+                }
+            }
+
+            return filtered.Where(game =>
+                MatchesProviderPlatform(game, fullySelectedProviders, selectedPlatformsByProvider));
+        }
+
+        public static bool MatchesProviderPlatform(
+            GameSummaryItem game,
+            ISet<string> fullySelectedProviders,
+            IReadOnlyDictionary<string, HashSet<string>> selectedPlatformsByProvider)
+        {
+            var providerKey = game?.ProviderFilterKey;
+            if (string.IsNullOrWhiteSpace(providerKey))
+            {
+                return false;
+            }
+
+            // Fully-selected provider: every game of that provider passes, even ones with no
+            // platform metadata.
+            if (fullySelectedProviders != null && fullySelectedProviders.Contains(providerKey))
+            {
+                return true;
+            }
+
+            // Partially-selected provider: only games whose platforms overlap the selection.
+            if (selectedPlatformsByProvider != null &&
+                selectedPlatformsByProvider.TryGetValue(providerKey, out var selectedPlatforms))
+            {
+                return game.Platforms != null && game.Platforms.Any(selectedPlatforms.Contains);
+            }
+
+            return false;
+        }
+
+        /// <summary>
+        /// Builds the dropdown box text: the placeholder when nothing is selected, the provider name
+        /// for a fully-selected provider, or the selected platform names for a partial selection.
+        /// </summary>
+        public static string BuildProviderFilterText(
+            IEnumerable<ProviderFilterGroup> providerGroups,
+            string placeholder)
+        {
+            var groups = (providerGroups ?? Enumerable.Empty<ProviderFilterGroup>())
+                .Where(group => group != null && group.HasAnySelected)
+                .ToList();
+            if (groups.Count == 0)
+            {
+                return placeholder;
+            }
+
+            var parts = new List<string>();
+            foreach (var group in groups)
+            {
+                if (group.IsFullySelected)
+                {
+                    parts.Add(group.DisplayName);
+                }
+                else
+                {
+                    parts.AddRange(group.SelectedPlatformNames);
+                }
+            }
+
+            return parts.Count > 0 ? string.Join(", ", parts) : placeholder;
         }
 
         public static bool MatchesActivityBucket(

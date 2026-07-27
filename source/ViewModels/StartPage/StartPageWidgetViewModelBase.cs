@@ -146,7 +146,7 @@ namespace PlayniteAchievements.ViewModels.StartPage
             RunOnUiThread(() =>
             {
                 IsLoading = true;
-                StatusText = ResourceProvider.GetString("LOCPlayAch_Status_LoadingAchievements") ?? "Loading achievements";
+                StatusText = ResourceProvider.GetString("LOCPlayAch_Status_LoadingAchievements");
             });
 
             try
@@ -172,7 +172,7 @@ namespace PlayniteAchievements.ViewModels.StartPage
                 Logger?.Error(ex, "Failed to refresh StartPage achievement widget.");
                 RunOnUiThread(() =>
                 {
-                    StatusText = ResourceProvider.GetString("LOCPlayAch_Error_RebuildFailed") ?? "Refresh failed";
+                    StatusText = ResourceProvider.GetString("LOCPlayAch_Error_RebuildFailed");
                     IsLoading = false;
                 });
             }

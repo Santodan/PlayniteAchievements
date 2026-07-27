@@ -6,6 +6,7 @@ using PlayniteAchievements.Providers;
 using PlayniteAchievements.Providers.Exophase;
 using PlayniteAchievements.Providers.Manual;
 using PlayniteAchievements.Providers.Settings;
+using PlayniteAchievements.Services.GameCustomData;
 using System;
 using System.Collections.Generic;
 using System.Globalization;

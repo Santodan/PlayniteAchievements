@@ -2,7 +2,9 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using PlayniteAchievements.Models.Achievements;
+using PlayniteAchievements.Services.Achievements;
 using PlayniteAchievements.ViewModels;
+using PlayniteAchievements.ViewModels.Items;
 
 namespace PlayniteAchievements.Services.Overview
 {
@@ -52,7 +54,11 @@ namespace PlayniteAchievements.Services.Overview
 
             var categoryOptions = AchievementCategoryFilterOrderHelper.BuildOrderedCategoryLabels(
                 source,
-                item => item?.CategoryLabel);
+                item => item?.CategoryLabel,
+                (source ?? Enumerable.Empty<AchievementDisplayItem>())
+                    .Where(item => item != null && item.CategoryOrderIndex < int.MaxValue)
+                    .OrderBy(item => item.CategoryOrderIndex)
+                    .Select(item => item.CategoryLabel));
 
             return new SelectedGameFilterOptions
             {

@@ -9,7 +9,6 @@ namespace PlayniteAchievements.Services.Database.Rows
         public string Description { get; set; }
         public string UnlockedIconPath { get; set; }
         public string LockedIconPath { get; set; }
-        public int DisplayOrder { get; set; }
         public int? Points { get; set; }
         public int? ScaledPoints { get; set; }
         public string Category { get; set; }

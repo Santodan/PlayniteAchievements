@@ -1,8 +1,11 @@
 using Newtonsoft.Json;
+using PlayniteAchievements.Common;
 using PlayniteAchievements.Models;
 using PlayniteAchievements.Models.Achievements;
 using PlayniteAchievements.Providers.PSN.Models;
 using PlayniteAchievements.Services;
+using PlayniteAchievements.Services.GameCustomData;
+using PlayniteAchievements.Services.Refresh;
 using Playnite.SDK;
 using Playnite.SDK.Models;
 using System;
@@ -25,6 +28,7 @@ namespace PlayniteAchievements.Providers.PSN
         private const string UrlBase = "https://m.np.playstation.com/api/trophy/v1";
         private const string UrlTrophiesDetailsAll = UrlBase + "/npCommunicationIds/{0}/trophyGroups/all/trophies";
         private const string UrlTrophiesUserAll = UrlBase + "/users/me/npCommunicationIds/{0}/trophyGroups/all/trophies";
+        private const string UrlTrophyGroups = UrlBase + "/npCommunicationIds/{0}/trophyGroups";
         private const string UrlTitlesWithIdsMobile = UrlBase + "/users/me/titles/trophyTitles?npTitleIds={0}";
         private const string UrlAllTrophyTitles = UrlBase + "/users/me/trophyTitles";
 
@@ -169,6 +173,9 @@ namespace PlayniteAchievements.Providers.PSN
 
             var details = JsonConvert.DeserializeObject<PsnTrophiesDetailResponse>(detailsJson);
 
+            var groupNameById = await FetchGroupNamesAsync(http, npCommId, serviceSuffixCandidates, game, cancel)
+                .ConfigureAwait(false);
+
             var userByKey = PsnTrophyMatchHelper.BuildUserTrophyLookupByGroupAndId(user?.Trophies);
             var userByTrophyId = PsnTrophyMatchHelper.BuildUserTrophyLookupById(user?.Trophies);
 
@@ -230,8 +237,8 @@ namespace PlayniteAchievements.Providers.PSN
                     DisplayName = detail.TrophyName,
                     Description = detail.TrophyDetail,
                     UnlockedIconPath = detail.TrophyIconUrl,
-                    CategoryType = MapTrophyGroupToCategoryType(detail.TrophyGroupId),
-                    Category = null,
+                    CategoryType = PsnTrophyCategoryHelper.MapTrophyGroupToCategoryType(detail.TrophyGroupId),
+                    Category = PsnTrophyCategoryHelper.ResolveCategory(detail.TrophyGroupId, groupNameById),
                     Hidden = detail.Hidden,
                     Unlocked = unlocked,
                     UnlockTimeUtc = unlockUtc,
@@ -366,18 +373,67 @@ namespace PlayniteAchievements.Providers.PSN
             }
         }
 
-        private static string MapTrophyGroupToCategoryType(string trophyGroupId)
+        /// <summary>
+        /// Fetches the trophy-group metadata (base group plus each DLC group) and returns a
+        /// normalized groupId -> group title map. Non-fatal: any failure (private profile, missing
+        /// metadata) yields an empty map so categorization degrades to the base/DLC
+        /// <see cref="MapTrophyGroupToCategoryType"/> classification without a named label.
+        /// </summary>
+        private async Task<IReadOnlyDictionary<string, string>> FetchGroupNamesAsync(
+            HttpClient http,
+            string npCommId,
+            IReadOnlyList<string> serviceSuffixCandidates,
+            Game game,
+            CancellationToken cancel)
         {
-            var normalized = (trophyGroupId ?? string.Empty).Trim();
-            if (string.IsNullOrWhiteSpace(normalized) ||
-                string.Equals(normalized, "default", StringComparison.OrdinalIgnoreCase) ||
-                string.Equals(normalized, "base", StringComparison.OrdinalIgnoreCase) ||
-                string.Equals(normalized, "000", StringComparison.OrdinalIgnoreCase))
+            var map = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+
+            string groupsJson;
+            try
             {
-                return "Base";
+                groupsJson = await PsnSuffixRetryHelper.GetStringWithSuffixRetryAsync(
+                    suffix => GetStringWithAuthRetryAsync(
+                        http,
+                        string.Format(UrlTrophyGroups, npCommId) + suffix,
+                        $"trophy groups for '{game?.Name}'",
+                        cancel),
+                    serviceSuffixCandidates).ConfigureAwait(false);
+                cancel.ThrowIfCancellationRequested();
+            }
+            catch (OperationCanceledException)
+            {
+                throw;
+            }
+            catch (Exception ex)
+            {
+                _logger?.Debug(ex, $"[PSNAch] Trophy group metadata fetch failed for '{game?.Name}'; category labels unavailable.");
+                return map;
             }
 
-            return "DLC";
+            if (string.IsNullOrWhiteSpace(groupsJson))
+            {
+                return map;
+            }
+
+            try
+            {
+                var groups = JsonConvert.DeserializeObject<PsnTrophyGroupsResponse>(groupsJson);
+                foreach (var group in groups?.TrophyGroups ?? new List<PsnTrophyGroup>())
+                {
+                    if (group == null || string.IsNullOrWhiteSpace(group.TrophyGroupName))
+                    {
+                        continue;
+                    }
+
+                    map[PsnTrophyMatchHelper.NormalizeGroupId(group.TrophyGroupId)] = group.TrophyGroupName.Trim();
+                }
+            }
+            catch (Exception ex)
+            {
+                _logger?.Debug(ex, $"[PSNAch] Failed to parse trophy group metadata for '{game?.Name}'.");
+            }
+
+            return map;
         }
 
         private static double? NormalizePercent(double? rawPercent)
@@ -446,23 +502,8 @@ namespace PlayniteAchievements.Providers.PSN
                 return string.Empty;
             }
 
-            // Remove common suffixes and special characters, convert to lowercase
-            var normalized = name.ToLowerInvariant()
-                .Replace(":", "")
-                .Replace("-", "")
-                .Replace("_", " ")
-                .Replace("®", "")
-                .Replace("™", "")
-                .Replace("©", "")
-                .Trim();
-
-            // Remove multiple spaces
-            while (normalized.Contains("  "))
-            {
-                normalized = normalized.Replace("  ", " ");
-            }
-
-            return normalized;
+            var normalized = GameNameNormalizer.StripTrademarkSymbols(name);
+            return GameNameNormalizer.CollapseSeparators(normalized).ToLowerInvariant();
         }
 
         /// <summary>
@@ -528,6 +569,14 @@ namespace PlayniteAchievements.Providers.PSN
 
         private async Task<string> ResolveNpCommunicationIdAsync(HttpClient http, Game game, CancellationToken cancel)
         {
+            // A per-game override supplies the NP Communication ID directly, bypassing GameId lookup.
+            if (game != null &&
+                GameCustomDataLookup.TryGetProviderOverrideValue(game.Id, "PSN", out var overrideCommId) &&
+                PsnNpCommIdHelper.TryNormalize(overrideCommId, out var normalizedOverride))
+            {
+                return normalizedOverride;
+            }
+
             var raw = game?.GameId?.Trim();
             if (string.IsNullOrWhiteSpace(raw))
             {

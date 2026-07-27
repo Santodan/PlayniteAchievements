@@ -3,6 +3,7 @@ using PlayniteAchievements.Common;
 using PlayniteAchievements.Providers.Settings;
 using System;
 using System.Collections.Generic;
+using System.Collections.ObjectModel;
 using System.Linq;
 
 namespace PlayniteAchievements.Providers.Steam
@@ -111,9 +112,79 @@ namespace PlayniteAchievements.Providers.Steam
         private bool _includeFamilySharedGames = true;
         private string _importedGameMetadataSourceId = string.Empty;
         private SteamExistingGameImportBehavior _existingGameImportBehavior = SteamExistingGameImportBehavior.OverwriteExisting;
+        private bool _useSteamHuntersForCategories;
+        private ObservableCollection<SteamIgnoredFriend> _ignoredFriends = new ObservableCollection<SteamIgnoredFriend>();
 
         /// <inheritdoc />
         public override string ProviderKey => "Steam";
+
+        public bool UseSteamHuntersForCategories
+        {
+            get => _useSteamHuntersForCategories;
+            set => SetValue(ref _useSteamHuntersForCategories, value);
+        }
+
+        public ObservableCollection<SteamIgnoredFriend> IgnoredFriends
+        {
+            get => _ignoredFriends;
+            set => SetValue(ref _ignoredFriends, value ?? new ObservableCollection<SteamIgnoredFriend>());
+        }
+
+        public HashSet<string> GetIgnoredSteamIds()
+        {
+            return new HashSet<string>(
+                IgnoredFriends.Where(friend => !string.IsNullOrWhiteSpace(friend?.SteamId))
+                    .Select(friend => friend.SteamId.Trim()),
+                StringComparer.OrdinalIgnoreCase);
+        }
+
+        public bool IsFriendIgnored(string steamId)
+        {
+            return !string.IsNullOrWhiteSpace(steamId) &&
+                   IgnoredFriends.Any(friend =>
+                       string.Equals(friend?.SteamId, steamId.Trim(), StringComparison.OrdinalIgnoreCase));
+        }
+
+        public void AddIgnoredFriend(string steamId, string displayName, string avatarUrl)
+        {
+            if (string.IsNullOrWhiteSpace(steamId))
+            {
+                return;
+            }
+
+            var normalizedId = steamId.Trim();
+            var existing = IgnoredFriends.FirstOrDefault(friend =>
+                string.Equals(friend?.SteamId, normalizedId, StringComparison.OrdinalIgnoreCase));
+            if (existing != null)
+            {
+                existing.DisplayName = string.IsNullOrWhiteSpace(displayName) ? existing.DisplayName : displayName.Trim();
+                existing.AvatarUrl = string.IsNullOrWhiteSpace(avatarUrl) ? existing.AvatarUrl : avatarUrl.Trim();
+                return;
+            }
+
+            IgnoredFriends.Add(new SteamIgnoredFriend
+            {
+                SteamId = normalizedId,
+                DisplayName = string.IsNullOrWhiteSpace(displayName) ? normalizedId : displayName.Trim(),
+                AvatarUrl = string.IsNullOrWhiteSpace(avatarUrl) ? null : avatarUrl.Trim(),
+                IgnoredUtc = DateTime.UtcNow
+            });
+            OnPropertyChanged(nameof(IgnoredFriends));
+        }
+
+        public bool RemoveIgnoredFriend(string steamId)
+        {
+            var existing = IgnoredFriends.FirstOrDefault(friend =>
+                string.Equals(friend?.SteamId, steamId?.Trim(), StringComparison.OrdinalIgnoreCase));
+            if (existing == null)
+            {
+                return false;
+            }
+
+            IgnoredFriends.Remove(existing);
+            OnPropertyChanged(nameof(IgnoredFriends));
+            return true;
+        }
 
         /// <summary>
         /// Legacy field used only for backward-compat migration and the IsAuthenticated quick-check.
@@ -331,5 +402,13 @@ namespace PlayniteAchievements.Providers.Steam
             _steamUserId = defaultAccount.SteamUserId?.Trim() ?? string.Empty;
             _steamWebApiKey = defaultAccount.SteamWebApiKey?.Trim() ?? string.Empty;
         }
+    }
+
+    public sealed class SteamIgnoredFriend
+    {
+        public string SteamId { get; set; }
+        public string DisplayName { get; set; }
+        public string AvatarUrl { get; set; }
+        public DateTime IgnoredUtc { get; set; }
     }
 }

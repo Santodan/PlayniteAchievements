@@ -9,7 +9,7 @@ namespace PlayniteAchievements.Models.Settings
     /// </summary>
     public sealed class GameCustomDataPortableFile
     {
-        public int SchemaVersion { get; set; } = 4;
+        public int SchemaVersion { get; set; } = 5;
 
         public Guid PlayniteGameId { get; set; }
 
@@ -23,6 +23,12 @@ namespace PlayniteAchievements.Models.Settings
 
         public Dictionary<string, string> AchievementCategoryTypeOverrides { get; set; }
 
+        public List<string> AchievementCategoryOrder { get; set; }
+
+        public Dictionary<string, CategoryImageOverrideData> AchievementCategoryImageOverrides { get; set; }
+
+        public GameSummaryCategoryData GameSummaryCategory { get; set; }
+
         public List<string> FilteredAchievementApiNames { get; set; }
 
         public List<string> SummaryFilteredAchievementApiNames { get; set; }
@@ -31,12 +37,9 @@ namespace PlayniteAchievements.Models.Settings
 
         public Dictionary<string, string> AchievementLockedIconOverrides { get; set; }
 
-        public bool? ViewAchievementsIconFetchEnabled { get; set; }
         public Dictionary<string, string> AchievementNotes { get; set; }
 
         public int? RetroAchievementsGameIdOverride { get; set; }
-
-        public string SteamAccountIdOverride { get; set; }
 
         public string XeniaTitleIdOverride { get; set; }
 
@@ -67,6 +70,11 @@ namespace PlayniteAchievements.Models.Settings
                 AchievementCategoryTypeOverrides = AchievementCategoryTypeOverrides != null
                     ? new Dictionary<string, string>(AchievementCategoryTypeOverrides, StringComparer.OrdinalIgnoreCase)
                     : null,
+                AchievementCategoryOrder = AchievementCategoryOrder != null
+                    ? new List<string>(AchievementCategoryOrder)
+                    : null,
+                AchievementCategoryImageOverrides = GameCustomDataFile.CloneCategoryImageOverrideMap(AchievementCategoryImageOverrides),
+                GameSummaryCategory = GameSummaryCategory?.Clone(),
                 FilteredAchievementApiNames = FilteredAchievementApiNames != null
                     ? new List<string>(FilteredAchievementApiNames)
                     : null,
@@ -79,12 +87,10 @@ namespace PlayniteAchievements.Models.Settings
                 AchievementLockedIconOverrides = AchievementLockedIconOverrides != null
                     ? new Dictionary<string, string>(AchievementLockedIconOverrides, StringComparer.OrdinalIgnoreCase)
                     : null,
-                ViewAchievementsIconFetchEnabled = ViewAchievementsIconFetchEnabled,
                 AchievementNotes = AchievementNotes != null
                     ? new Dictionary<string, string>(AchievementNotes, StringComparer.OrdinalIgnoreCase)
                     : null,
                 RetroAchievementsGameIdOverride = RetroAchievementsGameIdOverride,
-                SteamAccountIdOverride = SteamAccountIdOverride,
                 XeniaTitleIdOverride = XeniaTitleIdOverride,
                 ShadPS4MatchIdOverride = ShadPS4MatchIdOverride,
                 ForceUseExophase = ForceUseExophase,

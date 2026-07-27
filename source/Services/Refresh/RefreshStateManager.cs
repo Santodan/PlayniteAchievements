@@ -2,7 +2,7 @@ using PlayniteAchievements.Models;
 using System;
 using System.Threading;
 
-namespace PlayniteAchievements.Services
+namespace PlayniteAchievements.Services.Refresh
 {
     internal sealed class RefreshStateManager
     {

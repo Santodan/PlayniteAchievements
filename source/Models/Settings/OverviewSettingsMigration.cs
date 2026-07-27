@@ -119,6 +119,25 @@ namespace PlayniteAchievements.Models.Settings
                     changed |= MoveProperty(persisted, rename.OldName, rename.NewName);
                 }
 
+                changed |= FanOutGameMetadataToggle(
+                    persisted,
+                    "ShowOverviewGameMetadata",
+                    "ShowOverviewGameMetadataPlatform",
+                    "ShowOverviewGameMetadataPlaytime",
+                    "ShowOverviewGameMetadataRegion");
+                changed |= FanOutGameMetadataToggle(
+                    persisted,
+                    "ViewAchievementsGameSummariesShowGameMetadata",
+                    "ViewAchievementsGameSummariesShowMetadataPlatform",
+                    "ViewAchievementsGameSummariesShowMetadataPlaytime",
+                    "ViewAchievementsGameSummariesShowMetadataRegion");
+                changed |= FanOutGameMetadataToggle(
+                    persisted["StartPageGameSummariesGrid"] as JObject,
+                    "ShowGameMetadata",
+                    "ShowMetadataPlatform",
+                    "ShowMetadataPlaytime",
+                    "ShowMetadataRegion");
+
                 changed |= CopyLegacyAchievementGridHeaderVisibility(persisted);
 
                 foreach (var dictionaryName in GameSummaryColumnDictionaries)
@@ -128,6 +147,8 @@ namespace PlayniteAchievements.Models.Settings
 
                 changed |= CopyLegacyAchievementColumnVisibility(persisted);
 
+                changed |= ForceProgressColumnRightDefault(persisted);
+
                 return changed
                     ? root.ToString(Formatting.None)
                     : json;
@@ -136,6 +157,36 @@ namespace PlayniteAchievements.Models.Settings
             {
                 return json;
             }
+        }
+
+        /// <summary>
+        /// Splits a single combined game-metadata visibility toggle into the three per-field
+        /// toggles (platform/playtime/region), copying the old value into each new key when absent
+        /// so an existing on/off choice is preserved, then removing the old key.
+        /// </summary>
+        private static bool FanOutGameMetadataToggle(
+            JObject obj,
+            string oldName,
+            string platformName,
+            string playtimeName,
+            string regionName)
+        {
+            if (obj == null || obj[oldName] == null)
+            {
+                return false;
+            }
+
+            var value = obj[oldName];
+            foreach (var targetName in new[] { platformName, playtimeName, regionName })
+            {
+                if (obj[targetName] == null)
+                {
+                    obj[targetName] = value.DeepClone();
+                }
+            }
+
+            obj.Remove(oldName);
+            return true;
         }
 
         private static bool MoveProperty(JObject obj, string oldName, string newName)
@@ -179,6 +230,44 @@ namespace PlayniteAchievements.Models.Settings
             }
 
             return changed;
+        }
+
+        /// <summary>
+        /// Seeds the Progress column to Right alignment across all three game-summaries surfaces so an
+        /// updating user keeps the legacy footer layout, now that the footer responds to the column's
+        /// horizontal alignment. Runs once: gated by the <c>ProgressColumnAlignmentDefaulted</c> flag,
+        /// which is set afterward so a user's own later alignment choice is never re-forced. Forces the
+        /// value (overwriting any prior inert setting) since alignment had no effect on this column
+        /// before. Values are written as integers to match how the GridAlignment enum is serialized.
+        /// </summary>
+        private static bool ForceProgressColumnRightDefault(JObject persisted)
+        {
+            const string flagName = nameof(PersistedSettings.ProgressColumnAlignmentDefaulted);
+
+            var flag = persisted[flagName];
+            if (flag != null && flag.Type == JTokenType.Boolean && flag.Value<bool>())
+            {
+                return false;
+            }
+
+            foreach (var dictionaryName in new[]
+            {
+                nameof(PersistedSettings.OverviewGameSummariesColumnAlignments),
+                nameof(PersistedSettings.StartPageGameSummariesColumnAlignments),
+                nameof(PersistedSettings.ViewAchievementsGameSummariesColumnAlignments)
+            })
+            {
+                if (!(persisted[dictionaryName] is JObject dictionary))
+                {
+                    dictionary = new JObject();
+                    persisted[dictionaryName] = dictionary;
+                }
+
+                dictionary[PersistedSettings.ProgressColumnKey] = (int)GridAlignment.Right;
+            }
+
+            persisted[flagName] = true;
+            return true;
         }
 
         private static bool CopyLegacyAchievementGridHeaderVisibility(JObject persisted)

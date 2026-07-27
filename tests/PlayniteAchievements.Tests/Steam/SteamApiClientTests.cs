@@ -72,6 +72,81 @@ namespace PlayniteAchievements.Steam.Tests
         }
 
         [TestMethod]
+        public async Task GetOwnedGamesAsync_UsesAccessTokenEndpoint_AndMapsGames()
+        {
+            Uri capturedUri = null;
+            using var httpClient = new HttpClient(new StubHttpMessageHandler(request =>
+            {
+                capturedUri = request.RequestUri;
+                return new HttpResponseMessage(HttpStatusCode.OK)
+                {
+                    Content = new StringContent(
+                        "{ \"response\": { \"game_count\": 1, \"games\": [ { " +
+                        "\"appid\": 570, " +
+                        "\"name\": \"Dota 2\", " +
+                        "\"playtime_forever\": 120, " +
+                        "\"playtime_2weeks\": 15, " +
+                        "\"rtime_last_played\": 1710000000 } ] } }",
+                        Encoding.UTF8,
+                        "application/json")
+                };
+            }));
+
+            var client = new SteamApiClient(httpClient, logger: null);
+            var result = await client.GetOwnedGamesAsync("store-token", "76561198000000001", CancellationToken.None).ConfigureAwait(false);
+
+            Assert.IsNotNull(result);
+            Assert.AreEqual(1, result.Count);
+            Assert.IsNotNull(capturedUri);
+            Assert.AreEqual("/IPlayerService/GetOwnedGames/v1/", capturedUri.AbsolutePath);
+            StringAssert.Contains(capturedUri.Query, "access_token=store-token");
+            StringAssert.Contains(capturedUri.Query, "steamid=76561198000000001");
+            StringAssert.Contains(capturedUri.Query, "include_appinfo=true");
+            StringAssert.Contains(capturedUri.Query, "include_played_free_games=true");
+
+            var game = result.Single();
+            Assert.AreEqual(570, game.AppId);
+            Assert.AreEqual("Dota 2", game.Name);
+            Assert.AreEqual(120, game.PlaytimeForever);
+            Assert.AreEqual(15, game.Playtime2Weeks);
+            Assert.AreEqual(1710000000L, game.LastPlayedUnixSeconds);
+        }
+
+        [TestMethod]
+        public async Task GetOwnedGamesAsync_ReturnsEmptyList_WhenApiReportsZeroGames()
+        {
+            using var httpClient = new HttpClient(new StubHttpMessageHandler(_ =>
+                new HttpResponseMessage(HttpStatusCode.OK)
+                {
+                    Content = new StringContent(
+                        "{ \"response\": { \"game_count\": 0 } }",
+                        Encoding.UTF8,
+                        "application/json")
+                }));
+
+            var client = new SteamApiClient(httpClient, logger: null);
+            var result = await client.GetOwnedGamesAsync("store-token", "76561198000000001", CancellationToken.None).ConfigureAwait(false);
+
+            Assert.IsNotNull(result);
+            Assert.AreEqual(0, result.Count);
+        }
+
+        [TestMethod]
+        public async Task GetOwnedGamesAsync_ReturnsNull_OnNonSuccessResponse()
+        {
+            using var httpClient = new HttpClient(new StubHttpMessageHandler(_ =>
+                new HttpResponseMessage(HttpStatusCode.Forbidden)
+                {
+                    Content = new StringContent(string.Empty)
+                }));
+
+            var client = new SteamApiClient(httpClient, logger: null);
+            var result = await client.GetOwnedGamesAsync("store-token", "76561198000000001", CancellationToken.None).ConfigureAwait(false);
+
+            Assert.IsNull(result);
+        }
+
+        [TestMethod]
         public async Task GetSchemaForGameDetailedAsync_TrimsLocalizedText_AndBuildsIconUrls()
         {
             using var httpClient = new HttpClient(new StubHttpMessageHandler(_ =>
@@ -101,10 +176,10 @@ namespace PlayniteAchievements.Steam.Tests
             Assert.AreEqual("TLAD: Easy Rider", achievement.DisplayName);
             Assert.AreEqual("Finish the story. (The Lost and Damned)", achievement.Description);
             Assert.AreEqual(
-                "https://shared.fastly.steamstatic.com/community_assets/images/apps/12210/8a72778b9ede9c31a444cdf493666457b8238718.jpg",
+                "https://shared.akamai.steamstatic.com/community_assets/images/apps/12210/8a72778b9ede9c31a444cdf493666457b8238718.jpg",
                 achievement.Icon);
             Assert.AreEqual(
-                "https://shared.fastly.steamstatic.com/community_assets/images/apps/12210/8a72778b9ede9c31a444cdf493666457b8238718.jpg",
+                "https://shared.akamai.steamstatic.com/community_assets/images/apps/12210/8a72778b9ede9c31a444cdf493666457b8238718.jpg",
                 achievement.IconGray);
             Assert.AreEqual(5.1d, result.GlobalPercentages["E1FINISHSTORY"]);
         }

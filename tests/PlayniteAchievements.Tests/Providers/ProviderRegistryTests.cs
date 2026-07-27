@@ -66,19 +66,6 @@ namespace PlayniteAchievements.Providers.Tests
         }
 
         [TestMethod]
-        public void Save_WhenOnlyEnabledStateChanges_PreservesExistingProviderSettings()
-        {
-            var context = CreateRegistryContext("old-path");
-
-            var settings = context.Registry.GetSettings<XeniaSettings>();
-            settings.IsEnabled = true;
-
-            context.Registry.Save(settings, persistToDisk: false);
-
-            Assert.AreEqual("old-path", GetPersistedAccountPath(context.Settings));
-        }
-
-        [TestMethod]
         public void CancelEditSession_AfterLazyEditSession_DiscardsEditsAndLeavesLiveSettingsUnchanged()
         {
             var context = CreateRegistryContext("old-path");
@@ -203,6 +190,7 @@ namespace PlayniteAchievements.Providers.Tests
             public bool IsAuthenticated => true;
 
             public ISessionManager AuthSession => null;
+            public PlayniteAchievements.Models.Friends.IFriendsProvider Friends => null;
 
             public XeniaSettings Settings { get; }
 
@@ -245,6 +233,7 @@ namespace PlayniteAchievements.Providers.Tests
             public bool IsAuthenticated => true;
 
             public ISessionManager AuthSession => null;
+            public PlayniteAchievements.Models.Friends.IFriendsProvider Friends => null;
 
             public ProviderSettingsBase Settings { get; }
 

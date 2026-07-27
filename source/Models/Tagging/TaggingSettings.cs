@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using Playnite.SDK.Data;
 
 namespace PlayniteAchievements.Models.Tagging
 {
@@ -55,14 +56,23 @@ namespace PlayniteAchievements.Models.Tagging
             set => SetValue(ref _tagConfigs, value);
         }
 
-        // Individual tag config properties for WPF binding convenience
+        // Individual tag config properties for WPF binding convenience.
+        // Not serialized: TagConfigs is the single persisted source of truth.
+        [DontSerialize]
         public TagConfig HasAchievementsConfig => GetOrCreateTagConfig(TagType.HasAchievements);
+        [DontSerialize]
         public TagConfig InProgressConfig => GetOrCreateTagConfig(TagType.InProgress);
+        [DontSerialize]
         public TagConfig CompletedConfig => GetOrCreateTagConfig(TagType.Completed);
+        [DontSerialize]
         public TagConfig NoAchievementsConfig => GetOrCreateTagConfig(TagType.NoAchievements);
+        [DontSerialize]
         public TagConfig CustomizedConfig => GetOrCreateTagConfig(TagType.Customized);
+        [DontSerialize]
         public TagConfig NotCustomizedConfig => GetOrCreateTagConfig(TagType.NotCustomized);
+        [DontSerialize]
         public TagConfig ExcludedConfig => GetOrCreateTagConfig(TagType.Excluded);
+        [DontSerialize]
         public TagConfig ExcludedFromSummariesConfig => GetOrCreateTagConfig(TagType.ExcludedFromSummaries);
 
         private TagConfig GetOrCreateTagConfig(TagType tagType)

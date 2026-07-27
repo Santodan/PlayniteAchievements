@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using PlayniteAchievements.ViewModels;
+using PlayniteAchievements.ViewModels.Items;
 
 namespace PlayniteAchievements.Services.Overview
 {
@@ -26,10 +27,6 @@ namespace PlayniteAchievements.Services.Overview
         public int PrestigeScore { get; set; }
 
         public int PrestigeScoreTotal { get; set; }
-
-        public int Points { get; set; }
-
-        public int PointsTotal { get; set; }
 
         // Unlocked rarity counts
         public int CommonCount { get; set; }

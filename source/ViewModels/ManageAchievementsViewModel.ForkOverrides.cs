@@ -10,7 +10,7 @@ using PlayniteAchievements.Providers.Local;
 using PlayniteAchievements.Providers.Steam;
 using RelayCommand = PlayniteAchievements.Common.RelayCommand;
 
-namespace PlayniteAchievements.ViewModels
+namespace PlayniteAchievements.ViewModels.ManageAchievements
 {
     public sealed partial class ManageAchievementsViewModel
     {

@@ -1,9 +1,228 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using PlayniteAchievements.Models.Friends;
+using PlayniteAchievements.Models.Settings;
 
 namespace PlayniteAchievements.Models
 {
+    [Flags]
+    public enum RefreshSubjects
+    {
+        None = 0,
+        CurrentUser = 1,
+        Friends = 2,
+        All = CurrentUser | Friends
+    }
+
+    public enum RefreshGameScope
+    {
+        All,
+        Recent,
+        Installed,
+        Favorites,
+        LibrarySelected,
+        Missing,
+        Explicit,
+        Shared,
+        SelectedGame
+    }
+
+    public enum SteamRefreshTargetMode
+    {
+        All,
+        OwnedOnly,
+        FamilySharedOnly
+    }
+
+    /// <summary>
+    /// Canonical refresh options shared by current-user and friend refreshes.
+    /// </summary>
+    public sealed class RefreshOptions
+    {
+        public RefreshSubjects Subjects { get; set; } = RefreshSubjects.CurrentUser;
+        public RefreshGameScope Scope { get; set; } = RefreshGameScope.Recent;
+        public IReadOnlyCollection<string> ProviderKeys { get; set; }
+        public IReadOnlyCollection<Guid> PlayniteGameIds { get; set; }
+        public IReadOnlyCollection<Guid> ExcludeGameIds { get; set; }
+        public IReadOnlyCollection<int> ProviderAppIds { get; set; }
+        public IReadOnlyCollection<string> ProviderGameKeys { get; set; }
+        public IReadOnlyCollection<FriendAccountRef> FriendAccounts { get; set; }
+        public IReadOnlyCollection<string> FriendExternalUserIds { get; set; }
+        public int? RecentLimitOverride { get; set; }
+        public bool? IncludeUnplayedOverride { get; set; }
+        public bool RespectUserExclusions { get; set; } = true;
+        public bool ForceBypassExclusionsForExplicitIncludes { get; set; } = true;
+        public bool ForceIconRefresh { get; set; }
+        public bool ForceDefinitionRefresh { get; set; }
+
+        // Reuse cached Ok schemas even for scopes that normally force a definition re-fetch
+        // (SelectedGame/Full). Set by latency-sensitive programmatic callers such as the
+        // in-game poller; user-initiated refreshes leave this false.
+        public bool PreferCachedDefinitions { get; set; }
+        public bool? RunProvidersInParallelOverride { get; set; }
+
+        public RefreshOptions Clone()
+        {
+            return new RefreshOptions
+            {
+                Subjects = Subjects,
+                Scope = Scope,
+                ProviderKeys = NormalizeStrings(ProviderKeys),
+                PlayniteGameIds = PlayniteGameIds?
+                    .Where(id => id != Guid.Empty)
+                    .Distinct()
+                    .ToList(),
+                ExcludeGameIds = ExcludeGameIds?
+                    .Where(id => id != Guid.Empty)
+                    .Distinct()
+                    .ToList(),
+                ProviderAppIds = ProviderAppIds?
+                    .Where(id => id > 0)
+                    .Distinct()
+                    .ToList(),
+                ProviderGameKeys = NormalizeStrings(ProviderGameKeys),
+                FriendAccounts = NormalizeFriendAccounts(FriendAccounts),
+                FriendExternalUserIds = NormalizeStrings(FriendExternalUserIds),
+                RecentLimitOverride = RecentLimitOverride,
+                IncludeUnplayedOverride = IncludeUnplayedOverride,
+                RespectUserExclusions = RespectUserExclusions,
+                ForceBypassExclusionsForExplicitIncludes = ForceBypassExclusionsForExplicitIncludes,
+                ForceIconRefresh = ForceIconRefresh,
+                ForceDefinitionRefresh = ForceDefinitionRefresh,
+                PreferCachedDefinitions = PreferCachedDefinitions,
+                RunProvidersInParallelOverride = RunProvidersInParallelOverride
+            };
+        }
+
+        public static RefreshOptions FromCustom(CustomRefreshOptions options)
+        {
+            var source = options?.Clone() ?? new CustomRefreshOptions();
+            return new RefreshOptions
+            {
+                Subjects = RefreshSubjects.CurrentUser,
+                Scope = MapCustomScope(source.Scope),
+                ProviderKeys = source.ProviderKeys,
+                PlayniteGameIds = source.IncludeGameIds,
+                ExcludeGameIds = source.ExcludeGameIds,
+                RecentLimitOverride = source.RecentLimitOverride,
+                IncludeUnplayedOverride = source.IncludeUnplayedOverride,
+                RespectUserExclusions = source.RespectUserExclusions,
+                ForceBypassExclusionsForExplicitIncludes = source.ForceBypassExclusionsForExplicitIncludes,
+                RunProvidersInParallelOverride = source.RunProvidersInParallelOverride
+            }.Clone();
+        }
+
+        public static RefreshOptions FromFriend(FriendCustomRefreshOptions options)
+        {
+            var source = options?.Clone() ?? new FriendCustomRefreshOptions();
+            return new RefreshOptions
+            {
+                Subjects = RefreshSubjects.Friends,
+                Scope = MapFriendScope(source.Scope),
+                ProviderKeys = source.ProviderKeys,
+                PlayniteGameIds = source.PlayniteGameIds,
+                ProviderAppIds = source.ProviderAppIds,
+                ProviderGameKeys = source.ProviderGameKeys,
+                FriendAccounts = source.FriendAccounts,
+                FriendExternalUserIds = source.FriendExternalUserIds,
+                ForceDefinitionRefresh = source.ForceDefinitionRefresh,
+                PreferCachedDefinitions = source.PreferCachedDefinitions
+            }.Clone();
+        }
+
+        public CustomRefreshOptions ToCustomOptions()
+        {
+            return new CustomRefreshOptions
+            {
+                ProviderKeys = ProviderKeys,
+                Scope = MapRefreshScopeToCustom(Scope),
+                IncludeGameIds = PlayniteGameIds,
+                ExcludeGameIds = ExcludeGameIds,
+                RecentLimitOverride = RecentLimitOverride,
+                IncludeUnplayedOverride = IncludeUnplayedOverride,
+                RespectUserExclusions = RespectUserExclusions,
+                ForceBypassExclusionsForExplicitIncludes = ForceBypassExclusionsForExplicitIncludes,
+                RunProvidersInParallelOverride = RunProvidersInParallelOverride
+            }.Clone();
+        }
+
+        private static List<string> NormalizeStrings(IEnumerable<string> values)
+        {
+            return values?
+                .Where(value => !string.IsNullOrWhiteSpace(value))
+                .Select(value => value.Trim())
+                .Distinct(StringComparer.OrdinalIgnoreCase)
+                .ToList();
+        }
+
+        private static List<FriendAccountRef> NormalizeFriendAccounts(IEnumerable<FriendAccountRef> accounts)
+        {
+            var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            var normalized = new List<FriendAccountRef>();
+            foreach (var account in accounts ?? Enumerable.Empty<FriendAccountRef>())
+            {
+                var next = account?.Clone()?.Normalize();
+                if (string.IsNullOrWhiteSpace(next?.Key) || !seen.Add(next.Key))
+                {
+                    continue;
+                }
+
+                normalized.Add(next);
+            }
+
+            return normalized.Count == 0 ? null : normalized;
+        }
+
+        private static RefreshGameScope MapCustomScope(CustomGameScope scope)
+        {
+            switch (scope)
+            {
+                case CustomGameScope.All: return RefreshGameScope.All;
+                case CustomGameScope.Installed: return RefreshGameScope.Installed;
+                case CustomGameScope.Favorites: return RefreshGameScope.Favorites;
+                case CustomGameScope.Recent: return RefreshGameScope.Recent;
+                case CustomGameScope.LibrarySelected: return RefreshGameScope.LibrarySelected;
+                case CustomGameScope.Missing: return RefreshGameScope.Missing;
+                case CustomGameScope.Explicit: return RefreshGameScope.Explicit;
+                default: return RefreshGameScope.All;
+            }
+        }
+
+        private static CustomGameScope MapRefreshScopeToCustom(RefreshGameScope scope)
+        {
+            switch (scope)
+            {
+                case RefreshGameScope.All: return CustomGameScope.All;
+                case RefreshGameScope.Installed: return CustomGameScope.Installed;
+                case RefreshGameScope.Favorites: return CustomGameScope.Favorites;
+                case RefreshGameScope.Recent: return CustomGameScope.Recent;
+                case RefreshGameScope.LibrarySelected: return CustomGameScope.LibrarySelected;
+                case RefreshGameScope.Missing: return CustomGameScope.Missing;
+                case RefreshGameScope.Explicit:
+                case RefreshGameScope.SelectedGame:
+                    return CustomGameScope.Explicit;
+                default:
+                    return CustomGameScope.All;
+            }
+        }
+
+        private static RefreshGameScope MapFriendScope(FriendRefreshScope scope)
+        {
+            switch (scope)
+            {
+                case FriendRefreshScope.Full: return RefreshGameScope.All;
+                case FriendRefreshScope.Shared: return RefreshGameScope.Shared;
+                case FriendRefreshScope.Installed: return RefreshGameScope.Installed;
+                case FriendRefreshScope.SelectedGame: return RefreshGameScope.SelectedGame;
+                case FriendRefreshScope.Custom: return RefreshGameScope.Explicit;
+                case FriendRefreshScope.Recent:
+                default:
+                    return RefreshGameScope.Recent;
+            }
+        }
+    }
+
     public enum CustomGameScope
     {
         All,
@@ -13,13 +232,6 @@ namespace PlayniteAchievements.Models
         LibrarySelected,
         Missing,
         Explicit
-    }
-
-    public enum SteamRefreshTargetMode
-    {
-        All,
-        OwnedOnly,
-        FamilySharedOnly
     }
 
     /// <summary>
@@ -144,7 +356,6 @@ namespace PlayniteAchievements.Models
     {
         public IReadOnlyCollection<string> ProviderKeys { get; set; }
         public CustomGameScope Scope { get; set; } = CustomGameScope.All;
-        public SteamRefreshTargetMode SteamTargetMode { get; set; } = SteamRefreshTargetMode.All;
         public IReadOnlyCollection<Guid> IncludeGameIds { get; set; }
         public IReadOnlyCollection<Guid> ExcludeGameIds { get; set; }
         public int? RecentLimitOverride { get; set; }
@@ -163,7 +374,6 @@ namespace PlayniteAchievements.Models
                     .Distinct(StringComparer.OrdinalIgnoreCase)
                     .ToList(),
                 Scope = Scope,
-                SteamTargetMode = SteamTargetMode,
                 IncludeGameIds = IncludeGameIds?
                     .Where(id => id != Guid.Empty)
                     .Distinct()

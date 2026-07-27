@@ -3,6 +3,7 @@ using System.Windows.Input;
 using PlayniteAchievements.Common;
 using PlayniteAchievements.Models;
 using PlayniteAchievements.Services;
+using PlayniteAchievements.Services.Refresh;
 using Playnite.SDK;
 using RelayCommand = PlayniteAchievements.Common.RelayCommand;
 

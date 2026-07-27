@@ -110,6 +110,7 @@ namespace PlayniteAchievements.Tests.Providers
             public bool IsAuthenticated => true;
 
             public ISessionManager AuthSession => null;
+            public PlayniteAchievements.Models.Friends.IFriendsProvider Friends => null;
 
             public bool IsCapable(Game game) => Capable;
 

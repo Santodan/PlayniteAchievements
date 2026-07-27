@@ -1,6 +1,7 @@
 using System.Windows;
 using System.Windows.Controls;
 using PlayniteAchievements.Views;
+using PlayniteAchievements.Views.Dialogs;
 
 namespace PlayniteAchievements.Views.StartPage
 {

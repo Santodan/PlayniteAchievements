@@ -2,6 +2,8 @@ using PlayniteAchievements.Common;
 using PlayniteAchievements.Models;
 using PlayniteAchievements.Models.Achievements;
 using PlayniteAchievements.Services;
+using PlayniteAchievements.Services.GameCustomData;
+using PlayniteAchievements.Services.Refresh;
 using Playnite.SDK;
 using Playnite.SDK.Models;
 using System;
@@ -16,12 +18,13 @@ namespace PlayniteAchievements.Providers.GOG
     /// Scanner for GOG achievements.
     /// Follows SteamScanner pattern with rate limiting and progress reporting.
     /// </summary>
-    internal sealed class GogScanner
+    internal sealed class GogScanner : IRefreshAuthContextReceiver
     {
         private readonly PlayniteAchievementsSettings _settings;
         private readonly GogApiClient _apiClient;
         private readonly GogSessionManager _sessionManager;
         private readonly ILogger _logger;
+        private RefreshAuthContext _authContext;
 
         public GogScanner(
             PlayniteAchievementsSettings settings,
@@ -41,27 +44,30 @@ namespace PlayniteAchievements.Providers.GOG
             Func<Game, GameAchievementData, Task> onGameCompleted,
             CancellationToken cancel)
         {
-            // Ensure auth state is loaded from current GOG web session.
-            var probeResult = await _sessionManager.ProbeAuthStateAsync(cancel).ConfigureAwait(false);
-            if (!probeResult.IsSuccess)
+            if (!HasSuccessfulScopedAuth())
             {
-                if (probeResult.Outcome == AuthOutcome.NotAuthenticated ||
-                    probeResult.Outcome == AuthOutcome.Cancelled ||
-                    probeResult.Outcome == AuthOutcome.TimedOut)
+                // Ensure auth state is loaded from current GOG web session.
+                var probeResult = await _sessionManager.ProbeAuthStateAsync(cancel).ConfigureAwait(false);
+                if (!probeResult.IsSuccess)
                 {
-                    _logger?.Warn("[GogAch] GOG not authenticated - cannot scan achievements.");
-                    return new RebuildPayload
+                    if (probeResult.Outcome == AuthOutcome.NotAuthenticated ||
+                        probeResult.Outcome == AuthOutcome.Cancelled ||
+                        probeResult.Outcome == AuthOutcome.TimedOut)
                     {
-                        Summary = new RebuildSummary(),
-                        AuthRequired = true
-                    };
-                }
-                else
-                {
-                    _logger?.Warn($"[GogAch] GOG auth probe failed with outcome={probeResult.Outcome}. Scan aborted without auth-required state.");
-                }
+                        _logger?.Warn("[GogAch] GOG not authenticated - cannot scan achievements.");
+                        return new RebuildPayload
+                        {
+                            Summary = new RebuildSummary(),
+                            AuthRequired = true
+                        };
+                    }
+                    else
+                    {
+                        _logger?.Warn($"[GogAch] GOG auth probe failed with outcome={probeResult.Outcome}. Scan aborted without auth-required state.");
+                    }
 
-                return new RebuildPayload { Summary = new RebuildSummary() };
+                    return new RebuildPayload { Summary = new RebuildSummary() };
+                }
             }
 
             _logger?.Info("[GogAch] GOG authentication verified.");
@@ -105,9 +111,26 @@ namespace PlayniteAchievements.Providers.GOG
                     var productId = TryGetProductId(game, out var pid) ? pid : "?";
                     _logger?.Debug(ex, $"[GogAch] Failed to scan achievements for {game?.Name} (productId={productId}) after {consecutiveErrors} consecutive errors");
                 },
-                delayBetweenGamesAsync: (index, token) => rateLimiter.DelayBeforeNextAsync(token),
-                delayAfterErrorAsync: (consecutiveErrors, token) => rateLimiter.DelayAfterErrorAsync(consecutiveErrors, token),
+                rateLimiter,
                 cancel).ConfigureAwait(false);
+        }
+
+        public void BeginRefreshAuthContext(RefreshAuthContext context)
+        {
+            _authContext = context;
+        }
+
+        public void EndRefreshAuthContext(RefreshAuthContext context)
+        {
+            if (ReferenceEquals(_authContext, context))
+            {
+                _authContext = null;
+            }
+        }
+
+        private bool HasSuccessfulScopedAuth()
+        {
+            return _authContext?.IsProviderAuthenticated("GOG") == true;
         }
 
         /// <summary>
@@ -116,7 +139,18 @@ namespace PlayniteAchievements.Providers.GOG
         private static bool TryGetProductId(Game game, out string productId)
         {
             productId = null;
-            if (game == null || string.IsNullOrWhiteSpace(game.GameId))
+            if (game == null)
+                return false;
+
+            // A per-game override takes precedence over the library-derived product ID.
+            if (GameCustomDataLookup.TryGetProviderOverrideValue(game.Id, "GOG", out var overrideId) &&
+                !string.IsNullOrWhiteSpace(overrideId))
+            {
+                productId = overrideId.Trim();
+                return true;
+            }
+
+            if (string.IsNullOrWhiteSpace(game.GameId))
                 return false;
 
             // GOG games use product ID as GameId

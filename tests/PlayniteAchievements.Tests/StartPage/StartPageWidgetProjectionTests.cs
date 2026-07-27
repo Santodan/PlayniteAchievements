@@ -4,6 +4,7 @@ using Microsoft.VisualStudio.TestTools.UnitTesting;
 using PlayniteAchievements.Models.Settings;
 using PlayniteAchievements.Services.StartPage;
 using PlayniteAchievements.ViewModels;
+using PlayniteAchievements.ViewModels.Items;
 
 namespace PlayniteAchievements.Tests.StartPage
 {
@@ -86,6 +87,84 @@ namespace PlayniteAchievements.Tests.StartPage
             Assert.AreEqual(3, result.Count);
             Assert.AreEqual("Game 00", result[0].GameName);
             Assert.AreEqual("Game 02", result[2].GameName);
+        }
+
+        [TestMethod]
+        public void ProjectFilteredGameSummaries_AppliesToolbarSearchBeforeSortAndLimit()
+        {
+            var items = Enumerable.Range(0, 30)
+                .Select(index => new GameSummaryItem
+                {
+                    GameName = index == 2 ? "Needle Game" : $"Game {index:D2}",
+                    SortingName = index == 2 ? "Needle Game" : $"Game {index:D2}",
+                    LastUnlockUtc = new DateTime(2026, 1, 1).AddDays(index),
+                    UnlockedAchievements = 1,
+                    TotalAchievements = 10
+                })
+                .ToList();
+            var settings = new PersistedSettings();
+            settings.StartPageGameSummariesGrid.MaxRows = 3;
+            settings.StartPageGameSummariesGrid.SortMode = GameSummariesSortMode.RecentUnlock;
+            settings.StartPageGameSummariesGrid.SortDescending = true;
+            var toolbar = new GameSummaryGridControlBarAdapter
+            {
+                SearchText = "needle"
+            };
+
+            var result = StartPageWidgetProjection.ProjectFilteredGameSummaries(
+                toolbar.Apply(items),
+                settings);
+
+            Assert.AreEqual(1, result.Count);
+            Assert.AreEqual("Needle Game", result[0].GameName);
+        }
+
+        [TestMethod]
+        public void GameSummaryControlBarAdapter_AppliesProviderProgressAndActivityFilters()
+        {
+            var items = new[]
+            {
+                new GameSummaryItem
+                {
+                    GameName = "Steam Complete",
+                    ProviderKey = "Steam",
+                    Platforms = new[] { "PC" },
+                    IsCompleted = true,
+                    UnlockedAchievements = 10,
+                    TotalAchievements = 10,
+                    LastPlayed = new DateTime(2026, 1, 1)
+                },
+                new GameSummaryItem
+                {
+                    GameName = "Steam No Progress",
+                    ProviderKey = "Steam",
+                    Platforms = new[] { "Steam Deck" },
+                    UnlockedAchievements = 0,
+                    TotalAchievements = 10
+                },
+                new GameSummaryItem
+                {
+                    GameName = "Xbox Complete",
+                    ProviderKey = "Xbox",
+                    Platforms = new[] { "Xbox" },
+                    IsCompleted = true,
+                    UnlockedAchievements = 10,
+                    TotalAchievements = 10,
+                    LastPlayed = new DateTime(2026, 1, 2)
+                }
+            };
+            var toolbar = new GameSummaryGridControlBarAdapter();
+            toolbar.UpdateOptions(items);
+
+            toolbar.ProviderFilterGroups.Single(group => group.ProviderKey == "Steam").SetAll(true);
+            toolbar.SetProgressFilterSelected(toolbar.ProgressFilterOptions[0], true);
+            toolbar.SetActivityFilterSelected(toolbar.ActivityFilterOptions[0], true);
+
+            var result = toolbar.Apply(items)
+                .Select(item => item.GameName)
+                .ToList();
+
+            CollectionAssert.AreEqual(new[] { "Steam Complete" }, result);
         }
 
         [TestMethod]
@@ -260,6 +339,32 @@ namespace PlayniteAchievements.Tests.StartPage
             var unlimited = StartPageWidgetProjection.ProjectRecentUnlocks(items, settings);
 
             Assert.AreEqual(12, unlimited.Count);
+        }
+
+        [TestMethod]
+        public void FilterRecentUnlocksBySearch_AppliesBeforeSortAndLimit()
+        {
+            var items = Enumerable.Range(0, 30)
+                .Select(index => new AchievementDisplayItem
+                {
+                    DisplayName = index == 2 ? "Needle Achievement" : $"Achievement {index:D2}",
+                    GameName = "Game",
+                    UnlockTimeUtc = new DateTime(2026, 1, 1).AddMinutes(index)
+                })
+                .ToList();
+            var settings = new PersistedSettings();
+            settings.StartPageRecentUnlocksGrid.MaxRows = 3;
+            settings.StartPageRecentUnlocksGrid.SortMode = CompactListSortMode.UnlockTime;
+            settings.StartPageRecentUnlocksGrid.SortDescending = true;
+
+            var filtered = StartPageWidgetProjection.FilterRecentUnlocksBySearch(
+                items,
+                null,
+                "needle");
+            var result = StartPageWidgetProjection.ProjectRecentUnlocks(filtered, settings);
+
+            Assert.AreEqual(1, result.Count);
+            Assert.AreEqual("Needle Achievement", result[0].DisplayName);
         }
 
         private static PersistedSettings CreateScopeTestSettings()

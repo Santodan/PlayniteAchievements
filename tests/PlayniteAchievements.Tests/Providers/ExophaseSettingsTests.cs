@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
 using Newtonsoft.Json.Linq;
+using PlayniteAchievements.Models.Friends;
 using PlayniteAchievements.Providers.Exophase;
 
 namespace PlayniteAchievements.Providers.Tests
@@ -139,6 +140,67 @@ namespace PlayniteAchievements.Providers.Tests
 
             Assert.IsTrue(settings.ManagedProviders.Contains("origin"));
             Assert.IsFalse(settings.ManagedProviders.Contains("ea"));
+        }
+
+        [TestMethod]
+        public void AddOrUpdateFriend_DefaultsToNoPlatforms()
+        {
+            var settings = new ExophaseSettings();
+
+            var added = settings.AddOrUpdateFriend(" PureRuby87 ");
+
+            Assert.IsTrue(added);
+            Assert.AreEqual(1, settings.Friends.Count);
+            Assert.AreEqual("PureRuby87", settings.Friends[0].Username);
+            Assert.AreEqual(0, settings.Friends[0].SelectedPlatforms.Count);
+        }
+
+        [TestMethod]
+        public void AddOrUpdateFriend_DuplicateUsernamesAreCaseInsensitive()
+        {
+            var settings = new ExophaseSettings();
+
+            Assert.IsTrue(settings.AddOrUpdateFriend("PureRuby87"));
+            Assert.IsFalse(settings.AddOrUpdateFriend(" pureruby87 "));
+
+            Assert.AreEqual(1, settings.Friends.Count);
+            Assert.AreEqual("pureruby87", settings.Friends[0].Username);
+        }
+
+        [TestMethod]
+        public void FriendsSetter_NormalizesSelectedPlatforms()
+        {
+            var settings = new ExophaseSettings
+            {
+                Friends = new List<ExophaseFriendSettings>
+                {
+                    new ExophaseFriendSettings
+                    {
+                        Username = " Beer_Here ",
+                        SelectedPlatforms = new List<string> { " Steam ", "steam", "PSN" }
+                    }
+                }
+            };
+
+            Assert.AreEqual("Beer_Here", settings.Friends[0].Username);
+            CollectionAssert.AreEqual(new List<string> { "psn" }, settings.Friends[0].SelectedPlatforms);
+        }
+
+        [TestMethod]
+        public void FriendGameMappings_NormalizesKeysAndDropsEmptyTargets()
+        {
+            var mappedId = Guid.NewGuid();
+            var settings = new ExophaseSettings
+            {
+                FriendGameMappings = new Dictionary<string, Guid>
+                {
+                    [" PS5|Game-Slug "] = mappedId,
+                    ["steam|empty"] = Guid.Empty
+                }
+            };
+
+            Assert.AreEqual(1, settings.FriendGameMappings.Count);
+            Assert.AreEqual(mappedId, settings.FriendGameMappings["ps5|game-slug"]);
         }
     }
 }

@@ -1,4 +1,5 @@
 using Newtonsoft.Json;
+using PlayniteAchievements.Common;
 using PlayniteAchievements.Providers.GOG.Models;
 using Playnite.SDK;
 using System;
@@ -100,7 +101,7 @@ namespace PlayniteAchievements.Providers.GOG
                 return new List<GogAchievementItem>();
             }
 
-            var token = _sessionManager.GetAccessToken();
+            var token = await _sessionManager.GetAccessTokenAsync(ct).ConfigureAwait(false);
             var locale = MapGlobalLanguageToGogLocale(globalLanguage);
             var url = BuildAchievementsUrl(clientId, userId, locale);
 
@@ -120,6 +121,7 @@ namespace PlayniteAchievements.Providers.GOG
                     if (statusCode == 401 || statusCode == 403)
                     {
                         _logger?.Warn($"[GogApi] Auth failed with status {statusCode}. Token may be expired.");
+                        _sessionManager.InvalidateAccessToken();
                         throw new AuthRequiredException("GOG access token expired. Please re-authenticate.");
                     }
 
@@ -456,9 +458,7 @@ namespace PlayniteAchievements.Providers.GOG
         /// </summary>
         public static bool IsTransientError(HttpStatusCode statusCode)
         {
-            var code = (int)statusCode;
-            // 408 Request Timeout, 429 Too Many Requests, 5xx transient gateways/errors.
-            return code == 408 || code == 429 || code == 500 || code == 502 || code == 503 || code == 504;
+            return TransientErrorClassifier.IsTransientStatusCode((int)statusCode);
         }
 
         /// <summary>
@@ -466,59 +466,10 @@ namespace PlayniteAchievements.Providers.GOG
         /// </summary>
         public static bool IsTransientError(Exception ex)
         {
-            if (ex == null)
-            {
-                return false;
-            }
-
-            if (ex is OperationCanceledException)
-            {
-                return false;
-            }
-
-            if (ex is GogTransientException)
-            {
-                return true;
-            }
-
-            if (ex is GogApiHttpException httpEx)
-            {
-                return IsTransientError(httpEx.StatusCode);
-            }
-
-            if (ex is HttpRequestException || ex is TimeoutException)
-            {
-                return true;
-            }
-
-            if (ex is WebException webEx && webEx.Response is HttpWebResponse response)
-            {
-                return IsTransientError(response.StatusCode);
-            }
-
-            var message = ex.Message ?? string.Empty;
-            if (message.IndexOf("timeout", StringComparison.OrdinalIgnoreCase) >= 0)
-            {
-                return true;
-            }
-
-            if (message.IndexOf("temporarily", StringComparison.OrdinalIgnoreCase) >= 0)
-            {
-                return true;
-            }
-
-            if (message.IndexOf("connection", StringComparison.OrdinalIgnoreCase) >= 0 &&
-                message.IndexOf("reset", StringComparison.OrdinalIgnoreCase) >= 0)
-            {
-                return true;
-            }
-
-            if (message.IndexOf("429", StringComparison.OrdinalIgnoreCase) >= 0)
-            {
-                return true;
-            }
-
-            return IsTransientError(ex.InnerException);
+            return TransientErrorClassifier.IsTransient(ex, e =>
+                e is GogTransientException ? true :
+                e is GogApiHttpException httpEx ? IsTransientError(httpEx.StatusCode) :
+                (bool?)null);
         }
     }
 }

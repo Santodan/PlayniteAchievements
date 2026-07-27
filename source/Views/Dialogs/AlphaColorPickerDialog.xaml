@@ -1,0 +1,418 @@
+<UserControl x:Class="PlayniteAchievements.Views.Dialogs.AlphaColorPickerDialog"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+             xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+             mc:Ignorable="d"
+             MinWidth="420"
+             MinHeight="440"
+             d:DesignHeight="465"
+             d:DesignWidth="440"
+             FocusManager.FocusedElement="{Binding ElementName=HexTextBox}"
+             UseLayoutRounding="True"
+             SnapsToDevicePixels="True"
+             Loaded="Window_Loaded">
+    <UserControl.Resources>
+        <ResourceDictionary>
+            <ResourceDictionary.MergedDictionaries>
+                <ResourceDictionary Source="pack://application:,,,/PlayniteAchievements;component/Resources/PlayAchImplicitControlStyles.xaml"/>
+            </ResourceDictionary.MergedDictionaries>
+
+            <DrawingBrush x:Key="CheckerBrush"
+                          TileMode="Tile"
+                          Viewport="0,0,12,12"
+                          ViewportUnits="Absolute">
+                <DrawingBrush.Drawing>
+                    <DrawingGroup>
+                        <GeometryDrawing Brush="#FFFFFFFF">
+                            <GeometryDrawing.Geometry>
+                                <RectangleGeometry Rect="0,0,12,12"/>
+                            </GeometryDrawing.Geometry>
+                        </GeometryDrawing>
+                        <GeometryDrawing Brush="#FFE5E5E5">
+                            <GeometryDrawing.Geometry>
+                                <GeometryGroup>
+                                    <RectangleGeometry Rect="0,0,6,6"/>
+                                    <RectangleGeometry Rect="6,6,6,6"/>
+                                </GeometryGroup>
+                            </GeometryDrawing.Geometry>
+                        </GeometryDrawing>
+                    </DrawingGroup>
+                </DrawingBrush.Drawing>
+            </DrawingBrush>
+
+            <LinearGradientBrush x:Key="HueSliderBrush" StartPoint="0,0" EndPoint="0,1">
+                <GradientStop Color="#FFFF0000" Offset="0.00"/>
+                <GradientStop Color="#FFFFFF00" Offset="0.17"/>
+                <GradientStop Color="#FF00FF00" Offset="0.33"/>
+                <GradientStop Color="#FF00FFFF" Offset="0.50"/>
+                <GradientStop Color="#FF0000FF" Offset="0.67"/>
+                <GradientStop Color="#FFFF00FF" Offset="0.83"/>
+                <GradientStop Color="#FFFF0000" Offset="1.00"/>
+            </LinearGradientBrush>
+
+            <Style x:Key="ColorPickerPanelStyle" TargetType="Border">
+                <Setter Property="Background" Value="{DynamicResource PlayAch.Brush.Surface}"/>
+                <Setter Property="BorderBrush" Value="{DynamicResource PlayAch.Brush.Border}"/>
+                <Setter Property="BorderThickness" Value="{StaticResource PlayAch.Thickness.Border}"/>
+                <Setter Property="CornerRadius" Value="{StaticResource PlayAch.Radius.Card}"/>
+                <Setter Property="SnapsToDevicePixels" Value="True"/>
+            </Style>
+
+            <Style x:Key="ColorPickerLabelStyle" TargetType="TextBlock" BasedOn="{StaticResource PlayAch.TextBlock.BaseStyle}">
+                <Setter Property="Foreground" Value="{DynamicResource PlayAch.Brush.Text}"/>
+                <Setter Property="FontWeight" Value="SemiBold"/>
+                <Setter Property="VerticalAlignment" Value="Center"/>
+            </Style>
+
+            <Style x:Key="ColorPickerChannelLabelStyle" TargetType="TextBlock" BasedOn="{StaticResource ColorPickerLabelStyle}">
+                <Setter Property="Width" Value="22"/>
+                <Setter Property="HorizontalAlignment" Value="Left"/>
+                <Setter Property="TextAlignment" Value="Left"/>
+            </Style>
+
+            <Style x:Key="ColorPickerSliderTrackButtonStyle" TargetType="RepeatButton">
+                <Setter Property="Focusable" Value="False"/>
+                <Setter Property="IsTabStop" Value="False"/>
+                <Setter Property="OverridesDefaultStyle" Value="True"/>
+                <Setter Property="Background" Value="{DynamicResource PlayAch.Brush.Input.Background}"/>
+                <Setter Property="Template">
+                    <Setter.Value>
+                        <ControlTemplate TargetType="RepeatButton">
+                            <Grid Background="Transparent"/>
+                        </ControlTemplate>
+                    </Setter.Value>
+                </Setter>
+            </Style>
+
+            <Style x:Key="ColorPickerHorizontalSliderTrackButtonStyle"
+                   TargetType="RepeatButton"
+                   BasedOn="{StaticResource ColorPickerSliderTrackButtonStyle}">
+                <Setter Property="Template">
+                    <Setter.Value>
+                        <ControlTemplate TargetType="RepeatButton">
+                            <Grid Background="Transparent">
+                                <Border Height="4"
+                                        VerticalAlignment="Center"
+                                        HorizontalAlignment="Stretch"
+                                        Background="{TemplateBinding Background}"
+                                        CornerRadius="{StaticResource PlayAch.Radius.Tiny}"/>
+                            </Grid>
+                        </ControlTemplate>
+                    </Setter.Value>
+                </Setter>
+            </Style>
+
+            <Style x:Key="ColorPickerVerticalSliderTrackButtonStyle"
+                   TargetType="RepeatButton"
+                   BasedOn="{StaticResource ColorPickerSliderTrackButtonStyle}">
+                <Setter Property="Template">
+                    <Setter.Value>
+                        <ControlTemplate TargetType="RepeatButton">
+                            <Grid Background="Transparent">
+                                <Border Width="6"
+                                        HorizontalAlignment="Center"
+                                        VerticalAlignment="Stretch"
+                                        Background="{TemplateBinding Background}"
+                                        CornerRadius="{StaticResource PlayAch.Radius.Tiny}"/>
+                            </Grid>
+                        </ControlTemplate>
+                    </Setter.Value>
+                </Setter>
+            </Style>
+
+            <Style x:Key="ColorPickerSliderThumbStyle" TargetType="Thumb">
+                <Setter Property="Width" Value="14"/>
+                <Setter Property="Height" Value="14"/>
+                <Setter Property="Background" Value="{DynamicResource PlayAch.Brush.Text}"/>
+                <Setter Property="BorderBrush" Value="{DynamicResource PlayAch.Brush.Dialog.Border}"/>
+                <Setter Property="BorderThickness" Value="{StaticResource PlayAch.Thickness.Border}"/>
+                <Setter Property="Template">
+                    <Setter.Value>
+                        <ControlTemplate TargetType="Thumb">
+                            <Border x:Name="ThumbChrome"
+                                    Background="{TemplateBinding Background}"
+                                    BorderBrush="{TemplateBinding BorderBrush}"
+                                    BorderThickness="{TemplateBinding BorderThickness}"
+                                    CornerRadius="{StaticResource PlayAch.Radius.Circle18}"
+                                    SnapsToDevicePixels="True"/>
+                            <ControlTemplate.Triggers>
+                                <Trigger Property="IsMouseOver" Value="True">
+                                    <Setter TargetName="ThumbChrome" Property="Background" Value="{DynamicResource PlayAch.Brush.Accent}"/>
+                                </Trigger>
+                                <Trigger Property="IsDragging" Value="True">
+                                    <Setter TargetName="ThumbChrome" Property="Background" Value="{DynamicResource PlayAch.Brush.Selection}"/>
+                                </Trigger>
+                                <Trigger Property="IsEnabled" Value="False">
+                                    <Setter TargetName="ThumbChrome" Property="Opacity" Value="{StaticResource PlayAch.Opacity.Disabled}"/>
+                                </Trigger>
+                            </ControlTemplate.Triggers>
+                        </ControlTemplate>
+                    </Setter.Value>
+                </Setter>
+            </Style>
+
+            <Style x:Key="ColorPickerHorizontalSliderStyle" TargetType="Slider">
+                <Setter Property="Height" Value="{StaticResource PlayAch.Size.Control.Height}"/>
+                <Setter Property="Background" Value="{DynamicResource PlayAch.Brush.Input.Background}"/>
+                <Setter Property="Foreground" Value="{DynamicResource PlayAch.Brush.Accent}"/>
+                <Setter Property="Template">
+                    <Setter.Value>
+                        <ControlTemplate TargetType="Slider">
+                            <Grid Height="{TemplateBinding Height}" SnapsToDevicePixels="True">
+                                <Border Height="4"
+                                        Margin="7,0"
+                                        VerticalAlignment="Center"
+                                        Background="{TemplateBinding Background}"
+                                        BorderBrush="{DynamicResource PlayAch.Brush.Input.Border}"
+                                        BorderThickness="{StaticResource PlayAch.Thickness.Border}"
+                                        CornerRadius="{StaticResource PlayAch.Radius.Tiny}"/>
+                                <Track x:Name="PART_Track"
+                                       Margin="7,0"
+                                       VerticalAlignment="Stretch">
+                                    <Track.DecreaseRepeatButton>
+                                        <RepeatButton Command="Slider.DecreaseLarge"
+                                                      Background="{TemplateBinding Foreground}"
+                                                      Style="{StaticResource ColorPickerHorizontalSliderTrackButtonStyle}"/>
+                                    </Track.DecreaseRepeatButton>
+                                    <Track.IncreaseRepeatButton>
+                                        <RepeatButton Command="Slider.IncreaseLarge"
+                                                      Background="Transparent"
+                                                      Style="{StaticResource ColorPickerHorizontalSliderTrackButtonStyle}"/>
+                                    </Track.IncreaseRepeatButton>
+                                    <Track.Thumb>
+                                        <Thumb Style="{StaticResource ColorPickerSliderThumbStyle}"/>
+                                    </Track.Thumb>
+                                </Track>
+                            </Grid>
+                        </ControlTemplate>
+                    </Setter.Value>
+                </Setter>
+            </Style>
+
+            <Style x:Key="ColorPickerVerticalSliderStyle" TargetType="Slider">
+                <Setter Property="Width" Value="24"/>
+                <Setter Property="Background" Value="{DynamicResource PlayAch.Brush.Input.Background}"/>
+                <Setter Property="Foreground" Value="{DynamicResource PlayAch.Brush.Accent}"/>
+                <Setter Property="Template">
+                    <Setter.Value>
+                        <ControlTemplate TargetType="Slider">
+                            <Grid Width="{TemplateBinding Width}" SnapsToDevicePixels="True">
+                                <Border Width="6"
+                                        Margin="0,8"
+                                        HorizontalAlignment="Center"
+                                        Background="{TemplateBinding Background}"
+                                        BorderBrush="{DynamicResource PlayAch.Brush.Input.Border}"
+                                        BorderThickness="{StaticResource PlayAch.Thickness.Border}"
+                                        CornerRadius="{StaticResource PlayAch.Radius.Tiny}"/>
+                                <Track x:Name="PART_Track"
+                                       Orientation="Vertical"
+                                       IsDirectionReversed="True"
+                                       Margin="0,8"
+                                       HorizontalAlignment="Stretch">
+                                    <Track.DecreaseRepeatButton>
+                                        <RepeatButton Command="Slider.DecreaseLarge"
+                                                      Background="Transparent"
+                                                      Style="{StaticResource ColorPickerVerticalSliderTrackButtonStyle}"/>
+                                    </Track.DecreaseRepeatButton>
+                                    <Track.IncreaseRepeatButton>
+                                        <RepeatButton Command="Slider.IncreaseLarge"
+                                                      Background="Transparent"
+                                                      Style="{StaticResource ColorPickerVerticalSliderTrackButtonStyle}"/>
+                                    </Track.IncreaseRepeatButton>
+                                    <Track.Thumb>
+                                        <Thumb Width="16" Height="16" Style="{StaticResource ColorPickerSliderThumbStyle}"/>
+                                    </Track.Thumb>
+                                </Track>
+                            </Grid>
+                        </ControlTemplate>
+                    </Setter.Value>
+                </Setter>
+            </Style>
+        </ResourceDictionary>
+    </UserControl.Resources>
+
+    <Border Background="{DynamicResource PlayAch.Brush.Window.Background}"
+            Padding="16">
+        <Grid>
+            <Grid.RowDefinitions>
+                <RowDefinition Height="*"/>
+                <RowDefinition Height="Auto"/>
+            </Grid.RowDefinitions>
+
+            <Grid Grid.Row="0">
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="*" MinHeight="118"/>
+                    <RowDefinition Height="Auto"/>
+                    <RowDefinition Height="Auto"/>
+                </Grid.RowDefinitions>
+
+                <Border Grid.Row="0"
+                        Style="{StaticResource ColorPickerPanelStyle}"
+                        Padding="8"
+                        Margin="{StaticResource PlayAch.Thickness.Bottom.Sm}">
+                    <Grid>
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*"/>
+                            <ColumnDefinition Width="34"/>
+                        </Grid.ColumnDefinitions>
+
+                        <Border x:Name="ColorSpace"
+                                Grid.Column="0"
+                                MinHeight="110"
+                                BorderBrush="{DynamicResource PlayAch.Brush.Border}"
+                                BorderThickness="{StaticResource PlayAch.Thickness.Border}"
+                                CornerRadius="{StaticResource PlayAch.Radius.Small}"
+                                ClipToBounds="True"
+                                Cursor="Cross"
+                                MouseLeftButtonDown="ColorSpace_MouseLeftButtonDown"
+                                MouseLeftButtonUp="ColorSpace_MouseLeftButtonUp"
+                                MouseMove="ColorSpace_MouseMove"
+                                SizeChanged="ColorSpace_SizeChanged">
+                            <Grid>
+                                <Border x:Name="HueSurface"/>
+                                <Rectangle>
+                                    <Rectangle.Fill>
+                                        <LinearGradientBrush StartPoint="0,0" EndPoint="1,0">
+                                            <GradientStop Color="#FFFFFFFF" Offset="0"/>
+                                            <GradientStop Color="#00FFFFFF" Offset="1"/>
+                                        </LinearGradientBrush>
+                                    </Rectangle.Fill>
+                                </Rectangle>
+                                <Rectangle>
+                                    <Rectangle.Fill>
+                                        <LinearGradientBrush StartPoint="0,0" EndPoint="0,1">
+                                            <GradientStop Color="#00000000" Offset="0"/>
+                                            <GradientStop Color="#FF000000" Offset="1"/>
+                                        </LinearGradientBrush>
+                                    </Rectangle.Fill>
+                                </Rectangle>
+                                <Canvas>
+                                    <Ellipse x:Name="ColorSpaceMarker"
+                                             Width="12"
+                                             Height="12"
+                                             Stroke="White"
+                                             StrokeThickness="2"
+                                             Fill="Transparent"
+                                             IsHitTestVisible="False">
+                                        <Ellipse.Effect>
+                                            <DropShadowEffect Color="Black" Opacity="0.8" BlurRadius="2" ShadowDepth="0"/>
+                                        </Ellipse.Effect>
+                                    </Ellipse>
+                                </Canvas>
+                            </Grid>
+                        </Border>
+
+                        <Slider x:Name="HueSlider"
+                                Grid.Column="1"
+                                Minimum="0"
+                                Maximum="360"
+                                Orientation="Vertical"
+                                Margin="{StaticResource PlayAch.Thickness.Left.Sm}"
+                                Background="{StaticResource HueSliderBrush}"
+                                Style="{StaticResource ColorPickerVerticalSliderStyle}"
+                                ValueChanged="HueSlider_ValueChanged"/>
+                    </Grid>
+                </Border>
+
+                <Border Grid.Row="1"
+                        Style="{StaticResource ColorPickerPanelStyle}"
+                        Padding="8"
+                        Margin="{StaticResource PlayAch.Thickness.Bottom.Sm}">
+                    <Grid>
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="86"/>
+                            <ColumnDefinition Width="*"/>
+                        </Grid.ColumnDefinitions>
+
+                        <Border Grid.Column="0"
+                                Height="48"
+                                Background="{StaticResource CheckerBrush}"
+                                BorderBrush="{DynamicResource PlayAch.Brush.Border}"
+                                BorderThickness="{StaticResource PlayAch.Thickness.Border}"
+                                CornerRadius="{StaticResource PlayAch.Radius.Small}"
+                                ClipToBounds="True">
+                            <Border x:Name="PreviewSwatch"/>
+                        </Border>
+
+                        <Grid Grid.Column="1"
+                              Margin="{StaticResource PlayAch.Thickness.Left.Md}"
+                              VerticalAlignment="Center">
+                            <Grid.RowDefinitions>
+                                <RowDefinition Height="Auto"/>
+                                <RowDefinition Height="Auto"/>
+                                <RowDefinition Height="Auto"/>
+                            </Grid.RowDefinitions>
+
+                            <TextBlock Grid.Row="0"
+                                       Text="{DynamicResource LOCPlayAch_ColorPicker_HexLabel}"
+                                       Style="{StaticResource ColorPickerLabelStyle}"
+                                       Margin="{StaticResource PlayAch.Thickness.Bottom.Compact}"/>
+                            <TextBox x:Name="HexTextBox"
+                                     Grid.Row="1"
+                                     MinWidth="180"
+                                     TextChanged="HexTextBox_TextChanged"
+                                     KeyDown="HexTextBox_KeyDown"/>
+                            <TextBlock x:Name="ValidationText"
+                                       Grid.Row="2"
+                                       Style="{StaticResource PlayAch.TextBlock.BaseStyle}"
+                                       Foreground="{DynamicResource PlayAch.Brush.Text.Secondary}"
+                                       FontSize="{DynamicResource PlayAch.FontSize.Caption}"
+                                       TextWrapping="Wrap"
+                                       Margin="{StaticResource PlayAch.Thickness.Top.Xs}"/>
+                        </Grid>
+                    </Grid>
+                </Border>
+
+                <Border Grid.Row="2"
+                        Style="{StaticResource ColorPickerPanelStyle}"
+                        Padding="8">
+                    <Grid>
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="28"/>
+                            <ColumnDefinition Width="*"/>
+                            <ColumnDefinition Width="54"/>
+                        </Grid.ColumnDefinitions>
+                        <Grid.RowDefinitions>
+                            <RowDefinition Height="Auto"/>
+                            <RowDefinition Height="Auto"/>
+                            <RowDefinition Height="Auto"/>
+                            <RowDefinition Height="Auto"/>
+                        </Grid.RowDefinitions>
+
+                        <TextBlock Grid.Row="0" Text="A" Style="{StaticResource ColorPickerChannelLabelStyle}"/>
+                        <Slider x:Name="AlphaSlider" Grid.Row="0" Grid.Column="1" Minimum="0" Maximum="255" TickFrequency="1" IsSnapToTickEnabled="True" Style="{StaticResource ColorPickerHorizontalSliderStyle}" ValueChanged="ChannelSlider_ValueChanged"/>
+                        <TextBox x:Name="AlphaTextBox" Grid.Row="0" Grid.Column="2" Margin="8,0,0,4" TextAlignment="Right" LostFocus="ChannelTextBox_LostFocus" KeyDown="ChannelTextBox_KeyDown"/>
+
+                        <TextBlock Grid.Row="1" Text="R" Style="{StaticResource ColorPickerChannelLabelStyle}"/>
+                        <Slider x:Name="RedSlider" Grid.Row="1" Grid.Column="1" Minimum="0" Maximum="255" TickFrequency="1" IsSnapToTickEnabled="True" Style="{StaticResource ColorPickerHorizontalSliderStyle}" ValueChanged="ChannelSlider_ValueChanged"/>
+                        <TextBox x:Name="RedTextBox" Grid.Row="1" Grid.Column="2" Margin="8,0,0,4" TextAlignment="Right" LostFocus="ChannelTextBox_LostFocus" KeyDown="ChannelTextBox_KeyDown"/>
+
+                        <TextBlock Grid.Row="2" Text="G" Style="{StaticResource ColorPickerChannelLabelStyle}"/>
+                        <Slider x:Name="GreenSlider" Grid.Row="2" Grid.Column="1" Minimum="0" Maximum="255" TickFrequency="1" IsSnapToTickEnabled="True" Style="{StaticResource ColorPickerHorizontalSliderStyle}" ValueChanged="ChannelSlider_ValueChanged"/>
+                        <TextBox x:Name="GreenTextBox" Grid.Row="2" Grid.Column="2" Margin="8,0,0,4" TextAlignment="Right" LostFocus="ChannelTextBox_LostFocus" KeyDown="ChannelTextBox_KeyDown"/>
+
+                        <TextBlock Grid.Row="3" Text="B" Style="{StaticResource ColorPickerChannelLabelStyle}"/>
+                        <Slider x:Name="BlueSlider" Grid.Row="3" Grid.Column="1" Minimum="0" Maximum="255" TickFrequency="1" IsSnapToTickEnabled="True" Style="{StaticResource ColorPickerHorizontalSliderStyle}" ValueChanged="ChannelSlider_ValueChanged"/>
+                        <TextBox x:Name="BlueTextBox" Grid.Row="3" Grid.Column="2" Margin="8,0,0,0" TextAlignment="Right" LostFocus="ChannelTextBox_LostFocus" KeyDown="ChannelTextBox_KeyDown"/>
+                    </Grid>
+                </Border>
+            </Grid>
+
+            <StackPanel Grid.Row="1"
+                        Orientation="Horizontal"
+                        HorizontalAlignment="Right"
+                        Margin="{StaticResource PlayAch.Thickness.Top.Md}">
+                <Button Content="{DynamicResource LOCPlayAch_Button_Ok}"
+                        MinWidth="80"
+                        Margin="{StaticResource PlayAch.Thickness.Right.Sm}"
+                        IsDefault="True"
+                        Click="OkButton_Click"/>
+                <Button Content="{DynamicResource LOCPlayAch_Button_Cancel}"
+                        MinWidth="80"
+                        IsCancel="True"
+                        Click="CancelButton_Click"/>
+            </StackPanel>
+        </Grid>
+    </Border>
+</UserControl>

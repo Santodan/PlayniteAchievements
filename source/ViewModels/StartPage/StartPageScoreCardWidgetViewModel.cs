@@ -1,6 +1,7 @@
 using System;
 using Playnite.SDK;
 using PlayniteAchievements.Models;
+using PlayniteAchievements.Models.Achievements;
 using PlayniteAchievements.Models.Settings;
 using PlayniteAchievements.Services.Overview;
 using PlayniteAchievements.Services.StartPage;
@@ -57,7 +58,7 @@ namespace PlayniteAchievements.ViewModels.StartPage
         protected override void OnPersistedSettingsChanged(string propertyName)
         {
             if (string.IsNullOrWhiteSpace(propertyName) ||
-                string.Equals(propertyName, nameof(PersistedSettings.UseUniformRarityBadges), StringComparison.Ordinal))
+                RarityAppearanceHelper.IsAppearanceSettingPropertyName(propertyName))
             {
                 ScoreCard.RefreshBadgeStyle(PersistedSettings?.UseUniformRarityBadges ?? false);
             }
@@ -65,7 +66,7 @@ namespace PlayniteAchievements.ViewModels.StartPage
 
         protected override bool ShouldRefreshForPersistedSettingsChanged(string propertyName)
         {
-            if (string.Equals(propertyName, nameof(PersistedSettings.UseUniformRarityBadges), StringComparison.Ordinal))
+            if (RarityAppearanceHelper.IsAppearanceSettingPropertyName(propertyName))
             {
                 return false;
             }

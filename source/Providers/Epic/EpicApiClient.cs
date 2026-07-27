@@ -9,6 +9,7 @@ using System.Net.Http;
 using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
+using PlayniteAchievements.Common;
 using PlayniteAchievements.Models.Settings;
 
 namespace PlayniteAchievements.Providers.Epic
@@ -586,23 +587,11 @@ query playerProfileAchievementsByProductId($EpicAccountId: String!, $ProductId: 
 
         public static bool IsTransientError(Exception ex)
         {
-            if (ex == null)
-            {
-                return false;
-            }
-
-            if (ex is HttpRequestException || ex is TaskCanceledException || ex is TimeoutException || ex is EpicTransientException)
-            {
-                return true;
-            }
-
-            if (ex is EpicApiHttpException httpEx)
-            {
-                var code = (int)httpEx.StatusCode;
-                return code == 429 || code >= 500;
-            }
-
-            return false;
+            return TransientErrorClassifier.IsTransient(ex, e =>
+                e is EpicTransientException ? true :
+                e is TaskCanceledException ? true :
+                e is EpicApiHttpException httpEx ? TransientErrorClassifier.IsTransientStatusCode((int)httpEx.StatusCode) :
+                (bool?)null);
         }
 
         private sealed class RequestResult<T>

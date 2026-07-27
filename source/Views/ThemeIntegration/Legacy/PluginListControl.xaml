@@ -17,14 +17,11 @@
                    MaxHeight="{Binding RelativeSource={RelativeSource AncestorType=ContentControl}, Path=MaxHeight}">
 
     <local:ThemeControlBase.Resources>
-        <converters:BooleanConverter x:Key="InvertBoolConverter" Mode="Inverted" />
-        <converters:BooleanConverter x:Key="InverseBoolToVisConverter" Mode="InvertedToVisibility" />
-        <converters:BooleanConverter x:Key="BooleanToVisibilityConverter" Mode="ToVisibility" />
-        <converters:LocalDateTimeConverter x:Key="LocalDateTimeConverter" />
-        <converters:ValueOperationConverter x:Key="ValueOperationConverter" />
-        <converters:HiddenAchievementConverter x:Key="HiddenIconConverter" ConversionMode="Icon" />
-        <converters:HiddenAchievementConverter x:Key="HiddenTitleConverter" ConversionMode="Title" />
-        <converters:HiddenAchievementConverter x:Key="HiddenDescriptionConverter" ConversionMode="Description" />
+        <ResourceDictionary>
+            <ResourceDictionary.MergedDictionaries>
+                <ResourceDictionary Source="pack://application:,,,/PlayniteAchievements;component/Resources/CommonResources.xaml"/>
+            </ResourceDictionary.MergedDictionaries>
+        </ResourceDictionary>
     </local:ThemeControlBase.Resources>
 
     <Grid x:Name="PART_Root">
@@ -88,7 +85,8 @@
         <!-- Achievement List -->
         <Grid Name="PART_GridContener" Grid.Row="2">
             <ListBox x:Name="lbAchievements"
-                     Style="{StaticResource {x:Type ListBox}}"
+                     Background="Transparent"
+                     BorderThickness="0"
                      ScrollViewer.HorizontalScrollBarVisibility="Disabled"
                      ScrollViewer.VerticalScrollBarVisibility="Auto"
                      ScrollViewer.CanContentScroll="True"
@@ -100,7 +98,7 @@
                      Height="{Binding ElementName=PART_GridContener, Path=ActualHeight}">
 
                 <ListBox.ItemContainerStyle>
-                    <Style TargetType="{x:Type ListBoxItem}" BasedOn="{StaticResource {x:Type ListBoxItem}}">
+                    <Style TargetType="{x:Type ListBoxItem}">
                         <Setter Property="HorizontalContentAlignment" Value="Stretch" />
                         <Setter Property="Template">
                             <Setter.Value>
@@ -117,7 +115,7 @@
                         </Setter>
                         <Style.Triggers>
                             <Trigger Property="Selector.IsSelected" Value="True">
-                                <Setter Property="Foreground" Value="{DynamicResource TextBrushDark}" />
+                                <Setter Property="Foreground" Value="{DynamicResource PlayAch.Brush.Text.Tertiary}" />
                             </Trigger>
                         </Style.Triggers>
                     </Style>
@@ -167,7 +165,8 @@
                                     Rarity="{Binding Rarity}"
                                     RarityText="{Binding RarityText}"
                                     EnableRaretyIndicator="True"
-                                    ShowRarityGlow="{Binding Persisted.ShowRarityGlow, FallbackValue=True}"
+                                    ShowRarityGlow="{Binding Persisted.ModernCompactListShowRarityGlow, FallbackValue=True}"
+                                    IsHardcore="{Binding IsHardcore}"
                                     DisplayRaretyValue="True">
                                     <localControls:AchievementImage.Icon>
                                         <MultiBinding Converter="{StaticResource HiddenIconConverter}">
@@ -180,7 +179,7 @@
                                     </localControls:AchievementImage.Icon>
                                     <localControls:AchievementImage.IconCustom>
                                         <MultiBinding Converter="{StaticResource HiddenIconConverter}">
-                                            <Binding Path="LockedResolvedIconDisplay" IsAsync="True" />
+                                            <Binding Path="LockedIconDisplay" IsAsync="True" />
                                             <Binding Path="Hidden" />
                                             <Binding Path="Unlocked" />
                                             <Binding RelativeSource="{RelativeSource AncestorType=UserControl}" Path="ShowHiddenIcon" />
@@ -196,7 +195,7 @@
                                     <!-- Right side: Date or Progress Bar -->
                                     <Grid DockPanel.Dock="Right">
                                         <!-- Unlocked Date -->
-                                        <TextBlock TextAlignment="Right" Foreground="{DynamicResource TextBrush}"
+                                        <TextBlock TextAlignment="Right" Foreground="{DynamicResource PlayAch.Brush.Text}"
                                                    Visibility="{Binding Unlocked, Converter={StaticResource BooleanToVisibilityConverter}}">
                                             <TextBlock.Text>
                                                 <MultiBinding StringFormat="{}{0:yyyy-MM-dd HH:mm}">
@@ -228,7 +227,7 @@
                                     </Grid>
 
                                     <!-- Achievement Name with Blur for Hidden -->
-                                    <TextBlock Foreground="{DynamicResource TextBrush}"
+                                    <TextBlock Foreground="{DynamicResource PlayAch.Brush.Text}"
                                                TextTrimming="CharacterEllipsis" FontWeight="SemiBold">
                                         <TextBlock.Text>
                                             <MultiBinding Converter="{StaticResource HiddenTitleConverter}">
@@ -258,7 +257,7 @@
 
                                 <!-- Description with Blur for Hidden -->
                                 <TextBlock Grid.Row="1" VerticalAlignment="Top" TextWrapping="Wrap"
-                                           Foreground="{DynamicResource TextBrushDarker}"
+                                           Foreground="{DynamicResource PlayAch.Brush.Text.Secondary}"
                                            Name="PART_Desc">
                                     <TextBlock.Text>
                                         <MultiBinding Converter="{StaticResource HiddenDescriptionConverter}">

@@ -7,8 +7,11 @@
              x:Name="Root">
 
     <UserControl.Resources>
-        <converters:ResourceKeyToImageSourceConverter x:Key="ResourceKeyToImage"/>
-        <converters:ProviderIconConverter x:Key="ProviderIconConverter"/>
+        <ResourceDictionary>
+            <ResourceDictionary.MergedDictionaries>
+                <ResourceDictionary Source="pack://application:,,,/PlayniteAchievements;component/Resources/CommonResources.xaml"/>
+            </ResourceDictionary.MergedDictionaries>
+        </ResourceDictionary>
     </UserControl.Resources>
 
     <Grid>
@@ -40,7 +43,7 @@
                    LineStackingStrategy="BlockLineHeight"
                    TextAlignment="Center"
                    TextWrapping="NoWrap"
-                   Foreground="{DynamicResource TextBrush}"
+                   Foreground="{DynamicResource PlayAch.Brush.Text}"
                    FontWeight="SemiBold"
                    Opacity="0.85"
                    IsHitTestVisible="False"
@@ -73,10 +76,16 @@
                                 <TranslateTransform X="{Binding OffsetX}" Y="{Binding OffsetY}"/>
                             </Grid.RenderTransform>
                             <!-- Badge icons -->
-                            <Image Source="{Binding IconKey, Converter={StaticResource ResourceKeyToImage}}"
-                                   Effect="{StaticResource BadgeShadow}"
+                            <Image Effect="{StaticResource BadgeShadow}"
                                    SnapsToDevicePixels="True"
-                                   RenderOptions.BitmapScalingMode="NearestNeighbor"/>
+                                   RenderOptions.BitmapScalingMode="NearestNeighbor">
+                                <Image.Source>
+                                    <MultiBinding Converter="{StaticResource ResourceKeyToImage}">
+                                        <Binding Path="IconKey"/>
+                                        <Binding Path="IconRefreshKey"/>
+                                    </MultiBinding>
+                                </Image.Source>
+                            </Image>
                             <!-- Provider icons -->
                             <Image SnapsToDevicePixels="True" RenderOptions.BitmapScalingMode="NearestNeighbor">
                                 <Image.Source>

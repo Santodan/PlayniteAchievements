@@ -1,13 +1,52 @@
 using PlayniteAchievements.Models;
 using PlayniteAchievements.Providers;
+using PlayniteAchievements.Services.Achievements;
+using PlayniteAchievements.Services.Cache;
+using PlayniteAchievements.Services.GameCustomData;
 using Playnite.SDK;
 using Playnite.SDK.Models;
 using System;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.Linq;
 
-namespace PlayniteAchievements.Services
+namespace PlayniteAchievements.Services.Refresh
 {
+    internal sealed class TargetSelectionCache
+    {
+        private readonly Dictionary<string, bool> _capabilityByGameProvider =
+            new Dictionary<string, bool>(StringComparer.OrdinalIgnoreCase);
+
+        public int CapabilityCheckCount { get; private set; }
+
+        public bool TryGetCapability(Guid gameId, string providerKey, out bool capable)
+        {
+            capable = false;
+            if (gameId == Guid.Empty || string.IsNullOrWhiteSpace(providerKey))
+            {
+                return false;
+            }
+
+            return _capabilityByGameProvider.TryGetValue(BuildKey(gameId, providerKey), out capable);
+        }
+
+        public void SetCapability(Guid gameId, string providerKey, bool capable)
+        {
+            if (gameId == Guid.Empty || string.IsNullOrWhiteSpace(providerKey))
+            {
+                return;
+            }
+
+            _capabilityByGameProvider[BuildKey(gameId, providerKey)] = capable;
+            CapabilityCheckCount++;
+        }
+
+        private static string BuildKey(Guid gameId, string providerKey)
+        {
+            return gameId.ToString("D") + "|" + providerKey.Trim();
+        }
+    }
+
     internal sealed class TargetSelectionResolver
     {
         private readonly Dictionary<string, int> _refreshOrderIndex;
@@ -38,7 +77,10 @@ namespace PlayniteAchievements.Services
             _refreshOrderIndex = BuildOrderIndex(refreshOrder);
         }
 
-        public IDataProvider ResolveProviderForGame(Game game, IReadOnlyList<IDataProvider> providers)
+        public IDataProvider ResolveProviderForGame(
+            Game game,
+            IReadOnlyList<IDataProvider> providers,
+            TargetSelectionCache targetSelectionCache = null)
         {
             if (game == null || providers == null || providers.Count == 0)
             {
@@ -55,7 +97,7 @@ namespace PlayniteAchievements.Services
             {
                 try
                 {
-                    if (provider.IsCapable(game))
+                    if (IsProviderCapable(game, provider, targetSelectionCache))
                     {
                         return provider;
                     }
@@ -71,18 +113,32 @@ namespace PlayniteAchievements.Services
             return null;
         }
 
+        private bool IsProviderCapable(
+            Game game,
+            IDataProvider provider,
+            TargetSelectionCache targetSelectionCache)
+        {
+            if (game == null || provider == null)
+            {
+                return false;
+            }
+
+            if (targetSelectionCache != null &&
+                targetSelectionCache.TryGetCapability(game.Id, provider.ProviderKey, out var cached))
+            {
+                return cached;
+            }
+
+            var capable = provider.IsCapable(game);
+            targetSelectionCache?.SetCapability(game.Id, provider.ProviderKey, capable);
+            return capable;
+        }
+
         private IDataProvider ResolveForcedProviderForGame(Game game, IReadOnlyList<IDataProvider> providers)
         {
             if (game == null || providers == null || providers.Count == 0)
             {
                 return null;
-            }
-
-            if (GameCustomDataLookup.TryGetPreferredProviderOverride(game.Id, out var preferredProviderKey))
-            {
-                return providers.FirstOrDefault(provider =>
-                    provider != null &&
-                    string.Equals(provider.ProviderKey, preferredProviderKey, StringComparison.OrdinalIgnoreCase));
             }
 
             if (GameCustomDataLookup.TryGetProviderOverride(game.Id, out var providerOverride))
@@ -93,24 +149,86 @@ namespace PlayniteAchievements.Services
                     string.Equals(provider.ProviderKey, providerOverride.ProviderKey, StringComparison.OrdinalIgnoreCase));
             }
 
-            if (GameCustomDataLookup.TryGetRetroAchievementsGameIdOverride(game.Id, out _))
-            {
-                return providers.FirstOrDefault(provider =>
-                    provider != null &&
-                    provider.IsAuthenticated &&
-                    string.Equals(provider.ProviderKey, "RetroAchievements", StringComparison.OrdinalIgnoreCase));
-            }
-
             return null;
         }
 
         private static bool HasForcedProviderOverride(Guid gameId)
         {
-             return GameCustomDataLookup.TryGetPreferredProviderOverride(gameId, out _) ||
-                 GameCustomDataLookup.TryGetRetroAchievementsGameIdOverride(gameId, out _) ||
-                 GameCustomDataLookup.TryGetXeniaTitleIdOverride(gameId, out _) ||
-                 GameCustomDataLookup.TryGetShadPS4MatchIdOverride(gameId, out _) ||
-                 GameCustomDataLookup.TryGetProviderOverride(gameId, out _);
+             return GameCustomDataLookup.TryGetProviderOverride(gameId, out _);
+        }
+
+        /// <summary>
+        /// Returns the subset of providers that could service at least one candidate game,
+        /// ignoring authentication state. Games with a forced provider override mark the
+        /// override provider directly, since override resolution never falls through to
+        /// capability checks. A provider whose capability check throws is kept, so filtering
+        /// can only over-approximate the set of providers worth probing.
+        /// </summary>
+        public IReadOnlyList<IDataProvider> GetProvidersWithCapableGames(
+            IEnumerable<Game> candidateGames,
+            IReadOnlyList<IDataProvider> providers,
+            TargetSelectionCache targetSelectionCache = null)
+        {
+            var candidates = providers?
+                .Where(provider => provider != null)
+                .ToList() ?? new List<IDataProvider>();
+            if (candidates.Count == 0 || candidateGames == null)
+            {
+                return new List<IDataProvider>();
+            }
+
+            var markedKeys = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            foreach (var game in candidateGames)
+            {
+                if (markedKeys.Count == candidates.Count)
+                {
+                    break;
+                }
+
+                if (game == null)
+                {
+                    continue;
+                }
+
+                if (GameCustomDataLookup.TryGetProviderOverride(game.Id, out var providerOverride))
+                {
+                    var overrideProvider = candidates.FirstOrDefault(provider =>
+                        string.Equals(provider.ProviderKey, providerOverride.ProviderKey, StringComparison.OrdinalIgnoreCase));
+                    if (overrideProvider != null)
+                    {
+                        markedKeys.Add(overrideProvider.ProviderKey);
+                    }
+
+                    continue;
+                }
+
+                foreach (var provider in candidates)
+                {
+                    if (markedKeys.Contains(provider.ProviderKey))
+                    {
+                        continue;
+                    }
+
+                    try
+                    {
+                        if (IsProviderCapable(game, provider, targetSelectionCache))
+                        {
+                            markedKeys.Add(provider.ProviderKey);
+                        }
+                    }
+                    catch (Exception ex)
+                    {
+                        _logger?.Debug(ex, string.Format(
+                            "Platform capability check failed for game '{0}'.",
+                            game?.Name));
+                        markedKeys.Add(provider.ProviderKey);
+                    }
+                }
+            }
+
+            return candidates
+                .Where(provider => markedKeys.Contains(provider.ProviderKey))
+                .ToList();
         }
 
         public IReadOnlyList<IDataProvider> OrderProvidersForRefresh(IEnumerable<IDataProvider> providers)
@@ -122,14 +240,21 @@ namespace PlayniteAchievements.Services
                 .ToList();
         }
 
-        public List<ResolvedRefreshTarget> GetRefreshTargets(CacheRefreshOptions options, IReadOnlyList<IDataProvider> providers)
+        public List<ResolvedRefreshTarget> GetRefreshTargets(
+            CacheRefreshOptions options,
+            IReadOnlyList<IDataProvider> providers,
+            TargetSelectionCache targetSelectionCache = null)
         {
+            var timer = Stopwatch.StartNew();
             options ??= new CacheRefreshOptions();
+            var candidatesSeen = 0;
 
             HashSet<Guid> excludedGameIds = null;
+            var skipCachedNoAchievements = false;
             if (options.SkipNoAchievementsGames && !options.BypassExclusions)
             {
                 excludedGameIds = GameCustomDataLookup.GetExcludedRefreshGameIds(_settings?.Persisted);
+                skipCachedNoAchievements = true;
             }
 
             IEnumerable<Game> candidates;
@@ -168,6 +293,7 @@ namespace PlayniteAchievements.Services
 
             foreach (var game in candidates)
             {
+                candidatesSeen++;
                 if (game == null || !seenGameIds.Add(game.Id))
                 {
                     continue;
@@ -179,13 +305,14 @@ namespace PlayniteAchievements.Services
                     continue;
                 }
 
-                if (excludedGameIds != null && excludedGameIds.Contains(game.Id))
+                if ((excludedGameIds != null && excludedGameIds.Contains(game.Id)) ||
+                    (skipCachedNoAchievements && IsCachedNoAchievements(game)))
                 {
                     skippedNoAchievements++;
                     continue;
                 }
 
-                var provider = ResolveProviderForGame(game, providers);
+                var provider = ResolveProviderForGame(game, providers, targetSelectionCache);
                 if (provider == null)
                 {
                     skippedNoProvider++;
@@ -215,17 +342,46 @@ namespace PlayniteAchievements.Services
                 _logger?.Debug($"Skipped {skippedHiddenGames} hidden games during bulk refresh targeting.");
             }
 
+            timer.Stop();
+            _logger?.Debug(
+                $"[RefreshPerf] phase=target.selection ms={timer.ElapsedMilliseconds} candidates={candidatesSeen} selected={targets.Count} providers={providers?.Count ?? 0} capabilityChecks={targetSelectionCache?.CapabilityCheckCount ?? 0} skippedNoProvider={skippedNoProvider} skippedNoAchievements={skippedNoAchievements} skippedHidden={skippedHiddenGames}");
+
             return targets;
         }
 
-        public List<Guid> GetMissingGameIds(IReadOnlyList<IDataProvider> authenticatedProviders)
+        private bool IsCachedNoAchievements(Game game)
         {
+            if (game == null || game.Id == Guid.Empty)
+            {
+                return false;
+            }
+
+            try
+            {
+                var cached = _cacheService.LoadGameData(game.Id.ToString("D"));
+                return cached?.HasAchievements == false;
+            }
+            catch (Exception ex)
+            {
+                _logger?.Debug(ex, $"Failed to read cached achievement state for game '{game.Name}'.");
+                return false;
+            }
+        }
+
+        public List<Guid> GetMissingGameIds(
+            IReadOnlyList<IDataProvider> authenticatedProviders,
+            TargetSelectionCache targetSelectionCache = null)
+        {
+            var timer = Stopwatch.StartNew();
             var providers = authenticatedProviders?
                 .Where(provider => provider != null)
                 .ToList() ?? new List<IDataProvider>();
             if (providers.Count == 0)
             {
                 _logger?.Info("No authenticated platforms available for missing refresh.");
+                timer.Stop();
+                _logger?.Debug(
+                    $"[RefreshPerf] phase=target.missing ms={timer.ElapsedMilliseconds} selected=0 providers=0 capabilityChecks={targetSelectionCache?.CapabilityCheckCount ?? 0}");
                 return new List<Guid>();
             }
 
@@ -248,7 +404,7 @@ namespace PlayniteAchievements.Services
                     continue;
                 }
 
-                var provider = ResolveProviderForGame(game, providers);
+                var provider = ResolveProviderForGame(game, providers, targetSelectionCache);
                 if (provider == null)
                 {
                     continue;
@@ -263,12 +419,18 @@ namespace PlayniteAchievements.Services
             if (missingGameIds.Count == 0)
             {
                 _logger?.Info("No games missing achievement data found.");
+                timer.Stop();
+                _logger?.Debug(
+                    $"[RefreshPerf] phase=target.missing ms={timer.ElapsedMilliseconds} selected=0 providers={providers.Count} capabilityChecks={targetSelectionCache?.CapabilityCheckCount ?? 0}");
                 return missingGameIds;
             }
 
             _logger?.Info(string.Format(
                 "Found {0} games missing achievement data.",
                 missingGameIds.Count));
+            timer.Stop();
+            _logger?.Debug(
+                $"[RefreshPerf] phase=target.missing ms={timer.ElapsedMilliseconds} selected={missingGameIds.Count} providers={providers.Count} capabilityChecks={targetSelectionCache?.CapabilityCheckCount ?? 0}");
             return missingGameIds;
         }
 

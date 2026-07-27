@@ -61,6 +61,18 @@ namespace PlayniteAchievements.Views.ThemeIntegration.Legacy.Controls
             set => SetValue(ShowRarityGlowProperty, value);
         }
 
+        public static readonly DependencyProperty IsHardcoreProperty = DependencyProperty.Register(
+            nameof(IsHardcore),
+            typeof(bool),
+            typeof(AchievementImage),
+            new FrameworkPropertyMetadata(false)
+        );
+        public bool IsHardcore
+        {
+            get => (bool)GetValue(IsHardcoreProperty);
+            set => SetValue(IsHardcoreProperty, value);
+        }
+
         public static readonly DependencyProperty DisplayRaretyValueProperty = DependencyProperty.Register(
             nameof(DisplayRaretyValue),
             typeof(bool),
@@ -264,7 +276,7 @@ namespace PlayniteAchievements.Views.ThemeIntegration.Legacy.Controls
 
                 var rounded = Math.Round(Percent, 1);
                 var overlayText = HasRarityPercent
-                    ? $"{rounded:F1}%"
+                    ? AchievementRarityResolver.FormatPercent(Percent)
                     : RarityText ?? string.Empty;
                 var showOverlay = EnableRaretyIndicator &&
                                   DisplayRaretyValue &&

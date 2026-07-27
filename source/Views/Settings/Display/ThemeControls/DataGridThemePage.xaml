@@ -1,0 +1,88 @@
+<UserControl x:Class="PlayniteAchievements.Views.Settings.Display.ThemeControls.DataGridThemePage"
+             x:Name="DataGridThemePageRoot"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+             xmlns:base="clr-namespace:PlayniteAchievements.Views.ThemeIntegration.Base"
+             xmlns:modern="clr-namespace:PlayniteAchievements.Views.ThemeIntegration.Modern"
+             xmlns:controls="clr-namespace:PlayniteAchievements.Views.Settings.Controls"
+             mc:Ignorable="d"
+             d:DesignHeight="600"
+             d:DesignWidth="700">
+    <UserControl.Resources>
+        <ResourceDictionary>
+            <ResourceDictionary.MergedDictionaries>
+                <ResourceDictionary Source="pack://application:,,,/PlayniteAchievements;component/Resources/SettingsScopedControlStyles.xaml"/>
+                <ResourceDictionary Source="pack://application:,,,/PlayniteAchievements;component/Resources/RarityBadges.xaml"/>
+                <ResourceDictionary Source="pack://application:,,,/PlayniteAchievements;component/Resources/CommonResources.xaml"/>
+            </ResourceDictionary.MergedDictionaries>
+            <Style x:Key="PreviewThemeControlStyle"
+                   TargetType="{x:Type base:ThemeControlBase}">
+                <Setter Property="SettingsOverride"
+                        Value="{Binding DataContext, ElementName=DataGridThemePageRoot}"/>
+            </Style>
+        </ResourceDictionary>
+    </UserControl.Resources>
+    <ScrollViewer VerticalScrollBarVisibility="Auto"
+                  HorizontalScrollBarVisibility="Disabled">
+        <StackPanel Margin="20">
+            <Border Style="{StaticResource SectionBorderStyle}">
+                <StackPanel>
+                    <Grid Margin="{StaticResource PlayAch.Thickness.Bottom.Md}">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*"/>
+                            <ColumnDefinition Width="Auto"/>
+                        </Grid.ColumnDefinitions>
+                        <TextBlock Text="{DynamicResource LOCPlayAch_Settings_AchievementDataGridPreview}"
+                                   Style="{StaticResource SectionHeaderStyle}"
+                                   Margin="0"/>
+                        <CheckBox Grid.Column="1"
+                                  Content="{DynamicResource LOCPlayAch_Common_Enabled}"
+                                  IsChecked="{Binding Persisted.EnableAchievementDataGridControl}"
+                                  VerticalAlignment="Center"/>
+                    </Grid>
+                    <Border Style="{StaticResource SectionAccentRuleStyle}"/>
+                    <Border Style="{StaticResource SettingGroupCardStyle}"
+                            Visibility="{Binding Persisted.EnableAchievementDataGridControl, Converter={StaticResource BoolToVis}}">
+                        <StackPanel>
+                            <TextBlock Text="{DynamicResource LOCPlayAch_Settings_Context_Preview}"
+                                       Style="{StaticResource ContextLabelStyle}"/>
+                            <modern:AchievementDataGridControl
+                                Style="{StaticResource PreviewThemeControlStyle}"
+                                ThemeDataOverride="{Binding PreviewThemeData, RelativeSource={RelativeSource AncestorType=UserControl}}"
+                                PreviewMinimumMaxHeight="220"
+                                Margin="{StaticResource PlayAch.Thickness.Bottom.Md}"/>
+                            <TextBlock Text="{DynamicResource LOCPlayAch_Settings_Context_Settings}"
+                                       Style="{StaticResource ContextLabelStyle}"/>
+                            <controls:GridOptionsEditor Options="{Binding Persisted.GridOptions.Achievement[DesktopTheme]}"
+                                                        ShowCategoryModeRow="True"
+                                                        ShowRarityGlowRow="False"
+                                                        ShowColorNamesRow="False"
+                                                        ShowSortRow="False"/>
+                            <controls:GridOptionsEditor Options="{Binding Persisted.GridOptions.Achievement[Default]}"
+                                                        ShowMaxHeightRow="True"
+                                                        ShowCoverImagesRow="False"
+                                                        ShowColumnHeadersRow="False"
+                                                        ShowControlBarRow="False"
+                                                        ShowDateModeRow="False"
+                                                        ShowRowHeightRow="False"
+                                                        ShowMaxRowsRow="False"/>
+                            <TextBlock Text="{DynamicResource LOCPlayAch_Overview_GameSummaries}"
+                                       Style="{StaticResource SubSectionHeaderStyle}"
+                                       Margin="{StaticResource PlayAch.Thickness.Top.Md}"/>
+                            <controls:GridOptionsEditor Options="{Binding Persisted.GridOptions.GameSummaries[DesktopTheme]}"/>
+                            <TextBlock Text="{DynamicResource LOCPlayAch_Settings_CategoryGrid}"
+                                       Style="{StaticResource SubSectionHeaderStyle}"
+                                       Margin="{StaticResource PlayAch.Thickness.Top.Md}"/>
+                            <CheckBox Content="{DynamicResource LOCPlayAch_Settings_HideCategorySummaryRow}"
+                                      IsChecked="{Binding Persisted.GridOptions.Achievement[DesktopTheme].HideCategorySummaryRow}"
+                                      Margin="{StaticResource PlayAch.Thickness.Bottom.Md}"/>
+                            <controls:GridOptionsEditor Options="{Binding Persisted.GridOptions.CategorySummaries[DesktopTheme]}"/>
+                        </StackPanel>
+                    </Border>
+                </StackPanel>
+            </Border>
+        </StackPanel>
+    </ScrollViewer>
+</UserControl>

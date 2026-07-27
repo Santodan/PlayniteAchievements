@@ -93,6 +93,9 @@ namespace PlayniteAchievements.Providers.EA
 
         public async Task RefreshAuthStatusAsync()
         {
+            SetAuthStatusChecking();
+            AuthStatus = ResourceProvider.GetString("LOCPlayAch_Auth_Checking");
+
             AuthProbeResult result;
             try
             {

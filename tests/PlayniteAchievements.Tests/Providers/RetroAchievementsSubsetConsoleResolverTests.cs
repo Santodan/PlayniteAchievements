@@ -65,5 +65,15 @@ namespace PlayniteAchievements.Tests.Providers
             Assert.IsNotNull(gameInfo);
             Assert.AreEqual(1, gameInfo.ConsoleId);
         }
+
+        [TestMethod]
+        public void Deserialize_AllowsNullParentGameId()
+        {
+            var gameInfo = JsonConvert.DeserializeObject<RaGameInfoUserProgress>(
+                "{\"ID\":1,\"Title\":\"Sonic the Hedgehog\",\"ConsoleID\":1,\"ParentGameID\":null}");
+
+            Assert.IsNotNull(gameInfo);
+            Assert.IsFalse(gameInfo.ParentGameId.HasValue);
+        }
     }
 }

@@ -1,12 +1,9 @@
 using Playnite.SDK;
 using PlayniteAchievements.Providers.RetroAchievements.Models;
-using Newtonsoft.Json.Linq;
 using System;
-using System.Collections.Generic;
 using System.IO;
 using System.Net;
 using System.Net.Http;
-using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 
@@ -65,140 +62,40 @@ namespace PlayniteAchievements.Providers.RetroAchievements
 
         public Task<RaGameInfoUserProgress> GetGameInfoAndUserProgressAsync(int gameId, CancellationToken cancel)
         {
-            var uri = new Uri(ApiBase, $"API_GetGameInfoAndUserProgress.php?y={Uri.EscapeDataString(_apiKey)}&u={Uri.EscapeDataString(_username)}&g={gameId}");
+            return GetGameInfoAndUserProgressAsync(gameId, _username, cancel);
+        }
+
+        public Task<RaGameInfoUserProgress> GetGameInfoAndUserProgressAsync(
+            int gameId,
+            string usernameOrUlid,
+            CancellationToken cancel)
+        {
+            var user = string.IsNullOrWhiteSpace(usernameOrUlid) ? _username : usernameOrUlid.Trim();
+            var uri = new Uri(ApiBase, $"API_GetGameInfoAndUserProgress.php?y={Uri.EscapeDataString(_apiKey)}&u={Uri.EscapeDataString(user)}&g={gameId}");
             return GetJsonAsync<RaGameInfoUserProgress>(uri, cancel);
         }
 
-        public async Task<Dictionary<string, RaAchievementOrderInfo>> GetAchievementDisplayOrderMapAsync(int gameId, CancellationToken cancel)
+        public Task<RaGameInfoUserProgress> GetGameExtendedAsync(int gameId, CancellationToken cancel)
         {
             var uri = new Uri(ApiBase, $"API_GetGameExtended.php?y={Uri.EscapeDataString(_apiKey)}&i={gameId}");
-
-            try
-            {
-                var json = await GetRawJsonAsync(uri, cancel).ConfigureAwait(false);
-                return ParseDisplayOrderMap(json);
-            }
-            catch (OperationCanceledException)
-            {
-                throw;
-            }
-            catch (Exception ex)
-            {
-                _logger?.Warn(ex, $"[RA] Failed to fetch display-order map for gameId={gameId}.");
-                return new Dictionary<string, RaAchievementOrderInfo>(StringComparer.OrdinalIgnoreCase);
-            }
+            return GetJsonAsync<RaGameInfoUserProgress>(uri, cancel);
         }
 
-        private static Dictionary<string, RaAchievementOrderInfo> ParseDisplayOrderMap(string json)
+        public Task<RaUsersIFollowResponse> GetUsersIFollowAsync(int offset, int count, CancellationToken cancel)
         {
-            var map = new Dictionary<string, RaAchievementOrderInfo>(StringComparer.OrdinalIgnoreCase);
-            if (string.IsNullOrWhiteSpace(json))
-            {
-                return map;
-            }
-
-            JObject root;
-            try
-            {
-                root = JObject.Parse(json);
-            }
-            catch
-            {
-                return map;
-            }
-
-            var achievementsNodes = root
-                .DescendantsAndSelf()
-                .OfType<JProperty>()
-                .Where(p => string.Equals(p.Name, "Achievements", StringComparison.OrdinalIgnoreCase))
-                .Select(p => p.Value)
-                .ToList();
-
-            var sequence = 0;
-            foreach (var node in achievementsNodes)
-            {
-                if (node is JObject byKey)
-                {
-                    foreach (var property in byKey.Properties())
-                    {
-                        var id = property.Name?.Trim();
-                        if (string.IsNullOrWhiteSpace(id))
-                        {
-                            continue;
-                        }
-
-                        if (!(property.Value is JObject achievementObj))
-                        {
-                            continue;
-                        }
-
-                        var displayOrder = ParseDisplayOrder(achievementObj);
-
-                        sequence++;
-                        var orderInfo = new RaAchievementOrderInfo
-                        {
-                            DisplayOrder = displayOrder ?? 0,
-                            Sequence = sequence
-                        };
-
-                        map[id] = orderInfo;
-
-                        var explicitId = achievementObj["ID"]?.ToString()?.Trim();
-                        if (!string.IsNullOrWhiteSpace(explicitId))
-                        {
-                            map[explicitId] = orderInfo;
-                        }
-                    }
-                }
-                else if (node is JArray list)
-                {
-                    foreach (var item in list.OfType<JObject>())
-                    {
-                        var id = item["ID"]?.ToString()?.Trim();
-                        if (string.IsNullOrWhiteSpace(id))
-                        {
-                            continue;
-                        }
-
-                        var displayOrder = ParseDisplayOrder(item);
-
-                        sequence++;
-                        map[id] = new RaAchievementOrderInfo
-                        {
-                            DisplayOrder = displayOrder ?? 0,
-                            Sequence = sequence
-                        };
-                    }
-                }
-            }
-
-            return map;
+            var uri = new Uri(ApiBase, $"API_GetUsersIFollow.php?y={Uri.EscapeDataString(_apiKey)}&o={Math.Max(0, offset)}&c={Math.Max(1, count)}");
+            return GetJsonAsync<RaUsersIFollowResponse>(uri, cancel);
         }
 
-        private static int? ParseDisplayOrder(JObject achievementObj)
+        public Task<RaUserCompletionProgressResponse> GetUserCompletionProgressAsync(
+            string usernameOrUlid,
+            int offset,
+            int count,
+            CancellationToken cancel)
         {
-            if (achievementObj == null)
-            {
-                return null;
-            }
-
-            var displayOrderToken = achievementObj["DisplayOrder"] ?? achievementObj["displayOrder"];
-            if (displayOrderToken == null)
-            {
-                return null;
-            }
-
-            if (displayOrderToken.Type == JTokenType.Integer)
-            {
-                return displayOrderToken.Value<int>();
-            }
-
-            if (int.TryParse(displayOrderToken.ToString(), out var parsed))
-            {
-                return parsed;
-            }
-
-            return null;
+            var user = string.IsNullOrWhiteSpace(usernameOrUlid) ? _username : usernameOrUlid.Trim();
+            var uri = new Uri(ApiBase, $"API_GetUserCompletionProgress.php?y={Uri.EscapeDataString(_apiKey)}&u={Uri.EscapeDataString(user)}&o={Math.Max(0, offset)}&c={Math.Max(1, count)}");
+            return GetJsonAsync<RaUserCompletionProgressResponse>(uri, cancel);
         }
 
         private async Task<T> GetJsonAsync<T>(Uri uri, CancellationToken cancel)

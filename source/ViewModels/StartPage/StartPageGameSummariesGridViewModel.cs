@@ -1,56 +1,106 @@
+using System;
+using System.Collections.Generic;
+using System.Linq;
 using Playnite.SDK;
 using PlayniteAchievements.Common;
 using PlayniteAchievements.Models;
 using PlayniteAchievements.Models.Settings;
 using PlayniteAchievements.Services.Overview;
 using PlayniteAchievements.Services.StartPage;
+using PlayniteAchievements.ViewModels.Items;
 
 namespace PlayniteAchievements.ViewModels.StartPage
 {
     public sealed class StartPageGameSummariesGridViewModel : StartPageWidgetViewModelBase
     {
+        private readonly GameSummaryGridControlBarAdapter _controlBarAdapter =
+            new GameSummaryGridControlBarAdapter();
+        private List<GameSummaryItem> _sourceItems = new List<GameSummaryItem>();
+
         public StartPageGameSummariesGridViewModel(
             StartPageDataCoordinator dataCoordinator,
             PlayniteAchievementsSettings settings,
             ILogger logger)
             : base(dataCoordinator, settings, logger)
         {
+            _controlBarAdapter.FilterChanged += ControlBarAdapter_FilterChanged;
         }
 
         public BulkObservableCollection<GameSummaryItem> Items { get; } =
             new BulkObservableCollection<GameSummaryItem>();
 
+        public GridControlBarViewModel ControlBar => _controlBarAdapter.ControlBar;
+
         private StartPageGameSummariesGridSettings WidgetSettings =>
             PersistedSettings?.StartPageGameSummariesGrid ?? new StartPageGameSummariesGridSettings();
 
-        public bool ShowGameMetadata => WidgetSettings.ShowGameMetadata;
+        public bool ShowMetadataPlatform => WidgetSettings.ShowMetadataPlatform;
+
+        public bool ShowMetadataPlaytime => WidgetSettings.ShowMetadataPlaytime;
+
+        public bool ShowMetadataRegion => WidgetSettings.ShowMetadataRegion;
 
         public bool UseCoverImages => WidgetSettings.UseCoverImages;
 
-        public bool ShowCompletionBorder => WidgetSettings.ShowCompletionBorder;
+        public bool ShowCompletionGlow => WidgetSettings.ShowCompletionGlow;
 
         public bool ShowColumnHeaders => WidgetSettings.ShowColumnHeaders;
+
+        public bool ShowControlBar => WidgetSettings.ShowControlBar;
 
         public double? RowHeight => WidgetSettings.RowHeight;
 
         protected override void ApplySnapshot(OverviewDataSnapshot snapshot)
         {
-            Items.ReplaceAll(StartPageWidgetProjection.ProjectGameSummaries(
-                snapshot?.GameSummaries,
-                PersistedSettings));
-            OnPropertyChanged(nameof(ShowGameMetadata));
+            _sourceItems = (snapshot?.GameSummaries ?? new List<GameSummaryItem>())
+                .Where(item => item != null)
+                .ToList();
+            ApplyCurrentItems();
+            OnPropertyChanged(nameof(ShowMetadataPlatform));
+            OnPropertyChanged(nameof(ShowMetadataPlaytime));
+            OnPropertyChanged(nameof(ShowMetadataRegion));
             OnPropertyChanged(nameof(UseCoverImages));
-            OnPropertyChanged(nameof(ShowCompletionBorder));
+            OnPropertyChanged(nameof(ShowCompletionGlow));
             OnPropertyChanged(nameof(ShowColumnHeaders));
+            OnPropertyChanged(nameof(ShowControlBar));
             OnPropertyChanged(nameof(RowHeight));
+        }
+
+        private void ApplyCurrentItems()
+        {
+            var baseline = StartPageWidgetProjection.FilterGameSummariesForStartPage(
+                _sourceItems,
+                PersistedSettings,
+                includeProgressScope: true);
+            _controlBarAdapter.UpdateOptions(baseline);
+            Items.ReplaceAll(StartPageWidgetProjection.ProjectFilteredGameSummaries(
+                _controlBarAdapter.Apply(baseline),
+                PersistedSettings));
+        }
+
+        private void ControlBarAdapter_FilterChanged(object sender, EventArgs e)
+        {
+            ApplyCurrentItems();
         }
 
         protected override void OnPersistedSettingsChanged(string propertyName)
         {
             if (string.IsNullOrEmpty(propertyName) ||
-                IsWidgetSettingsProperty(propertyName, nameof(StartPageGameSummariesGridSettings.ShowGameMetadata)))
+                IsWidgetSettingsProperty(propertyName, nameof(StartPageGameSummariesGridSettings.ShowMetadataPlatform)))
             {
-                OnPropertyChanged(nameof(ShowGameMetadata));
+                OnPropertyChanged(nameof(ShowMetadataPlatform));
+            }
+
+            if (string.IsNullOrEmpty(propertyName) ||
+                IsWidgetSettingsProperty(propertyName, nameof(StartPageGameSummariesGridSettings.ShowMetadataPlaytime)))
+            {
+                OnPropertyChanged(nameof(ShowMetadataPlaytime));
+            }
+
+            if (string.IsNullOrEmpty(propertyName) ||
+                IsWidgetSettingsProperty(propertyName, nameof(StartPageGameSummariesGridSettings.ShowMetadataRegion)))
+            {
+                OnPropertyChanged(nameof(ShowMetadataRegion));
             }
 
             if (string.IsNullOrEmpty(propertyName) ||
@@ -60,15 +110,21 @@ namespace PlayniteAchievements.ViewModels.StartPage
             }
 
             if (string.IsNullOrEmpty(propertyName) ||
-                IsWidgetSettingsProperty(propertyName, nameof(StartPageGameSummariesGridSettings.ShowCompletionBorder)))
+                IsWidgetSettingsProperty(propertyName, nameof(StartPageGameSummariesGridSettings.ShowCompletionGlow)))
             {
-                OnPropertyChanged(nameof(ShowCompletionBorder));
+                OnPropertyChanged(nameof(ShowCompletionGlow));
             }
 
             if (string.IsNullOrEmpty(propertyName) ||
                 IsWidgetSettingsProperty(propertyName, nameof(StartPageGameSummariesGridSettings.ShowColumnHeaders)))
             {
                 OnPropertyChanged(nameof(ShowColumnHeaders));
+            }
+
+            if (string.IsNullOrEmpty(propertyName) ||
+                IsWidgetSettingsProperty(propertyName, nameof(StartPageGameSummariesGridSettings.ShowControlBar)))
+            {
+                OnPropertyChanged(nameof(ShowControlBar));
             }
 
             if (string.IsNullOrEmpty(propertyName) ||

@@ -10,6 +10,7 @@ using PlayniteAchievements.Models;
 using PlayniteAchievements.Models.Achievements;
 using PlayniteAchievements.Providers;
 using PlayniteAchievements.Providers.Local;
+using PlayniteAchievements.Services.Cache;
 
 namespace PlayniteAchievements.Services.Local
 {
@@ -448,7 +449,7 @@ namespace PlayniteAchievements.Services.Local
         private AchievementSnapshot CaptureSnapshot(Guid gameId)
         {
             var cacheManager = _cacheManager as CacheManager;
-            var data = cacheManager?.LoadGameData(gameId.ToString(), "Local");
+            var data = cacheManager?.LoadGameData(gameId.ToString());
             return BuildSnapshot(data);
         }
 

@@ -229,22 +229,7 @@ namespace PlayniteAchievements.Providers.EA
 
             ClearSettings();
 
-            try
-            {
-                _api.MainView.UIDispatcher.Invoke(() =>
-                {
-                    using (var view = _api.WebViews.CreateOffscreenView())
-                    {
-                        view.DeleteDomainCookies("ea.com");
-                        view.DeleteDomainCookies(".ea.com");
-                        view.DeleteDomainCookies("accounts.ea.com");
-                    }
-                });
-            }
-            catch (Exception ex)
-            {
-                _logger?.Debug(ex, "[EAAuth] Failed to clear EA cookies from CEF.");
-            }
+            _api.DeleteDomainCookies(_logger, "[EAAuth]", "ea.com", ".ea.com", "accounts.ea.com");
         }
 
         private void ClearSettings()
@@ -264,32 +249,26 @@ namespace PlayniteAchievements.Providers.EA
             using (PerfScope.Start(_logger, "EA.ProbeTokenUrlAsync", thresholdMs: 50))
             {
                 ct.ThrowIfCancellationRequested();
-                var dispatchOperation = _api.MainView.UIDispatcher.InvokeAsync(async () =>
+                var result = await _api.WithOffscreenViewAsync(async view =>
                 {
-                    using (var view = _api.WebViews.CreateOffscreenView())
+                    try
                     {
-                        try
+                        await view.NavigateAndWaitAsync(UrlToken, timeoutMs: timeoutMs);
+                        var responseText = await view.GetPageTextAsync();
+                        if (!string.IsNullOrWhiteSpace(responseText))
                         {
-                            await view.NavigateAndWaitAsync(UrlToken, timeoutMs: timeoutMs);
-                            var responseText = await view.GetPageTextAsync();
-                            if (!string.IsNullOrWhiteSpace(responseText))
-                            {
-                                return JsonConvert.DeserializeObject<EaTokenResponse>(responseText);
-                            }
+                            return JsonConvert.DeserializeObject<EaTokenResponse>(responseText);
                         }
-                        catch (Exception ex)
-                        {
-                            _logger?.Debug(ex, "[EAAuth] Token URL probe failed.");
-                        }
-
-                        return null;
                     }
-                });
+                    catch (Exception ex)
+                    {
+                        _logger?.Debug(ex, "[EAAuth] Token URL probe failed.");
+                    }
 
+                    return null;
+                }).ConfigureAwait(false);
                 ct.ThrowIfCancellationRequested();
-                var responseTask = await dispatchOperation.Task.ConfigureAwait(false);
-                ct.ThrowIfCancellationRequested();
-                return await responseTask.ConfigureAwait(false);
+                return result;
             }
         }
 

@@ -1,5 +1,6 @@
 using System;
 using System.Runtime.Serialization;
+using System.Windows.Input;
 using Playnite.SDK.Models;
 using PlayniteAchievements.Models.Achievements;
 using PlayniteAchievements.Models.Achievements.Scoring;
@@ -23,18 +24,11 @@ namespace PlayniteAchievements.Models.Achievements
 
         public string LockedIconPath { get; set; }
 
-        /// <summary>
-        /// True when unlocked icon path came from local source payload metadata
-        /// (for example achievements.json icon field). Used to keep source icon
-        /// precedence over custom/fetched/default fallbacks.
-        /// </summary>
         public bool HasSourceUnlockedIcon { get; set; }
 
-        /// <summary>
-        /// True when locked icon path came from local source payload metadata
-        /// (for example achievements.json icon_gray field).
-        /// </summary>
         public bool HasSourceLockedIcon { get; set; }
+
+        public int DisplayOrder { get; set; }
 
         public int? Points { get; set; }
 
@@ -57,12 +51,6 @@ namespace PlayniteAchievements.Models.Achievements
         /// Null/empty for most providers.
         /// </summary>
         public string TrophyType { get; set; }
-
-        /// <summary>
-        /// Developer-assigned display sequence index (RetroAchievements DisplayOrder).
-        /// 0 for providers that don't supply an explicit order.
-        /// </summary>
-        public int DisplayOrder { get; set; }
 
         /// <summary>
         /// Indicates this achievement marks game completion.
@@ -105,8 +93,44 @@ namespace PlayniteAchievements.Models.Achievements
         [IgnoreDataMember]
         public string ProviderKey { get; set; }
 
+        /// <summary>
+        /// Runtime-only provider-assigned category label, captured by the hydrator before
+        /// user rename overrides overwrite <see cref="Category"/>. Default category images
+        /// are keyed by this label, so resolution stays stable across renames.
+        /// </summary>
         [IgnoreDataMember]
-        public string IconDisplay => AchievementIconResolver.GetLegacyCompatibleIcon(UnlockedIconPath);
+        public string ProviderCategory { get; set; }
+
+        /// <summary>
+        /// Runtime-only category art path for theme/display bindings: custom override when
+        /// set, otherwise the provider default. Null when neither exists; consumers choose
+        /// the game icon/cover fallback.
+        /// </summary>
+        [IgnoreDataMember]
+        public string CategoryArtPath { get; set; }
+
+        /// <summary>
+        /// Runtime-only index of this achievement's category in the game's custom category
+        /// order (<c>AchievementCategoryOrder</c>). <see cref="int.MaxValue"/> when the game
+        /// has no custom order or the category is not in it; sorts fall back to label text.
+        /// </summary>
+        [IgnoreDataMember]
+        public int CategoryOrderIndex { get; set; } = int.MaxValue;
+
+        [IgnoreDataMember]
+        public ICommand SetDynamicAchievementsGameCommand { get; set; }
+
+        [IgnoreDataMember]
+        public ICommand FilterDynamicLibraryAchievementsByProviderCommand { get; set; }
+
+        [IgnoreDataMember]
+        public ICommand OpenViewAchievementsWindow { get; set; }
+
+        [IgnoreDataMember]
+        public ICommand OpenManageAchievementsWindow { get; set; }
+
+        [IgnoreDataMember]
+        public string IconDisplay => AchievementIconResolver.GetUnlockedDisplayIcon(UnlockedIconPath);
 
         public bool Hidden { get; set; }
 
@@ -152,13 +176,10 @@ namespace PlayniteAchievements.Models.Achievements
         public string Icon => AchievementIconResolver.GetLegacyCompatibleIcon(UnlockedIconPath);
 
         [IgnoreDataMember]
-        public string UnlockedIconDisplay => AchievementIconResolver.GetLegacyCompatibleIcon(UnlockedIconPath);
+        public string UnlockedIconDisplay => AchievementIconResolver.GetUnlockedDisplayIcon(UnlockedIconPath);
 
         [IgnoreDataMember]
-        public string LockedIconDisplay => AchievementIconResolver.GetLegacyCompatibleLockedIcon(UnlockedIconPath, LockedIconPath);
-
-        [IgnoreDataMember]
-        public string LockedResolvedIconDisplay => AchievementIconResolver.GetLockedDisplayIcon(UnlockedIconPath, LockedIconPath);
+        public string LockedIconDisplay => AchievementIconResolver.GetLockedDisplayIcon(UnlockedIconPath, LockedIconPath);
 
         [IgnoreDataMember]
         public double? Percent
@@ -213,29 +234,17 @@ namespace PlayniteAchievements.Models.Achievements
         {
             get
             {
-                // Both Aniki and PS5Reborn themes share the same GamerScore trigger values:
-                //   Gold:   180, 90  (90=Gold, 180=Platinum/UltraRare shown as Gold)
-                //   Silver: 30       (30=Silver)
-                //   Bronze: anything else (e.g. 15 — no trigger → default Bronze state)
-                //
-                // When TrophyType is set (PSN games), use standard PSN point values so
-                // the trophy icon and rarity label match the actual trophy type.
-                if (!string.IsNullOrEmpty(TrophyType))
-                {
-                    return TrophyType.ToLowerInvariant() switch
-                    {
-                        "platinum" => 180,
-                        "gold"     => 90,
-                        "silver"   => 30,
-                        _          => 15   // bronze and unrecognised → Bronze default
-                    };
-                }
-
-                // For non-PSN providers: map rarity tier to compatible values.
+                // Use values Aniki expects in its triggers (10/25/50/90/180).
+                // - UltraRare -> 180 (platinum-ish)
+                // - Rare -> 90 (gold-ish)
+                // - Uncommon -> 50 (silver-ish)
+                // - Common -> 25 (bronze-ish)
+                // - Unknown/0 -> 10 (fallback)
                 if (Rarity == RarityTier.UltraRare) return 180;
                 if (Rarity == RarityTier.Rare) return 90;
-                if (Rarity == RarityTier.Uncommon) return 30;
-                return 15;  // Common and fallback → Bronze default
+                if (Rarity == RarityTier.Uncommon) return 50;
+                if (Rarity == RarityTier.Common) return 25;
+                return 10;
             }
         }
     }

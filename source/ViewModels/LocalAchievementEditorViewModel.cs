@@ -12,6 +12,8 @@ using PlayniteAchievements.Models.Achievements;
 using PlayniteAchievements.Models;
 using PlayniteAchievements.Providers.Local;
 using PlayniteAchievements.Services;
+using PlayniteAchievements.Services.Cache;
+using PlayniteAchievements.ViewModels.Items;
 
 namespace PlayniteAchievements.ViewModels
 {
@@ -165,7 +167,7 @@ namespace PlayniteAchievements.ViewModels
             FileKindText = fileKind == LocalSavesProvider.LocalAchievementFileKind.Json ? "achievements.json" : "achievements.ini";
 
             var cacheManager = _cacheManager as CacheManager;
-            var gameData = cacheManager?.LoadGameData(_gameId.ToString(), "Local") ?? _cacheManager?.LoadGameData(_gameId.ToString());
+            var gameData = cacheManager?.LoadGameData(_gameId.ToString()) ?? _cacheManager?.LoadGameData(_gameId.ToString());
             if (gameData?.Achievements == null || gameData.Achievements.Count == 0)
             {
                 ErrorMessage = "No local achievements were found for this game.";

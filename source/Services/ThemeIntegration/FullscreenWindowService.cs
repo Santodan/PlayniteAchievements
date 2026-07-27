@@ -7,6 +7,7 @@ using System.Windows;
 using System.Windows.Input;
 using System.Windows.Markup;
 using System.Windows.Threading;
+using PlayniteAchievements.Views.Helpers;
 
 namespace PlayniteAchievements.Services.ThemeIntegration
 {
@@ -248,22 +249,7 @@ namespace PlayniteAchievements.Services.ThemeIntegration
                 _isTransitioning = false;
             }
 
-            // Match SuccessStoryFullscreenHelper behavior as closely as possible (Aniki ReMake expects this).
-            var window = _api.Dialogs.CreateWindow(new WindowCreationOptions
-            {
-                ShowMinimizeButton = false
-            });
-
-            var parent = _api.Dialogs.GetCurrentAppWindow();
-            if (parent != null)
-            {
-                window.Owner = parent;
-            }
-            window.WindowStartupLocation = WindowStartupLocation.CenterOwner;
-            window.Title = "Achievements";
-
-            window.Height = parent != null && parent.Height > 0 ? parent.Height : SystemParameters.PrimaryScreenHeight;
-            window.Width = parent != null && parent.Width > 0 ? parent.Width : SystemParameters.PrimaryScreenWidth;
+            var window = PlayniteUiProvider.CreateBorderlessFullscreenWindow(_api, "Achievements");
 
             var xamlString = $@"
                 <Viewbox Stretch=""Uniform""

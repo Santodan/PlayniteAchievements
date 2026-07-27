@@ -10,6 +10,7 @@ using PlayniteAchievements.Services;
 using PlayniteAchievements.Models.Settings;
 using PlayniteAchievements.Services.StartPage;
 using PlayniteAchievements.ViewModels;
+using PlayniteAchievements.ViewModels.Items;
 using PlayniteAchievements.ViewModels.StartPage;
 using PlayniteAchievements.Views.Helpers;
 using PlayniteAchievements.Views.StartPage;
@@ -29,17 +30,20 @@ namespace PlayniteAchievements
 
             return new StartPageExtensionArgs
             {
-                ExtensionName = L("LOCPlayAch_Title_PluginName", "Playnite Achievements"),
-                Views = StartPageViewCatalog.Views.Select(view => new StartPageViewArgsBase
-                {
-                    ViewId = view.ViewId,
-                    Name = L(view.NameKey, view.ViewId),
-                    Description = string.IsNullOrWhiteSpace(view.DescriptionKey)
-                        ? string.Empty
-                        : L(view.DescriptionKey, string.Empty),
-                    HasSettings = false,
-                    AllowMultipleInstances = false
-                }).ToList()
+                ExtensionName = L("LOCPlayAch_Title_PluginName"),
+                Views = StartPageViewCatalog.Views
+                    .Where(view => view.WidgetKind != StartPageWidgetKind.FriendsRecentUnlocksGrid
+                        || Settings.Persisted.EnableFriendsFeatures)
+                    .Select(view => new StartPageViewArgsBase
+                    {
+                        ViewId = view.ViewId,
+                        Name = L(view.NameKey, view.ViewId),
+                        Description = string.IsNullOrWhiteSpace(view.DescriptionKey)
+                            ? string.Empty
+                            : L(view.DescriptionKey, string.Empty),
+                        HasSettings = false,
+                        AllowMultipleInstances = false
+                    }).ToList()
             };
         }
 
@@ -52,20 +56,23 @@ namespace PlayniteAchievements
 
             EnsureAchievementResourcesLoaded();
 
-            var coordinator = GetStartPageDataCoordinator();
-            var viewModel = CreateStartPageViewModel(definition.WidgetKind, coordinator);
+            var viewModel = CreateStartPageViewModel(definition.WidgetKind);
             if (viewModel == null)
             {
                 return null;
             }
 
             var view = CreateStartPageView(definition.WidgetKind);
+            Common.FormattingCulture.Apply(view);
             view.DataContext = viewModel;
 
             var key = GetStartPageInstanceKey(viewId, instanceId);
             DisposeStartPageViewModel(key);
             _startPageViewModels[key] = viewModel;
-            viewModel.OnStartPageOpened();
+            if (viewModel is IStartPageControl startPageControl)
+            {
+                startPageControl.OnStartPageOpened();
+            }
 
             return view;
         }
@@ -95,24 +102,29 @@ namespace PlayniteAchievements
             return menu.Items.Count > 0 ? menu : null;
         }
 
-        private StartPageWidgetViewModelBase CreateStartPageViewModel(
-            StartPageWidgetKind widgetKind,
-            StartPageDataCoordinator coordinator)
+        private IDisposable CreateStartPageViewModel(StartPageWidgetKind widgetKind)
         {
             switch (widgetKind)
             {
                 case StartPageWidgetKind.GameSummariesGrid:
-                    return new StartPageGameSummariesGridViewModel(coordinator, Settings, _logger);
+                    return new StartPageGameSummariesGridViewModel(GetStartPageDataCoordinator(), Settings, _logger);
                 case StartPageWidgetKind.RecentUnlocksGrid:
-                    return new StartPageRecentUnlocksGridViewModel(coordinator, Settings, _logger);
+                    return new StartPageRecentUnlocksGridViewModel(GetStartPageDataCoordinator(), Settings, _logger);
+                case StartPageWidgetKind.FriendsRecentUnlocksGrid:
+                    return _friendsRecentUnlocksDataCoordinator == null || !Settings.Persisted.EnableFriendsFeatures
+                        ? null
+                        : new StartPageFriendsRecentUnlocksGridViewModel(
+                            _friendsRecentUnlocksDataCoordinator,
+                            Settings,
+                            _logger);
                 case StartPageWidgetKind.CompletedGamesPie:
                 case StartPageWidgetKind.ProviderPie:
                 case StartPageWidgetKind.RarityPie:
                 case StartPageWidgetKind.TrophyPie:
-                    return new StartPagePieWidgetViewModel(widgetKind, coordinator, Settings, _logger);
+                    return new StartPagePieWidgetViewModel(widgetKind, GetStartPageDataCoordinator(), Settings, _logger);
                 case StartPageWidgetKind.CollectionScoreCard:
                 case StartPageWidgetKind.PrestigeScoreCard:
-                    return new StartPageScoreCardWidgetViewModel(widgetKind, coordinator, Settings, _logger);
+                    return new StartPageScoreCardWidgetViewModel(widgetKind, GetStartPageDataCoordinator(), Settings, _logger);
                 default:
                     return null;
             }
@@ -126,6 +138,8 @@ namespace PlayniteAchievements
                     return new StartPageGameSummariesGridView();
                 case StartPageWidgetKind.RecentUnlocksGrid:
                     return new StartPageRecentUnlocksGridView();
+                case StartPageWidgetKind.FriendsRecentUnlocksGrid:
+                    return new StartPageFriendsRecentUnlocksGridView();
                 case StartPageWidgetKind.CompletedGamesPie:
                 case StartPageWidgetKind.ProviderPie:
                 case StartPageWidgetKind.RarityPie:
@@ -145,6 +159,7 @@ namespace PlayniteAchievements
             {
                 _startPageDataCoordinator = new StartPageDataCoordinator(
                     _achievementDataService,
+                    _libraryProjectionService,
                     Providers,
                     PlayniteApi,
                     _logger,
@@ -162,6 +177,7 @@ namespace PlayniteAchievements
         internal void InvalidateStartPageDataForUi()
         {
             InvalidateStartPageData();
+            _friendsRecentUnlocksDataCoordinator?.Invalidate();
         }
 
         private void DisposeStartPageViews()
@@ -229,6 +245,20 @@ namespace PlayniteAchievements
                 return menu;
             }
 
+            if (data is FriendAchievementDisplayItem)
+            {
+                if (Settings.Persisted.EnableFriendsFeatures)
+                {
+                    menu.Items.Add(CreateStartPageMenuItem(resourceOwner, "LOCPlayAch_Menu_ViewFriendsAchievements",
+                        () => OpenViewFriendsAchievementsWindow(gameId)));
+                }
+                menu.Items.Add(CreateStartPageMenuItem(resourceOwner, "LOCPlayAch_Menu_ViewAchievements",
+                    () => OpenViewAchievementsWindow(gameId)));
+                menu.Items.Add(CreateStartPageMenuItem(resourceOwner, "LOCPlayAch_Menu_OpenGameInLibrary",
+                    () => OpenStartPageGameInLibrary(gameId)));
+                return menu;
+            }
+
             if (data is AchievementDisplayItem || data is RecentAchievementItem)
             {
                 menu.Items.Add(CreateStartPageMenuItem(resourceOwner, "LOCPlayAch_Menu_ViewAchievements",
@@ -259,9 +289,9 @@ namespace PlayniteAchievements
 
             menu.Items.Add(CreateStartPageMenuItem(resourceOwner, "LOCPlayAch_Menu_OpenGameInLibrary",
                 () => OpenStartPageGameInLibrary(gameId)));
-            menu.Items.Add(new Separator());
             menu.Items.Add(CreateStartPageMenuItem(resourceOwner, "LOCPlayAch_Menu_ManageAchievements",
                 () => OpenManageAchievementsView(gameId)));
+            menu.Items.Add(new Separator());
 
             var game = PlayniteApi?.Database?.Games?.Get(gameId);
             if (game != null)
@@ -355,6 +385,11 @@ namespace PlayniteAchievements
         private static string GetStartPageInstanceKey(string viewId, Guid instanceId)
         {
             return $"{viewId}:{instanceId:N}";
+        }
+
+        private static string L(string key)
+        {
+            return ResourceProvider.GetString(key);
         }
 
         private static string L(string key, string fallback)

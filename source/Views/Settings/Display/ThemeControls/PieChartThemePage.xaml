@@ -1,0 +1,61 @@
+<UserControl x:Class="PlayniteAchievements.Views.Settings.Display.ThemeControls.PieChartThemePage"
+             x:Name="PieChartThemePageRoot"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+             xmlns:base="clr-namespace:PlayniteAchievements.Views.ThemeIntegration.Base"
+             xmlns:modern="clr-namespace:PlayniteAchievements.Views.ThemeIntegration.Modern"
+             mc:Ignorable="d"
+             d:DesignHeight="600"
+             d:DesignWidth="700">
+    <UserControl.Resources>
+        <ResourceDictionary>
+            <ResourceDictionary.MergedDictionaries>
+                <ResourceDictionary Source="pack://application:,,,/PlayniteAchievements;component/Resources/SettingsScopedControlStyles.xaml"/>
+                <ResourceDictionary Source="pack://application:,,,/PlayniteAchievements;component/Resources/RarityBadges.xaml"/>
+                <ResourceDictionary Source="pack://application:,,,/PlayniteAchievements;component/Resources/CommonResources.xaml"/>
+            </ResourceDictionary.MergedDictionaries>
+            <Style x:Key="PreviewThemeControlStyle"
+                   TargetType="{x:Type base:ThemeControlBase}">
+                <Setter Property="SettingsOverride"
+                        Value="{Binding DataContext, ElementName=PieChartThemePageRoot}"/>
+            </Style>
+        </ResourceDictionary>
+    </UserControl.Resources>
+    <ScrollViewer VerticalScrollBarVisibility="Auto"
+                  HorizontalScrollBarVisibility="Disabled">
+        <StackPanel Margin="20">
+            <Border Style="{StaticResource SectionBorderStyle}">
+                <StackPanel>
+                    <Grid Margin="{StaticResource PlayAch.Thickness.Bottom.Md}">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*"/>
+                            <ColumnDefinition Width="Auto"/>
+                        </Grid.ColumnDefinitions>
+                        <TextBlock Text="{DynamicResource LOCPlayAch_Settings_PieChartPreview}"
+                                   Style="{StaticResource SectionHeaderStyle}"
+                                   Margin="0"/>
+                        <CheckBox Grid.Column="1"
+                                  Content="{DynamicResource LOCPlayAch_Common_Enabled}"
+                                  IsChecked="{Binding Persisted.EnableAchievementPieChartControl}"
+                                  VerticalAlignment="Center"/>
+                    </Grid>
+                    <Border Style="{StaticResource SectionAccentRuleStyle}"/>
+                    <Border Style="{StaticResource SettingGroupCardStyle}"
+                            Visibility="{Binding Persisted.EnableAchievementPieChartControl, Converter={StaticResource BoolToVis}}">
+                        <StackPanel>
+                            <TextBlock Text="{DynamicResource LOCPlayAch_Settings_Context_Preview}"
+                                       Style="{StaticResource ContextLabelStyle}"/>
+                            <modern:AchievementPieChartControl
+                                Width="260"
+                                Height="260"
+                                Style="{StaticResource PreviewThemeControlStyle}"
+                                ThemeDataOverride="{Binding PreviewThemeData, RelativeSource={RelativeSource AncestorType=UserControl}}"/>
+                        </StackPanel>
+                    </Border>
+                </StackPanel>
+            </Border>
+        </StackPanel>
+    </ScrollViewer>
+</UserControl>

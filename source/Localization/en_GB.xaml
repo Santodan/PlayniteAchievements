@@ -61,6 +61,7 @@
     <sys:String x:Key="LOCPlayAch_Label_Trophies">Trophies:</sys:String>
     <sys:String x:Key="LOCPlayAch_Progress">Progress</sys:String>
     <sys:String x:Key="LOCPlayAch_RecentAchievements">Recent Achievements</sys:String>
+    <sys:String x:Key="LOCPlayAch_StartPage_FriendsRecentAchievements">Friends Recent Achievements</sys:String>
     <sys:String x:Key="LOCPlayAch_Text_Ellipsis">...</sys:String>
     <sys:String x:Key="LOCPlayAch_Text_UnknownGame">Unknown Game</sys:String>
     <sys:String x:Key="LOCPlayAch_Trophy_Bronze">Bronze</sys:String>
@@ -72,6 +73,7 @@
     <!-- ================================================================= -->
     <!-- 03 Columns -->
     <!-- ================================================================= -->
+    <sys:String x:Key="LOCPlayAch_Column_Avatar">Avatar</sys:String>
     <sys:String x:Key="LOCPlayAch_Column_Achievement">Achievement</sys:String>
     <sys:String x:Key="LOCPlayAch_Column_AppId">ID</sys:String>
     <sys:String x:Key="LOCPlayAch_Column_CollectionScore">Collection Score</sys:String>
@@ -164,12 +166,14 @@ This will remove the game from the achievements view, delete its cached data, an
 
 This will remove the manual achievement link, delete all manually set unlock times, and clear cached data for this game immediately.</sys:String>
     <sys:String x:Key="LOCPlayAch_Menu_ViewAchievements">View Achievements</sys:String>
+    <sys:String x:Key="LOCPlayAch_Menu_ViewFriendsAchievements">View Friends Achievements</sys:String>
     <sys:String x:Key="LOCPlayAch_Menu_ViewRefreshProgress">View</sys:String>
 
     <!-- ================================================================= -->
     <!-- 07 Manage Achievements -->
     <!-- ================================================================= -->
     <sys:String x:Key="LOCPlayAch_ManageAchievements_Category_BulkHint">Expand to bulk edit selected achievements.</sys:String>
+    <sys:String x:Key="LOCPlayAch_ManageAchievements_Category_Context_ManageCategories">Manage Categories</sys:String>
     <sys:String x:Key="LOCPlayAch_ManageAchievements_Category_Context_SetLabelHint">Enter a category label for the selected achievements.</sys:String>
     <sys:String x:Key="LOCPlayAch_ManageAchievements_Category_Context_SetLabelTitle">Set Category Label</sys:String>
     <sys:String x:Key="LOCPlayAch_ManageAchievements_Category_Filter_Label">Filter by Category Label</sys:String>
@@ -195,12 +199,12 @@ This will remove the manual achievement link, delete all manually set unlock tim
     <sys:String x:Key="LOCPlayAch_ManageAchievements_CustomIcons_OpenFolderButton">Open Icons Folder</sys:String>
     <sys:String x:Key="LOCPlayAch_ManageAchievements_CustomIcons_OpenFolderUnavailable">The extension data path is unavailable.</sys:String>
     <sys:String x:Key="LOCPlayAch_ManageAchievements_CustomIcons_ValidationError">One or more icon values are invalid. Use absolute http:// or https:// URLs, or managed local files copied into plugin data.</sys:String>
-    <sys:String x:Key="LOCPlayAch_ManageAchievements_Filters_FilteredOut">Filtered Out</sys:String>
-    <sys:String x:Key="LOCPlayAch_ManageAchievements_Filters_FilteredOutOfSummaries">Filtered Out of Summaries</sys:String>
-    <sys:String x:Key="LOCPlayAch_ManageAchievements_Filters_FilterOut">Filter Out</sys:String>
-    <sys:String x:Key="LOCPlayAch_ManageAchievements_Filters_FilterOutOfSummaries">Filter Out of Summaries</sys:String>
+    <sys:String x:Key="LOCPlayAch_ManageAchievements_Filters_FilteredOut">Filtered</sys:String>
+    <sys:String x:Key="LOCPlayAch_ManageAchievements_Filters_FilteredOutOfSummaries">Filtered from Summaries</sys:String>
+    <sys:String x:Key="LOCPlayAch_ManageAchievements_Filters_FilterOut">Filter</sys:String>
+    <sys:String x:Key="LOCPlayAch_ManageAchievements_Filters_FilterOutOfSummaries">Filter from Summaries</sys:String>
     <sys:String x:Key="LOCPlayAch_ManageAchievements_Filters_Header">Filters</sys:String>
-    <sys:String x:Key="LOCPlayAch_ManageAchievements_Filters_Hint">Filter achievements out of achievement views or only out of summaries.</sys:String>
+    <sys:String x:Key="LOCPlayAch_ManageAchievements_Filters_Hint">Control which achievements appear in achievement views and summaries.</sys:String>
     <sys:String x:Key="LOCPlayAch_ManageAchievements_Filters_Unfiltered">Unfiltered</sys:String>
     <sys:String x:Key="LOCPlayAch_ManageAchievements_ExophaseHint">Check to force Exophase for this game. Unchecked games use Exophase if their platform is in Managed Platforms.</sys:String>
     <sys:String x:Key="LOCPlayAch_ManageAchievements_ExophaseSlugHint">Override the auto-detected Exophase game ID to link to a specific Exophase game. Leave empty to use auto-detection.</sys:String>
@@ -373,6 +377,11 @@ This removes per-game exclusions, manual links, capstones, custom icon links, or
     <sys:String x:Key="LOCPlayAch_Settings_AchievementDataGridMaxHeight">Max Height</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_AchievementDataGridPreview">Achievement DataGrid</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_AchievementDataGridThemeControl">Sort By</sys:String>
+    <sys:String x:Key="LOCPlayAch_CategorySummaries_FilterPlaceholder">Filter Categories...</sys:String>
+    <sys:String x:Key="LOCPlayAch_CategorySummaries_Toggle">Categories</sys:String>
+    <sys:String x:Key="LOCPlayAch_CategorySummaries_ToggleToolTip">Group achievements by category</sys:String>
+    <sys:String x:Key="LOCPlayAch_Settings_StartInCategoryMode">Start in Category Mode</sys:String>
+    <sys:String x:Key="LOCPlayAch_Settings_StartInCategoryMode_ViewFriends">Start in Category Mode (View Friends Achievements)</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_AchievementIconCache_Description">Control how achievement icons are stored on disk. Changes apply on the next refresh.</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_AchievementIconCache_Title">Achievement Icon Cache</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_ApplyAndSync">Apply &amp; Sync</sys:String>
@@ -430,6 +439,15 @@ This removes per-game exclusions, manual links, capstones, custom icon links, or
     <sys:String x:Key="LOCPlayAch_Settings_BattleNet_Sc2Section">StarCraft II</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_BattleNet_ClientId">Client ID</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_BattleNet_ClientSecret">Client Secret</sys:String>
+    <sys:String x:Key="LOCPlayAch_Settings_BattleNet_RedirectUri">Redirect URI</sys:String>
+    <sys:String x:Key="LOCPlayAch_Settings_BattleNet_AggregateAccountCharacters">Aggregate all WoW account characters</sys:String>
+    <sys:String x:Key="LOCPlayAch_Settings_BattleNet_OAuthHelp">Client credentials enable Blizzard's official achievement API. Login with wow.profile to merge achievements across all characters on the account.</sys:String>
+    <sys:String x:Key="LOCPlayAch_Settings_BattleNet_SetupStep1Prefix">1. Open the </sys:String>
+    <sys:String x:Key="LOCPlayAch_Settings_BattleNet_SetupStep1Suffix"> and create a client from API Access.</sys:String>
+    <sys:String x:Key="LOCPlayAch_Settings_BattleNet_SetupStep2">2. Add the exact Redirect URI shown below to that client. The plugin default is http://127.0.0.1:55431/. Do not use https://localhost; the plugin listens locally on this HTTP callback.</sys:String>
+    <sys:String x:Key="LOCPlayAch_Settings_BattleNet_SetupStep3">3. Copy the generated Client ID and Client Secret into the fields below.</sys:String>
+    <sys:String x:Key="LOCPlayAch_Settings_BattleNet_SetupStep4">4. Click Login and authorize wow.profile to merge WoW achievements across account characters.</sys:String>
+    <sys:String x:Key="LOCPlayAch_Settings_BattleNet_SetupSamplePrefix">Reference: </sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_BattleNet_Sc2Region">Region</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_BattleNet_Sc2Realm">Realm</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_BattleNet_Sc2Profile">Profile ID</sys:String>
@@ -438,6 +456,7 @@ This removes per-game exclusions, manual links, capstones, custom icon links, or
     <sys:String x:Key="LOCPlayAch_Settings_BattleNet_Status_Sc2Detected">StarCraft II ready</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_BattleNet_Status_NoSc2Profile">No StarCraft II profile found</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_BattleNet_Status_Sc2Incomplete">Missing StarCraft II setup</sys:String>
+    <sys:String x:Key="LOCPlayAch_Settings_BattleNet_Status_MissingOAuthSetup">Missing Battle.net client credentials or redirect URI</sys:String>
 
     <!-- Provider: Epic -->
     <sys:String x:Key="LOCPlayAch_Settings_Epic_AltAuthCodePrompt">Paste the authorizationCode value here:</sys:String>
@@ -454,8 +473,8 @@ This removes per-game exclusions, manual links, capstones, custom icon links, or
     <sys:String x:Key="LOCPlayAch_Settings_ExportDatabaseButton">Export CSV</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_ForceHashIndexRebuild">Force hash index rebuild</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_HashIndexMaxAgeDays">Hash index max age (days)</sys:String>
-    <sys:String x:Key="LOCPlayAch_Settings_HiddenAchievements">Hidden Achievement Visibility</sys:String>
-    <sys:String x:Key="LOCPlayAch_Settings_HiddenAchievements_Description">Control which elements of hidden achievements are obscured before you reveal them.</sys:String>
+    <sys:String x:Key="LOCPlayAch_Settings_HiddenAchievements">Achievement Visibility</sys:String>
+    <sys:String x:Key="LOCPlayAch_Settings_HiddenAchievements_Description">Control how locked and hidden achievement details are displayed.</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_HoursBetweenUpdates">Hours Between Updates:</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_IconCache_ClearAllDescription">Remove every cached achievement icon file.</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_IconCache_ClearCompressedDescription">Remove only optimized 128px icon files.</sys:String>
@@ -518,6 +537,8 @@ This removes per-game exclusions, manual links, capstones, custom icon links, or
     <sys:String x:Key="LOCPlayAch_Settings_ProviderServicedByFormat">Uses {0}</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_UseExophaseForMetadata">Use Exophase for Rarity</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_UseExophaseForMetadata_Help">When enabled, this platform keeps native achievement data but uses Exophase to fill global rarity percentages. Requires Exophase authentication.</sys:String>
+    <sys:String x:Key="LOCPlayAch_Settings_BattleNet_UseDataForAzerothForWowRarity">Use Data for Azeroth for WoW Rarity</sys:String>
+    <sys:String x:Key="LOCPlayAch_Settings_BattleNet_UseDataForAzerothForWowRarity_Help">When enabled, World of Warcraft keeps native achievement data but uses Data for Azeroth to fill global rarity percentages.</sys:String>
 
     <!-- Provider: PlayStation -->
     <sys:String x:Key="LOCPlayAch_Settings_Psn_LoginLegacy">Login (Legacy)</sys:String>
@@ -632,6 +653,7 @@ This removes per-game exclusions, manual links, capstones, custom icon links, or
     <!-- 11 Authentication -->
     <!-- ================================================================= -->
     <sys:String x:Key="LOCPlayAch_Auth_Authenticated">Authenticated</sys:String>
+    <sys:String x:Key="LOCPlayAch_Auth_AuthenticatedAs">Authenticated as {0}</sys:String>
     <sys:String x:Key="LOCPlayAch_Auth_Checking">Checking authentication...</sys:String>
     <sys:String x:Key="LOCPlayAch_Auth_NotChecked">Waiting for check</sys:String>
     <sys:String x:Key="LOCPlayAch_Auth_TemporaryFailure">Authentication check failed. Retry.</sys:String>
@@ -761,6 +783,15 @@ This removes per-game exclusions, manual links, capstones, custom icon links, or
     <sys:String x:Key="LOCPlayAch_NoLockedAchievements">No locked achievements</sys:String>
     <sys:String x:Key="LOCPlayAch_NoUnlockedAchievements">No unlocked achievements</sys:String>
     <sys:String x:Key="LOCPlayAch_Tooltip_RightClickShowHide">Right Click to Show/Hide</sys:String>
+
+    <sys:String x:Key="LOCPlayAch_ViewFriendsAchievements_WindowTitle">{0} - Friends Achievements</sys:String>
+    <sys:String x:Key="LOCPlayAch_ViewFriendsAchievements_TitleFallback">Friends Achievements</sys:String>
+    <sys:String x:Key="LOCPlayAch_ViewFriendsAchievements_SelectedFriendTitle">{0} Achievements</sys:String>
+    <sys:String x:Key="LOCPlayAch_ViewFriendsAchievements_AllFriendsTitle">Friends Achievements</sys:String>
+    <sys:String x:Key="LOCPlayAch_ViewFriendsAchievements_AchievementCount">({0}/{1} unlocked rows)</sys:String>
+    <sys:String x:Key="LOCPlayAch_ViewFriendsAchievements_LoadFailed">Failed to load friends achievements.</sys:String>
+    <sys:String x:Key="LOCPlayAch_ViewFriendsAchievements_NoData">No friend achievement data for this game yet.</sys:String>
+    <sys:String x:Key="LOCPlayAch_ViewFriendsAchievements_RefreshSelectedFriend">Refresh Friend for This Game</sys:String>
 
     <!-- ================================================================= -->
     <!-- 99 Legacy SuccessStory Compatibility -->

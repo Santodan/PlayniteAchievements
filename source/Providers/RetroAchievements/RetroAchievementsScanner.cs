@@ -4,11 +4,12 @@ using PlayniteAchievements.Models.Achievements;
 using PlayniteAchievements.Providers.RetroAchievements.Hashing;
 using PlayniteAchievements.Providers.Settings;
 using PlayniteAchievements.Services;
+using PlayniteAchievements.Services.Images;
+using PlayniteAchievements.Services.Refresh;
 using Playnite.SDK;
 using Playnite.SDK.Models;
 using System;
 using System.Collections.Generic;
-using System.Globalization;
 using System.IO;
 using System.Linq;
 using System.Net;
@@ -25,6 +26,7 @@ namespace PlayniteAchievements.Providers.RetroAchievements
         private readonly RetroAchievementsHashIndexStore _hashIndexStore;
         private readonly RetroAchievementsPathResolver _pathResolver;
         private readonly RetroAchievementsHashCacheStore _hashCache;
+        private readonly Func<DiskImageService> _diskImageServiceResolver;
         private readonly Dictionary<int, List<Models.RaGameListWithTitle>> _gameListCache = new();
 
         public RetroAchievementsScanner(
@@ -33,7 +35,8 @@ namespace PlayniteAchievements.Providers.RetroAchievements
             RetroAchievementsApiClient api,
             RetroAchievementsHashIndexStore hashIndexStore,
             RetroAchievementsPathResolver pathResolver,
-            RetroAchievementsHashCacheStore hashCache)
+            RetroAchievementsHashCacheStore hashCache,
+            Func<DiskImageService> diskImageServiceResolver = null)
         {
             _logger = logger;
             _settings = settings ?? throw new ArgumentNullException(nameof(settings));
@@ -41,6 +44,7 @@ namespace PlayniteAchievements.Providers.RetroAchievements
             _hashIndexStore = hashIndexStore ?? throw new ArgumentNullException(nameof(hashIndexStore));
             _pathResolver = pathResolver ?? throw new ArgumentNullException(nameof(pathResolver));
             _hashCache = hashCache ?? throw new ArgumentNullException(nameof(hashCache));
+            _diskImageServiceResolver = diskImageServiceResolver;
         }
 
         /// <summary>
@@ -205,26 +209,7 @@ namespace PlayniteAchievements.Providers.RetroAchievements
         /// </summary>
         private static bool IsTransientError(Exception ex)
         {
-            if (ex is OperationCanceledException) return false;
-
-            // WebException with transient status codes
-            if (ex is WebException webEx && webEx.Response is HttpWebResponse response)
-            {
-                var statusCode = (int)response.StatusCode;
-                // 429 Too Many Requests, 503 Service Unavailable, 502 Bad Gateway, 504 Gateway Timeout
-                if (statusCode == 429 || statusCode == 502 || statusCode == 503 || statusCode == 504)
-                    return true;
-            }
-
-            // Network-related exceptions
-            var message = ex.Message ?? string.Empty;
-            if (message.IndexOf("timeout", StringComparison.OrdinalIgnoreCase) >= 0) return true;
-            if (message.IndexOf("connection", StringComparison.OrdinalIgnoreCase) >= 0 &&
-                message.IndexOf("reset", StringComparison.OrdinalIgnoreCase) >= 0) return true;
-            if (message.IndexOf("temporarily", StringComparison.OrdinalIgnoreCase) >= 0) return true;
-            if (message.IndexOf("429", StringComparison.OrdinalIgnoreCase) >= 0) return true;
-
-            return false;
+            return TransientErrorClassifier.IsTransient(ex);
         }
 
         private async Task<GameAchievementData> ScanGameAsync(Game game, int? consoleId, IRaHasher hasher, CancellationToken cancel)
@@ -435,64 +420,19 @@ namespace PlayniteAchievements.Providers.RetroAchievements
             {
                 var raSettings = ProviderRegistry.Settings<RetroAchievementsSettings>();
                 var gameInfo = await _api.GetGameInfoAndUserProgressAsync(gameId, cancel).ConfigureAwait(false);
-                var displayOrderMap = await _api.GetAchievementDisplayOrderMapAsync(gameId, cancel).ConfigureAwait(false);
-                var achievements = ParseAchievements(
-                    gameInfo,
-                    raSettings.RaRarityStats,
-                    categoryLabel: "Base",
-                    displayOrderByApiName: displayOrderMap,
-                    enableAutomaticCapstoneAssignment: raSettings.EnableAutomaticCapstoneAssignment);
-
-                _logger?.Info($"[RA] Parsed {achievements.Count} achievements for '{gameInfo?.GameTitle}'.");
-
                 var subsetConsoleId = RetroAchievementsSubsetConsoleResolver.Resolve(gameInfo, consoleId);
 
-                // Fetch subset achievements if enabled.
-                if (raSettings.EnableRaSubsetScanning && subsetConsoleId.HasValue)
-                {
-                    try
-                    {
-                        var subsets = await _hashIndexStore.GetSubsetsForGameAsync(gameId, subsetConsoleId.Value, cancel).ConfigureAwait(false);
-                        if (subsets != null && subsets.Count > 0)
-                        {
-                            foreach (var subset in subsets)
-                            {
-                                cancel.ThrowIfCancellationRequested();
+                var sets = await RetroAchievementsSetAssembler.AssembleAsync(
+                    gameInfo,
+                    gameId,
+                    subsetConsoleId,
+                    _hashIndexStore,
+                    raSettings,
+                    (setId, ct) => _api.GetGameInfoAndUserProgressAsync(setId, ct),
+                    _logger,
+                    cancel).ConfigureAwait(false);
 
-                                try
-                                {
-                                    var subsetInfo = await _api.GetGameInfoAndUserProgressAsync(subset.Id, cancel).ConfigureAwait(false);
-                                    var subsetDisplayOrderMap = await _api.GetAchievementDisplayOrderMapAsync(subset.Id, cancel).ConfigureAwait(false);
-                                    var categoryLabel = ExtractCategoryLabel(subset.Title) ?? "Subset";
-                                    var subsetAchievements = ParseAchievements(
-                                        subsetInfo,
-                                        raSettings.RaRarityStats,
-                                        categoryLabel: categoryLabel,
-                                        displayOrderByApiName: subsetDisplayOrderMap,
-                                        enableAutomaticCapstoneAssignment: raSettings.EnableAutomaticCapstoneAssignment);
-
-                                    _logger?.Info($"[RA] Parsed {subsetAchievements.Count} achievements for subset '{subset.Title}' (category={categoryLabel}).");
-
-                                    achievements.AddRange(subsetAchievements);
-                                }
-                                catch (OperationCanceledException) { throw; }
-                                catch (Exception ex)
-                                {
-                                    _logger?.Warn(ex, $"[RA] Failed to fetch subset '{subset.Title}' (ID={subset.Id}): {ex.Message}");
-                                }
-                            }
-                        }
-                    }
-                    catch (OperationCanceledException) { throw; }
-                    catch (Exception ex)
-                    {
-                        _logger?.Warn(ex, $"[RA] Failed to look up subsets for gameId={gameId}: {ex.Message}");
-                    }
-                }
-                else if (raSettings.EnableRaSubsetScanning)
-                {
-                    _logger?.Info($"[RA] Skipping subset lookup for '{game?.Name}' because no console ID was resolved.");
-                }
+                await DownloadCategoryImagesAsync(game?.Id, sets.CategoryImageSources, cancel).ConfigureAwait(false);
 
                 return new GameAchievementData
                 {
@@ -501,15 +441,63 @@ namespace PlayniteAchievements.Providers.RetroAchievements
                     ProviderKey = "RetroAchievements",
                     LibrarySourceName = game?.Source?.Name,
                     LastUpdatedUtc = DateTime.UtcNow,
-                    HasAchievements = achievements.Count > 0,
+                    HasAchievements = sets.Achievements.Count > 0,
                     PlayniteGameId = game?.Id,
-                    Achievements = achievements
+                    Achievements = sets.Achievements
                 };
             }
             catch (Exception ex)
             {
                 _logger?.Error(ex, $"[RA] Failed to fetch game info for gameId={gameId}: {ex.Message}");
                 return BuildNoAchievements(game, appId: gameId);
+            }
+        }
+
+        // Downloads default category art for the base set and subsets to deterministic per-game
+        // cache paths. Best-effort: failures never fail the scan. Existing targets are skipped,
+        // so re-scans cost nothing.
+        private async Task DownloadCategoryImagesAsync(
+            Guid? playniteGameId,
+            IReadOnlyList<(string CategoryLabel, Models.RaGameInfoUserProgress Info)> sources,
+            CancellationToken cancel)
+        {
+            if (playniteGameId == null || playniteGameId.Value == Guid.Empty)
+            {
+                return;
+            }
+
+            var diskImageService = _diskImageServiceResolver?.Invoke();
+            if (diskImageService == null)
+            {
+                return;
+            }
+
+            var plan = RetroAchievementsCategoryImagePlanner.BuildCategoryImagePlan(sources);
+            if (plan.Count == 0)
+            {
+                return;
+            }
+
+            var gameIdText = playniteGameId.Value.ToString("D");
+            foreach (var entry in plan)
+            {
+                cancel.ThrowIfCancellationRequested();
+                try
+                {
+                    var artTarget = diskImageService.GetDefaultCategoryImagePath(
+                        gameIdText, entry.Label);
+                    // decodeSize 0 stores the original bytes: no square crop, original aspect.
+                    await diskImageService.GetOrDownloadIconToPathAsync(
+                        entry.ArtUrl, artTarget, decodeSize: 0, cancel).ConfigureAwait(false);
+                }
+                catch (OperationCanceledException) when (cancel.IsCancellationRequested)
+                {
+                    throw;
+                }
+                catch (Exception ex)
+                {
+                    _logger?.Debug(ex, $"[RA] Default category image download failed for category '{entry.Label}'.");
+                }
             }
         }
 
@@ -554,261 +542,6 @@ namespace PlayniteAchievements.Providers.RetroAchievements
         {
             if (hashes == null || hashes.Count == 0) return "(none)";
             return string.Join(",", hashes.Select(h => string.IsNullOrWhiteSpace(h) ? "?" : h));
-        }
-
-        private static List<AchievementDetail> ParseAchievements(
-            Models.RaGameInfoUserProgress gameInfo,
-            string rarityStats,
-            string categoryLabel = null,
-            IReadOnlyDictionary<string, Models.RaAchievementOrderInfo> displayOrderByApiName = null,
-            bool enableAutomaticCapstoneAssignment = false)
-        {
-            var ordered = new List<(AchievementDetail detail, int sequence)>();
-
-            if (gameInfo?.Achievements == null)
-            {
-                return new List<AchievementDetail>();
-            }
-
-            var useHardcoreRarity = string.Equals(rarityStats, "hardcore", StringComparison.OrdinalIgnoreCase);
-            var useCombinedRarity = string.Equals(rarityStats, "combined", StringComparison.OrdinalIgnoreCase);
-
-            var distinctPlayers = Math.Max(gameInfo.NumDistinctPlayers, 0);
-            var distinctPlayersCasual = Math.Max(gameInfo.NumDistinctPlayersCasual, 0);
-            var distinctPlayersHardcore = Math.Max(gameInfo.NumDistinctPlayersHardcore, 0);
-
-            var distinctForPercent =
-                distinctPlayersCasual > 0 ? distinctPlayersCasual :
-                distinctPlayers > 0 ? distinctPlayers :
-                distinctPlayersHardcore;
-
-            var distinctHardcoreForPercent =
-                distinctPlayersHardcore > 0 ? distinctPlayersHardcore :
-                distinctPlayers > 0 ? distinctPlayers :
-                distinctPlayersCasual;
-
-            var distinctCombinedForPercent =
-                distinctPlayers > 0 ? distinctPlayers :
-                distinctPlayersCasual > 0 ? distinctPlayersCasual :
-                distinctPlayersHardcore;
-
-            var fallbackSequence = 0;
-            foreach (var kvp in gameInfo.Achievements)
-            {
-                fallbackSequence++;
-                var achId = kvp.Key;
-                var ach = kvp.Value;
-                if (ach == null) continue;
-
-                var title = ach.Title ?? achId;
-                var desc = ach.Description ?? string.Empty;
-                var badge = ach.BadgeName ?? string.Empty;
-
-                DateTime? unlockUtc = null;
-                if (!string.IsNullOrWhiteSpace(ach.DateEarnedHardcore))
-                {
-                    unlockUtc = ParseRaUtcTimestamp(ach.DateEarnedHardcore);
-                }
-                else if (!string.IsNullOrWhiteSpace(ach.DateEarned))
-                {
-                    unlockUtc = ParseRaUtcTimestamp(ach.DateEarned);
-                }
-
-                double? globalPercent = null;
-                if (useCombinedRarity)
-                {
-                    var numAwarded = Math.Max(ach.NumAwarded, 0);
-                    if (numAwarded > 0 && distinctCombinedForPercent > 0)
-                    {
-                        globalPercent = 100.0 * numAwarded / distinctCombinedForPercent;
-                    }
-                    else
-                    {
-                        var numAwardedHardcore = Math.Max(ach.NumAwardedHardcore, 0);
-                        if (numAwardedHardcore > 0 && distinctHardcoreForPercent > 0)
-                        {
-                            globalPercent = 100.0 * numAwardedHardcore / distinctHardcoreForPercent;
-                        }
-                    }
-                }
-                else if (useHardcoreRarity)
-                {
-                    var numAwardedHardcore = Math.Max(ach.NumAwardedHardcore, 0);
-                    if (numAwardedHardcore > 0 && distinctHardcoreForPercent > 0)
-                    {
-                        globalPercent = 100.0 * numAwardedHardcore / distinctHardcoreForPercent;
-                    }
-                    else
-                    {
-                        var numAwarded = Math.Max(ach.NumAwarded, 0);
-                        if (numAwarded > 0 && distinctForPercent > 0)
-                        {
-                            globalPercent = 100.0 * numAwarded / distinctForPercent;
-                        }
-                    }
-                }
-                else
-                {
-                    var numAwarded = Math.Max(ach.NumAwarded, 0);
-                    if (numAwarded > 0 && distinctForPercent > 0)
-                    {
-                        globalPercent = 100.0 * numAwarded / distinctForPercent;
-                    }
-                    else
-                    {
-                        var numAwardedHardcore = Math.Max(ach.NumAwardedHardcore, 0);
-                        if (numAwardedHardcore > 0 && distinctHardcoreForPercent > 0)
-                        {
-                            globalPercent = 100.0 * numAwardedHardcore / distinctHardcoreForPercent;
-                        }
-                    }
-                }
-
-                if (globalPercent.HasValue)
-                {
-                    globalPercent = Math.Max(0, Math.Min(100, globalPercent.Value));
-                }
-
-                var canonicalDisplayOrder = ach.DisplayOrder;
-                var canonicalSequence = int.MaxValue;
-                if (canonicalDisplayOrder <= 0 &&
-                    displayOrderByApiName != null &&
-                    displayOrderByApiName.TryGetValue(achId, out var mappedOrder) &&
-                    mappedOrder != null &&
-                    mappedOrder.DisplayOrder > 0)
-                {
-                    canonicalDisplayOrder = mappedOrder.DisplayOrder;
-                }
-
-                if (displayOrderByApiName != null &&
-                    displayOrderByApiName.TryGetValue(achId, out var mappedSequenceInfo) &&
-                    mappedSequenceInfo != null &&
-                    mappedSequenceInfo.Sequence > 0)
-                {
-                    canonicalSequence = mappedSequenceInfo.Sequence;
-                }
-                else
-                {
-                    canonicalSequence = fallbackSequence;
-                }
-
-                var detail = new AchievementDetail
-                {
-                    ApiName = achId,
-                    DisplayName = title,
-                    Description = desc,
-                    UnlockedIconPath = string.IsNullOrWhiteSpace(badge) ? null : $"https://i.retroachievements.org/Badge/{badge}.png",
-                    LockedIconPath = string.IsNullOrWhiteSpace(badge) ? null : $"https://i.retroachievements.org/Badge/{badge}_lock.png",
-                    Points = ach.Points,
-                    ScaledPoints = ach.TrueRatio,
-                    Category = categoryLabel,
-                    DisplayOrder = canonicalDisplayOrder,
-                    IsCapstone = enableAutomaticCapstoneAssignment &&
-                                 string.Equals(ach.Type, "win_condition", StringComparison.OrdinalIgnoreCase),
-                    UnlockTimeUtc = unlockUtc,
-                    Hidden = false,
-                    Rarity = globalPercent.HasValue
-                        ? PercentRarityHelper.GetRarityTier(globalPercent.Value)
-                        : RarityTier.Common,
-                    GlobalPercentUnlocked = NormalizePercent(globalPercent)
-                };
-
-                ordered.Add((detail, canonicalSequence));
-            }
-
-            return ordered
-                .OrderBy(x => GetEffectiveDisplayOrder(x.detail))
-                .ThenBy(x => x.sequence)
-                .ThenBy(x => x.detail?.ApiName, StringComparer.OrdinalIgnoreCase)
-                .Select(x => x.detail)
-                .ToList();
-        }
-
-        private static int GetEffectiveDisplayOrder(AchievementDetail detail)
-        {
-            var order = detail?.DisplayOrder ?? 0;
-            return order > 0 ? order : int.MaxValue;
-        }
-
-        internal static string ExtractCategoryLabel(string subsetTitle)
-        {
-            if (string.IsNullOrWhiteSpace(subsetTitle))
-                return null;
-
-            // Try "[Subset - Label]" pattern first.
-            var subsetStart = subsetTitle.IndexOf("[Subset - ", StringComparison.OrdinalIgnoreCase);
-            if (subsetStart >= 0)
-            {
-                var labelStart = subsetStart + "[Subset - ".Length;
-                var labelEnd = subsetTitle.IndexOf(']', labelStart);
-                if (labelEnd > labelStart)
-                {
-                    return subsetTitle.Substring(labelStart, labelEnd - labelStart).Trim();
-                }
-            }
-
-            // Try "[Bonus]", "[Hub]", etc. — single-word bracket label.
-            var bracketStart = subsetTitle.IndexOf('[');
-            if (bracketStart >= 0)
-            {
-                var bracketEnd = subsetTitle.IndexOf(']', bracketStart + 1);
-                if (bracketEnd > bracketStart + 1)
-                {
-                    return subsetTitle.Substring(bracketStart + 1, bracketEnd - bracketStart - 1).Trim();
-                }
-            }
-
-            // Parenthesized pattern: "(Subset - Label)".
-            var parenStart = subsetTitle.IndexOf("(Subset - ", StringComparison.OrdinalIgnoreCase);
-            if (parenStart >= 0)
-            {
-                var labelStart = parenStart + "(Subset - ".Length;
-                var labelEnd = subsetTitle.IndexOf(')', labelStart);
-                if (labelEnd > labelStart)
-                {
-                    return subsetTitle.Substring(labelStart, labelEnd - labelStart).Trim();
-                }
-            }
-
-            return null;
-        }
-
-        private static DateTime? ParseRaUtcTimestamp(string s)
-        {
-            if (string.IsNullOrWhiteSpace(s)) return null;
-
-            if (DateTime.TryParseExact(s.Trim(), "yyyy-MM-dd HH:mm:ss", CultureInfo.InvariantCulture, DateTimeStyles.AssumeUniversal | DateTimeStyles.AdjustToUniversal, out var dt))
-            {
-                return DateTime.SpecifyKind(dt, DateTimeKind.Utc);
-            }
-
-            return null;
-        }
-
-        private static double? NormalizePercent(double? rawPercent)
-        {
-            if (!rawPercent.HasValue)
-            {
-                return null;
-            }
-
-            var value = rawPercent.Value;
-            if (double.IsNaN(value) || double.IsInfinity(value))
-            {
-                return null;
-            }
-
-            if (value < 0)
-            {
-                return 0;
-            }
-
-            if (value > 100)
-            {
-                return 100;
-            }
-
-            return value;
         }
 
         private async Task<int> TryMatchGameByNameAsync(Game game, int consoleId, CancellationToken cancel)
@@ -1001,20 +734,7 @@ namespace PlayniteAchievements.Providers.RetroAchievements
 
         private static bool IsSubsetLikeTitle(string title)
         {
-            if (string.IsNullOrWhiteSpace(title))
-            {
-                return false;
-            }
-
-            var titleLower = title.ToLowerInvariant();
-            return titleLower.Contains("[subset") ||
-                   titleLower.Contains("[tournament") ||
-                   titleLower.Contains("[event") ||
-                   titleLower.Contains("[bonus") ||
-                   titleLower.Contains("[hub") ||
-                   titleLower.Contains("[specialty") ||
-                   titleLower.Contains("[exclusive") ||
-                   titleLower.Contains("(subset");
+            return RetroAchievementsSubsetTitleResolver.IsSubsetLikeTitle(title);
         }
 
         private async Task<List<Models.RaGameListWithTitle>> GetOrFetchGameListAsync(int consoleId, CancellationToken cancel)
@@ -1064,9 +784,10 @@ namespace PlayniteAchievements.Providers.RetroAchievements
                             games = response.GameList;
                         }
                     }
-                    catch (Exception)
+                    catch (Exception ex)
                     {
                         // Failed to parse
+                        _logger?.Debug(ex, "[RA] Failed to parse game list response in both array and object formats.");
                     }
                 }
 
@@ -1094,31 +815,13 @@ namespace PlayniteAchievements.Providers.RetroAchievements
         {
             if (string.IsNullOrWhiteSpace(name)) return string.Empty;
 
-            // Remove common edition suffixes and trim
-            var normalized = name.Trim();
-
-            // Handle RetroAchievements tilde-wrapped tags: "~Homebrew~", "~Hack~", etc.
-            // Remove any ~Something~ pattern (prefix, suffix, or middle) for matching purposes
-            normalized = System.Text.RegularExpressions.Regex.Replace(normalized, @"~[^~]+~", "").Trim();
-
-            // Remove text in parentheses (like "(USA)", "(Europe)", etc.)
-            var parenIndex = normalized.IndexOf('(');
-            if (parenIndex > 0)
-            {
-                normalized = normalized.Substring(0, parenIndex).Trim();
-            }
-
-            // Remove text in brackets (like "[!]", "[T+Eng]", etc.)
-            var bracketIndex = normalized.IndexOf('[');
-            if (bracketIndex > 0)
-            {
-                normalized = normalized.Substring(0, bracketIndex).Trim();
-            }
-
-            // Remove common symbols and extra whitespace
-            normalized = System.Text.RegularExpressions.Regex.Replace(normalized, @"[\s\-_:~\.]+", " ").Trim();
-
-            return normalized;
+            // Remove RetroAchievements tilde-wrapped tags ("~Homebrew~"), region
+            // parentheticals ("(USA)"), and dump-tag brackets ("[T+Eng]"), then
+            // collapse separator runs for matching purposes.
+            var normalized = GameNameNormalizer.StripTildeTags(name);
+            normalized = GameNameNormalizer.StripParentheticals(normalized);
+            normalized = GameNameNormalizer.StripBrackets(normalized);
+            return GameNameNormalizer.CollapseSeparators(normalized);
         }
     }
 }

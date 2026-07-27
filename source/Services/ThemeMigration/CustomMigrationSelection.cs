@@ -28,18 +28,12 @@ namespace PlayniteAchievements.Services.ThemeMigration
         /// </summary>
         public bool ModernizeBindings { get; set; }
 
-        /// <summary>
-        /// Gets or sets whether compact achievement list controls should be migrated to
-        /// the scrollable modern controls. When false, they remain in the legacy +X layout.
-        /// </summary>
-        public bool ModernizeCompactAchievementLists { get; set; } = true;
+        public bool ModernizeCompactAchievementLists { get; set; }
 
         public bool ShouldModernizeControl(string legacyControlName)
         {
             return !string.IsNullOrWhiteSpace(legacyControlName) &&
-                   ModernControlNames.Contains(legacyControlName) &&
-                   (ModernizeCompactAchievementLists ||
-                    !ControlMappings.CompactAchievementListControlNames.Contains(legacyControlName));
+                   ModernControlNames.Contains(legacyControlName);
         }
     }
 }

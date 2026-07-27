@@ -10,8 +10,11 @@ using System.Windows.Input;
 using PlayniteAchievements.Models;
 using PlayniteAchievements.Providers;
 using PlayniteAchievements.Services;
+using PlayniteAchievements.Services.Achievements;
+using PlayniteAchievements.Services.Refresh;
 using PlayniteAchievements.Services.ThemeMigration;
 using PlayniteAchievements.Views.Helpers;
+using PlayniteAchievements.Views.Settings.Display.ThemeControls;
 using Playnite.SDK;
 using Playnite.SDK.Models;
 namespace PlayniteAchievements.Views
@@ -31,7 +34,6 @@ namespace PlayniteAchievements.Views
         private readonly IPlayniteAPI _api;
         private readonly ThemeDiscoveryService _themeDiscovery;
         private readonly ThemeMigrationService _themeMigration;
-        private readonly StartPageCompatibilityService _startPageCompatibility;
 
         public event PropertyChangedEventHandler PropertyChanged;
 
@@ -121,7 +123,7 @@ namespace PlayniteAchievements.Views
                     if (IsChecking)
                     {
                         return ResourceProvider.GetString("LOCPlayAch_Landing_Status_BadgeChecking")
-                            ?? "CHECKING";
+                            ?? "Checking";
                     }
                     if (!IsEnabled)
                     {
@@ -214,31 +216,6 @@ namespace PlayniteAchievements.Views
             }
         }
 
-        public string PluginIconPath
-        {
-            get
-            {
-                try
-                {
-                    var assemblyPath = typeof(FirstTimeLandingPage).Assembly.Location;
-                    var assemblyDirectory = System.IO.Path.GetDirectoryName(assemblyPath);
-                    if (string.IsNullOrWhiteSpace(assemblyDirectory))
-                    {
-                        return null;
-                    }
-
-                    var iconPath = System.IO.Path.Combine(assemblyDirectory, "icon.png");
-                    return System.IO.File.Exists(iconPath)
-                        ? iconPath
-                        : null;
-                }
-                catch
-                {
-                    return null;
-                }
-            }
-        }
-
         /// <summary>
         /// Event raised when setup is complete and the overview should be shown.
         /// </summary>
@@ -269,7 +246,6 @@ namespace PlayniteAchievements.Views
                 _logger,
                 _settings,
                 () => _plugin.SavePluginSettings(_settings));
-            _startPageCompatibility = new StartPageCompatibilityService(_logger, _plugin, _api);
 
             var modes = _refreshService.GetRefreshModes();
             RefreshModes = new ObservableCollection<RefreshMode>(
@@ -286,7 +262,6 @@ namespace PlayniteAchievements.Views
 
             DataContext = this;
 
-            RefreshStartPageCompatibilityState();
             RefreshProviderStatuses();
             LoadAvailableThemes();
         }
@@ -462,7 +437,7 @@ namespace PlayniteAchievements.Views
                     refreshRequest = new RefreshRequest
                     {
                         Mode = RefreshModeType.Custom,
-                        CustomOptions = customOptions
+                        Options = RefreshOptions.FromCustom(customOptions)
                     };
                 }
                 else
@@ -591,8 +566,6 @@ namespace PlayniteAchievements.Views
         private string _selectedRevertThemePath;
         private bool _showNoThemesMessage;
         private bool _showNoRevertableThemesMessage;
-        private bool _hasStartPageInstalled;
-        private bool _useScrollableAchievementsForThemeMigration;
 
         /// <summary>
         /// Gets the collection of themes available for migration.
@@ -641,20 +614,6 @@ namespace PlayniteAchievements.Views
         /// </summary>
         public bool HasThemesToMigrate => _availableThemes?.Count > 0;
 
-        public bool UseScrollableAchievementsForThemeMigration
-        {
-            get => _useScrollableAchievementsForThemeMigration;
-            set
-            {
-                if (_useScrollableAchievementsForThemeMigration != value)
-                {
-                    _useScrollableAchievementsForThemeMigration = value;
-                    OnPropertyChanged(nameof(UseScrollableAchievementsForThemeMigration));
-                    SetCompactAchievementMigrationOptions(value);
-                }
-            }
-        }
-
         /// <summary>
         /// Gets whether there are themes that can be reverted.
         /// </summary>
@@ -691,25 +650,6 @@ namespace PlayniteAchievements.Views
                 OnPropertyChanged(nameof(ShowNoRevertableThemesMessage));
             }
         }
-
-        /// <summary>
-        /// Gets whether StartPage is installed and can receive compatibility migration.
-        /// </summary>
-        public bool HasStartPageInstalled
-        {
-            get => _hasStartPageInstalled;
-            private set
-            {
-                _hasStartPageInstalled = value;
-                OnPropertyChanged(nameof(HasStartPageInstalled));
-                OnPropertyChanged(nameof(ShowStartPageNotInstalledMessage));
-            }
-        }
-
-        /// <summary>
-        /// Gets whether the StartPage not-installed hint should be shown.
-        /// </summary>
-        public bool ShowStartPageNotInstalledMessage => !HasStartPageInstalled;
 
         /// <summary>
         /// Command to migrate the selected theme with Limited mode (text replacements only).
@@ -753,8 +693,7 @@ namespace PlayniteAchievements.Views
 
                 _logger.Info($"User requested Full theme migration for: {SelectedThemePath}");
 
-                await ExecuteThemeMigrationAsync(SelectedThemePath, MigrationMode.Full,
-                    BuildFullMigrationSelection());
+                await ExecuteThemeMigrationAsync(SelectedThemePath, MigrationMode.Full);
             }
             catch (Exception ex)
             {
@@ -846,59 +785,6 @@ namespace PlayniteAchievements.Views
         });
 
         /// <summary>
-        /// Command to apply StartPage compatibility migration for Local provider rows.
-        /// </summary>
-        public ICommand ApplyStartPageCompatibilityCommand => new RelayCommand(async () =>
-        {
-            try
-            {
-                if (!HasStartPageInstalled)
-                {
-                    _api?.Notifications?.Add(new NotificationMessage(
-                        "PlayAch_StartPageCompatNotInstalled",
-                        ResourceProvider.GetString("LOCPlayAch_ThemeMigration_StartPageCompatibility_NotInstalled")
-                            ?? "StartPage is not installed.",
-                        NotificationType.Info));
-                    return;
-                }
-
-                var result = await _startPageCompatibility.ApplyAsync();
-                if (result.Success)
-                {
-                    var restartText = ResourceProvider.GetString("LOCPlayAch_ThemeMigration_RestartRequired")
-                        ?? "Please restart Playnite to apply the theme changes.";
-                    var details = string.IsNullOrWhiteSpace(result.BackupPath)
-                        ? result.Message
-                        : $"{result.Message}\n\nBackup: {result.BackupPath}";
-
-                    _api?.Dialogs?.ShowMessage(
-                        $"{details}\n\n{restartText}",
-                        ResourceProvider.GetString("LOCPlayAch_ThemeMigration_StartPageCompatibility_Title")
-                            ?? "StartPage Compatibility",
-                        MessageBoxButton.OK,
-                        MessageBoxImage.Information);
-                }
-                else
-                {
-                    _api?.Notifications?.Add(new NotificationMessage(
-                        "PlayAch_StartPageCompatFailed",
-                        result.Message,
-                        NotificationType.Error));
-                }
-
-                RefreshStartPageCompatibilityState();
-            }
-            catch (Exception ex)
-            {
-                _logger.Error(ex, "Failed to apply StartPage compatibility migration.");
-                _api?.Notifications?.Add(new NotificationMessage(
-                    "PlayAch_StartPageCompatFailed",
-                    string.Format(ResourceProvider.GetString("LOCPlayAch_Status_Failed"), ex.Message),
-                    NotificationType.Error));
-            }
-        });
-
-        /// <summary>
         /// Loads the list of themes that need migrating.
         /// </summary>
         private void LoadAvailableThemes()
@@ -921,12 +807,8 @@ namespace PlayniteAchievements.Views
                 _availableThemes.Clear();
                 _revertableThemes.Clear();
 
-                var cache = _settings?.Persisted?.ThemeMigrationVersionCache;
-                var themes = _themeDiscovery
-                    .DiscoverDefaultThemes(cache)
-                    .Where(theme => !IsExcludedTheme(theme))
-                    .ToList();
-                if (themes.Count == 0)
+                var themesPath = _themeDiscovery.GetDefaultThemesPath();
+                if (string.IsNullOrEmpty(themesPath))
                 {
                     _logger.Info("No themes path found, skipping theme discovery.");
                     ShowNoThemesMessage = true;
@@ -936,6 +818,9 @@ namespace PlayniteAchievements.Views
                     UpdateThemeMigrationModeButtonState();
                     return;
                 }
+
+                var cache = _settings?.Persisted?.ThemeMigrationVersionCache;
+                var themes = _themeDiscovery.DiscoverThemes(themesPath, cache);
 
                 // Load themes that need migration
                 var themesNeedingMigration = themes.Where(t => t.NeedsMigration).ToList();
@@ -963,46 +848,6 @@ namespace PlayniteAchievements.Views
             {
                 _logger.Error(ex, "Failed to load available themes.");
             }
-        }
-
-        private void RefreshStartPageCompatibilityState()
-        {
-            try
-            {
-                HasStartPageInstalled = _startPageCompatibility?.IsStartPageInstalled() == true;
-            }
-            catch (Exception ex)
-            {
-                _logger.Warn(ex, "Failed to detect StartPage installation state.");
-                HasStartPageInstalled = false;
-            }
-        }
-
-        private static bool IsExcludedTheme(ThemeDiscoveryService.ThemeInfo theme)
-        {
-            if (theme == null)
-            {
-                return true;
-            }
-
-            if (string.Equals(theme.DisplayName, "Default", StringComparison.OrdinalIgnoreCase))
-            {
-                return true;
-            }
-
-            if (string.Equals(theme.Name, "Default", StringComparison.OrdinalIgnoreCase))
-            {
-                return true;
-            }
-
-            if (!string.IsNullOrWhiteSpace(theme.Name) &&
-                (theme.Name.EndsWith("/Default", StringComparison.OrdinalIgnoreCase) ||
-                 theme.Name.EndsWith("\\Default", StringComparison.OrdinalIgnoreCase)))
-            {
-                return true;
-            }
-
-            return false;
         }
 
         /// <summary>
@@ -1058,7 +903,7 @@ namespace PlayniteAchievements.Views
 
                 _api?.Dialogs?.ShowMessage(
                     result.Message + "\n\nPlease restart Playnite to apply the theme changes.",
-                    ResourceProvider.GetString("LOCPlayAch_ThemeMigration_Revert") ?? "Revert Theme",
+                    ResourceProvider.GetString("LOCPlayAch_ThemeMigration_Revert"),
                     MessageBoxButton.OK,
                     MessageBoxImage.Information);
 
@@ -1122,56 +967,42 @@ namespace PlayniteAchievements.Views
 
             _themeMigrationCustomOptions.Add(CreateThemeMigrationControlOption(
                 "PluginButton",
-                "LOCPlayAch_Settings_ButtonPreview",
-                "Button"));
+                "LOCPlayAch_Settings_ButtonPreview"));
             _themeMigrationCustomOptions.Add(CreateThemeMigrationControlOption(
                 "PluginChart",
-                "LOCPlayAch_Settings_BarChartPreview",
-                "Bar Chart"));
+                "LOCPlayAch_Settings_BarChartPreview"));
             _themeMigrationCustomOptions.Add(CreateThemeMigrationControlOption(
                 "PluginCompactList",
-                "LOCPlayAch_Settings_CompactListPreview",
-                "Compact List",
-                isModern: UseScrollableAchievementsForThemeMigration));
+                "LOCPlayAch_Settings_CompactListPreview"));
             _themeMigrationCustomOptions.Add(CreateThemeMigrationControlOption(
                 "PluginCompactLocked",
-                "LOCPlayAch_Settings_CompactLockedListPreview",
-                "Compact Locked List",
-                isModern: UseScrollableAchievementsForThemeMigration));
+                "LOCPlayAch_Settings_CompactLockedListPreview"));
             _themeMigrationCustomOptions.Add(CreateThemeMigrationControlOption(
                 "PluginCompactUnlocked",
-                "LOCPlayAch_Settings_CompactUnlockedListPreview",
-                "Compact Unlocked List",
-                isModern: UseScrollableAchievementsForThemeMigration));
+                "LOCPlayAch_Settings_CompactUnlockedListPreview"));
             _themeMigrationCustomOptions.Add(CreateThemeMigrationControlOption(
                 "PluginList",
-                "LOCPlayAch_Settings_AchievementDataGridPreview",
-                "Achievement DataGrid"));
+                "LOCPlayAch_Settings_AchievementDataGridPreview"));
             _themeMigrationCustomOptions.Add(CreateThemeMigrationControlOption(
                 "PluginProgressBar",
-                "LOCPlayAch_Settings_ProgressBarPreview",
-                "Progress Bar"));
+                "LOCPlayAch_Settings_ProgressBarPreview"));
             _themeMigrationCustomOptions.Add(CreateThemeMigrationControlOption(
                 "PluginUserStats",
-                "LOCPlayAch_Settings_StatsPreview",
-                "Stats"));
+                "LOCPlayAch_Settings_StatsPreview"));
             _themeMigrationCustomOptions.Add(CreateThemeMigrationControlOption(
                 "PluginViewItem",
-                "LOCPlayAch_Settings_ViewItemPreview",
-                "View Item"));
+                "LOCPlayAch_Settings_ViewItemPreview"));
         }
 
         private ThemeMigrationElementOption CreateThemeMigrationControlOption(
             string key,
-            string resourceKey,
-            string fallback,
-            bool isModern = true)
+            string resourceKey)
         {
             return new ThemeMigrationElementOption(
                 key,
-                ResourceProvider.GetString(resourceKey) ?? fallback,
+                ResourceProvider.GetString(resourceKey),
                 isBindingOption: false,
-                isModern: isModern);
+                isModern: true);
         }
 
         private CustomMigrationSelection BuildCustomMigrationSelection()
@@ -1181,20 +1012,7 @@ namespace PlayniteAchievements.Views
                 .Select(option => option.Key)
                 .ToList();
 
-            return new CustomMigrationSelection(modernControlNames, modernizeBindings: true)
-            {
-                ModernizeCompactAchievementLists = UseScrollableAchievementsForThemeMigration
-            };
-        }
-
-        private CustomMigrationSelection BuildFullMigrationSelection()
-        {
-            return new CustomMigrationSelection(
-                ControlMappings.LegacyToModernControlNames.Keys,
-                modernizeBindings: true)
-            {
-                ModernizeCompactAchievementLists = UseScrollableAchievementsForThemeMigration
-            };
+            return new CustomMigrationSelection(modernControlNames, modernizeBindings: true);
         }
 
         private void SetAllThemeMigrationCustomOptions(bool isModern)
@@ -1202,17 +1020,6 @@ namespace PlayniteAchievements.Views
             foreach (var option in _themeMigrationCustomOptions)
             {
                 option.IsModern = isModern;
-            }
-        }
-
-        private void SetCompactAchievementMigrationOptions(bool isModern)
-        {
-            foreach (var option in _themeMigrationCustomOptions)
-            {
-                if (ControlMappings.CompactAchievementListControlNames.Contains(option.Key))
-                {
-                    option.IsModern = isModern;
-                }
             }
         }
 

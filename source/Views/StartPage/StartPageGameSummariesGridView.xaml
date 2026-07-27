@@ -9,11 +9,16 @@
         <controls:GameSummariesGridControl x:Name="GameSummariesGrid"
                                                ItemsSource="{Binding Items}"
                                                UseCoverImages="{Binding UseCoverImages}"
-                                               ShowGameMetadata="{Binding ShowGameMetadata}"
-                                               ShowCompletionBorder="{Binding ShowCompletionBorder}"
+                                               ShowMetadataPlatform="{Binding ShowMetadataPlatform}"
+                                               ShowMetadataPlaytime="{Binding ShowMetadataPlaytime}"
+                                               ShowMetadataRegion="{Binding ShowMetadataRegion}"
+                                               ShowCompletionGlow="{Binding ShowCompletionGlow}"
                                                ShowColumnHeaders="{Binding ShowColumnHeaders}"
+                                               ControlBar="{Binding ControlBar}"
+                                               ShowControlBar="{Binding ShowControlBar}"
                                                FixedRowHeight="{Binding RowHeight}"
                                                ColumnSettingsKey="StartPageGameSummaries"
+                                               DelayInitialRenderUntilNormalized="True"
                                                RowPreviewMouseRightButtonDown="GridRow_PreviewMouseRightButtonDown"
                                                RowPreviewMouseRightButtonUp="GridRow_PreviewMouseRightButtonUp"/>
     </Grid>

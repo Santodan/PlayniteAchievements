@@ -9,18 +9,19 @@
              Focusable="False"
              IsHitTestVisible="False"
              mc:Ignorable="d"
-             d:DesignHeight="30" d:DesignWidth="80">
+             d:DesignHeight="{StaticResource PlayAch.Size.Control.Height}" d:DesignWidth="80">
 
     <UserControl.Resources>
         <ResourceDictionary>
-            <converters:ResourceKeyToImageSourceConverter x:Key="ResourceKeyToImage"/>
-            <converters:ProviderIconConverter x:Key="ProviderIconConverter"/>
+            <ResourceDictionary.MergedDictionaries>
+                <ResourceDictionary Source="pack://application:,,,/PlayniteAchievements;component/Resources/CommonResources.xaml"/>
+            </ResourceDictionary.MergedDictionaries>
         </ResourceDictionary>
     </UserControl.Resources>
 
-    <Border Background="{DynamicResource PopupBackgroundBrush}"
-            BorderBrush="{DynamicResource PopupBorderBrush}"
-            BorderThickness="1"
+    <Border Background="{DynamicResource PlayAch.Brush.PopupSurface}"
+            BorderBrush="{DynamicResource PlayAch.Brush.PopupBorder}"
+            BorderThickness="{StaticResource PlayAch.Thickness.Border}"
             CornerRadius="4"
             IsHitTestVisible="False"
             Padding="8,4">
@@ -28,11 +29,17 @@
             <ItemsControl.ItemTemplate>
                 <DataTemplate DataType="{x:Type wpf:DataPointViewModel}">
                     <StackPanel Orientation="Horizontal">
-                        <Grid Width="18" Height="18" Margin="0,0,6,0" VerticalAlignment="Center">
+                        <Grid Width="18" Height="18" Margin="{StaticResource PlayAch.Thickness.Right.Compact}" VerticalAlignment="Center">
                             <!-- Badge icons: complex DrawingImages from AchievementResources.xaml -->
-                            <Image Source="{Binding ChartPoint.Instance.IconKey, Converter={StaticResource ResourceKeyToImage}}"
-                                   SnapsToDevicePixels="True"
-                                   RenderOptions.BitmapScalingMode="NearestNeighbor"/>
+                            <Image SnapsToDevicePixels="True"
+                                   RenderOptions.BitmapScalingMode="NearestNeighbor">
+                                <Image.Source>
+                                    <MultiBinding Converter="{StaticResource ResourceKeyToImage}">
+                                        <Binding Path="ChartPoint.Instance.IconKey"/>
+                                        <Binding Path="ChartPoint.Instance.IconRefreshKey"/>
+                                    </MultiBinding>
+                                </Image.Source>
+                            </Image>
                             <!-- Provider icons: created at runtime from geometry + color -->
                             <Image SnapsToDevicePixels="True" RenderOptions.BitmapScalingMode="NearestNeighbor">
                                 <Image.Source>
@@ -45,11 +52,11 @@
                         </Grid>
                         <StackPanel Orientation="Vertical" VerticalAlignment="Center">
                             <TextBlock Text="{Binding ChartPoint.Instance.PrimaryMetricText}"
-                                       Foreground="{DynamicResource TextBrush}"
-                                       FontSize="{DynamicResource FontSize}"/>
+                                       Foreground="{DynamicResource PlayAch.Brush.Text}"
+                                       FontSize="{DynamicResource PlayAch.FontSize.Body}"/>
                             <TextBlock Text="{Binding ChartPoint.Instance.SecondaryMetricText}"
-                                       Foreground="{DynamicResource TextBrush}"
-                                       FontSize="{DynamicResource FontSizeSmall}"
+                                       Foreground="{DynamicResource PlayAch.Brush.Text}"
+                                       FontSize="{DynamicResource PlayAch.FontSize.Caption}"
                                        Opacity="0.72"/>
                         </StackPanel>
                     </StackPanel>

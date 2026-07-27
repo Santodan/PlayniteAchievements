@@ -1,8 +1,9 @@
 using PlayniteAchievements.Models.Achievements;
+using PlayniteAchievements.Services.Cache;
 using System;
 using System.Collections.Generic;
 
-namespace PlayniteAchievements.Services
+namespace PlayniteAchievements.Services.Achievements
 {
     // Test-only seam for ThemeIntegrationService compilation in isolated test project.
     public class AchievementDataService
@@ -60,5 +61,4 @@ namespace PlayniteAchievements.Services
             return result;
         }
     }
-
 }

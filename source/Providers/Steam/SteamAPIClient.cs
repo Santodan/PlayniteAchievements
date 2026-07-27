@@ -5,7 +5,6 @@ using System.Net.Http;
 using System.Threading;
 using System.Threading.Tasks;
 using Newtonsoft.Json;
-using Newtonsoft.Json.Linq;
 using PlayniteAchievements.Providers.Steam.Models;
 using Playnite.SDK;
 
@@ -24,7 +23,6 @@ namespace PlayniteAchievements.Providers.Steam
 
         public async Task<SchemaAndPercentages> GetSchemaForGameDetailedAsync(string accessToken, int appId, string language, CancellationToken ct)
         {
-            language = NormalizeSteamLanguage(language);
             var result = await GetSchemaForGameDetailedInternalAsync(accessToken, appId, language, ct).ConfigureAwait(false);
             if (result == null && !string.Equals(language, "english", StringComparison.OrdinalIgnoreCase))
             {
@@ -43,7 +41,7 @@ namespace PlayniteAchievements.Providers.Steam
 
             try
             {
-                language = NormalizeSteamLanguage(language);
+                language = string.IsNullOrWhiteSpace(language) ? "english" : language;
                 var url = $"https://api.steampowered.com/IPlayerService/GetGameAchievements/v1/" +
                           $"?access_token={Uri.EscapeDataString(accessToken)}" +
                           $"&appid={appId}" +
@@ -68,10 +66,70 @@ namespace PlayniteAchievements.Providers.Steam
                     return achievements != null && achievements.Count > 0;
                 }
             }
-            catch (OperationCanceledException) { throw; }
+            catch (OperationCanceledException) when (ct.IsCancellationRequested) { throw; }
             catch (Exception ex)
             {
                 _logger?.Debug(ex, "GetGameAchievements API availability check failed for appId={appId}");
+                return null;
+            }
+        }
+
+        public async Task<IReadOnlyList<SteamOwnedGame>> GetOwnedGamesAsync(
+            string accessToken,
+            string steamId64,
+            CancellationToken ct)
+        {
+            if (string.IsNullOrWhiteSpace(accessToken) || string.IsNullOrWhiteSpace(steamId64))
+            {
+                return null;
+            }
+
+            try
+            {
+                var url = $"https://api.steampowered.com/IPlayerService/GetOwnedGames/v1/" +
+                          $"?access_token={Uri.EscapeDataString(accessToken)}" +
+                          $"&steamid={Uri.EscapeDataString(steamId64.Trim())}" +
+                          $"&include_appinfo=true" +
+                          $"&include_played_free_games=true" +
+                          $"&format=json";
+
+                using (var req = new HttpRequestMessage(HttpMethod.Get, url))
+                using (var resp = await _apiHttp.SendAsync(req, ct).ConfigureAwait(false))
+                {
+                    if (!resp.IsSuccessStatusCode)
+                    {
+                        return null;
+                    }
+
+                    var json = await resp.Content.ReadAsStringAsync().ConfigureAwait(false);
+                    if (string.IsNullOrWhiteSpace(json))
+                    {
+                        return null;
+                    }
+
+                    var root = JsonConvert.DeserializeObject<GetOwnedGamesRoot>(json);
+                    var response = root?.Response;
+                    if (response == null)
+                    {
+                        return null;
+                    }
+
+                    if (response.Games != null)
+                    {
+                        return response.Games
+                            .Where(game => game != null && game.AppId > 0)
+                            .ToList();
+                    }
+
+                    return response.GameCount.GetValueOrDefault() == 0
+                        ? (IReadOnlyList<SteamOwnedGame>)Array.Empty<SteamOwnedGame>()
+                        : null;
+                }
+            }
+            catch (OperationCanceledException) when (ct.IsCancellationRequested) { throw; }
+            catch (Exception ex)
+            {
+                _logger?.Debug(ex, $"GetOwnedGames API request failed for steamId={steamId64}");
                 return null;
             }
         }
@@ -86,7 +144,7 @@ namespace PlayniteAchievements.Providers.Steam
 
             try
             {
-                language = NormalizeSteamLanguage(language);
+                language = string.IsNullOrWhiteSpace(language) ? "english" : language;
                 var url = $"https://api.steampowered.com/IPlayerService/GetGameAchievements/v1/" +
                           $"?access_token={Uri.EscapeDataString(accessToken)}" +
                           $"&appid={appId}" +
@@ -141,12 +199,6 @@ namespace PlayniteAchievements.Providers.Steam
                         }
                     }
 
-                    if (!string.Equals(language, "english", StringComparison.OrdinalIgnoreCase))
-                    {
-                        var localizedFallback = await GetSchemaForGameLocalizedTextsAsync(accessToken, appId, language, ct).ConfigureAwait(false);
-                        MergeLocalizedSchemaTexts(schemaAchievements, localizedFallback);
-                    }
-
                     return new SchemaAndPercentages
                     {
                         Achievements = schemaAchievements,
@@ -154,142 +206,12 @@ namespace PlayniteAchievements.Providers.Steam
                     };
                 }
             }
-            catch (OperationCanceledException) { throw; }
+            catch (OperationCanceledException) when (ct.IsCancellationRequested) { throw; }
             catch (Exception ex)
             {
                 _logger?.Debug(ex, "GetGameAchievements API request failed for appId={appId}");
                 return null;
             }
-        }
-
-        private async Task<IReadOnlyDictionary<string, SchemaAchievement>> GetSchemaForGameLocalizedTextsAsync(string accessToken, int appId, string language, CancellationToken ct)
-        {
-            if (string.IsNullOrWhiteSpace(accessToken) || appId <= 0)
-            {
-                return null;
-            }
-
-            try
-            {
-                language = NormalizeSteamLanguage(language);
-                var url = $"https://api.steampowered.com/ISteamUserStats/GetSchemaForGame/v2/" +
-                          $"?key={Uri.EscapeDataString(accessToken)}" +
-                          $"&appid={appId}" +
-                          $"&l={Uri.EscapeDataString(language)}";
-
-                using (var req = new HttpRequestMessage(HttpMethod.Get, url))
-                using (var resp = await _apiHttp.SendAsync(req, ct).ConfigureAwait(false))
-                {
-                    if (!resp.IsSuccessStatusCode)
-                    {
-                        return null;
-                    }
-
-                    var json = await resp.Content.ReadAsStringAsync().ConfigureAwait(false);
-                    if (string.IsNullOrWhiteSpace(json))
-                    {
-                        return null;
-                    }
-
-                    var root = JObject.Parse(json);
-                    var achievements = root["game"]?["availableGameStats"]?["achievements"] as JArray;
-                    if (achievements == null || achievements.Count == 0)
-                    {
-                        return null;
-                    }
-
-                    return achievements
-                        .OfType<JObject>()
-                        .Select(achievement => new SchemaAchievement
-                        {
-                            Name = achievement["name"]?.Value<string>()?.Trim(),
-                            DisplayName = achievement["displayName"]?.Value<string>()?.Trim(),
-                            Description = achievement["description"]?.Value<string>()?.Trim()
-                        })
-                        .Where(achievement => !string.IsNullOrWhiteSpace(achievement.Name))
-                        .GroupBy(achievement => achievement.Name, StringComparer.OrdinalIgnoreCase)
-                        .ToDictionary(group => group.Key, group => group.First(), StringComparer.OrdinalIgnoreCase);
-                }
-            }
-            catch (OperationCanceledException)
-            {
-                throw;
-            }
-            catch (Exception ex)
-            {
-                _logger?.Debug(ex, "GetSchemaForGame localized fallback request failed for appId={appId}");
-                return null;
-            }
-        }
-
-        private static void MergeLocalizedSchemaTexts(IReadOnlyList<SchemaAchievement> targetAchievements, IReadOnlyDictionary<string, SchemaAchievement> localizedFallback)
-        {
-            if (targetAchievements == null || localizedFallback == null || targetAchievements.Count == 0 || localizedFallback.Count == 0)
-            {
-                return;
-            }
-
-            foreach (var achievement in targetAchievements)
-            {
-                if (achievement == null || string.IsNullOrWhiteSpace(achievement.Name) ||
-                    !localizedFallback.TryGetValue(achievement.Name, out var localized) || localized == null)
-                {
-                    continue;
-                }
-
-                if (!string.IsNullOrWhiteSpace(localized.DisplayName))
-                {
-                    achievement.DisplayName = localized.DisplayName;
-                }
-
-                if (!string.IsNullOrWhiteSpace(localized.Description))
-                {
-                    achievement.Description = localized.Description;
-                }
-            }
-        }
-
-        internal static string NormalizeSteamLanguage(string language)
-        {
-            if (string.IsNullOrWhiteSpace(language))
-            {
-                return "english";
-            }
-
-            var normalized = language.Trim().ToLowerInvariant();
-            return normalized switch
-            {
-                "english" or "en" or "en-us" or "en-gb" => "english",
-                "german" or "de" or "de-de" => "german",
-                "french" or "fr" or "fr-fr" => "french",
-                "spanish" or "es" or "es-es" => "spanish",
-                "latam" or "spanish-latin" or "es-419" => "latam",
-                "italian" or "it" or "it-it" => "italian",
-                "portuguese" or "pt" or "pt-pt" => "portuguese",
-                "brazilian" or "pt-br" or "portuguese-brazil" => "brazilian",
-                "russian" or "ru" or "ru-ru" => "russian",
-                "polish" or "pl" or "pl-pl" => "polish",
-                "dutch" or "nl" or "nl-nl" => "dutch",
-                "swedish" or "sv" or "sv-se" => "swedish",
-                "finnish" or "fi" or "fi-fi" => "finnish",
-                "danish" or "da" or "da-dk" => "danish",
-                "norwegian" or "no" or "nb" or "nb-no" => "norwegian",
-                "hungarian" or "hu" or "hu-hu" => "hungarian",
-                "czech" or "cs" or "cs-cz" => "czech",
-                "romanian" or "ro" or "ro-ro" => "romanian",
-                "turkish" or "tr" or "tr-tr" => "turkish",
-                "greek" or "el" or "el-gr" => "greek",
-                "bulgarian" or "bg" or "bg-bg" => "bulgarian",
-                "ukrainian" or "uk" or "uk-ua" => "ukrainian",
-                "thai" or "th" or "th-th" => "thai",
-                "vietnamese" or "vi" or "vi-vn" => "vietnamese",
-                "japanese" or "ja" or "ja-jp" => "japanese",
-                "koreana" or "korean" or "ko" or "ko-kr" => "koreana",
-                "schinese" or "zh-cn" or "zh-hans" => "schinese",
-                "tchinese" or "zh-tw" or "zh-hant" => "tchinese",
-                "arabic" or "ar" or "ar-sa" => "arabic",
-                _ => normalized
-            };
         }
 
         private static string NormalizeApiText(string value)
@@ -299,7 +221,7 @@ namespace PlayniteAchievements.Providers.Steam
                 : value.Trim();
         }
 
-        private static string BuildAchievementIconUrl(int appId, string iconFile)
+        internal static string BuildAchievementIconUrl(int appId, string iconFile)
         {
             var normalizedIconFile = NormalizeApiText(iconFile);
             if (string.IsNullOrWhiteSpace(normalizedIconFile))
@@ -307,7 +229,7 @@ namespace PlayniteAchievements.Providers.Steam
                 return string.Empty;
             }
 
-            return $"https://shared.fastly.steamstatic.com/community_assets/images/apps/{appId}/{normalizedIconFile}";
+            return $"https://shared.akamai.steamstatic.com/community_assets/images/apps/{appId}/{normalizedIconFile}";
         }
     }
 }

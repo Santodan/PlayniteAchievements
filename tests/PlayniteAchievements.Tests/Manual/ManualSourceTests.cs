@@ -11,6 +11,8 @@ using PlayniteAchievements.Providers;
 using PlayniteAchievements.Providers.Steam;
 using System;
 using System.Collections.Generic;
+using System.IO;
+using System.Linq;
 using System.Net;
 using System.Net.Http;
 using System.Text;
@@ -295,6 +297,50 @@ namespace PlayniteAchievements.Manual.Tests
         }
 
         [TestMethod]
+        public void SteamManualSource_ResolveProviderPlatformKey_ReturnsSteam()
+        {
+            using var httpClient = new HttpClient(new StubHttpMessageHandler(_ => throw new InvalidOperationException("Should not send requests.")));
+            var source = CreateSteamSource(
+                httpClient,
+                new FakeSessionManager(),
+                _ => Task.FromResult("store-token"));
+
+            Assert.AreEqual("Steam", source.ResolveProviderPlatformKey("400"));
+        }
+
+        [DataTestMethod]
+        [DataRow("shogun-showdown-steam", "Steam")]
+        [DataRow("some-game-ps5", "PSN")]
+        [DataRow("halo-3-xbox-360", "Xbox")]
+        [DataRow("game-uplay", "Ubisoft")]
+        public void ExophaseManualSource_ResolveProviderPlatformKey_MapsSlugTokenThroughSharedMatcher(string slug, string expectedKey)
+        {
+            Assert.AreEqual(expectedKey, ExophaseManualSource.ResolveProviderPlatformKeyFromSlug(slug));
+        }
+
+        [DataTestMethod]
+        [DataRow("some-game-windows")]
+        [DataRow("plainslug")]
+        [DataRow(null)]
+        [DataRow("")]
+        public void ExophaseManualSource_ResolveProviderPlatformKey_UnresolvableReturnsNull(string slug)
+        {
+            Assert.IsNull(ExophaseManualSource.ResolveProviderPlatformKeyFromSlug(slug));
+        }
+
+        [TestMethod]
+        public void ManualProvider_GameData_CarriesDerivedProviderPlatformKey()
+        {
+            var provider = File.ReadAllText(FindRepoFile("source", "Providers", "Manual", "ManualAchievementsProvider.cs"));
+
+            StringAssert.Contains(provider, "source.ResolveProviderPlatformKey(link.SourceGameId)");
+            Assert.AreEqual(
+                2,
+                CountOccurrences(provider, "ProviderPlatformKey = providerPlatformKey"),
+                "Both GameAchievementData construction sites must carry the derived platform key.");
+        }
+
+        [TestMethod]
         public void ExophaseApiClient_NormalizeLegacyManualApiName_HandlesDisplayAndPrefixedKeys()
         {
             Assert.AreEqual(
@@ -369,6 +415,37 @@ namespace PlayniteAchievements.Manual.Tests
             ManualLinkTransientStore.Restore(gameId, snapshot, settings);
 
             Assert.IsFalse(settings.AchievementLinks.ContainsKey(gameId));
+        }
+
+        private static string FindRepoFile(params string[] parts)
+        {
+            var directory = new DirectoryInfo(AppDomain.CurrentDomain.BaseDirectory);
+            while (directory != null)
+            {
+                var path = Path.Combine(new[] { directory.FullName }.Concat(parts).ToArray());
+                if (File.Exists(path))
+                {
+                    return path;
+                }
+
+                directory = directory.Parent;
+            }
+
+            Assert.Fail("Could not find " + Path.Combine(parts));
+            return null;
+        }
+
+        private static int CountOccurrences(string text, string value)
+        {
+            var count = 0;
+            var index = 0;
+            while ((index = text.IndexOf(value, index, StringComparison.Ordinal)) >= 0)
+            {
+                count++;
+                index += value.Length;
+            }
+
+            return count;
         }
 
         private static SteamManualSource CreateSteamSource(

@@ -5,6 +5,7 @@ namespace PlayniteAchievements.Models.Settings
 {
     public partial class PersistedSettings
     {
+        public bool ShowRarityGlow { get; set; } = true;
         public HashSet<Guid> DisabledRealtimeNotificationGameIds { get; set; } = new HashSet<Guid>();
 
         public Dictionary<Guid, string> PreferredProviderOverrides { get; set; } = new Dictionary<Guid, string>();

@@ -7,7 +7,7 @@
     <UserControl.Resources>
         <ResourceDictionary>
             <ResourceDictionary.MergedDictionaries>
-                <ResourceDictionary Source="pack://application:,,,/PlayniteAchievements;component/Resources/AchievementTemplates.xaml"/>
+                <ResourceDictionary Source="pack://application:,,,/PlayniteAchievements;component/Resources/AchievementResources.xaml"/>
             </ResourceDictionary.MergedDictionaries>
         </ResourceDictionary>
     </UserControl.Resources>
@@ -20,7 +20,7 @@
 
         <TextBlock Grid.Row="0"
                    Text="{Binding Title}"
-                   Foreground="{DynamicResource TextBrush}"
+                   Foreground="{DynamicResource PlayAch.Brush.Text}"
                    FontWeight="SemiBold"
                    TextAlignment="Center"
                    TextWrapping="Wrap"

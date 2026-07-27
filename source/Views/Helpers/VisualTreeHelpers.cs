@@ -1,3 +1,4 @@
+using System.Collections.Generic;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Controls.Primitives;
@@ -37,6 +38,32 @@ namespace PlayniteAchievements.Views.Helpers
             }
 
             return null;
+        }
+
+        /// <summary>
+        /// Enumerates all visual descendants of the specified type, depth-first.
+        /// </summary>
+        public static IEnumerable<T> FindVisualChildren<T>(DependencyObject parent) where T : DependencyObject
+        {
+            if (parent == null)
+            {
+                yield break;
+            }
+
+            var count = VisualTreeHelper.GetChildrenCount(parent);
+            for (var i = 0; i < count; i++)
+            {
+                var child = VisualTreeHelper.GetChild(parent, i);
+                if (child is T typed)
+                {
+                    yield return typed;
+                }
+
+                foreach (var nested in FindVisualChildren<T>(child))
+                {
+                    yield return nested;
+                }
+            }
         }
 
         /// <summary>

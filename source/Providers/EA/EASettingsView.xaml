@@ -11,19 +11,8 @@
     <UserControl.Resources>
         <ResourceDictionary>
             <ResourceDictionary.MergedDictionaries>
-                <ResourceDictionary Source="pack://application:,,,/PlayniteAchievements;component/Providers/ProviderSettingsStyles.xaml"/>
+                <ResourceDictionary Source="pack://application:,,,/PlayniteAchievements;component/Providers/ProviderSettingsScopedControlStyles.xaml"/>
             </ResourceDictionary.MergedDictionaries>
-
-            <Style x:Key="AuthActionButtonStyle"
-                   TargetType="Button"
-                   BasedOn="{StaticResource {x:Type Button}}">
-                <Style.Triggers>
-                    <DataTrigger Binding="{Binding AuthBusy, RelativeSource={RelativeSource AncestorType=UserControl}}"
-                                 Value="True">
-                        <Setter Property="IsEnabled" Value="False"/>
-                    </DataTrigger>
-                </Style.Triggers>
-            </Style>
         </ResourceDictionary>
     </UserControl.Resources>
 
@@ -32,39 +21,23 @@
         <StackPanel Margin="20">
 
             <!-- Provider Header -->
-            <StackPanel Orientation="Horizontal" Margin="0,0,0,16">
-                <Viewbox Width="28" Height="28" Margin="0,0,12,0" VerticalAlignment="Center">
-                    <Path Data="{StaticResource GeoEA}" Fill="#E11D48"/>
+            <StackPanel Style="{StaticResource ProviderHeaderPanelStyle}">
+                <Viewbox Style="{StaticResource ProviderHeaderIconStyle}">
+                    <Path Data="{StaticResource GeoEA}" Fill="{StaticResource PlayAch.Brush.ProviderEA}"/>
                 </Viewbox>
-                <TextBlock Text="{DynamicResource LOCPlayAch_Provider_EA}"
-                           FontSize="20"
-                           FontWeight="Bold"
-                           VerticalAlignment="Center"
-                           Foreground="{DynamicResource TextBrush}"/>
+                <TextBlock Text="{DynamicResource LOCPlayAch_Provider_EA}" Style="{StaticResource ProviderTitleTextStyle}"/>
             </StackPanel>
 
             <!-- Provider Enable Toggle -->
-            <Border Style="{StaticResource SectionBorderStyle}" Margin="0,0,0,12">
+            <Border Style="{StaticResource ProviderEnableToggleBorderStyle}">
                 <CheckBox Content="{DynamicResource LOCPlayAch_Settings_ProviderEnabled}"
                           IsChecked="{Binding Settings.IsEnabled, Mode=TwoWay}"
                           FontWeight="SemiBold"
-                          FontSize="{DynamicResource FontSize}"/>
+                          FontSize="{DynamicResource PlayAch.FontSize.Body}"/>
             </Border>
 
             <!-- Provider Disabled Message -->
-            <TextBlock Text="{DynamicResource LOCPlayAch_Settings_ProviderDisabledMessage}"
-                       Margin="0,0,0,16">
-                <TextBlock.Style>
-                    <Style TargetType="TextBlock" BasedOn="{StaticResource MutedTextStyle}">
-                        <Setter Property="Visibility" Value="Collapsed"/>
-                        <Style.Triggers>
-                            <DataTrigger Binding="{Binding Settings.IsEnabled}" Value="False">
-                                <Setter Property="Visibility" Value="Visible"/>
-                            </DataTrigger>
-                        </Style.Triggers>
-                    </Style>
-                </TextBlock.Style>
-            </TextBlock>
+            <TextBlock Text="{DynamicResource LOCPlayAch_Settings_ProviderDisabledMessage}" Style="{StaticResource ProviderDisabledMessageStyle}"/>
 
             <!-- EA Authentication -->
             <Border Style="{StaticResource SectionBorderStyle}"
@@ -81,9 +54,9 @@
 
                         <TextBlock Grid.Column="0"
                                    x:Name="AuthLabel"
-                                   Foreground="{DynamicResource TextBrush}"
+                                   Foreground="{DynamicResource PlayAch.Brush.Text}"
                                    VerticalAlignment="Top"
-                                   Margin="0,8,0,0"/>
+                                   Margin="{StaticResource PlayAch.Thickness.Top.Sm}"/>
 
                         <!-- Auth Card -->
                         <Border Grid.Column="1"
@@ -109,12 +82,12 @@
                                     <Button Content="{DynamicResource LOCPlayAch_Button_Login}"
                                             Click="LoginWeb_Click"
                                             Style="{StaticResource AuthActionButtonStyle}"
-                                            Margin="0,0,8,0"/>
+                                            Margin="{StaticResource PlayAch.Thickness.Right.Sm}"/>
                                     <Button Content="{DynamicResource LOCPlayAch_Common_Check}"
                                             Click="Auth_Check_Click"
                                             Style="{StaticResource AuthActionButtonStyle}"
-                                            Margin="0,0,8,0"/>
-                                    <Button Content="{DynamicResource LOCPlayAch_Button_Clear}"
+                                            Margin="{StaticResource PlayAch.Thickness.Right.Sm}"/>
+                                    <Button Content="{DynamicResource LOCPlayAch_Button_SignOut}"
                                             Click="Logout_Click"
                                             Style="{StaticResource AuthActionButtonStyle}"/>
                                 </StackPanel>
@@ -131,7 +104,7 @@
                     <CheckBox Content="{DynamicResource LOCPlayAch_Settings_UseExophaseForMetadata}"
                               IsChecked="{Binding Settings.UseExophaseForRarity, Mode=TwoWay}"
                               FontWeight="SemiBold"
-                              FontSize="{DynamicResource FontSize}"/>
+                              FontSize="{DynamicResource PlayAch.FontSize.Body}"/>
                     <TextBlock Text="{DynamicResource LOCPlayAch_Settings_UseExophaseForMetadata_Help}"
                                Style="{StaticResource MutedTextStyle}"
                                Margin="24,8,0,0"

@@ -9,6 +9,7 @@ namespace PlayniteAchievements.Models.Settings
         RarityPie = 4,
         TrophyPie = 5,
         CollectionScoreCard = 6,
-        PrestigeScoreCard = 7
+        PrestigeScoreCard = 7,
+        FriendsRecentUnlocksGrid = 8
     }
 }

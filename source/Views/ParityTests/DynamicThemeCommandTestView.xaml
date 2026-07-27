@@ -11,7 +11,7 @@
     <UserControl.Resources>
         <ResourceDictionary>
             <ResourceDictionary.MergedDictionaries>
-                <ResourceDictionary Source="pack://application:,,,/PlayniteAchievements;component/Resources/AchievementTemplates.xaml" />
+                <ResourceDictionary Source="pack://application:,,,/PlayniteAchievements;component/Resources/AchievementResources.xaml" />
             </ResourceDictionary.MergedDictionaries>
         </ResourceDictionary>
     </UserControl.Resources>
@@ -23,18 +23,18 @@
         </Grid.RowDefinitions>
 
         <Border Grid.Row="0"
-                Padding="12"
-                CornerRadius="6"
-                BorderBrush="{DynamicResource NormalBorderBrush}"
-                BorderThickness="1"
-                Background="{DynamicResource ControlBackgroundBrush}">
+                Padding="{StaticResource PlayAch.Thickness.CardPadding}"
+                CornerRadius="{StaticResource PlayAch.Radius.Card}"
+                BorderBrush="{DynamicResource PlayAch.Brush.Border}"
+                BorderThickness="{StaticResource PlayAch.Thickness.Border}"
+                Background="{DynamicResource PlayAch.Brush.Surface}">
             <StackPanel>
                 <TextBlock Text="PlayniteAchievements - Dynamic Theme Command Tester"
                            FontSize="19"
                            FontWeight="SemiBold"
-                           Foreground="{DynamicResource TextBrush}" />
-                <TextBlock Margin="0,6,0,0"
-                           Foreground="{DynamicResource TextBrush}"
+                           Foreground="{DynamicResource PlayAch.Brush.Text}" />
+                <TextBlock Margin="{StaticResource PlayAch.Thickness.Top.Compact}"
+                           Foreground="{DynamicResource PlayAch.Brush.Text}"
                            Opacity="0.85">
                     <Run Text="Game: " />
                     <Run Text="{Binding GameName, Mode=OneWay}" FontWeight="SemiBold" />
@@ -42,13 +42,13 @@
                     <Run Text="{Binding GameIdText, Mode=OneWay}" />
                     <Run Text=")" />
                 </TextBlock>
-                <TextBlock Margin="0,4,0,0"
-                           Foreground="{DynamicResource TextBrush}"
-                           Opacity="0.7"
+                <TextBlock Margin="{StaticResource PlayAch.Thickness.Top.Xs}"
+                           Foreground="{DynamicResource PlayAch.Brush.Text}"
+                           Opacity="{StaticResource PlayAch.Opacity.Subtle}"
                            Text="{Binding SelectedGameModeHint, Mode=OneWay}" />
-                <TextBlock Margin="0,4,0,0"
-                           Foreground="{DynamicResource TextBrush}"
-                           Opacity="0.75">
+                <TextBlock Margin="{StaticResource PlayAch.Thickness.Top.Xs}"
+                           Foreground="{DynamicResource PlayAch.Brush.Text}"
+                           Opacity="{StaticResource PlayAch.Opacity.Hint}">
                     <Run Text="Selected-game items: " />
                     <Run Text="{Binding Settings.DynamicAchievements.Count, Mode=OneWay}" FontWeight="SemiBold" />
                     <Run Text=" | Library items: " />
@@ -56,15 +56,15 @@
                     <Run Text=" | Summary items: " />
                     <Run Text="{Binding Settings.DynamicGameSummaries.Count, Mode=OneWay}" FontWeight="SemiBold" />
                 </TextBlock>
-                <WrapPanel Margin="0,8,0,0">
+                <WrapPanel Margin="{StaticResource PlayAch.Thickness.Top.Sm}">
                     <Button Content="Request Update"
                             Click="RequestUpdate_Click"
                             MinWidth="120"
-                            Margin="0,0,8,0" />
+                            Margin="{StaticResource PlayAch.Thickness.Right.Sm}" />
                     <Button Content="Open View Achievements"
                             Click="OpenViewAchievements_Click"
                             MinWidth="120"
-                            Margin="0,0,8,0"
+                            Margin="{StaticResource PlayAch.Thickness.Right.Sm}"
                             IsEnabled="{Binding HasSelectedGame, Mode=OneWay}" />
                     <Button Content="Open Manage Achievements"
                             Click="OpenManageAchievements_Click"
@@ -83,8 +83,8 @@
                 <GroupBox Header="DynamicAchievements (selected game)"
                           IsEnabled="{Binding HasSelectedGame, Mode=OneWay}">
                     <StackPanel Margin="8">
-                        <WrapPanel Margin="0,0,0,8" VerticalAlignment="Center">
-                            <TextBlock Text="Filter" VerticalAlignment="Center" Margin="0,0,6,0" />
+                        <WrapPanel Margin="{StaticResource PlayAch.Thickness.Bottom.Sm}" VerticalAlignment="Center">
+                            <TextBlock Text="Filter" VerticalAlignment="Center" Margin="{StaticResource PlayAch.Thickness.Right.Compact}" />
                             <ComboBox x:Name="SelectedGameFilterCombo"
                                       Width="130"
                                       ItemsSource="{Binding SelectedGameFilterOptions}" />
@@ -92,7 +92,7 @@
                                     Margin="6,0,14,0"
                                     Click="ApplySelectedGameFilter_Click" />
 
-                            <TextBlock Text="Sort" VerticalAlignment="Center" Margin="0,0,6,0" />
+                            <TextBlock Text="Sort" VerticalAlignment="Center" Margin="{StaticResource PlayAch.Thickness.Right.Compact}" />
                             <ComboBox x:Name="SelectedGameSortCombo"
                                       Width="130"
                                       ItemsSource="{Binding SelectedGameSortOptions}" />
@@ -100,7 +100,7 @@
                                     Margin="6,0,14,0"
                                     Click="ApplySelectedGameSort_Click" />
 
-                            <TextBlock Text="Direction" VerticalAlignment="Center" Margin="0,0,6,0" />
+                            <TextBlock Text="Direction" VerticalAlignment="Center" Margin="{StaticResource PlayAch.Thickness.Right.Compact}" />
                             <ComboBox x:Name="SelectedGameDirectionCombo"
                                       Width="130"
                                       ItemsSource="{Binding SortDirectionOptions}" />
@@ -109,7 +109,7 @@
                                     Click="ApplySelectedGameDirection_Click" />
                         </WrapPanel>
 
-                        <TextBlock Margin="0,0,0,8" Opacity="0.8">
+                        <TextBlock Margin="{StaticResource PlayAch.Thickness.Bottom.Sm}" Opacity="{StaticResource PlayAch.Opacity.Secondary}">
                             <Run Text="Current: " />
                             <Run Text="Filter=" />
                             <Run Text="{Binding Settings.DynamicAchievementsFilterLabel, Mode=OneWay}" FontWeight="SemiBold" />
@@ -120,9 +120,14 @@
                         </TextBlock>
 
                         <DataGrid ItemsSource="{Binding Settings.DynamicAchievements, Mode=OneWay}"
+                                  Style="{StaticResource PlayAch.DataGrid.BaseStyle}"
                                   AutoGenerateColumns="False"
                                   IsReadOnly="True"
                                   Height="230"
+                                  GridLinesVisibility="None"
+                                  RowBackground="{DynamicResource PlayAch.Brush.Grid.RowBackground}"
+                                  BorderThickness="0"
+                                  Background="{DynamicResource PlayAch.Brush.Grid.Background}"
                                   CanUserAddRows="False"
                                   CanUserDeleteRows="False"
                                   ColumnHeaderStyle="{StaticResource AchievementColumnHeaderStyle}"
@@ -146,8 +151,8 @@
 
                 <GroupBox Header="DynamicLibraryAchievements (all games)" Margin="0,12,0,0">
                     <StackPanel Margin="8">
-                        <WrapPanel Margin="0,0,0,8" VerticalAlignment="Center">
-                            <TextBlock Text="Provider" VerticalAlignment="Center" Margin="0,0,6,0" />
+                        <WrapPanel Margin="{StaticResource PlayAch.Thickness.Bottom.Sm}" VerticalAlignment="Center">
+                            <TextBlock Text="Provider" VerticalAlignment="Center" Margin="{StaticResource PlayAch.Thickness.Right.Compact}" />
                             <ComboBox x:Name="LibraryProviderCombo"
                                       Width="160"
                                       ItemsSource="{Binding LibraryProviderOptions}" />
@@ -155,7 +160,7 @@
                                     Margin="6,0,14,0"
                                     Click="ApplyLibraryProvider_Click" />
 
-                            <TextBlock Text="Sort" VerticalAlignment="Center" Margin="0,0,6,0" />
+                            <TextBlock Text="Sort" VerticalAlignment="Center" Margin="{StaticResource PlayAch.Thickness.Right.Compact}" />
                             <ComboBox x:Name="LibrarySortCombo"
                                       Width="140"
                                       ItemsSource="{Binding LibrarySortOptions}" />
@@ -163,7 +168,7 @@
                                     Margin="6,0,14,0"
                                     Click="ApplyLibrarySort_Click" />
 
-                            <TextBlock Text="Direction" VerticalAlignment="Center" Margin="0,0,6,0" />
+                            <TextBlock Text="Direction" VerticalAlignment="Center" Margin="{StaticResource PlayAch.Thickness.Right.Compact}" />
                             <ComboBox x:Name="LibraryDirectionCombo"
                                       Width="130"
                                       ItemsSource="{Binding SortDirectionOptions}" />
@@ -172,7 +177,7 @@
                                     Click="ApplyLibraryDirection_Click" />
                         </WrapPanel>
 
-                        <TextBlock Margin="0,0,0,8" Opacity="0.8">
+                        <TextBlock Margin="{StaticResource PlayAch.Thickness.Bottom.Sm}" Opacity="{StaticResource PlayAch.Opacity.Secondary}">
                             <Run Text="Current: " />
                             <Run Text="Provider=" />
                             <Run Text="{Binding Settings.DynamicLibraryAchievementsProviderLabel, Mode=OneWay}" FontWeight="SemiBold" />
@@ -183,9 +188,14 @@
                         </TextBlock>
 
                         <DataGrid ItemsSource="{Binding Settings.DynamicLibraryAchievements, Mode=OneWay}"
+                                  Style="{StaticResource PlayAch.DataGrid.BaseStyle}"
                                   AutoGenerateColumns="False"
                                   IsReadOnly="True"
                                   Height="230"
+                                  GridLinesVisibility="None"
+                                  RowBackground="{DynamicResource PlayAch.Brush.Grid.RowBackground}"
+                                  BorderThickness="0"
+                                  Background="{DynamicResource PlayAch.Brush.Grid.Background}"
                                   CanUserAddRows="False"
                                   CanUserDeleteRows="False"
                                   ColumnHeaderStyle="{StaticResource AchievementColumnHeaderStyle}"
@@ -209,8 +219,8 @@
 
                 <GroupBox Header="DynamicGameSummaries (all games)" Margin="0,12,0,0">
                     <StackPanel Margin="8">
-                        <WrapPanel Margin="0,0,0,8" VerticalAlignment="Center">
-                            <TextBlock Text="Provider" VerticalAlignment="Center" Margin="0,0,6,0" />
+                        <WrapPanel Margin="{StaticResource PlayAch.Thickness.Bottom.Sm}" VerticalAlignment="Center">
+                            <TextBlock Text="Provider" VerticalAlignment="Center" Margin="{StaticResource PlayAch.Thickness.Right.Compact}" />
                             <ComboBox x:Name="SummaryProviderCombo"
                                       Width="160"
                                       ItemsSource="{Binding SummaryProviderOptions}" />
@@ -218,7 +228,7 @@
                                     Margin="6,0,14,0"
                                     Click="ApplySummaryProvider_Click" />
 
-                            <TextBlock Text="Sort" VerticalAlignment="Center" Margin="0,0,6,0" />
+                            <TextBlock Text="Sort" VerticalAlignment="Center" Margin="{StaticResource PlayAch.Thickness.Right.Compact}" />
                             <ComboBox x:Name="SummarySortCombo"
                                       Width="150"
                                       ItemsSource="{Binding SummarySortOptions}" />
@@ -226,7 +236,7 @@
                                     Margin="6,0,14,0"
                                     Click="ApplySummarySort_Click" />
 
-                            <TextBlock Text="Direction" VerticalAlignment="Center" Margin="0,0,6,0" />
+                            <TextBlock Text="Direction" VerticalAlignment="Center" Margin="{StaticResource PlayAch.Thickness.Right.Compact}" />
                             <ComboBox x:Name="SummaryDirectionCombo"
                                       Width="130"
                                       ItemsSource="{Binding SortDirectionOptions}" />
@@ -235,7 +245,7 @@
                                     Click="ApplySummaryDirection_Click" />
                         </WrapPanel>
 
-                        <TextBlock Margin="0,0,0,8" Opacity="0.8">
+                        <TextBlock Margin="{StaticResource PlayAch.Thickness.Bottom.Sm}" Opacity="{StaticResource PlayAch.Opacity.Secondary}">
                             <Run Text="Current: " />
                             <Run Text="Provider=" />
                             <Run Text="{Binding Settings.DynamicGameSummariesProviderLabel, Mode=OneWay}" FontWeight="SemiBold" />
@@ -246,9 +256,14 @@
                         </TextBlock>
 
                         <DataGrid ItemsSource="{Binding Settings.DynamicGameSummaries, Mode=OneWay}"
+                                  Style="{StaticResource PlayAch.DataGrid.BaseStyle}"
                                   AutoGenerateColumns="False"
                                   IsReadOnly="True"
                                   Height="230"
+                                  GridLinesVisibility="None"
+                                  RowBackground="{DynamicResource PlayAch.Brush.Grid.RowBackground}"
+                                  BorderThickness="0"
+                                  Background="{DynamicResource PlayAch.Brush.Grid.Background}"
                                   CanUserAddRows="False"
                                   CanUserDeleteRows="False"
                                   ColumnHeaderStyle="{StaticResource AchievementColumnHeaderStyle}"

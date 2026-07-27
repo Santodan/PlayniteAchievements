@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.Globalization;
 using System.Windows;
 using System.Windows.Data;
@@ -19,6 +20,20 @@ namespace PlayniteAchievements.Views.Converters
     /// </summary>
     public class PercentToRarityBadgeConverter : IMultiValueConverter
     {
+        // Cache of resolved badge images keyed by badge resource key. Badge application
+        // resources are regenerated at runtime by
+        // RarityAppearanceHelper.ApplyBadgeApplicationResources (plugin startup, appearance
+        // settings edits), so the cache is cleared whenever
+        // RarityAppearanceHelper.AppearanceChanged fires. Missing lookups are not cached
+        // because resource dictionaries can load late. Converters run on the UI thread only,
+        // so an unlocked Dictionary is acceptable.
+        private static readonly Dictionary<string, object> BadgeImageCache = new Dictionary<string, object>();
+
+        static PercentToRarityBadgeConverter()
+        {
+            RarityAppearanceHelper.AppearanceChanged += (sender, e) => BadgeImageCache.Clear();
+        }
+
         public object Convert(object[] values, Type targetType, object parameter, CultureInfo culture)
         {
             if (values == null || values.Length < 4)
@@ -59,8 +74,19 @@ namespace PlayniteAchievements.Views.Converters
                 // Try to find the resource in the application resources
                 try
                 {
+                    if (BadgeImageCache.TryGetValue(badgeResourceKey, out var cachedImage))
+                    {
+                        return cachedImage;
+                    }
+
                     if (Application.Current.TryFindResource(badgeResourceKey) is DrawingImage badgeImage)
                     {
+                        if (badgeImage.CanFreeze)
+                        {
+                            badgeImage.Freeze();
+                        }
+
+                        BadgeImageCache[badgeResourceKey] = badgeImage;
                         return badgeImage;
                     }
                 }

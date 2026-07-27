@@ -6,8 +6,11 @@ using PlayniteAchievements.Models;
 using PlayniteAchievements.Models.Achievements;
 using PlayniteAchievements.Models.Settings;
 using PlayniteAchievements.Providers;
+using PlayniteAchievements.Providers.EmuLibrary;
 using PlayniteAchievements.Providers.ShadPS4;
 using PlayniteAchievements.Services;
+using PlayniteAchievements.Services.GameCustomData;
+using PlayniteAchievements.Tests.Providers;
 using System;
 using System.IO;
 using System.Threading;
@@ -114,6 +117,85 @@ namespace PlayniteAchievements.Providers.Tests
         }
 
         [TestMethod]
+        public async Task RefreshAsync_LegacyXmlUnixTimestamp_ParsesUnlockTime()
+        {
+            var tempDir = CreateTempDirectory();
+            var legacyGameDataPath = Path.Combine(tempDir, "user", "game_data");
+            var installDir = Path.Combine(tempDir, "Games", "CUSA03173");
+
+            try
+            {
+                CreateLegacyTrophyData(
+                    legacyGameDataPath,
+                    "CUSA03173",
+                    "Chalice of Pthumeru",
+                    timestamp: "1781207673");
+
+                var provider = CreateProvider(legacyGameDataPath);
+                var game = new Game
+                {
+                    Id = Guid.NewGuid(),
+                    Name = "Bloodborne",
+                    InstallDirectory = installDir
+                };
+
+                var data = await RefreshSingleGameAsync(provider, game).ConfigureAwait(false);
+
+                Assert.IsNotNull(data);
+                Assert.IsTrue(data.HasAchievements);
+                Assert.AreEqual(1, data.Achievements.Count);
+
+                var trophy = data.Achievements[0];
+                Assert.IsTrue(trophy.Unlocked);
+                Assert.AreEqual(
+                    DateTimeOffset.FromUnixTimeSeconds(1781207673).UtcDateTime,
+                    trophy.UnlockTimeUtc);
+            }
+            finally
+            {
+                DeleteDirectory(tempDir);
+            }
+        }
+
+        [TestMethod]
+        public async Task RefreshAsync_LegacyXmlFalseUnlockState_DoesNotMarkUnlocked()
+        {
+            var tempDir = CreateTempDirectory();
+            var legacyGameDataPath = Path.Combine(tempDir, "user", "game_data");
+            var installDir = Path.Combine(tempDir, "Games", "CUSA03173");
+
+            try
+            {
+                CreateLegacyTrophyData(
+                    legacyGameDataPath,
+                    "CUSA03173",
+                    "Locked Trophy",
+                    unlockState: "false",
+                    timestamp: "1781207673");
+
+                var provider = CreateProvider(legacyGameDataPath);
+                var game = new Game
+                {
+                    Id = Guid.NewGuid(),
+                    Name = "Bloodborne",
+                    InstallDirectory = installDir
+                };
+
+                var data = await RefreshSingleGameAsync(provider, game).ConfigureAwait(false);
+
+                Assert.IsNotNull(data);
+                Assert.IsTrue(data.HasAchievements);
+                Assert.AreEqual(1, data.Achievements.Count);
+                Assert.IsFalse(data.Achievements[0].Unlocked);
+                Assert.IsNull(data.Achievements[0].UnlockTimeUtc);
+            }
+            finally
+            {
+                DeleteDirectory(tempDir);
+            }
+        }
+
+        [TestMethod]
         public async Task RefreshAsync_OverrideMissingData_DoesNotFallBackToAutoDetection()
         {
             var tempDir = CreateTempDirectory();
@@ -149,14 +231,85 @@ namespace PlayniteAchievements.Providers.Tests
 
                 var data = await RefreshSingleGameAsync(provider, game).ConfigureAwait(false);
 
-                Assert.IsNotNull(data);
-                Assert.AreEqual("ShadPS4", data.ProviderKey);
-                Assert.IsFalse(data.HasAchievements);
-                Assert.AreEqual(0, data.Achievements.Count);
+                // Trophy data for the override was not located: no payload is produced,
+                // so previously cached achievements are preserved instead of being wiped.
+                Assert.IsNull(data);
             }
             finally
             {
                 PlayniteAchievementsPlugin.Instance = previousPlugin;
+                DeleteDirectory(tempDir);
+            }
+        }
+
+        [TestMethod]
+        public async Task RefreshAsync_UninstalledEmuLibraryGame_ResolvesTitleIdFromSourcePath()
+        {
+            var tempDir = CreateTempDirectory();
+            var legacyGameDataPath = Path.Combine(tempDir, "user", "game_data");
+
+            try
+            {
+                CreateLegacyTrophyData(legacyGameDataPath, "CUSA22222", "EmuLibrary Trophy");
+
+                var extensionsDataPath = Path.Combine(tempDir, "ExtensionsData");
+                var mappingId = Guid.NewGuid();
+                EmuLibraryPathResolverTests.WriteConfig(
+                    extensionsDataPath,
+                    mappingId,
+                    Path.Combine(tempDir, "network", "PS4"));
+
+                // Uninstalled EmuLibrary game: no install directory, only the serialized game id.
+                var game = EmuLibraryPathResolverTests.BuildEmuLibraryGame(new EmuLibraryMultiFileGameInfo
+                {
+                    MappingId = mappingId,
+                    SourceBaseDir = "CUSA22222",
+                    SourceFilePath = @"CUSA22222\eboot.bin"
+                });
+                game.Id = Guid.NewGuid();
+                game.Name = "Uninstalled EmuLibrary Game";
+
+                var provider = CreateProvider(legacyGameDataPath, extensionsDataPath);
+
+                var data = await RefreshSingleGameAsync(provider, game).ConfigureAwait(false);
+
+                Assert.IsNotNull(data);
+                Assert.IsTrue(data.HasAchievements);
+                Assert.AreEqual("EmuLibrary Trophy", data.Achievements[0].DisplayName);
+            }
+            finally
+            {
+                DeleteDirectory(tempDir);
+            }
+        }
+
+        [TestMethod]
+        public async Task RefreshAsync_UnlocatableGame_ReturnsNoPayloadSoCacheIsPreserved()
+        {
+            var tempDir = CreateTempDirectory();
+            var appDataRoot = Path.Combine(tempDir, "shadps4");
+
+            try
+            {
+                // Trophy data exists for some other game so the scan is not skipped outright.
+                CreateNewFormatTrophyData(appDataRoot, "1000", "NPWR22222_00", "Detected Trophy");
+
+                var provider = CreateProvider(appDataRoot);
+
+                // Uninstalled game: no install directory or npbind.dat to locate trophy data with.
+                var game = new Game
+                {
+                    Id = Guid.NewGuid(),
+                    Name = "Uninstalled Game",
+                    InstallDirectory = null
+                };
+
+                var data = await RefreshSingleGameAsync(provider, game).ConfigureAwait(false);
+
+                Assert.IsNull(data);
+            }
+            finally
+            {
                 DeleteDirectory(tempDir);
             }
         }
@@ -333,7 +486,7 @@ namespace PlayniteAchievements.Providers.Tests
             return captured;
         }
 
-        private static ShadPS4DataProvider CreateProvider(string configuredPath)
+        private static ShadPS4DataProvider CreateProvider(string configuredPath, string extensionsDataPath = null)
         {
             var settings = new PlayniteAchievementsSettings();
             var registry = new ProviderRegistry(settings, new[] { "ShadPS4" });
@@ -341,7 +494,7 @@ namespace PlayniteAchievements.Providers.Tests
             providerSettings.GameDataPath = configuredPath;
             registry.Save(providerSettings);
 
-            return new ShadPS4DataProvider(new FakeLogger(), settings, new FakePlayniteApi());
+            return new ShadPS4DataProvider(new FakeLogger(), settings, new FakePlayniteApi(extensionsDataPath));
         }
 
         private static void CreateNewFormatTrophyData(string appDataRoot, string userId, string npCommId, string trophyName)
@@ -372,13 +525,18 @@ namespace PlayniteAchievements.Providers.Tests
             File.WriteAllBytes(Path.Combine(iconDir, $"TROP{trophyId.PadLeft(3, '0')}.PNG"), new byte[] { 0 });
         }
 
-        private static void CreateLegacyTrophyData(string legacyGameDataPath, string titleId, string trophyName)
+        private static void CreateLegacyTrophyData(
+            string legacyGameDataPath,
+            string titleId,
+            string trophyName,
+            string unlockState = "1",
+            string timestamp = "0")
         {
             var xmlDir = Path.Combine(legacyGameDataPath, titleId, "trophyfiles", "trophy00", "Xml");
             Directory.CreateDirectory(xmlDir);
             File.WriteAllText(
                 Path.Combine(xmlDir, "TROP.XML"),
-                BuildLegacyFormatXml(trophyName));
+                BuildLegacyFormatXml(trophyName, unlockState, timestamp));
         }
 
         private static void CreateNpbindFile(string installDir, string npCommId)
@@ -427,10 +585,10 @@ namespace PlayniteAchievements.Providers.Tests
 </trophyconf>";
         }
 
-        private static string BuildLegacyFormatXml(string trophyName)
+        private static string BuildLegacyFormatXml(string trophyName, string unlockState, string timestamp)
         {
             return $@"<trophyconf>
-  <trophy id=""1"" ttype=""B"" hidden=""no"" unlockstate=""1"" timestamp=""0"">
+  <trophy id=""1"" ttype=""B"" hidden=""no"" unlockstate=""{unlockState}"" timestamp=""{timestamp}"">
     <name>{trophyName}</name>
     <detail>Description</detail>
   </trophy>
@@ -473,10 +631,15 @@ namespace PlayniteAchievements.Providers.Tests
 
         private sealed class FakePlayniteApi : IPlayniteAPI
         {
+            public FakePlayniteApi(string extensionsDataPath = null)
+            {
+                Paths = extensionsDataPath == null ? null : new FakePathsApi(extensionsDataPath);
+            }
+
             public IMainViewAPI MainView => null;
             public IGameDatabaseAPI Database => null;
             public IDialogsFactory Dialogs => null;
-            public IPlaynitePathsAPI Paths => null;
+            public IPlaynitePathsAPI Paths { get; }
             public INotificationsAPI Notifications => null;
             public IPlayniteInfoAPI ApplicationInfo => null;
             public IWebViewFactory WebViews => null;
@@ -495,6 +658,19 @@ namespace PlayniteAchievements.Providers.Tests
             public void AddCustomElementSupport(Plugin plugin, AddCustomElementSupportArgs args) { }
             public void AddSettingsSupport(Plugin plugin, AddSettingsSupportArgs args) { }
             public void AddConvertersSupport(Plugin plugin, AddConvertersSupportArgs args) { }
+        }
+
+        private sealed class FakePathsApi : IPlaynitePathsAPI
+        {
+            public FakePathsApi(string extensionsDataPath)
+            {
+                ExtensionsDataPath = extensionsDataPath;
+            }
+
+            public bool IsPortable => false;
+            public string ApplicationPath => null;
+            public string ConfigurationPath => null;
+            public string ExtensionsDataPath { get; }
         }
     }
 }

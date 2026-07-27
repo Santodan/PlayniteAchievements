@@ -1,0 +1,169 @@
+<UserControl x:Class="PlayniteAchievements.Views.Settings.Display.StartPageDisplaySection"
+             x:Name="StartPageDisplaySectionRoot"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+             xmlns:controls="clr-namespace:PlayniteAchievements.Views.Settings.Controls"
+             mc:Ignorable="d"
+             d:DesignHeight="600"
+             d:DesignWidth="700">
+    <UserControl.Resources>
+        <ResourceDictionary>
+            <ResourceDictionary.MergedDictionaries>
+                <ResourceDictionary Source="pack://application:,,,/PlayniteAchievements;component/Resources/SettingsScopedControlStyles.xaml"/>
+                <ResourceDictionary Source="pack://application:,,,/PlayniteAchievements;component/Resources/RarityBadges.xaml"/>
+                <ResourceDictionary Source="pack://application:,,,/PlayniteAchievements;component/Resources/CommonResources.xaml"/>
+            </ResourceDictionary.MergedDictionaries>
+        </ResourceDictionary>
+    </UserControl.Resources>
+    <ScrollViewer VerticalScrollBarVisibility="Auto"
+                  HorizontalScrollBarVisibility="Disabled">
+        <StackPanel Margin="20">
+            <Border Style="{StaticResource SectionBorderStyle}"
+                    Background="{DynamicResource PlayAch.Brush.Panel}"
+                    BorderBrush="{DynamicResource PlayAch.Brush.Border}">
+                <TextBlock Text="{DynamicResource LOCPlayAch_Settings_Display_StartPageSection}"
+                           Style="{StaticResource SectionHeaderStyle}"
+                           Margin="0"/>
+            </Border>
+
+            <Border Style="{StaticResource SectionBorderStyle}">
+                <StackPanel>
+                    <TextBlock Text="{DynamicResource LOCPlayAch_CustomRefresh_ScopeHeader}"
+                               Style="{StaticResource SectionHeaderStyle}"
+                               Margin="{StaticResource PlayAch.Thickness.Bottom.Md}"/>
+                    <Border Style="{StaticResource SectionAccentRuleStyle}"/>
+
+                    <Border Style="{StaticResource SettingGroupCardStyle}">
+                        <Grid>
+                            <Grid.RowDefinitions>
+                                <RowDefinition Height="Auto"/>
+                                <RowDefinition Height="Auto"/>
+                            </Grid.RowDefinitions>
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="Auto"/>
+                                <ColumnDefinition Width="Auto"/>
+                            </Grid.ColumnDefinitions>
+
+                            <TextBlock Grid.Row="0"
+                                       Grid.Column="0"
+                                       Text="{DynamicResource LOCPlayAch_Filter_ActivitySelectorPlaceholder}"
+                                       VerticalAlignment="Center"
+                                       Margin="0,0,10,8"/>
+                            <Button x:Name="StartPageActivityScopeSelectionButton"
+                                    Grid.Row="0"
+                                    Grid.Column="1"
+                                    Style="{StaticResource AchievementSelectorButtonStyle}"
+                                    Content="{Binding StartPageActivityScopeText, ElementName=StartPageDisplaySectionRoot}"
+                                    Click="StartPageActivityScopeSelectionButton_Click"
+                                    MinWidth="220"
+                                    Height="{StaticResource PlayAch.Size.Control.Height}"
+                                    Margin="{StaticResource PlayAch.Thickness.Bottom.Sm}"
+                                    HorizontalAlignment="Left">
+                                <Button.ContextMenu>
+                                    <ContextMenu x:Name="StartPageActivityScopeSelectionContextMenu"
+                                                 Style="{StaticResource AchievementSelectorContextMenuStyle}"
+                                                 ItemContainerStyle="{StaticResource AchievementMultiSelectMenuItemStyle}"/>
+                                </Button.ContextMenu>
+                            </Button>
+
+                            <TextBlock Grid.Row="1"
+                                       Grid.Column="0"
+                                       Text="{DynamicResource LOCPlayAch_Progress}"
+                                       VerticalAlignment="Center"
+                                       Margin="0,0,10,0"/>
+                            <Button x:Name="StartPageProgressScopeSelectionButton"
+                                    Grid.Row="1"
+                                    Grid.Column="1"
+                                    Style="{StaticResource AchievementSelectorButtonStyle}"
+                                    Content="{Binding StartPageProgressScopeText, ElementName=StartPageDisplaySectionRoot}"
+                                    Click="StartPageProgressScopeSelectionButton_Click"
+                                    MinWidth="220"
+                                    Height="{StaticResource PlayAch.Size.Control.Height}"
+                                    HorizontalAlignment="Left">
+                                <Button.ContextMenu>
+                                    <ContextMenu x:Name="StartPageProgressScopeSelectionContextMenu"
+                                                 Style="{StaticResource AchievementSelectorContextMenuStyle}"
+                                                 ItemContainerStyle="{StaticResource AchievementMultiSelectMenuItemStyle}"/>
+                                </Button.ContextMenu>
+                            </Button>
+                        </Grid>
+                    </Border>
+                </StackPanel>
+            </Border>
+
+            <Border Style="{StaticResource SectionBorderStyle}">
+                <StackPanel>
+                    <TextBlock Text="{DynamicResource LOCPlayAch_Overview_GameSummaries}"
+                               Style="{StaticResource SectionHeaderStyle}"
+                               Margin="{StaticResource PlayAch.Thickness.Bottom.Md}"/>
+                    <Border Style="{StaticResource SectionAccentRuleStyle}"/>
+
+                    <Border Style="{StaticResource SettingGroupCardStyle}">
+                        <controls:GridOptionsEditor Options="{Binding Persisted.GridOptions.GameSummaries[StartPage]}"/>
+                    </Border>
+                </StackPanel>
+            </Border>
+
+            <Border Style="{StaticResource SectionBorderStyle}">
+                <StackPanel>
+                    <TextBlock Text="{DynamicResource LOCPlayAch_RecentAchievements}"
+                               Style="{StaticResource SectionHeaderStyle}"
+                               Margin="{StaticResource PlayAch.Thickness.Bottom.Md}"/>
+                    <Border Style="{StaticResource SectionAccentRuleStyle}"/>
+                    <Border Style="{StaticResource SettingGroupCardStyle}">
+                        <controls:GridOptionsEditor Options="{Binding Persisted.GridOptions.Achievement[StartPageRecent]}"/>
+                    </Border>
+                </StackPanel>
+            </Border>
+
+            <Border Style="{StaticResource SectionBorderStyle}">
+                <StackPanel>
+                    <TextBlock Text="{DynamicResource LOCPlayAch_StartPage_FriendsRecentAchievements}"
+                               Style="{StaticResource SectionHeaderStyle}"
+                               Margin="{StaticResource PlayAch.Thickness.Bottom.Md}"/>
+                    <Border Style="{StaticResource SectionAccentRuleStyle}"/>
+                    <Border Style="{StaticResource SettingGroupCardStyle}">
+                        <controls:GridOptionsEditor Options="{Binding Persisted.GridOptions.Achievement[StartPageFriendAchievements]}"/>
+                    </Border>
+                </StackPanel>
+            </Border>
+
+            <Border Style="{StaticResource SectionBorderStyle}">
+                <StackPanel>
+                    <TextBlock Text="{DynamicResource LOCPlayAch_Settings_PieChartPreview}"
+                               Style="{StaticResource SectionHeaderStyle}"
+                               Margin="{StaticResource PlayAch.Thickness.Bottom.Md}"/>
+                    <Border Style="{StaticResource SectionAccentRuleStyle}"/>
+                    <Border Style="{StaticResource SettingGroupCardStyle}">
+                        <StackPanel>
+                            <CheckBox Content="{DynamicResource LOCPlayAch_Settings_ShowOverviewPiePercentages}"
+                                      IsChecked="{Binding Persisted.StartPagePieCharts.ShowCenterPercentage}"
+                                      Margin="{StaticResource PlayAch.Thickness.Bottom.Md}"/>
+                            <TextBlock Text="{DynamicResource LOCPlayAch_Settings_OverviewPieSmallSliceMode}"
+                                       Style="{StaticResource SubSectionHeaderStyle}"
+                                       Margin="{StaticResource PlayAch.Thickness.Bottom.Sm}"/>
+                            <StackPanel Orientation="Horizontal">
+                                <RadioButton Content="{DynamicResource LOCPlayAch_Settings_OverviewPieSmallSliceMode_Exact}"
+                                             GroupName="StartPagePieSmallSliceMode"
+                                             Style="{StaticResource OverviewPieModeRadioButtonStyle}"
+                                             Margin="0,0,16,0"
+                                             IsChecked="{Binding Persisted.StartPagePieCharts.SmallSliceMode, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged, Converter={StaticResource EnumToBool}, ConverterParameter=Exact}"/>
+                                <RadioButton Content="{DynamicResource LOCPlayAch_Common_Hide}"
+                                             GroupName="StartPagePieSmallSliceMode"
+                                             Style="{StaticResource OverviewPieModeRadioButtonStyle}"
+                                             Margin="0,0,16,0"
+                                             IsChecked="{Binding Persisted.StartPagePieCharts.SmallSliceMode, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged, Converter={StaticResource EnumToBool}, ConverterParameter=Hide}"/>
+                                <RadioButton Content="{DynamicResource LOCPlayAch_Settings_OverviewPieSmallSliceMode_Round}"
+                                             GroupName="StartPagePieSmallSliceMode"
+                                             Style="{StaticResource OverviewPieModeRadioButtonStyle}"
+                                             IsChecked="{Binding Persisted.StartPagePieCharts.SmallSliceMode, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged, Converter={StaticResource EnumToBool}, ConverterParameter=Round}"/>
+                            </StackPanel>
+                        </StackPanel>
+                    </Border>
+                </StackPanel>
+            </Border>
+        </StackPanel>
+    </ScrollViewer>
+</UserControl>

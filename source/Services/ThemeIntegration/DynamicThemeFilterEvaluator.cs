@@ -87,6 +87,11 @@ namespace PlayniteAchievements.Services.ThemeIntegration
                 case DynamicThemeViewKeys.Bronze:
                     return IsTrophyType(item, filterKey);
                 default:
+                    if (CategoryTypeFilterKeys.Contains(filterKey ?? string.Empty))
+                    {
+                        return IsCategoryType(item, filterKey);
+                    }
+
                     return true;
             }
         }
@@ -131,6 +136,23 @@ namespace PlayniteAchievements.Services.ThemeIntegration
             }
 
             return string.Equals(item.TrophyType, trophyKey, StringComparison.OrdinalIgnoreCase);
+        }
+
+        private static readonly HashSet<string> CategoryTypeFilterKeys = new HashSet<string>(
+            DynamicThemeOptionGroups.AchievementCategoryTypeFilterKeys
+                .Where(key => !string.Equals(key, DynamicThemeViewKeys.All, StringComparison.OrdinalIgnoreCase)),
+            StringComparer.OrdinalIgnoreCase);
+
+        private static bool IsCategoryType(AchievementDetail item, string typeKey)
+        {
+            if (item == null || string.IsNullOrWhiteSpace(typeKey))
+            {
+                return false;
+            }
+
+            // CategoryType is multi-valued ("Base|DLC"); ParseValues canonicalizes aliases.
+            return Services.Achievements.AchievementCategoryTypeHelper.ParseValues(item.CategoryType)
+                .Contains(typeKey, StringComparer.OrdinalIgnoreCase);
         }
     }
 }
