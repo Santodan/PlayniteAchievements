@@ -40,6 +40,8 @@ namespace PlayniteAchievements.ViewModels
         private Option _selected;
         private IReadOnlyList<AchievementDisplayItem> _targetItems;
         private readonly List<AchievementDisplayItem> _appliedItems = new List<AchievementDisplayItem>();
+        private bool _availabilityPending;
+        private bool _indexedAvailability;
 
         internal FriendCompareController(
             IFriendCacheManager friendCache,
@@ -49,9 +51,13 @@ namespace PlayniteAchievements.ViewModels
             _friendCache = friendCache;
             _settings = settings;
             _logger = logger;
+            WarmAvailabilityIndex();
         }
 
-        public bool IsCompareAvailable => _options.Count > 0;
+        // Stay visible while the cheap shared availability index is warming. Once warm, the
+        // index answers immediately while the heavier per-game option rows continue loading.
+        public bool IsCompareAvailable =>
+            _availabilityPending || _indexedAvailability || _options.Count > 0;
 
         public string CompareSelectionText => _selected?.DisplayName
             ?? ResourceProvider.GetString("LOCPlayAch_Filter_CompareSelectorPlaceholder");
@@ -107,6 +113,8 @@ namespace PlayniteAchievements.ViewModels
                 _selected = null;
                 _friendRows = new List<FriendAchievementDisplayItem>();
                 _options = new List<Option>();
+                _indexedAvailability = false;
+                _availabilityPending = CanLoad(gameId);
                 NotifyCompareStateChanged();
                 BeginLoad(gameId);
                 return;
@@ -137,15 +145,13 @@ namespace PlayniteAchievements.ViewModels
         private void BeginLoad(Guid? gameId)
         {
             var version = Interlocked.Increment(ref _loadVersion);
-            if (_friendCache == null ||
-                gameId == null ||
-                gameId == Guid.Empty ||
-                _settings?.Persisted?.EnableFriendsFeatures != true)
+            if (!CanLoad(gameId))
             {
                 return;
             }
 
             var targetGameId = gameId.Value;
+            BeginAvailabilityLoad(targetGameId, version);
             Task.Run(() =>
             {
                 List<FriendAchievementDisplayItem> rows = null;
@@ -167,6 +173,8 @@ namespace PlayniteAchievements.ViewModels
 
                     _friendRows = rows ?? new List<FriendAchievementDisplayItem>();
                     _options = BuildOptions(_friendRows);
+                    _indexedAvailability = _options.Count > 0;
+                    _availabilityPending = false;
                     OnPropertyChanged(nameof(OptionKeys));
                     OnPropertyChanged(nameof(IsCompareAvailable));
                     ApplySelection();
@@ -175,7 +183,79 @@ namespace PlayniteAchievements.ViewModels
                 var dispatcher = System.Windows.Application.Current?.Dispatcher;
                 if (dispatcher != null)
                 {
-                    dispatcher.InvokeIfNeeded(Apply);
+                    dispatcher.InvokeIfNeeded(
+                        Apply,
+                        System.Windows.Threading.DispatcherPriority.DataBind);
+                }
+                else
+                {
+                    Apply();
+                }
+            });
+        }
+
+        private bool CanLoad(Guid? gameId)
+        {
+            return _friendCache != null &&
+                   gameId.HasValue &&
+                   gameId.Value != Guid.Empty &&
+                   _settings?.Persisted?.EnableFriendsFeatures == true;
+        }
+
+        private void WarmAvailabilityIndex()
+        {
+            if (_friendCache == null || _settings?.Persisted?.EnableFriendsFeatures != true)
+            {
+                return;
+            }
+
+            Task.Run(() =>
+            {
+                try
+                {
+                    _friendCache.LoadFriendDataPlayniteGameIds();
+                }
+                catch (Exception ex)
+                {
+                    _logger?.Error(ex, "Failed to warm the friend compare availability index.");
+                }
+            });
+        }
+
+        private void BeginAvailabilityLoad(Guid gameId, int version)
+        {
+            Task.Run(() =>
+            {
+                bool isAvailable;
+                try
+                {
+                    isAvailable = (_friendCache.LoadFriendDataPlayniteGameIds() ??
+                                   Array.Empty<Guid>()).Contains(gameId);
+                }
+                catch (Exception ex)
+                {
+                    _logger?.Error(ex, $"Failed to load friend compare availability for game {gameId}.");
+                    isAvailable = false;
+                }
+
+                void Apply()
+                {
+                    if (version != Volatile.Read(ref _loadVersion))
+                    {
+                        return;
+                    }
+
+                    _indexedAvailability = isAvailable;
+                    _availabilityPending = false;
+                    OnPropertyChanged(nameof(IsCompareAvailable));
+                }
+
+                var dispatcher = System.Windows.Application.Current?.Dispatcher;
+                if (dispatcher != null)
+                {
+                    dispatcher.InvokeIfNeeded(
+                        Apply,
+                        System.Windows.Threading.DispatcherPriority.DataBind);
                 }
                 else
                 {
