@@ -389,6 +389,34 @@ namespace PlayniteAchievements.ViewModels
 
         public bool IsRevealed { get; set; }
 
+        public bool HasComparison { get; private set; }
+
+        public string ComparisonFriendName { get; private set; }
+
+        public string ComparisonFriendAvatarPath { get; private set; }
+
+        public DateTime? ComparisonUnlockTimeUtc { get; private set; }
+
+        public bool ComparisonUnlocked { get; private set; }
+
+        public void ApplyComparison(string friendName, string friendAvatarPath, DateTime? unlockTimeUtc, bool unlocked)
+        {
+            ComparisonFriendName = friendName;
+            ComparisonFriendAvatarPath = friendAvatarPath;
+            ComparisonUnlockTimeUtc = unlockTimeUtc;
+            ComparisonUnlocked = unlocked;
+            HasComparison = true;
+        }
+
+        public void ClearComparison()
+        {
+            HasComparison = false;
+            ComparisonFriendName = null;
+            ComparisonFriendAvatarPath = null;
+            ComparisonUnlockTimeUtc = null;
+            ComparisonUnlocked = false;
+        }
+
         public static AchievementDisplayItem Create(
             PlayniteAchievements.Models.Achievements.GameAchievementData gameData,
             PlayniteAchievements.Models.Achievements.AchievementDetail achievement,

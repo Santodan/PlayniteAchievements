@@ -254,6 +254,27 @@
                 <RowDefinition Height="*"/>
             </Grid.RowDefinitions>
 
+            <!-- Compare-friend selector, shown when any friend has cached data for this game -->
+            <StackPanel Grid.Row="0"
+                        Orientation="Horizontal"
+                        HorizontalAlignment="Right"
+                        Margin="0,0,0,8"
+                        Visibility="{Binding FriendCompare.IsCompareAvailable, Converter={StaticResource BoolToVis}}">
+                <Button x:Name="CompareSelectionButton"
+                        Style="{StaticResource AchievementSelectorButtonStyle}"
+                        Content="{Binding FriendCompare.CompareSelectionText}"
+                        Click="CompareSelectionButton_Click"
+                        HorizontalContentAlignment="Center"
+                        MinWidth="94"
+                        MinHeight="24"
+                        VerticalAlignment="Center">
+                    <Button.ContextMenu>
+                        <ContextMenu Style="{StaticResource AchievementSelectorContextMenuStyle}"
+                                     ItemContainerStyle="{StaticResource AchievementMultiSelectMenuItemStyle}"/>
+                    </Button.ContextMenu>
+                </Button>
+            </StackPanel>
+
             <!-- Breadcrumb header, shown only once a category is selected -->
             <StackPanel Grid.Row="0"
                         Orientation="Horizontal"

@@ -251,24 +251,21 @@
                     Padding="8,0"
                     BorderBrush="{DynamicResource PlayAch.Brush.ControlBorder}"
                     BorderThickness="0,0,0,1">
-                <Grid>
-                    <Grid.ColumnDefinitions>
-                        <ColumnDefinition Width="*"/>
-                        <ColumnDefinition Width="Auto"/>
-                    </Grid.ColumnDefinitions>
-                    <TextBlock Text="{DynamicResource LOCPlayAch_FriendsOverview_FriendSummaries}"
+                <StackPanel Orientation="Horizontal"
+                            VerticalAlignment="Center">
+                    <TextBlock Text="{Binding FriendSectionTitle}"
                                Style="{DynamicResource PlayAch.TextBlock.BaseStyle}"
                                FontWeight="Bold"
                                Foreground="{DynamicResource PlayAch.Brush.Text}"
                                VerticalAlignment="Center"
                                TextTrimming="CharacterEllipsis"/>
-                    <Button Grid.Column="1"
-                            Content="&#x2715;"
+                    <Button Content="&#x2715;"
                             ToolTip="{DynamicResource LOCPlayAch_FriendsOverview_ClearSelection}"
-                            Click="ClearFriendSelection_Click"
+                            Click="ClearGameSelection_Click"
                             Style="{StaticResource ClearGameSelectionButtonStyle}"
-                            Visibility="{Binding HasFriendSelection, Converter={StaticResource BoolToVis}}"/>
-                </Grid>
+                            Margin="10,0,0,0"
+                            Visibility="{Binding HasGameSelection, Converter={StaticResource BoolToVis}}"/>
+                </StackPanel>
             </Border>
 
             <!-- Game header/filter -->
@@ -278,24 +275,21 @@
                     Padding="8,0"
                     BorderBrush="{DynamicResource PlayAch.Brush.ControlBorder}"
                     BorderThickness="0,0,0,1">
-                <Grid>
-                    <Grid.ColumnDefinitions>
-                        <ColumnDefinition Width="*"/>
-                        <ColumnDefinition Width="Auto"/>
-                    </Grid.ColumnDefinitions>
-                    <TextBlock Text="{DynamicResource LOCPlayAch_Overview_GameSummaries}"
+                <StackPanel Orientation="Horizontal"
+                            VerticalAlignment="Center">
+                    <TextBlock Text="{Binding GameSectionTitle}"
                                Style="{DynamicResource PlayAch.TextBlock.BaseStyle}"
                                FontWeight="Bold"
                                Foreground="{DynamicResource PlayAch.Brush.Text}"
                                VerticalAlignment="Center"
                                TextTrimming="CharacterEllipsis"/>
-                    <Button Grid.Column="1"
-                            Content="&#x2715;"
+                    <Button Content="&#x2715;"
                             ToolTip="{DynamicResource LOCPlayAch_FriendsOverview_ClearSelection}"
-                            Click="ClearGameSelection_Click"
+                            Click="ClearFriendSelection_Click"
                             Style="{StaticResource ClearGameSelectionButtonStyle}"
-                            Visibility="{Binding HasGameSelection, Converter={StaticResource BoolToVis}}"/>
-                </Grid>
+                            Margin="10,0,0,0"
+                            Visibility="{Binding HasFriendSelection, Converter={StaticResource BoolToVis}}"/>
+                </StackPanel>
             </Border>
 
             <!-- Achievement header/filter -->
@@ -352,6 +346,21 @@
                             Style="{StaticResource ClearGameSelectionButtonStyle}"
                             Margin="10,0,0,0"
                             Visibility="{Binding HasAnySelection, Converter={StaticResource BoolToVis}}"/>
+                    <Button x:Name="CompareSelectionButton"
+                            Style="{StaticResource AchievementSelectorButtonStyle}"
+                            Content="{Binding CompareSelectionText}"
+                            Click="CompareSelectionButton_Click"
+                            HorizontalContentAlignment="Center"
+                            MinWidth="94"
+                            MinHeight="22"
+                            Margin="10,0,0,0"
+                            VerticalAlignment="Center"
+                            Visibility="{Binding IsCompareAvailable, Converter={StaticResource BoolToVis}}">
+                        <Button.ContextMenu>
+                            <ContextMenu Style="{StaticResource AchievementSelectorContextMenuStyle}"
+                                         ItemContainerStyle="{StaticResource AchievementMultiSelectMenuItemStyle}"/>
+                        </Button.ContextMenu>
+                    </Button>
                 </StackPanel>
             </Border>
 

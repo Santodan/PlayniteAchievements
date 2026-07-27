@@ -93,27 +93,15 @@
                         Padding="12,0"
                         BorderBrush="{DynamicResource PlayAch.Brush.ControlBorder}"
                         BorderThickness="0,0,0,1">
-                    <Grid>
-                        <Grid.ColumnDefinitions>
-                            <ColumnDefinition Width="*"/>
-                            <ColumnDefinition Width="Auto"/>
-                        </Grid.ColumnDefinitions>
-                        <TextBlock Text="{DynamicResource LOCPlayAch_FriendsOverview_FriendSummaries}"
+                    <StackPanel Orientation="Horizontal"
+                                VerticalAlignment="Center">
+                        <TextBlock Text="{Binding GameName}"
                                    Style="{DynamicResource PlayAch.TextBlock.BaseStyle}"
                                    FontWeight="Bold"
                                    Foreground="{DynamicResource PlayAch.Brush.Text}"
                                    VerticalAlignment="Center"
                                    TextTrimming="CharacterEllipsis"/>
-                        <Button Grid.Column="1"
-                                Content="&#x2715;"
-                                ToolTip="{DynamicResource LOCPlayAch_FriendsOverview_ClearSelection}"
-                                Command="{Binding ClearFriendSelectionCommand}"
-                                Style="{StaticResource PlayAch.Button.BaseStyle}"
-                                Width="24"
-                                Height="22"
-                                Padding="0"
-                                Visibility="{Binding HasFriendSelection, Converter={StaticResource BoolToVis}}"/>
-                    </Grid>
+                    </StackPanel>
                 </Border>
 
                 <Border Grid.Row="0"
@@ -178,6 +166,12 @@
                                    Margin="{StaticResource PlayAch.Thickness.Left.Sm}"
                                    VerticalAlignment="Center"
                                    Visibility="{Binding HasFriendSelection, Converter={StaticResource BoolToVis}}"/>
+                        <Button Content="&#x2715;"
+                                ToolTip="{DynamicResource LOCPlayAch_FriendsOverview_ClearSelection}"
+                                Command="{Binding ClearFriendSelectionCommand}"
+                                Style="{StaticResource ClearGameSelectionButtonStyle}"
+                                Margin="10,0,0,0"
+                                Visibility="{Binding HasFriendSelection, Converter={StaticResource BoolToVis}}"/>
                     </StackPanel>
                 </Border>
 

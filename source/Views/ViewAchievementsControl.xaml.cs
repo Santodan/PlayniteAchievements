@@ -52,7 +52,14 @@ namespace PlayniteAchievements.Views
             _playniteApi = playniteApi;
             _achievementOverridesService = achievementOverridesService;
             _cacheManager = cacheManager;
-            DataContext = new ViewAchievementsViewModel(gameId, refreshRuntime, achievementDataService, playniteApi, logger, settings);
+            DataContext = new ViewAchievementsViewModel(
+                gameId,
+                refreshRuntime,
+                achievementDataService,
+                playniteApi,
+                logger,
+                settings,
+                cacheManager as Services.Friends.IFriendCacheManager);
             if (ViewModel != null)
             {
                 ViewModel.PropertyChanged += ViewModel_PropertyChanged;
@@ -93,6 +100,33 @@ namespace PlayniteAchievements.Views
         private void OnLoaded(object sender, RoutedEventArgs e)
         {
             UpdateDefaultSortIndicator();
+        }
+
+        private void CompareSelectionButton_Click(object sender, RoutedEventArgs e)
+        {
+            var compare = ViewModel?.FriendCompare;
+            if (compare == null)
+            {
+                return;
+            }
+
+            var options = new List<CompareMenuOption>
+            {
+                new CompareMenuOption
+                {
+                    Label = ResourceProvider.GetString("LOCPlayAch_Common_None"),
+                    IsChecked = !compare.HasCompareSelection,
+                    OnSelected = () => compare.Select(null)
+                }
+            };
+            options.AddRange(compare.Options.Select(option => new CompareMenuOption
+            {
+                Label = option.DisplayName,
+                IsChecked = compare.IsSelected(option),
+                OnSelected = () => compare.Select(option)
+            }));
+
+            CompareFriendMenuHelper.Open(CompareSelectionButton, options);
         }
 
         // Invoked by AchievementHotkeyService when F5 is pressed while focus is within this view.

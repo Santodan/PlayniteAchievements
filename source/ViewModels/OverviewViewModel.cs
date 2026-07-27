@@ -18,6 +18,7 @@ using PlayniteAchievements.Models.Achievements.Scoring;
 using PlayniteAchievements.Models.Settings;
 using PlayniteAchievements.Providers;
 using PlayniteAchievements.Services.Achievements;
+using PlayniteAchievements.Services.Friends;
 using PlayniteAchievements.Services.GameCustomData;
 using PlayniteAchievements.Services.Library;
 using PlayniteAchievements.Services.Overview;
@@ -104,6 +105,10 @@ namespace PlayniteAchievements.ViewModels
         private string _selectedGameSortPath;
         private ListSortDirection _selectedGameSortDirection;
 
+        // Compare-friend selection for the selected-game grid: enriches the self rows with a
+        // friend's unlock state. Selection clears whenever the selected game changes.
+        public FriendCompareController FriendCompare { get; }
+
 
         internal OverviewViewModel(
             RefreshRuntime refreshRuntime,
@@ -115,8 +120,10 @@ namespace PlayniteAchievements.ViewModels
             IPlayniteAPI playniteApi,
             ILogger logger,
             PlayniteAchievementsSettings settings,
-            OverviewLaunchContext launchContext = OverviewLaunchContext.Sidebar)
+            OverviewLaunchContext launchContext = OverviewLaunchContext.Sidebar,
+            IFriendCacheManager friendCache = null)
         {
+            FriendCompare = new FriendCompareController(friendCache, settings, logger);
             _refreshService = refreshRuntime ?? throw new ArgumentNullException(nameof(refreshRuntime));
             _persistSettingsForUi = persistSettingsForUi ?? throw new ArgumentNullException(nameof(persistSettingsForUi));
             _achievementDataService = achievementDataService ?? throw new ArgumentNullException(nameof(achievementDataService));
@@ -3705,6 +3712,7 @@ namespace PlayniteAchievements.ViewModels
                 _allSelectedGameAchievements = new List<AchievementDisplayItem>();
                 _selectedGameDefaultOrderedAchievements = new List<AchievementDisplayItem>();
                 _filteredSelectedGameAchievements = new List<AchievementDisplayItem>();
+                FriendCompare?.SetGame(null, null);
                 UpdateSelectedGameAchievementFilterOptions(null);
                 SelectedGameHasCustomAchievementOrder = false;
                 SyncSelectedGameAchievementsDisplay();
@@ -3740,6 +3748,7 @@ namespace PlayniteAchievements.ViewModels
 
                 _allSelectedGameAchievements = items;
                 _selectedGameDefaultOrderedAchievements = new List<AchievementDisplayItem>(items);
+                FriendCompare?.SetGame(gameId, items);
                 UpdateSelectedGameAchievementFilterOptions(_allSelectedGameAchievements);
                 ApplyRightFilters();
 
