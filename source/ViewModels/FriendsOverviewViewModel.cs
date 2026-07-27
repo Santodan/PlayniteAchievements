@@ -320,7 +320,7 @@ namespace PlayniteAchievements.ViewModels
         public bool HasCompareSelection => _compareFriend != null;
 
         public string CompareSelectionText => _compareFriend?.DisplayName
-            ?? ResourceProvider.GetString("LOCPlayAch_Compare_Label");
+            ?? ResourceProvider.GetString("LOCPlayAch_Filter_CompareSelectorPlaceholder");
 
         public bool IsCompareAvailable => HasFriendGameSelection && GetCompareFriendOptions().Count > 0;
 
