@@ -35,11 +35,14 @@
             </Grid.ColumnDefinitions>
 
             <!-- Trophy icon (shown when DisplayDetails=False) -->
-            <TextBlock Grid.Column="0"
-                       Text="&#xedd7;" FontFamily="{DynamicResource PlayAch.FontFamily.Icon}"
-                       VerticalAlignment="Center"
-                       Visibility="{Binding DisplayDetails, RelativeSource={RelativeSource AncestorType=base:ThemeControlBase}, Converter={StaticResource InverseBoolToVisConverter}}"
-                       FontSize="{Binding FontSize, RelativeSource={RelativeSource AncestorType=base:ThemeControlBase}, FallbackValue=14}"/>
+            <Path Grid.Column="0"
+                  Data="{StaticResource PlayAch.Geometry.TrophyIcon}"
+                  Stretch="Uniform"
+                  Fill="{Binding (TextElement.Foreground), RelativeSource={RelativeSource Self}}"
+                  VerticalAlignment="Center"
+                  Visibility="{Binding DisplayDetails, RelativeSource={RelativeSource AncestorType=base:ThemeControlBase}, Converter={StaticResource InverseBoolToVisConverter}}"
+                  Width="{Binding FontSize, RelativeSource={RelativeSource AncestorType=base:ThemeControlBase}, FallbackValue=14}"
+                  Height="{Binding FontSize, RelativeSource={RelativeSource AncestorType=base:ThemeControlBase}, FallbackValue=14}"/>
 
             <!-- Details grid (shown when DisplayDetails=True) -->
             <Grid Grid.Column="1" HorizontalAlignment="Stretch"
