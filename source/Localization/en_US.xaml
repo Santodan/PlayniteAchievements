@@ -903,6 +903,7 @@
     <!-- ================================================================= -->
     <!-- 12 Overview and Filters -->
     <!-- ================================================================= -->
+    <sys:String x:Key="LOCPlayAch_Compare_Label">Compare</sys:String>
     <sys:String x:Key="LOCPlayAch_Filter_Achievements">Search Achievements</sys:String>
     <sys:String x:Key="LOCPlayAch_Filter_Complete">Complete</sys:String>
     <sys:String x:Key="LOCPlayAch_Filter_InProgress">In Progress</sys:String>
