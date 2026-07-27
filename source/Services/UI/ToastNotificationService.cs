@@ -10,6 +10,7 @@ using System.Windows.Media.Animation;
 using System.Windows.Threading;
 using Playnite.SDK;
 using PlayniteAchievements.Models;
+using PlayniteAchievements.Models.Achievements;
 using PlayniteAchievements.Models.Settings;
 using PlayniteAchievements.ViewModels;
 using PlayniteAchievements.Views.Helpers;
@@ -131,7 +132,11 @@ namespace PlayniteAchievements.Services.UI
                 return false;
             }
 
-            return ProviderNotificationPolicy.Resolve(persisted, args.ProviderKey).AnyScreenshot;
+            return ProviderNotificationPolicy.Resolve(persisted, args.ProviderKey).AnyScreenshot &&
+                   UnlockCaptureRarityFilter.ShouldCapture(
+                       args,
+                       persisted.UnlockScreenshotMinimumRarity,
+                       persisted.UnlockScreenshotAlwaysCaptureCompletion);
         }
 
         /// <summary>
@@ -708,8 +713,16 @@ namespace PlayniteAchievements.Services.UI
             };
             foreach (var vm in wave)
             {
+                if (!UnlockCaptureRarityFilter.ShouldCapture(
+                        vm.Rarity,
+                        vm.IsGameCompleted || vm.IsCompletionAchievement || vm.IsCapstone,
+                        persisted.UnlockScreenshotMinimumRarity,
+                        persisted.UnlockScreenshotAlwaysCaptureCompletion))
+                {
+                    continue;
+                }
+
                 // The policy ANDs the EnableUnlockScreenshots master switch into each variant flag.
-                // Completion notifications are treated like any other own unlock here.
                 var effective = ProviderNotificationPolicy.Resolve(persisted, vm.ProviderKey);
                 var variants = ScreenshotVariants.None;
 

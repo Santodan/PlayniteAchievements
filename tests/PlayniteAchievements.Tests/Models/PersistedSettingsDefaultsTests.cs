@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
 using Newtonsoft.Json.Linq;
 using PlayniteAchievements.Models;
+using PlayniteAchievements.Models.Achievements;
 using PlayniteAchievements.Models.Settings;
 using PlayniteAchievements.Models.Tagging;
 
@@ -11,6 +12,17 @@ namespace PlayniteAchievements.Models.Tests
     [TestClass]
     public class PersistedSettingsDefaultsTests
     {
+        [TestMethod]
+        public void Constructor_DefaultsCaptureRarityFiltersToCurrentBehavior()
+        {
+            var settings = new PersistedSettings();
+
+            Assert.AreEqual(RarityTier.Common, settings.UnlockScreenshotMinimumRarity);
+            Assert.IsTrue(settings.UnlockScreenshotAlwaysCaptureCompletion);
+            Assert.AreEqual(RarityTier.Common, settings.UnlockRecordingMinimumRarity);
+            Assert.IsTrue(settings.UnlockRecordingAlwaysCaptureCompletion);
+        }
+
         [TestMethod]
         public void Constructor_DefaultsAchievementDataGridMaxHeight()
         {

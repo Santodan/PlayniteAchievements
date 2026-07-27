@@ -104,6 +104,8 @@ namespace PlayniteAchievements.Models.Settings
         private bool _frameRarityColoredName = true;
         private bool _frameShowUnlockTime = true;
         private string _unlockScreenshotDirectory;
+        private RarityTier _unlockScreenshotMinimumRarity = RarityTier.Common;
+        private bool _unlockScreenshotAlwaysCaptureCompletion = true;
         private bool _enableUnlockRecordings = false;
         private string _ffmpegPath;
         private string _unlockRecordingDirectory;
@@ -113,6 +115,8 @@ namespace PlayniteAchievements.Models.Settings
         private RecordingEncoder _recordingEncoder = RecordingEncoder.Auto;
         private RecordingCaptureBackend _recordingCaptureBackend = RecordingCaptureBackend.Auto;
         private bool _recordingIncludeAudio = false;
+        private RarityTier _unlockRecordingMinimumRarity = RarityTier.Common;
+        private bool _unlockRecordingAlwaysCaptureCompletion = true;
         private Dictionary<string, ProviderNotificationOverride> _providerNotificationOverrides =
             new Dictionary<string, ProviderNotificationOverride>(StringComparer.OrdinalIgnoreCase);
         private ToastScreenCorner _toastPosition = ToastScreenCorner.BottomRight;
@@ -1171,6 +1175,25 @@ namespace PlayniteAchievements.Models.Settings
         }
 
         /// <summary>
+        /// The least-rare achievement tier that produces unlock screenshots.
+        /// </summary>
+        public RarityTier UnlockScreenshotMinimumRarity
+        {
+            get => _unlockScreenshotMinimumRarity;
+            set => SetValue(ref _unlockScreenshotMinimumRarity, value);
+        }
+
+        /// <summary>
+        /// When true, completing achievements, capstones, and standalone game-complete events
+        /// bypass the screenshot rarity threshold.
+        /// </summary>
+        public bool UnlockScreenshotAlwaysCaptureCompletion
+        {
+            get => _unlockScreenshotAlwaysCaptureCompletion;
+            set => SetValue(ref _unlockScreenshotAlwaysCaptureCompletion, value);
+        }
+
+        /// <summary>
         /// When true, a video clip of the game's monitor is saved for each of your own unlocks
         /// while a game is running, via a rolling ffmpeg screen capture. Requires a valid
         /// <see cref="FfmpegPath"/>; the plugin never downloads ffmpeg.
@@ -1244,6 +1267,25 @@ namespace PlayniteAchievements.Models.Settings
         {
             get => _recordingIncludeAudio;
             set => SetValue(ref _recordingIncludeAudio, value);
+        }
+
+        /// <summary>
+        /// The least-rare achievement tier that produces unlock recording clips.
+        /// </summary>
+        public RarityTier UnlockRecordingMinimumRarity
+        {
+            get => _unlockRecordingMinimumRarity;
+            set => SetValue(ref _unlockRecordingMinimumRarity, value);
+        }
+
+        /// <summary>
+        /// When true, completing achievements, capstones, and standalone game-complete events
+        /// bypass the recording rarity threshold.
+        /// </summary>
+        public bool UnlockRecordingAlwaysCaptureCompletion
+        {
+            get => _unlockRecordingAlwaysCaptureCompletion;
+            set => SetValue(ref _unlockRecordingAlwaysCaptureCompletion, value);
         }
 
         /// <summary>
@@ -2382,6 +2424,8 @@ namespace PlayniteAchievements.Models.Settings
                 FrameRarityColoredName = this.FrameRarityColoredName,
                 FrameShowUnlockTime = this.FrameShowUnlockTime,
                 UnlockScreenshotDirectory = this.UnlockScreenshotDirectory,
+                UnlockScreenshotMinimumRarity = this.UnlockScreenshotMinimumRarity,
+                UnlockScreenshotAlwaysCaptureCompletion = this.UnlockScreenshotAlwaysCaptureCompletion,
                 EnableUnlockRecordings = this.EnableUnlockRecordings,
                 FfmpegPath = this.FfmpegPath,
                 UnlockRecordingDirectory = this.UnlockRecordingDirectory,
@@ -2391,6 +2435,8 @@ namespace PlayniteAchievements.Models.Settings
                 RecordingEncoder = this.RecordingEncoder,
                 RecordingCaptureBackend = this.RecordingCaptureBackend,
                 RecordingIncludeAudio = this.RecordingIncludeAudio,
+                UnlockRecordingMinimumRarity = this.UnlockRecordingMinimumRarity,
+                UnlockRecordingAlwaysCaptureCompletion = this.UnlockRecordingAlwaysCaptureCompletion,
                 ProviderNotificationOverrides = this.ProviderNotificationOverrides != null
                     ? this.ProviderNotificationOverrides.ToDictionary(
                         kvp => kvp.Key,
