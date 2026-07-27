@@ -13,6 +13,7 @@ using PlayniteAchievements.Models.Settings;
 using PlayniteAchievements.Services;
 using PlayniteAchievements.Services.Achievements;
 using PlayniteAchievements.Services.Cache;
+using PlayniteAchievements.Services.Friends;
 using PlayniteAchievements.Services.Refresh;
 using PlayniteAchievements.Services.Summaries;
 using PlayniteAchievements.ViewModels.Items;
@@ -50,6 +51,9 @@ namespace PlayniteAchievements.ViewModels
         // Search and filter state. The control bar (search box, Unlocked/Locked/Hidden
         // toggles, Type/Category filters) and its filter predicate live in the shared adapter.
         private readonly AchievementGridControlBarAdapter _controlBar = new AchievementGridControlBarAdapter();
+
+        // Compare-friend selection: enriches the self rows with a friend's unlock state.
+        public FriendCompareController FriendCompare { get; }
         private List<AchievementDisplayItem> _allAchievements = new List<AchievementDisplayItem>();
         private List<AchievementDisplayItem> _orderedAchievements = new List<AchievementDisplayItem>();
         private List<AchievementDisplayItem> _filteredAchievements = new List<AchievementDisplayItem>();
@@ -74,7 +78,8 @@ namespace PlayniteAchievements.ViewModels
             AchievementDataService achievementDataService,
             IPlayniteAPI playniteApi,
             ILogger logger,
-            PlayniteAchievementsSettings settings)
+            PlayniteAchievementsSettings settings,
+            IFriendCacheManager friendCache = null)
         {
             _gameId = gameId;
             _refreshService = refreshRuntime ?? throw new ArgumentNullException(nameof(refreshRuntime));
@@ -83,6 +88,8 @@ namespace PlayniteAchievements.ViewModels
             _logger = logger;
             _settings = settings;
             _summaryBuilder = new GameSummaryItemBuilder(_refreshService.Providers, _playniteApi, _logger);
+            FriendCompare = new FriendCompareController(friendCache, settings, logger);
+            FriendCompare.SetGame(gameId, null);
 
             Timeline = new TimelineViewModel();
             ApplySavedTimelineState();
@@ -521,6 +528,7 @@ namespace PlayniteAchievements.ViewModels
                         _controlBar.Clear();
                         Achievements.Clear();
                         AllAchievements.Clear();
+                        FriendCompare?.SetTargetItems(null);
                     });
 
                     Timeline.SetCounts(null);
@@ -574,6 +582,7 @@ namespace PlayniteAchievements.ViewModels
                 {
                     _controlBar.UpdateOptions(_allAchievements);
                     CollectionHelper.Replace(AllAchievements, _allAchievements);
+                    FriendCompare?.SetTargetItems(_allAchievements);
                 });
                 ApplySearchFilter();
 
