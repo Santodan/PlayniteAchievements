@@ -625,6 +625,17 @@ namespace PlayniteAchievements.ViewModels
 
         private static string UnownedFilterLabel => ResourceProvider.GetString("LOCPlayAch_Filter_Unowned");
 
+        // Each side grid's title names the filter imposed by the other grid's selection; the
+        // ✕ that follows it removes that filter (friends grid ✕ clears the game, games grid ✕
+        // clears the friend).
+        public string FriendSectionTitle => SelectedGame != null
+            ? SelectedGame.GameName
+            : ResourceProvider.GetString("LOCPlayAch_FriendsOverview_FriendSummaries");
+
+        public string GameSectionTitle => SelectedFriend != null
+            ? SelectedFriend.DisplayName
+            : ResourceProvider.GetString("LOCPlayAch_Overview_GameSummaries");
+
         public string AchievementSectionTitle
         {
             get
@@ -2707,6 +2718,8 @@ namespace PlayniteAchievements.ViewModels
             OnPropertyChanged(nameof(HasAnySelection));
             OnPropertyChanged(nameof(HasFriendGameSelection));
             OnPropertyChanged(nameof(AchievementColumnSettingsKey));
+            OnPropertyChanged(nameof(FriendSectionTitle));
+            OnPropertyChanged(nameof(GameSectionTitle));
             OnPropertyChanged(nameof(AchievementSectionTitle));
             OnPropertyChanged(nameof(AchievementCountText));
             OnPropertyChanged(nameof(IsCompareAvailable));
