@@ -1,0 +1,168 @@
+<UserControl x:Class="PlayniteAchievements.Views.GameOptionsLocalOverridesSection"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+             xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+             xmlns:converters="clr-namespace:PlayniteAchievements.Views.Converters"
+             mc:Ignorable="d"
+             d:DesignHeight="420"
+             d:DesignWidth="800">
+
+    <UserControl.Resources>
+        <ResourceDictionary>
+            <converters:BooleanConverter x:Key="BoolToVis" Mode="ToVisibility" />
+            <Style x:Key="CardBorderStyle" TargetType="Border">
+                <Setter Property="Background" Value="{DynamicResource ControlBackgroundBrush}" />
+                <Setter Property="BorderBrush" Value="{DynamicResource NormalBorderBrush}" />
+                <Setter Property="BorderThickness" Value="1" />
+                <Setter Property="CornerRadius" Value="6" />
+                <Setter Property="Padding" Value="12" />
+            </Style>
+            <Style x:Key="SectionHeaderStyle" TargetType="TextBlock">
+                <Setter Property="Foreground" Value="{DynamicResource TextBrush}" />
+                <Setter Property="FontWeight" Value="SemiBold" />
+                <Setter Property="FontSize" Value="{DynamicResource FontSize}" />
+            </Style>
+        </ResourceDictionary>
+    </UserControl.Resources>
+
+    <StackPanel>
+        <Border Style="{StaticResource CardBorderStyle}" Margin="0,0,0,12">
+            <StackPanel>
+                <TextBlock Text="{DynamicResource LOCPlayAch_Menu_LocalProvider_Change}"
+                           Style="{StaticResource SectionHeaderStyle}" />
+                <TextBlock Text="{Binding PreferredProviderStatusText}"
+                           Foreground="{DynamicResource TextBrush}"
+                           Margin="0,8,0,0"
+                           TextWrapping="Wrap" />
+
+                <Grid Margin="0,10,0,0">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*" MaxWidth="420" />
+                        <ColumnDefinition Width="Auto" />
+                        <ColumnDefinition Width="Auto" />
+                    </Grid.ColumnDefinitions>
+
+                    <ComboBox Grid.Column="0"
+                              ItemsSource="{Binding AvailablePreferredProviders}"
+                              DisplayMemberPath="DisplayName"
+                              SelectedValuePath="ProviderKey"
+                              SelectedValue="{Binding PreferredProviderOverrideInput, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                              MinHeight="30" />
+                    <Button Grid.Column="1"
+                            Content="{DynamicResource LOCPlayAch_Button_Apply}"
+                            Command="{Binding ApplyPreferredProviderOverrideCommand}"
+                            Padding="12,6"
+                            Margin="8,0,0,0" />
+                    <Button Grid.Column="2"
+                            Content="{DynamicResource LOCPlayAch_Button_Clear}"
+                            Command="{Binding ClearPreferredProviderOverrideCommand}"
+                            Padding="12,6"
+                            Margin="8,0,0,0" />
+                </Grid>
+            </StackPanel>
+        </Border>
+
+        <Border Style="{StaticResource CardBorderStyle}" Margin="0,0,0,12">
+            <StackPanel>
+                <TextBlock Text="{DynamicResource LOCPlayAch_GameOptions_Overrides_LocalFolderHeader}"
+                           Style="{StaticResource SectionHeaderStyle}" />
+                <TextBlock Text="{DynamicResource LOCPlayAch_GameOptions_Overrides_LocalFolderHint}"
+                           Foreground="{DynamicResource TextBrush}"
+                           Opacity="0.75"
+                           TextWrapping="Wrap"
+                           Margin="0,6,0,0" />
+                <TextBlock Text="{Binding LocalFolderStatusText}"
+                           Foreground="{DynamicResource TextBrush}"
+                           Margin="0,8,0,0"
+                           TextWrapping="Wrap" />
+
+                <!-- Show ComboBox for ambiguous folder selection -->
+                <StackPanel Visibility="{Binding HasAmbiguousLocalFolders, Converter={StaticResource BoolToVis}}"
+                        Margin="0,6,0,0">
+                    <TextBlock Text="Select the correct folder:"
+                           Foreground="{DynamicResource TextBrush}"
+                           Opacity="0.75"
+                           Margin="0,0,0,4" />
+                    <ComboBox ItemsSource="{Binding LocalFolderCandidates}"
+                          SelectedItem="{Binding SelectedAmbiguousFolder, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                          MinWidth="320"
+                          Margin="0,0,0,4" />
+                    <TextBlock Text="{Binding LocalFolderCandidatesSummary}"
+                           Foreground="{DynamicResource TextBrush}"
+                           Opacity="0.65"
+                           TextWrapping="Wrap" />
+                </StackPanel>
+
+                <Grid Margin="0,10,0,0">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*" MaxWidth="420" />
+                        <ColumnDefinition Width="Auto" />
+                        <ColumnDefinition Width="Auto" />
+                        <ColumnDefinition Width="Auto" />
+                    </Grid.ColumnDefinitions>
+
+                    <TextBox Grid.Column="0"
+                             Text="{Binding LocalFolderOverrideInput, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                             Padding="8,6" />
+                    <Button Grid.Column="1"
+                            Content="{DynamicResource LOCPlayAch_Button_Browse}"
+                            Command="{Binding BrowseLocalFolderOverrideCommand}"
+                            Padding="12,6"
+                            Margin="8,0,0,0" />
+                    <Button Grid.Column="2"
+                            Content="{DynamicResource LOCPlayAch_Button_Apply}"
+                            Command="{Binding ApplyLocalFolderOverrideCommand}"
+                            Padding="12,6"
+                            Margin="8,0,0,0" />
+                    <Button Grid.Column="3"
+                            Content="{DynamicResource LOCPlayAch_Button_Clear}"
+                            Command="{Binding ClearLocalFolderOverrideCommand}"
+                            Padding="12,6"
+                            Margin="8,0,0,0" />
+                </Grid>
+
+            </StackPanel>
+        </Border>
+
+        <Border Style="{StaticResource CardBorderStyle}" Margin="0,0,0,12">
+            <StackPanel>
+                <TextBlock Text="{DynamicResource LOCPlayAch_GameOptions_Overrides_LocalRefreshOnCloseHeader}"
+                           Style="{StaticResource SectionHeaderStyle}" />
+                <TextBlock Text="{DynamicResource LOCPlayAch_GameOptions_Overrides_LocalRefreshOnCloseHint}"
+                           Foreground="{DynamicResource TextBrush}"
+                           Opacity="0.75"
+                           TextWrapping="Wrap"
+                           Margin="0,6,0,0" />
+                <TextBlock Text="{Binding LocalRefreshOnGameCloseStatusText}"
+                           Foreground="{DynamicResource TextBrush}"
+                           Margin="0,8,0,0"
+                           TextWrapping="Wrap" />
+
+                <Grid Margin="0,10,0,0">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*" MaxWidth="420" />
+                        <ColumnDefinition Width="Auto" />
+                        <ColumnDefinition Width="Auto" />
+                    </Grid.ColumnDefinitions>
+
+                    <CheckBox Grid.Column="0"
+                              Content="Refresh this game when it closes"
+                              IsChecked="{Binding LocalRefreshOnGameCloseOverrideInput, Mode=TwoWay}" />
+                    <Button Grid.Column="1"
+                            Content="{DynamicResource LOCPlayAch_Button_Apply}"
+                            Command="{Binding ApplyLocalRefreshOnGameCloseOverrideCommand}"
+                            Padding="12,6"
+                            Margin="8,0,0,0" />
+                    <Button Grid.Column="2"
+                            Content="{DynamicResource LOCPlayAch_Button_Clear}"
+                            Command="{Binding ClearLocalRefreshOnGameCloseOverrideCommand}"
+                            Padding="12,6"
+                            Margin="8,0,0,0" />
+                </Grid>
+            </StackPanel>
+        </Border>
+
+        
+    </StackPanel>
+</UserControl>

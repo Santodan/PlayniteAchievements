@@ -1,0 +1,3084 @@
+using HtmlAgilityPack;
+using Playnite.SDK;
+using Playnite.SDK.Data;
+using Playnite.SDK.Models;
+using Playnite.SDK.Plugins;
+using PlayniteAchievements.Models;
+using PlayniteAchievements.Providers.ImportedGameMetadata;
+using PlayniteAchievements.Providers.Steam;
+using System;
+using System.Collections.Generic;
+using System.Globalization;
+using System.IO;
+using System.Linq;
+using System.Net;
+using System.Text;
+using System.Text.RegularExpressions;
+using System.Threading;
+using System.Threading.Tasks;
+using Newtonsoft.Json.Linq;
+
+namespace PlayniteAchievements.Providers.Local
+{
+    internal sealed class LocalFolderGamesImporter
+    {
+        private const string UniversalSteamMetadataPluginName = "Universal Steam Metadata";
+        private const string UniversalSteamMetadataManifestId = "Universal_Steam_Metadata";
+
+        private static readonly string[] SupportedAchievementRelativeDirectories =
+        {
+            string.Empty,
+            "Stats",
+            "steam_settings",
+            @"steam_settings\settings",
+            @"steam_settings\stats",
+            "achievement"
+        };
+
+        internal sealed class LocalImportProgressInfo
+        {
+            public double Percent { get; set; }
+            public string Message { get; set; }
+            public string Detail { get; set; }
+        }
+
+        internal sealed class ImportResult
+        {
+            public int RootCount { get; set; }
+            public int CandidateFolderCount { get; set; }
+            public int UniqueAppIdCount { get; set; }
+            public int ImportedCount { get; set; }
+            public int LinkedExistingCount { get; set; }
+            public int SkippedCount { get; set; }
+            public int FailedCount { get; set; }
+            public int RejectedSteamAppCount { get; set; }
+            public string RejectedSteamAppReport { get; set; }
+            public List<int> RateLimitedMissingIconAppIds { get; set; } = new List<int>();
+        }
+
+        internal sealed class IconRetryResult
+        {
+            public int AttemptedCount { get; set; }
+            public int RecoveredCount { get; set; }
+            public List<int> RemainingRateLimitedAppIds { get; set; } = new List<int>();
+        }
+
+        private sealed class MetadataApplyOutcome
+        {
+            public bool IconPresent { get; set; }
+            public IReadOnlyCollection<int> RateLimitedIconMissAppIds { get; set; } = Array.Empty<int>();
+        }
+
+        private sealed class ImportCandidate
+        {
+            public int AppId { get; set; }
+            public string FolderPath { get; set; }
+            public bool HasAchievementIni { get; set; }
+            public bool HasAchievementJson { get; set; }
+            public bool HasTenokeIni { get; set; }
+            public bool HasTenokeUserStats { get; set; }
+            public bool HasSteamAppCacheSchema { get; set; }
+            public bool HasSteamAppCacheUserStats { get; set; }
+            public bool HasSteamLibraryCache { get; set; }
+            public DateTime LastWriteUtc { get; set; }
+        }
+
+        private sealed class MetadataPluginIdentity
+        {
+            public MetadataPlugin Plugin { get; set; }
+            public string RuntimeName { get; set; }
+            public string ManifestId { get; set; }
+            public string ManifestName { get; set; }
+            public string AssemblyDirectory { get; set; }
+        }
+
+        private sealed class ImportedProviderPageMetadata
+        {
+            public string Name { get; set; }
+            public string Description { get; set; }
+            public string IconUrl { get; set; }
+            public string Url { get; set; }
+            public string UrlName { get; set; }
+        }
+
+        private readonly IPlayniteAPI _api;
+        private readonly PlayniteAchievementsSettings _settings;
+        private readonly ILogger _logger;
+        private readonly LocalSettings _localSettings;
+        private readonly ImportedGameMetadataApplier _metadataApplier;
+        private readonly Dictionary<int, SteamAppImportabilityInfo> _steamAppImportabilityCache = new Dictionary<int, SteamAppImportabilityInfo>();
+        private readonly Dictionary<int, string> _rejectedSteamAppReports = new Dictionary<int, string>();
+        private string _steamAppCacheUserIdOverride;
+
+        private sealed class SteamAppImportabilityInfo
+        {
+            public bool IsImportable { get; set; }
+            public string Name { get; set; }
+            public string Type { get; set; }
+        }
+
+        public LocalFolderGamesImporter(
+            IPlayniteAPI api,
+            PlayniteAchievementsSettings settings,
+            ILogger logger,
+            LocalSettings localSettingsOverride = null)
+        {
+            _api = api ?? throw new ArgumentNullException(nameof(api));
+            _settings = settings ?? throw new ArgumentNullException(nameof(settings));
+            _logger = logger;
+            _localSettings = localSettingsOverride ?? ProviderRegistry.Settings<LocalSettings>();
+            _metadataApplier = new ImportedGameMetadataApplier(_api, _logger, "LocalImport");
+        }
+
+        public async Task<ImportResult> ImportFromRootsAsync(
+            IEnumerable<string> roots,
+            LocalImportedGameLibraryTarget? importTargetOverride = null,
+            string customSourceNameOverride = null,
+            string metadataSourceIdOverride = null,
+            LocalExistingGameImportBehavior? existingGameBehaviorOverride = null,
+            bool includeFoldersWithoutAchievementFiles = false,
+            CancellationToken cancellationToken = default(CancellationToken),
+            IProgress<LocalImportProgressInfo> progress = null,
+            string steamAppCacheUserIdOverride = null)
+        {
+            _steamAppCacheUserIdOverride = steamAppCacheUserIdOverride;
+            var normalizedRoots = GetImportRoots(roots)
+                .Where(path => !string.IsNullOrWhiteSpace(path))
+                .Select(path => Environment.ExpandEnvironmentVariables(path.Trim()))
+                .Where(Directory.Exists)
+                .Distinct(StringComparer.OrdinalIgnoreCase)
+                .ToList();
+
+            var result = new ImportResult
+            {
+                RootCount = normalizedRoots.Count
+            };
+
+            if (normalizedRoots.Count == 0)
+            {
+                return result;
+            }
+
+            _rejectedSteamAppReports.Clear();
+
+            ReportProgress(progress, 0d, "Scanning Local roots...", "Searching for achievement evidence in default and configured Local folders.");
+
+            var candidates = await Task.Run(() => DiscoverCandidates(normalizedRoots, includeFoldersWithoutAchievementFiles, cancellationToken, progress), cancellationToken).ConfigureAwait(true);
+            result.CandidateFolderCount = candidates.Sum(pair => pair.Value.Count(candidate => !string.IsNullOrWhiteSpace(candidate.FolderPath)));
+            result.UniqueAppIdCount = candidates.Count;
+
+            var importTarget = importTargetOverride ?? (_localSettings?.ImportedGameLibraryTarget ?? LocalImportedGameLibraryTarget.None);
+            var customSourceName = (customSourceNameOverride ?? _localSettings?.ImportedGameCustomSourceName ?? string.Empty).Trim();
+            var metadataSourceId = ImportedGameMetadataSourceCatalog.NormalizeMetadataSourceId(
+                _api,
+                _logger,
+                metadataSourceIdOverride ?? _localSettings?.ImportedGameMetadataSourceId ?? string.Empty);
+            var existingGameBehavior = existingGameBehaviorOverride ?? (_localSettings?.ExistingGameImportBehavior ?? LocalExistingGameImportBehavior.OverwriteExisting);
+            var usesBuiltInMetadata = ImportedGameMetadataSourceCatalog.IsBuiltInSource(metadataSourceId);
+            var selectedMetadataPlugin = ResolveSelectedMetadataPlugin(metadataSourceId);
+            var fastMetadataLibraryPlugin = ImportedGameMetadataSourceCatalog.IsFastMethodSource(metadataSourceId)
+                ? ResolveSteamLibraryPlugin()
+                : null;
+            _logger?.Info($"[LocalImport] Selected metadata provider id='{metadataSourceId}', resolved='{selectedMetadataPlugin?.Name ?? (usesBuiltInMetadata ? metadataSourceId : "<none>")}'.");
+            var orderedCandidates = candidates.OrderBy(pair => pair.Key).ToList();
+            var totalCandidates = orderedCandidates.Count;
+            var processedCandidates = 0;
+            var settingsDirty = false;
+            var rateLimitedMissingIconAppIds = new HashSet<int>();
+            var existingGamesByResolvedAppId = BuildExistingGamesByResolvedAppId();
+
+            // Keep main import responsive: do not block on Steam icon backoff during bulk pass.
+            _metadataApplier.ConfigureSteamCommunityIconLookupPolicy(maxAttempts: 1, waitDuringBackoff: false);
+
+            using (var fastMetadataDownloader = fastMetadataLibraryPlugin?.GetMetadataDownloader())
+            {
+                _api.Database.Games.BeginBufferUpdate();
+                try
+                {
+                    foreach (var candidate in orderedCandidates)
+                    {
+                        cancellationToken.ThrowIfCancellationRequested();
+
+                        var appId = candidate.Key;
+                        var folderPath = ChooseBestLocalFolderCandidate(candidate.Value);
+                        var chosenCandidate = ChooseBestImportCandidate(candidate.Value);
+                        if (chosenCandidate == null)
+                        {
+                            result.SkippedCount++;
+                            continue;
+                        }
+
+                        try
+                        {
+                            processedCandidates++;
+                            var gameLabel = string.IsNullOrWhiteSpace(folderPath)
+                                ? $"App {appId}"
+                                : Path.GetFileName(folderPath.TrimEnd(Path.DirectorySeparatorChar));
+                            ReportProgress(
+                                progress,
+                                40d + (processedCandidates / (double)Math.Max(1, totalCandidates) * 60d),
+                                $"Importing {gameLabel} ({processedCandidates}/{Math.Max(1, totalCandidates)})...",
+                                BuildCandidateDetail(chosenCandidate, processedCandidates, totalCandidates));
+
+                            if (candidate.Value.Count > 1)
+                            {
+                                _logger?.Info($"[LocalImport] appId={appId} has {candidate.Value.Count} candidate folders/files. Using {DescribeCandidate(chosenCandidate)}. All candidates: {string.Join(" | ", candidate.Value.Select(DescribeCandidate))}");
+                            }
+
+                            var game = FindExistingGame(appId, importTarget, customSourceName, existingGamesByResolvedAppId);
+                            if (game != null && existingGameBehavior == LocalExistingGameImportBehavior.SkipExisting)
+                            {
+                                var linked = PersistLocalBinding(game, appId, folderPath);
+                                settingsDirty |= linked;
+                                if (linked)
+                                {
+                                    result.LinkedExistingCount++;
+                                    _logger?.Info($"[LocalImport] Linked existing game for appId={appId} without metadata changes because existing-game behavior is set to skip.");
+                                }
+                                else
+                                {
+                                    result.SkippedCount++;
+                                    _logger?.Info($"[LocalImport] Skipping appId={appId} because a matching existing game was found, existing-game behavior is set to skip, and no Local binding changes were required.");
+                                }
+
+                                continue;
+                            }
+
+                            if (!ShouldImportCandidate(appId, chosenCandidate, out var skipReason))
+                            {
+                                result.SkippedCount++;
+                                _logger?.Info($"[LocalImport] Skipping appId={appId}: {skipReason}");
+                                continue;
+                            }
+
+                            GameMetadata pendingMetadata = null;
+                            if (game == null)
+                            {
+                                pendingMetadata = BuildMetadata(appId, importTarget, customSourceName, selectedMetadataPlugin);
+                                game = FindExistingGameByName(pendingMetadata?.Name, importTarget, customSourceName);
+                                if (game != null)
+                                {
+                                    _logger?.Info($"[LocalImport] Reusing existing game by title match for appId={appId}: {DescribeGame(game)}.");
+                                }
+                            }
+
+                            if (game == null)
+                            {
+                                game = ImportGame(appId, importTarget, customSourceName, selectedMetadataPlugin, pendingMetadata);
+                                if (game == null)
+                                {
+                                    result.FailedCount++;
+                                    continue;
+                                }
+
+                                ApplyImportTarget(game, importTarget, customSourceName);
+                                var applyOutcome = ApplyDownloadedMetadata(game, appId, metadataSourceId, selectedMetadataPlugin, fastMetadataDownloader);
+                                if (!applyOutcome.IconPresent && applyOutcome.RateLimitedIconMissAppIds.Contains(appId))
+                                {
+                                    rateLimitedMissingIconAppIds.Add(appId);
+                                }
+                                _logger?.Info($"[LocalImport] Imported new game for appId={appId}: {DescribeGame(game)}.");
+                                result.ImportedCount++;
+                                CacheExistingGameByResolvedAppId(existingGamesByResolvedAppId, appId, game);
+                            }
+                            else
+                            {
+                                ApplyImportTarget(game, importTarget, customSourceName);
+                                var applyOutcome = ApplyDownloadedMetadata(game, appId, metadataSourceId, selectedMetadataPlugin, fastMetadataDownloader);
+                                if (!applyOutcome.IconPresent && applyOutcome.RateLimitedIconMissAppIds.Contains(appId))
+                                {
+                                    rateLimitedMissingIconAppIds.Add(appId);
+                                }
+                                _logger?.Info($"[LocalImport] Linked existing game for appId={appId}: {DescribeGame(game)}.");
+                                result.LinkedExistingCount++;
+                            }
+
+                            game.InstallDirectory = null;
+                            _api.Database.Games.Update(game);
+
+                            settingsDirty |= PersistLocalBinding(game, appId, folderPath);
+
+                            if (processedCandidates % 5 == 0)
+                            {
+                                await Task.Yield();
+                            }
+                        }
+                        catch (OperationCanceledException)
+                        {
+                            throw;
+                        }
+                        catch (Exception ex)
+                        {
+                            result.FailedCount++;
+                            _logger?.Warn(ex, $"Failed importing Local folder candidate appId={appId} from '{folderPath}'.");
+                        }
+                    }
+                }
+                finally
+                {
+                    _api.Database.Games.EndBufferUpdate();
+                }
+
+                if (settingsDirty)
+                {
+                    ProviderRegistry.Write(_localSettings);
+                    PersistSettingsForUi();
+                }
+            }
+
+            result.RejectedSteamAppCount = _rejectedSteamAppReports.Count;
+            result.RejectedSteamAppReport = _rejectedSteamAppReports.Count > 0
+                ? string.Join(Environment.NewLine, _rejectedSteamAppReports.OrderBy(pair => pair.Key).Select(pair => pair.Value))
+                : string.Empty;
+            result.RateLimitedMissingIconAppIds = rateLimitedMissingIconAppIds.OrderBy(id => id).ToList();
+
+            return result;
+        }
+
+        public async Task<IconRetryResult> RetryMissingIconsFromRateLimitAsync(
+            IEnumerable<int> appIds,
+            LocalImportedGameLibraryTarget importTarget,
+            string customSourceName,
+            int maxAttemptsPerApp,
+            bool waitDuringBackoff,
+            CancellationToken cancellationToken = default(CancellationToken),
+            IProgress<LocalImportProgressInfo> progress = null)
+        {
+            var targetAppIds = appIds?
+                .Where(appId => appId > 0)
+                .Distinct()
+                .OrderBy(appId => appId)
+                .ToList() ?? new List<int>();
+
+            var result = new IconRetryResult();
+            if (targetAppIds.Count == 0)
+            {
+                return result;
+            }
+
+            _metadataApplier.ConfigureSteamCommunityIconLookupPolicy(maxAttemptsPerApp, waitDuringBackoff);
+
+            var existingGamesByResolvedAppId = BuildExistingGamesByResolvedAppId();
+            var processed = 0;
+
+            _api.Database.Games.BeginBufferUpdate();
+            try
+            {
+                foreach (var appId in targetAppIds)
+                {
+                    cancellationToken.ThrowIfCancellationRequested();
+                    processed++;
+                    result.AttemptedCount++;
+
+                    ReportProgress(
+                        progress,
+                        0d,
+                        $"Retrying missing icons ({processed}/{targetAppIds.Count})...",
+                        $"Retrying icon download for appId={appId}.");
+
+                    var game = FindExistingGame(appId, importTarget, customSourceName, existingGamesByResolvedAppId);
+                    if (game == null)
+                    {
+                        continue;
+                    }
+
+                    if (!string.IsNullOrWhiteSpace(game.Icon))
+                    {
+                        result.RecoveredCount++;
+                        continue;
+                    }
+
+                    var iconApplied = false;
+                    try
+                    {
+                        iconApplied = _metadataApplier.TryApplyIconFallbackOnly(game, appId);
+                        _api.Database.Games.Update(game);
+                    }
+                    catch (Exception ex)
+                    {
+                        _logger?.Debug(ex, $"[LocalImport] Failed retrying missing icon for appId={appId}.");
+                    }
+
+                    var rateLimitedMissAppIds = _metadataApplier.ConsumeRateLimitedIconMissAppIds();
+                    if (iconApplied && !string.IsNullOrWhiteSpace(game.Icon))
+                    {
+                        result.RecoveredCount++;
+                    }
+                    else if (string.IsNullOrWhiteSpace(game.Icon))
+                    {
+                        result.RemainingRateLimitedAppIds.Add(appId);
+
+                        if (rateLimitedMissAppIds.Contains(appId))
+                        {
+                            _logger?.Debug($"[LocalImport] Icon retry still rate-limited for appId={appId}; keeping it in the retry queue.");
+                        }
+                    }
+
+                    if (processed % 5 == 0)
+                    {
+                        await Task.Yield();
+                    }
+                }
+            }
+            finally
+            {
+                _api.Database.Games.EndBufferUpdate();
+            }
+
+            result.RemainingRateLimitedAppIds = result.RemainingRateLimitedAppIds.Distinct().OrderBy(id => id).ToList();
+            return result;
+        }
+
+        private static void ReportProgress(
+            IProgress<LocalImportProgressInfo> progress,
+            double percent,
+            string message,
+            string detail)
+        {
+            progress?.Report(new LocalImportProgressInfo
+            {
+                Percent = percent,
+                Message = message,
+                Detail = detail
+            });
+        }
+
+        private IEnumerable<string> GetImportRoots(IEnumerable<string> roots)
+        {
+            var resolvedRoots = new List<string>();
+            var localAppData = Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData);
+            var documents = Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments);
+            var commonAppData = Environment.GetFolderPath(Environment.SpecialFolder.CommonApplicationData);
+            var publicFolder = Environment.GetEnvironmentVariable("PUBLIC") ?? string.Empty;
+            var includeSteamRoots = !IsSteamAutomaticRootScanningDisabled();
+
+            resolvedRoots.Add(Environment.ExpandEnvironmentVariables(@"%APPDATA%\Goldberg SteamEmu Saves"));
+            resolvedRoots.Add(Environment.ExpandEnvironmentVariables(@"%APPDATA%\GSE Saves"));
+            resolvedRoots.Add(Environment.ExpandEnvironmentVariables(@"%APPDATA%\EMPRESS"));
+            resolvedRoots.Add(Environment.ExpandEnvironmentVariables(@"%APPDATA%\Steam\CODEX"));
+            resolvedRoots.Add(Environment.ExpandEnvironmentVariables(@"%APPDATA%\SmartSteamEmu"));
+            resolvedRoots.Add(Environment.ExpandEnvironmentVariables(@"%APPDATA%\CreamAPI"));
+
+            if (!string.IsNullOrWhiteSpace(publicFolder))
+            {
+                resolvedRoots.Add(Path.Combine(publicFolder, "Documents", "OnlineFix"));
+                resolvedRoots.Add(Path.Combine(publicFolder, "Documents", "Steam", "RUNE"));
+                resolvedRoots.Add(Path.Combine(publicFolder, "Documents", "Steam", "CODEX"));
+                resolvedRoots.Add(Path.Combine(publicFolder, "EMPRESS"));
+            }
+
+            if (!string.IsNullOrWhiteSpace(documents))
+            {
+                resolvedRoots.Add(Path.Combine(documents, "SkidRow"));
+            }
+
+            if (includeSteamRoots && !string.IsNullOrWhiteSpace(commonAppData))
+            {
+                resolvedRoots.Add(Path.Combine(commonAppData, "Steam"));
+            }
+
+            if (includeSteamRoots)
+            {
+                resolvedRoots.Add(Environment.ExpandEnvironmentVariables(@"%ProgramFiles(x86)%\Steam"));
+                resolvedRoots.Add(Environment.ExpandEnvironmentVariables(@"%ProgramFiles%\Steam"));
+            }
+
+            var steamPath = Environment.GetEnvironmentVariable("SteamPath");
+            if (includeSteamRoots && !string.IsNullOrWhiteSpace(steamPath))
+            {
+                resolvedRoots.Add(steamPath);
+                resolvedRoots.Add(Path.Combine(steamPath, "userdata"));
+            }
+
+            if (!string.IsNullOrWhiteSpace(localAppData))
+            {
+                resolvedRoots.Add(Path.Combine(localAppData, "SKIDROW"));
+            }
+
+            foreach (var configuredSteamRoot in includeSteamRoots ? GetConfiguredSteamImportRoots() : Enumerable.Empty<string>())
+            {
+                resolvedRoots.Add(configuredSteamRoot);
+            }
+
+            foreach (var configuredPath in LocalSettings.SplitExtraLocalPaths(_settings?.Persisted?.ExtraLocalPaths ?? _localSettings?.ExtraLocalPaths))
+            {
+                resolvedRoots.Add(configuredPath);
+            }
+
+            foreach (var explicitRoot in roots ?? Enumerable.Empty<string>())
+            {
+                resolvedRoots.Add(explicitRoot);
+            }
+
+            return resolvedRoots;
+        }
+
+        private bool IsSteamAutomaticRootScanningDisabled()
+        {
+            var selectedSteamAppCacheUserId = (_steamAppCacheUserIdOverride ?? _localSettings?.SteamAppCacheUserId ?? string.Empty).Trim();
+            return string.Equals(selectedSteamAppCacheUserId, LocalSettings.SteamAppCacheUserNone, StringComparison.OrdinalIgnoreCase);
+        }
+
+        private bool IsSteamStatsOnlyImportModeEnabled()
+        {
+            var selectedSteamAppCacheUserId = (_steamAppCacheUserIdOverride ?? _localSettings?.SteamAppCacheUserId ?? string.Empty).Trim();
+            return !string.IsNullOrWhiteSpace(selectedSteamAppCacheUserId) &&
+                !string.Equals(selectedSteamAppCacheUserId, LocalSettings.SteamAppCacheUserNone, StringComparison.OrdinalIgnoreCase);
+        }
+
+        private IEnumerable<string> GetConfiguredSteamImportRoots()
+        {
+            var configuredPath = (_localSettings?.SteamUserdataPath ?? string.Empty).Trim();
+            if (string.IsNullOrWhiteSpace(configuredPath))
+            {
+                yield break;
+            }
+
+            var expanded = Environment.ExpandEnvironmentVariables(configuredPath);
+            if (string.IsNullOrWhiteSpace(expanded))
+            {
+                yield break;
+            }
+
+            var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+
+            foreach (var path in ResolveConfiguredSteamImportRootCandidates(expanded))
+            {
+                if (!string.IsNullOrWhiteSpace(path) && seen.Add(path))
+                {
+                    yield return path;
+                }
+            }
+        }
+
+        private static IEnumerable<string> ResolveConfiguredSteamImportRootCandidates(string configuredPath)
+        {
+            if (string.IsNullOrWhiteSpace(configuredPath))
+            {
+                yield break;
+            }
+
+            yield return configuredPath;
+
+            var trimmedPath = configuredPath.TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
+            var leafName = Path.GetFileName(trimmedPath);
+
+            if (string.Equals(leafName, "userdata", StringComparison.OrdinalIgnoreCase))
+            {
+                var baseDirectory = Directory.GetParent(trimmedPath)?.FullName;
+                if (!string.IsNullOrWhiteSpace(baseDirectory))
+                {
+                    yield return baseDirectory;
+                }
+
+                yield break;
+            }
+
+            if (string.Equals(leafName, "stats", StringComparison.OrdinalIgnoreCase))
+            {
+                var appCacheDirectory = Directory.GetParent(trimmedPath);
+                var baseDirectory = appCacheDirectory?.Parent?.FullName;
+                if (!string.IsNullOrWhiteSpace(baseDirectory))
+                {
+                    yield return baseDirectory;
+                }
+
+                yield break;
+            }
+
+            var nestedUserdata = Path.Combine(trimmedPath, "userdata");
+            if (Directory.Exists(nestedUserdata))
+            {
+                yield return nestedUserdata;
+            }
+
+            var nestedStats = Path.Combine(trimmedPath, "appcache", "stats");
+            if (Directory.Exists(nestedStats))
+            {
+                yield return nestedStats;
+            }
+        }
+
+        private Game ImportGame(
+            int appId,
+            LocalImportedGameLibraryTarget importTarget,
+            string customSourceName,
+            MetadataPlugin selectedMetadataPlugin,
+            GameMetadata metadata = null)
+        {
+            metadata ??= BuildMetadata(appId, importTarget, customSourceName, selectedMetadataPlugin);
+
+            if (importTarget == LocalImportedGameLibraryTarget.Steam)
+            {
+                var steamLibraryPlugin = ResolveSteamLibraryPlugin();
+                if (steamLibraryPlugin == null)
+                {
+                    _logger?.Warn($"Local import for appId={appId} requested the Steam library, but the Steam library plugin is unavailable.");
+                    return null;
+                }
+
+                return _api.Database.ImportGame(metadata, steamLibraryPlugin);
+            }
+
+            return _api.Database.ImportGame(metadata);
+        }
+
+        private Dictionary<int, List<ImportCandidate>> DiscoverCandidates(
+            IReadOnlyCollection<string> roots,
+            bool includeFoldersWithoutAchievementFiles,
+            CancellationToken cancellationToken,
+            IProgress<LocalImportProgressInfo> progress)
+        {
+            var candidates = new Dictionary<int, List<ImportCandidate>>();
+            var rootList = roots?.ToList() ?? new List<string>();
+            var processedRoots = 0;
+            var steamStatsOnlyMode = IsSteamStatsOnlyImportModeEnabled();
+
+            foreach (var root in rootList)
+            {
+                cancellationToken.ThrowIfCancellationRequested();
+                processedRoots++;
+
+                ReportProgress(
+                    progress,
+                    processedRoots / (double)Math.Max(1, rootList.Count) * 35d,
+                    $"Scanning root {processedRoots} of {rootList.Count}...",
+                    root);
+
+                try
+                {
+                    foreach (var directory in EnumerateCandidateDirectories(root, cancellationToken))
+                    {
+                        var folderName = Path.GetFileName(directory)?.Trim();
+                        if (!int.TryParse(folderName, NumberStyles.None, CultureInfo.InvariantCulture, out var appId) || appId <= 0)
+                        {
+                            if (!TryExtractAppIdFromTenokeIni(ResolveAchievementFilePath(directory, "tenoke.ini"), out appId) || appId <= 0)
+                            {
+                                continue;
+                            }
+                        }
+
+                        var candidate = TryCreateFolderCandidate(appId, directory, includeFoldersWithoutAchievementFiles);
+                        if (candidate == null)
+                        {
+                            continue;
+                        }
+
+                        AddCandidate(candidates, candidate);
+                    }
+
+                    if (!IsSteamAutomaticRootScanningDisabled())
+                    {
+                        foreach (var steamStatsRoot in GetSteamAppCacheStatsRoots(root))
+                        {
+                            cancellationToken.ThrowIfCancellationRequested();
+                            DiscoverSteamAppCacheCandidates(candidates, steamStatsRoot, cancellationToken);
+                        }
+
+                        if (!steamStatsOnlyMode)
+                        {
+                            foreach (var steamUserdataRoot in GetSteamUserdataRoots(root))
+                            {
+                                cancellationToken.ThrowIfCancellationRequested();
+                                DiscoverSteamLibraryCacheCandidates(candidates, steamUserdataRoot, cancellationToken);
+                            }
+                        }
+                    }
+                }
+                catch (Exception ex)
+                {
+                    _logger?.Debug(ex, $"Failed scanning Local import root '{root}'.");
+                }
+            }
+
+            return candidates;
+        }
+
+        private static IEnumerable<string> EnumerateCandidateDirectories(string root, CancellationToken cancellationToken)
+        {
+            if (string.IsNullOrWhiteSpace(root) || !Directory.Exists(root))
+            {
+                yield break;
+            }
+
+            yield return root;
+
+            var pending = new Stack<string>();
+            pending.Push(root);
+
+            while (pending.Count > 0)
+            {
+                cancellationToken.ThrowIfCancellationRequested();
+
+                var current = pending.Pop();
+                IEnumerable<string> childDirectories;
+                try
+                {
+                    childDirectories = Directory.EnumerateDirectories(current);
+                }
+                catch
+                {
+                    continue;
+                }
+
+                foreach (var child in childDirectories)
+                {
+                    cancellationToken.ThrowIfCancellationRequested();
+
+                    if (ShouldSkipDirectorySubtree(child))
+                    {
+                        continue;
+                    }
+
+                    yield return child;
+                    pending.Push(child);
+                }
+            }
+        }
+
+        private static bool ShouldSkipDirectorySubtree(string directory)
+        {
+            if (string.IsNullOrWhiteSpace(directory))
+            {
+                return true;
+            }
+
+            var normalized = directory.Replace(Path.AltDirectorySeparatorChar, Path.DirectorySeparatorChar);
+            return normalized.IndexOf($"{Path.DirectorySeparatorChar}steamapps{Path.DirectorySeparatorChar}workshop{Path.DirectorySeparatorChar}", StringComparison.OrdinalIgnoreCase) >= 0 ||
+                normalized.IndexOf($"{Path.DirectorySeparatorChar}steamapps{Path.DirectorySeparatorChar}common{Path.DirectorySeparatorChar}", StringComparison.OrdinalIgnoreCase) >= 0 ||
+                normalized.IndexOf($"{Path.DirectorySeparatorChar}appcache{Path.DirectorySeparatorChar}", StringComparison.OrdinalIgnoreCase) >= 0 ||
+                normalized.IndexOf($"{Path.DirectorySeparatorChar}userdata{Path.DirectorySeparatorChar}", StringComparison.OrdinalIgnoreCase) >= 0;
+        }
+
+        private static void AddCandidate(Dictionary<int, List<ImportCandidate>> candidates, ImportCandidate candidate)
+        {
+            if (candidate == null || candidate.AppId <= 0)
+            {
+                return;
+            }
+
+            if (!candidates.TryGetValue(candidate.AppId, out var appCandidates))
+            {
+                appCandidates = new List<ImportCandidate>();
+                candidates[candidate.AppId] = appCandidates;
+            }
+
+            var existing = appCandidates.FirstOrDefault(item =>
+                string.Equals(item.FolderPath, candidate.FolderPath, StringComparison.OrdinalIgnoreCase));
+            if (existing == null)
+            {
+                appCandidates.Add(candidate);
+                return;
+            }
+
+            existing.HasAchievementIni |= candidate.HasAchievementIni;
+            existing.HasAchievementJson |= candidate.HasAchievementJson;
+            existing.HasTenokeIni |= candidate.HasTenokeIni;
+            existing.HasTenokeUserStats |= candidate.HasTenokeUserStats;
+            existing.HasSteamAppCacheSchema |= candidate.HasSteamAppCacheSchema;
+            existing.HasSteamAppCacheUserStats |= candidate.HasSteamAppCacheUserStats;
+            existing.HasSteamLibraryCache |= candidate.HasSteamLibraryCache;
+            existing.LastWriteUtc = existing.LastWriteUtc > candidate.LastWriteUtc ? existing.LastWriteUtc : candidate.LastWriteUtc;
+        }
+
+        private ImportCandidate TryCreateFolderCandidate(int appId, string directory, bool includeFoldersWithoutAchievementFiles)
+        {
+            var iniPath = ResolveAchievementFilePath(directory, "achievements.ini");
+            var jsonPath = ResolveAchievementFilePath(directory, "achievements.json");
+            var tenokeIniPath = ResolveAchievementFilePath(directory, "tenoke.ini");
+            var tenokeUserStatsPath = ResolveAchievementFilePath(directory, "user_stats.ini");
+            var hasAchievementFile = !string.IsNullOrWhiteSpace(iniPath) ||
+                !string.IsNullOrWhiteSpace(jsonPath) ||
+                !string.IsNullOrWhiteSpace(tenokeIniPath) ||
+                !string.IsNullOrWhiteSpace(tenokeUserStatsPath);
+            if (!hasAchievementFile)
+            {
+                if (!includeFoldersWithoutAchievementFiles || !CanImportSchemaOnlyFolderCandidate(directory))
+                {
+                    return null;
+                }
+            }
+
+            return new ImportCandidate
+            {
+                AppId = appId,
+                FolderPath = directory,
+                HasAchievementIni = !string.IsNullOrWhiteSpace(iniPath),
+                HasAchievementJson = !string.IsNullOrWhiteSpace(jsonPath),
+                HasTenokeIni = !string.IsNullOrWhiteSpace(tenokeIniPath),
+                HasTenokeUserStats = !string.IsNullOrWhiteSpace(tenokeUserStatsPath),
+                LastWriteUtc = GetLatestAchievementFileWriteTime(directory)
+            };
+        }
+
+        private static bool CanImportSchemaOnlyFolderCandidate(string directory)
+        {
+            if (string.IsNullOrWhiteSpace(directory))
+            {
+                return false;
+            }
+
+            var normalizedPath = directory.Replace(Path.AltDirectorySeparatorChar, Path.DirectorySeparatorChar);
+            return normalizedPath.IndexOf($"{Path.DirectorySeparatorChar}userdata{Path.DirectorySeparatorChar}", StringComparison.OrdinalIgnoreCase) < 0 &&
+                normalizedPath.IndexOf($"{Path.DirectorySeparatorChar}appcache{Path.DirectorySeparatorChar}", StringComparison.OrdinalIgnoreCase) < 0 &&
+                normalizedPath.IndexOf($"{Path.DirectorySeparatorChar}librarycache{Path.DirectorySeparatorChar}", StringComparison.OrdinalIgnoreCase) < 0;
+        }
+
+        private void DiscoverSteamAppCacheCandidates(
+            Dictionary<int, List<ImportCandidate>> candidates,
+            string statsRoot,
+            CancellationToken cancellationToken)
+        {
+            if (string.IsNullOrWhiteSpace(statsRoot) || !Directory.Exists(statsRoot))
+            {
+                return;
+            }
+
+            var selectedSteamAppCacheUserId = (_steamAppCacheUserIdOverride ?? _localSettings?.SteamAppCacheUserId ?? string.Empty).Trim();
+            if (string.Equals(selectedSteamAppCacheUserId, LocalSettings.SteamAppCacheUserNone, StringComparison.OrdinalIgnoreCase))
+            {
+                return;
+            }
+
+            var selectedSteamAppCacheUserIds = ExpandSteamAccountIdCandidates(selectedSteamAppCacheUserId);
+
+            var allowedAppIdsFromSelectedUser = new HashSet<int>();
+
+            foreach (var userStatsPath in Directory.EnumerateFiles(statsRoot, "UserGameStats_*_*.bin", SearchOption.TopDirectoryOnly))
+            {
+                cancellationToken.ThrowIfCancellationRequested();
+
+                var parts = Path.GetFileNameWithoutExtension(userStatsPath)?.Split('_');
+                if (parts == null || parts.Length < 3)
+                {
+                    continue;
+                }
+
+                var userId = parts[1]?.Trim();
+                if (selectedSteamAppCacheUserIds.Count > 0 &&
+                    !selectedSteamAppCacheUserIds.Contains(userId ?? string.Empty))
+                {
+                    continue;
+                }
+
+                if (!int.TryParse(parts[2], NumberStyles.Integer, CultureInfo.InvariantCulture, out var appId) || appId <= 0)
+                {
+                    continue;
+                }
+
+                if (IsExcludedSteamAppId(appId))
+                {
+                    continue;
+                }
+
+                allowedAppIdsFromSelectedUser.Add(appId);
+                AddCandidate(candidates, new ImportCandidate
+                {
+                    AppId = appId,
+                    HasSteamAppCacheUserStats = true,
+                    LastWriteUtc = File.GetLastWriteTimeUtc(userStatsPath)
+                });
+            }
+
+            foreach (var schemaPath in Directory.EnumerateFiles(statsRoot, "UserGameStatsSchema_*.bin", SearchOption.TopDirectoryOnly))
+            {
+                cancellationToken.ThrowIfCancellationRequested();
+
+                var fileName = Path.GetFileNameWithoutExtension(schemaPath);
+                var appIdText = fileName?.Replace("UserGameStatsSchema_", string.Empty);
+                if (!int.TryParse(appIdText, NumberStyles.Integer, CultureInfo.InvariantCulture, out var appId) || appId <= 0)
+                {
+                    continue;
+                }
+
+                if (IsExcludedSteamAppId(appId))
+                {
+                    continue;
+                }
+
+                if (selectedSteamAppCacheUserIds.Count > 0 && !allowedAppIdsFromSelectedUser.Contains(appId))
+                {
+                    continue;
+                }
+
+                AddCandidate(candidates, new ImportCandidate
+                {
+                    AppId = appId,
+                    HasSteamAppCacheSchema = true,
+                    LastWriteUtc = File.GetLastWriteTimeUtc(schemaPath)
+                });
+            }
+        }
+
+        private static HashSet<string> ExpandSteamAccountIdCandidates(string steamUserId)
+        {
+            var candidates = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            if (string.IsNullOrWhiteSpace(steamUserId))
+            {
+                return candidates;
+            }
+
+            var trimmed = steamUserId.Trim();
+            candidates.Add(trimmed);
+
+            if (!Regex.IsMatch(trimmed, @"^\d+$"))
+            {
+                return candidates;
+            }
+
+            if (ulong.TryParse(trimmed, NumberStyles.Integer, CultureInfo.InvariantCulture, out var steamIdValue) &&
+                steamIdValue >= 76561197960265728UL)
+            {
+                var accountId = steamIdValue - 76561197960265728UL;
+                if (accountId <= uint.MaxValue)
+                {
+                    candidates.Add(accountId.ToString(CultureInfo.InvariantCulture));
+                }
+            }
+
+            return candidates;
+        }
+
+        private void DiscoverSteamLibraryCacheCandidates(
+            Dictionary<int, List<ImportCandidate>> candidates,
+            string userdataRoot,
+            CancellationToken cancellationToken)
+        {
+            if (string.IsNullOrWhiteSpace(userdataRoot) || !Directory.Exists(userdataRoot))
+            {
+                return;
+            }
+
+            foreach (var cacheRoot in EnumerateLibraryCacheRoots(userdataRoot))
+            {
+                cancellationToken.ThrowIfCancellationRequested();
+
+                if (!Directory.Exists(cacheRoot))
+                {
+                    continue;
+                }
+
+                foreach (var cachePath in Directory.EnumerateFiles(cacheRoot, "*.json", SearchOption.TopDirectoryOnly))
+                {
+                    cancellationToken.ThrowIfCancellationRequested();
+
+                    var fileName = Path.GetFileNameWithoutExtension(cachePath);
+                    if (!int.TryParse(fileName, NumberStyles.Integer, CultureInfo.InvariantCulture, out var appId) || appId <= 0)
+                    {
+                        continue;
+                    }
+
+                    if (IsExcludedSteamAppId(appId) || !HasSteamLibraryCacheAchievements(cachePath))
+                    {
+                        continue;
+                    }
+
+                    AddCandidate(candidates, new ImportCandidate
+                    {
+                        AppId = appId,
+                        HasSteamLibraryCache = true,
+                        LastWriteUtc = File.GetLastWriteTimeUtc(cachePath)
+                    });
+                }
+            }
+        }
+
+        private static IEnumerable<string> GetSteamAppCacheStatsRoots(string root)
+        {
+            if (string.IsNullOrWhiteSpace(root))
+            {
+                yield break;
+            }
+
+            if (string.Equals(Path.GetFileName(root.TrimEnd(Path.DirectorySeparatorChar)), "stats", StringComparison.OrdinalIgnoreCase))
+            {
+                yield return root;
+            }
+
+            var nestedStats = Path.Combine(root, "appcache", "stats");
+            if (Directory.Exists(nestedStats))
+            {
+                yield return nestedStats;
+            }
+        }
+
+        private static IEnumerable<string> GetSteamUserdataRoots(string root)
+        {
+            if (string.IsNullOrWhiteSpace(root))
+            {
+                yield break;
+            }
+
+            if (string.Equals(Path.GetFileName(root.TrimEnd(Path.DirectorySeparatorChar)), "userdata", StringComparison.OrdinalIgnoreCase))
+            {
+                yield return root;
+            }
+
+            var nestedUserdata = Path.Combine(root, "userdata");
+            if (Directory.Exists(nestedUserdata))
+            {
+                yield return nestedUserdata;
+            }
+        }
+
+        private static IEnumerable<string> EnumerateLibraryCacheRoots(string userdataRoot)
+        {
+            yield return Path.Combine(userdataRoot, "config", "librarycache");
+
+            foreach (var userDir in Directory.EnumerateDirectories(userdataRoot))
+            {
+                yield return Path.Combine(userDir, "config", "librarycache");
+            }
+        }
+
+        private static bool HasSteamLibraryCacheAchievements(string cachePath)
+        {
+            if (string.IsNullOrWhiteSpace(cachePath) || !File.Exists(cachePath))
+            {
+                return false;
+            }
+
+            try
+            {
+                var json = File.ReadAllText(cachePath);
+                if (string.IsNullOrWhiteSpace(json))
+                {
+                    return false;
+                }
+
+                var sections = JArray.Parse(json);
+                for (var i = 0; i < sections.Count; i++)
+                {
+                    if (!(sections[i] is JArray section) || section.Count < 2)
+                    {
+                        continue;
+                    }
+
+                    var sectionName = section[0]?.Value<string>();
+                    if (!string.Equals(sectionName, "achievements", StringComparison.OrdinalIgnoreCase))
+                    {
+                        continue;
+                    }
+
+                    var payload = section[1]?["data"] as JObject;
+                    if (payload == null)
+                    {
+                        continue;
+                    }
+
+                    if ((payload["vecHighlight"] as JArray)?.Count > 0 ||
+                        (payload["vecUnachieved"] as JArray)?.Count > 0 ||
+                        (payload["vecAchievedHidden"] as JArray)?.Count > 0)
+                    {
+                        return true;
+                    }
+                }
+            }
+            catch
+            {
+            }
+
+            return false;
+        }
+
+        private bool PersistLocalBinding(Game game, int appId, string folderPath)
+        {
+            if (game == null || game.Id == Guid.Empty)
+            {
+                return false;
+            }
+
+            _localSettings.SteamAppIdOverrides ??= new Dictionary<Guid, int>();
+            _localSettings.LocalFolderOverrides ??= new Dictionary<Guid, string>();
+
+            var changed = false;
+            if (!_localSettings.SteamAppIdOverrides.TryGetValue(game.Id, out var existingAppId) || existingAppId != appId)
+            {
+                _localSettings.SteamAppIdOverrides[game.Id] = appId;
+                _logger?.Info($"Set Local Steam App ID override for '{game.Name}' to {appId}");
+                changed = true;
+            }
+
+            if (!string.IsNullOrWhiteSpace(folderPath))
+            {
+                var normalizedPath = folderPath.Trim();
+                if (!_localSettings.LocalFolderOverrides.TryGetValue(game.Id, out var existingFolderPath) ||
+                    !string.Equals(existingFolderPath, normalizedPath, StringComparison.OrdinalIgnoreCase))
+                {
+                    _localSettings.LocalFolderOverrides[game.Id] = normalizedPath;
+                    _logger?.Info($"Set Local folder override for '{game.Name}' to '{normalizedPath}'");
+                    changed = true;
+                }
+            }
+
+            if (_settings.Persisted.PreferredProviderOverrides == null)
+            {
+                _settings.Persisted.PreferredProviderOverrides = new Dictionary<Guid, string>();
+            }
+
+            if (!_settings.Persisted.PreferredProviderOverrides.TryGetValue(game.Id, out var providerOverride) ||
+                !string.Equals(providerOverride, "Local", StringComparison.OrdinalIgnoreCase))
+            {
+                _settings.Persisted.PreferredProviderOverrides[game.Id] = "Local";
+                changed = true;
+            }
+
+            return changed;
+        }
+
+        private void PersistSettingsForUi()
+        {
+            PlayniteAchievementsPlugin.Instance?.PersistSettingsForUi();
+        }
+
+        private Dictionary<int, List<Game>> BuildExistingGamesByResolvedAppId()
+        {
+            var map = new Dictionary<int, List<Game>>();
+            foreach (var game in _api.Database.Games.Where(game => game != null && game.Id != Guid.Empty))
+            {
+                if (!TryGetResolvedAppId(game, out var appId) || appId <= 0)
+                {
+                    continue;
+                }
+
+                CacheExistingGameByResolvedAppId(map, appId, game);
+            }
+
+            return map;
+        }
+
+        private static void CacheExistingGameByResolvedAppId(Dictionary<int, List<Game>> map, int appId, Game game)
+        {
+            if (map == null || appId <= 0 || game == null || game.Id == Guid.Empty)
+            {
+                return;
+            }
+
+            if (!map.TryGetValue(appId, out var games))
+            {
+                games = new List<Game>();
+                map[appId] = games;
+            }
+
+            if (!games.Any(existing => existing?.Id == game.Id))
+            {
+                games.Add(game);
+            }
+        }
+
+        private Game FindExistingGame(int appId, LocalImportedGameLibraryTarget importTarget, string customSourceName, Dictionary<int, List<Game>> cachedGamesByResolvedAppId = null)
+        {
+            List<Game> matchingGames;
+            if (cachedGamesByResolvedAppId != null)
+            {
+                if (!cachedGamesByResolvedAppId.TryGetValue(appId, out matchingGames))
+                {
+                    return null;
+                }
+            }
+            else
+            {
+                matchingGames = _api.Database.Games
+                    .Where(game => MatchesResolvedAppId(game, appId))
+                    .ToList();
+            }
+
+            if (matchingGames == null || matchingGames.Count == 0)
+            {
+                return null;
+            }
+
+            return matchingGames.FirstOrDefault(game => MatchesRequestedImportTarget(game, importTarget, customSourceName))
+                ?? matchingGames.FirstOrDefault(game => IsExistingLocalBinding(game))
+                ?? matchingGames.FirstOrDefault();
+        }
+
+        private Game FindExistingGameByName(string resolvedName, LocalImportedGameLibraryTarget importTarget, string customSourceName)
+        {
+            var normalizedName = NormalizeGameTitleForDuplicateMatch(resolvedName);
+            if (string.IsNullOrWhiteSpace(normalizedName))
+            {
+                return null;
+            }
+
+            var matchingGames = _api.Database.Games
+                .Where(game => MatchesNormalizedGameTitle(game, normalizedName))
+                .ToList();
+
+            if (matchingGames.Count == 0)
+            {
+                return null;
+            }
+
+            return matchingGames.FirstOrDefault(game => MatchesRequestedImportTarget(game, importTarget, customSourceName))
+                ?? matchingGames.FirstOrDefault(game => game.PluginId == Guid.Empty)
+                ?? matchingGames.FirstOrDefault(game => IsExistingLocalBinding(game))
+                ?? matchingGames.FirstOrDefault();
+        }
+
+        private bool MatchesResolvedAppId(Game game, int appId)
+        {
+            if (game == null || game.Id == Guid.Empty || appId <= 0)
+            {
+                return false;
+            }
+
+            return TryGetResolvedAppId(game, out var resolvedAppId) && resolvedAppId == appId;
+        }
+
+        private bool TryGetResolvedAppId(Game game, out int resolvedAppId)
+        {
+            resolvedAppId = 0;
+            if (game == null || game.Id == Guid.Empty)
+            {
+                return false;
+            }
+
+            if (int.TryParse(game.GameId, NumberStyles.Integer, CultureInfo.InvariantCulture, out var parsedAppId) && parsedAppId > 0)
+            {
+                resolvedAppId = parsedAppId;
+                return true;
+            }
+
+            return LocalSavesProvider.TryResolveAppId(game, out resolvedAppId, out _) && resolvedAppId > 0;
+        }
+
+        private static bool MatchesNormalizedGameTitle(Game game, string normalizedName)
+        {
+            if (game == null || string.IsNullOrWhiteSpace(normalizedName))
+            {
+                return false;
+            }
+
+            return string.Equals(NormalizeGameTitleForDuplicateMatch(game.Name), normalizedName, StringComparison.OrdinalIgnoreCase) ||
+                string.Equals(NormalizeGameTitleForDuplicateMatch(game.SortingName), normalizedName, StringComparison.OrdinalIgnoreCase);
+        }
+
+        private static string NormalizeGameTitleForDuplicateMatch(string value)
+        {
+            if (string.IsNullOrWhiteSpace(value))
+            {
+                return string.Empty;
+            }
+
+            var normalized = WebUtility.HtmlDecode(value).Trim().ToLowerInvariant();
+            normalized = normalized.Replace('’', '\'').Replace('`', '\'');
+            normalized = Regex.Replace(normalized, @"[^\p{L}\p{N}]+", " ");
+            normalized = Regex.Replace(normalized, @"\s+", " ");
+            return normalized.Trim();
+        }
+
+        private bool MatchesRequestedImportTarget(Game game, LocalImportedGameLibraryTarget importTarget, string customSourceName)
+        {
+            if (game == null)
+            {
+                return false;
+            }
+
+            var isManualOrCustomGame = game.PluginId == Guid.Empty;
+
+            switch (importTarget)
+            {
+                case LocalImportedGameLibraryTarget.Steam:
+                    return game.PluginId == SteamDataProvider.SteamPluginId;
+
+                case LocalImportedGameLibraryTarget.CustomSource:
+                    if (!isManualOrCustomGame)
+                    {
+                        return false;
+                    }
+
+                    if (string.IsNullOrWhiteSpace(customSourceName))
+                    {
+                        return true;
+                    }
+
+                    var sourceName = _api.Database.Sources?.FirstOrDefault(source => source?.Id == game.SourceId)?.Name;
+                    return string.Equals(sourceName?.Trim(), customSourceName.Trim(), StringComparison.OrdinalIgnoreCase);
+
+                case LocalImportedGameLibraryTarget.None:
+                default:
+                    return isManualOrCustomGame;
+            }
+        }
+
+        private bool IsExistingLocalBinding(Game game)
+        {
+            if (game == null || game.Id == Guid.Empty)
+            {
+                return false;
+            }
+
+            if (_settings?.Persisted?.PreferredProviderOverrides != null &&
+                _settings.Persisted.PreferredProviderOverrides.TryGetValue(game.Id, out var preferredProvider) &&
+                string.Equals(preferredProvider, "Local", StringComparison.OrdinalIgnoreCase))
+            {
+                return true;
+            }
+
+            return LocalSavesProvider.TryGetAppIdOverride(game.Id, out _) ||
+                LocalSavesProvider.TryGetFolderOverride(game.Id, out _);
+        }
+
+        private static ImportCandidate ChooseBestImportCandidate(IEnumerable<ImportCandidate> candidates)
+        {
+            return candidates?
+                .Where(candidate => candidate != null)
+                .OrderByDescending(GetImportCandidateScore)
+                .ThenByDescending(candidate => candidate.LastWriteUtc)
+                .ThenBy(candidate => candidate.FolderPath ?? string.Empty, StringComparer.OrdinalIgnoreCase)
+                .FirstOrDefault();
+        }
+
+        private static string ChooseBestLocalFolderCandidate(IEnumerable<ImportCandidate> candidates)
+        {
+            return candidates?
+                .Where(candidate => candidate != null && !string.IsNullOrWhiteSpace(candidate.FolderPath))
+                .OrderByDescending(GetImportCandidateScore)
+                .ThenByDescending(candidate => candidate.LastWriteUtc)
+                .ThenBy(candidate => candidate.FolderPath, StringComparer.OrdinalIgnoreCase)
+                .Select(candidate => candidate.FolderPath)
+                .FirstOrDefault();
+        }
+
+        private static int GetImportCandidateScore(ImportCandidate candidate)
+        {
+            var score = 0;
+            if (candidate == null)
+            {
+                return score;
+            }
+
+            if (candidate.HasAchievementIni)
+            {
+                score += 2;
+            }
+
+            if (candidate.HasAchievementJson)
+            {
+                score += 1;
+            }
+
+            if (candidate.HasTenokeUserStats)
+            {
+                score += 2;
+            }
+
+            if (candidate.HasTenokeIni)
+            {
+                score += 1;
+            }
+
+            if (candidate.HasSteamAppCacheSchema)
+            {
+                score += 2;
+            }
+
+            if (candidate.HasSteamAppCacheUserStats)
+            {
+                score += 1;
+            }
+
+            if (candidate.HasSteamLibraryCache)
+            {
+                score += 1;
+            }
+
+            return score;
+        }
+
+        private static DateTime GetLatestAchievementFileWriteTime(string folderPath)
+        {
+            var latest = DateTime.MinValue;
+            foreach (var fileName in new[] { "achievements.ini", "user_stats.ini", "tenoke.ini", "achievements.json" })
+            {
+                var filePath = ResolveAchievementFilePath(folderPath, fileName);
+                if (!string.IsNullOrWhiteSpace(filePath) && File.Exists(filePath))
+                {
+                    var lastWrite = File.GetLastWriteTimeUtc(filePath);
+                    if (lastWrite > latest)
+                    {
+                        latest = lastWrite;
+                    }
+                }
+            }
+
+            if (latest == DateTime.MinValue && !string.IsNullOrWhiteSpace(folderPath) && Directory.Exists(folderPath))
+            {
+                latest = Directory.GetLastWriteTimeUtc(folderPath);
+            }
+
+            return latest;
+        }
+
+        private static string ResolveAchievementFilePath(string folderPath, string fileName)
+        {
+            if (string.IsNullOrWhiteSpace(folderPath) || string.IsNullOrWhiteSpace(fileName))
+            {
+                return null;
+            }
+
+            foreach (var relativeDirectory in SupportedAchievementRelativeDirectories)
+            {
+                var candidatePath = string.IsNullOrWhiteSpace(relativeDirectory)
+                    ? Path.Combine(folderPath, fileName)
+                    : Path.Combine(folderPath, relativeDirectory, fileName);
+
+                if (File.Exists(candidatePath))
+                {
+                    return candidatePath;
+                }
+            }
+
+            return null;
+        }
+
+        private static bool TryExtractAppIdFromTenokeIni(string iniPath, out int appId)
+        {
+            appId = 0;
+            if (string.IsNullOrWhiteSpace(iniPath) || !File.Exists(iniPath))
+            {
+                return false;
+            }
+
+            try
+            {
+                var inTenokeSection = false;
+                foreach (var rawLine in File.ReadLines(iniPath))
+                {
+                    var line = (rawLine ?? string.Empty).Trim();
+                    if (string.IsNullOrWhiteSpace(line) || line.StartsWith("#", StringComparison.Ordinal) || line.StartsWith(";", StringComparison.Ordinal))
+                    {
+                        continue;
+                    }
+
+                    if (line.StartsWith("[", StringComparison.Ordinal) && line.EndsWith("]", StringComparison.Ordinal))
+                    {
+                        var sectionName = line.Substring(1, line.Length - 2).Trim();
+                        inTenokeSection = string.Equals(sectionName, "TENOKE", StringComparison.OrdinalIgnoreCase);
+                        continue;
+                    }
+
+                    if (!inTenokeSection)
+                    {
+                        continue;
+                    }
+
+                    var separatorIndex = line.IndexOf('=');
+                    if (separatorIndex <= 0)
+                    {
+                        continue;
+                    }
+
+                    var key = line.Substring(0, separatorIndex).Trim();
+                    if (!string.Equals(key, "id", StringComparison.OrdinalIgnoreCase) &&
+                        !string.Equals(key, "appid", StringComparison.OrdinalIgnoreCase))
+                    {
+                        continue;
+                    }
+
+                    var value = StripIniInlineComment(line.Substring(separatorIndex + 1)).Trim().Trim('"');
+                    return int.TryParse(value, NumberStyles.Integer, CultureInfo.InvariantCulture, out appId) && appId > 0;
+                }
+            }
+            catch
+            {
+                return false;
+            }
+
+            return false;
+        }
+
+        private static string StripIniInlineComment(string value)
+        {
+            if (string.IsNullOrWhiteSpace(value))
+            {
+                return string.Empty;
+            }
+
+            var inQuotes = false;
+            for (var i = 0; i < value.Length; i++)
+            {
+                var c = value[i];
+                if (c == '"')
+                {
+                    inQuotes = !inQuotes;
+                    continue;
+                }
+
+                if (!inQuotes && (c == '#' || c == ';'))
+                {
+                    return value.Substring(0, i);
+                }
+            }
+
+            return value;
+        }
+
+        private static string BuildCandidateDetail(ImportCandidate candidate, int index, int total)
+        {
+            if (candidate == null)
+            {
+                return $"Processing item {index} of {total}.";
+            }
+
+            var evidence = new List<string>();
+            if (candidate.HasAchievementIni)
+            {
+                evidence.Add("achievements.ini");
+            }
+
+            if (candidate.HasAchievementJson)
+            {
+                evidence.Add("achievements.json");
+            }
+
+            if (candidate.HasTenokeIni)
+            {
+                evidence.Add("tenoke.ini");
+            }
+
+            if (candidate.HasTenokeUserStats)
+            {
+                evidence.Add("user_stats.ini");
+            }
+
+            if (candidate.HasSteamAppCacheSchema)
+            {
+                evidence.Add("UserGameStatsSchema_<appid>.bin");
+            }
+
+            if (candidate.HasSteamAppCacheUserStats)
+            {
+                evidence.Add("UserGameStats_*_<appid>.bin");
+            }
+
+            if (candidate.HasSteamLibraryCache)
+            {
+                evidence.Add("userdata/config/librarycache/<appid>.json");
+            }
+
+            var evidenceText = evidence.Count > 0 ? string.Join(", ", evidence) : "folder-only schema lookup";
+            return $"Processing item {index} of {total}. Evidence: {evidenceText}.";
+        }
+
+        private static string DescribeCandidate(ImportCandidate candidate)
+        {
+            if (candidate == null)
+            {
+                return "<null>";
+            }
+
+            var evidence = new List<string>();
+            if (candidate.HasAchievementIni)
+            {
+                evidence.Add("ini");
+            }
+
+            if (candidate.HasAchievementJson)
+            {
+                evidence.Add("json");
+            }
+
+            if (candidate.HasTenokeIni)
+            {
+                evidence.Add("tenoke");
+            }
+
+            if (candidate.HasTenokeUserStats)
+            {
+                evidence.Add("user_stats");
+            }
+
+            if (candidate.HasSteamAppCacheSchema)
+            {
+                evidence.Add("schema-cache");
+            }
+
+            if (candidate.HasSteamAppCacheUserStats)
+            {
+                evidence.Add("userstats-cache");
+            }
+
+            if (candidate.HasSteamLibraryCache)
+            {
+                evidence.Add("library-cache");
+            }
+
+            var evidenceText = evidence.Count > 0 ? string.Join(",", evidence) : "folder-only";
+            var folderText = string.IsNullOrWhiteSpace(candidate.FolderPath) ? "<no folder>" : candidate.FolderPath;
+            return $"folder='{folderText}', evidence={evidenceText}, lastWriteUtc={candidate.LastWriteUtc:O}";
+        }
+
+        private static string DescribeGame(Game game)
+        {
+            if (game == null)
+            {
+                return "<null>";
+            }
+
+            var sourceName = game.Source?.Name;
+            return $"name='{game.Name}', id={game.Id}, gameId='{game.GameId}', pluginId={game.PluginId}, source='{sourceName}'";
+        }
+
+        private MetadataApplyOutcome ApplyDownloadedMetadata(
+            Game importedGame,
+            int appId,
+            string metadataSourceId,
+            MetadataPlugin selectedMetadataPlugin,
+            LibraryMetadataProvider fastMetadataDownloader)
+        {
+            var outcome = new MetadataApplyOutcome();
+            if (importedGame == null)
+            {
+                return outcome;
+            }
+
+            try
+            {
+                _metadataApplier.ApplyToGame(
+                    importedGame,
+                    appId,
+                    metadataSourceId,
+                    selectedMetadataPlugin,
+                    fastMetadataDownloader);
+                outcome.RateLimitedIconMissAppIds = _metadataApplier.ConsumeRateLimitedIconMissAppIds();
+                NormalizeImportedGameMetadata(importedGame, appId);
+                _api.Database.Games.Update(importedGame);
+                outcome.IconPresent = !string.IsNullOrWhiteSpace(importedGame.Icon);
+            }
+            catch (Exception ex)
+            {
+                _logger?.Debug(ex, $"[LocalAch] Failed applying downloaded Steam metadata for imported game '{importedGame?.Name}'.");
+            }
+
+            return outcome;
+        }
+
+        private MetadataPlugin ResolveSelectedMetadataPlugin(string metadataSourceId)
+        {
+            var normalizedSourceId = ImportedGameMetadataSourceCatalog.NormalizeMetadataSourceId(_api, _logger, metadataSourceId);
+            if (string.IsNullOrWhiteSpace(normalizedSourceId))
+            {
+                return ResolveAutomaticMetadataPlugin();
+            }
+
+            if (ImportedGameMetadataSourceCatalog.IsUniversalSteamMetadataSource(normalizedSourceId))
+            {
+                return ImportedGameMetadataSourceCatalog.ResolveUniversalSteamMetadataPlugin(_api, _logger);
+            }
+
+            if (ImportedGameMetadataSourceCatalog.IsBuiltInSource(normalizedSourceId))
+            {
+                return null;
+            }
+
+            return ResolveMetadataPlugin(normalizedSourceId);
+        }
+
+        private void ApplyBuiltInMetadata(Game importedGame, int appId, string metadataSourceId)
+        {
+            if (importedGame == null || appId <= 0)
+            {
+                return;
+            }
+
+            var applied = false;
+            if (string.Equals(metadataSourceId, ImportedGameMetadataSourceCatalog.SteamHuntersId, StringComparison.OrdinalIgnoreCase))
+            {
+                applied = ApplySteamHuntersMetadata(importedGame, appId);
+            }
+            else if (string.Equals(metadataSourceId, ImportedGameMetadataSourceCatalog.CompletionistId, StringComparison.OrdinalIgnoreCase))
+            {
+                applied = ApplyCompletionistMetadata(importedGame, appId);
+            }
+
+            if (applied || ShouldApplySteamStoreFallback(importedGame, appId))
+            {
+                ApplySteamStoreFallbackMetadata(importedGame, appId);
+            }
+        }
+
+        private bool ApplySteamHuntersMetadata(Game importedGame, int appId)
+        {
+            var url = $"https://steamhunters.com/apps/{appId}/achievements";
+            return ApplyImportedProviderPageMetadata(
+                importedGame,
+                TryFetchImportedMetadataPage(
+                    url,
+                    document => new ImportedProviderPageMetadata
+                    {
+                        Name = FirstNonEmpty(
+                            ExtractMetaContent(document, "og:title"),
+                            TryExtractPageTitle(document),
+                            ExtractHeadingText(document)),
+                        Description = FirstNonEmpty(
+                            FindTextAfterHeading(document, "Description"),
+                            ExtractMetaContent(document, "description")),
+                        IconUrl = ExtractImageUrl(document, url, "//img[contains(concat(' ', normalize-space(@class), ' '), ' image-rounded ') and contains(concat(' ', normalize-space(@class), ' '), ' image-1em ')]"),
+                        Url = url,
+                        UrlName = "SteamHunters"
+                    }));
+        }
+
+        private bool ApplyCompletionistMetadata(Game importedGame, int appId)
+        {
+            var url = $"https://completionist.me/steam/app/{appId}/achievements";
+            return ApplyImportedProviderPageMetadata(
+                importedGame,
+                TryFetchImportedMetadataPage(
+                    url,
+                    document => new ImportedProviderPageMetadata
+                    {
+                        Name = FirstNonEmpty(
+                            ExtractMetaContent(document, "og:title"),
+                            TryExtractPageTitle(document),
+                            ExtractHeadingText(document)),
+                        Description = FirstNonEmpty(
+                            ExtractMetaContent(document, "description"),
+                            FindTextAfterHeading(document, "Description")),
+                        IconUrl = ExtractImageUrl(document, url, "//*[contains(concat(' ', normalize-space(@class), ' '), ' dropdown-toggle ')]//img[@src]"),
+                        Url = url,
+                        UrlName = "Completionist.me"
+                    }));
+        }
+
+        private ImportedProviderPageMetadata TryFetchImportedMetadataPage(string url, Func<HtmlDocument, ImportedProviderPageMetadata> extractor)
+        {
+            if (string.IsNullOrWhiteSpace(url) || extractor == null)
+            {
+                return null;
+            }
+
+            try
+            {
+                var request = (HttpWebRequest)WebRequest.Create(url);
+                request.Method = "GET";
+                request.AutomaticDecompression = DecompressionMethods.GZip | DecompressionMethods.Deflate;
+                request.UserAgent = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/123.0.0.0 Safari/537.36";
+                request.Accept = "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8";
+                request.Referer = BuildRequestReferer(url);
+                request.Headers[HttpRequestHeader.AcceptLanguage] = "en-US,en;q=0.9";
+
+                using (var response = (HttpWebResponse)request.GetResponse())
+                using (var stream = response.GetResponseStream())
+                using (var reader = new StreamReader(stream ?? Stream.Null, Encoding.UTF8))
+                {
+                    var html = reader.ReadToEnd();
+                    if (string.IsNullOrWhiteSpace(html))
+                    {
+                        return null;
+                    }
+
+                    var document = new HtmlDocument();
+                    document.LoadHtml(html);
+                    return extractor(document);
+                }
+            }
+            catch (Exception ex)
+            {
+                _logger?.Debug(ex, $"[LocalImport] Failed downloading imported metadata page '{url}'.");
+                return null;
+            }
+        }
+
+        private bool ApplyImportedProviderPageMetadata(Game importedGame, ImportedProviderPageMetadata metadata)
+        {
+            if (importedGame == null || metadata == null)
+            {
+                return false;
+            }
+
+            var applied = false;
+
+            if (!string.IsNullOrWhiteSpace(metadata.Name))
+            {
+                importedGame.Name = metadata.Name.Trim();
+                importedGame.SortingName = importedGame.Name;
+                applied = true;
+            }
+
+            if (!string.IsNullOrWhiteSpace(metadata.Description))
+            {
+                importedGame.Description = PrepareProviderMetadataDescription(metadata.Description);
+                applied = true;
+            }
+
+            var iconId = PersistMetadataFile(importedGame.Id, string.IsNullOrWhiteSpace(metadata.IconUrl) ? null : new MetadataFile(metadata.IconUrl));
+            if (!string.IsNullOrWhiteSpace(iconId))
+            {
+                importedGame.Icon = iconId;
+                applied = true;
+            }
+
+            if (!string.IsNullOrWhiteSpace(metadata.Url))
+            {
+                var links = importedGame.Links?.ToList() ?? new List<Link>();
+                AddLinkIfMissing(links, metadata.UrlName ?? "Source", metadata.Url);
+                ReplaceCollection(importedGame.Links, links);
+                applied = true;
+            }
+
+            return applied;
+        }
+
+        private bool ApplyMetadataPlugin(Game importedGame, int appId, MetadataPlugin metadataPlugin)
+        {
+            if (importedGame == null || appId <= 0 || metadataPlugin == null)
+            {
+                return false;
+            }
+
+            try
+            {
+                ClearImportedMetadataForOverwrite(importedGame);
+                var lookupGame = CreateMetadataPluginLookupGame(importedGame, appId, metadataPlugin);
+
+                using (var provider = metadataPlugin.GetMetadataProvider(new MetadataRequestOptions(lookupGame, true)))
+                {
+                    if (provider == null)
+                    {
+                        return false;
+                    }
+
+                    var args = new GetMetadataFieldArgs();
+                    var applied = false;
+
+                    var name = provider.GetName(args);
+                    if (!string.IsNullOrWhiteSpace(name))
+                    {
+                        importedGame.Name = name;
+                        importedGame.SortingName = name;
+                        applied = true;
+                    }
+
+                    var description = provider.GetDescription(args);
+                    if (!string.IsNullOrWhiteSpace(description))
+                    {
+                        importedGame.Description = PrepareProviderMetadataDescription(description);
+                        applied = true;
+                    }
+
+                    var iconId = PersistMetadataFile(importedGame.Id, provider.GetIcon(args));
+                    if (!string.IsNullOrWhiteSpace(iconId))
+                    {
+                        importedGame.Icon = iconId;
+                        applied = true;
+                    }
+
+                    var coverId = PersistMetadataFile(importedGame.Id, provider.GetCoverImage(args));
+                    if (!string.IsNullOrWhiteSpace(coverId))
+                    {
+                        importedGame.CoverImage = coverId;
+                        applied = true;
+                    }
+
+                    var backgroundId = PersistMetadataFile(importedGame.Id, provider.GetBackgroundImage(args));
+                    if (!string.IsNullOrWhiteSpace(backgroundId))
+                    {
+                        importedGame.BackgroundImage = backgroundId;
+                        applied = true;
+                    }
+
+                    var releaseDate = provider.GetReleaseDate(args);
+                    if (releaseDate != null)
+                    {
+                        importedGame.ReleaseDate = releaseDate;
+                        applied = true;
+                    }
+
+                    var criticScore = provider.GetCriticScore(args);
+                    if (criticScore.HasValue)
+                    {
+                        importedGame.CriticScore = criticScore;
+                        applied = true;
+                    }
+
+                    var communityScore = provider.GetCommunityScore(args);
+                    if (communityScore.HasValue)
+                    {
+                        importedGame.CommunityScore = communityScore;
+                        applied = true;
+                    }
+
+                    var platforms = provider.GetPlatforms(args)?.ToList();
+                    var genres = provider.GetGenres(args)?.ToList();
+                    var developers = provider.GetDevelopers(args)?.ToList();
+                    var publishers = provider.GetPublishers(args)?.ToList();
+                    var tags = provider.GetTags(args)?.ToList();
+                    var features = provider.GetFeatures(args)?.ToList();
+                    var ageRatings = provider.GetAgeRatings(args)?.ToList();
+                    var regions = provider.GetRegions(args)?.ToList();
+                    var series = provider.GetSeries(args)?.ToList();
+
+                    _logger?.Info(
+                        $"[LocalImport] Metadata plugin '{metadataPlugin.Name}' field counts for appId={appId}: " +
+                        $"platforms={platforms?.Count ?? 0}, genres={genres?.Count ?? 0}, developers={developers?.Count ?? 0}, " +
+                        $"publishers={publishers?.Count ?? 0}, tags={tags?.Count ?? 0}, features={features?.Count ?? 0}, " +
+                        $"ageRatings={ageRatings?.Count ?? 0}, regions={regions?.Count ?? 0}, series={series?.Count ?? 0}.");
+
+                    if (platforms?.Count > 0)
+                    {
+                        ReplaceCollection(importedGame.Platforms, _api.Database.Platforms.Add(platforms));
+                        applied = true;
+                    }
+
+                    if (genres?.Count > 0)
+                    {
+                        ReplaceCollection(importedGame.Genres, _api.Database.Genres.Add(genres));
+                        applied = true;
+                    }
+
+                    if (developers?.Count > 0)
+                    {
+                        ReplaceCollection(importedGame.Developers, _api.Database.Companies.Add(developers));
+                        applied = true;
+                    }
+
+                    if (publishers?.Count > 0)
+                    {
+                        ReplaceCollection(importedGame.Publishers, _api.Database.Companies.Add(publishers));
+                        applied = true;
+                    }
+
+                    if (tags?.Count > 0)
+                    {
+                        ReplaceCollection(importedGame.Tags, _api.Database.Tags.Add(tags));
+                        applied = true;
+                    }
+
+                    if (features?.Count > 0)
+                    {
+                        ReplaceCollection(importedGame.Features, _api.Database.Features.Add(features));
+                        applied = true;
+                    }
+
+                    if (ageRatings?.Count > 0)
+                    {
+                        ReplaceCollection(importedGame.AgeRatings, _api.Database.AgeRatings.Add(ageRatings));
+                        applied = true;
+                    }
+
+                    if (regions?.Count > 0)
+                    {
+                        ReplaceCollection(importedGame.Regions, _api.Database.Regions.Add(regions));
+                        applied = true;
+                    }
+
+                    if (series?.Count > 0)
+                    {
+                        ReplaceCollection(importedGame.Series, _api.Database.Series.Add(series));
+                        applied = true;
+                    }
+
+                    var links = provider.GetLinks(args)?.ToList();
+                    if (links?.Count > 0)
+                    {
+                        ReplaceCollection(importedGame.Links, links);
+                        applied = true;
+                    }
+
+                    if (applied)
+                    {
+                        _logger?.Info($"[LocalImport] Applied metadata plugin '{metadataPlugin.Name}' for appId={appId}.");
+                    }
+
+                    return applied;
+                }
+            }
+            catch (Exception ex)
+            {
+                _logger?.Debug(ex, $"[LocalImport] Failed applying metadata plugin '{metadataPlugin?.Name}' for appId={appId}.");
+                return false;
+            }
+        }
+
+        private void ApplyImportTarget(Game game, LocalImportedGameLibraryTarget importTarget, string customSourceName)
+        {
+            if (game == null || game.Id == Guid.Empty || game.PluginId != Guid.Empty)
+            {
+                return;
+            }
+
+            if (importTarget == LocalImportedGameLibraryTarget.CustomSource && !string.IsNullOrWhiteSpace(customSourceName))
+            {
+                var source = EnsureGameSource(customSourceName.Trim());
+                if (source != null)
+                {
+                    game.SourceId = source.Id;
+                }
+            }
+        }
+
+        private GameSource EnsureGameSource(string sourceName)
+        {
+            if (string.IsNullOrWhiteSpace(sourceName))
+            {
+                return null;
+            }
+
+            var existing = _api.Database.Sources.FirstOrDefault(source =>
+                source != null &&
+                string.Equals(source.Name?.Trim(), sourceName.Trim(), StringComparison.OrdinalIgnoreCase));
+            if (existing != null)
+            {
+                return existing;
+            }
+
+            try
+            {
+                var createdSource = new GameSource(sourceName.Trim());
+                _api.Database.Sources.Add(createdSource);
+                return _api.Database.Sources.FirstOrDefault(source =>
+                    source != null &&
+                    string.Equals(source.Name?.Trim(), sourceName.Trim(), StringComparison.OrdinalIgnoreCase));
+            }
+            catch (Exception ex)
+            {
+                _logger?.Debug(ex, $"[LocalImport] Failed creating Playnite source '{sourceName}'.");
+                return null;
+            }
+        }
+
+        private void ApplySteamStoreFallbackMetadata(Game importedGame, int appId)
+        {
+            if (importedGame == null || appId <= 0)
+            {
+                return;
+            }
+
+            try
+            {
+                var requestUrl = $"https://store.steampowered.com/api/appdetails?appids={appId}";
+                using (var webClient = new WebClient())
+                {
+                    webClient.Headers[HttpRequestHeader.UserAgent] =
+                        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36";
+                    webClient.Headers[HttpRequestHeader.Accept] = "application/json";
+                    webClient.Encoding = Encoding.UTF8;
+
+                    var json = webClient.DownloadString(requestUrl);
+                    if (string.IsNullOrWhiteSpace(json))
+                    {
+                        return;
+                    }
+
+                    var root = JObject.Parse(json);
+                    var envelope = root[appId.ToString(CultureInfo.InvariantCulture)] as JObject;
+                    if (envelope?["success"]?.Value<bool>() != true)
+                    {
+                        return;
+                    }
+
+                    var data = envelope["data"] as JObject;
+                    if (data == null)
+                    {
+                        return;
+                    }
+
+                    var resolvedName = data["name"]?.Value<string>()?.Trim();
+                    if (!string.IsNullOrWhiteSpace(resolvedName))
+                    {
+                        importedGame.Name = resolvedName;
+                        importedGame.SortingName = resolvedName;
+                    }
+
+                    if (string.IsNullOrWhiteSpace(importedGame.Description))
+                    {
+                        var description = data["about_the_game"]?.Value<string>()?.Trim();
+                        if (string.IsNullOrWhiteSpace(description))
+                        {
+                            description = data["detailed_description"]?.Value<string>()?.Trim();
+                        }
+
+                        if (string.IsNullOrWhiteSpace(description))
+                        {
+                            description = data["short_description"]?.Value<string>()?.Trim();
+                        }
+
+                        importedGame.Description = NormalizeMetadataDescription(description);
+                    }
+
+                    var iconUrl = data["capsule_image"]?.Value<string>()?.Trim();
+                    if (string.IsNullOrWhiteSpace(iconUrl))
+                    {
+                        iconUrl = data["header_image"]?.Value<string>()?.Trim();
+                    }
+
+                    var coverUrl = data["header_image"]?.Value<string>()?.Trim();
+                    var backgroundUrl = data["background_raw"]?.Value<string>()?.Trim();
+                    if (string.IsNullOrWhiteSpace(backgroundUrl))
+                    {
+                        backgroundUrl = data["background"]?.Value<string>()?.Trim();
+                    }
+
+                    var iconId = PersistMetadataFile(importedGame.Id, string.IsNullOrWhiteSpace(iconUrl) || !string.IsNullOrWhiteSpace(importedGame.Icon) ? null : new MetadataFile(iconUrl));
+                    if (!string.IsNullOrWhiteSpace(iconId))
+                    {
+                        importedGame.Icon = iconId;
+                    }
+
+                    var coverId = PersistMetadataFile(importedGame.Id, string.IsNullOrWhiteSpace(coverUrl) || !string.IsNullOrWhiteSpace(importedGame.CoverImage) ? null : new MetadataFile(coverUrl));
+                    if (!string.IsNullOrWhiteSpace(coverId))
+                    {
+                        importedGame.CoverImage = coverId;
+                    }
+
+                    var backgroundId = PersistMetadataFile(importedGame.Id, string.IsNullOrWhiteSpace(backgroundUrl) || !string.IsNullOrWhiteSpace(importedGame.BackgroundImage) ? null : new MetadataFile(backgroundUrl));
+                    if (!string.IsNullOrWhiteSpace(backgroundId))
+                    {
+                        importedGame.BackgroundImage = backgroundId;
+                    }
+
+                    var websiteUrl = data["website"]?.Value<string>()?.Trim();
+                    var links = importedGame.Links?.ToList() ?? new List<Link>();
+                    AddLinkIfMissing(links, "Steam Store", $"https://store.steampowered.com/app/{appId}/");
+                    AddLinkIfMissing(links, "Community Hub", $"https://steamcommunity.com/app/{appId}");
+                    AddLinkIfMissing(links, "Discussions", $"https://steamcommunity.com/app/{appId}/discussions/");
+                    AddLinkIfMissing(links, "Guides", $"https://steamcommunity.com/app/{appId}/guides/");
+                    AddLinkIfMissing(links, "News", $"https://store.steampowered.com/news/app/{appId}");
+
+                    var categoryIds = data["categories"]?
+                        .Values<JObject>()
+                        .Select(category => category?["id"]?.Value<int>() ?? 0)
+                        .Where(id => id > 0)
+                        .ToHashSet() ?? new HashSet<int>();
+                    if (categoryIds.Contains(22))
+                    {
+                        AddLinkIfMissing(links, "Achievements", $"https://steamcommunity.com/stats/{appId}/achievements/");
+                    }
+
+                    if (categoryIds.Contains(30))
+                    {
+                        AddLinkIfMissing(links, "Workshop", $"https://steamcommunity.com/app/{appId}/workshop/");
+                    }
+
+                    if (!string.IsNullOrWhiteSpace(websiteUrl))
+                    {
+                        AddLinkIfMissing(links, "Website", websiteUrl);
+                    }
+
+                    if (links.Count > 0)
+                    {
+                        ReplaceCollection(importedGame.Links, links);
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                _logger?.Debug(ex, $"[LocalImport] Failed applying Steam Store fallback metadata for appId={appId}.");
+            }
+        }
+
+        private static bool IsPlaceholderSteamName(string value, int appId)
+        {
+            if (string.IsNullOrWhiteSpace(value))
+            {
+                return true;
+            }
+
+            return string.Equals(
+                value.Trim(),
+                $"Steam App {appId}",
+                StringComparison.OrdinalIgnoreCase);
+        }
+
+        private static bool ShouldApplySteamStoreFallback(Game importedGame, int appId)
+        {
+            if (importedGame == null)
+            {
+                return false;
+            }
+
+            if (IsPlaceholderSteamName(importedGame.Name, appId) || IsPlaceholderSteamName(importedGame.SortingName, appId))
+            {
+                return true;
+            }
+
+            if (string.IsNullOrWhiteSpace(importedGame.Description))
+            {
+                return true;
+            }
+
+            return importedGame.Links == null || importedGame.Links.Count == 0;
+        }
+
+        private Game CreateMetadataPluginLookupGame(Game importedGame, int appId, MetadataPlugin metadataPlugin)
+        {
+            if (importedGame == null)
+            {
+                return null;
+            }
+
+            var isUniversalSteamMetadata = IsUniversalSteamMetadataPlugin(metadataPlugin);
+            var lookupName = isUniversalSteamMetadata
+                ? BuildUniversalSteamMetadataLookupName(importedGame.Name, appId)
+                : importedGame.Name;
+
+            return new Game
+            {
+                GameId = appId > 0 ? appId.ToString(CultureInfo.InvariantCulture) : importedGame.GameId,
+                PluginId = isUniversalSteamMetadata ? SteamDataProvider.SteamPluginId : importedGame.PluginId,
+                Name = lookupName,
+                SortingName = lookupName,
+                SourceId = importedGame.SourceId
+            };
+        }
+
+
+                    private bool ShouldImportCandidate(int appId, ImportCandidate candidate, out string reason)
+                    {
+                        reason = null;
+                        if (appId <= 0 || candidate == null)
+                        {
+                            return false;
+                        }
+
+                        var isSteamCacheCandidate = candidate.HasSteamAppCacheSchema ||
+                            candidate.HasSteamAppCacheUserStats ||
+                            candidate.HasSteamLibraryCache;
+                        if (!isSteamCacheCandidate)
+                        {
+                            return true;
+                        }
+
+                        var importability = GetSteamAppImportability(appId);
+                        if (importability == null || importability.IsImportable)
+                        {
+                            return true;
+                        }
+
+                        var namePart = string.IsNullOrWhiteSpace(importability.Name)
+                            ? string.Empty
+                            : $" '{importability.Name}'";
+                        var typePart = string.IsNullOrWhiteSpace(importability.Type)
+                            ? string.Empty
+                            : $" (type '{importability.Type}')";
+                        reason = $"Steam app{namePart} is not an importable game{typePart}.";
+                        RecordRejectedSteamApp(appId, candidate, reason);
+                        return false;
+                    }
+
+                    private SteamAppImportabilityInfo GetSteamAppImportability(int appId)
+                    {
+                        if (appId <= 0)
+                        {
+                            return null;
+                        }
+
+                        if (_steamAppImportabilityCache.TryGetValue(appId, out var cachedInfo))
+                        {
+                            return cachedInfo;
+                        }
+
+                        var info = new SteamAppImportabilityInfo
+                        {
+                            IsImportable = !IsExcludedSteamAppId(appId)
+                        };
+
+                        try
+                        {
+                            var requestUrl = $"https://store.steampowered.com/api/appdetails?appids={appId}&filters=basic";
+                            using (var webClient = new WebClient())
+                            {
+                                webClient.Headers[HttpRequestHeader.UserAgent] =
+                                    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36";
+                                webClient.Headers[HttpRequestHeader.Accept] = "application/json";
+                                webClient.Encoding = Encoding.UTF8;
+
+                                var json = webClient.DownloadString(requestUrl);
+                                if (!string.IsNullOrWhiteSpace(json))
+                                {
+                                    var root = JObject.Parse(json);
+                                    var envelope = root[appId.ToString(CultureInfo.InvariantCulture)] as JObject;
+                                    if (envelope?["success"]?.Value<bool>() == true)
+                                    {
+                                        var data = envelope["data"] as JObject;
+                                        if (data != null)
+                                        {
+                                            info.Name = data["name"]?.Value<string>()?.Trim();
+                                            info.Type = data["type"]?.Value<string>()?.Trim();
+                                            info.IsImportable = !IsExcludedSteamAppId(appId) &&
+                                                IsImportableSteamAppType(info.Type) &&
+                                                !IsExcludedSteamAppName(info.Name);
+                                        }
+                                    }
+                                    else
+                                    {
+                                        info.IsImportable = false;
+                                        info.Type = "missing";
+                                    }
+                                }
+                            }
+                        }
+                        catch (Exception ex)
+                        {
+                            _logger?.Debug(ex, $"[LocalImport] Failed checking Steam app type for appId={appId}. Allowing import.");
+                        }
+
+                        _steamAppImportabilityCache[appId] = info;
+                        return info;
+                    }
+
+                    private static bool IsImportableSteamAppType(string type)
+                    {
+                        if (string.IsNullOrWhiteSpace(type))
+                        {
+                            return true;
+                        }
+
+                        return string.Equals(type, "game", StringComparison.OrdinalIgnoreCase) ||
+                            string.Equals(type, "demo", StringComparison.OrdinalIgnoreCase) ||
+                            string.Equals(type, "mod", StringComparison.OrdinalIgnoreCase) ||
+                            string.Equals(type, "episode", StringComparison.OrdinalIgnoreCase);
+                    }
+
+                    private static bool IsExcludedSteamAppName(string name)
+                    {
+                        return string.Equals(name?.Trim(), "Steam Game Notes", StringComparison.OrdinalIgnoreCase);
+                    }
+
+                    private static bool IsExcludedSteamAppId(int appId)
+                    {
+                        return appId == 241100 || appId == 228980 || appId == 2371090;
+                    }
+
+                    private void RecordRejectedSteamApp(int appId, ImportCandidate candidate, string reason)
+                    {
+                        if (appId <= 0 || _rejectedSteamAppReports.ContainsKey(appId))
+                        {
+                            return;
+                        }
+
+                        var origin = !string.IsNullOrWhiteSpace(candidate?.FolderPath)
+                            ? candidate.FolderPath
+                            : (candidate?.HasSteamAppCacheUserStats == true || candidate?.HasSteamAppCacheSchema == true
+                                ? "Steam appcache stats"
+                                : (candidate?.HasSteamLibraryCache == true ? "Steam library cache" : "Unknown source"));
+
+                        _rejectedSteamAppReports[appId] = $"{appId} | {origin} | {reason}";
+                    }
+
+        private static string BuildUniversalSteamMetadataLookupName(string currentName, int appId)
+        {
+            var trimmedName = (currentName ?? string.Empty).Trim();
+            if (string.IsNullOrWhiteSpace(trimmedName) || IsPlaceholderSteamName(trimmedName, appId))
+            {
+                return appId.ToString(CultureInfo.InvariantCulture);
+            }
+
+            if (trimmedName.IndexOf(appId.ToString(CultureInfo.InvariantCulture), StringComparison.OrdinalIgnoreCase) >= 0)
+            {
+                return trimmedName;
+            }
+
+            return $"{trimmedName} {appId}";
+        }
+
+        private static void ClearImportedMetadataForOverwrite(Game importedGame)
+        {
+            if (importedGame == null)
+            {
+                return;
+            }
+
+            importedGame.Description = null;
+            importedGame.Icon = null;
+            importedGame.CoverImage = null;
+            importedGame.BackgroundImage = null;
+            importedGame.ReleaseDate = null;
+            importedGame.CriticScore = null;
+            importedGame.CommunityScore = null;
+
+            importedGame.Platforms?.Clear();
+            importedGame.Genres?.Clear();
+            importedGame.Developers?.Clear();
+            importedGame.Publishers?.Clear();
+            importedGame.Tags?.Clear();
+            importedGame.Features?.Clear();
+            importedGame.AgeRatings?.Clear();
+            importedGame.Regions?.Clear();
+            importedGame.Series?.Clear();
+            importedGame.Links?.Clear();
+        }
+
+        private MetadataPlugin ResolveMetadataPlugin(string metadataSourceId)
+        {
+            if (string.IsNullOrWhiteSpace(metadataSourceId))
+            {
+                return null;
+            }
+
+            try
+            {
+                var metadataPlugins = GetMetadataPluginIdentities();
+
+                if (metadataSourceId.StartsWith("name:", StringComparison.OrdinalIgnoreCase))
+                {
+                    var pluginName = metadataSourceId.Substring(5).Trim();
+                    var matchedByName = metadataPlugins.FirstOrDefault(plugin =>
+                        MatchesPluginIdentity(plugin, pluginName));
+                    if (matchedByName != null)
+                    {
+                        return matchedByName.Plugin;
+                    }
+                }
+
+                if (Guid.TryParse(metadataSourceId, out var pluginId))
+                {
+                    return metadataPlugins.FirstOrDefault(plugin => plugin.Plugin?.Id == pluginId)?.Plugin;
+                }
+
+                var matchedByToken = metadataPlugins.FirstOrDefault(plugin =>
+                    MatchesPluginIdentity(plugin, metadataSourceId));
+                if (matchedByToken != null)
+                {
+                    return matchedByToken.Plugin;
+                }
+
+                LogMetadataPluginIdentities(metadataPlugins, metadataSourceId);
+                return null;
+            }
+            catch (Exception ex)
+            {
+                _logger?.Debug(ex, $"[LocalImport] Failed resolving metadata plugin '{metadataSourceId}'.");
+                return null;
+            }
+        }
+
+        private MetadataPlugin ResolveAutomaticMetadataPlugin()
+        {
+            var universalSteamMetadataPlugin = ResolveUniversalSteamMetadataPlugin();
+            if (universalSteamMetadataPlugin != null)
+            {
+                return universalSteamMetadataPlugin;
+            }
+
+            return null;
+        }
+
+        private static void AddLinkIfMissing(ICollection<Link> links, string name, string url)
+        {
+            if (links == null || string.IsNullOrWhiteSpace(url))
+            {
+                return;
+            }
+
+            if (links.Any(link => link != null && string.Equals(link.Url, url, StringComparison.OrdinalIgnoreCase)))
+            {
+                return;
+            }
+
+            links.Add(new Link(name, url));
+        }
+
+        private static string ExtractImageUrl(HtmlDocument document, string pageUrl, string xpath)
+        {
+            var source = document?.DocumentNode.SelectSingleNode(xpath)?.GetAttributeValue("src", null)?.Trim();
+            return ResolveAbsoluteUrl(pageUrl, source);
+        }
+
+        private static string ResolveAbsoluteUrl(string pageUrl, string candidateUrl)
+        {
+            if (string.IsNullOrWhiteSpace(candidateUrl))
+            {
+                return null;
+            }
+
+            if (Uri.TryCreate(candidateUrl.Trim(), UriKind.Absolute, out var absoluteUri))
+            {
+                return absoluteUri.AbsoluteUri;
+            }
+
+            if (Uri.TryCreate(pageUrl, UriKind.Absolute, out var pageUri)
+                && Uri.TryCreate(pageUri, candidateUrl.Trim(), out var resolvedUri))
+            {
+                return resolvedUri.AbsoluteUri;
+            }
+
+            return candidateUrl.Trim();
+        }
+
+        private static string BuildRequestReferer(string url)
+        {
+            if (!Uri.TryCreate(url, UriKind.Absolute, out var uri))
+            {
+                return null;
+            }
+
+            return $"{uri.Scheme}://{uri.Host}/";
+        }
+
+        private static string ExtractMetaContent(HtmlDocument document, string propertyOrName)
+        {
+            if (document?.DocumentNode == null || string.IsNullOrWhiteSpace(propertyOrName))
+            {
+                return null;
+            }
+
+            var xpath = $"//meta[translate(@property, 'ABCDEFGHIJKLMNOPQRSTUVWXYZ', 'abcdefghijklmnopqrstuvwxyz')='{propertyOrName.ToLowerInvariant()}' or translate(@name, 'ABCDEFGHIJKLMNOPQRSTUVWXYZ', 'abcdefghijklmnopqrstuvwxyz')='{propertyOrName.ToLowerInvariant()}']";
+            return document.DocumentNode.SelectSingleNode(xpath)?.GetAttributeValue("content", null)?.Trim();
+        }
+
+        private static string ExtractHeadingText(HtmlDocument document)
+        {
+            if (document?.DocumentNode == null)
+            {
+                return null;
+            }
+
+            return NormalizeMetadataDescription(document.DocumentNode.SelectSingleNode("//h1")?.InnerText);
+        }
+
+        private static string TryExtractPageTitle(HtmlDocument document)
+        {
+            var rawTitle = document?.DocumentNode.SelectSingleNode("//title")?.InnerText;
+            if (string.IsNullOrWhiteSpace(rawTitle))
+            {
+                return null;
+            }
+
+            var normalizedTitle = NormalizeMetadataDescription(rawTitle);
+            var separators = new[] { " - ", " | ", " / " };
+            foreach (var separator in separators)
+            {
+                var separatorIndex = normalizedTitle.IndexOf(separator, StringComparison.Ordinal);
+                if (separatorIndex > 0)
+                {
+                    normalizedTitle = normalizedTitle.Substring(0, separatorIndex).Trim();
+                    break;
+                }
+            }
+
+            return normalizedTitle;
+        }
+
+        private static string FindTextAfterHeading(HtmlDocument document, string headingText)
+        {
+            if (document?.DocumentNode == null || string.IsNullOrWhiteSpace(headingText))
+            {
+                return null;
+            }
+
+            var headingNodes = document.DocumentNode.SelectNodes("//h1|//h2|//h3|//h4|//strong");
+            if (headingNodes == null)
+            {
+                return null;
+            }
+
+            foreach (var heading in headingNodes)
+            {
+                var text = NormalizeMetadataDescription(heading.InnerText);
+                if (!string.Equals(text, headingText, StringComparison.OrdinalIgnoreCase))
+                {
+                    continue;
+                }
+
+                for (var sibling = heading.NextSibling; sibling != null; sibling = sibling.NextSibling)
+                {
+                    if (sibling.NodeType != HtmlNodeType.Element)
+                    {
+                        continue;
+                    }
+
+                    var value = NormalizeMetadataDescription(sibling.InnerText);
+                    if (!string.IsNullOrWhiteSpace(value) && !string.Equals(value, headingText, StringComparison.OrdinalIgnoreCase))
+                    {
+                        return value;
+                    }
+                }
+            }
+
+            return null;
+        }
+
+        private static string FirstNonEmpty(params string[] values)
+        {
+            return values?.FirstOrDefault(value => !string.IsNullOrWhiteSpace(value))?.Trim();
+        }
+
+        private static string NormalizeMetadataDescription(string value)
+        {
+            if (string.IsNullOrWhiteSpace(value))
+            {
+                return string.Empty;
+            }
+
+            var normalized = Regex.Replace(value, @"(?i)<br\s*/?>", "\n");
+            normalized = Regex.Replace(normalized, @"(?i)</p\s*>", "\n\n");
+            normalized = Regex.Replace(normalized, @"(?i)</div\s*>", "\n");
+            normalized = Regex.Replace(normalized, @"(?i)</li\s*>", "\n");
+            normalized = Regex.Replace(normalized, @"<[^>]+>", string.Empty);
+            normalized = WebUtility.HtmlDecode(normalized ?? string.Empty);
+            normalized = normalized.Replace("\r\n", "\n").Replace('\r', '\n');
+            normalized = Regex.Replace(normalized, @"[ \t]+\n", "\n");
+            normalized = Regex.Replace(normalized, @"\n{3,}", "\n\n");
+            return normalized.Trim();
+        }
+
+        private static void NormalizeImportedGameMetadata(Game importedGame, int appId)
+        {
+            if (importedGame == null)
+            {
+                return;
+            }
+
+            if (string.IsNullOrWhiteSpace(importedGame.SortingName) || IsPlaceholderSteamName(importedGame.SortingName, appId))
+            {
+                importedGame.SortingName = importedGame.Name;
+            }
+        }
+
+        private static string PrepareProviderMetadataDescription(string value)
+        {
+            if (string.IsNullOrWhiteSpace(value))
+            {
+                return string.Empty;
+            }
+
+            return value.Replace("\r\n", "\n").Replace('\r', '\n').Trim();
+        }
+
+        private static void ReplaceCollection<T>(ICollection<T> target, IEnumerable<T> source)
+        {
+            if (target == null || source == null)
+            {
+                return;
+            }
+
+            target.Clear();
+            foreach (var item in source)
+            {
+                target.Add(item);
+            }
+        }
+
+        private string PersistMetadataFile(Guid gameId, MetadataFile metadataFile)
+        {
+            if (gameId == Guid.Empty || metadataFile == null || !metadataFile.HasImageData)
+            {
+                return null;
+            }
+
+            string tempFilePath = null;
+            try
+            {
+                if (metadataFile.HasContent && metadataFile.Content?.Length > 0)
+                {
+                    var fileName = string.IsNullOrWhiteSpace(metadataFile.FileName)
+                        ? $"local_meta_{Guid.NewGuid():N}{GetExtensionFromPath(metadataFile.Path)}"
+                        : metadataFile.FileName.Trim();
+                    tempFilePath = Path.Combine(CreateMetadataTempDirectory(), SanitizeFileName(fileName));
+                    File.WriteAllBytes(tempFilePath, metadataFile.Content);
+                    return _api.Database.AddFile(tempFilePath, gameId);
+                }
+
+                if (!string.IsNullOrWhiteSpace(metadataFile.Path) && File.Exists(metadataFile.Path))
+                {
+                    return _api.Database.AddFile(metadataFile.Path, gameId);
+                }
+
+                if (!string.IsNullOrWhiteSpace(metadataFile.Path) && Uri.TryCreate(metadataFile.Path, UriKind.Absolute, out var uri))
+                {
+                    var targetExtension = GetExtensionFromPath(uri.AbsolutePath);
+                    var fileName = string.IsNullOrWhiteSpace(metadataFile.FileName)
+                        ? $"local_meta_{Guid.NewGuid():N}{targetExtension}"
+                        : metadataFile.FileName.Trim();
+                    tempFilePath = Path.Combine(CreateMetadataTempDirectory(), SanitizeFileName(fileName));
+
+                    using (var webClient = new System.Net.WebClient())
+                    {
+                        webClient.DownloadFile(uri, tempFilePath);
+                    }
+
+                    return _api.Database.AddFile(tempFilePath, gameId);
+                }
+            }
+            catch (Exception ex)
+            {
+                _logger?.Debug(ex, $"[LocalAch] Failed persisting metadata file for gameId={gameId} from '{metadataFile?.Path}'.");
+            }
+            finally
+            {
+                try
+                {
+                    if (!string.IsNullOrWhiteSpace(tempFilePath) && File.Exists(tempFilePath))
+                    {
+                        File.Delete(tempFilePath);
+                    }
+                }
+                catch
+                {
+                }
+            }
+
+            return null;
+        }
+
+        private static string CreateMetadataTempDirectory()
+        {
+            var directory = Path.Combine(Path.GetTempPath(), "PlayniteAchievements", "LocalMetadataImport");
+            Directory.CreateDirectory(directory);
+            return directory;
+        }
+
+        private static string GetExtensionFromPath(string path)
+        {
+            try
+            {
+                var extension = Path.GetExtension(path ?? string.Empty);
+                return string.IsNullOrWhiteSpace(extension) ? ".img" : extension;
+            }
+            catch
+            {
+                return ".img";
+            }
+        }
+
+        private static string SanitizeFileName(string fileName)
+        {
+            if (string.IsNullOrWhiteSpace(fileName))
+            {
+                return $"local_meta_{Guid.NewGuid():N}.img";
+            }
+
+            var invalidChars = Path.GetInvalidFileNameChars();
+            var sanitized = new string(fileName.Select(ch => invalidChars.Contains(ch) ? '_' : ch).ToArray());
+            return string.IsNullOrWhiteSpace(sanitized) ? $"local_meta_{Guid.NewGuid():N}.img" : sanitized;
+        }
+
+        private GameMetadata BuildMetadata(
+            int appId,
+            LocalImportedGameLibraryTarget importTarget,
+            string customSourceName,
+            MetadataPlugin selectedMetadataPlugin)
+        {
+            var name = $"Steam App {appId}";
+            var metadata = new GameMetadata
+            {
+                Name = name,
+                SortingName = null,
+                GameId = appId.ToString(CultureInfo.InvariantCulture),
+                IsInstalled = false,
+                InstallDirectory = null
+            };
+
+            if (importTarget == LocalImportedGameLibraryTarget.Steam)
+            {
+                metadata.Source = new MetadataNameProperty("Steam");
+            }
+            else if (importTarget == LocalImportedGameLibraryTarget.CustomSource && !string.IsNullOrWhiteSpace(customSourceName))
+            {
+                metadata.Source = new MetadataNameProperty(customSourceName);
+            }
+
+            if (selectedMetadataPlugin != null)
+            {
+                ApplyMetadataPluginToMetadata(metadata, appId, selectedMetadataPlugin);
+            }
+
+            return metadata;
+        }
+
+        private bool ApplyMetadataPluginToMetadata(GameMetadata metadata, int appId, MetadataPlugin metadataPlugin)
+        {
+            if (metadata == null || appId <= 0 || metadataPlugin == null)
+            {
+                return false;
+            }
+
+            try
+            {
+                var temporaryGame = new Game
+                {
+                    GameId = metadata.GameId,
+                    Name = metadata.Name,
+                    SortingName = metadata.SortingName
+                };
+                var lookupGame = CreateMetadataPluginLookupGame(temporaryGame, appId, metadataPlugin);
+
+                using (var provider = metadataPlugin.GetMetadataProvider(new MetadataRequestOptions(lookupGame, true)))
+                {
+                    if (provider == null)
+                    {
+                        return false;
+                    }
+
+                    var args = new GetMetadataFieldArgs();
+                    var applied = false;
+
+                    var name = provider.GetName(args);
+                    if (!string.IsNullOrWhiteSpace(name))
+                    {
+                        metadata.Name = name;
+                        metadata.SortingName = name;
+                        applied = true;
+                    }
+
+                    var description = provider.GetDescription(args);
+                    if (!string.IsNullOrWhiteSpace(description))
+                    {
+                        metadata.Description = PrepareProviderMetadataDescription(description);
+                        applied = true;
+                    }
+
+                    var releaseDate = provider.GetReleaseDate(args);
+                    if (releaseDate != null)
+                    {
+                        metadata.ReleaseDate = releaseDate;
+                        applied = true;
+                    }
+
+                    var criticScore = provider.GetCriticScore(args);
+                    if (criticScore.HasValue)
+                    {
+                        metadata.CriticScore = criticScore;
+                        applied = true;
+                    }
+
+                    var communityScore = provider.GetCommunityScore(args);
+                    if (communityScore.HasValue)
+                    {
+                        metadata.CommunityScore = communityScore;
+                        applied = true;
+                    }
+
+                    var platforms = provider.GetPlatforms(args)?.ToList();
+                    var genres = provider.GetGenres(args)?.ToList();
+                    var developers = provider.GetDevelopers(args)?.ToList();
+                    var publishers = provider.GetPublishers(args)?.ToList();
+                    var tags = provider.GetTags(args)?.ToList();
+                    var features = provider.GetFeatures(args)?.ToList();
+                    var ageRatings = provider.GetAgeRatings(args)?.ToList();
+                    var regions = provider.GetRegions(args)?.ToList();
+                    var series = provider.GetSeries(args)?.ToList();
+                    var links = provider.GetLinks(args)?.ToList();
+
+                    _logger?.Info(
+                        $"[LocalImport] Metadata plugin '{metadataPlugin.Name}' field counts for appId={appId}: " +
+                        $"platforms={platforms?.Count ?? 0}, genres={genres?.Count ?? 0}, developers={developers?.Count ?? 0}, " +
+                        $"publishers={publishers?.Count ?? 0}, tags={tags?.Count ?? 0}, features={features?.Count ?? 0}, " +
+                        $"ageRatings={ageRatings?.Count ?? 0}, regions={regions?.Count ?? 0}, series={series?.Count ?? 0}.");
+
+                    if (platforms?.Count > 0)
+                    {
+                        metadata.Platforms = new HashSet<MetadataProperty>(platforms);
+                        applied = true;
+                    }
+
+                    if (genres?.Count > 0)
+                    {
+                        metadata.Genres = new HashSet<MetadataProperty>(genres);
+                        applied = true;
+                    }
+
+                    if (developers?.Count > 0)
+                    {
+                        metadata.Developers = new HashSet<MetadataProperty>(developers);
+                        applied = true;
+                    }
+
+                    if (publishers?.Count > 0)
+                    {
+                        metadata.Publishers = new HashSet<MetadataProperty>(publishers);
+                        applied = true;
+                    }
+
+                    if (tags?.Count > 0)
+                    {
+                        metadata.Tags = new HashSet<MetadataProperty>(tags);
+                        applied = true;
+                    }
+
+                    if (features?.Count > 0)
+                    {
+                        metadata.Features = new HashSet<MetadataProperty>(features);
+                        applied = true;
+                    }
+
+                    if (ageRatings?.Count > 0)
+                    {
+                        metadata.AgeRatings = new HashSet<MetadataProperty>(ageRatings);
+                        applied = true;
+                    }
+
+                    if (regions?.Count > 0)
+                    {
+                        metadata.Regions = new HashSet<MetadataProperty>(regions);
+                        applied = true;
+                    }
+
+                    if (series?.Count > 0)
+                    {
+                        metadata.Series = new HashSet<MetadataProperty>(series);
+                        applied = true;
+                    }
+
+                    if (links?.Count > 0)
+                    {
+                        metadata.Links = links;
+                        applied = true;
+                    }
+
+                    return applied;
+                }
+            }
+            catch (Exception ex)
+            {
+                _logger?.Debug(ex, $"[LocalImport] Failed applying metadata plugin '{metadataPlugin?.Name}' to import metadata for appId={appId}.");
+                return false;
+            }
+        }
+
+        private LibraryPlugin ResolveSteamLibraryPlugin()
+        {
+            try
+            {
+                return _api.Addons?.Plugins?
+                    .OfType<LibraryPlugin>()
+                    .FirstOrDefault(plugin => plugin != null && plugin.Id == SteamDataProvider.SteamPluginId);
+            }
+            catch (Exception ex)
+            {
+                _logger?.Debug(ex, "[LocalAch] Failed resolving Steam library plugin instance.");
+                return null;
+            }
+        }
+
+        private MetadataPlugin ResolveUniversalSteamMetadataPlugin()
+        {
+            try
+            {
+                return GetMetadataPluginIdentities()
+                    .FirstOrDefault(plugin => IsUniversalSteamMetadataPlugin(plugin))
+                    ?.Plugin;
+            }
+            catch (Exception ex)
+            {
+                _logger?.Debug(ex, "[LocalImport] Failed resolving Universal Steam Metadata plugin instance.");
+                return null;
+            }
+        }
+
+        private IReadOnlyList<MetadataPluginIdentity> GetMetadataPluginIdentities()
+        {
+            try
+            {
+                return (_api.Addons?.Plugins?
+                    .OfType<MetadataPlugin>()
+                    .Where(plugin => plugin != null)
+                    .Select(plugin =>
+                    {
+                        var manifest = GetPluginManifestIdentity(plugin);
+                        return new MetadataPluginIdentity
+                        {
+                            Plugin = plugin,
+                            RuntimeName = plugin.Name?.Trim(),
+                            ManifestId = manifest.Item1,
+                            ManifestName = manifest.Item2,
+                            AssemblyDirectory = manifest.Item3
+                        };
+                    })
+                    .ToList() ?? new List<MetadataPluginIdentity>());
+            }
+            catch (Exception ex)
+            {
+                _logger?.Debug(ex, "[LocalImport] Failed enumerating loaded metadata plugins.");
+                return Array.Empty<MetadataPluginIdentity>();
+            }
+        }
+
+        private Tuple<string, string, string> GetPluginManifestIdentity(MetadataPlugin plugin)
+        {
+            if (plugin == null)
+            {
+                return Tuple.Create<string, string, string>(null, null, null);
+            }
+
+            try
+            {
+                var assemblyDirectory = Path.GetDirectoryName(plugin.GetType().Assembly.Location);
+                if (string.IsNullOrWhiteSpace(assemblyDirectory))
+                {
+                    return Tuple.Create<string, string, string>(null, null, null);
+                }
+
+                for (var directory = new DirectoryInfo(assemblyDirectory); directory != null; directory = directory.Parent)
+                {
+                    var manifestPath = Path.Combine(directory.FullName, "extension.yaml");
+                    if (!File.Exists(manifestPath))
+                    {
+                        continue;
+                    }
+
+                    string manifestId = null;
+                    string manifestName = null;
+                    foreach (var line in File.ReadLines(manifestPath))
+                    {
+                        if (line.StartsWith("Id:", StringComparison.OrdinalIgnoreCase))
+                        {
+                            manifestId = line.Substring(3).Trim();
+                        }
+                        else if (line.StartsWith("Name:", StringComparison.OrdinalIgnoreCase))
+                        {
+                            manifestName = line.Substring(5).Trim();
+                        }
+                    }
+
+                    return Tuple.Create(manifestId, manifestName, directory.FullName);
+                }
+            }
+            catch (Exception ex)
+            {
+                _logger?.Debug(ex, $"[LocalImport] Failed reading manifest identity for metadata plugin '{plugin?.Name}'.");
+            }
+
+            return Tuple.Create<string, string, string>(null, null, null);
+        }
+
+        private static bool MatchesPluginIdentity(MetadataPluginIdentity plugin, string value)
+        {
+            if (plugin == null || string.IsNullOrWhiteSpace(value))
+            {
+                return false;
+            }
+
+            var token = value.Trim();
+            return string.Equals(plugin.RuntimeName, token, StringComparison.OrdinalIgnoreCase) ||
+                string.Equals(plugin.ManifestName, token, StringComparison.OrdinalIgnoreCase) ||
+                string.Equals(plugin.ManifestId, token, StringComparison.OrdinalIgnoreCase);
+        }
+
+        private void LogMetadataPluginIdentities(IEnumerable<MetadataPluginIdentity> plugins, string requestedValue)
+        {
+            var summary = string.Join(" | ", (plugins ?? Enumerable.Empty<MetadataPluginIdentity>()).Select(plugin =>
+                $"runtime='{plugin.RuntimeName ?? "<null>"}', manifestName='{plugin.ManifestName ?? "<null>"}', manifestId='{plugin.ManifestId ?? "<null>"}', pluginId='{plugin.Plugin?.Id.ToString() ?? "<null>"}', assembly='{plugin.AssemblyDirectory ?? "<null>"}'"));
+            _logger?.Info($"[LocalImport] Failed to resolve metadata provider '{requestedValue}'. Loaded metadata plugins: {summary}");
+        }
+
+        private static bool IsUniversalSteamMetadataPlugin(MetadataPluginIdentity plugin)
+        {
+            if (plugin == null)
+            {
+                return false;
+            }
+
+            return string.Equals(plugin.ManifestId, UniversalSteamMetadataManifestId, StringComparison.OrdinalIgnoreCase) ||
+                string.Equals(plugin.ManifestName, UniversalSteamMetadataPluginName, StringComparison.OrdinalIgnoreCase) ||
+                string.Equals(plugin.RuntimeName, UniversalSteamMetadataPluginName, StringComparison.OrdinalIgnoreCase);
+        }
+
+        private bool IsUniversalSteamMetadataPlugin(MetadataPlugin plugin)
+        {
+            if (plugin == null)
+            {
+                return false;
+            }
+
+            var manifest = GetPluginManifestIdentity(plugin);
+            return string.Equals(manifest.Item1, UniversalSteamMetadataManifestId, StringComparison.OrdinalIgnoreCase) ||
+                string.Equals(manifest.Item2, UniversalSteamMetadataPluginName, StringComparison.OrdinalIgnoreCase) ||
+                string.Equals(plugin.Name, UniversalSteamMetadataPluginName, StringComparison.OrdinalIgnoreCase);
+        }
+    }
+}

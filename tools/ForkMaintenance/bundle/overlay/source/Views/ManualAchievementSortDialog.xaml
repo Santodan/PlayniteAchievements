@@ -1,0 +1,146 @@
+<UserControl x:Class="PlayniteAchievements.Views.ManualAchievementSortDialog"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:controls="clr-namespace:PlayniteAchievements.Views.Controls"
+             xmlns:helpers="clr-namespace:PlayniteAchievements.Views.Helpers"
+             MinWidth="980"
+             MinHeight="700">
+    <Grid Margin="12">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="*"/>
+            <RowDefinition Height="Auto"/>
+        </Grid.RowDefinitions>
+
+        <TextBlock Grid.Row="0"
+               Text="Use each tab to preview and configure sorting. Resize/reorder columns directly in the preview grids. Use Ctrl+Click on column headers to add secondary sort columns."
+                   TextWrapping="Wrap"
+                   Margin="0,0,0,10"
+                   Opacity="0.8"/>
+
+        <TabControl Grid.Row="1">
+            <TabItem Header="{DynamicResource LOCPlayAch_Sidebar_GamesOverview}">
+                <Grid Margin="0,8,0,0">
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="*"/>
+                    </Grid.RowDefinitions>
+
+                    <StackPanel Grid.Row="0" Orientation="Horizontal" Margin="0,0,0,8">
+                        <TextBlock Text="{DynamicResource LOCPlayAch_Settings_SortBy}" VerticalAlignment="Center" Margin="0,0,8,0"/>
+                        <ComboBox x:Name="OverviewSortCombo" Width="220" DisplayMemberPath="Label" SelectionChanged="SortCombo_SelectionChanged"/>
+                        <Button x:Name="OverviewDirectionButton" Margin="8,0,0,0" Click="OverviewDirectionButton_Click">
+                            <TextBlock x:Name="OverviewDirectionIcon" FontFamily="{DynamicResource CommonFont}" FontSize="18" Text="&#xea66;"/>
+                        </Button>
+                        <Button Content="{DynamicResource LOCPlayAch_Button_Apply}" Margin="8,0,0,0" Click="ApplyOverviewSortButton_Click"/>
+                    </StackPanel>
+
+                    <DataGrid x:Name="GamesOverviewGrid"
+                              Grid.Row="1"
+                              AutoGenerateColumns="False"
+                              IsReadOnly="True"
+                              CanUserSortColumns="True"
+                              CanUserResizeColumns="True"
+                              CanUserReorderColumns="True"
+                              Sorting="GamesOverviewGrid_Sorting"
+                              PreviewMouseRightButtonUp="GamesOverviewGrid_PreviewMouseRightButtonUp"
+                              ItemsSource="{Binding GamesOverviewItems, RelativeSource={RelativeSource AncestorType=UserControl}}">
+                        <DataGrid.Columns>
+                            <DataGridTextColumn Header="{DynamicResource LOCPlayAch_Column_Game}" SortMemberPath="SortingName" Binding="{Binding GameName}" helpers:ColumnVisibilityHelper.ColumnKey="OverviewGameName"/>
+                            <DataGridTextColumn Header="{DynamicResource LOCPlayAch_Column_LastPlayed}" SortMemberPath="LastPlayed" Binding="{Binding LastPlayedText}" helpers:ColumnVisibilityHelper.ColumnKey="OverviewLastPlayed"/>
+                            <DataGridTextColumn Header="{DynamicResource LOCPlayAch_Column_Playtime}" SortMemberPath="PlaytimeSeconds" Binding="{Binding PlaytimeText}" helpers:ColumnVisibilityHelper.ColumnKey="OverviewPlaytime"/>
+                            <DataGridTextColumn Header="{DynamicResource LOCPlayAch_Progress}" SortMemberPath="Progression" Binding="{Binding ProgressionText}" helpers:ColumnVisibilityHelper.ColumnKey="OverviewProgression"/>
+                            <DataGridTextColumn Header="{DynamicResource LOCPlayAch_Column_Total}" SortMemberPath="TotalAchievements" Binding="{Binding TotalAchievements}" helpers:ColumnVisibilityHelper.ColumnKey="TotalAchievements"/>
+                        </DataGrid.Columns>
+                    </DataGrid>
+                </Grid>
+            </TabItem>
+
+            <TabItem Header="{DynamicResource LOCPlayAch_RecentAchievements}">
+                <Grid Margin="0,8,0,0">
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="*"/>
+                    </Grid.RowDefinitions>
+
+                    <StackPanel Grid.Row="0" Orientation="Horizontal" Margin="0,0,0,8">
+                        <TextBlock Text="{DynamicResource LOCPlayAch_Settings_SortBy}" VerticalAlignment="Center" Margin="0,0,8,0"/>
+                        <ComboBox x:Name="RecentSortCombo" Width="240" DisplayMemberPath="Label" SelectionChanged="SortCombo_SelectionChanged"/>
+                        <Button x:Name="RecentDirectionButton" Margin="8,0,0,0" Click="RecentDirectionButton_Click">
+                            <TextBlock x:Name="RecentDirectionIcon" FontFamily="{DynamicResource CommonFont}" FontSize="18" Text="&#xea66;"/>
+                        </Button>
+                        <Button Content="{DynamicResource LOCPlayAch_Button_Apply}" Margin="8,0,0,0" Click="ApplyRecentSortButton_Click"/>
+                    </StackPanel>
+
+                    <controls:AchievementDataGridControl x:Name="RecentPreviewGrid"
+                                                         Grid.Row="1"
+                                                         DataContext="{Binding SettingsContext, RelativeSource={RelativeSource AncestorType=UserControl}}"
+                                                         ItemsSource="{Binding RecentItems, RelativeSource={RelativeSource AncestorType=UserControl}}"
+                                                         ColumnSettingsKey="OverviewRecentAchievements"
+                                                         ShowGameColumn="True"
+                                                         UseExternalSorting="True"
+                                                         Sorting="RecentPreviewGrid_Sorting"/>
+                </Grid>
+            </TabItem>
+
+            <TabItem Header="{DynamicResource LOCPlayAch_Settings_ManualSort_AllAchievements}">
+                <Grid Margin="0,8,0,0">
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="*"/>
+                    </Grid.RowDefinitions>
+
+                    <StackPanel Grid.Row="0" Orientation="Horizontal" Margin="0,0,0,8">
+                        <TextBlock Text="{DynamicResource LOCPlayAch_Settings_SortBy}" VerticalAlignment="Center" Margin="0,0,8,0"/>
+                        <ComboBox x:Name="AllSortCombo" Width="240" DisplayMemberPath="Label" SelectionChanged="SortCombo_SelectionChanged"/>
+                        <Button x:Name="AllDirectionButton" Margin="8,0,0,0" Click="AllDirectionButton_Click">
+                            <TextBlock x:Name="AllDirectionIcon" FontFamily="{DynamicResource CommonFont}" FontSize="18" Text="&#xea66;"/>
+                        </Button>
+                        <Button Content="{DynamicResource LOCPlayAch_Button_Apply}" Margin="8,0,0,0" Click="ApplyAllSortButton_Click"/>
+                    </StackPanel>
+
+                    <controls:AchievementDataGridControl x:Name="AllPreviewGrid"
+                                                         Grid.Row="1"
+                                                         DataContext="{Binding SettingsContext, RelativeSource={RelativeSource AncestorType=UserControl}}"
+                                                         ItemsSource="{Binding AllItems, RelativeSource={RelativeSource AncestorType=UserControl}}"
+                                                         ColumnSettingsKey="OverviewRecentAchievements"
+                                                         ShowGameColumn="True"
+                                                         UseExternalSorting="True"
+                                                         Sorting="AllPreviewGrid_Sorting"/>
+                </Grid>
+            </TabItem>
+
+            <TabItem Header="{DynamicResource LOCPlayAch_Settings_ManualSort_SelectedGame}">
+                <Grid Margin="0,8,0,0">
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="*"/>
+                    </Grid.RowDefinitions>
+
+                    <StackPanel Grid.Row="0" Orientation="Horizontal" Margin="0,0,0,8">
+                        <TextBlock Text="{DynamicResource LOCPlayAch_Settings_SortBy}" VerticalAlignment="Center" Margin="0,0,8,0"/>
+                        <ComboBox x:Name="SelectedSortCombo" Width="240" DisplayMemberPath="Label" SelectionChanged="SortCombo_SelectionChanged"/>
+                        <Button x:Name="SelectedDirectionButton" Margin="8,0,0,0" Click="SelectedDirectionButton_Click">
+                            <TextBlock x:Name="SelectedDirectionIcon" FontFamily="{DynamicResource CommonFont}" FontSize="18" Text="&#xea66;"/>
+                        </Button>
+                        <Button Content="{DynamicResource LOCPlayAch_Button_Apply}" Margin="8,0,0,0" Click="ApplySelectedSortButton_Click"/>
+                    </StackPanel>
+
+                    <controls:AchievementDataGridControl x:Name="SelectedPreviewGrid"
+                                                         Grid.Row="1"
+                                                         DataContext="{Binding SettingsContext, RelativeSource={RelativeSource AncestorType=UserControl}}"
+                                                         ItemsSource="{Binding SelectedItems, RelativeSource={RelativeSource AncestorType=UserControl}}"
+                                                         ColumnSettingsKey="OverviewSelectedGameAchievements"
+                                                         ShowGameColumn="True"
+                                                         UseExternalSorting="True"
+                                                         Sorting="SelectedPreviewGrid_Sorting"/>
+                </Grid>
+            </TabItem>
+        </TabControl>
+
+        <StackPanel Grid.Row="2" Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,12,0,0">
+            <Button Content="{DynamicResource LOCPlayAch_Button_Save}" MinWidth="90" Margin="0,0,8,0" IsDefault="True" Click="SaveButton_Click"/>
+            <Button Content="{DynamicResource LOCPlayAch_Button_Cancel}" MinWidth="90" IsCancel="True" Click="CancelButton_Click"/>
+        </StackPanel>
+    </Grid>
+</UserControl>
