@@ -81,6 +81,15 @@ namespace PlayniteAchievements.ViewModels
         private FriendOverviewProjection _projection = new FriendOverviewProjection(null);
         private readonly HashSet<string> _selectedTypeFilters = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
         private readonly HashSet<string> _selectedCategoryFilters = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        private bool _showUnlockedAchievements = true;
+        private bool _showLockedAchievements = true;
+        private bool _showHiddenAchievements = true;
+        // Unlock-state toggle availability, computed from the friend+game pair rows in
+        // ApplyFilters; false outside the pair state so the toggles auto-hide (locked rows
+        // only exist in the pair comparison view).
+        private bool _hasPairUnlocked;
+        private bool _hasPairLocked;
+        private bool _hasPairHiddenLocked;
         private readonly HashSet<string> _selectedOwnershipFilters = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
         private readonly HashSet<string> _selectedFriendProviderFilters = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
         private ObservableCollection<ProviderFilterGroup> _gamePlatformFilterGroups =
@@ -368,6 +377,42 @@ namespace PlayniteAchievements.ViewModels
             set
             {
                 if (SetValueAndReturn(ref _achievementSearchText, value))
+                {
+                    ApplyFilters();
+                }
+            }
+        }
+
+        public bool ShowUnlockedAchievements
+        {
+            get => _showUnlockedAchievements;
+            set
+            {
+                if (SetValueAndReturn(ref _showUnlockedAchievements, value))
+                {
+                    ApplyFilters();
+                }
+            }
+        }
+
+        public bool ShowLockedAchievements
+        {
+            get => _showLockedAchievements;
+            set
+            {
+                if (SetValueAndReturn(ref _showLockedAchievements, value))
+                {
+                    ApplyFilters();
+                }
+            }
+        }
+
+        public bool ShowHiddenAchievements
+        {
+            get => _showHiddenAchievements;
+            set
+            {
+                if (SetValueAndReturn(ref _showHiddenAchievements, value))
                 {
                     ApplyFilters();
                 }
@@ -670,6 +715,30 @@ namespace PlayniteAchievements.ViewModels
             {
                 Width = 132
             });
+            controlBar.Items.Add(new GridToggleFilter(
+                this,
+                nameof(ShowUnlockedAchievements),
+                ResourceProvider.GetString("LOCPlayAch_Common_Unlocked"),
+                () => ShowUnlockedAchievements,
+                value => ShowUnlockedAchievements = value,
+                GridToggleFilterIcon.Unlocked,
+                () => _hasPairUnlocked && _hasPairLocked));
+            controlBar.Items.Add(new GridToggleFilter(
+                this,
+                nameof(ShowLockedAchievements),
+                ResourceProvider.GetString("LOCPlayAch_Common_Locked"),
+                () => ShowLockedAchievements,
+                value => ShowLockedAchievements = value,
+                GridToggleFilterIcon.Locked,
+                () => _hasPairUnlocked && _hasPairLocked));
+            controlBar.Items.Add(new GridToggleFilter(
+                this,
+                nameof(ShowHiddenAchievements),
+                ResourceProvider.GetString("LOCPlayAch_Filter_Hidden"),
+                () => ShowHiddenAchievements,
+                value => ShowHiddenAchievements = value,
+                GridToggleFilterIcon.Hidden,
+                () => _hasPairHiddenLocked));
             return controlBar;
         }
 
@@ -1714,10 +1783,26 @@ namespace PlayniteAchievements.ViewModels
                         ? _allUnlockedAchievements
                         : _allRecentUnlocks;
 
+                UpdateUnlockStateToggleAvailability(achievementSource);
+
                 var achievements = achievementSource
                     .Where(achievement => MatchesProvider(achievement?.ProviderKey))
                     .Where(achievement => _achievementSearchIndex.Matches(achievement, achievementQuery))
                     .Where(MatchesAchievementFilters);
+
+                // Unlock-state toggles only apply in the pair comparison view; every other
+                // source is unlocked rows only and the toggles are hidden/reset there.
+                if (HasFriendGameSelection)
+                {
+                    if (!_showHiddenAchievements)
+                    {
+                        achievements = achievements.Where(achievement =>
+                            !(achievement.Hidden && !achievement.Unlocked));
+                    }
+
+                    achievements = achievements.Where(achievement =>
+                        achievement.Unlocked ? _showUnlockedAchievements : _showLockedAchievements);
+                }
 
                 if (SelectedFriend != null)
                 {
@@ -2278,6 +2363,46 @@ namespace PlayniteAchievements.ViewModels
             PruneFilterSelections(_selectedOwnershipFilters, OwnershipFilterOptions);
             OnPropertyChanged(nameof(SelectedOwnershipFilterText));
             GameSummariesControlBar?.Refresh();
+        }
+
+        // Unlocked/locked/hidden toggle availability reflects the friend+game pair rows (the only
+        // source carrying locked rows). Outside the pair state the flags go false so the toggles
+        // auto-hide via GridToggleFilter.HasAvailableAction, and the toggle values reset to
+        // "show everything" so stale filtering never silently carries into a later selection.
+        // Runs from ApplyFilters after the achievement source pick, so unlike
+        // UpdateScopedFilterOptions it sees the on-demand pair rows rather than the
+        // unlocked-only snapshot list.
+        private void UpdateUnlockStateToggleAvailability(IReadOnlyList<FriendAchievementDisplayItem> achievementSource)
+        {
+            if (HasFriendGameSelection)
+            {
+                var pairRows = (achievementSource ?? Array.Empty<FriendAchievementDisplayItem>())
+                    .Where(achievement => MatchesProvider(achievement?.ProviderKey))
+                    .Where(achievement => IsSameFriend(achievement, SelectedFriend))
+                    .Where(achievement => IsSameGame(achievement, SelectedGame))
+                    .ToList();
+                _hasPairUnlocked = pairRows.Any(achievement => achievement.Unlocked);
+                _hasPairLocked = pairRows.Any(achievement => !achievement.Unlocked);
+                _hasPairHiddenLocked = pairRows.Any(achievement => achievement.Hidden && !achievement.Unlocked);
+            }
+            else
+            {
+                _hasPairUnlocked = false;
+                _hasPairLocked = false;
+                _hasPairHiddenLocked = false;
+
+                if (!_showUnlockedAchievements || !_showLockedAchievements || !_showHiddenAchievements)
+                {
+                    _showUnlockedAchievements = true;
+                    _showLockedAchievements = true;
+                    _showHiddenAchievements = true;
+                    OnPropertyChanged(nameof(ShowUnlockedAchievements));
+                    OnPropertyChanged(nameof(ShowLockedAchievements));
+                    OnPropertyChanged(nameof(ShowHiddenAchievements));
+                }
+            }
+
+            AchievementsControlBar?.Refresh();
         }
 
         // Type and category options reflect only the achievements currently in scope. They only
