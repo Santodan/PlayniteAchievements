@@ -88,16 +88,15 @@ namespace PlayniteAchievements.Models.Settings
             target.NotifyOnRebuild = source.NotifyOnRebuild;
             target.EnableUnlockToasts = source.EnableUnlockToasts;
             target.EnableFriendUnlockToasts = source.EnableFriendUnlockToasts;
-            target.ToastShowHeader = source.ToastShowHeader;
-            target.ToastShowName = source.ToastShowName;
-            target.ToastShowRarityBadge = source.ToastShowRarityBadge;
-            target.ToastShowRarityGlow = source.ToastShowRarityGlow;
-            target.ToastRarityColoredName = source.ToastRarityColoredName;
-            target.ToastShowRarityPercent = source.ToastShowRarityPercent;
-            target.ToastShowDescription = source.ToastShowDescription;
-            target.ToastShowCategory = source.ToastShowCategory;
-            target.ToastShowGameName = source.ToastShowGameName;
-            target.ToastShowUnlockTime = source.ToastShowUnlockTime;
+            target.NotificationStyle = source.NotificationStyle?.Clone() ?? NotificationStyleSettings.CreateDefault();
+            target.ToastUseThemeStyling = source.ToastUseThemeStyling;
+            target.FrameUseThemeStyling = source.FrameUseThemeStyling;
+            target.ProviderNotificationStyles = source.ProviderNotificationStyles != null
+                ? source.ProviderNotificationStyles.ToDictionary(
+                    kvp => kvp.Key,
+                    kvp => kvp.Value?.Clone(),
+                    StringComparer.OrdinalIgnoreCase)
+                : new Dictionary<string, NotificationStyleSettings>(StringComparer.OrdinalIgnoreCase);
             target.ToastDurationSeconds = source.ToastDurationSeconds;
             target.MaxConcurrentToasts = source.MaxConcurrentToasts;
             target.ToastPosition = source.ToastPosition;
@@ -108,16 +107,6 @@ namespace PlayniteAchievements.Models.Settings
             target.UnlockScreenshotSuffixClean = source.UnlockScreenshotSuffixClean;
             target.UnlockScreenshotSuffixWithToast = source.UnlockScreenshotSuffixWithToast;
             target.UnlockScreenshotSuffixFramed = source.UnlockScreenshotSuffixFramed;
-            target.FrameShowHeader = source.FrameShowHeader;
-            target.FrameShowName = source.FrameShowName;
-            target.FrameShowDescription = source.FrameShowDescription;
-            target.FrameShowCategory = source.FrameShowCategory;
-            target.FrameShowGameName = source.FrameShowGameName;
-            target.FrameShowRarityBadge = source.FrameShowRarityBadge;
-            target.FrameShowRarityPercent = source.FrameShowRarityPercent;
-            target.FrameShowRarityGlow = source.FrameShowRarityGlow;
-            target.FrameRarityColoredName = source.FrameRarityColoredName;
-            target.FrameShowUnlockTime = source.FrameShowUnlockTime;
             target.UnlockScreenshotDirectory = source.UnlockScreenshotDirectory;
             target.UnlockScreenshotMinimumRarity = source.UnlockScreenshotMinimumRarity;
             target.UnlockScreenshotAlwaysCaptureCompletion = source.UnlockScreenshotAlwaysCaptureCompletion;

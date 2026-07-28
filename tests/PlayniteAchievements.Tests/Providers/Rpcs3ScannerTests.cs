@@ -1,3 +1,4 @@
+using DiscUtils.Iso9660;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
 using Playnite.SDK;
 using Playnite.SDK.Models;
@@ -943,15 +944,15 @@ namespace PlayniteAchievements.Providers.Tests
         }
 
         [TestMethod]
-        public async Task RefreshAsync_NameFallback_MultipleExactTitles_PicksLowestNpwrDeterministically()
+        public async Task RefreshAsync_NameFallback_MultipleExactTitles_IsRejectedAsAmbiguous()
         {
             var tempDir = CreateTempDirectory();
             var rpcs3Root = Path.Combine(tempDir, "rpcs3");
 
             try
             {
-                // Regional duplicates of the same game share the title; created in
-                // descending id order to prove selection does not depend on enumeration.
+                // Regional duplicates share the same title. Selecting the lowest
+                // NPWR is deterministic but still risks selecting the wrong region.
                 CreateRpcs3TrophyData(rpcs3Root, "NPWR00033_00", "Demon's Souls", "EUR Trophy");
                 CreateRpcs3TrophyData(rpcs3Root, "NPWR00011_00", "Demon's Souls", "JAP Trophy");
 
@@ -965,10 +966,7 @@ namespace PlayniteAchievements.Providers.Tests
 
                 var data = await RefreshSingleGameAsync(provider, game).ConfigureAwait(false);
 
-                Assert.IsNotNull(data);
-                Assert.IsTrue(data.HasAchievements);
-                Assert.AreEqual("JAP Trophy", data.Achievements[0].DisplayName);
-                Assert.AreEqual("NPWR00011_00", data.ProviderGameKey);
+                Assert.IsNull(data);
             }
             finally
             {
@@ -1493,6 +1491,374 @@ BCUS98246: 'D:\RPCS3\Other Collection.iso' # trailing comment
         }
 
         [TestMethod]
+        public void VfsYmlReader_MissingFile_FallsBackToDefaultDevHdd0()
+        {
+            var tempDir = CreateTempDirectory();
+
+            try
+            {
+                var resolved = Rpcs3VfsYmlReader.ResolveDevHdd0Root(tempDir);
+
+                Assert.AreEqual(Path.Combine(tempDir, "dev_hdd0"), resolved);
+            }
+            finally
+            {
+                DeleteDirectory(tempDir);
+            }
+        }
+
+        [TestMethod]
+        public void VfsYmlReader_DefaultMapping_ResolvesExeRelativeDevHdd0()
+        {
+            var tempDir = CreateTempDirectory();
+
+            try
+            {
+                Directory.CreateDirectory(Path.Combine(tempDir, "config"));
+                File.WriteAllText(
+                    Path.Combine(tempDir, "config", "vfs.yml"),
+                    "$(EmulatorDir): \"\"\n" +
+                    "/dev_hdd0/: $(EmulatorDir)dev_hdd0/\n" +
+                    "/dev_flash/: $(EmulatorDir)dev_flash/\n" +
+                    "Devices:\n" +
+                    "  /dev_usb000/: $(EmulatorDir)dev_usb000/\n");
+
+                var resolved = Rpcs3VfsYmlReader.ResolveDevHdd0Root(tempDir);
+
+                Assert.AreEqual(Path.Combine(tempDir, "dev_hdd0"), resolved);
+            }
+            finally
+            {
+                DeleteDirectory(tempDir);
+            }
+        }
+
+        [TestMethod]
+        public void VfsYmlReader_QuotedRelocatedMapping_ResolvesCustomPath()
+        {
+            var tempDir = CreateTempDirectory();
+            var relocated = Path.Combine(tempDir, "big drive", "ps3 storage", "dev_hdd0");
+
+            try
+            {
+                Directory.CreateDirectory(Path.Combine(tempDir, "config"));
+                File.WriteAllText(
+                    Path.Combine(tempDir, "config", "vfs.yml"),
+                    "$(EmulatorDir): \"\"\n" +
+                    $"/dev_hdd0/: \"{relocated.Replace('\\', '/')}/\"\n");
+
+                var resolved = Rpcs3VfsYmlReader.ResolveDevHdd0Root(tempDir);
+
+                Assert.AreEqual(relocated, resolved);
+            }
+            finally
+            {
+                DeleteDirectory(tempDir);
+            }
+        }
+
+        [TestMethod]
+        public void VfsYmlReader_EmulatorDirOverride_RebasesRelativeMapping()
+        {
+            var tempDir = CreateTempDirectory();
+            var overrideRoot = Path.Combine(tempDir, "override root");
+
+            try
+            {
+                Directory.CreateDirectory(Path.Combine(tempDir, "config"));
+                File.WriteAllText(
+                    Path.Combine(tempDir, "config", "vfs.yml"),
+                    $"$(EmulatorDir): \"{overrideRoot.Replace('\\', '/')}/\"\n" +
+                    "/dev_hdd0/: $(EmulatorDir)dev_hdd0/\n");
+
+                var resolved = Rpcs3VfsYmlReader.ResolveDevHdd0Root(tempDir);
+
+                Assert.AreEqual(Path.Combine(overrideRoot, "dev_hdd0"), resolved);
+            }
+            finally
+            {
+                DeleteDirectory(tempDir);
+            }
+        }
+
+        [TestMethod]
+        public async Task RefreshAsync_VfsRelocatedDevHdd0_ResolvesTrophyData()
+        {
+            var tempDir = CreateTempDirectory();
+            var rpcs3Root = Path.Combine(tempDir, "rpcs3");
+            var relocatedDevHdd0 = Path.Combine(tempDir, "storage", "dev_hdd0");
+
+            try
+            {
+                // The emulator root carries no dev_hdd0 of its own; trophies live
+                // in the relocated dev_hdd0 referenced by vfs.yml.
+                Directory.CreateDirectory(rpcs3Root);
+                File.WriteAllBytes(Path.Combine(rpcs3Root, "rpcs3.exe"), new byte[] { 0 });
+                Directory.CreateDirectory(Path.Combine(rpcs3Root, "config"));
+                File.WriteAllText(
+                    Path.Combine(rpcs3Root, "config", "vfs.yml"),
+                    "$(EmulatorDir): \"\"\n" +
+                    $"/dev_hdd0/: \"{relocatedDevHdd0.Replace('\\', '/')}/\"\n");
+                CreateTrophyDataInDevHdd0(relocatedDevHdd0, "NPWR12345_00", "Relocated Game", "Relocated Trophy");
+
+                var provider = CreateProvider(rpcs3Root);
+                var game = new Game
+                {
+                    Id = Guid.NewGuid(),
+                    Name = "Relocated Game",
+                    InstallDirectory = Path.Combine(tempDir, "game-without-id")
+                };
+
+                var data = await RefreshSingleGameAsync(provider, game).ConfigureAwait(false);
+
+                Assert.IsNotNull(data);
+                Assert.IsTrue(data.HasAchievements);
+                Assert.AreEqual("Relocated Trophy", data.Achievements[0].DisplayName);
+            }
+            finally
+            {
+                DeleteDirectory(tempDir);
+            }
+        }
+
+        [TestMethod]
+        public async Task RefreshAsync_SerialBridge_DiscoversSerialFromGamesYmlReverseLookup()
+        {
+            var tempDir = CreateTempDirectory();
+            var rpcs3Root = Path.Combine(tempDir, "rpcs3");
+            var isoPath = Path.Combine(tempDir, "isos", "renamed disc dump.iso");
+
+            try
+            {
+                // Neither the rom path nor its contents expose a serial or NPWR id;
+                // only RPCS3's own games.yml registration ties the ISO to BLES01039,
+                // whose dev_hdd0\game entry carries the trophy TRP.
+                File.WriteAllBytes(Path.Combine(CreateRpcs3Root(rpcs3Root), "rpcs3.exe"), new byte[] { 0 });
+                Directory.CreateDirectory(Path.GetDirectoryName(isoPath));
+                File.WriteAllText(isoPath, "no ids in here");
+                File.WriteAllText(
+                    Path.Combine(rpcs3Root, "games.yml"),
+                    $"BLES01039: \"{isoPath}\"");
+                CreateTrpFile(
+                    Path.Combine(rpcs3Root, "dev_hdd0", "game", "BLES01039", "TROPDIR", "NPWR09999_00", "TROPHY.TRP"),
+                    "NPWR09999_00",
+                    "Reverse Lookup Game",
+                    "Reverse Trophy");
+
+                var provider = CreateProvider(rpcs3Root);
+                var game = new Game
+                {
+                    Id = Guid.NewGuid(),
+                    Name = "Totally Renamed In Playnite",
+                    Roms = new ObservableCollection<GameRom> { new GameRom("Disc", isoPath) }
+                };
+
+                var data = await RefreshSingleGameAsync(provider, game).ConfigureAwait(false);
+
+                Assert.IsNotNull(data);
+                Assert.IsTrue(data.HasAchievements);
+                Assert.AreEqual("Reverse Trophy", data.Achievements[0].DisplayName);
+                Assert.AreEqual("NPWR09999_00", data.ProviderGameKey);
+            }
+            finally
+            {
+                DeleteDirectory(tempDir);
+            }
+        }
+
+        [TestMethod]
+        public async Task RefreshAsync_TrpFallback_ExtractsTrophyIcons()
+        {
+            var tempDir = CreateTempDirectory();
+            var rpcs3Root = Path.Combine(tempDir, "rpcs3");
+            var pluginDataPath = Path.Combine(tempDir, "plugin-data");
+
+            try
+            {
+                File.WriteAllBytes(Path.Combine(CreateRpcs3Root(rpcs3Root), "rpcs3.exe"), new byte[] { 0 });
+
+                var pngBytes = new byte[] { 0x89, 0x50, 0x4E, 0x47, 0x01, 0x02, 0x03 };
+                var trpBytes = Rpcs3TrophyParserTrpTests.BuildBinaryTrp(
+                    2,
+                    ("TROPCONF.SFM", Encoding.UTF8.GetBytes(BuildTropconfXml("NPWR00042_00", "Icon Game", "Icon Trophy"))),
+                    ("TROP000.PNG", pngBytes));
+                var trpPath = Path.Combine(
+                    rpcs3Root, "dev_hdd0", "game", "NPUB30042", "TROPDIR", "NPWR00042_00", "TROPHY.TRP");
+                Directory.CreateDirectory(Path.GetDirectoryName(trpPath));
+                File.WriteAllBytes(trpPath, trpBytes);
+
+                var provider = CreateProvider(rpcs3Root, pluginUserDataPath: pluginDataPath);
+                var game = new Game
+                {
+                    Id = Guid.NewGuid(),
+                    Name = "Renamed Icon Game",
+                    InstallDirectory = Path.Combine(tempDir, "pkg", "NPUB30042")
+                };
+
+                var data = await RefreshSingleGameAsync(provider, game).ConfigureAwait(false);
+
+                Assert.IsNotNull(data);
+                Assert.IsTrue(data.HasAchievements);
+                var iconPath = data.Achievements[0].UnlockedIconPath;
+                Assert.IsNotNull(iconPath);
+                StringAssert.Contains(iconPath, Path.Combine("icon_cache", "rpcs3", "NPWR00042_00"));
+                Assert.IsTrue(File.Exists(iconPath));
+                CollectionAssert.AreEqual(pngBytes, File.ReadAllBytes(iconPath));
+            }
+            finally
+            {
+                DeleteDirectory(tempDir);
+            }
+        }
+
+        [TestMethod]
+        public async Task RefreshAsync_IsoEmbeddedTrp_MaterializesLockedListWithIcons()
+        {
+            var tempDir = CreateTempDirectory();
+            var rpcs3Root = Path.Combine(tempDir, "rpcs3");
+            var pluginDataPath = Path.Combine(tempDir, "plugin-data");
+            var isoPath = Path.Combine(tempDir, "isos", "never booted.iso");
+
+            try
+            {
+                // No trophy folder and no dev_hdd0\game entry exist for this set;
+                // the ISO's embedded TROPHY.TRP is the only trophy artifact.
+                File.WriteAllBytes(Path.Combine(CreateRpcs3Root(rpcs3Root), "rpcs3.exe"), new byte[] { 0 });
+
+                var pngBytes = new byte[] { 0x89, 0x50, 0x4E, 0x47, 0x0A, 0x0B };
+                var trpBytes = Rpcs3TrophyParserTrpTests.BuildBinaryTrp(
+                    2,
+                    ("TROPCONF.SFM", Encoding.UTF8.GetBytes(BuildTropconfXml("NPWR00777_00", "Never Booted Game", "Embedded Trophy"))),
+                    ("TROP000.PNG", pngBytes));
+                CreateIso9660WithFiles(isoPath, (@"PS3_GAME\TROPHY\TROPHY.TRP", trpBytes));
+
+                var provider = CreateProvider(rpcs3Root, pluginUserDataPath: pluginDataPath);
+                var game = new Game
+                {
+                    Id = Guid.NewGuid(),
+                    Name = "Renamed Never Booted Game",
+                    Roms = new ObservableCollection<GameRom> { new GameRom("Disc", isoPath) }
+                };
+
+                var data = await RefreshSingleGameAsync(provider, game).ConfigureAwait(false);
+
+                Assert.IsNotNull(data);
+                Assert.IsTrue(data.HasAchievements);
+                Assert.AreEqual("Embedded Trophy", data.Achievements[0].DisplayName);
+                Assert.IsTrue(data.Achievements.All(achievement => !achievement.Unlocked));
+                Assert.AreEqual("NPWR00777_00", data.ProviderGameKey);
+                Assert.IsTrue(File.Exists(Path.Combine(pluginDataPath, "icon_cache", "rpcs3", "NPWR00777_00", "TROPHY.TRP")));
+                var iconPath = data.Achievements[0].UnlockedIconPath;
+                Assert.IsNotNull(iconPath);
+                Assert.IsTrue(File.Exists(iconPath));
+            }
+            finally
+            {
+                DeleteDirectory(tempDir);
+            }
+        }
+
+        [TestMethod]
+        public async Task RefreshAsync_IsoWithSameTitleTrophySets_IsAmbiguousAndUnmatched()
+        {
+            var tempDir = CreateTempDirectory();
+            var rpcs3Root = Path.Combine(tempDir, "rpcs3");
+            var pluginDataPath = Path.Combine(tempDir, "plugin-data");
+            var isoPath = Path.Combine(tempDir, "isos", "multi region.iso");
+
+            try
+            {
+                // Two trophy sets with the same title inside one image are region
+                // variants of one game; selecting either risks wrong trophy data.
+                File.WriteAllBytes(Path.Combine(CreateRpcs3Root(rpcs3Root), "rpcs3.exe"), new byte[] { 0 });
+
+                var europeTrp = Rpcs3TrophyParserTrpTests.BuildBinaryTrp(
+                    2,
+                    ("TROPCONF.SFM", Encoding.UTF8.GetBytes(BuildTropconfXml("NPWR00100_00", "Same Game", "Europe Trophy"))));
+                var americaTrp = Rpcs3TrophyParserTrpTests.BuildBinaryTrp(
+                    2,
+                    ("TROPCONF.SFM", Encoding.UTF8.GetBytes(BuildTropconfXml("NPWR00200_00", "Same Game", "America Trophy"))));
+                CreateIso9660WithFiles(
+                    isoPath,
+                    (@"PS3_GAME\TROPHY\TROPHY.TRP", europeTrp),
+                    (@"PS3_GM01\TROPHY\TROPHY.TRP", americaTrp));
+
+                var provider = CreateProvider(rpcs3Root, pluginUserDataPath: pluginDataPath);
+                var game = new Game
+                {
+                    Id = Guid.NewGuid(),
+                    Name = "Multi Region Game",
+                    Roms = new ObservableCollection<GameRom> { new GameRom("Disc", isoPath) }
+                };
+
+                var data = await RefreshSingleGameAsync(provider, game).ConfigureAwait(false);
+
+                Assert.IsNull(data);
+            }
+            finally
+            {
+                DeleteDirectory(tempDir);
+            }
+        }
+
+        [TestMethod]
+        public async Task RefreshAsync_IsoWithDistinctTitleTrophySets_SurfacesCollection()
+        {
+            var tempDir = CreateTempDirectory();
+            var rpcs3Root = Path.Combine(tempDir, "rpcs3");
+            var pluginDataPath = Path.Combine(tempDir, "plugin-data");
+            var isoPath = Path.Combine(tempDir, "isos", "trilogy.iso");
+
+            try
+            {
+                File.WriteAllBytes(Path.Combine(CreateRpcs3Root(rpcs3Root), "rpcs3.exe"), new byte[] { 0 });
+
+                var firstTrp = Rpcs3TrophyParserTrpTests.BuildBinaryTrp(
+                    2,
+                    ("TROPCONF.SFM", Encoding.UTF8.GetBytes(BuildTropconfXml("NPWR00300_00", "Trilogy Part One", "Part One Trophy"))));
+                var secondTrp = Rpcs3TrophyParserTrpTests.BuildBinaryTrp(
+                    2,
+                    ("TROPCONF.SFM", Encoding.UTF8.GetBytes(BuildTropconfXml("NPWR00400_00", "Trilogy Part Two", "Part Two Trophy"))));
+                CreateIso9660WithFiles(
+                    isoPath,
+                    (@"PS3_GAME\TROPHY\TROPHY.TRP", firstTrp),
+                    (@"PS3_GM01\TROPHY\TROPHY.TRP", secondTrp));
+
+                var provider = CreateProvider(rpcs3Root, pluginUserDataPath: pluginDataPath);
+                var game = new Game
+                {
+                    Id = Guid.NewGuid(),
+                    Name = "The Trilogy",
+                    Roms = new ObservableCollection<GameRom> { new GameRom("Disc", isoPath) }
+                };
+
+                var data = await RefreshSingleGameAsync(provider, game).ConfigureAwait(false);
+
+                Assert.IsNotNull(data);
+                Assert.IsTrue(data.HasAchievements);
+                Assert.AreEqual(2, data.Achievements.Count);
+                Assert.IsTrue(data.Achievements.All(achievement => !achievement.Unlocked));
+            }
+            finally
+            {
+                DeleteDirectory(tempDir);
+            }
+        }
+
+        private static void CreateIso9660WithFiles(string isoPath, params (string PathInIso, byte[] Data)[] files)
+        {
+            Directory.CreateDirectory(Path.GetDirectoryName(isoPath));
+
+            var builder = new CDBuilder { UseJoliet = true };
+            foreach (var file in files)
+            {
+                builder.AddFile(file.PathInIso, file.Data);
+            }
+
+            builder.Build(isoPath);
+        }
+
+        [TestMethod]
         public void NpCommIdExtractor_RawScan_ReturnsDistinctNpwrIds()
         {
             var tempDir = CreateTempDirectory();
@@ -1554,7 +1920,7 @@ BCUS98246: 'D:\RPCS3\Other Collection.iso' # trailing comment
             return captured;
         }
 
-        private static Rpcs3DataProvider CreateProvider(string rpcs3Root, string extensionsDataPath = null)
+        private static Rpcs3DataProvider CreateProvider(string rpcs3Root, string extensionsDataPath = null, string pluginUserDataPath = null)
         {
             var settings = new PlayniteAchievementsSettings();
             var registry = new ProviderRegistry(settings, new[] { "RPCS3" });
@@ -1562,14 +1928,22 @@ BCUS98246: 'D:\RPCS3\Other Collection.iso' # trailing comment
             providerSettings.ExecutablePath = Path.Combine(rpcs3Root, "rpcs3.exe");
             registry.Save(providerSettings);
 
-            return new Rpcs3DataProvider(new FakeLogger(), settings, new FakePlayniteApi(extensionsDataPath));
+            return new Rpcs3DataProvider(
+                new FakeLogger(),
+                settings,
+                new FakePlayniteApi(extensionsDataPath),
+                pluginUserDataPath ?? string.Empty);
         }
 
         private static void CreateRpcs3TrophyData(string rpcs3Root, string npCommId, string titleName, string trophyName)
         {
             File.WriteAllBytes(Path.Combine(CreateRpcs3Root(rpcs3Root), "rpcs3.exe"), new byte[] { 0 });
+            CreateTrophyDataInDevHdd0(Path.Combine(rpcs3Root, "dev_hdd0"), npCommId, titleName, trophyName);
+        }
 
-            var trophyDir = Path.Combine(rpcs3Root, "dev_hdd0", "home", "00000001", "trophy", npCommId);
+        private static void CreateTrophyDataInDevHdd0(string devHdd0Root, string npCommId, string titleName, string trophyName)
+        {
+            var trophyDir = Path.Combine(devHdd0Root, "home", "00000001", "trophy", npCommId);
             Directory.CreateDirectory(trophyDir);
             File.WriteAllText(
                 Path.Combine(trophyDir, "TROPCONF.SFM"),

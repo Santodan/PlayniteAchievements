@@ -45,8 +45,11 @@ namespace PlayniteAchievements.Tests.ViewModels
                 },
                 new PersistedSettings
                 {
-                    ToastShowRarityBadge = true,
-                    FrameShowRarityBadge = true
+                    NotificationStyle = new NotificationStyleSettings
+                    {
+                        Toast = new NotificationSurfaceStyle { ShowRarityBadge = true },
+                        Frame = new NotificationSurfaceStyle { ShowRarityBadge = true }
+                    }
                 });
 
             Assert.IsTrue(viewModel.IsGameCompleted);
@@ -72,8 +75,11 @@ namespace PlayniteAchievements.Tests.ViewModels
                 },
                 new PersistedSettings
                 {
-                    ToastShowRarityGlow = true,
-                    FrameShowRarityGlow = true
+                    NotificationStyle = new NotificationStyleSettings
+                    {
+                        Toast = new NotificationSurfaceStyle { ShowRarityGlow = true },
+                        Frame = new NotificationSurfaceStyle { ShowRarityGlow = true }
+                    }
                 });
 
             Assert.IsFalse(viewModel.IsGameCompleted);
@@ -94,8 +100,11 @@ namespace PlayniteAchievements.Tests.ViewModels
                 },
                 new PersistedSettings
                 {
-                    ToastShowRarityGlow = false,
-                    FrameShowRarityGlow = false
+                    NotificationStyle = new NotificationStyleSettings
+                    {
+                        Toast = new NotificationSurfaceStyle { ShowRarityGlow = false },
+                        Frame = new NotificationSurfaceStyle { ShowRarityGlow = false }
+                    }
                 });
 
             Assert.IsNull(viewModel.CompletedGlowEffect);
@@ -114,8 +123,11 @@ namespace PlayniteAchievements.Tests.ViewModels
                 },
                 new PersistedSettings
                 {
-                    ToastShowRarityBadge = true,
-                    FrameShowRarityBadge = true
+                    NotificationStyle = new NotificationStyleSettings
+                    {
+                        Toast = new NotificationSurfaceStyle { ShowRarityBadge = true },
+                        Frame = new NotificationSurfaceStyle { ShowRarityBadge = true }
+                    }
                 });
 
             Assert.AreEqual("achievement.png", viewModel.IconPath);

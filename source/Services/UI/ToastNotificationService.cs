@@ -427,7 +427,7 @@ namespace PlayniteAchievements.Services.UI
                 ItemsSource = toastItems,
                 IsHitTestVisible = false
             };
-            var template = _templateResolver.ResolveTemplate();
+            var template = _templateResolver.ResolveTemplate(ToastThemeStylingEnabled);
             if (template != null)
             {
                 items.ItemTemplate = template;
@@ -786,7 +786,8 @@ namespace PlayniteAchievements.Services.UI
                     var captured = cleanBitmap;
                     var cleanSource = await Task.Run(() => ScreenshotFrameCompositor.ToBitmapSource(captured))
                         .ConfigureAwait(true);
-                    var frameTemplate = _templateResolver.ResolveFrameTemplate();
+                    var frameTemplate = _templateResolver.ResolveFrameTemplate(
+                        _settings?.Persisted?.FrameUseThemeStyling ?? true);
                     if (cleanSource != null && frameTemplate != null)
                     {
                         foreach (var item in plan.Items)
@@ -1243,7 +1244,8 @@ namespace PlayniteAchievements.Services.UI
             try
             {
                 var raw = _templateResolver?.ResolveResourceValue(
-                    AchievementToastTemplateResolver.PositionResourceKey);
+                    AchievementToastTemplateResolver.PositionResourceKey,
+                    ToastThemeStylingEnabled);
                 var text = raw?.ToString().Trim();
                 if (!string.IsNullOrEmpty(text) &&
                     Enum.TryParse(text, ignoreCase: true, result: out ToastScreenCorner parsed) &&
@@ -1272,7 +1274,8 @@ namespace PlayniteAchievements.Services.UI
             try
             {
                 var raw = _templateResolver?.ResolveResourceValue(
-                    AchievementToastTemplateResolver.DurationSecondsResourceKey);
+                    AchievementToastTemplateResolver.DurationSecondsResourceKey,
+                    ToastThemeStylingEnabled);
                 if (raw is double d)
                 {
                     return Math.Max(2, (int)Math.Round(d));
@@ -1391,11 +1394,17 @@ namespace PlayniteAchievements.Services.UI
         /// use its code-built fallback. Only the first DoubleAnimation is used; the window slide and
         /// countdown each drive a single property.
         /// </summary>
+        /// <summary>
+        /// The toast theme opt-out covers the whole theme toast surface (template, storyboards,
+        /// position, duration) since they all ship in the same theme override file.
+        /// </summary>
+        private bool ToastThemeStylingEnabled => _settings?.Persisted?.ToastUseThemeStyling ?? true;
+
         private DoubleAnimation ResolveAnimation(string storyboardKey)
         {
             try
             {
-                var storyboard = _templateResolver?.ResolveStoryboard(storyboardKey);
+                var storyboard = _templateResolver?.ResolveStoryboard(storyboardKey, ToastThemeStylingEnabled);
                 var animation = storyboard == null ? null : GetFirstDoubleAnimation(storyboard);
                 return (DoubleAnimation)animation?.Clone();
             }

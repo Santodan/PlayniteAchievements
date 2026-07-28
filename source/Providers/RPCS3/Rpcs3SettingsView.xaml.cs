@@ -1,5 +1,4 @@
 using System;
-using System.Linq;
 using System.Windows.Controls;
 using System.Windows.Input;
 using System.Windows;
@@ -102,40 +101,8 @@ namespace PlayniteAchievements.Providers.RPCS3
                 return;
             }
 
-            var homePath = System.IO.Path.Combine(installFolder, "dev_hdd0", "home");
-            if (!System.IO.Directory.Exists(homePath))
-            {
-                SetAuthenticated(false);
-                SetAuthStatusByKey("LOCPlayAch_Rpcs3Validation_NotRpcs3");
-                return;
-            }
-
-            string userId = null;
-            try
-            {
-                foreach (var dir in System.IO.Directory.GetDirectories(homePath))
-                {
-                    var name = System.IO.Path.GetFileName(dir);
-                    if (!string.IsNullOrWhiteSpace(name) && name.Length == 8 && name.All(char.IsDigit))
-                    {
-                        userId = name;
-                        break;
-                    }
-                }
-            }
-            catch
-            {
-            }
-
-            if (string.IsNullOrWhiteSpace(userId))
-            {
-                SetAuthenticated(false);
-                SetAuthStatusByKey("LOCPlayAch_Rpcs3Validation_NoUser");
-                return;
-            }
-
-            var trophyPath = System.IO.Path.Combine(homePath, userId, "trophy");
-            if (!System.IO.Directory.Exists(trophyPath))
+            var context = Rpcs3InstallationResolver.ResolveFromRoot(installFolder, logger: null);
+            if (context == null || !System.IO.Directory.Exists(context.TrophyFolder))
             {
                 SetAuthenticated(false);
                 SetAuthStatusByKey("LOCPlayAch_Rpcs3Validation_NoTrophyFolder");

@@ -1,11 +1,15 @@
 using System;
+using System.Collections.Generic;
+using System.IO;
 using System.Windows;
 using System.Windows.Media;
 using System.Windows.Media.Effects;
+using System.Windows.Media.Imaging;
 using Playnite.SDK;
 using PlayniteAchievements.Models;
 using PlayniteAchievements.Models.Achievements;
 using PlayniteAchievements.Models.Settings;
+using PlayniteAchievements.Services.UI;
 
 namespace PlayniteAchievements.ViewModels
 {
@@ -14,14 +18,28 @@ namespace PlayniteAchievements.ViewModels
         private const string DefaultIcon =
             "pack://application:,,,/PlayniteAchievements;component/Resources/UnlockedAchIcon.png";
 
+        // Frame font fallbacks are 1080-reference-canvas DIPs matching the bundled frame
+        // template's historical literals, deliberately independent of theme font sizes.
+        private const double FrameHeaderFontFallback = 17;
+        private const double FrameTitleFontFallback = 30;
+        private const double FrameBodyFontFallback = 19;
+        private const double FrameGameCategoryFontFallback = 19;
+
         private readonly AchievementUnlockedEventArgs _args;
         private readonly PersistedSettings _settings;
+        private readonly NotificationStyleSettings _style;
         private readonly RarityTier _rarity;
+        private IReadOnlyList<ToastLineDescriptor> _toastLines;
+        private IReadOnlyList<ToastLineDescriptor> _frameLines;
 
-        public AchievementToastViewModel(AchievementUnlockedEventArgs args, PersistedSettings settings)
+        public AchievementToastViewModel(
+            AchievementUnlockedEventArgs args,
+            PersistedSettings settings,
+            NotificationStyleSettings styleOverride = null)
         {
             _args = args ?? new AchievementUnlockedEventArgs();
             _settings = settings ?? new PersistedSettings();
+            _style = styleOverride ?? NotificationStyleResolver.Resolve(_settings, _args.ProviderKey);
             _rarity = ParseRarity(_args.RarityTier);
         }
 
@@ -63,11 +81,11 @@ namespace PlayniteAchievements.ViewModels
         // unlocks; for your own unlocks it honors the user's toggle. Completion notifications are
         // restyled entirely by the templates (triggers on IsGameCompleted force the header/title/
         // game name visible there), never here.
-        public bool ShowHeader => IsFriendUnlock || _settings.ToastShowHeader;
-        public bool ShowName => _settings.ToastShowName && !string.IsNullOrWhiteSpace(TitleText);
-        public bool ShowDescription => _settings.ToastShowDescription && !string.IsNullOrWhiteSpace(_args.Description);
-        public bool ShowCategory => _settings.ToastShowCategory && HasDistinctCategory;
-        public bool ShowPercent => _settings.ToastShowRarityPercent && _args.GlobalPercent.HasValue;
+        public bool ShowHeader => IsFriendUnlock || _style.Toast.ShowHeader;
+        public bool ShowName => _style.Toast.ShowName && !string.IsNullOrWhiteSpace(TitleText);
+        public bool ShowDescription => _style.Toast.ShowDescription && !string.IsNullOrWhiteSpace(_args.Description);
+        public bool ShowCategory => _style.Toast.ShowCategory && HasDistinctCategory;
+        public bool ShowPercent => _style.Toast.ShowRarityPercent && _args.GlobalPercent.HasValue;
         public bool IsCapstone => _args.IsCapstone;
 
         /// <summary>
@@ -116,8 +134,8 @@ namespace PlayniteAchievements.ViewModels
             }
         }
         private bool HasRarityData => _args.GlobalPercent.HasValue || !string.IsNullOrWhiteSpace(_args.RarityTier);
-        public bool ShowBadge => _settings.ToastShowRarityBadge && (IsCapstone || HasTrophy || HasRarityData);
-        public bool ShowGameName => _settings.ToastShowGameName && !string.IsNullOrWhiteSpace(_args.GameName);
+        public bool ShowBadge => _style.Toast.ShowRarityBadge && (IsCapstone || HasTrophy || HasRarityData);
+        public bool ShowGameName => _style.Toast.ShowGameName && !string.IsNullOrWhiteSpace(_args.GameName);
         public bool ShowGameCategorySeparator => ShowGameName && ShowCategory;
         public bool HasFriendAvatar => !string.IsNullOrWhiteSpace(FriendAvatar);
 
@@ -135,7 +153,7 @@ namespace PlayniteAchievements.ViewModels
         // Toast-scoped visibility for the unlock datetime on the header line (off by default).
         // The header toggle governs only the "Achievement unlocked" text; the datetime is
         // independent, and the separator needs both.
-        public bool ShowUnlockTime => _settings.ToastShowUnlockTime && HasUnlockTime;
+        public bool ShowUnlockTime => _style.Toast.ShowUnlockTime && HasUnlockTime;
         public bool ShowHeaderDateSeparator => ShowHeader && ShowUnlockTime;
         public bool ShowFriendAvatar => ShowHeader && HasFriendAvatar;
         public string UnlockDateText => UnlockTimeLocal?.ToString("d") ?? string.Empty;
@@ -150,41 +168,71 @@ namespace PlayniteAchievements.ViewModels
 
         // Frame-scoped equivalents: the frame's header row shows "header • unlock datetime";
         // the separator needs both, and the datetime honors its own toggle.
-        public bool FrameShowUnlockTime => _settings.FrameShowUnlockTime && HasUnlockTime;
+        public bool FrameShowUnlockTime => _style.Frame.ShowUnlockTime && HasUnlockTime;
         public bool FrameShowHeaderDateSeparator => FrameShowHeader && FrameShowUnlockTime;
 
         // Frame-scoped visibility/appearance: the screenshot frame honors its own FrameShow*
         // settings so the saved image can show different fields than the on-screen toast.
-        public bool FrameShowHeader => IsFriendUnlock || _settings.FrameShowHeader;
-        public bool FrameShowName => _settings.FrameShowName && !string.IsNullOrWhiteSpace(TitleText);
-        public bool FrameShowDescription => _settings.FrameShowDescription && !string.IsNullOrWhiteSpace(_args.Description);
-        public bool FrameShowCategory => _settings.FrameShowCategory && HasDistinctCategory;
-        public bool FrameShowPercent => _settings.FrameShowRarityPercent && _args.GlobalPercent.HasValue;
-        public bool FrameShowBadge => _settings.FrameShowRarityBadge && (IsCapstone || HasTrophy || HasRarityData);
-        public bool FrameShowGameName => _settings.FrameShowGameName && !string.IsNullOrWhiteSpace(_args.GameName);
+        public bool FrameShowHeader => IsFriendUnlock || _style.Frame.ShowHeader;
+        public bool FrameShowName => _style.Frame.ShowName && !string.IsNullOrWhiteSpace(TitleText);
+        public bool FrameShowDescription => _style.Frame.ShowDescription && !string.IsNullOrWhiteSpace(_args.Description);
+        public bool FrameShowCategory => _style.Frame.ShowCategory && HasDistinctCategory;
+        public bool FrameShowPercent => _style.Frame.ShowRarityPercent && _args.GlobalPercent.HasValue;
+        public bool FrameShowBadge => _style.Frame.ShowRarityBadge && (IsCapstone || HasTrophy || HasRarityData);
+        public bool FrameShowGameName => _style.Frame.ShowGameName && !string.IsNullOrWhiteSpace(_args.GameName);
         public bool FrameShowGameCategorySeparator => FrameShowGameName && FrameShowCategory;
-        public bool FrameShowShineBorder => _settings.FrameShowRarityGlow && IsHardcore;
+        public bool FrameShowShineBorder => _style.Frame.ShowRarityGlow && IsHardcore;
 
         // Mirrors TitleBrush but honors the frame's own rarity-colored-name toggle.
-        public Brush FrameTitleBrush => _settings.FrameRarityColoredName
+        public Brush FrameTitleBrush => _style.Frame.RarityColoredName
             ? AccentBrush
             : Application.Current?.TryFindResource("PlayAch.Brush.Text") as Brush ?? Brushes.White;
 
-        public Effect FrameRarityGlowEffect => _settings.FrameShowRarityGlow && !IsHardcore
+        public Effect FrameRarityGlowEffect => _style.Frame.ShowRarityGlow && !IsHardcore
             ? RarityAppearanceHelper.GetGlow(_rarity, 20, _settings)
             : null;
 
+        // Header texts honor the style's user edits with the localized strings as fallback.
+        // Stored friend formats that lost their {0} placeholder fall back to the localized
+        // default rather than crashing the toast.
         public string HeaderText
         {
             get
             {
                 if (IsFriendUnlock)
                 {
-                    var format = ResourceProvider.GetString("LOCPlayAch_Toast_FriendUnlocked");
-                    return string.Format(format, string.IsNullOrWhiteSpace(_args.FriendDisplayName) ? "Friend" : _args.FriendDisplayName);
+                    var format = NotificationHeaderTextService.IsValidHeaderFormat(_style.HeaderTexts.FriendUnlockHeaderFormat)
+                        ? _style.HeaderTexts.FriendUnlockHeaderFormat
+                        : ResourceProvider.GetString("LOCPlayAch_Toast_FriendUnlocked");
+                    return string.Format(format, FriendDisplayName);
                 }
 
-                return ResourceProvider.GetString("LOCPlayAch_Toast_AchievementUnlocked");
+                return !string.IsNullOrWhiteSpace(_style.HeaderTexts.UnlockHeader)
+                    ? _style.HeaderTexts.UnlockHeader
+                    : ResourceProvider.GetString("LOCPlayAch_Toast_AchievementUnlocked");
+            }
+        }
+
+        /// <summary>
+        /// Header text of the standalone game-completion notification ("Congratulations!" by
+        /// default), honoring the style's user edit.
+        /// </summary>
+        public string CompletionHeaderText => !string.IsNullOrWhiteSpace(_style.HeaderTexts.CompletionHeader)
+            ? _style.HeaderTexts.CompletionHeader
+            : ResourceProvider.GetString("LOCPlayAch_Toast_Congratulations");
+
+        /// <summary>
+        /// Header text of a friend's game-completion notification ("{friend} completed the
+        /// game!" by default), honoring the style's user edit.
+        /// </summary>
+        public string FriendCompletionHeaderText
+        {
+            get
+            {
+                var format = NotificationHeaderTextService.IsValidHeaderFormat(_style.HeaderTexts.FriendCompletionHeaderFormat)
+                    ? _style.HeaderTexts.FriendCompletionHeaderFormat
+                    : "{0} " + ResourceProvider.GetString("LOCPlayAch_Toast_CompletedTheGame");
+                return string.Format(format, FriendDisplayName);
             }
         }
 
@@ -234,17 +282,17 @@ namespace PlayniteAchievements.ViewModels
         // bundled templates (and themes) apply completion styling with triggers on
         // IsGameCompleted / IsCompletionAchievement. The glows honor the rarity-glow toggles.
         public Brush CompletedBrush => RarityAppearanceHelper.GetCompletedBrush(_settings);
-        public Effect CompletedGlowEffect => _settings.ToastShowRarityGlow
+        public Effect CompletedGlowEffect => _style.Toast.ShowRarityGlow
             ? RarityAppearanceHelper.GetCompletedGlow(useEndColor: true, _settings)
             : null;
-        public Effect FrameCompletedGlowEffect => _settings.FrameShowRarityGlow
+        public Effect FrameCompletedGlowEffect => _style.Frame.ShowRarityGlow
             ? RarityAppearanceHelper.GetCompletedGlow(useEndColor: true, _settings)
             : null;
         public ImageSource CompletedBadgeImage => RarityAppearanceHelper.CreateCompletedBadgePreview(_settings);
         public Brush RarityBrush => RarityAppearanceHelper.GetBrush(_rarity, _settings);
 
         // Capstone color takes precedence over rarity, matching the grid's RarityNameBrush.
-        public Brush TitleBrush => _settings.ToastRarityColoredName
+        public Brush TitleBrush => _style.Toast.RarityColoredName
             ? AccentBrush
             : Application.Current?.TryFindResource("PlayAch.Brush.Text") as Brush ?? Brushes.White;
 
@@ -254,13 +302,13 @@ namespace PlayniteAchievements.ViewModels
         /// Hardcore RetroAchievements unlocks get a crisp rarity-colored border in place of the
         /// soft glow, mirroring the datagrids. Both are gated on the rarity-glow toggle.
         /// </summary>
-        public bool ShowShineBorder => _settings.ToastShowRarityGlow && IsHardcore;
+        public bool ShowShineBorder => _style.Toast.ShowRarityGlow && IsHardcore;
 
         // Glossy metallic rarity border (matches RarityToShineBrush used by the datagrids).
         public Brush IconBorderBrush => RarityAppearanceHelper.GetShineBrush(_rarity, _settings);
 
         // Soft rarity glow for non-hardcore unlocks (matches PercentToRarityGlow, BlurRadius 20).
-        public Effect RarityGlowEffect => _settings.ToastShowRarityGlow && !IsHardcore
+        public Effect RarityGlowEffect => _style.Toast.ShowRarityGlow && !IsHardcore
             ? RarityAppearanceHelper.GetGlow(_rarity, 20, _settings)
             : null;
 
@@ -283,6 +331,223 @@ namespace PlayniteAchievements.ViewModels
             return HasRarityData
                 ? RarityAppearanceHelper.CreateBadgePreview(_rarity, _settings)
                 : null;
+        }
+
+        /// <summary>
+        /// User badge image for this unlock's badge slot, or null for the drawn badge.
+        /// Capstones use the completion slot; otherwise a set rarity image wins over the
+        /// trophy badge (trophy-typed unlocks carry rarity data too), which is the documented
+        /// custom-rarity-beats-trophy rule.
+        /// </summary>
+        private string CustomBadgeImagePath
+        {
+            get
+            {
+                var badges = _style.BadgeImages;
+                if (IsCapstone)
+                {
+                    return NullIfBlank(badges.CompletionPath);
+                }
+
+                if (!HasRarityData)
+                {
+                    return null;
+                }
+
+                switch (_rarity)
+                {
+                    case RarityTier.UltraRare:
+                        return NullIfBlank(badges.UltraRarePath);
+                    case RarityTier.Rare:
+                        return NullIfBlank(badges.RarePath);
+                    case RarityTier.Uncommon:
+                        return NullIfBlank(badges.UncommonPath);
+                    default:
+                        return NullIfBlank(badges.CommonPath);
+                }
+            }
+        }
+
+        // Badge source for the toast template's AsyncImage binding: the custom image path
+        // when one is set (a string, so animated GIF badges animate), otherwise the drawn
+        // badge ImageSource.
+        public object ToastBadgeSource => (object)CustomBadgeImagePath ?? BadgeImage;
+
+        // Toast icon-swap source for the completion trigger, mirroring CompletedBadgeImage.
+        public object ToastCompletedBadgeSource =>
+            (object)NullIfBlank(_style.BadgeImages.CompletionPath) ?? CompletedBadgeImage;
+
+        // Frame equivalents: the frame is rendered offscreen, so images must be synchronously
+        // decoded (an async load renders blank); animated GIFs contribute their first frame.
+        public ImageSource FrameBadgeImage => LoadSyncImage(CustomBadgeImagePath) ?? BadgeImage;
+
+        public ImageSource FrameCompletedBadgeImage =>
+            LoadSyncImage(NullIfBlank(_style.BadgeImages.CompletionPath)) ?? CompletedBadgeImage;
+
+        /// <summary>
+        /// Provider icon geometry key for the toast/frame provider icon (rendered via
+        /// ProviderIconConverter with <see cref="ProviderColorHex"/>); null when the provider
+        /// is unknown (e.g. tests or previews without a registry).
+        /// </summary>
+        public string ProviderIconKey
+        {
+            get
+            {
+                Providers.ProviderRegistry.TryResolveProviderVisuals(ProviderKey, out var iconKey, out _);
+                return iconKey;
+            }
+        }
+
+        public bool ShowProviderIcon => _style.Toast.ShowProviderIcon && !string.IsNullOrWhiteSpace(ProviderIconKey);
+        public bool FrameShowProviderIcon => _style.Frame.ShowProviderIcon && !string.IsNullOrWhiteSpace(ProviderIconKey);
+
+        // User toast background image (frames never get a background). Missing files fall
+        // back to the default surface brush via HasToastBackground.
+        public string ToastBackgroundImagePath => _style.ToastBackgroundImagePath;
+        public bool HasToastBackground
+        {
+            get
+            {
+                var path = _style.ToastBackgroundImagePath;
+                return !string.IsNullOrWhiteSpace(path) && File.Exists(path);
+            }
+        }
+
+        // Effective font family per surface: the style's family when set, otherwise the
+        // theme-derived body family.
+        public FontFamily ToastFontFamily => ResolveFontFamily(_style.Toast.FontFamily);
+        public FontFamily FrameFontFamily => ResolveFontFamily(_style.Frame.FontFamily);
+
+        // Effective caption/header size per surface, also used by the icon column's percent
+        // text (part of the "header/caption" size group).
+        public double ToastHeaderFontSize => _style.Toast.HeaderFontSize
+            ?? ResolveFontSizeResource("PlayAch.FontSize.Caption", 11);
+        public double FrameHeaderFontSize => _style.Frame.HeaderFontSize ?? FrameHeaderFontFallback;
+
+        /// <summary>
+        /// The toast's text lines in the user's order; hidden lines are still present with
+        /// their visibility flags false so completion triggers can force them visible.
+        /// </summary>
+        public IReadOnlyList<ToastLineDescriptor> ToastLines =>
+            _toastLines ?? (_toastLines = BuildLines(isFrame: false));
+
+        /// <summary>
+        /// The frame's text lines in the user's order. Frame lines never show the friend
+        /// avatar (async image loads render blank in the offscreen composite).
+        /// </summary>
+        public IReadOnlyList<ToastLineDescriptor> FrameLines =>
+            _frameLines ?? (_frameLines = BuildLines(isFrame: true));
+
+        private IReadOnlyList<ToastLineDescriptor> BuildLines(bool isFrame)
+        {
+            var surface = isFrame ? _style.Frame : _style.Toast;
+            var family = isFrame ? FrameFontFamily : ToastFontFamily;
+            var headerSize = isFrame ? FrameHeaderFontSize : ToastHeaderFontSize;
+            var titleSize = surface.TitleFontSize ??
+                (isFrame ? FrameTitleFontFallback : ResolveFontSizeResource("PlayAch.FontSize.Title", 16));
+            var bodySize = surface.BodyFontSize ??
+                (isFrame ? FrameBodyFontFallback : ResolveFontSizeResource("PlayAch.FontSize.Caption", 11));
+            var gameCategorySize = surface.HeaderFontSize ??
+                (isFrame ? FrameGameCategoryFontFallback : ResolveFontSizeResource("PlayAch.FontSize.Caption", 11));
+
+            var lines = new List<ToastLineDescriptor>(NotificationSurfaceStyle.DefaultLineOrder.Count);
+            foreach (var token in NotificationSurfaceStyle.CanonicalizeLineOrder(surface.LineOrder))
+            {
+                switch (token)
+                {
+                    case NotificationSurfaceStyle.LineHeader:
+                        lines.Add(new ToastHeaderLine(
+                            this,
+                            headerSize,
+                            family,
+                            isFrame ? FrameShowHeader : ShowHeader,
+                            isFrame ? FrameShowUnlockTime : ShowUnlockTime,
+                            isFrame ? FrameShowHeaderDateSeparator : ShowHeaderDateSeparator,
+                            !isFrame && ShowFriendAvatar));
+                        break;
+                    case NotificationSurfaceStyle.LineTitle:
+                        lines.Add(new ToastTitleLine(
+                            this,
+                            titleSize,
+                            family,
+                            isFrame ? FrameShowName : ShowName,
+                            isFrame ? FrameTitleBrush : TitleBrush));
+                        break;
+                    case NotificationSurfaceStyle.LineDescription:
+                        lines.Add(new ToastDescriptionLine(
+                            this,
+                            bodySize,
+                            family,
+                            isFrame ? FrameShowDescription : ShowDescription));
+                        break;
+                    case NotificationSurfaceStyle.LineGameCategory:
+                        lines.Add(new ToastGameCategoryLine(
+                            this,
+                            gameCategorySize,
+                            family,
+                            isFrame ? FrameShowGameName : ShowGameName,
+                            isFrame ? FrameShowCategory : ShowCategory,
+                            isFrame ? FrameShowGameCategorySeparator : ShowGameCategorySeparator));
+                        break;
+                }
+            }
+
+            return lines;
+        }
+
+        private static double ResolveFontSizeResource(string key, double fallback)
+        {
+            return Application.Current?.TryFindResource(key) is double size && size > 0
+                ? size
+                : fallback;
+        }
+
+        private static FontFamily ResolveFontFamily(string familyName)
+        {
+            if (!string.IsNullOrWhiteSpace(familyName))
+            {
+                try
+                {
+                    return new FontFamily(familyName.Trim());
+                }
+                catch (ArgumentException)
+                {
+                    // Malformed persisted family name; fall through to the theme family.
+                }
+            }
+
+            return Application.Current?.TryFindResource("PlayAch.FontFamily.Body") as FontFamily
+                ?? SystemFonts.MessageFontFamily;
+        }
+
+        private static string NullIfBlank(string value) =>
+            string.IsNullOrWhiteSpace(value) ? null : value;
+
+        /// <summary>
+        /// Synchronously decodes a user image for offscreen frame composition; null when the
+        /// path is unset, missing, or unreadable so the drawn badge remains the fallback.
+        /// </summary>
+        private static ImageSource LoadSyncImage(string path)
+        {
+            if (string.IsNullOrWhiteSpace(path) || !File.Exists(path))
+            {
+                return null;
+            }
+
+            try
+            {
+                var image = new BitmapImage();
+                image.BeginInit();
+                image.CacheOption = BitmapCacheOption.OnLoad;
+                image.UriSource = new Uri(path, UriKind.Absolute);
+                image.EndInit();
+                image.Freeze();
+                return image;
+            }
+            catch (Exception)
+            {
+                return null;
+            }
         }
 
         /// <summary>
