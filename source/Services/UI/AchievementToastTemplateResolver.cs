@@ -47,15 +47,15 @@ namespace PlayniteAchievements.Services.UI
             _loadDefaultFrameTemplate = loadDefaultFrameTemplate;
         }
 
-        public DataTemplate ResolveTemplate()
+        public DataTemplate ResolveTemplate(bool allowThemeSources = true)
         {
-            return ResolveTemplate(Application.Current?.Resources);
+            return ResolveTemplate(Application.Current?.Resources, allowThemeSources);
         }
 
-        public DataTemplate ResolveTemplate(ResourceDictionary applicationResources)
+        public DataTemplate ResolveTemplate(ResourceDictionary applicationResources, bool allowThemeSources = true)
         {
             return ResolveResource<DataTemplate>(
-                applicationResources, TemplateKey, ThemeOverrideRelativePath, _loadDefaultTemplate);
+                applicationResources, TemplateKey, ThemeOverrideRelativePath, _loadDefaultTemplate, allowThemeSources);
         }
 
         /// <summary>
@@ -63,15 +63,15 @@ namespace PlayniteAchievements.Services.UI
         /// never shown on screen) using the same theme-override precedence as the toast template,
         /// except the theme file is PlayniteAchievements\ScreenshotFrame.xaml.
         /// </summary>
-        public DataTemplate ResolveFrameTemplate()
+        public DataTemplate ResolveFrameTemplate(bool allowThemeSources = true)
         {
-            return ResolveFrameTemplate(Application.Current?.Resources);
+            return ResolveFrameTemplate(Application.Current?.Resources, allowThemeSources);
         }
 
-        public DataTemplate ResolveFrameTemplate(ResourceDictionary applicationResources)
+        public DataTemplate ResolveFrameTemplate(ResourceDictionary applicationResources, bool allowThemeSources = true)
         {
             return ResolveResource<DataTemplate>(
-                applicationResources, FrameTemplateKey, FrameThemeOverrideRelativePath, _loadDefaultFrameTemplate);
+                applicationResources, FrameTemplateKey, FrameThemeOverrideRelativePath, _loadDefaultFrameTemplate, allowThemeSources);
         }
 
         /// <summary>
@@ -81,9 +81,10 @@ namespace PlayniteAchievements.Services.UI
         /// when no key is found anywhere, letting the caller fall back to a code-built animation so a
         /// broken theme override never disables toasts.
         /// </summary>
-        public Storyboard ResolveStoryboard(string key)
+        public Storyboard ResolveStoryboard(string key, bool allowThemeSources = true)
         {
-            return ResolveResource<Storyboard>(Application.Current?.Resources, key, ThemeOverrideRelativePath, null);
+            return ResolveResource<Storyboard>(
+                Application.Current?.Resources, key, ThemeOverrideRelativePath, null, allowThemeSources);
         }
 
         /// <summary>
@@ -93,9 +94,10 @@ namespace PlayniteAchievements.Services.UI
         /// the default. The bundled plugin dictionary intentionally does not define these keys, so
         /// the fallback yields null rather than a plugin-supplied value.
         /// </summary>
-        public object ResolveResourceValue(string key)
+        public object ResolveResourceValue(string key, bool allowThemeSources = true)
         {
-            return ResolveResource<object>(Application.Current?.Resources, key, ThemeOverrideRelativePath, null);
+            return ResolveResource<object>(
+                Application.Current?.Resources, key, ThemeOverrideRelativePath, null, allowThemeSources);
         }
 
         public string ResolveActiveThemeOverridePath()
@@ -226,17 +228,23 @@ namespace PlayniteAchievements.Services.UI
             ResourceDictionary applicationResources,
             string key,
             string overrideRelativePath,
-            Func<T> pluginDefaultOverride)
+            Func<T> pluginDefaultOverride,
+            bool allowThemeSources = true)
             where T : class
         {
-            if (TryFindLoadedThemeResource<T>(applicationResources, key, out var loaded))
+            // allowThemeSources=false is the user's per-surface theme-styling opt-out: both
+            // theme lookups are skipped so the bundled plugin resource always wins.
+            if (allowThemeSources)
             {
-                return loaded;
-            }
+                if (TryFindLoadedThemeResource<T>(applicationResources, key, out var loaded))
+                {
+                    return loaded;
+                }
 
-            if (TryLoadActiveThemeResource<T>(applicationResources, key, overrideRelativePath, out var themeResource))
-            {
-                return themeResource;
+                if (TryLoadActiveThemeResource<T>(applicationResources, key, overrideRelativePath, out var themeResource))
+                {
+                    return themeResource;
+                }
             }
 
             return LoadPluginDefaultResource(key, pluginDefaultOverride);
