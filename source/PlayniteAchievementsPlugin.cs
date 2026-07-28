@@ -81,6 +81,7 @@ namespace PlayniteAchievements
         private readonly MemoryImageService _imageService;
         private readonly DiskImageService _diskImageService;
         private readonly ManagedCustomIconService _managedCustomIconService;
+        private readonly NotificationImageStore _notificationImageStore;
         private readonly NotificationPublisher _notifications;
         private readonly ProviderRegistry _providerRegistry;
         private readonly GameCustomDataStore _gameCustomDataStore;
@@ -137,6 +138,7 @@ namespace PlayniteAchievements
         public MemoryImageService ImageService => _imageService;
         public DiskImageService DiskImageService => _diskImageService;
         public ManagedCustomIconService ManagedCustomIconService => _managedCustomIconService;
+        public NotificationImageStore NotificationImageStore => _notificationImageStore;
         public ThemeIntegrationService ThemeIntegrationService => _themeIntegrationService;
         public ThemeIntegrationService ThemeUpdateService => _themeIntegrationService;
         public TagSyncService TagSyncService => _tagSyncService;
@@ -406,6 +408,7 @@ namespace PlayniteAchievements
                     CategoryDefaultImageResolver.DiskImageServiceAccessor = () => _diskImageService;
                     _managedCustomIconService = new ManagedCustomIconService(_diskImageService, _logger);
                     GameSummaryArtResolver.ManagedCustomIconServiceAccessor = () => _managedCustomIconService;
+                    _notificationImageStore = new NotificationImageStore(_diskImageService, _logger);
                     _imageService = new MemoryImageService(_logger, _diskImageService);
                     _gameCustomDataStore.AttachManagedCustomIconService(_managedCustomIconService);
 
@@ -1020,6 +1023,8 @@ namespace PlayniteAchievements
                 {
                     _logger?.Error(ex, "Failed to re-localize notification header texts.");
                 }
+
+                _notificationImageStore?.PruneOrphans(_settingsViewModel?.Settings?.Persisted);
 
                 // Auto-migrate themes that have been updated since the last migration.
                 _themeAutoMigrationService?.ScheduleAutoMigration();
