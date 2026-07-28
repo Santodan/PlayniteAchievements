@@ -74,16 +74,10 @@ namespace PlayniteAchievements.Models.Settings
         private bool _notifyOnRebuild = true;
         private bool _enableUnlockToasts = true;
         private bool _enableFriendUnlockToasts = true;
-        private bool _toastShowHeader = true;
-        private bool _toastShowName = true;
-        private bool _toastShowRarityGlow = true;
-        private bool _toastShowRarityBadge = true;
-        private bool _toastRarityColoredName = true;
-        private bool _toastShowRarityPercent = true;
-        private bool _toastShowDescription = true;
-        private bool _toastShowCategory = true;
-        private bool _toastShowGameName = true;
-        private bool _toastShowUnlockTime = false;
+        private NotificationStyleSettings _notificationStyle;
+        private bool _toastUseThemeStyling = true;
+        private bool _frameUseThemeStyling = true;
+        private Dictionary<string, NotificationStyleSettings> _providerNotificationStyles;
         private int _toastDurationSeconds = 6;
         private int _maxConcurrentToasts = 3;
         private bool _enableUnlockScreenshots = false;
@@ -93,16 +87,6 @@ namespace PlayniteAchievements.Models.Settings
         private string _unlockScreenshotSuffixClean = "clean";
         private string _unlockScreenshotSuffixWithToast = "notification";
         private string _unlockScreenshotSuffixFramed = "framed";
-        private bool _frameShowHeader = true;
-        private bool _frameShowName = true;
-        private bool _frameShowDescription = true;
-        private bool _frameShowCategory = true;
-        private bool _frameShowGameName = true;
-        private bool _frameShowRarityBadge = true;
-        private bool _frameShowRarityPercent = true;
-        private bool _frameShowRarityGlow = true;
-        private bool _frameRarityColoredName = true;
-        private bool _frameShowUnlockTime = true;
         private string _unlockScreenshotDirectory;
         private RarityTier _unlockScreenshotMinimumRarity = RarityTier.Common;
         private bool _unlockScreenshotAlwaysCaptureCompletion = true;
@@ -953,68 +937,36 @@ namespace PlayniteAchievements.Models.Settings
             set => SetValue(ref _enableFriendUnlockToasts, value);
         }
 
-        public bool ToastShowHeader
+        /// <summary>
+        /// Global default appearance style for the toast and frame surfaces. Per-provider
+        /// whole-style copies live in <see cref="ProviderNotificationStyles"/>. Lazily
+        /// initialized; never null.
+        /// </summary>
+        public NotificationStyleSettings NotificationStyle
         {
-            get => _toastShowHeader;
-            set => SetValue(ref _toastShowHeader, value);
-        }
-
-        public bool ToastShowName
-        {
-            get => _toastShowName;
-            set => SetValue(ref _toastShowName, value);
-        }
-
-        public bool ToastShowRarityBadge
-        {
-            get => _toastShowRarityBadge;
-            set => SetValue(ref _toastShowRarityBadge, value);
-        }
-
-        public bool ToastShowRarityGlow
-        {
-            get => _toastShowRarityGlow;
-            set => SetValue(ref _toastShowRarityGlow, value);
-        }
-
-        public bool ToastRarityColoredName
-        {
-            get => _toastRarityColoredName;
-            set => SetValue(ref _toastRarityColoredName, value);
-        }
-
-        public bool ToastShowRarityPercent
-        {
-            get => _toastShowRarityPercent;
-            set => SetValue(ref _toastShowRarityPercent, value);
-        }
-
-        public bool ToastShowDescription
-        {
-            get => _toastShowDescription;
-            set => SetValue(ref _toastShowDescription, value);
-        }
-
-        public bool ToastShowCategory
-        {
-            get => _toastShowCategory;
-            set => SetValue(ref _toastShowCategory, value);
-        }
-
-        public bool ToastShowGameName
-        {
-            get => _toastShowGameName;
-            set => SetValue(ref _toastShowGameName, value);
+            get => _notificationStyle ?? (_notificationStyle = NotificationStyleSettings.CreateDefault());
+            set => SetValue(ref _notificationStyle, value);
         }
 
         /// <summary>
-        /// Shows the unlock datetime on the toast's header line. Off by default; the frame has
-        /// its own always-on datetime row.
+        /// When true, the active theme may override the on-screen toast surface (template,
+        /// storyboards, position, duration). When false, the bundled toast template and the
+        /// plugin's own settings always apply.
         /// </summary>
-        public bool ToastShowUnlockTime
+        public bool ToastUseThemeStyling
         {
-            get => _toastShowUnlockTime;
-            set => SetValue(ref _toastShowUnlockTime, value);
+            get => _toastUseThemeStyling;
+            set => SetValue(ref _toastUseThemeStyling, value);
+        }
+
+        /// <summary>
+        /// When true, the active theme may override the screenshot frame template. When
+        /// false, the bundled frame template always applies.
+        /// </summary>
+        public bool FrameUseThemeStyling
+        {
+            get => _frameUseThemeStyling;
+            set => SetValue(ref _frameUseThemeStyling, value);
         }
 
         public int ToastDurationSeconds
@@ -1099,71 +1051,6 @@ namespace PlayniteAchievements.Models.Settings
         {
             get => _unlockScreenshotSuffixFramed;
             set => SetValue(ref _unlockScreenshotSuffixFramed, value);
-        }
-
-        // Frame appearance toggles: which fields the screenshot frame renders. Independent of
-        // the ToastShow* toggles so the saved image can differ from the on-screen toast.
-        public bool FrameShowHeader
-        {
-            get => _frameShowHeader;
-            set => SetValue(ref _frameShowHeader, value);
-        }
-
-        public bool FrameShowName
-        {
-            get => _frameShowName;
-            set => SetValue(ref _frameShowName, value);
-        }
-
-        public bool FrameShowDescription
-        {
-            get => _frameShowDescription;
-            set => SetValue(ref _frameShowDescription, value);
-        }
-
-        public bool FrameShowCategory
-        {
-            get => _frameShowCategory;
-            set => SetValue(ref _frameShowCategory, value);
-        }
-
-        public bool FrameShowGameName
-        {
-            get => _frameShowGameName;
-            set => SetValue(ref _frameShowGameName, value);
-        }
-
-        public bool FrameShowRarityBadge
-        {
-            get => _frameShowRarityBadge;
-            set => SetValue(ref _frameShowRarityBadge, value);
-        }
-
-        public bool FrameShowRarityPercent
-        {
-            get => _frameShowRarityPercent;
-            set => SetValue(ref _frameShowRarityPercent, value);
-        }
-
-        public bool FrameShowRarityGlow
-        {
-            get => _frameShowRarityGlow;
-            set => SetValue(ref _frameShowRarityGlow, value);
-        }
-
-        public bool FrameRarityColoredName
-        {
-            get => _frameRarityColoredName;
-            set => SetValue(ref _frameRarityColoredName, value);
-        }
-
-        /// <summary>
-        /// Shows the localized unlock datetime on the frame's header line.
-        /// </summary>
-        public bool FrameShowUnlockTime
-        {
-            get => _frameShowUnlockTime;
-            set => SetValue(ref _frameShowUnlockTime, value);
         }
 
         /// <summary>
@@ -1344,6 +1231,64 @@ namespace PlayniteAchievements.Models.Settings
             }
 
             ProviderNotificationOverrides = overrides;
+        }
+
+        /// <summary>
+        /// Per-provider whole-style appearance copies keyed by provider key. Only customized
+        /// providers are stored; absent providers follow <see cref="NotificationStyle"/>.
+        /// Unlike <see cref="ProviderNotificationOverrides"/> there is no field-level inherit:
+        /// presence in this dictionary means the provider owns a full style copy.
+        /// </summary>
+        public Dictionary<string, NotificationStyleSettings> ProviderNotificationStyles
+        {
+            get => _providerNotificationStyles ??
+                   (_providerNotificationStyles =
+                       new Dictionary<string, NotificationStyleSettings>(StringComparer.OrdinalIgnoreCase));
+            set => SetValue(ref _providerNotificationStyles, NormalizeProviderNotificationStyles(value));
+        }
+
+        /// <summary>
+        /// The stored style copy for a provider, or null when the provider is not customized
+        /// and follows the global <see cref="NotificationStyle"/>.
+        /// </summary>
+        public NotificationStyleSettings GetProviderNotificationStyle(string providerKey)
+        {
+            providerKey = NormalizeProviderKeyToken(providerKey);
+            return providerKey != null &&
+                   ProviderNotificationStyles.TryGetValue(providerKey, out var value)
+                ? value
+                : null;
+        }
+
+        /// <summary>
+        /// Stores a clone of the style copy for a provider, removing the entry when the value
+        /// is null (revert to the global default). Reassigns the dictionary so PropertyChanged
+        /// is raised.
+        /// </summary>
+        public void SetProviderNotificationStyle(string providerKey, NotificationStyleSettings value)
+        {
+            providerKey = NormalizeProviderKeyToken(providerKey);
+            if (string.IsNullOrWhiteSpace(providerKey))
+            {
+                return;
+            }
+
+            var styles = new Dictionary<string, NotificationStyleSettings>(
+                ProviderNotificationStyles,
+                StringComparer.OrdinalIgnoreCase);
+            if (value == null)
+            {
+                if (!styles.Remove(providerKey))
+                {
+                    return;
+                }
+            }
+            else
+            {
+                styles[providerKey] = value.Clone();
+            }
+
+            ProviderNotificationStyles = styles;
         }
 
         #endregion
@@ -2409,16 +2354,15 @@ namespace PlayniteAchievements.Models.Settings
                 NotifyOnRebuild = this.NotifyOnRebuild,
                 EnableUnlockToasts = this.EnableUnlockToasts,
                 EnableFriendUnlockToasts = this.EnableFriendUnlockToasts,
-                ToastShowHeader = this.ToastShowHeader,
-                ToastShowName = this.ToastShowName,
-                ToastShowRarityBadge = this.ToastShowRarityBadge,
-                ToastShowRarityGlow = this.ToastShowRarityGlow,
-                ToastRarityColoredName = this.ToastRarityColoredName,
-                ToastShowRarityPercent = this.ToastShowRarityPercent,
-                ToastShowDescription = this.ToastShowDescription,
-                ToastShowCategory = this.ToastShowCategory,
-                ToastShowGameName = this.ToastShowGameName,
-                ToastShowUnlockTime = this.ToastShowUnlockTime,
+                NotificationStyle = this.NotificationStyle?.Clone() ?? NotificationStyleSettings.CreateDefault(),
+                ToastUseThemeStyling = this.ToastUseThemeStyling,
+                FrameUseThemeStyling = this.FrameUseThemeStyling,
+                ProviderNotificationStyles = this.ProviderNotificationStyles != null
+                    ? this.ProviderNotificationStyles.ToDictionary(
+                        kvp => kvp.Key,
+                        kvp => kvp.Value?.Clone(),
+                        StringComparer.OrdinalIgnoreCase)
+                    : new Dictionary<string, NotificationStyleSettings>(StringComparer.OrdinalIgnoreCase),
                 ToastDurationSeconds = this.ToastDurationSeconds,
                 MaxConcurrentToasts = this.MaxConcurrentToasts,
                 ToastPosition = this.ToastPosition,
@@ -2429,16 +2373,6 @@ namespace PlayniteAchievements.Models.Settings
                 UnlockScreenshotSuffixClean = this.UnlockScreenshotSuffixClean,
                 UnlockScreenshotSuffixWithToast = this.UnlockScreenshotSuffixWithToast,
                 UnlockScreenshotSuffixFramed = this.UnlockScreenshotSuffixFramed,
-                FrameShowHeader = this.FrameShowHeader,
-                FrameShowName = this.FrameShowName,
-                FrameShowDescription = this.FrameShowDescription,
-                FrameShowCategory = this.FrameShowCategory,
-                FrameShowGameName = this.FrameShowGameName,
-                FrameShowRarityBadge = this.FrameShowRarityBadge,
-                FrameShowRarityPercent = this.FrameShowRarityPercent,
-                FrameShowRarityGlow = this.FrameShowRarityGlow,
-                FrameRarityColoredName = this.FrameRarityColoredName,
-                FrameShowUnlockTime = this.FrameShowUnlockTime,
                 UnlockScreenshotDirectory = this.UnlockScreenshotDirectory,
                 UnlockScreenshotMinimumRarity = this.UnlockScreenshotMinimumRarity,
                 UnlockScreenshotAlwaysCaptureCompletion = this.UnlockScreenshotAlwaysCaptureCompletion,
@@ -2817,6 +2751,24 @@ namespace PlayniteAchievements.Models.Settings
             {
                 var key = NormalizeProviderKeyToken(pair.Key);
                 if (key == null || pair.Value == null || pair.Value.IsAllInherit)
+                {
+                    continue;
+                }
+
+                normalized[key] = pair.Value;
+            }
+
+            return normalized;
+        }
+
+        private static Dictionary<string, NotificationStyleSettings> NormalizeProviderNotificationStyles(
+            IEnumerable<KeyValuePair<string, NotificationStyleSettings>> value)
+        {
+            var normalized = new Dictionary<string, NotificationStyleSettings>(StringComparer.OrdinalIgnoreCase);
+            foreach (var pair in value ?? Enumerable.Empty<KeyValuePair<string, NotificationStyleSettings>>())
+            {
+                var key = NormalizeProviderKeyToken(pair.Key);
+                if (key == null || pair.Value == null)
                 {
                     continue;
                 }
