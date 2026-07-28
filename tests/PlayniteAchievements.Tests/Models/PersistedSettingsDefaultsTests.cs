@@ -178,12 +178,20 @@ namespace PlayniteAchievements.Models.Tests
                 InGameFriendBatchSize = 7,
                 EnableUnlockToasts = false,
                 EnableFriendUnlockToasts = false,
-                ToastShowRarityGlow = false,
-                ToastRarityColoredName = false,
-                ToastShowRarityPercent = false,
-                ToastShowDescription = false,
-                ToastShowCategory = false,
-                ToastShowGameName = false,
+                NotificationStyle = new NotificationStyleSettings
+                {
+                    Toast = new NotificationSurfaceStyle
+                    {
+                        ShowRarityGlow = false,
+                        RarityColoredName = false,
+                        ShowRarityPercent = false,
+                        ShowDescription = false,
+                        ShowCategory = false,
+                        ShowGameName = false
+                    }
+                },
+                ToastUseThemeStyling = false,
+                FrameUseThemeStyling = false,
                 ToastDurationSeconds = 8,
                 MaxConcurrentToasts = 4,
                 ToastPosition = ToastScreenCorner.TopLeft
@@ -1426,12 +1434,15 @@ namespace PlayniteAchievements.Models.Tests
             Assert.AreEqual(expected.InGameFriendBatchSize, actual.InGameFriendBatchSize);
             Assert.AreEqual(expected.EnableUnlockToasts, actual.EnableUnlockToasts);
             Assert.AreEqual(expected.EnableFriendUnlockToasts, actual.EnableFriendUnlockToasts);
-            Assert.AreEqual(expected.ToastShowRarityGlow, actual.ToastShowRarityGlow);
-            Assert.AreEqual(expected.ToastRarityColoredName, actual.ToastRarityColoredName);
-            Assert.AreEqual(expected.ToastShowRarityPercent, actual.ToastShowRarityPercent);
-            Assert.AreEqual(expected.ToastShowDescription, actual.ToastShowDescription);
-            Assert.AreEqual(expected.ToastShowCategory, actual.ToastShowCategory);
-            Assert.AreEqual(expected.ToastShowGameName, actual.ToastShowGameName);
+            Assert.AreEqual(expected.NotificationStyle.Toast.ShowRarityGlow, actual.NotificationStyle.Toast.ShowRarityGlow);
+            Assert.AreEqual(expected.NotificationStyle.Toast.RarityColoredName, actual.NotificationStyle.Toast.RarityColoredName);
+            Assert.AreEqual(expected.NotificationStyle.Toast.ShowRarityPercent, actual.NotificationStyle.Toast.ShowRarityPercent);
+            Assert.AreEqual(expected.NotificationStyle.Toast.ShowDescription, actual.NotificationStyle.Toast.ShowDescription);
+            Assert.AreEqual(expected.NotificationStyle.Toast.ShowCategory, actual.NotificationStyle.Toast.ShowCategory);
+            Assert.AreEqual(expected.NotificationStyle.Toast.ShowGameName, actual.NotificationStyle.Toast.ShowGameName);
+            Assert.AreNotSame(expected.NotificationStyle, actual.NotificationStyle);
+            Assert.AreEqual(expected.ToastUseThemeStyling, actual.ToastUseThemeStyling);
+            Assert.AreEqual(expected.FrameUseThemeStyling, actual.FrameUseThemeStyling);
             Assert.AreEqual(expected.ToastDurationSeconds, actual.ToastDurationSeconds);
             Assert.AreEqual(expected.MaxConcurrentToasts, actual.MaxConcurrentToasts);
             Assert.AreEqual(expected.ToastPosition, actual.ToastPosition);
