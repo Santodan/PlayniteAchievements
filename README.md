@@ -2,14 +2,14 @@
   <picture>
     <source
       media="(prefers-color-scheme: dark)"
-      srcset="BrandingPackage/01%20Logo%20(dark%20backgrounds)/pa-stacked-master-crest-wordmark-spaced-gold.png"
+      srcset="BrandingPackage/01-logo-dark-backgrounds/pa-stacked-master-crest-wordmark-spaced-gold.png"
     >
     <source
       media="(prefers-color-scheme: light)"
-      srcset="BrandingPackage/02%20Logo%20(light%20backgrounds)/pa-stacked-master-crest-wordmark-spaced-blue.png"
+      srcset="BrandingPackage/02-logo-light-backgrounds/pa-stacked-master-crest-wordmark-spaced-blue.png"
     >
     <img
-      src="BrandingPackage/01%20Logo%20(dark%20backgrounds)/pa-stacked-master-crest-wordmark-spaced-gold.png"
+      src="BrandingPackage/01-logo-dark-backgrounds/pa-stacked-master-crest-wordmark-spaced-gold.png"
       alt="Playnite Achievements"
       width="400"
     >
@@ -31,7 +31,7 @@
 
 ### Playnite Achievements is a modern, performant, and fully customizable achievement extension for Playnite. PlayniteAchievements tracks achievements from you and your friends and provides a deep set of features that allow you to tailor your achievement collection and display to your exact taste.
 
-![Overview window](Images/Overview%20Example.png)
+![Overview window](Images/overview-example.png)
 
 Playnite Achievements features include:
 
@@ -61,27 +61,27 @@ Alternatively, download the latest `.pext` from the [Releases page](https://gith
 
 # First Time Setup
 
-![Landing page](Images/PlayniteAchievements%20Landing%20Page.png)
+![Landing page](Images/landing-page.png)
 
 When you first start Playnite Achievements, you will be greeted by the landing page, with a list of achievement sources you can enable, and authenticate via the extension’s settings:
 
 To authenticate with the various platforms PlayniteAchievements supports, navigate to the extension’s settings (or click the button on the landing page), and log into platforms using the Platforms tab.
 
-![Theme migration settings](Images/PlayniteAchievements%20Theme%20Migration.png)
+![Theme migration settings](Images/theme-migration.png)
 
 If your favorite Desktop theme was built to support SuccessStory, there is a useful [Theme Migration](https://github.com/justin-delano/PlayniteAchievements/wiki/Theme-Migration) function, which allows said theme to use PlayniteAchievements data instead. A limited migration will maintain full compatibility, while a full migration will enable new PlayniteAchievements specific features on all theme elements, such as new tooltip and click interactions for lists. A backup is made before all theme edits, and any theme migration can be reverted via a button in settings.
 
 When you trigger a refresh, PlayniteAchievements will fetch metadata from your selected sources.
 
-![Refresh in progress](Images/PlayniteAchievements%20Refresh.png)
+![Refresh in progress](Images/refresh.png)
 
 Refresh progress is shown at the top of the overview window. There are various types of refreshes, which can fetch data from installed games or recent games, or you can perform a Full refresh to fetch achievement data for all of your games.
 
-![Score cards](Images/PlayniteAchievements%20Scores.png)
+![Score cards](Images/scores.png)
 
 At the top right corner of the overview are your Score Cards. Your Collection Score increases as you collect achievements, with slight boosts for collecting rare achievements. Your Prestige Score increases as you unlock rare achievements, and common achievements are worth far less. Click the info button on either Score Card to learn more.
 
-![Refresh complete](Images/PlayniteAchievements%20Refresh%20Complete.png)
+![Refresh complete](Images/refresh-complete.png)
 
 Congratulations! PlayniteAchievements is now fully functional. This concludes the first time setup guide, please see the other sections for a more detailed showcase of more advanced and enthusiast features.
 
@@ -91,13 +91,13 @@ See the [First Setup](https://github.com/justin-delano/PlayniteAchievements/wiki
 
 In addition to your own data, you can also retrieve achievement data for your friends. Steam, RetroAchievements, and Exophase are currently supported. First, navigate to the Friends tab in settings to get started:
 
-![Friends settings](Images/PlayniteAchievements%20Friends%20Settings.png)
+![Friends settings](Images/friends-settings.png)
 
 Friends data can be viewed and refreshed by selecting the Friends tab in the Overview window.
 
 Note, with many friends and many games, these refreshes can take a significant amount of time! Shared/Recent refreshes will be the easiest to start with.
 
-![Friends overview](Images/PlayniteAchievements%20Friends%20Overview.png)
+![Friends overview](Images/friends-overview.png)
 
 Every friends option is described on the [Friends](https://github.com/justin-delano/PlayniteAchievements/wiki/Friends) settings page on the wiki.
 
@@ -106,8 +106,8 @@ Every friends option is described on the [Friends](https://github.com/justin-del
 PlayniteAchievements features comprehensive customization options.
 
 <p align="center">
-  <img src="Images/PlayniteAchievements%20Custom%20Colours.png" width="49%" alt="Custom colors">
-  <img src="Images/PlayniteAchievements%20Custom%20Layout.png" width="49%" alt="Custom layout">
+  <img src="Images/custom-colours.png" width="49%" alt="Custom colors">
+  <img src="Images/custom-layout.png" width="49%" alt="Custom layout">
 </p>
 
 * Grid layout customizations
@@ -125,7 +125,7 @@ PlayniteAchievements features comprehensive customization options.
   * Pie charts for visualizing achievements per platform, rarity, or completion.
   * Bar chart for showing achievement progress over time.
 
-![Appearance settings](Images/PlayniteAchievements%20Appearance.png)
+![Appearance settings](Images/appearance.png)
 
 Every appearance option is described on the [Display](https://github.com/justin-delano/PlayniteAchievements/wiki/Display) settings page on the wiki.
 
@@ -135,39 +135,39 @@ The [Manage Achievements](https://github.com/justin-delano/PlayniteAchievements/
 
 ## Overview
 
-![Game overview tab](Images/PlayniteAchievements%20Game%20Overview.png)
+![Game overview tab](Images/game-overview.png)
 
 The overview tab allows you to see the general achievement status for the game. Additionally, you can export all per-game customized data to share with other users, or import their per-game customizations.
 
 ## Capstones
 
-![Capstone unlock marking a game complete](Images/PlayniteAchievements%20Capstone%202.png)
+![Capstone unlock marking a game complete](Images/capstone-2.png)
 
 Some platforms automatically unlock an achievement to mark game completion, for example with PlayStation and Platinum trophies. To generalize this, PlayniteAchievements developed a Capstone system, which can be used by games on all platforms. Unlocking an achievement that has been marked as a capstone will mark the game as completed. This is particularly useful when DLC/Multiplayer trophies should not count towards game completion.
 
-![Capstone tab](Images/PlayniteAchievements%20Capstone%201.png)
+![Capstone tab](Images/capstone-1.png)
 
 ## Categories
 
-![Categories tab](Images/PlayniteAchievements%20Categories.png)
+![Categories tab](Images/categories.png)
 
 Achievements can be manually (or, in some cases, automatically) organized into categories. Each category can have a set of Types (Singleplayer, Stackable, Missable) as well as a Label ("DLC #1"). Categories are especially helpful for multi-game collections or games with many DLC packs.
 
 ## Filters
 
-![Filters tab](Images/PlayniteAchievements%20Filter.png)
+![Filters tab](Images/filter.png)
 
 Filtered achievements are hidden from your views. This is particularly useful for games with unobtainable or multiplayer-specific achievements. For example, achievements could be filtered out of Tomb Raider’s list for these reasons.
 
 ## Notes
 
-![Notes tab](Images/PlayniteAchievements%20Notes.png)
+![Notes tab](Images/notes.png)
 
 Notes can be added to each of a game’s achievements. This could be used to link to an achievement guide, mark if an achievement is bugged, or keep track of progress.
 
 ## Order
 
-![Order tab](Images/PlayniteAchievements%20Order.png)
+![Order tab](Images/order.png)
 
 Achievements can be freely reordered per game. This is useful for platforms which initially sort achievements alphabetically, and not in the order a player may achieve them.
 
@@ -177,7 +177,7 @@ For example, when Metal Hellsinger achievements are reordered, there is a very s
 
 Locked and unlocked achievement icons can be individually customized, from web links or local files. By default, some platforms use very low-resolution images, and some are more high resolution. For comparison, here is an achievement from Flower, with Steam and PlayStation icons.
 
-![Custom achievement icon comparison](Images/PlayniteAchievements%20Custom%20Achievement%20Icon%20comparison.png)
+![Custom achievement icon comparison](Images/custom-achievement-icon-comparison.png)
 
 <p align="center"><em>Left: Steam 64x64 .jpg &nbsp;|&nbsp; Right: PlayStation 240x240 .png</em></p>
 
@@ -197,15 +197,15 @@ Unlock videos show the moment you earned an achievement, with a configurable amo
 
 **Clean**
 
-![Clean unlock screenshot](Images/001_First%20Contact_clean.png)
+![Clean unlock screenshot](Images/001-first-contact-clean.png)
 
 **Notification**
 
-![Unlock screenshot with notification](Images/001_First%20Contact_toast.png)
+![Unlock screenshot with notification](Images/001-first-contact-toast.png)
 
 **Framed**
 
-![Framed unlock screenshot](Images/001_First%20Contact_framed.png)
+![Framed unlock screenshot](Images/001-first-contact-framed.png)
 
 NOTE: Achievement notifications will not show for games that use DirectX 9 and lower in Exclusive Fullscreen mode.
 
@@ -213,11 +213,11 @@ Themes can create custom notification and frame styles, for full consistency. Fo
 
 **Toast**
 
-![Aniki-ReMake custom toast](Images/PlayniteAchievements%20-%20Mike%20Aniki%20Toast.png)
+![Aniki-ReMake custom toast](Images/mike-aniki-toast.png)
 
 **Frame**
 
-![Aniki-ReMake custom frame](Images/PlayniteAchievements%20-%20Mike%20Aniki%20Frame.png)
+![Aniki-ReMake custom frame](Images/mike-aniki-frame.png)
 
 Notification and capture settings are described on the [General](https://github.com/justin-delano/PlayniteAchievements/wiki/General) settings page. Theme authors can build custom styles with [Toast and Frame Overrides](https://github.com/justin-delano/PlayniteAchievements/wiki/Toast-And-Frame-Overrides).
 
@@ -241,7 +241,7 @@ When [UniPlaySong](https://github.com/aHuddini/UniPlaySong) is installed, achiev
 
 PlayniteAchievements tables and visualizations can be added to [StartPage](https://github.com/felixkmh/StartPage-for-Playnite), with their own separate customization, so you can create stunning dashboards like the example below:
 
-![StartPage dashboard](Images/PlayniteAchievements%20-%20StartPage.png)
+![StartPage dashboard](Images/startpage.png)
 
 ## Docs
 
