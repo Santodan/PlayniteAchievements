@@ -3,7 +3,7 @@
 
     <!--
         Plugin logo, converted from the crest SVG in
-        BrandingPackage/01 Logo (dark backgrounds)/02 Crest Icon/SVG/pa-crest-gold-master-icon.svg
+        BrandingPackage/01-logo-dark-backgrounds/02-crest-icon/svg/pa-crest-gold-master-icon.svg
         (viewBox 278x257). The crest is seven pieces: an outer ring, the center trophy, and five
         surrounding badges. Each geometry key holds one SVG path; PlayAch.Image.Logo redraws them
         with the master gradients (LinearGradientBrush MappingMode="Absolute", Start/EndPoint taken
@@ -17,7 +17,7 @@
         The visible crest is then 256.5/288.6 of the image height; usage sites size up accordingly.
 
         PlayAch.Geometry.TrophyIcon is the flat trophy silhouette (from
-        BrandingPackage/01 Logo (dark backgrounds)/01 Trophy Icon/SVG/pa-trophy-flat-white-icon.svg,
+        BrandingPackage/01-logo-dark-backgrounds/01-trophy-icon/svg/pa-trophy-flat-white-icon.svg,
         viewBox 181x169), used by the sidebar/top-panel icons which supply their own foreground brush.
     -->
 
