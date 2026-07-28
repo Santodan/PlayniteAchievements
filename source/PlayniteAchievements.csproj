@@ -48,6 +48,10 @@
       <HintPath>packages\DiscUtils.Iso9660.0.16.13\lib\net45\DiscUtils.Iso9660.dll</HintPath>
       <Private>True</Private>
     </Reference>
+    <Reference Include="DiscUtils.Udf">
+      <HintPath>packages\DiscUtils.Udf.0.16.13\lib\net45\DiscUtils.Udf.dll</HintPath>
+      <Private>True</Private>
+    </Reference>
     <Reference Include="DiscUtils.Streams">
       <HintPath>packages\DiscUtils.Streams.0.16.13\lib\net45\DiscUtils.Streams.dll</HintPath>
       <Private>True</Private>

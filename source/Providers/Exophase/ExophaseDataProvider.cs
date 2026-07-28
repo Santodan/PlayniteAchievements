@@ -380,6 +380,11 @@ namespace PlayniteAchievements.Providers.Exophase
         private async Task<GameAchievementData> RefreshGameAsync(Game game, string language, CancellationToken cancel)
         {
             _logger?.Info($"[Exophase] === RefreshGameAsync START for '{game.Name}' (ID: {game.Id}) ===");
+            if (GameCustomDataLookup.IsExophaseIncluded(game.Id, ProviderSettings))
+            {
+                _logger?.Info($"[Exophase] '{game.Name}' is assigned to Exophase by a per-game override, so no other provider refreshes it; local unlock data (e.g. from emulators) is not read while the override is set.");
+            }
+
             _logger?.Debug($"[Exophase] Game details - Source: '{game.Source?.Name ?? "null"}', " +
                 $"Platforms: [{string.Join(", ", game.Platforms?.Select(p => p.Name) ?? Array.Empty<string>())}], " +
                 $"Language: {language}");
