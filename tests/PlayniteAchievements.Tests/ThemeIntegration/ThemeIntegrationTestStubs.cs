@@ -174,7 +174,8 @@ namespace PlayniteAchievements.Models.Achievements
         public string ProviderPlatformKey { get; set; }
 
         public string EffectiveProviderKey =>
-            !string.IsNullOrWhiteSpace(ProviderPlatformKey)
+            !string.IsNullOrWhiteSpace(ProviderPlatformKey) &&
+            !ProviderPlatformKey.Equals("Unknown", StringComparison.OrdinalIgnoreCase)
                 ? ProviderPlatformKey
                 : ProviderKey;
 

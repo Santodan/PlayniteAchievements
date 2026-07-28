@@ -1967,6 +1967,13 @@ namespace PlayniteAchievements.Models
         }
 
         [DontSerialize]
+        public ObservableCollection<GameAchievementSummary> LocalGames
+        {
+            get => ModernTheme.LocalGames;
+            set => ModernTheme.LocalGames = value;
+        }
+
+        [DontSerialize]
         public ObservableCollection<GameAchievementSummary> UbisoftGames
         {
             get => ModernTheme.UbisoftGames;

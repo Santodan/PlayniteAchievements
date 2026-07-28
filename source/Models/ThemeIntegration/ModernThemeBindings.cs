@@ -415,6 +415,8 @@ namespace PlayniteAchievements.Models.ThemeIntegration
         [DontSerialize]
         private readonly BulkObservableCollection<GameAchievementSummary> _hoyoverseGames = new BulkObservableCollection<GameAchievementSummary>();
         [DontSerialize]
+        private readonly BulkObservableCollection<GameAchievementSummary> _localGames = new BulkObservableCollection<GameAchievementSummary>();
+        [DontSerialize]
         private readonly BulkObservableCollection<GameAchievementSummary> _ubisoftGames = new BulkObservableCollection<GameAchievementSummary>();
         [DontSerialize]
         private readonly BulkObservableCollection<GameAchievementSummary> _rpcs3Games = new BulkObservableCollection<GameAchievementSummary>();
@@ -1962,6 +1964,13 @@ namespace PlayniteAchievements.Models.ThemeIntegration
         {
             get => _hoyoverseGames;
             set => ReplaceCollection(_hoyoverseGames, value, nameof(HoyoverseGames));
+        }
+
+        [DontSerialize]
+        public ObservableCollection<GameAchievementSummary> LocalGames
+        {
+            get => _localGames;
+            set => ReplaceCollection(_localGames, value, nameof(LocalGames));
         }
 
         [DontSerialize]

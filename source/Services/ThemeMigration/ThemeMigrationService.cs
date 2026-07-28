@@ -410,6 +410,7 @@ namespace PlayniteAchievements.Services.ThemeMigration
                 int duplicatedForkIdCount = CountOccurrences(
                     content,
                     "PlayniteAchievementsSantodanSantodan");
+                int localProviderCompatibilityCount = NeedsLocalProviderCompatibility(content) ? 1 : 0;
 
                 int totalCount = fullscreenHelperCount
                     + pluginIdCount
@@ -419,7 +420,8 @@ namespace PlayniteAchievements.Services.ThemeMigration
                     + iconEntityCount
                     + originalForkPluginStatusCount
                     + forkIdInPluginSettingsCount
-                    + duplicatedForkIdCount;
+                    + duplicatedForkIdCount
+                    + localProviderCompatibilityCount;
 
                 foreach (var mapping in GetSelectedControlMappings(mode, customSelection))
                 {
@@ -753,7 +755,144 @@ namespace PlayniteAchievements.Services.ThemeMigration
                 @"StringFormat\s*=\s*\{\}\{0\}%",
                 RegexOptions.IgnoreCase).Count;
 
+            result = ApplyLocalProviderCompatibility(result, ref replacements);
+
             return result;
+        }
+
+        private static bool NeedsLocalProviderCompatibility(string content)
+        {
+            if (string.IsNullOrWhiteSpace(content))
+            {
+                return false;
+            }
+
+            var missingDynamicProvider =
+                content.Contains("FilterDynamicGameSummariesByProviderCommand") &&
+                content.Contains("CommandParameter=\"Hoyoverse\"") &&
+                !content.Contains("CommandParameter=\"Local\"");
+            var missingPresetOption =
+                content.Contains("Tag=\"HoyoverseGames\"") &&
+                !content.Contains("Tag=\"LocalGames\"");
+            var missingPresetList =
+                content.Contains("x:Name=\"HoyoverseGames\"") &&
+                !content.Contains("x:Name=\"LocalGames\"");
+            var missingPresetTrigger =
+                content.Contains("Value=\"HoyoverseGames\"") &&
+                content.Contains("TargetName=\"HoyoverseGames\"") &&
+                !(content.Contains("Value=\"LocalGames\"") &&
+                  content.Contains("TargetName=\"LocalGames\""));
+
+            return missingDynamicProvider ||
+                   missingPresetOption ||
+                   missingPresetList ||
+                   missingPresetTrigger;
+        }
+
+        private static string ApplyLocalProviderCompatibility(string content, ref int replacements)
+        {
+            if (!NeedsLocalProviderCompatibility(content))
+            {
+                return content;
+            }
+
+            var result = content;
+            var newline = result.Contains("\r\n") ? "\r\n" : "\n";
+
+            if (!result.Contains("CommandParameter=\"Local\""))
+            {
+                result = DuplicateMatchingBlock(
+                    result,
+                    @"(?m)^[ \t]*<!-- Hoyoverse -->\r?\n[ \t]*<ButtonEx Content=""Hoyoverse""[\s\S]*?^[ \t]*</ButtonEx>",
+                    block => block
+                        .Replace("<!-- Hoyoverse -->", "<!-- Local -->")
+                        .Replace("Content=\"Hoyoverse\"", "Content=\"Local\"")
+                        .Replace("CommandParameter=\"Hoyoverse\"", "CommandParameter=\"Local\""),
+                    newline,
+                    ref replacements);
+            }
+
+            if (!result.Contains("Tag=\"LocalGames\""))
+            {
+                result = DuplicateMatchingBlock(
+                    result,
+                    @"(?m)^[ \t]*<ComboBoxItem Content=""Hoyoverse"" Tag=""HoyoverseGames""[^\r\n]*/>",
+                    block => block
+                        .Replace("Content=\"Hoyoverse\"", "Content=\"Local\"")
+                        .Replace("Tag=\"HoyoverseGames\"", "Tag=\"LocalGames\""),
+                    newline,
+                    ref replacements);
+            }
+
+            if (!result.Contains("x:Name=\"LocalGames\""))
+            {
+                result = DuplicateMatchingBlock(
+                    result,
+                    @"(?m)^[ \t]*<!-- List//HoyoverseGames -->\r?\n[ \t]*<ListView x:Name=""HoyoverseGames""[^\r\n]*(?:\r?\n[ \t]+[^\r\n]*)*?/>",
+                    block => block
+                        .Replace("List//HoyoverseGames", "List//LocalGames")
+                        .Replace("x:Name=\"HoyoverseGames\"", "x:Name=\"LocalGames\"")
+                        .Replace("Path=HoyoverseGames", "Path=LocalGames"),
+                    newline,
+                    ref replacements);
+            }
+
+            if (!result.Contains("TargetName=\"LocalGames\""))
+            {
+                result = DuplicateMatchingBlock(
+                    result,
+                    @"(?m)^[ \t]*<Setter Property=""Visibility"" Value=""Collapsed"" TargetName=""HoyoverseGames"" />",
+                    block => block.Replace("TargetName=\"HoyoverseGames\"", "TargetName=\"LocalGames\""),
+                    newline,
+                    ref replacements);
+            }
+
+            if (!result.Contains("Value=\"LocalGames\""))
+            {
+                var triggerPattern =
+                    @"(?ms)^(?<indent>[ \t]*)<MultiDataTrigger>\r?\n.*?^\k<indent></MultiDataTrigger>";
+                var hoyoverseTrigger = Regex.Matches(result, triggerPattern)
+                    .Cast<Match>()
+                    .FirstOrDefault(match =>
+                        match.Value.Contains("Value=\"HoyoverseGames\"") &&
+                        match.Value.Contains("TargetName=\"HoyoverseGames\""));
+                if (hoyoverseTrigger != null)
+                {
+                    var localTrigger = hoyoverseTrigger.Value
+                        .Replace("Value=\"HoyoverseGames\"", "Value=\"LocalGames\"")
+                        .Replace("Value=\"Hoyoverse\"", "Value=\"Local\"")
+                        .Replace("TargetName=\"HoyoverseGames\"", "TargetName=\"LocalGames\"");
+                    result = result.Insert(
+                        hoyoverseTrigger.Index + hoyoverseTrigger.Length,
+                        newline + localTrigger);
+                    replacements++;
+                }
+            }
+
+            return result;
+        }
+
+        private static string DuplicateMatchingBlock(
+            string content,
+            string pattern,
+            Func<string, string> transform,
+            string newline,
+            ref int replacements)
+        {
+            var match = Regex.Match(content, pattern);
+            if (!match.Success)
+            {
+                return content;
+            }
+
+            var duplicate = transform(match.Value);
+            if (string.Equals(match.Value, duplicate, StringComparison.Ordinal))
+            {
+                return content;
+            }
+
+            replacements++;
+            return content.Insert(match.Index + match.Length, newline + duplicate);
         }
 
         /// <summary>

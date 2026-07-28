@@ -35,6 +35,7 @@ namespace PlayniteAchievements.Services.ThemeIntegration
             new ProviderBucket("Apple", (state, items) => state.AppleGames = items),
             new ProviderBucket("GooglePlay", (state, items) => state.GooglePlayGames = items),
             new ProviderBucket("Hoyoverse", (state, items) => state.HoyoverseGames = items),
+            new ProviderBucket("Local", (state, items) => state.LocalGames = items),
             new ProviderBucket("Ubisoft", (state, items) => state.UbisoftGames = items),
             new ProviderBucket("RPCS3", (state, items) => state.RPCS3Games = items),
             new ProviderBucket("Xenia", (state, items) => state.XeniaGames = items),
@@ -92,13 +93,14 @@ namespace PlayniteAchievements.Services.ThemeIntegration
                 var bronze = stats.CommonCount;
                 var providerKey = ResolveEffectiveProviderKey(data.ProviderKey, data.ProviderPlatformKey);
                 var providerName = ProviderRegistry.GetLocalizedName(providerKey);
+                var platform = ResolveSummaryPlatform(data.Game?.Source?.Name, providerKey, providerName);
                 collectorScore = AddScore(collectorScore, stats.CollectionScore);
                 prestigeScore = AddScore(prestigeScore, stats.PrestigeScore);
 
                 var summary = new GameAchievementSummary(
                     data.PlayniteGameId.Value,
                     data.Game?.Name ?? data.GameName ?? string.Empty,
-                    data.Game?.Source?.Name ?? "Unknown",
+                    platform,
                     GameSummaryArtResolver.Resolve(
                         data.PlayniteGameId,
                         data.GameSummaryCategory,
@@ -201,12 +203,13 @@ namespace PlayniteAchievements.Services.ThemeIntegration
                 var overall = AchievementRarityStatsCombiner.Combine(common, uncommon, rare, ultraRare);
                 var providerKey = ResolveEffectiveProviderKey(game.ProviderKey, game.ProviderPlatformKey);
                 var providerName = ProviderRegistry.GetLocalizedName(providerKey);
+                var platform = ResolveSummaryPlatform(presentation.Platform, providerKey, providerName);
                 var latestUnlockDate = ResolveLatestUnlockDate(summaryData.UnlockCountsByDateByGame, gameId);
 
                 allGames.Add(new GameAchievementSummary(
                     gameId,
                     presentation.Game?.Name ?? game.GameName ?? string.Empty,
-                    presentation.Platform ?? "Unknown",
+                    platform,
                     GameSummaryArtResolver.ResolveForGame(gameId, customDataStore) ?? presentation.CoverImagePath,
                     AchievementCompletionPercentCalculator.ComputeRoundedPercent(
                         game.UnlockedAchievements,
@@ -823,10 +826,29 @@ namespace PlayniteAchievements.Services.ThemeIntegration
 
         private static string ResolveEffectiveProviderKey(string providerKey, string providerPlatformKey)
         {
-            var resolved = !string.IsNullOrWhiteSpace(providerPlatformKey)
-                ? providerPlatformKey
-                : providerKey;
-            return string.IsNullOrWhiteSpace(resolved) ? string.Empty : resolved.Trim();
+            return ProviderKeyResolver.ResolveEffectiveProviderKey(
+                providerKey,
+                providerPlatformKey,
+                string.Empty);
+        }
+
+        private static string ResolveSummaryPlatform(string platform, string providerKey, string providerName)
+        {
+            var normalizedPlatform = string.IsNullOrWhiteSpace(platform) ? null : platform.Trim();
+            if (!string.IsNullOrWhiteSpace(normalizedPlatform) &&
+                !normalizedPlatform.Equals("Unknown", StringComparison.OrdinalIgnoreCase))
+            {
+                return normalizedPlatform;
+            }
+
+            var normalizedProviderName = string.IsNullOrWhiteSpace(providerName) ? null : providerName.Trim();
+            if (!string.IsNullOrWhiteSpace(normalizedProviderName) &&
+                !normalizedProviderName.Equals("Unknown", StringComparison.OrdinalIgnoreCase))
+            {
+                return normalizedProviderName;
+            }
+
+            return string.IsNullOrWhiteSpace(providerKey) ? "Unknown" : providerKey.Trim();
         }
 
         private sealed class GamePresentation

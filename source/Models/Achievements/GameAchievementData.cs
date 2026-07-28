@@ -32,9 +32,9 @@ namespace PlayniteAchievements.Models.Achievements
         /// if no proxy is currently active.
         /// </summary>
         [IgnoreDataMember]
-        public string EffectiveProviderKey => !string.IsNullOrEmpty(ProviderPlatformKey) 
-            ? ProviderPlatformKey 
-            : ProviderKey;
+        public string EffectiveProviderKey => ProviderKeyResolver.ResolveEffectiveProviderKey(
+            ProviderKey,
+            ProviderPlatformKey);
 
         /// <summary>
         /// Playnite library source name for the game at refresh time (e.g. Steam, GOG).

@@ -678,10 +678,10 @@ namespace PlayniteAchievements.Services.Overview
 
         private static string ResolveEffectiveProviderKey(string providerKey, string providerPlatformKey)
         {
-            var resolved = !string.IsNullOrWhiteSpace(providerPlatformKey)
-                ? providerPlatformKey
-                : providerKey;
-            return string.IsNullOrWhiteSpace(resolved) ? "Unknown" : resolved.Trim();
+            return ProviderKeyResolver.ResolveEffectiveProviderKey(
+                providerKey,
+                providerPlatformKey,
+                "Unknown");
         }
 
         private static string BuildRecentGameKey(CachedRecentUnlockData recent)

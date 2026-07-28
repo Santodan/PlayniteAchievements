@@ -74,6 +74,12 @@ Primary fork areas:
 - Automatic migration handles first-time themes and upgraded themes.
 - The non-scrollable legacy option, scrollable option, revert, and StartPage
   compatibility apply/revert actions work.
+- Fullscreen library summaries normalize legacy `Local` rows whose platform was
+  stored as `Unknown`; their displayed provider/platform remains `Local`.
+- Solaris Limited migration adds `Local` to both its hardcoded Dynamic provider
+  filter and Preset list, backed by the `LocalGames` compatibility collection.
+- Re-running Solaris migration updates an already-migrated theme without
+  duplicating its `Local` button, preset, list, or visibility triggers.
 - The StartPage add-on's Recent Achievements widget sorts achievements globally
   by unlock time while still respecting both its total maximum and its
   maximum-per-game setting.

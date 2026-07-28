@@ -68,6 +68,7 @@ namespace PlayniteAchievements.Services.ThemeIntegration
             nameof(PlayniteAchievementsSettings.AppleGames),
             nameof(PlayniteAchievementsSettings.GooglePlayGames),
             nameof(PlayniteAchievementsSettings.HoyoverseGames),
+            nameof(PlayniteAchievementsSettings.LocalGames),
             nameof(PlayniteAchievementsSettings.UbisoftGames),
             nameof(PlayniteAchievementsSettings.RPCS3Games),
             nameof(PlayniteAchievementsSettings.XeniaGames),

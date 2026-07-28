@@ -1,14 +1,16 @@
-warning: in the working copy of 'source/Services/Database/SqlNadoCacheStore.cs', LF will be replaced by CRLF the next time Git touches it
-warning: in the working copy of 'source/Services/Database/SummaryCacheReader.cs', LF will be replaced by CRLF the next time Git touches it
-warning: in the working copy of 'source/Services/ThemeIntegration/ThemeControlRegistry.cs', LF will be replaced by CRLF the next time Git touches it
-warning: in the working copy of 'source/Services/ThemeMigration/ControlMappings.cs', LF will be replaced by CRLF the next time Git touches it
-warning: in the working copy of 'source/Services/ThemeMigration/CustomMigrationSelection.cs', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'source/Models/Achievements/GameAchievementData.cs', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'source/Models/PluginSettings.cs', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'source/Models/ThemeIntegration/LibraryRuntimeState.cs', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'source/Models/ThemeIntegration/ModernThemeBindings.cs', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'source/Services/Overview/OverviewDataBuilder.cs', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'source/Services/ThemeIntegration/LibraryRuntimeStateBuilder.cs', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'source/Services/ThemeIntegration/ThemeDelegatedPropertyCatalog.cs', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'source/Services/ThemeIntegration/ThemeIntegrationService.cs', LF will be replaced by CRLF the next time Git touches it
 warning: in the working copy of 'source/Services/ThemeMigration/ThemeMigrationService.cs', LF will be replaced by CRLF the next time Git touches it
-warning: in the working copy of 'source/Views/Settings/Display/ThemeControls/MigrationThemePage.xaml', LF will be replaced by CRLF the next time Git touches it
-warning: in the working copy of 'source/Views/Settings/Display/ThemeControls/MigrationThemePage.xaml.cs', LF will be replaced by CRLF the next time Git touches it
-warning: in the working copy of 'source/Views/Settings/Display/ThemeControls/ThemeMigrationController.cs', LF will be replaced by CRLF the next time Git touches it
-warning: in the working copy of 'source/Views/ThemeIntegration/Modern/AchievementCompactUnlockedListControl.xaml', LF will be replaced by CRLF the next time Git touches it
-warning: in the working copy of 'source/Views/ThemeIntegration/Modern/AchievementCompactUnlockedListControl.xaml.cs', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'tests/PlayniteAchievements.Tests/PlayniteAchievements.Tests.csproj', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'tests/PlayniteAchievements.Tests/Services/ThemeDiscoveryServiceTests.cs', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'tests/PlayniteAchievements.Tests/ThemeIntegration/ThemeIntegrationBindingsTests.cs', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'tests/PlayniteAchievements.Tests/ThemeIntegration/ThemeIntegrationTestStubs.cs', LF will be replaced by CRLF the next time Git touches it
 diff --git a/.gitignore b/.gitignore
 index 5e12022a1ec68295804fa1a6b2b12d0466614631..dd93b805a2211987591bc7b59a92b5c6e77af5c5 100644
 --- a/.gitignore
@@ -792,6 +794,23 @@ index d1e286be30650514682263b6f1a7d47da40bfee0..543ddc8f3e28a6466573ba0f9fcffff5
          /// <summary>
          /// Returns a plain path/pack URI without cache-busting or grayscale prefixes.
          /// This preserves compatibility with legacy themes that bind directly to Image.Source.
+diff --git a/source/Models/Achievements/GameAchievementData.cs b/source/Models/Achievements/GameAchievementData.cs
+index ccaa93c37d35480682a810bceb55bb2084baa5af..d73dd9deb7816ecaca19cfb67695da7cf4dae83c 100644
+--- a/source/Models/Achievements/GameAchievementData.cs
++++ b/source/Models/Achievements/GameAchievementData.cs
+@@ -32,9 +32,9 @@ public sealed class GameAchievementData
+         /// if no proxy is currently active.
+         /// </summary>
+         [IgnoreDataMember]
+-        public string EffectiveProviderKey => !string.IsNullOrEmpty(ProviderPlatformKey) 
+-            ? ProviderPlatformKey 
+-            : ProviderKey;
++        public string EffectiveProviderKey => ProviderKeyResolver.ResolveEffectiveProviderKey(
++            ProviderKey,
++            ProviderPlatformKey);
+ 
+         /// <summary>
+         /// Playnite library source name for the game at refresh time (e.g. Steam, GOG).
 diff --git a/source/Models/CustomRefreshOptions.cs b/source/Models/CustomRefreshOptions.cs
 index 861bca26c3bb303f644c2db6263749412bcb4ba8..e2294905728e63c3f593a0cb018dad7bebf56630 100644
 --- a/source/Models/CustomRefreshOptions.cs
@@ -810,6 +829,24 @@ index 861bca26c3bb303f644c2db6263749412bcb4ba8..e2294905728e63c3f593a0cb018dad7b
      /// <summary>
      /// Canonical refresh options shared by current-user and friend refreshes.
      /// </summary>
+diff --git a/source/Models/PluginSettings.cs b/source/Models/PluginSettings.cs
+index d31fcc15a7eb015125b4b9c62218e5632a9a150d..69d784fe6ba9e2402dff592fcdd69192ab91e0dc 100644
+--- a/source/Models/PluginSettings.cs
++++ b/source/Models/PluginSettings.cs
+@@ -1966,6 +1966,13 @@ public ObservableCollection<GameAchievementSummary> HoyoverseGames
+             set => ModernTheme.HoyoverseGames = value;
+         }
+ 
++        [DontSerialize]
++        public ObservableCollection<GameAchievementSummary> LocalGames
++        {
++            get => ModernTheme.LocalGames;
++            set => ModernTheme.LocalGames = value;
++        }
++
+         [DontSerialize]
+         public ObservableCollection<GameAchievementSummary> UbisoftGames
+         {
 diff --git a/source/Models/Settings/CompactListSortMode.cs b/source/Models/Settings/CompactListSortMode.cs
 index 1da2fb988f4ff664d9ce31dc5754ff4d860337f6..5eebce2edc7ae58c0b23fe75bbaa3c6550043eae 100644
 --- a/source/Models/Settings/CompactListSortMode.cs
@@ -933,11 +970,32 @@ index 4774004149f933aabd097707fae77993820f4451..103ea9c5eca00a21ba7bb6c3a5b7876a
                  // Display Preferences
                  ShowHiddenIcon = this.ShowHiddenIcon,
                  ShowHiddenTitle = this.ShowHiddenTitle,
+diff --git a/source/Models/ThemeIntegration/LibraryRuntimeState.cs b/source/Models/ThemeIntegration/LibraryRuntimeState.cs
+index 9d9a321eac26c6648a4242172f2ce9d2b657e77a..470a6ca4cad8724fbf6526e409e089974a4f5597 100644
+--- a/source/Models/ThemeIntegration/LibraryRuntimeState.cs
++++ b/source/Models/ThemeIntegration/LibraryRuntimeState.cs
+@@ -27,6 +27,7 @@ internal sealed class LibraryRuntimeState
+         public List<GameAchievementSummary> AppleGames { get; set; } = new List<GameAchievementSummary>();
+         public List<GameAchievementSummary> GooglePlayGames { get; set; } = new List<GameAchievementSummary>();
+         public List<GameAchievementSummary> HoyoverseGames { get; set; } = new List<GameAchievementSummary>();
++        public List<GameAchievementSummary> LocalGames { get; set; } = new List<GameAchievementSummary>();
+         public List<GameAchievementSummary> UbisoftGames { get; set; } = new List<GameAchievementSummary>();
+         public List<GameAchievementSummary> RPCS3Games { get; set; } = new List<GameAchievementSummary>();
+         public List<GameAchievementSummary> XeniaGames { get; set; } = new List<GameAchievementSummary>();
 diff --git a/source/Models/ThemeIntegration/ModernThemeBindings.cs b/source/Models/ThemeIntegration/ModernThemeBindings.cs
-index af5d7702585e3f4a881f98568a07d94a1994ecc9..66dd938ce6c44a79b88c35d552203a44ddde3b10 100644
+index af5d7702585e3f4a881f98568a07d94a1994ecc9..714986e66cb1eb92b541d80031ca75c8eea751c7 100644
 --- a/source/Models/ThemeIntegration/ModernThemeBindings.cs
 +++ b/source/Models/ThemeIntegration/ModernThemeBindings.cs
-@@ -635,6 +635,26 @@ public void RefreshDisplayItems(
+@@ -415,6 +415,8 @@ public class ModernThemeBindings : ObservableObject
+         [DontSerialize]
+         private readonly BulkObservableCollection<GameAchievementSummary> _hoyoverseGames = new BulkObservableCollection<GameAchievementSummary>();
+         [DontSerialize]
++        private readonly BulkObservableCollection<GameAchievementSummary> _localGames = new BulkObservableCollection<GameAchievementSummary>();
++        [DontSerialize]
+         private readonly BulkObservableCollection<GameAchievementSummary> _ubisoftGames = new BulkObservableCollection<GameAchievementSummary>();
+         [DontSerialize]
+         private readonly BulkObservableCollection<GameAchievementSummary> _rpcs3Games = new BulkObservableCollection<GameAchievementSummary>();
+@@ -635,6 +637,26 @@ public void RefreshDisplayItems(
              OnPropertyChanged(nameof(AllAchievementDisplayItems));
          }
  
@@ -963,6 +1021,20 @@ index af5d7702585e3f4a881f98568a07d94a1994ecc9..66dd938ce6c44a79b88c35d552203a44
 +
          [DontSerialize]
          public List<AchievementDetail> AchievementDefaultOrder
+         {
+@@ -1944,6 +1966,13 @@ public ObservableCollection<GameAchievementSummary> HoyoverseGames
+             set => ReplaceCollection(_hoyoverseGames, value, nameof(HoyoverseGames));
+         }
+ 
++        [DontSerialize]
++        public ObservableCollection<GameAchievementSummary> LocalGames
++        {
++            get => _localGames;
++            set => ReplaceCollection(_localGames, value, nameof(LocalGames));
++        }
++
+         [DontSerialize]
+         public ObservableCollection<GameAchievementSummary> UbisoftGames
          {
 diff --git a/source/PlayniteAchievements.csproj b/source/PlayniteAchievements.csproj
 index 67514556b18317ab7ad1fe18a005a51e509bcdee..5647b002dcfecbf6d1575e548ea08cbeb2cd01e3 100644
@@ -12332,7 +12404,7 @@ index 975e6f2dcd0e0aa299dfb49e9541d5c461bf9e47..a189daa4d62e842b2755d08d4346bffa
      }
  }
 diff --git a/source/Services/Overview/OverviewDataBuilder.cs b/source/Services/Overview/OverviewDataBuilder.cs
-index e2edea0011fc5f0d7a734646978ee28ca09b9c98..ca58804401acc29add866d7b1e7be707a1a120ca 100644
+index e2edea0011fc5f0d7a734646978ee28ca09b9c98..f84e7abd2691402bee7a19c2601b490f319a3e81 100644
 --- a/source/Services/Overview/OverviewDataBuilder.cs
 +++ b/source/Services/Overview/OverviewDataBuilder.cs
 @@ -65,8 +65,30 @@ public OverviewDataBuilder(
@@ -12468,6 +12540,98 @@ index e2edea0011fc5f0d7a734646978ee28ca09b9c98..ca58804401acc29add866d7b1e7be707
              return AchievementSortHelper.CreateDefaultSortedList(
                  items,
                  AchievementSortScope.RecentAchievements);
+@@ -602,10 +678,10 @@ private GamePresentation CreateGamePresentation(Playnite.SDK.Models.Game playnit
+ 
+         private static string ResolveEffectiveProviderKey(string providerKey, string providerPlatformKey)
+         {
+-            var resolved = !string.IsNullOrWhiteSpace(providerPlatformKey)
+-                ? providerPlatformKey
+-                : providerKey;
+-            return string.IsNullOrWhiteSpace(resolved) ? "Unknown" : resolved.Trim();
++            return ProviderKeyResolver.ResolveEffectiveProviderKey(
++                providerKey,
++                providerPlatformKey,
++                "Unknown");
+         }
+ 
+         private static string BuildRecentGameKey(CachedRecentUnlockData recent)
+diff --git a/source/Services/ThemeIntegration/LibraryRuntimeStateBuilder.cs b/source/Services/ThemeIntegration/LibraryRuntimeStateBuilder.cs
+index 18cd63c9f7036a866e1782cca34c2ba8192621f4..1f8ca404df4712c62dc99b4138ff8b3ac03d347b 100644
+--- a/source/Services/ThemeIntegration/LibraryRuntimeStateBuilder.cs
++++ b/source/Services/ThemeIntegration/LibraryRuntimeStateBuilder.cs
+@@ -35,6 +35,7 @@ internal static class LibraryRuntimeStateBuilder
+             new ProviderBucket("Apple", (state, items) => state.AppleGames = items),
+             new ProviderBucket("GooglePlay", (state, items) => state.GooglePlayGames = items),
+             new ProviderBucket("Hoyoverse", (state, items) => state.HoyoverseGames = items),
++            new ProviderBucket("Local", (state, items) => state.LocalGames = items),
+             new ProviderBucket("Ubisoft", (state, items) => state.UbisoftGames = items),
+             new ProviderBucket("RPCS3", (state, items) => state.RPCS3Games = items),
+             new ProviderBucket("Xenia", (state, items) => state.XeniaGames = items),
+@@ -92,13 +93,14 @@ public static LibraryRuntimeState Build(
+                 var bronze = stats.CommonCount;
+                 var providerKey = ResolveEffectiveProviderKey(data.ProviderKey, data.ProviderPlatformKey);
+                 var providerName = ProviderRegistry.GetLocalizedName(providerKey);
++                var platform = ResolveSummaryPlatform(data.Game?.Source?.Name, providerKey, providerName);
+                 collectorScore = AddScore(collectorScore, stats.CollectionScore);
+                 prestigeScore = AddScore(prestigeScore, stats.PrestigeScore);
+ 
+                 var summary = new GameAchievementSummary(
+                     data.PlayniteGameId.Value,
+                     data.Game?.Name ?? data.GameName ?? string.Empty,
+-                    data.Game?.Source?.Name ?? "Unknown",
++                    platform,
+                     GameSummaryArtResolver.Resolve(
+                         data.PlayniteGameId,
+                         data.GameSummaryCategory,
+@@ -201,12 +203,13 @@ public static LibraryRuntimeState BuildFromCachedSummary(
+                 var overall = AchievementRarityStatsCombiner.Combine(common, uncommon, rare, ultraRare);
+                 var providerKey = ResolveEffectiveProviderKey(game.ProviderKey, game.ProviderPlatformKey);
+                 var providerName = ProviderRegistry.GetLocalizedName(providerKey);
++                var platform = ResolveSummaryPlatform(presentation.Platform, providerKey, providerName);
+                 var latestUnlockDate = ResolveLatestUnlockDate(summaryData.UnlockCountsByDateByGame, gameId);
+ 
+                 allGames.Add(new GameAchievementSummary(
+                     gameId,
+                     presentation.Game?.Name ?? game.GameName ?? string.Empty,
+-                    presentation.Platform ?? "Unknown",
++                    platform,
+                     GameSummaryArtResolver.ResolveForGame(gameId, customDataStore) ?? presentation.CoverImagePath,
+                     AchievementCompletionPercentCalculator.ComputeRoundedPercent(
+                         game.UnlockedAchievements,
+@@ -823,10 +826,29 @@ private static DateTime NormalizeUtc(DateTime timestamp)
+ 
+         private static string ResolveEffectiveProviderKey(string providerKey, string providerPlatformKey)
+         {
+-            var resolved = !string.IsNullOrWhiteSpace(providerPlatformKey)
+-                ? providerPlatformKey
+-                : providerKey;
+-            return string.IsNullOrWhiteSpace(resolved) ? string.Empty : resolved.Trim();
++            return ProviderKeyResolver.ResolveEffectiveProviderKey(
++                providerKey,
++                providerPlatformKey,
++                string.Empty);
++        }
++
++        private static string ResolveSummaryPlatform(string platform, string providerKey, string providerName)
++        {
++            var normalizedPlatform = string.IsNullOrWhiteSpace(platform) ? null : platform.Trim();
++            if (!string.IsNullOrWhiteSpace(normalizedPlatform) &&
++                !normalizedPlatform.Equals("Unknown", StringComparison.OrdinalIgnoreCase))
++            {
++                return normalizedPlatform;
++            }
++
++            var normalizedProviderName = string.IsNullOrWhiteSpace(providerName) ? null : providerName.Trim();
++            if (!string.IsNullOrWhiteSpace(normalizedProviderName) &&
++                !normalizedProviderName.Equals("Unknown", StringComparison.OrdinalIgnoreCase))
++            {
++                return normalizedProviderName;
++            }
++
++            return string.IsNullOrWhiteSpace(providerKey) ? "Unknown" : providerKey.Trim();
+         }
+ 
+         private sealed class GamePresentation
 diff --git a/source/Services/ThemeIntegration/ThemeControlRegistry.cs b/source/Services/ThemeIntegration/ThemeControlRegistry.cs
 index e4734ce8eecce4f6d2861d0ccb4f5e064865cab7..f490a402ffcc30c37a53a8da7ecd7c7f963b3581 100644
 --- a/source/Services/ThemeIntegration/ThemeControlRegistry.cs
@@ -12488,6 +12652,74 @@ index e4734ce8eecce4f6d2861d0ccb4f5e064865cab7..f490a402ffcc30c37a53a8da7ecd7c7f
              "AchievementBarChart",
              "AchievementPieChart",
              "AchievementStats",
+diff --git a/source/Services/ThemeIntegration/ThemeDelegatedPropertyCatalog.cs b/source/Services/ThemeIntegration/ThemeDelegatedPropertyCatalog.cs
+index 87238bf154101a1cec44c82a9a3993afdb63ab3f..804d7ddb1a523649bd75f01e9426ea4a5a790800 100644
+--- a/source/Services/ThemeIntegration/ThemeDelegatedPropertyCatalog.cs
++++ b/source/Services/ThemeIntegration/ThemeDelegatedPropertyCatalog.cs
+@@ -68,6 +68,7 @@ internal static class ThemeDelegatedPropertyCatalog
+             nameof(PlayniteAchievementsSettings.AppleGames),
+             nameof(PlayniteAchievementsSettings.GooglePlayGames),
+             nameof(PlayniteAchievementsSettings.HoyoverseGames),
++            nameof(PlayniteAchievementsSettings.LocalGames),
+             nameof(PlayniteAchievementsSettings.UbisoftGames),
+             nameof(PlayniteAchievementsSettings.RPCS3Games),
+             nameof(PlayniteAchievementsSettings.XeniaGames),
+diff --git a/source/Services/ThemeIntegration/ThemeIntegrationService.cs b/source/Services/ThemeIntegration/ThemeIntegrationService.cs
+index e92ba292d8f842fe3b19f09db0a69c296e0159fc..3a5ce4b38358c860936c8ccf124a7caefed507f4 100644
+--- a/source/Services/ThemeIntegration/ThemeIntegrationService.cs
++++ b/source/Services/ThemeIntegration/ThemeIntegrationService.cs
+@@ -1455,6 +1455,15 @@ private void PopulateAllGamesDataSync(bool includeHeavyAchievementLists)
+                 }
+ 
+                 _logger?.Info($"PopulateAllGamesDataSync: State created - TotalTrophies={state.TotalTrophies}, PlatinumTrophies={state.PlatinumTrophies}, GoldTrophies={state.GoldTrophies}, Rank={state.Rank}");
++                _logger?.Debug(
++                    "PopulateAllGamesDataSync: Providers=" +
++                    string.Join(
++                        ", ",
++                        (state.AllGamesWithAchievements ?? new List<GameAchievementSummary>())
++                            .Where(item => !string.IsNullOrWhiteSpace(item?.ProviderKey))
++                            .GroupBy(item => item.ProviderKey, StringComparer.OrdinalIgnoreCase)
++                            .OrderBy(group => group.Key, StringComparer.OrdinalIgnoreCase)
++                            .Select(group => $"{group.Key}={group.Count()}")));
+ 
+                 _hasLoadedLibraryState = true;
+                 _lastLibraryRefreshIncludedHeavyAchievementLists = includeHeavyAchievementLists;
+@@ -1652,6 +1661,7 @@ private void ApplyLibraryState(LibraryRuntimeState state)
+             _settings.ModernTheme.AppleGames = ProjectGameSummaries(library.AppleGames);
+             _settings.ModernTheme.GooglePlayGames = ProjectGameSummaries(library.GooglePlayGames);
+             _settings.ModernTheme.HoyoverseGames = ProjectGameSummaries(library.HoyoverseGames);
++            _settings.ModernTheme.LocalGames = ProjectGameSummaries(library.LocalGames);
+             _settings.ModernTheme.UbisoftGames = ProjectGameSummaries(library.UbisoftGames);
+             _settings.ModernTheme.RPCS3Games = ProjectGameSummaries(library.RPCS3Games);
+             _settings.ModernTheme.XeniaGames = ProjectGameSummaries(library.XeniaGames);
+@@ -3428,11 +3438,26 @@ private void ApplyDynamicGameSummaryBindings(bool updateOptions)
+             var viewState = _runtimeState.GameSummaries;
+             var items = BuildDynamicGameSummaries(state, viewState);
+             AttachGameSummaryCommands(items);
++            var providerKeys = (state.AllGamesWithAchievements ??
++                    Enumerable.Empty<GameAchievementSummary>())
++                .Select(item => item?.ProviderKey)
++                .Where(key => !string.IsNullOrWhiteSpace(key))
++                .ToList();
++
++            // Local is a first-class personal provider, but older Local cache rows can pass
++            // through startup projections that predate provider-platform normalization.
++            // Keep the filter available even while such rows are being normalized so fullscreen
++            // themes never lose the only route for selecting Local games.
++            if (!providerKeys.Any(key =>
++                    string.Equals(key, "Local", StringComparison.OrdinalIgnoreCase)))
++            {
++                providerKeys.Add("Local");
++            }
+ 
+             _settings.ModernTheme.DynamicGameSummaries = ProjectGameSummaries(items);
+             ApplyDynamicListKeyBindings(GameSummaryListBinding);
+             _settings.ModernTheme.DynamicGameSummariesProviderOptions = DynamicThemeOptionFactory.CreateProviderOptions(
+-                (state.AllGamesWithAchievements ?? Enumerable.Empty<GameAchievementSummary>()).Select(item => item?.ProviderKey),
++                providerKeys,
+                 viewState.ProviderKey,
+                 _settings.FilterDynamicGameSummariesByProviderCommand);
+             ApplyDynamicListOptionBindings(GameSummaryListBinding);
 diff --git a/source/Services/ThemeMigration/ControlMappings.cs b/source/Services/ThemeMigration/ControlMappings.cs
 index 029c3ba7c845bc03a451d63f5603c366f0ef50ef..8e89dc4e5e6325e2bf203861da23b90825bcd77a 100644
 --- a/source/Services/ThemeMigration/ControlMappings.cs
@@ -12774,7 +13006,7 @@ index 3060a8f3b0919e794e8988fdb08c9ff41126556b..13cfcd60019034621b70dbc493f425ba
  
          private static string GetStandaloneControlNamePattern(string controlName)
 diff --git a/source/Services/ThemeMigration/ThemeMigrationService.cs b/source/Services/ThemeMigration/ThemeMigrationService.cs
-index 3d6443c00ad71f3045beaed435923d89a44ae4e5..59485458d7fed7922da40717631b1746c6fd6092 100644
+index 3d6443c00ad71f3045beaed435923d89a44ae4e5..4b76693318047fc4b3c06ed3dc247fcd38c045d3 100644
 --- a/source/Services/ThemeMigration/ThemeMigrationService.cs
 +++ b/source/Services/ThemeMigration/ThemeMigrationService.cs
 @@ -24,6 +24,17 @@ public sealed class ThemeMigrationService
@@ -12934,7 +13166,7 @@ index 3d6443c00ad71f3045beaed435923d89a44ae4e5..59485458d7fed7922da40717631b1746
          /// <summary>
          /// Gets the relative path from themePath to fullPath.
          /// </summary>
-@@ -345,7 +399,27 @@ private string GetRelativePath(string fullPath, string themePath)
+@@ -345,7 +399,29 @@ private string GetRelativePath(string fullPath, string themePath)
                  int successStoryCount = CountOccurrences(content, "SuccessStory");
                  int iconCount = CountOccurrences(content, "\uE820");  // SuccessStory trophy icon (U+E820)
                  int iconEntityCount = CountOccurrences(content, "&#xE820;");
@@ -12950,6 +13182,7 @@ index 3d6443c00ad71f3045beaed435923d89a44ae4e5..59485458d7fed7922da40717631b1746
 +                int duplicatedForkIdCount = CountOccurrences(
 +                    content,
 +                    "PlayniteAchievementsSantodanSantodan");
++                int localProviderCompatibilityCount = NeedsLocalProviderCompatibility(content) ? 1 : 0;
 +
 +                int totalCount = fullscreenHelperCount
 +                    + pluginIdCount
@@ -12959,11 +13192,12 @@ index 3d6443c00ad71f3045beaed435923d89a44ae4e5..59485458d7fed7922da40717631b1746
 +                    + iconEntityCount
 +                    + originalForkPluginStatusCount
 +                    + forkIdInPluginSettingsCount
-+                    + duplicatedForkIdCount;
++                    + duplicatedForkIdCount
++                    + localProviderCompatibilityCount;
  
                  foreach (var mapping in GetSelectedControlMappings(mode, customSelection))
                  {
-@@ -354,6 +428,13 @@ private string GetRelativePath(string fullPath, string themePath)
+@@ -354,6 +430,13 @@ private string GetRelativePath(string fullPath, string themePath)
                      totalCount += CountOccurrences(content, $"PlayniteAchievements_{mapping.Key}");
                  }
  
@@ -12977,7 +13211,7 @@ index 3d6443c00ad71f3045beaed435923d89a44ae4e5..59485458d7fed7922da40717631b1746
                  if (ShouldModernizeBindings(mode, customSelection))
                  {
                      foreach (var bindingPath in ControlMappings.LegacyToModernBindingPaths.Keys)
-@@ -563,27 +644,75 @@ private string ApplyReplacements(string content, string originalContent, ref int
+@@ -563,27 +646,75 @@ private string ApplyReplacements(string content, string originalContent, ref int
              string result = content;
  
              // Replace SuccessStoryFullscreenHelper first (most specific - fullscreen installation checks)
@@ -13062,7 +13296,7 @@ index 3d6443c00ad71f3045beaed435923d89a44ae4e5..59485458d7fed7922da40717631b1746
  
              // Convert DataContext bindings to use PluginSettings with our exposed properties
              // {Binding SelectedGame.DisplayBackgroundImageObject} -> {PluginSettings Plugin=PlayniteAchievements, Path=SelectedGameBackgroundPath}
-@@ -613,6 +742,17 @@ private string ApplyReplacements(string content, string originalContent, ref int
+@@ -613,9 +744,157 @@ private string ApplyReplacements(string content, string originalContent, ref int
              result = result.Replace("&#xE820;", "&#xEDD7;");
              replacements += CountOccurrences(originalContent, "&#xE820;");
  
@@ -13077,10 +13311,150 @@ index 3d6443c00ad71f3045beaed435923d89a44ae4e5..59485458d7fed7922da40717631b1746
 +                @"StringFormat\s*=\s*\{\}\{0\}%",
 +                RegexOptions.IgnoreCase).Count;
 +
++            result = ApplyLocalProviderCompatibility(result, ref replacements);
++
              return result;
          }
  
-@@ -637,6 +777,21 @@ private string ApplyModernizationReplacements(
++        private static bool NeedsLocalProviderCompatibility(string content)
++        {
++            if (string.IsNullOrWhiteSpace(content))
++            {
++                return false;
++            }
++
++            var missingDynamicProvider =
++                content.Contains("FilterDynamicGameSummariesByProviderCommand") &&
++                content.Contains("CommandParameter=\"Hoyoverse\"") &&
++                !content.Contains("CommandParameter=\"Local\"");
++            var missingPresetOption =
++                content.Contains("Tag=\"HoyoverseGames\"") &&
++                !content.Contains("Tag=\"LocalGames\"");
++            var missingPresetList =
++                content.Contains("x:Name=\"HoyoverseGames\"") &&
++                !content.Contains("x:Name=\"LocalGames\"");
++            var missingPresetTrigger =
++                content.Contains("Value=\"HoyoverseGames\"") &&
++                content.Contains("TargetName=\"HoyoverseGames\"") &&
++                !(content.Contains("Value=\"LocalGames\"") &&
++                  content.Contains("TargetName=\"LocalGames\""));
++
++            return missingDynamicProvider ||
++                   missingPresetOption ||
++                   missingPresetList ||
++                   missingPresetTrigger;
++        }
++
++        private static string ApplyLocalProviderCompatibility(string content, ref int replacements)
++        {
++            if (!NeedsLocalProviderCompatibility(content))
++            {
++                return content;
++            }
++
++            var result = content;
++            var newline = result.Contains("\r\n") ? "\r\n" : "\n";
++
++            if (!result.Contains("CommandParameter=\"Local\""))
++            {
++                result = DuplicateMatchingBlock(
++                    result,
++                    @"(?m)^[ \t]*<!-- Hoyoverse -->\r?\n[ \t]*<ButtonEx Content=""Hoyoverse""[\s\S]*?^[ \t]*</ButtonEx>",
++                    block => block
++                        .Replace("<!-- Hoyoverse -->", "<!-- Local -->")
++                        .Replace("Content=\"Hoyoverse\"", "Content=\"Local\"")
++                        .Replace("CommandParameter=\"Hoyoverse\"", "CommandParameter=\"Local\""),
++                    newline,
++                    ref replacements);
++            }
++
++            if (!result.Contains("Tag=\"LocalGames\""))
++            {
++                result = DuplicateMatchingBlock(
++                    result,
++                    @"(?m)^[ \t]*<ComboBoxItem Content=""Hoyoverse"" Tag=""HoyoverseGames""[^\r\n]*/>",
++                    block => block
++                        .Replace("Content=\"Hoyoverse\"", "Content=\"Local\"")
++                        .Replace("Tag=\"HoyoverseGames\"", "Tag=\"LocalGames\""),
++                    newline,
++                    ref replacements);
++            }
++
++            if (!result.Contains("x:Name=\"LocalGames\""))
++            {
++                result = DuplicateMatchingBlock(
++                    result,
++                    @"(?m)^[ \t]*<!-- List//HoyoverseGames -->\r?\n[ \t]*<ListView x:Name=""HoyoverseGames""[^\r\n]*(?:\r?\n[ \t]+[^\r\n]*)*?/>",
++                    block => block
++                        .Replace("List//HoyoverseGames", "List//LocalGames")
++                        .Replace("x:Name=\"HoyoverseGames\"", "x:Name=\"LocalGames\"")
++                        .Replace("Path=HoyoverseGames", "Path=LocalGames"),
++                    newline,
++                    ref replacements);
++            }
++
++            if (!result.Contains("TargetName=\"LocalGames\""))
++            {
++                result = DuplicateMatchingBlock(
++                    result,
++                    @"(?m)^[ \t]*<Setter Property=""Visibility"" Value=""Collapsed"" TargetName=""HoyoverseGames"" />",
++                    block => block.Replace("TargetName=\"HoyoverseGames\"", "TargetName=\"LocalGames\""),
++                    newline,
++                    ref replacements);
++            }
++
++            if (!result.Contains("Value=\"LocalGames\""))
++            {
++                var triggerPattern =
++                    @"(?ms)^(?<indent>[ \t]*)<MultiDataTrigger>\r?\n.*?^\k<indent></MultiDataTrigger>";
++                var hoyoverseTrigger = Regex.Matches(result, triggerPattern)
++                    .Cast<Match>()
++                    .FirstOrDefault(match =>
++                        match.Value.Contains("Value=\"HoyoverseGames\"") &&
++                        match.Value.Contains("TargetName=\"HoyoverseGames\""));
++                if (hoyoverseTrigger != null)
++                {
++                    var localTrigger = hoyoverseTrigger.Value
++                        .Replace("Value=\"HoyoverseGames\"", "Value=\"LocalGames\"")
++                        .Replace("Value=\"Hoyoverse\"", "Value=\"Local\"")
++                        .Replace("TargetName=\"HoyoverseGames\"", "TargetName=\"LocalGames\"");
++                    result = result.Insert(
++                        hoyoverseTrigger.Index + hoyoverseTrigger.Length,
++                        newline + localTrigger);
++                    replacements++;
++                }
++            }
++
++            return result;
++        }
++
++        private static string DuplicateMatchingBlock(
++            string content,
++            string pattern,
++            Func<string, string> transform,
++            string newline,
++            ref int replacements)
++        {
++            var match = Regex.Match(content, pattern);
++            if (!match.Success)
++            {
++                return content;
++            }
++
++            var duplicate = transform(match.Value);
++            if (string.Equals(match.Value, duplicate, StringComparison.Ordinal))
++            {
++                return content;
++            }
++
++            replacements++;
++            return content.Insert(match.Index + match.Length, newline + duplicate);
++        }
++
+         /// <summary>
+         /// Applies modernization replacements: selected control element names and binding paths.
+         /// </summary>
+@@ -637,6 +916,21 @@ private string ApplyModernizationReplacements(
                  controlReplacements += ReplaceStandaloneControlName(ref result, mapping.Key, mapping.Value);
              }
  
@@ -13102,7 +13476,7 @@ index 3d6443c00ad71f3045beaed435923d89a44ae4e5..59485458d7fed7922da40717631b1746
              // Replace LegacyData binding paths with Theme binding paths
              // These appear in XAML as {Binding LegacyData.HasData} etc.
              if (ShouldModernizeBindings(mode, customSelection))
-@@ -675,7 +830,16 @@ private static IEnumerable<KeyValuePair<string, string>> GetSelectedControlMappi
+@@ -675,7 +969,16 @@ private static IEnumerable<KeyValuePair<string, string>> GetSelectedControlMappi
          {
              if (mode == MigrationMode.Full)
              {
@@ -13120,7 +13494,7 @@ index 3d6443c00ad71f3045beaed435923d89a44ae4e5..59485458d7fed7922da40717631b1746
              }
  
              if (mode != MigrationMode.Custom || customSelection == null)
-@@ -684,7 +848,54 @@ private static IEnumerable<KeyValuePair<string, string>> GetSelectedControlMappi
+@@ -684,7 +987,54 @@ private static IEnumerable<KeyValuePair<string, string>> GetSelectedControlMappi
              }
  
              return ControlMappings.LegacyToModernControlNames
@@ -17654,3 +18028,168 @@ index 77e9f7bbf9a67477c223c1e205f8c702258b48aa..63ed6735c9ff2c8329a63afa30dd0d48
    <package id="Newtonsoft.Json" version="10.0.3" targetFramework="net462" />
    <package id="protobuf-net" version="2.0.0.668" targetFramework="net462" />
    <package id="PlayniteSDK" version="6.14.0" targetFramework="net462" />
+diff --git a/tests/PlayniteAchievements.Tests/PlayniteAchievements.Tests.csproj b/tests/PlayniteAchievements.Tests/PlayniteAchievements.Tests.csproj
+index c9e76c04eafee4f4f5574a54b58255e301c10738..94f179810828c6b01e4910e4692c856ee9e7e53d 100644
+--- a/tests/PlayniteAchievements.Tests/PlayniteAchievements.Tests.csproj
++++ b/tests/PlayniteAchievements.Tests/PlayniteAchievements.Tests.csproj
+@@ -98,6 +98,7 @@
+     <Compile Include="..\..\source\Services\GameSummariesSortHelper.cs" Link="Source\Services\GameSummariesSortHelper.cs" />
+     <Compile Include="..\..\source\Services\FriendSummarySortHelper.cs" Link="Source\Services\FriendSummarySortHelper.cs" />
+     <Compile Include="..\..\source\Services\DisplayGridRowLimitHelper.cs" Link="Source\Services\DisplayGridRowLimitHelper.cs" />
++    <Compile Include="..\..\source\Models\Achievements\ProviderKeyResolver.cs" Link="Source\Models\Achievements\ProviderKeyResolver.cs" />
+     <Compile Include="..\..\source\Services\Search\SearchQuery.cs" Link="Source\Services\Search\SearchQuery.cs" />
+     <Compile Include="..\..\source\Services\Search\SearchTextBuilder.cs" Link="Source\Services\Search\SearchTextBuilder.cs" />
+     <Compile Include="..\..\source\Services\Search\SearchTextIndex.cs" Link="Source\Services\Search\SearchTextIndex.cs" />
+diff --git a/tests/PlayniteAchievements.Tests/Services/ThemeDiscoveryServiceTests.cs b/tests/PlayniteAchievements.Tests/Services/ThemeDiscoveryServiceTests.cs
+index 6d4695ba4e4ec7df1f79cfa27c7639cba5a30d6b..0b8b3bfbbc36281ae81644b18b1e3038d32941d2 100644
+--- a/tests/PlayniteAchievements.Tests/Services/ThemeDiscoveryServiceTests.cs
++++ b/tests/PlayniteAchievements.Tests/Services/ThemeDiscoveryServiceTests.cs
+@@ -121,6 +121,79 @@ public async Task MigrateThemeAsync_AllowsLimitedModeForFullscreenThemes()
+             }
+         }
+ 
++        [TestMethod]
++        public async Task MigrateThemeAsync_AddsLocalToSolarisDynamicAndPresetLists()
++        {
++            var themesRoot = CreateThemesRoot();
++
++            try
++            {
++                var themePath = Path.Combine(themesRoot, "Fullscreen", "Solaris_ab123456");
++                Directory.CreateDirectory(themePath);
++                var viewPath = Path.Combine(themePath, "Main.xaml");
++                File.WriteAllText(Path.Combine(themePath, "theme.yaml"), "Name: Solaris\nVersion: 1.0.0\n");
++                File.WriteAllText(
++                    viewPath,
++                    string.Join(
++                        "\n",
++                        "<ButtonEx Content=\"Hoyoverse\" CommandParameter=\"Hoyoverse\"",
++                        "    Command=\"{PluginSettings Plugin=PlayniteAchievements, Path=FilterDynamicGameSummariesByProviderCommand}\">",
++                        "    <ButtonEx.Triggers />",
++                        "</ButtonEx>",
++                        "<ComboBoxItem Content=\"Hoyoverse\" Tag=\"HoyoverseGames\" />",
++                        "<!-- List//HoyoverseGames -->",
++                        "<ListView x:Name=\"HoyoverseGames\" ItemsSource=\"{PluginSettings Plugin=PlayniteAchievements, Path=HoyoverseGames}\"",
++                        "    Visibility=\"Collapsed\" />",
++                        "<Setter Property=\"Visibility\" Value=\"Collapsed\" TargetName=\"HoyoverseGames\" />",
++                        "<MultiDataTrigger>",
++                        "    <MultiDataTrigger.Conditions>",
++                        "        <Condition Value=\"HoyoverseGames\" />",
++                        "    </MultiDataTrigger.Conditions>",
++                        "    <Setter Property=\"Text\" Value=\"Hoyoverse\" />",
++                        "    <Setter Property=\"Visibility\" Value=\"Visible\" TargetName=\"HoyoverseGames\" />",
++                        "</MultiDataTrigger>"));
++
++                var service = new ThemeMigrationService(new FakeLogger());
++                var result = await service.MigrateThemeAsync(themePath, MigrationMode.Limited);
++                var migrated = File.ReadAllText(viewPath);
++
++                Assert.IsTrue(result.Success);
++                StringAssert.Contains(migrated, "CommandParameter=\"Local\"");
++                StringAssert.Contains(migrated, "Content=\"Local\" Tag=\"LocalGames\"");
++                StringAssert.Contains(migrated, "x:Name=\"LocalGames\"");
++                StringAssert.Contains(migrated, "Path=LocalGames");
++                StringAssert.Contains(migrated, "Value=\"LocalGames\"");
++                StringAssert.Contains(migrated, "TargetName=\"LocalGames\"");
++
++                var secondResult = await service.MigrateThemeAsync(themePath, MigrationMode.Limited);
++                var migratedAgain = File.ReadAllText(viewPath);
++
++                Assert.IsTrue(secondResult.Success);
++                Assert.AreEqual(migrated, migratedAgain);
++                Assert.AreEqual(1, CountOccurrences(migratedAgain, "CommandParameter=\"Local\""));
++                Assert.AreEqual(1, CountOccurrences(migratedAgain, "Tag=\"LocalGames\""));
++                Assert.AreEqual(1, CountOccurrences(migratedAgain, "x:Name=\"LocalGames\""));
++                Assert.AreEqual(1, CountOccurrences(migratedAgain, "Value=\"LocalGames\""));
++            }
++            finally
++            {
++                DeleteDirectory(themesRoot);
++            }
++        }
++
++        private static int CountOccurrences(string content, string value)
++        {
++            var count = 0;
++            var index = 0;
++            while ((index = content.IndexOf(value, index, StringComparison.Ordinal)) >= 0)
++            {
++                count++;
++                index += value.Length;
++            }
++
++            return count;
++        }
++
+         private static string CreateThemesRoot()
+         {
+             var root = Path.Combine(
+diff --git a/tests/PlayniteAchievements.Tests/ThemeIntegration/ThemeIntegrationBindingsTests.cs b/tests/PlayniteAchievements.Tests/ThemeIntegration/ThemeIntegrationBindingsTests.cs
+index bf21d2d7fbd930d01a62cf3a00627ad377bc50a0..692ce84d34f6d4b570fd73948659750ce11d8299 100644
+--- a/tests/PlayniteAchievements.Tests/ThemeIntegration/ThemeIntegrationBindingsTests.cs
++++ b/tests/PlayniteAchievements.Tests/ThemeIntegration/ThemeIntegrationBindingsTests.cs
+@@ -1148,6 +1148,50 @@ public void DynamicLibraryAchievements_FilterByEffectiveProviderAndResortWithout
+             Assert.IsTrue(changedProperties.Contains(nameof(PlayniteAchievementsSettings.DynamicLibraryAchievementsSortDirectionKey)));
+         }
+ 
++        [TestMethod]
++        public void DynamicBindings_LocalProviderIgnoresUnknownPlatformKey()
++        {
++            PercentRarityHelper.Configure(5, 10, 50);
++
++            using var context = CreateServiceContext();
++            var gameId = Guid.NewGuid();
++            context.AchievementDataService.AllGameData = new List<GameAchievementData>
++            {
++                new GameAchievementData
++                {
++                    PlayniteGameId = gameId,
++                    ProviderKey = "Local",
++                    ProviderPlatformKey = "Unknown",
++                    Game = new Game
++                    {
++                        Id = gameId,
++                        Name = "Local Summary",
++                        LastActivity = Utc(2026, 4, 7, 12, 0, 0)
++                    },
++                    HasAchievements = true,
++                    Achievements = new List<AchievementDetail>
++                    {
++                        Achievement("Local Unlock", 25.0, unlocked: true, unlockTimeUtc: Utc(2026, 3, 5, 10, 0, 0)),
++                        Achievement("Local Locked", 80.0, unlocked: false)
++                    }
++                }
++            };
++
++            context.Settings.OpenAchievementWindow.Execute(null);
++
++            var summary = FindSummary(context.Settings.DynamicGameSummaries, gameId);
++            Assert.AreEqual("Local", summary.ProviderKey);
++            Assert.AreEqual("Local", summary.ProviderName);
++            Assert.AreEqual("Local", summary.Platform);
++            Assert.AreEqual(gameId, context.Settings.LocalGames.Single().GameId);
++            CollectionAssert.Contains(
++                context.Settings.DynamicGameSummariesProviderOptions.Select(item => item.Key).ToList(),
++                "Local");
++            CollectionAssert.AreEqual(
++                new[] { "Local", "Local" },
++                context.Settings.DynamicLibraryAchievements.Select(item => item.ProviderKey).ToArray());
++        }
++
+         [TestMethod]
+         public void DynamicBindings_ExposeOptionsAndWritableKeysForComboBoxes()
+         {
+diff --git a/tests/PlayniteAchievements.Tests/ThemeIntegration/ThemeIntegrationTestStubs.cs b/tests/PlayniteAchievements.Tests/ThemeIntegration/ThemeIntegrationTestStubs.cs
+index 9c906a43b4e605adb93d2f50a2d94bf1b78a1363..230300041dfa2d7de3fa451755f986bfdf9151c1 100644
+--- a/tests/PlayniteAchievements.Tests/ThemeIntegration/ThemeIntegrationTestStubs.cs
++++ b/tests/PlayniteAchievements.Tests/ThemeIntegration/ThemeIntegrationTestStubs.cs
+@@ -174,7 +174,8 @@ public sealed class GameAchievementData
+         public string ProviderPlatformKey { get; set; }
+ 
+         public string EffectiveProviderKey =>
+-            !string.IsNullOrWhiteSpace(ProviderPlatformKey)
++            !string.IsNullOrWhiteSpace(ProviderPlatformKey) &&
++            !ProviderPlatformKey.Equals("Unknown", StringComparison.OrdinalIgnoreCase)
+                 ? ProviderPlatformKey
+                 : ProviderKey;
+ 

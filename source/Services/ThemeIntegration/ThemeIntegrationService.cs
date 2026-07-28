@@ -1455,6 +1455,15 @@ namespace PlayniteAchievements.Services.ThemeIntegration
                 }
 
                 _logger?.Info($"PopulateAllGamesDataSync: State created - TotalTrophies={state.TotalTrophies}, PlatinumTrophies={state.PlatinumTrophies}, GoldTrophies={state.GoldTrophies}, Rank={state.Rank}");
+                _logger?.Debug(
+                    "PopulateAllGamesDataSync: Providers=" +
+                    string.Join(
+                        ", ",
+                        (state.AllGamesWithAchievements ?? new List<GameAchievementSummary>())
+                            .Where(item => !string.IsNullOrWhiteSpace(item?.ProviderKey))
+                            .GroupBy(item => item.ProviderKey, StringComparer.OrdinalIgnoreCase)
+                            .OrderBy(group => group.Key, StringComparer.OrdinalIgnoreCase)
+                            .Select(group => $"{group.Key}={group.Count()}")));
 
                 _hasLoadedLibraryState = true;
                 _lastLibraryRefreshIncludedHeavyAchievementLists = includeHeavyAchievementLists;
@@ -1652,6 +1661,7 @@ namespace PlayniteAchievements.Services.ThemeIntegration
             _settings.ModernTheme.AppleGames = ProjectGameSummaries(library.AppleGames);
             _settings.ModernTheme.GooglePlayGames = ProjectGameSummaries(library.GooglePlayGames);
             _settings.ModernTheme.HoyoverseGames = ProjectGameSummaries(library.HoyoverseGames);
+            _settings.ModernTheme.LocalGames = ProjectGameSummaries(library.LocalGames);
             _settings.ModernTheme.UbisoftGames = ProjectGameSummaries(library.UbisoftGames);
             _settings.ModernTheme.RPCS3Games = ProjectGameSummaries(library.RPCS3Games);
             _settings.ModernTheme.XeniaGames = ProjectGameSummaries(library.XeniaGames);
@@ -3428,11 +3438,26 @@ namespace PlayniteAchievements.Services.ThemeIntegration
             var viewState = _runtimeState.GameSummaries;
             var items = BuildDynamicGameSummaries(state, viewState);
             AttachGameSummaryCommands(items);
+            var providerKeys = (state.AllGamesWithAchievements ??
+                    Enumerable.Empty<GameAchievementSummary>())
+                .Select(item => item?.ProviderKey)
+                .Where(key => !string.IsNullOrWhiteSpace(key))
+                .ToList();
+
+            // Local is a first-class personal provider, but older Local cache rows can pass
+            // through startup projections that predate provider-platform normalization.
+            // Keep the filter available even while such rows are being normalized so fullscreen
+            // themes never lose the only route for selecting Local games.
+            if (!providerKeys.Any(key =>
+                    string.Equals(key, "Local", StringComparison.OrdinalIgnoreCase)))
+            {
+                providerKeys.Add("Local");
+            }
 
             _settings.ModernTheme.DynamicGameSummaries = ProjectGameSummaries(items);
             ApplyDynamicListKeyBindings(GameSummaryListBinding);
             _settings.ModernTheme.DynamicGameSummariesProviderOptions = DynamicThemeOptionFactory.CreateProviderOptions(
-                (state.AllGamesWithAchievements ?? Enumerable.Empty<GameAchievementSummary>()).Select(item => item?.ProviderKey),
+                providerKeys,
                 viewState.ProviderKey,
                 _settings.FilterDynamicGameSummariesByProviderCommand);
             ApplyDynamicListOptionBindings(GameSummaryListBinding);
