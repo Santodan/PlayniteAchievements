@@ -33,6 +33,10 @@
       <HintPath>..\..\source\packages\DiscUtils.Iso9660.0.16.13\lib\net45\DiscUtils.Iso9660.dll</HintPath>
       <Private>true</Private>
     </Reference>
+    <Reference Include="DiscUtils.Udf">
+      <HintPath>..\..\source\packages\DiscUtils.Udf.0.16.13\lib\net45\DiscUtils.Udf.dll</HintPath>
+      <Private>True</Private>
+    </Reference>
     <Reference Include="DiscUtils.Streams">
       <HintPath>..\..\source\packages\DiscUtils.Streams.0.16.13\lib\net45\DiscUtils.Streams.dll</HintPath>
       <Private>true</Private>
@@ -122,6 +126,7 @@
     <Compile Include="..\..\source\Providers\AchievementPageLinkContext.cs" Link="Source\Providers\AchievementPageLinkContext.cs" />
     <Compile Include="..\..\source\Providers\AchievementPageLinkResolver.cs" Link="Source\Providers\AchievementPageLinkResolver.cs" />
     <Compile Include="..\..\source\Providers\IAchievementPageLinkProvider.cs" Link="Source\Providers\IAchievementPageLinkProvider.cs" />
+    <Compile Include="..\..\source\Common\Disc\DiscFileSystemReader.cs" Link="Source\Common\Disc\DiscFileSystemReader.cs" />
     <Compile Include="..\..\source\Common\RateLimiter.cs" Link="Source\Common\RateLimiter.cs" />
     <Compile Include="..\..\source\Common\TransientErrorClassifier.cs" Link="Source\Common\TransientErrorClassifier.cs" />
     <Compile Include="..\..\source\Providers\EA\EAAuthModels.cs" Link="Source\Providers\EA\EAAuthModels.cs" />
@@ -142,6 +147,7 @@
     <Compile Include="..\..\source\Providers\ShadPS4\ShadPS4Scanner.cs" Link="Source\Providers\ShadPS4\ShadPS4Scanner.cs" />
     <Compile Include="..\..\source\Providers\RPCS3\Rpcs3Settings.cs" Link="Source\Providers\RPCS3\Rpcs3Settings.cs" />
     <Compile Include="..\..\source\Providers\RPCS3\Rpcs3DataProvider.cs" Link="Source\Providers\RPCS3\Rpcs3DataProvider.cs" />
+    <Compile Include="..\..\source\Providers\RPCS3\Rpcs3InstallationContext.cs" Link="Source\Providers\RPCS3\Rpcs3InstallationContext.cs" />
     <Compile Include="..\..\source\Providers\RPCS3\Rpcs3GamesYmlReader.cs" Link="Source\Providers\RPCS3\Rpcs3GamesYmlReader.cs" />
     <Compile Include="..\..\source\Providers\RPCS3\Rpcs3MatchIdHelper.cs" Link="Source\Providers\RPCS3\Rpcs3MatchIdHelper.cs" />
     <Compile Include="..\..\source\Providers\RPCS3\Rpcs3NpCommIdExtractor.cs" Link="Source\Providers\RPCS3\Rpcs3NpCommIdExtractor.cs" />
@@ -149,6 +155,7 @@
     <Compile Include="..\..\source\Providers\RPCS3\Rpcs3Scanner.cs" Link="Source\Providers\RPCS3\Rpcs3Scanner.cs" />
     <Compile Include="..\..\source\Providers\RPCS3\Rpcs3SerialNpwrBridge.cs" Link="Source\Providers\RPCS3\Rpcs3SerialNpwrBridge.cs" />
     <Compile Include="..\..\source\Providers\RPCS3\Rpcs3TrophyParser.cs" Link="Source\Providers\RPCS3\Rpcs3TrophyParser.cs" />
+    <Compile Include="..\..\source\Providers\RPCS3\Rpcs3VfsYmlReader.cs" Link="Source\Providers\RPCS3\Rpcs3VfsYmlReader.cs" />
     <Compile Include="..\..\source\Providers\RPCS3\Rpcs3TrpArchiveReader.cs" Link="Source\Providers\RPCS3\Rpcs3TrpArchiveReader.cs" />
     <Compile Include="..\..\source\Providers\RPCS3\Models\Rpcs3Trophy.cs" Link="Source\Providers\RPCS3\Models\Rpcs3Trophy.cs" />
     <Compile Include="..\..\source\Providers\Hoyoverse\HoyoverseDataProvider.cs" Link="Source\Providers\Hoyoverse\HoyoverseDataProvider.cs" />

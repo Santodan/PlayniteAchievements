@@ -32,9 +32,23 @@ namespace PlayniteAchievements.Providers.RPCS3
         {
             Root = rpcs3Root;
             _logger = logger;
+            DevHdd0Root = Rpcs3VfsYmlReader.ResolveDevHdd0Root(rpcs3Root, logger);
+        }
+
+        public Rpcs3SerialNpwrBridge(Rpcs3InstallationContext context, ILogger logger)
+        {
+            Root = context?.ConfigurationRoot;
+            DevHdd0Root = context?.DevHdd0Root;
+            _logger = logger;
         }
 
         public string Root { get; }
+
+        /// <summary>
+        /// The dev_hdd0 root RPCS3 actually uses: the vfs.yml mapping when present,
+        /// otherwise {Root}/dev_hdd0.
+        /// </summary>
+        public string DevHdd0Root { get; }
 
         public IReadOnlyDictionary<string, string> GamesYmlMap
         {

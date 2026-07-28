@@ -47,35 +47,6 @@ namespace PlayniteAchievements.Providers.RPCS3
             return ids.Count > 0 ? ids[0] : null;
         }
 
-        /// <summary>
-        /// Scans an already-open stream for the first NPWR id.
-        /// Tolerates binary content (e.g. a TROPHY.TRP container read from a disc image).
-        /// </summary>
-        public static string ExtractFirstNpCommIdFromStream(
-            Stream stream,
-            ILogger logger = null,
-            long maxSearchBytes = 8L * 1024 * 1024)
-        {
-            var results = new List<string>();
-            var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-
-            if (stream == null)
-            {
-                return null;
-            }
-
-            try
-            {
-                ScanStream(stream, results, seen, maxSearchBytes, stopAfterFirst: true);
-            }
-            catch (Exception ex)
-            {
-                logger?.Error(ex, "[RPCS3] Error scanning stream for NPWR IDs");
-            }
-
-            return results.Count > 0 ? results[0] : null;
-        }
-
         private static void ScanStream(
             Stream stream,
             List<string> results,

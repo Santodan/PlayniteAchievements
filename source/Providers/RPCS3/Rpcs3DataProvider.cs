@@ -51,10 +51,6 @@ namespace PlayniteAchievements.Providers.RPCS3
         private Dictionary<string, string> _trophyFolderCache;
         private readonly object _cacheLock = new object();
 
-        // Cached user ID discovery
-        private string _cachedUserId;
-        private string _cachedEmulatorRoot;
-
         public Rpcs3DataProvider(ILogger logger, PlayniteAchievementsSettings settings, IPlayniteAPI playniteApi)
             : this(logger, settings, playniteApi, string.Empty)
         {
@@ -111,34 +107,17 @@ namespace PlayniteAchievements.Providers.RPCS3
                 return result;
             }
 
-            // Check for dev_hdd0/home structure
-            var homePath = Path.Combine(path, "dev_hdd0", "home");
-            if (!Directory.Exists(homePath))
-            {
-                result.ErrorMessage = ResourceProvider.GetString("LOCPlayAch_Rpcs3Validation_NotRpcs3")
-                    ?? "Not a valid RPCS3 installation. Missing: dev_hdd0\\home";
-                return result;
-            }
-
-            // Find user ID
-            var userId = DiscoverUserId(path);
-            if (string.IsNullOrWhiteSpace(userId))
-            {
-                result.ErrorMessage = ResourceProvider.GetString("LOCPlayAch_Rpcs3Validation_NoUser")
-                    ?? "No user profile found in dev_hdd0\\home";
-                return result;
-            }
-
-            // Check for trophy folder
-            var trophyPath = Path.Combine(path, "dev_hdd0", "home", userId, "trophy");
-            if (!Directory.Exists(trophyPath))
+            var context = Rpcs3InstallationResolver.ResolveFromRoot(path, _logger);
+            if (context == null)
             {
                 result.ErrorMessage = string.Format(
                     ResourceProvider.GetString("LOCPlayAch_Rpcs3Validation_NoTrophyFolder")
-                        ?? "Trophy folder not found: dev_hdd0\\home\\{0}\\trophy",
-                    userId);
+                        ?? "The active RPCS3 user profile or trophy folder could not be resolved for '{0}'.",
+                    path);
                 return result;
             }
+
+            var trophyPath = context.TrophyFolder;
 
             // Count trophy folders
             try
@@ -153,122 +132,35 @@ namespace PlayniteAchievements.Providers.RPCS3
             }
 
             result.IsValid = true;
-            result.UserId = userId;
+            result.UserId = context.UserId;
             return result;
         }
 
         /// <summary>
-        /// Auto-discovers the user ID by scanning dev_hdd0/home for numeric directories.
-        /// RPCS3 user IDs are 8-digit numeric strings (e.g., 00000001).
-        /// </summary>
-        private string DiscoverUserId(string emulatorRoot)
-        {
-            if (string.IsNullOrWhiteSpace(emulatorRoot))
-                return null;
-
-            // Return cached value if emulator root hasn't changed
-            if (!string.IsNullOrWhiteSpace(_cachedUserId) && _cachedEmulatorRoot == emulatorRoot)
-            {
-                return _cachedUserId;
-            }
-
-            var homePath = Path.Combine(emulatorRoot, "dev_hdd0", "home");
-            if (!Directory.Exists(homePath))
-            {
-                return null;
-            }
-
-            try
-            {
-                var allDirs = Directory.GetDirectories(homePath);
-                var numericDirs = allDirs
-                    .Select(Path.GetFileName)
-                    .Where(n => !string.IsNullOrWhiteSpace(n) && n.Length == 8 && n.All(char.IsDigit))
-                    .ToList();
-
-                foreach (var name in numericDirs)
-                {
-                    _cachedUserId = name;
-                    _cachedEmulatorRoot = emulatorRoot;
-                    return name;
-                }
-            }
-            catch (Exception ex)
-            {
-                _logger?.Error(ex, $"[RPCS3] Error scanning '{homePath}'");
-            }
-
-            return null;
-        }
-
-        /// <summary>
-        /// Gets the RPCS3 emulator root from the game's emulator action.
+        /// Gets the game's selected RPCS3 emulator root for capability checks. Full
+        /// profile resolution is deferred until refresh, where it can fail closed.
         /// </summary>
         private string GetEmulatorRootFromGame(Game game)
         {
-            if (game?.GameActions == null) return null;
-
-            foreach (var action in game.GameActions)
+            var actions = game?.GameActions?
+                .Where(action => action?.Type == GameActionType.Emulator && action.EmulatorId != Guid.Empty)
+                .OrderByDescending(action => action.IsPlayAction)
+                .ToList();
+            if (actions == null)
             {
-                if (action?.Type == GameActionType.Emulator && action.EmulatorId != Guid.Empty)
-                {
-                    var emulator = _playniteApi?.Database?.Emulators?.Get(action.EmulatorId);
-                    if (emulator != null && !string.IsNullOrWhiteSpace(emulator.InstallDir))
-                    {
-                        // Check if this looks like RPCS3
-                        if (IsRpcs3Emulator(emulator))
-                        {
-                            return emulator.InstallDir;
-                        }
-                    }
-                }
+                return null;
             }
-            return null;
-        }
 
-        /// <summary>
-        /// Checks if an emulator is RPCS3 by built-in ID, name, or install directory.
-        /// </summary>
-        private bool IsRpcs3Emulator(Emulator emulator)
-        {
-            var builtInId = emulator.BuiltInConfigId ?? string.Empty;
-            var name = emulator.Name ?? string.Empty;
-            var installDir = emulator.InstallDir ?? string.Empty;
-            return builtInId.IndexOf("rpcs3", StringComparison.OrdinalIgnoreCase) >= 0 ||
-                   name.IndexOf("rpcs3", StringComparison.OrdinalIgnoreCase) >= 0 ||
-                   installDir.IndexOf("rpcs3", StringComparison.OrdinalIgnoreCase) >= 0;
-        }
-
-        /// <summary>
-        /// Finds any RPCS3 emulator in the Playnite database.
-        /// </summary>
-        private string FindAnyRpcs3EmulatorRoot()
-        {
-            var emulators = _playniteApi?.Database?.Emulators;
-            if (emulators == null) return null;
-
-            foreach (var emulator in emulators)
+            foreach (var action in actions)
             {
-                if (IsRpcs3Emulator(emulator) && !string.IsNullOrWhiteSpace(emulator.InstallDir))
+                var emulator = _playniteApi?.Database?.Emulators?.Get(action.EmulatorId);
+                if (Rpcs3InstallationResolver.IsRpcs3Emulator(emulator) && !string.IsNullOrWhiteSpace(emulator.InstallDir))
                 {
                     return emulator.InstallDir;
                 }
             }
+
             return null;
-        }
-
-        /// <summary>
-        /// Gets the emulator root directory from an executable path.
-        /// </summary>
-        private string GetEmulatorRootFromExePath(string exePath)
-        {
-            if (string.IsNullOrWhiteSpace(exePath))
-                return null;
-
-            if (!File.Exists(exePath))
-                return null;
-
-            return Path.GetDirectoryName(exePath);
         }
 
         /// <summary>
@@ -279,32 +171,16 @@ namespace PlayniteAchievements.Providers.RPCS3
         /// </summary>
         internal string GetEmulatorRoot(Game game = null)
         {
-            string emulatorRoot = null;
+            return Rpcs3InstallationResolver.ResolveEmulatorRoot(game, ProviderSettings, _playniteApi, _logger);
+        }
 
-            // Priority 1: From provider settings (user-configured, validated)
-            var settingsExePath = ProviderSettings?.ExecutablePath;
-            if (!string.IsNullOrWhiteSpace(settingsExePath))
-            {
-                var settingsRoot = GetEmulatorRootFromExePath(settingsExePath);
-                if (!string.IsNullOrWhiteSpace(settingsRoot) && ValidateRpcs3Path(settingsRoot).IsValid)
-                {
-                    emulatorRoot = settingsRoot;
-                }
-            }
-
-            // Priority 2: From game's emulator config
-            if (string.IsNullOrWhiteSpace(emulatorRoot) && game != null)
-            {
-                emulatorRoot = GetEmulatorRootFromGame(game);
-            }
-
-            // Priority 3: From first RPCS3 emulator in database
-            if (string.IsNullOrWhiteSpace(emulatorRoot))
-            {
-                emulatorRoot = FindAnyRpcs3EmulatorRoot();
-            }
-
-            return string.IsNullOrWhiteSpace(emulatorRoot) ? null : emulatorRoot;
+        /// <summary>
+        /// Resolves the exact RPCS3 install, VFS layout and active profile used by
+        /// a game. No lowest-numbered-profile or cross-install fallback is used.
+        /// </summary>
+        internal Rpcs3InstallationContext GetInstallationContext(Game game = null)
+        {
+            return Rpcs3InstallationResolver.Resolve(game, ProviderSettings, _playniteApi, _logger);
         }
 
         /// <summary>
@@ -312,20 +188,7 @@ namespace PlayniteAchievements.Providers.RPCS3
         /// </summary>
         public string GetTrophyFolder(Game game = null)
         {
-            var emulatorRoot = GetEmulatorRoot(game);
-            if (string.IsNullOrWhiteSpace(emulatorRoot))
-            {
-                return null;
-            }
-
-            var userId = DiscoverUserId(emulatorRoot);
-            if (string.IsNullOrWhiteSpace(userId))
-            {
-                return null;
-            }
-
-            var trophyFolder = Path.Combine(emulatorRoot, "dev_hdd0", "home", userId, "trophy");
-            return trophyFolder;
+            return GetInstallationContext(game)?.TrophyFolder;
         }
 
         public bool IsAuthenticated
@@ -436,7 +299,10 @@ namespace PlayniteAchievements.Providers.RPCS3
         /// </summary>
         private bool CanFindTrophyDataForGame(Game game)
         {
-            var cache = GetOrBuildTrophyFolderCache();
+            // Capability must inspect the same install/profile that refresh will
+            // inspect for this game; a provider-global cache can belong to another
+            // RPCS3 action or user.
+            var cache = BuildTrophyFolderCache(game);
 
             var resolvedSources = _scanner.ResolveTrophySourcesForGame(
                 game,
@@ -522,7 +388,7 @@ namespace PlayniteAchievements.Providers.RPCS3
                 {
                     try
                     {
-                        foreach (var subDir in Directory.GetDirectories(tropdir))
+                        foreach (var subDir in Directory.GetDirectories(tropdir).OrderBy(path => path, StringComparer.OrdinalIgnoreCase))
                         {
                             var trpPath = Path.Combine(subDir, "TROPHY.TRP");
                             if (File.Exists(trpPath))
@@ -591,7 +457,7 @@ namespace PlayniteAchievements.Providers.RPCS3
                 try
                 {
                     // TROPDIR subdirectories are named after npcommid (e.g., NPWR05920_00)
-                    foreach (var subDir in Directory.GetDirectories(tropdir))
+                    foreach (var subDir in Directory.GetDirectories(tropdir).OrderBy(path => path, StringComparer.OrdinalIgnoreCase))
                     {
                         var dirName = Path.GetFileName(subDir);
                         if (string.IsNullOrWhiteSpace(dirName))
@@ -663,11 +529,11 @@ namespace PlayniteAchievements.Providers.RPCS3
             }
         }
 
-        private Dictionary<string, string> BuildTrophyFolderCache()
+        private Dictionary<string, string> BuildTrophyFolderCache(Game game = null)
         {
             var cache = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
 
-            var trophyPath = GetTrophyFolder();
+            var trophyPath = GetTrophyFolder(game);
             if (string.IsNullOrWhiteSpace(trophyPath))
             {
                 return cache;
@@ -680,11 +546,12 @@ namespace PlayniteAchievements.Providers.RPCS3
 
             try
             {
-                var npcommidDirectories = Directory.GetDirectories(trophyPath);
+                var npcommidDirectories = Directory.GetDirectories(trophyPath)
+                    .OrderBy(path => path, StringComparer.OrdinalIgnoreCase);
 
                 foreach (var npcommidDir in npcommidDirectories)
                 {
-                    var npcommid = Path.GetFileName(npcommidDir);
+                    var npcommid = Rpcs3MatchIdHelper.Normalize(Path.GetFileName(npcommidDir));
                     if (string.IsNullOrWhiteSpace(npcommid))
                     {
                         continue;
