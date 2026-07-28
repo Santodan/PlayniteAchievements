@@ -12,15 +12,20 @@ namespace PlayniteAchievements.ViewModels
     /// </summary>
     public abstract class ToastLineDescriptor
     {
-        protected ToastLineDescriptor(AchievementToastViewModel parent, double fontSize)
+        protected ToastLineDescriptor(AchievementToastViewModel parent, double fontSize, FontFamily fontFamily)
         {
             Parent = parent;
             FontSize = fontSize;
+            FontFamily = fontFamily;
         }
 
         public AchievementToastViewModel Parent { get; }
 
         public double FontSize { get; }
+
+        // Bound as a local value on each line TextBlock: the shared TextBlock base style sets
+        // FontFamily via a style setter, which would beat an inherited TextElement.FontFamily.
+        public FontFamily FontFamily { get; }
     }
 
     /// <summary>
@@ -32,11 +37,12 @@ namespace PlayniteAchievements.ViewModels
         public ToastHeaderLine(
             AchievementToastViewModel parent,
             double fontSize,
+            FontFamily fontFamily,
             bool showHeader,
             bool showUnlockTime,
             bool showDateSeparator,
             bool showFriendAvatar)
-            : base(parent, fontSize)
+            : base(parent, fontSize, fontFamily)
         {
             ShowHeader = showHeader;
             ShowUnlockTime = showUnlockTime;
@@ -61,9 +67,10 @@ namespace PlayniteAchievements.ViewModels
         public ToastTitleLine(
             AchievementToastViewModel parent,
             double fontSize,
+            FontFamily fontFamily,
             bool showName,
             Brush titleBrush)
-            : base(parent, fontSize)
+            : base(parent, fontSize, fontFamily)
         {
             ShowName = showName;
             TitleBrush = titleBrush;
@@ -82,8 +89,9 @@ namespace PlayniteAchievements.ViewModels
         public ToastDescriptionLine(
             AchievementToastViewModel parent,
             double fontSize,
+            FontFamily fontFamily,
             bool showDescription)
-            : base(parent, fontSize)
+            : base(parent, fontSize, fontFamily)
         {
             ShowDescription = showDescription;
         }
@@ -105,10 +113,11 @@ namespace PlayniteAchievements.ViewModels
         public ToastGameCategoryLine(
             AchievementToastViewModel parent,
             double fontSize,
+            FontFamily fontFamily,
             bool showGameName,
             bool showCategory,
             bool showSeparator)
-            : base(parent, fontSize)
+            : base(parent, fontSize, fontFamily)
         {
             ShowGameName = showGameName;
             ShowCategory = showCategory;
