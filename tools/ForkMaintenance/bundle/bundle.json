@@ -1,6 +1,6 @@
 {
     "schemaVersion":  1,
-    "generatedUtc":  "2026-07-28T15:22:01.5129578Z",
+    "generatedUtc":  "2026-07-28T15:32:59.7967984Z",
     "baselineRef":  "upstream/main",
     "baselineCommit":  "21f3b22393c99a80aee0f49b9bdca1aa80686f23",
     "protectedPaths":  [
@@ -9,7 +9,7 @@
                        ],
     "patch":  {
                   "path":  "fork-changes.patch",
-                  "sha256":  "BA0A062A236FE4E90757BABEAD0835CF7508E0C956F47C3E620373811ECF0C44"
+                  "sha256":  "E30C6A15A171F49991938E66F59E16B5BEC9583B74BF170BA7A983BD03C262BF"
               },
     "localizationRecipes":  {
                                 "path":  "localization-recipes.json",
@@ -300,7 +300,7 @@
                          },
                          {
                              "path":  "source/Views/LocalAchievementEditorControl.xaml",
-                             "sha256":  "AA44AD064835575800E04FA5F382C57057B4FE34284FC9FDF755EE4128939050"
+                             "sha256":  "9DBF04771A4E414418732E8A29BD4B2C664D7A5E0DA0001FCA2D8D44C075CCB2"
                          },
                          {
                              "path":  "source/Views/LocalAchievementEditorControl.xaml.cs",

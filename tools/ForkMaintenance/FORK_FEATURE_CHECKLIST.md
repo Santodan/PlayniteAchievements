@@ -34,10 +34,20 @@ Primary fork areas:
 - Manage Achievements contains Overrides → Main/Local and Local →
   Local Saves & Schema/Steam/LumaPlay.
 - Local right-click commands and Manage Achievements shortcuts are present.
+- View Achievements shows `Edit Local Achievements` only when the game resolves
+  through the Local provider and has a writable `achievements.json` or
+  `achievements.ini`.
+- The Local achievement editor opens with the current v3 achievement cell
+  resources and can save unlock state and unlock times back to the Local file.
 
 Primary fork areas:
 
 - `source/Providers/Local/`
+- `source/ViewModels/LocalAchievementEditorViewModel.cs`
+- `source/Views/LocalAchievementEditorControl.*`
+- `source/ViewModels/ViewAchievementsViewModel.cs`
+- `source/Views/ViewAchievementsControl.*`
+- `source/Services/UI/PluginWindowService.cs`
 - `source/PlayniteAchievementsPlugin.LocalMenus.cs`
 - `source/ViewModels/*Local*`
 - `source/ViewModels/ManageAchievementsViewModel.*.cs`

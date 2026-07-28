@@ -10,6 +10,7 @@ using PlayniteAchievements.Common;
 using PlayniteAchievements.Models;
 using PlayniteAchievements.Models.Achievements;
 using PlayniteAchievements.Models.Settings;
+using PlayniteAchievements.Providers.Local;
 using PlayniteAchievements.Services;
 using PlayniteAchievements.Services.Achievements;
 using PlayniteAchievements.Services.Cache;
@@ -53,6 +54,7 @@ namespace PlayniteAchievements.ViewModels
         private List<AchievementDisplayItem> _allAchievements = new List<AchievementDisplayItem>();
         private List<AchievementDisplayItem> _orderedAchievements = new List<AchievementDisplayItem>();
         private List<AchievementDisplayItem> _filteredAchievements = new List<AchievementDisplayItem>();
+        private bool _canEditLocalAchievements;
         private bool _hasCustomAchievementOrder;
 
         // In-memory sort/filter state for the most recently viewed game. Restored when the
@@ -254,6 +256,14 @@ namespace PlayniteAchievements.ViewModels
         }
 
         public bool IsCategorySelected => !string.IsNullOrEmpty(SelectedCategoryName);
+
+        public Guid GameId => _gameId;
+
+        public bool CanEditLocalAchievements
+        {
+            get => _canEditLocalAchievements;
+            private set => SetValue(ref _canEditLocalAchievements, value);
+        }
 
         private int _totalAchievements;
         public int TotalAchievements
@@ -497,6 +507,7 @@ namespace PlayniteAchievements.ViewModels
                 if (game == null)
                 {
                     _logger?.Warn($"Game not found: {_gameId}");
+                    CanEditLocalAchievements = false;
                     UpdateSummaryItem(null, null);
                     return;
                 }
@@ -524,6 +535,7 @@ namespace PlayniteAchievements.ViewModels
                     });
 
                     Timeline.SetCounts(null);
+                    CanEditLocalAchievements = false;
                     return;
                 }
 
@@ -567,6 +579,11 @@ namespace PlayniteAchievements.ViewModels
                 }
 
                 _allAchievements = displayItems;
+                var localProvider = _refreshService?.Providers?.OfType<LocalSavesProvider>().FirstOrDefault();
+                CanEditLocalAchievements =
+                    localProvider != null &&
+                    string.Equals(gameData.EffectiveProviderKey, "Local", StringComparison.OrdinalIgnoreCase) &&
+                    localProvider.TryResolveWritableAchievementFilePath(game, out _, out _, out _, out _);
                 RefreshOrderedAchievements(skipDefaultSort: false);
 
                 // The control bar's filter option collections are UI-bound.
@@ -583,6 +600,7 @@ namespace PlayniteAchievements.ViewModels
             {
                 _logger?.Error(ex, $"Failed to load game data for {_gameId}");
                 HasCustomAchievementOrder = false;
+                CanEditLocalAchievements = false;
             }
         }
 

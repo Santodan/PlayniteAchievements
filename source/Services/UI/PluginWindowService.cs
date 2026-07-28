@@ -13,6 +13,7 @@ using PlayniteAchievements.Common;
 using PlayniteAchievements.Models;
 using PlayniteAchievements.Models.Achievements;
 using PlayniteAchievements.Models.Settings;
+using PlayniteAchievements.Providers.Local;
 using PlayniteAchievements.Providers.Manual;
 using PlayniteAchievements.Services.Achievements;
 using PlayniteAchievements.Services.Cache;
@@ -40,6 +41,7 @@ namespace PlayniteAchievements.Services.UI
         private const string ManageAchievementsWindowPlacementKey = "ManageAchievements";
         private const string OverviewWindowPlacementKey = "Overview";
         private const string ColorPickerWindowPlacementKey = "ColorPicker";
+        private const string LocalAchievementEditorWindowPlacementKey = "LocalAchievementEditor";
         private const int ShowWindowRestore = 9;
 
         private enum AchievementWindowKind
@@ -1542,6 +1544,66 @@ namespace PlayniteAchievements.Services.UI
         public void OpenCapstoneView(Guid gameId)
         {
             OpenManageAchievementsView(gameId, ManageAchievementsTab.Capstones);
+        }
+
+        public void OpenLocalAchievementsEditorView(Guid gameId)
+        {
+            try
+            {
+                InvokeOnUiThread(() => OpenLocalAchievementsEditorViewCore(gameId));
+            }
+            catch (Exception ex)
+            {
+                _logger.Error(ex, $"Failed to open local achievements editor for gameId={gameId}");
+                _api?.Dialogs?.ShowErrorMessage(
+                    $"Failed to open local achievements editor: {ex.Message}",
+                    "Playnite Achievements");
+            }
+        }
+
+        private void OpenLocalAchievementsEditorViewCore(Guid gameId)
+        {
+            var isFullscreen = DetectFullscreenMode();
+            var game = _api?.Database?.Games?.Get(gameId);
+            if (game == null)
+            {
+                _api?.Dialogs?.ShowErrorMessage(
+                    ResourceProvider.GetString("LOCPlayAch_Text_UnknownGame"),
+                    ResourceProvider.GetString("LOCPlayAch_Title_PluginName"));
+                return;
+            }
+
+            var localProvider = _refreshService?.Providers?.OfType<LocalSavesProvider>().FirstOrDefault();
+            var viewModel = new LocalAchievementEditorViewModel(
+                gameId,
+                _cacheManager,
+                localProvider,
+                _api,
+                _logger,
+                _settings);
+            var view = new LocalAchievementEditorControl(viewModel);
+            var window = CreateManagedPopoutWindow(
+                view.WindowTitle,
+                view,
+                new WindowOptions
+                {
+                    ShowMinimizeButton = true,
+                    ShowMaximizeButton = true,
+                    ShowCloseButton = true,
+                    CanBeResizable = true,
+                    Width = 1100,
+                    Height = 760
+                },
+                isFullscreen,
+                LocalAchievementEditorWindowPlacementKey,
+                configureWindow: createdWindow =>
+                {
+                    createdWindow.MinWidth = 900;
+                    createdWindow.MinHeight = 620;
+                },
+                closed: view.Cleanup);
+
+            ShowWindow(window, isFullscreen);
         }
 
         public void OpenParityTestView(Guid gameId, bool modern)

@@ -13,7 +13,7 @@
     <UserControl.Resources>
         <ResourceDictionary>
             <ResourceDictionary.MergedDictionaries>
-                <ResourceDictionary Source="pack://application:,,,/PlayniteAchievements;component/Resources/AchievementTemplates.xaml" />
+                <ResourceDictionary Source="pack://application:,,,/PlayniteAchievements;component/Resources/AchievementCellTemplates.xaml" />
             </ResourceDictionary.MergedDictionaries>
             <converters:BooleanConverter x:Key="BoolToVis" Mode="ToVisibility" />
             <Style x:Key="CardBorderStyle" TargetType="Border">

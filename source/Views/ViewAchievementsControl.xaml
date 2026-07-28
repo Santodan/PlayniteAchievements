@@ -94,6 +94,12 @@
                                                DisableRowSelection="True"
                                                RowPreviewMouseRightButtonDown="GameSummaryRow_PreviewMouseRightButtonDown"
                                                RowPreviewMouseRightButtonUp="GameSummaryRow_PreviewMouseRightButtonUp"/>
+            <Button Content="Edit Local Achievements"
+                    HorizontalAlignment="Right"
+                    Margin="0,4,0,0"
+                    Padding="12,6"
+                    Click="OpenLocalEditor_Click"
+                    Visibility="{Binding CanEditLocalAchievements, Converter={StaticResource BoolToVis}}"/>
             <!-- Standard refresh progress bar (mirrors the Overview window) -->
             <StackPanel Margin="4,4,0,0"
                         Visibility="{Binding ShowProgress, Converter={StaticResource BoolToVis}}">

@@ -1,16 +1,8 @@
-warning: in the working copy of 'source/Models/Achievements/GameAchievementData.cs', LF will be replaced by CRLF the next time Git touches it
-warning: in the working copy of 'source/Models/PluginSettings.cs', LF will be replaced by CRLF the next time Git touches it
-warning: in the working copy of 'source/Models/ThemeIntegration/LibraryRuntimeState.cs', LF will be replaced by CRLF the next time Git touches it
-warning: in the working copy of 'source/Models/ThemeIntegration/ModernThemeBindings.cs', LF will be replaced by CRLF the next time Git touches it
-warning: in the working copy of 'source/Services/Overview/OverviewDataBuilder.cs', LF will be replaced by CRLF the next time Git touches it
-warning: in the working copy of 'source/Services/ThemeIntegration/LibraryRuntimeStateBuilder.cs', LF will be replaced by CRLF the next time Git touches it
-warning: in the working copy of 'source/Services/ThemeIntegration/ThemeDelegatedPropertyCatalog.cs', LF will be replaced by CRLF the next time Git touches it
-warning: in the working copy of 'source/Services/ThemeIntegration/ThemeIntegrationService.cs', LF will be replaced by CRLF the next time Git touches it
-warning: in the working copy of 'source/Services/ThemeMigration/ThemeMigrationService.cs', LF will be replaced by CRLF the next time Git touches it
-warning: in the working copy of 'tests/PlayniteAchievements.Tests/PlayniteAchievements.Tests.csproj', LF will be replaced by CRLF the next time Git touches it
-warning: in the working copy of 'tests/PlayniteAchievements.Tests/Services/ThemeDiscoveryServiceTests.cs', LF will be replaced by CRLF the next time Git touches it
-warning: in the working copy of 'tests/PlayniteAchievements.Tests/ThemeIntegration/ThemeIntegrationBindingsTests.cs', LF will be replaced by CRLF the next time Git touches it
-warning: in the working copy of 'tests/PlayniteAchievements.Tests/ThemeIntegration/ThemeIntegrationTestStubs.cs', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'source/PlayniteAchievementsPlugin.Windows.cs', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'source/Services/UI/PluginWindowService.cs', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'source/ViewModels/ViewAchievementsViewModel.cs', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'source/Views/ViewAchievementsControl.xaml', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'source/Views/ViewAchievementsControl.xaml.cs', LF will be replaced by CRLF the next time Git touches it
 diff --git a/.gitignore b/.gitignore
 index 5e12022a1ec68295804fa1a6b2b12d0466614631..dd93b805a2211987591bc7b59a92b5c6e77af5c5 100644
 --- a/.gitignore
@@ -1286,10 +1278,10 @@ index 57463695a765750a4d43373c7428e1505e47cc00..6c981768ba0004dc27d595bbccd6cb81
              {
                  Description = "-",
 diff --git a/source/PlayniteAchievementsPlugin.Windows.cs b/source/PlayniteAchievementsPlugin.Windows.cs
-index 1289e4dc41a1798bf2f6a851f893051019beabd2..c7b72c133e4e071f06c9a33d7436c700a2fcb28f 100644
+index 1289e4dc41a1798bf2f6a851f893051019beabd2..466f834a77b62f7df7ded5c2d9fc83d682425cc8 100644
 --- a/source/PlayniteAchievementsPlugin.Windows.cs
 +++ b/source/PlayniteAchievementsPlugin.Windows.cs
-@@ -61,6 +61,11 @@ public void OpenManageAchievementsView(
+@@ -61,11 +61,21 @@ public void OpenManageAchievementsView(
              _windowService.OpenManageAchievementsView(gameId, initialTab, selectManageCategoriesSubTab);
          }
  
@@ -1301,6 +1293,16 @@ index 1289e4dc41a1798bf2f6a851f893051019beabd2..c7b72c133e4e071f06c9a33d7436c700
          public void OpenCapstoneView(Guid gameId)
          {
              _windowService.OpenCapstoneView(gameId);
+         }
+ 
++        public void OpenLocalAchievementsEditorView(Guid gameId)
++        {
++            _windowService.OpenLocalAchievementsEditorView(gameId);
++        }
++
+         private void EnsureAchievementResourcesLoaded()
+         {
+             _resourceService.EnsureAchievementResourcesLoaded(_settingsViewModel.Settings);
 diff --git a/source/PlayniteAchievementsPlugin.cs b/source/PlayniteAchievementsPlugin.cs
 index ffc5cb769181e0f751ee1ef8a2e32c143fff2362..82259225ce0a094c22f7922cc0d2d5d52718ebc0 100644
 --- a/source/PlayniteAchievementsPlugin.cs
@@ -13551,10 +13553,26 @@ index 3d6443c00ad71f3045beaed435923d89a44ae4e5..4b76693318047fc4b3c06ed3dc247fcd
  
          private static int ReplacePrefixedControlName(ref string content, string prefix, string legacyName, string modernName)
 diff --git a/source/Services/UI/PluginWindowService.cs b/source/Services/UI/PluginWindowService.cs
-index c34d6e525fc997f2cd8c0c675d23653fefd4db50..86f0c80f358a67c476bcda71905c35d5fb1c496b 100644
+index c34d6e525fc997f2cd8c0c675d23653fefd4db50..bde5b5655adee90a4f15cfffabf6b5afc802c035 100644
 --- a/source/Services/UI/PluginWindowService.cs
 +++ b/source/Services/UI/PluginWindowService.cs
-@@ -852,7 +852,8 @@ private bool TryActivateTrackedWindow(AchievementWindowKind kind, Guid gameId)
+@@ -13,6 +13,7 @@
+ using PlayniteAchievements.Models;
+ using PlayniteAchievements.Models.Achievements;
+ using PlayniteAchievements.Models.Settings;
++using PlayniteAchievements.Providers.Local;
+ using PlayniteAchievements.Providers.Manual;
+ using PlayniteAchievements.Services.Achievements;
+ using PlayniteAchievements.Services.Cache;
+@@ -40,6 +41,7 @@ internal class PluginWindowService : IDisposable
+         private const string ManageAchievementsWindowPlacementKey = "ManageAchievements";
+         private const string OverviewWindowPlacementKey = "Overview";
+         private const string ColorPickerWindowPlacementKey = "ColorPicker";
++        private const string LocalAchievementEditorWindowPlacementKey = "LocalAchievementEditor";
+         private const int ShowWindowRestore = 9;
+ 
+         private enum AchievementWindowKind
+@@ -852,7 +854,8 @@ private bool TryActivateTrackedWindow(AchievementWindowKind kind, Guid gameId)
          private bool TryActivateManageAchievementsWindow(
              Guid gameId,
              ManageAchievementsTab tab,
@@ -13564,7 +13582,7 @@ index c34d6e525fc997f2cd8c0c675d23653fefd4db50..86f0c80f358a67c476bcda71905c35d5
          {
              if (!TryGetTrackedWindow(AchievementWindowKind.ManageAchievements, gameId, out var window))
              {
-@@ -862,6 +863,7 @@ private bool TryActivateManageAchievementsWindow(
+@@ -862,6 +865,7 @@ private bool TryActivateManageAchievementsWindow(
              if (TryGetWindowContent<ManageAchievementsControl>(window, out var control))
              {
                  control.SelectTab(tab, selectManageCategoriesSubTab);
@@ -13572,7 +13590,7 @@ index c34d6e525fc997f2cd8c0c675d23653fefd4db50..86f0c80f358a67c476bcda71905c35d5
              }
  
              ActivateTrackedWindow(window);
-@@ -1091,7 +1093,7 @@ private void OpenOverviewWindowCore()
+@@ -1091,7 +1095,7 @@ private void OpenOverviewWindowCore()
                      _logger,
                      _refreshService,
                      _cacheManager,
@@ -13581,7 +13599,7 @@ index c34d6e525fc997f2cd8c0c675d23653fefd4db50..86f0c80f358a67c476bcda71905c35d5
                      _achievementOverridesService,
                      _achievementDataService,
                      _libraryProjectionService,
-@@ -1436,15 +1438,36 @@ public void OpenManageAchievementsView(
+@@ -1436,15 +1440,36 @@ public void OpenManageAchievementsView(
              }
          }
  
@@ -13620,7 +13638,7 @@ index c34d6e525fc997f2cd8c0c675d23653fefd4db50..86f0c80f358a67c476bcda71905c35d5
              {
                  return;
              }
-@@ -1477,6 +1500,7 @@ private void OpenManageAchievementsViewCore(
+@@ -1477,6 +1502,7 @@ private void OpenManageAchievementsViewCore(
                      _settings,
                      _manualSourceRegistry,
                      selectManageCategoriesSubTab);
@@ -13628,6 +13646,73 @@ index c34d6e525fc997f2cd8c0c675d23653fefd4db50..86f0c80f358a67c476bcda71905c35d5
  
                  var windowOptions = new WindowOptions
                  {
+@@ -1520,6 +1546,66 @@ public void OpenCapstoneView(Guid gameId)
+             OpenManageAchievementsView(gameId, ManageAchievementsTab.Capstones);
+         }
+ 
++        public void OpenLocalAchievementsEditorView(Guid gameId)
++        {
++            try
++            {
++                InvokeOnUiThread(() => OpenLocalAchievementsEditorViewCore(gameId));
++            }
++            catch (Exception ex)
++            {
++                _logger.Error(ex, $"Failed to open local achievements editor for gameId={gameId}");
++                _api?.Dialogs?.ShowErrorMessage(
++                    $"Failed to open local achievements editor: {ex.Message}",
++                    "Playnite Achievements");
++            }
++        }
++
++        private void OpenLocalAchievementsEditorViewCore(Guid gameId)
++        {
++            var isFullscreen = DetectFullscreenMode();
++            var game = _api?.Database?.Games?.Get(gameId);
++            if (game == null)
++            {
++                _api?.Dialogs?.ShowErrorMessage(
++                    ResourceProvider.GetString("LOCPlayAch_Text_UnknownGame"),
++                    ResourceProvider.GetString("LOCPlayAch_Title_PluginName"));
++                return;
++            }
++
++            var localProvider = _refreshService?.Providers?.OfType<LocalSavesProvider>().FirstOrDefault();
++            var viewModel = new LocalAchievementEditorViewModel(
++                gameId,
++                _cacheManager,
++                localProvider,
++                _api,
++                _logger,
++                _settings);
++            var view = new LocalAchievementEditorControl(viewModel);
++            var window = CreateManagedPopoutWindow(
++                view.WindowTitle,
++                view,
++                new WindowOptions
++                {
++                    ShowMinimizeButton = true,
++                    ShowMaximizeButton = true,
++                    ShowCloseButton = true,
++                    CanBeResizable = true,
++                    Width = 1100,
++                    Height = 760
++                },
++                isFullscreen,
++                LocalAchievementEditorWindowPlacementKey,
++                configureWindow: createdWindow =>
++                {
++                    createdWindow.MinWidth = 900;
++                    createdWindow.MinHeight = 620;
++                },
++                closed: view.Cleanup);
++
++            ShowWindow(window, isFullscreen);
++        }
++
+         public void OpenParityTestView(Guid gameId, bool modern)
+         {
+             try
 diff --git a/source/ViewModels/Items/AchievementDisplayItem.cs b/source/ViewModels/Items/AchievementDisplayItem.cs
 index da0ac699cac4818f3f692a3bec59121251b785a2..b6ab81a5c7c1277da9be88c257cf2a75cb6af780 100644
 --- a/source/ViewModels/Items/AchievementDisplayItem.cs
@@ -15142,6 +15227,77 @@ index 8b976e0ba392aa81e047432544f5bb7de9b9ba3e..57eb77fc2c0b26a3b0780acd268f5e70
              CancelSelectedGameLoad();
              _refreshDebounceTimer?.Stop();
              _deltaBatchTimer?.Stop();
+diff --git a/source/ViewModels/ViewAchievementsViewModel.cs b/source/ViewModels/ViewAchievementsViewModel.cs
+index 5984cd0c4a0826f632cab2cdcd0f79e4120c8361..8a9e8a83bc253bbe294f0827b209f59269578e0e 100644
+--- a/source/ViewModels/ViewAchievementsViewModel.cs
++++ b/source/ViewModels/ViewAchievementsViewModel.cs
+@@ -10,6 +10,7 @@
+ using PlayniteAchievements.Models;
+ using PlayniteAchievements.Models.Achievements;
+ using PlayniteAchievements.Models.Settings;
++using PlayniteAchievements.Providers.Local;
+ using PlayniteAchievements.Services;
+ using PlayniteAchievements.Services.Achievements;
+ using PlayniteAchievements.Services.Cache;
+@@ -53,6 +54,7 @@ public class ViewAchievementsViewModel : ObservableObject, IDisposable
+         private List<AchievementDisplayItem> _allAchievements = new List<AchievementDisplayItem>();
+         private List<AchievementDisplayItem> _orderedAchievements = new List<AchievementDisplayItem>();
+         private List<AchievementDisplayItem> _filteredAchievements = new List<AchievementDisplayItem>();
++        private bool _canEditLocalAchievements;
+         private bool _hasCustomAchievementOrder;
+ 
+         // In-memory sort/filter state for the most recently viewed game. Restored when the
+@@ -255,6 +257,14 @@ public string SelectedCategoryName
+ 
+         public bool IsCategorySelected => !string.IsNullOrEmpty(SelectedCategoryName);
+ 
++        public Guid GameId => _gameId;
++
++        public bool CanEditLocalAchievements
++        {
++            get => _canEditLocalAchievements;
++            private set => SetValue(ref _canEditLocalAchievements, value);
++        }
++
+         private int _totalAchievements;
+         public int TotalAchievements
+         {
+@@ -497,6 +507,7 @@ private void LoadGameDataCore()
+                 if (game == null)
+                 {
+                     _logger?.Warn($"Game not found: {_gameId}");
++                    CanEditLocalAchievements = false;
+                     UpdateSummaryItem(null, null);
+                     return;
+                 }
+@@ -524,6 +535,7 @@ private void LoadGameDataCore()
+                     });
+ 
+                     Timeline.SetCounts(null);
++                    CanEditLocalAchievements = false;
+                     return;
+                 }
+ 
+@@ -567,6 +579,11 @@ private void LoadGameDataCore()
+                 }
+ 
+                 _allAchievements = displayItems;
++                var localProvider = _refreshService?.Providers?.OfType<LocalSavesProvider>().FirstOrDefault();
++                CanEditLocalAchievements =
++                    localProvider != null &&
++                    string.Equals(gameData.EffectiveProviderKey, "Local", StringComparison.OrdinalIgnoreCase) &&
++                    localProvider.TryResolveWritableAchievementFilePath(game, out _, out _, out _, out _);
+                 RefreshOrderedAchievements(skipDefaultSort: false);
+ 
+                 // The control bar's filter option collections are UI-bound.
+@@ -583,6 +600,7 @@ private void LoadGameDataCore()
+             {
+                 _logger?.Error(ex, $"Failed to load game data for {_gameId}");
+                 HasCustomAchievementOrder = false;
++                CanEditLocalAchievements = false;
+             }
+         }
+ 
 diff --git a/source/Views/Helpers/DataGridSortingHelper.cs b/source/Views/Helpers/DataGridSortingHelper.cs
 index a258bbc06e14de0f533bba2e2b6de2d7861b7dde..1b7a306964afc2a30cc31c6c0e442d31e369b548 100644
 --- a/source/Views/Helpers/DataGridSortingHelper.cs
@@ -18016,6 +18172,44 @@ index b3e9affa517c40f4cb9f2e6add88ac4866194e72..8a6ecbdd88ea8c8ee46721f0552005a3
              }
          }
      }
+diff --git a/source/Views/ViewAchievementsControl.xaml b/source/Views/ViewAchievementsControl.xaml
+index bfeff1a5ad3012b1f12295705cf77a1e676bbaf5..c30c89704f84cd0c2b350795fa128f9289899b56 100644
+--- a/source/Views/ViewAchievementsControl.xaml
++++ b/source/Views/ViewAchievementsControl.xaml
+@@ -94,6 +94,12 @@
+                                                DisableRowSelection="True"
+                                                RowPreviewMouseRightButtonDown="GameSummaryRow_PreviewMouseRightButtonDown"
+                                                RowPreviewMouseRightButtonUp="GameSummaryRow_PreviewMouseRightButtonUp"/>
++            <Button Content="Edit Local Achievements"
++                    HorizontalAlignment="Right"
++                    Margin="0,4,0,0"
++                    Padding="12,6"
++                    Click="OpenLocalEditor_Click"
++                    Visibility="{Binding CanEditLocalAchievements, Converter={StaticResource BoolToVis}}"/>
+             <!-- Standard refresh progress bar (mirrors the Overview window) -->
+             <StackPanel Margin="4,4,0,0"
+                         Visibility="{Binding ShowProgress, Converter={StaticResource BoolToVis}}">
+diff --git a/source/Views/ViewAchievementsControl.xaml.cs b/source/Views/ViewAchievementsControl.xaml.cs
+index 7d5a7d5d660665c5a3de47206b028843152bb13d..dddd514c33886e15045c2cfb3a61a8f433280753 100644
+--- a/source/Views/ViewAchievementsControl.xaml.cs
++++ b/source/Views/ViewAchievementsControl.xaml.cs
+@@ -315,6 +315,16 @@ private void GameNameBreadcrumb_Click(object sender, MouseButtonEventArgs e)
+             }
+         }
+ 
++        private void OpenLocalEditor_Click(object sender, RoutedEventArgs e)
++        {
++            if (ViewModel == null)
++            {
++                return;
++            }
++
++            PlayniteAchievementsPlugin.Instance?.OpenLocalAchievementsEditorView(ViewModel.GameId);
++        }
++
+         private void AchievementRow_PreviewMouseRightButtonDown(object sender, MouseButtonEventArgs e)
+         {
+             if (TryResolveContextMenuRow(sender, e, out var row))
 diff --git a/source/packages.config b/source/packages.config
 index 77e9f7bbf9a67477c223c1e205f8c702258b48aa..63ed6735c9ff2c8329a63afa30dd0d488179773c 100644
 --- a/source/packages.config

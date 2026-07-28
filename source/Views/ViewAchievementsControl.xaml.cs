@@ -315,6 +315,16 @@ namespace PlayniteAchievements.Views
             }
         }
 
+        private void OpenLocalEditor_Click(object sender, RoutedEventArgs e)
+        {
+            if (ViewModel == null)
+            {
+                return;
+            }
+
+            PlayniteAchievementsPlugin.Instance?.OpenLocalAchievementsEditorView(ViewModel.GameId);
+        }
+
         private void AchievementRow_PreviewMouseRightButtonDown(object sender, MouseButtonEventArgs e)
         {
             if (TryResolveContextMenuRow(sender, e, out var row))

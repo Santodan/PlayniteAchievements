@@ -71,6 +71,11 @@ namespace PlayniteAchievements
             _windowService.OpenCapstoneView(gameId);
         }
 
+        public void OpenLocalAchievementsEditorView(Guid gameId)
+        {
+            _windowService.OpenLocalAchievementsEditorView(gameId);
+        }
+
         private void EnsureAchievementResourcesLoaded()
         {
             _resourceService.EnsureAchievementResourcesLoaded(_settingsViewModel.Settings);
