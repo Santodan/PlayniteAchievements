@@ -191,8 +191,6 @@ namespace PlayniteAchievements.Providers.RPCS3
                 return Task.FromResult<GameAchievementData>(null);
             }
 
-            LogResolvedTrophySources(game, sources, trophyFolderCache);
-
             cancel.ThrowIfCancellationRequested();
 
             var isCollection = sources.Count > 1;
@@ -307,44 +305,6 @@ namespace PlayniteAchievements.Providers.RPCS3
         /// a wrong-source/profile problem from a valid TROPUSR.DAT that reports no
         /// unlocked trophies.
         /// </summary>
-        private void LogResolvedTrophySources(
-            Game game,
-            IReadOnlyCollection<GameTrophySource> sources,
-            Dictionary<string, string> trophyFolderCache)
-        {
-            if (sources == null || sources.Count == 0)
-            {
-                return;
-            }
-
-            var descriptions = sources
-                .OrderBy(source => source.NpCommId, StringComparer.OrdinalIgnoreCase)
-                .Select(source => DescribeResolvedTrophySource(source, trophyFolderCache));
-            _logger?.Info($"[RPCS3] '{game?.Name}': resolved trophy source(s) [{string.Join("; ", descriptions)}].");
-        }
-
-        private static string DescribeResolvedTrophySource(
-            GameTrophySource source,
-            Dictionary<string, string> trophyFolderCache)
-        {
-            var npCommId = source?.NpCommId ?? "<missing NPWR>";
-            if (source != null &&
-                trophyFolderCache != null &&
-                trophyFolderCache.TryGetValue(npCommId, out var trophyFolder))
-            {
-                var tropusrPath = Path.Combine(trophyFolder, "TROPUSR.DAT");
-                return $"{npCommId}: active-profile folder '{trophyFolder}' " +
-                    $"(TROPUSR.DAT {(File.Exists(tropusrPath) ? "present" : "missing")})";
-            }
-
-            if (!string.IsNullOrWhiteSpace(source?.TrpPath))
-            {
-                return $"{npCommId}: TROPHY.TRP fallback '{source.TrpPath}' (definitions only)";
-            }
-
-            return $"{npCommId}: source path unavailable";
-        }
-
         private SourceAchievements BuildAchievementsForSource(
             GameTrophySource source,
             Dictionary<string, string> trophyFolderCache,
@@ -1019,18 +979,12 @@ namespace PlayniteAchievements.Providers.RPCS3
                         }
                     }
 
-                    if (seen.Count == 0)
-                    {
-                        _logger?.Info($"[RPCS3] ISO '{isoPath}' read as a filesystem but no trophy sets found; root directories: [{string.Join(", ", rootDirectoryNames)}].");
-                    }
                 }
             }
             catch (Exception ex)
             {
                 // Unreadable disc image; the raw scan below is the only option left.
-                // Logged because a missing filesystem reader (e.g. an assembly that
-                // did not ship) is indistinguishable from a bad image without it.
-                _logger?.Info($"[RPCS3] Could not read ISO '{isoPath}' as a filesystem ({ex.GetType().Name}: {ex.Message}); falling back to raw scan.");
+                _logger?.Debug(ex, $"[RPCS3] Could not read ISO '{isoPath}' as a filesystem; falling back to raw scan.");
             }
 
             // The structured read is authoritative; raw scanning is the fallback for
@@ -1589,8 +1543,6 @@ namespace PlayniteAchievements.Providers.RPCS3
                 _logger?.Info($"[RPCS3] Directory '{directory}' contains {isoFiles.Count} ISOs and none uniquely matches '{gameName}' (best score {bestScore}, unique={bestIsUnique}); skipping directory ISO scan.");
                 return null;
             }
-
-            _logger?.Info($"[RPCS3] Directory '{directory}' contains {isoFiles.Count} ISOs; selected '{Path.GetFileName(bestIso)}' for '{gameName}' (score {bestScore}).");
             return bestIso;
         }
 
@@ -1826,8 +1778,6 @@ namespace PlayniteAchievements.Providers.RPCS3
                 return null;
             }
 
-            _logger?.Info($"[RPCS3] Serial bridge: game='{game?.Name}' discovered serials [{string.Join(", ", serials.Select(entry => $"{entry.Serial} ({entry.Origin})"))}]");
-
             var resolved = new List<(string Serial, GameTrophySource Source)>();
             foreach (var serialCandidate in serials)
             {
@@ -2013,7 +1963,6 @@ namespace PlayniteAchievements.Providers.RPCS3
                     var (npcommid, trpPath) = FindNpCommIdAndTrpFromInstalledGame(installedDir, trophyFolderCache);
                     if (!string.IsNullOrWhiteSpace(npcommid))
                     {
-                        _logger?.Info($"[RPCS3] Serial bridge: '{serial}' -> '{npcommid}' via dev_hdd0\\game install (TrpPath='{trpPath}')");
                         return new[] { new GameTrophySource { NpCommId = npcommid, TrpPath = trpPath } };
                     }
                 }
@@ -2021,7 +1970,6 @@ namespace PlayniteAchievements.Providers.RPCS3
 
             if (!serialBridge.GamesYmlMap.TryGetValue(serial, out var registeredPath))
             {
-                _logger?.Info($"[RPCS3] Serial bridge: '{serial}' is not installed under dev_hdd0\\game and has no games.yml entry.");
                 return Array.Empty<GameTrophySource>();
             }
 
@@ -2036,7 +1984,6 @@ namespace PlayniteAchievements.Providers.RPCS3
                 var (npcommid, trpPath) = FindNpCommIdAndTrpFromInstalledGame(resolvedPath, trophyFolderCache);
                 if (!string.IsNullOrWhiteSpace(npcommid))
                 {
-                    _logger?.Info($"[RPCS3] Serial bridge: '{serial}' -> '{npcommid}' via games.yml directory '{resolvedPath}' (TrpPath='{trpPath}')");
                     return new[] { new GameTrophySource { NpCommId = npcommid, TrpPath = trpPath } };
                 }
 
@@ -2047,13 +1994,7 @@ namespace PlayniteAchievements.Providers.RPCS3
             if (File.Exists(resolvedPath) &&
                 resolvedPath.EndsWith(".iso", StringComparison.OrdinalIgnoreCase))
             {
-                var isoSources = FindIsoTrophySources(resolvedPath, trophyFolderCache, allowRawIsoScan);
-                if (isoSources.Count > 0)
-                {
-                    _logger?.Info($"[RPCS3] Serial bridge: '{serial}' -> [{string.Join(", ", isoSources.Select(source => source.NpCommId))}] via games.yml ISO '{resolvedPath}'");
-                }
-
-                return isoSources;
+                return FindIsoTrophySources(resolvedPath, trophyFolderCache, allowRawIsoScan);
             }
 
             _logger?.Info($"[RPCS3] Serial bridge: '{serial}' games.yml path '{resolvedPath}' does not exist.");
