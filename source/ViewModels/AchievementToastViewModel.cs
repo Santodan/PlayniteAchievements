@@ -418,6 +418,12 @@ namespace PlayniteAchievements.ViewModels
         public FontFamily ToastFontFamily => ResolveFontFamily(_style.Toast.FontFamily);
         public FontFamily FrameFontFamily => ResolveFontFamily(_style.Frame.FontFamily);
 
+        // Effective caption/header size per surface, also used by the icon column's percent
+        // text (part of the "header/caption" size group).
+        public double ToastHeaderFontSize => _style.Toast.HeaderFontSize
+            ?? ResolveFontSizeResource("PlayAch.FontSize.Caption", 11);
+        public double FrameHeaderFontSize => _style.Frame.HeaderFontSize ?? FrameHeaderFontFallback;
+
         /// <summary>
         /// The toast's text lines in the user's order; hidden lines are still present with
         /// their visibility flags false so completion triggers can force them visible.
@@ -435,8 +441,8 @@ namespace PlayniteAchievements.ViewModels
         private IReadOnlyList<ToastLineDescriptor> BuildLines(bool isFrame)
         {
             var surface = isFrame ? _style.Frame : _style.Toast;
-            var headerSize = surface.HeaderFontSize ??
-                (isFrame ? FrameHeaderFontFallback : ResolveFontSizeResource("PlayAch.FontSize.Caption", 11));
+            var family = isFrame ? FrameFontFamily : ToastFontFamily;
+            var headerSize = isFrame ? FrameHeaderFontSize : ToastHeaderFontSize;
             var titleSize = surface.TitleFontSize ??
                 (isFrame ? FrameTitleFontFallback : ResolveFontSizeResource("PlayAch.FontSize.Title", 16));
             var bodySize = surface.BodyFontSize ??
@@ -453,6 +459,7 @@ namespace PlayniteAchievements.ViewModels
                         lines.Add(new ToastHeaderLine(
                             this,
                             headerSize,
+                            family,
                             isFrame ? FrameShowHeader : ShowHeader,
                             isFrame ? FrameShowUnlockTime : ShowUnlockTime,
                             isFrame ? FrameShowHeaderDateSeparator : ShowHeaderDateSeparator,
@@ -462,6 +469,7 @@ namespace PlayniteAchievements.ViewModels
                         lines.Add(new ToastTitleLine(
                             this,
                             titleSize,
+                            family,
                             isFrame ? FrameShowName : ShowName,
                             isFrame ? FrameTitleBrush : TitleBrush));
                         break;
@@ -469,12 +477,14 @@ namespace PlayniteAchievements.ViewModels
                         lines.Add(new ToastDescriptionLine(
                             this,
                             bodySize,
+                            family,
                             isFrame ? FrameShowDescription : ShowDescription));
                         break;
                     case NotificationSurfaceStyle.LineGameCategory:
                         lines.Add(new ToastGameCategoryLine(
                             this,
                             gameCategorySize,
+                            family,
                             isFrame ? FrameShowGameName : ShowGameName,
                             isFrame ? FrameShowCategory : ShowCategory,
                             isFrame ? FrameShowGameCategorySeparator : ShowGameCategorySeparator));
