@@ -45,8 +45,6 @@ namespace PlayniteAchievements.Providers.RPCS3
             {
                 var doc = XDocument.Load(tropconfPath);
                 trophies = ParseTrophyConfDocument(doc, language);
-
-                logger?.Info($"[RPCS3] Parsed {trophies.Count} trophy definitions from '{Path.GetFileName(Path.GetDirectoryName(tropconfPath))}'");
             }
             catch (Exception ex)
             {
@@ -165,12 +163,10 @@ namespace PlayniteAchievements.Providers.RPCS3
                     .GroupBy(trophy => trophy.Id)
                     .ToDictionary(group => group.Key, group => group.First());
 
-                var matchedStateCount = states.Keys.Count(trophyById.ContainsKey);
                 var unmatchedStateIds = states.Keys
                     .Where(id => !trophyById.ContainsKey(id))
                     .OrderBy(id => id)
                     .ToList();
-                var unlockedStateCount = states.Values.Count(state => state.Unlocked);
 
                 // Do not mutate a definition until every table and record has been
                 // checked. This keeps an invalid file from producing partial state.
@@ -184,14 +180,6 @@ namespace PlayniteAchievements.Providers.RPCS3
                     trophy.Unlocked = state.Value.Unlocked;
                     trophy.UnlockTimeUtc = state.Value.UnlockTimeUtc;
                 }
-
-                var unlockedCount = trophies.Count(trophy => trophy?.Unlocked == true);
-                var lastWriteUtc = File.GetLastWriteTimeUtc(tropusrPath);
-                logger?.Info(
-                    $"[RPCS3] Parsed authoritative unlock data at '{tropusrPath}': " +
-                    $"{unlockedCount}/{trophies.Count} definition trophies unlocked; " +
-                    $"{states.Count} state records ({matchedStateCount} matched definitions, " +
-                    $"{unlockedStateCount} unlocked), {bytes.Length} bytes, last written {lastWriteUtc:O}.");
 
                 if (unmatchedStateIds.Count > 0)
                 {
@@ -578,8 +566,6 @@ namespace PlayniteAchievements.Providers.RPCS3
                     trophy.Unlocked = false; // Pre-launch: all locked
                     trophy.UnlockTimeUtc = null;
                 }
-
-                logger?.Info($"[RPCS3] Parsed {trophies.Count} trophy definitions from TROPHY.TRP (pre-launch)");
             }
             catch (Exception ex)
             {
