@@ -1052,8 +1052,7 @@
     <sys:String x:Key="LOCPlayAch_Rarity_UltraRare">Ultra Rare</sys:String>
     <sys:String x:Key="LOCPlayAch_Rarity_Uncommon">Uncommon</sys:String>
     <sys:String x:Key="LOCPlayAch_Section_Notifications">Notifications</sys:String>
-    <sys:String x:Key="LOCPlayAch_Section_NotificationAppearance">Notification appearance</sys:String>
-    <sys:String x:Key="LOCPlayAch_Section_Capture">Screenshots &amp; recordings</sys:String>
+    <sys:String x:Key="LOCPlayAch_Section_Capture">Screenshots &amp; Recordings</sys:String>
     <sys:String x:Key="LOCPlayAch_Section_SyncUpdates">Sync &amp; Updates</sys:String>
     <sys:String x:Key="LOCPlayAch_Section_Timeline">Achievements Over Time</sys:String>
     <sys:String x:Key="LOCPlayAch_TimeRange_14D">14D</sys:String>
