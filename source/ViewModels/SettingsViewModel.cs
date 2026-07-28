@@ -87,7 +87,8 @@ namespace PlayniteAchievements.ViewModels
                 var overviewMigratedJson = OverviewSettingsMigration.MigrateFromJson(migratedJson);
                 var gridOptionsMigratedJson = GridOptionsSettingsMigration.MigrateFromJson(overviewMigratedJson);
                 var appearanceMigratedJson = AppearanceSettingsMigration.MigrateFromJson(gridOptionsMigratedJson);
-                var fullyMigratedJson = GameCustomDataStore.MigrateLegacyConfig(appearanceMigratedJson);
+                var notificationStyleMigratedJson = NotificationStyleSettingsMigration.MigrateFromJson(appearanceMigratedJson);
+                var fullyMigratedJson = GameCustomDataStore.MigrateLegacyConfig(notificationStyleMigratedJson);
 
                 // If migration changed the JSON, save the migrated version
                 if (fullyMigratedJson != rawJson)
