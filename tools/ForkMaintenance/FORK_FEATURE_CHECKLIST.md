@@ -12,12 +12,24 @@ must still be verified in Playnite.
   Exophase.
 - Custom templates, custom sounds, screenshots, recordings, and test
   notifications still work.
-- Local-provider unlock polling publishes notifications without interfering
-  with upstream live polling or its notification overlay.
+- Upstream v3 live polling is the single unlock detector for the custom
+  Achievement Notification; own-player events use the fork renderer without
+  also displaying the upstream toast.
+- The Achievement Notification polling interval drives upstream live polling
+  whenever the custom notification is enabled, including values from 1 to 60
+  seconds.
+- Friend unlocks, game-completion events, screenshots, and recordings remain
+  on the upstream event pipeline, and per-game real-time notification
+  exclusions are respected.
+- The obsolete separate Exophase/RetroAchievements API-verification controls
+  are not shown.
 
 Primary fork areas:
 
 - `source/Services/NotificationPublisher.cs`
+- `source/Services/InGameAchievementPoller.cs`
+- `source/Services/UI/ToastNotificationService.cs`
+- `source/PlayniteAchievementsPlugin.cs`
 - `source/Services/Local/`
 - `source/Services/Exophase/`
 - `source/Views/LegacyNotificationSettingsControl.*`

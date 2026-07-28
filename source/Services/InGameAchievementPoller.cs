@@ -11,6 +11,7 @@ using PlayniteAchievements.Models.Achievements;
 using PlayniteAchievements.Models.Friends;
 using PlayniteAchievements.Models.Settings;
 using PlayniteAchievements.Providers;
+using PlayniteAchievements.Providers.Local;
 using PlayniteAchievements.Services.Achievements;
 using PlayniteAchievements.Services.Cache;
 using PlayniteAchievements.Services.Friends;
@@ -644,7 +645,9 @@ namespace PlayniteAchievements.Services
         private bool ShouldPollGame(Game game, bool logReason)
         {
             var persisted = _settings?.Persisted;
-            if (persisted?.EnableInGamePolling != true)
+            var customNotificationsEnabled =
+                ProviderRegistry.Settings<LocalSettings>()?.EnableActiveGameMonitoring == true;
+            if (persisted?.EnableInGamePolling != true && !customNotificationsEnabled)
             {
                 if (logReason) _logger?.Debug("[InGamePolling] Disabled in settings.");
                 return false;
@@ -688,6 +691,17 @@ namespace PlayniteAchievements.Services
 
         private TimeSpan GetPollInterval()
         {
+            var customSettings = ProviderRegistry.Settings<LocalSettings>();
+            if (customSettings?.EnableActiveGameMonitoring == true)
+            {
+                var seconds = Math.Max(
+                    LocalSettings.MinActiveGameMonitoringIntervalSeconds,
+                    Math.Min(
+                        LocalSettings.MaxActiveGameMonitoringIntervalSeconds,
+                        customSettings.ActiveGameMonitoringIntervalSeconds));
+                return TimeSpan.FromSeconds(seconds);
+            }
+
             return TimeSpan.FromSeconds(Math.Max(10, _settings?.Persisted?.InGamePollIntervalSeconds ?? 15));
         }
 

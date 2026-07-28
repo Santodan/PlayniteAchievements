@@ -102,6 +102,7 @@ The entries below are fork-side changes, grouped by date. When a date includes a
 - v3.0.0 merge
 - `Start-page` migration fixed to not show the friend's achievements
 - Added the option for the highlighted achievement in the `Theme Migration`
+- Changed the trigger for the `Achievement Notification` to use the one from the original fork
 
 ## 2026-07-27 - v2.5.3.4
 

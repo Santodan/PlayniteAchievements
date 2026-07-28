@@ -221,6 +221,61 @@ namespace PlayniteAchievements
             handler.Invoke(null, args);
         }
 
+        private bool UsesCustomAchievementNotification(AchievementUnlockedEventArgs args)
+        {
+            if (args == null || args.IsPreview || args.IsFriendUnlock || args.IsGameCompleted)
+            {
+                return false;
+            }
+
+            var localSettings = ProviderRegistry.Settings<Providers.Local.LocalSettings>();
+            if (localSettings?.EnableActiveGameMonitoring != true)
+            {
+                return false;
+            }
+
+            return _settingsViewModel?.Settings?.Persisted?.DisabledRealtimeNotificationGameIds?
+                .Contains(args.PlayniteGameId) != true;
+        }
+
+        private void HandlePolledAchievementUnlocked(AchievementUnlockedEventArgs args)
+        {
+            if (UsesCustomAchievementNotification(args))
+            {
+                try
+                {
+                    var localSettings = ProviderRegistry.Settings<Providers.Local.LocalSettings>();
+                    var game = PlayniteApi?.Database?.Games?.Get(args.PlayniteGameId);
+                    _notifications?.ShowLocalAchievementUnlocked(
+                        args.GameName ?? game?.Name,
+                        new[]
+                        {
+                            new AchievementUnlockNotificationItem(
+                                args.DisplayName ?? args.ApiName,
+                                args.IconPath,
+                                args.Description,
+                                args.Points ?? args.ScaledPoints,
+                                args.RarityTier,
+                                args.TrophyType)
+                        },
+                        localSettings?.UnlockSoundPath,
+                        notificationProviderKey: args.ProviderKey,
+                        game: game);
+                    _logger?.Info(
+                        $"[AchievementNotification] Upstream poll detection routed to custom notification: game={args.GameName}, provider={args.ProviderKey}, achievement={args.DisplayName ?? args.ApiName}.");
+                }
+                catch (Exception ex)
+                {
+                    _logger?.Error(ex, "[AchievementNotification] Failed to render upstream poll detection with the custom notification.");
+                }
+            }
+
+            // Keep the v3 event pipeline active for screenshots, recordings, cache consumers,
+            // friend notifications, and completion events. ToastNotificationService suppresses
+            // only its own on-screen toast when the custom renderer owns this unlock.
+            NotifyAchievementUnlocked(args);
+        }
+
         private void TryWarmCustomDataCache()
         {
             if (_gameCustomDataStore == null)
@@ -537,7 +592,8 @@ namespace PlayniteAchievements
                         _logger,
                         () => _resourceService.EnsureAchievementResourcesLoaded(_settingsViewModel.Settings),
                         GetProcessIdForGame,
-                        _windowTracker);
+                        _windowTracker,
+                        UsesCustomAchievementNotification);
                     _unlockRecordings = new Services.Recording.UnlockRecordingService(
                         PlayniteApi,
                         settings,
@@ -555,7 +611,7 @@ namespace PlayniteAchievements
                         _refreshService,
                         providers,
                         (request, policy) => _refreshCoordinator.ExecuteAsync(request, policy),
-                        NotifyAchievementUnlocked);
+                        HandlePolledAchievementUnlocked);
                     _backgroundUpdates = new BackgroundUpdater(_refreshCoordinator, _refreshService, _cacheManager, settings, _logger, _notifications, null);
 
                     // Create tag sync service

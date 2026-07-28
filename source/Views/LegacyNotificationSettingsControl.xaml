@@ -2622,26 +2622,23 @@
                         <!-- ================== LOCAL ACHIEVEMENT NOTIFICATIONS SECTION ================== -->
                         <Border Style="{StaticResource SectionBorderStyle}">
                             <StackPanel>
-                                <TextBlock Text="Real-time Local Achievement Notifications"
+                                <TextBlock Text="Real-time Achievement Notifications"
                                            Style="{StaticResource SectionHeaderStyle}"
                                            Margin="0,0,0,12"/>
 
-                                <TextBlock Text="Configure notifications when achievements are detected in real-time for the currently running game."
+                                <TextBlock Text="Uses Playnite Achievements live polling to detect unlocks for the running game, then displays your custom Achievement Notification."
                                            Style="{StaticResource MutedTextStyle}"
                                            Margin="0,0,0,16"
                                            TextWrapping="Wrap"/>
 
                                 <!-- Enable Monitoring -->
-                                <CheckBox Content="Enable real-time monitoring for running game (Local provider)"
+                                <CheckBox Content="Use custom Achievement Notification for live unlocks"
                                           IsChecked="{Binding EnableActiveGameMonitoring, Mode=TwoWay}"
                                           Margin="0,0,0,4"/>
 
-                                <CheckBox Content="Refresh extension achievements when a real-time unlock is detected"
-                                          IsChecked="{Binding RefreshAchievementsOnRealtimeUnlock, Mode=TwoWay}"
-                                          Margin="18,0,0,4"/>
-                                <TextBlock Text="Shows the unlock overlay immediately, then runs a silent single-game refresh so extension views can catch up with the updated achievement data."
+                                <TextBlock Text="The v3 live poller performs the provider refresh and unlock detection. The separate Exophase / RetroAchievements API-verification monitor is no longer required."
                                            Style="{StaticResource MutedTextStyle}"
-                                           Margin="36,0,0,10"
+                                           Margin="18,0,0,10"
                                            TextWrapping="Wrap"/>
 
                                 <!-- Polling Interval -->
@@ -2667,42 +2664,15 @@
                                              LostFocus="NotificationsPollingIntervalSecondsTextBox_LostFocus"/>
                                 </Grid>
 
-                                <TextBlock Text="Choose a value between 1 and 60 seconds. Lower values react faster but increase disk polling."
+                                <TextBlock Text="Choose a value between 1 and 60 seconds. This interval is used by the v3 live poller for every supported provider."
                                            Style="{StaticResource MutedTextStyle}"
                                            Margin="18,0,0,10"
                                            TextWrapping="Wrap"
                                            IsEnabled="{Binding EnableActiveGameMonitoring}"/>
-
-                                <!-- API Verification Monitoring -->
-                                <CheckBox Content="API verification (Exophase / RetroAchievements)"
-                                          IsChecked="{Binding ApiVerificationActiveMonitoring, ElementName=LegacyNotificationSettingsControlRoot, Mode=TwoWay}"
-                                          Margin="0,0,0,4"/>
-                                <TextBlock Text="Polls the Exophase and RetroAchievements APIs at regular intervals to detect newly unlocked achievements for the running game. Rate-limit may be applied by the provider."
-                                           Style="{StaticResource MutedTextStyle}"
-                                           Margin="18,0,0,8"
-                                           TextWrapping="Wrap"/>
-
-                                <!-- API Polling Interval -->
-                                <Grid Style="{StaticResource SettingRowStyle}"
-                                      IsEnabled="{Binding ApiVerificationActiveMonitoring, ElementName=LegacyNotificationSettingsControlRoot}"
-                                      Margin="18,0,0,12">
-                                    <Grid.ColumnDefinitions>
-                                        <ColumnDefinition Width="Auto"/>
-                                        <ColumnDefinition Width="Auto"/>
-                                    </Grid.ColumnDefinitions>
-                                    <TextBlock Grid.Column="0"
-                                               Text="API polling interval (seconds):"
-                                               VerticalAlignment="Center"
-                                               Margin="0,0,8,0"
-                                               Foreground="{DynamicResource TextBrush}"
-                                               FontWeight="SemiBold"/>
-                                    <TextBox Grid.Column="1"
-                                             Width="55"
-                                             VerticalContentAlignment="Center"
-                                             x:Name="ApiVerificationPollingIntervalSecondsTextBox"
-                                             TextChanged="ApiVerificationPollingIntervalSecondsTextBox_TextChanged"
-                                             LostFocus="ApiVerificationPollingIntervalSecondsTextBox_LostFocus"/>
-                                </Grid>
+                                <!-- Retained only for loading older saved settings; API verification
+                                     is superseded by the v3 live-polling detection pipeline. -->
+                                <TextBox x:Name="ApiVerificationPollingIntervalSecondsTextBox"
+                                         Visibility="Collapsed"/>
 
                                 <CheckBox Content="Debug notification overlay logging"
                                           IsChecked="{Binding EnableOverlayDebugLogging, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"

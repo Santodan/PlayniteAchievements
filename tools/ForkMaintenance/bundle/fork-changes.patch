@@ -1,8 +1,6 @@
-warning: in the working copy of 'source/PlayniteAchievementsPlugin.Windows.cs', LF will be replaced by CRLF the next time Git touches it
-warning: in the working copy of 'source/Services/UI/PluginWindowService.cs', LF will be replaced by CRLF the next time Git touches it
-warning: in the working copy of 'source/ViewModels/ViewAchievementsViewModel.cs', LF will be replaced by CRLF the next time Git touches it
-warning: in the working copy of 'source/Views/ViewAchievementsControl.xaml', LF will be replaced by CRLF the next time Git touches it
-warning: in the working copy of 'source/Views/ViewAchievementsControl.xaml.cs', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'source/PlayniteAchievementsPlugin.cs', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'source/Services/InGameAchievementPoller.cs', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'source/Services/UI/ToastNotificationService.cs', LF will be replaced by CRLF the next time Git touches it
 diff --git a/.gitignore b/.gitignore
 index 5e12022a1ec68295804fa1a6b2b12d0466614631..dd93b805a2211987591bc7b59a92b5c6e77af5c5 100644
 --- a/.gitignore
@@ -1304,7 +1302,7 @@ index 1289e4dc41a1798bf2f6a851f893051019beabd2..466f834a77b62f7df7ded5c2d9fc83d6
          {
              _resourceService.EnsureAchievementResourcesLoaded(_settingsViewModel.Settings);
 diff --git a/source/PlayniteAchievementsPlugin.cs b/source/PlayniteAchievementsPlugin.cs
-index ffc5cb769181e0f751ee1ef8a2e32c143fff2362..82259225ce0a094c22f7922cc0d2d5d52718ebc0 100644
+index ffc5cb769181e0f751ee1ef8a2e32c143fff2362..7a017ff3350f9448166824698b23ef23e912d37a 100644
 --- a/source/PlayniteAchievementsPlugin.cs
 +++ b/source/PlayniteAchievementsPlugin.cs
 @@ -37,6 +37,7 @@
@@ -1367,7 +1365,69 @@ index ffc5cb769181e0f751ee1ef8a2e32c143fff2362..82259225ce0a094c22f7922cc0d2d5d5
          /// <summary>
          /// Raises the SettingsSaved event to notify listeners that settings have changed. Every
          /// subscriber is a UI control, so when this is invoked from a background thread (e.g. a friend
-@@ -239,6 +263,18 @@ private string GetPluginLocalizationDirectory()
+@@ -197,6 +221,61 @@ public static void NotifyAchievementUnlocked(AchievementUnlockedEventArgs args)
+             handler.Invoke(null, args);
+         }
+ 
++        private bool UsesCustomAchievementNotification(AchievementUnlockedEventArgs args)
++        {
++            if (args == null || args.IsPreview || args.IsFriendUnlock || args.IsGameCompleted)
++            {
++                return false;
++            }
++
++            var localSettings = ProviderRegistry.Settings<Providers.Local.LocalSettings>();
++            if (localSettings?.EnableActiveGameMonitoring != true)
++            {
++                return false;
++            }
++
++            return _settingsViewModel?.Settings?.Persisted?.DisabledRealtimeNotificationGameIds?
++                .Contains(args.PlayniteGameId) != true;
++        }
++
++        private void HandlePolledAchievementUnlocked(AchievementUnlockedEventArgs args)
++        {
++            if (UsesCustomAchievementNotification(args))
++            {
++                try
++                {
++                    var localSettings = ProviderRegistry.Settings<Providers.Local.LocalSettings>();
++                    var game = PlayniteApi?.Database?.Games?.Get(args.PlayniteGameId);
++                    _notifications?.ShowLocalAchievementUnlocked(
++                        args.GameName ?? game?.Name,
++                        new[]
++                        {
++                            new AchievementUnlockNotificationItem(
++                                args.DisplayName ?? args.ApiName,
++                                args.IconPath,
++                                args.Description,
++                                args.Points ?? args.ScaledPoints,
++                                args.RarityTier,
++                                args.TrophyType)
++                        },
++                        localSettings?.UnlockSoundPath,
++                        notificationProviderKey: args.ProviderKey,
++                        game: game);
++                    _logger?.Info(
++                        $"[AchievementNotification] Upstream poll detection routed to custom notification: game={args.GameName}, provider={args.ProviderKey}, achievement={args.DisplayName ?? args.ApiName}.");
++                }
++                catch (Exception ex)
++                {
++                    _logger?.Error(ex, "[AchievementNotification] Failed to render upstream poll detection with the custom notification.");
++                }
++            }
++
++            // Keep the v3 event pipeline active for screenshots, recordings, cache consumers,
++            // friend notifications, and completion events. ToastNotificationService suppresses
++            // only its own on-screen toast when the custom renderer owns this unlock.
++            NotifyAchievementUnlocked(args);
++        }
++
+         private void TryWarmCustomDataCache()
+         {
+             if (_gameCustomDataStore == null)
+@@ -239,6 +318,18 @@ private string GetPluginLocalizationDirectory()
          }
  
          public void PersistSettingsForUi()
@@ -1386,7 +1446,7 @@ index ffc5cb769181e0f751ee1ef8a2e32c143fff2362..82259225ce0a094c22f7922cc0d2d5d5
          {
              try
              {
-@@ -249,8 +285,6 @@ public void PersistSettingsForUi()
+@@ -249,8 +340,6 @@ public void PersistSettingsForUi()
              {
                  _logger?.Warn(ex, "Failed to persist plugin settings.");
              }
@@ -1395,7 +1455,7 @@ index ffc5cb769181e0f751ee1ef8a2e32c143fff2362..82259225ce0a094c22f7922cc0d2d5d5
          }
  
          // Public bridge method for external helpers/themes that used to target SuccessStory via reflection.
-@@ -385,7 +419,13 @@ public PlayniteAchievementsPlugin(IPlayniteAPI api) : base(api)
+@@ -385,7 +474,13 @@ public PlayniteAchievementsPlugin(IPlayniteAPI api) : base(api)
                  _manualSourceRegistry = new ManualSourceRegistry(_logger, settings, PlayniteApi, pluginUserDataPath);
  
                  // Create provider registry
@@ -1410,7 +1470,26 @@ index ffc5cb769181e0f751ee1ef8a2e32c143fff2362..82259225ce0a094c22f7922cc0d2d5d5
                  _providerRegistry.SyncFromSettings(settings.Persisted);
                  settings.Persisted?.MigrateLegacyProviderFriends();
                  _gameCustomDataStore = _settingsViewModel.GameCustomDataStore;
-@@ -669,7 +709,7 @@ public override IEnumerable<SidebarItem> GetSidebarItems()
+@@ -497,7 +592,8 @@ public PlayniteAchievementsPlugin(IPlayniteAPI api) : base(api)
+                         _logger,
+                         () => _resourceService.EnsureAchievementResourcesLoaded(_settingsViewModel.Settings),
+                         GetProcessIdForGame,
+-                        _windowTracker);
++                        _windowTracker,
++                        UsesCustomAchievementNotification);
+                     _unlockRecordings = new Services.Recording.UnlockRecordingService(
+                         PlayniteApi,
+                         settings,
+@@ -515,7 +611,7 @@ public PlayniteAchievementsPlugin(IPlayniteAPI api) : base(api)
+                         _refreshService,
+                         providers,
+                         (request, policy) => _refreshCoordinator.ExecuteAsync(request, policy),
+-                        NotifyAchievementUnlocked);
++                        HandlePolledAchievementUnlocked);
+                     _backgroundUpdates = new BackgroundUpdater(_refreshCoordinator, _refreshService, _cacheManager, settings, _logger, _notifications, null);
+ 
+                     // Create tag sync service
+@@ -669,7 +765,7 @@ public override IEnumerable<SidebarItem> GetSidebarItems()
                  Opened = () =>
                  {
                      return new OverviewHostControl(
@@ -4678,6 +4757,47 @@ index b64bec241a1c44b9d21257f6b4eb050b4fba998c..19b8cccd9edab8065d3a9e1d62913c9e
      }
  
      /// <summary>
+diff --git a/source/Services/InGameAchievementPoller.cs b/source/Services/InGameAchievementPoller.cs
+index 42c0958112952620264f11dcc42833c6d153efbe..10baebf50e101d3cc12c523f4f557dfe839fd9c7 100644
+--- a/source/Services/InGameAchievementPoller.cs
++++ b/source/Services/InGameAchievementPoller.cs
+@@ -11,6 +11,7 @@
+ using PlayniteAchievements.Models.Friends;
+ using PlayniteAchievements.Models.Settings;
+ using PlayniteAchievements.Providers;
++using PlayniteAchievements.Providers.Local;
+ using PlayniteAchievements.Services.Achievements;
+ using PlayniteAchievements.Services.Cache;
+ using PlayniteAchievements.Services.Friends;
+@@ -644,7 +645,9 @@ private HashSet<string> GetToastedFriendSet(GamePollState state, FriendPollTarge
+         private bool ShouldPollGame(Game game, bool logReason)
+         {
+             var persisted = _settings?.Persisted;
+-            if (persisted?.EnableInGamePolling != true)
++            var customNotificationsEnabled =
++                ProviderRegistry.Settings<LocalSettings>()?.EnableActiveGameMonitoring == true;
++            if (persisted?.EnableInGamePolling != true && !customNotificationsEnabled)
+             {
+                 if (logReason) _logger?.Debug("[InGamePolling] Disabled in settings.");
+                 return false;
+@@ -688,6 +691,17 @@ private bool ShouldRunFriendTick(int tick)
+ 
+         private TimeSpan GetPollInterval()
+         {
++            var customSettings = ProviderRegistry.Settings<LocalSettings>();
++            if (customSettings?.EnableActiveGameMonitoring == true)
++            {
++                var seconds = Math.Max(
++                    LocalSettings.MinActiveGameMonitoringIntervalSeconds,
++                    Math.Min(
++                        LocalSettings.MaxActiveGameMonitoringIntervalSeconds,
++                        customSettings.ActiveGameMonitoringIntervalSeconds));
++                return TimeSpan.FromSeconds(seconds);
++            }
++
+             return TimeSpan.FromSeconds(Math.Max(10, _settings?.Persisted?.InGamePollIntervalSeconds ?? 15));
+         }
+ 
 diff --git a/source/Services/Library/LibraryProjectionService.cs b/source/Services/Library/LibraryProjectionService.cs
 index 11ca94e019cfaf99cdc80b4904455f0fc62e802b..4a4abc1ceae8235972f43175044a182506c09226 100644
 --- a/source/Services/Library/LibraryProjectionService.cs
@@ -13713,6 +13833,90 @@ index c34d6e525fc997f2cd8c0c675d23653fefd4db50..bde5b5655adee90a4f15cfffabf6b5af
          public void OpenParityTestView(Guid gameId, bool modern)
          {
              try
+diff --git a/source/Services/UI/ToastNotificationService.cs b/source/Services/UI/ToastNotificationService.cs
+index a6b270ea5d259156ddefe1460518b96f5ade0737..226d5b048f4dc06056941b0134aafe4acd3d3389 100644
+--- a/source/Services/UI/ToastNotificationService.cs
++++ b/source/Services/UI/ToastNotificationService.cs
+@@ -27,6 +27,7 @@ internal sealed class ToastNotificationService : IDisposable
+         // Optional foreground tracker: supplies the learned game window handle, which beats the
+         // pid-based resolve for launcher-wrapped titles.
+         private readonly ActiveGameWindowTracker _windowTracker;
++        private readonly Func<AchievementUnlockedEventArgs, bool> _usesCustomNotification;
+         private readonly UnlockScreenshotService _screenshotService;
+         private readonly ScreenshotFrameCompositor _frameCompositor;
+         private readonly AchievementToastTemplateResolver _templateResolver;
+@@ -48,7 +49,8 @@ public ToastNotificationService(
+             ILogger logger,
+             Action ensureResourcesLoaded,
+             Func<Guid?, int?> getGameProcessId = null,
+-            ActiveGameWindowTracker windowTracker = null)
++            ActiveGameWindowTracker windowTracker = null,
++            Func<AchievementUnlockedEventArgs, bool> usesCustomNotification = null)
+         {
+             _api = api;
+             _settings = settings;
+@@ -56,6 +58,7 @@ public ToastNotificationService(
+             _ensureResourcesLoaded = ensureResourcesLoaded;
+             _getGameProcessId = getGameProcessId;
+             _windowTracker = windowTracker;
++            _usesCustomNotification = usesCustomNotification;
+             _screenshotService = new UnlockScreenshotService(logger);
+             _frameCompositor = new ScreenshotFrameCompositor(logger);
+             _templateResolver = new AchievementToastTemplateResolver(api, logger);
+@@ -114,7 +117,7 @@ private bool ShouldProcess(AchievementUnlockedEventArgs args)
+                 return false;
+             }
+ 
+-            if (ShouldToast(args.IsPreview, args.IsFriendUnlock, args.ProviderKey))
++            if (ShouldToast(args.IsPreview, args.IsFriendUnlock, args.ProviderKey, args.PlayniteGameId, args.IsGameCompleted))
+             {
+                 return true;
+             }
+@@ -139,13 +142,29 @@ private bool ShouldProcess(AchievementUnlockedEventArgs args)
+         /// policy ANDs the EnableNotifications master switch into both toast flags and resolves
+         /// all-false for null settings.
+         /// </summary>
+-        private bool ShouldToast(bool isPreview, bool isFriendUnlock, string providerKey)
++        private bool ShouldToast(
++            bool isPreview,
++            bool isFriendUnlock,
++            string providerKey,
++            Guid playniteGameId = default,
++            bool isGameCompleted = false)
+         {
+             if (isPreview)
+             {
+                 return true;
+             }
+ 
++            if (_usesCustomNotification?.Invoke(new AchievementUnlockedEventArgs
++            {
++                PlayniteGameId = playniteGameId,
++                ProviderKey = providerKey,
++                IsFriendUnlock = isFriendUnlock,
++                IsGameCompleted = isGameCompleted
++            }) == true)
++            {
++                return false;
++            }
++
+             var effective = ProviderNotificationPolicy.Resolve(_settings?.Persisted, providerKey);
+             return isFriendUnlock
+                 ? effective.FriendUnlockToasts
+@@ -370,7 +389,12 @@ private async Task ShowWaveAsync(IReadOnlyList<AchievementToastViewModel> wave)
+             // Toasts and screenshots gate independently: a wave can contain items that toast,
+             // items that only produce screenshots, or a mix (waves batch by friend/own only).
+             var toastItems = wave
+-                .Where(vm => ShouldToast(vm.IsPreview, vm.IsFriendUnlock, vm.ProviderKey))
++                .Where(vm => ShouldToast(
++                    vm.IsPreview,
++                    vm.IsFriendUnlock,
++                    vm.ProviderKey,
++                    vm.PlayniteGameId,
++                    vm.IsGameCompleted))
+                 .ToList();
+ 
+             // The clean capture must precede window.Show(); overlapping it with the sound-align
 diff --git a/source/ViewModels/Items/AchievementDisplayItem.cs b/source/ViewModels/Items/AchievementDisplayItem.cs
 index da0ac699cac4818f3f692a3bec59121251b785a2..b6ab81a5c7c1277da9be88c257cf2a75cb6af780 100644
 --- a/source/ViewModels/Items/AchievementDisplayItem.cs

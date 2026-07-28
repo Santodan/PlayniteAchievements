@@ -27,6 +27,7 @@ namespace PlayniteAchievements.Services.UI
         // Optional foreground tracker: supplies the learned game window handle, which beats the
         // pid-based resolve for launcher-wrapped titles.
         private readonly ActiveGameWindowTracker _windowTracker;
+        private readonly Func<AchievementUnlockedEventArgs, bool> _usesCustomNotification;
         private readonly UnlockScreenshotService _screenshotService;
         private readonly ScreenshotFrameCompositor _frameCompositor;
         private readonly AchievementToastTemplateResolver _templateResolver;
@@ -48,7 +49,8 @@ namespace PlayniteAchievements.Services.UI
             ILogger logger,
             Action ensureResourcesLoaded,
             Func<Guid?, int?> getGameProcessId = null,
-            ActiveGameWindowTracker windowTracker = null)
+            ActiveGameWindowTracker windowTracker = null,
+            Func<AchievementUnlockedEventArgs, bool> usesCustomNotification = null)
         {
             _api = api;
             _settings = settings;
@@ -56,6 +58,7 @@ namespace PlayniteAchievements.Services.UI
             _ensureResourcesLoaded = ensureResourcesLoaded;
             _getGameProcessId = getGameProcessId;
             _windowTracker = windowTracker;
+            _usesCustomNotification = usesCustomNotification;
             _screenshotService = new UnlockScreenshotService(logger);
             _frameCompositor = new ScreenshotFrameCompositor(logger);
             _templateResolver = new AchievementToastTemplateResolver(api, logger);
@@ -114,7 +117,7 @@ namespace PlayniteAchievements.Services.UI
                 return false;
             }
 
-            if (ShouldToast(args.IsPreview, args.IsFriendUnlock, args.ProviderKey))
+            if (ShouldToast(args.IsPreview, args.IsFriendUnlock, args.ProviderKey, args.PlayniteGameId, args.IsGameCompleted))
             {
                 return true;
             }
@@ -139,11 +142,27 @@ namespace PlayniteAchievements.Services.UI
         /// policy ANDs the EnableNotifications master switch into both toast flags and resolves
         /// all-false for null settings.
         /// </summary>
-        private bool ShouldToast(bool isPreview, bool isFriendUnlock, string providerKey)
+        private bool ShouldToast(
+            bool isPreview,
+            bool isFriendUnlock,
+            string providerKey,
+            Guid playniteGameId = default,
+            bool isGameCompleted = false)
         {
             if (isPreview)
             {
                 return true;
+            }
+
+            if (_usesCustomNotification?.Invoke(new AchievementUnlockedEventArgs
+            {
+                PlayniteGameId = playniteGameId,
+                ProviderKey = providerKey,
+                IsFriendUnlock = isFriendUnlock,
+                IsGameCompleted = isGameCompleted
+            }) == true)
+            {
+                return false;
             }
 
             var effective = ProviderNotificationPolicy.Resolve(_settings?.Persisted, providerKey);
@@ -370,7 +389,12 @@ namespace PlayniteAchievements.Services.UI
             // Toasts and screenshots gate independently: a wave can contain items that toast,
             // items that only produce screenshots, or a mix (waves batch by friend/own only).
             var toastItems = wave
-                .Where(vm => ShouldToast(vm.IsPreview, vm.IsFriendUnlock, vm.ProviderKey))
+                .Where(vm => ShouldToast(
+                    vm.IsPreview,
+                    vm.IsFriendUnlock,
+                    vm.ProviderKey,
+                    vm.PlayniteGameId,
+                    vm.IsGameCompleted))
                 .ToList();
 
             // The clean capture must precede window.Show(); overlapping it with the sound-align
