@@ -1004,6 +1004,23 @@ namespace PlayniteAchievements
                     _logger?.Error(ex, "Failed to re-localize default tag names.");
                 }
 
+                // Normalize un-customized notification header texts back to null so they
+                // follow the current Playnite language.
+                try
+                {
+                    var headerTextService = new NotificationHeaderTextService(
+                        GetPluginLocalizationDirectory(),
+                        _logger);
+                    if (headerTextService.RelocalizeDefaultHeaderTexts(_settingsViewModel?.Settings?.Persisted))
+                    {
+                        PersistSettingsForUi();
+                    }
+                }
+                catch (Exception ex)
+                {
+                    _logger?.Error(ex, "Failed to re-localize notification header texts.");
+                }
+
                 // Auto-migrate themes that have been updated since the last migration.
                 _themeAutoMigrationService?.ScheduleAutoMigration();
 
