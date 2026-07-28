@@ -16,6 +16,13 @@ namespace PlayniteAchievements.Views.ThemeIntegration.Modern
     /// </summary>
     public partial class AchievementCompactUnlockedListControl : AchievementCompactListControlBase
     {
+        public static readonly System.Windows.DependencyProperty ShowFeaturedItemProperty =
+            System.Windows.DependencyProperty.Register(
+                nameof(ShowFeaturedItem),
+                typeof(bool),
+                typeof(AchievementCompactUnlockedListControl),
+                new System.Windows.PropertyMetadata(true, OnShowFeaturedItemChanged));
+
         public static readonly System.Windows.DependencyProperty FeaturedItemProperty =
             System.Windows.DependencyProperty.Register(
                 nameof(FeaturedItem),
@@ -32,6 +39,26 @@ namespace PlayniteAchievements.Views.ThemeIntegration.Modern
         {
             get => (AchievementDisplayItem)GetValue(FeaturedItemProperty);
             private set => SetValue(FeaturedItemProperty, value);
+        }
+
+        /// <summary>
+        /// Gets or sets whether the newest unlocked achievement is featured above the
+        /// horizontal list. When disabled, every item remains in the scrollable row.
+        /// </summary>
+        public bool ShowFeaturedItem
+        {
+            get => (bool)GetValue(ShowFeaturedItemProperty);
+            set => SetValue(ShowFeaturedItemProperty, value);
+        }
+
+        private static void OnShowFeaturedItemChanged(
+            System.Windows.DependencyObject dependencyObject,
+            System.Windows.DependencyPropertyChangedEventArgs eventArgs)
+        {
+            if (dependencyObject is AchievementCompactUnlockedListControl control)
+            {
+                control.RefreshItemsSource();
+            }
         }
 
         /// <summary>
@@ -60,11 +87,15 @@ namespace PlayniteAchievements.Views.ThemeIntegration.Modern
         /// </summary>
         protected override void RefreshItemsSource()
         {
-            FeaturedItem = DisplayItems.FirstOrDefault();
+            FeaturedItem = ShowFeaturedItem
+                ? DisplayItems.FirstOrDefault()
+                : null;
 
             if (AchievementsList != null)
             {
-                AchievementsList.ItemsSource = DisplayItems.Skip(1).ToList();
+                AchievementsList.ItemsSource = ShowFeaturedItem
+                    ? DisplayItems.Skip(1).ToList()
+                    : DisplayItems.ToList();
             }
         }
     }

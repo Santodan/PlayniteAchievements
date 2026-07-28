@@ -379,6 +379,19 @@ namespace PlayniteAchievements.Views
             set => SetValue(UseScrollableAchievementsForThemeMigrationProperty, value);
         }
 
+        public static readonly DependencyProperty HighlightLatestAchievementForThemeMigrationProperty =
+            DependencyProperty.Register(
+                nameof(HighlightLatestAchievementForThemeMigration),
+                typeof(bool),
+                typeof(LegacyNotificationSettingsControl),
+                new PropertyMetadata(true));
+
+        public bool HighlightLatestAchievementForThemeMigration
+        {
+            get => (bool)GetValue(HighlightLatestAchievementForThemeMigrationProperty);
+            set => SetValue(HighlightLatestAchievementForThemeMigrationProperty, value);
+        }
+
         public static readonly DependencyProperty HasRevertableThemesProperty =
             DependencyProperty.Register(
                 nameof(HasRevertableThemes),
@@ -6206,17 +6219,46 @@ namespace PlayniteAchievements.Views
 
         private async void MigrateThemeLimited_Click(object sender, RoutedEventArgs e)
         {
+            CommitThemeMigrationControls();
             await ExecuteThemeMigrationAsync(MigrationMode.Limited);
         }
 
         private async void MigrateThemeFull_Click(object sender, RoutedEventArgs e)
         {
+            CommitThemeMigrationControls();
             await ExecuteThemeMigrationAsync(MigrationMode.Full, BuildFullMigrationSelection());
         }
 
         private async void MigrateThemeCustom_Click(object sender, RoutedEventArgs e)
         {
+            CommitThemeMigrationControls();
             await ExecuteThemeMigrationAsync(MigrationMode.Custom, BuildCustomMigrationSelection());
+        }
+
+        private void LegacyThemeMigrationThemeComboBox_SelectionChanged(
+            object sender,
+            SelectionChangedEventArgs e)
+        {
+            CommitThemeMigrationControls();
+        }
+
+        private void CommitThemeMigrationControls()
+        {
+            if (LegacyThemeMigrationThemeComboBox?.SelectedItem is
+                ThemeDiscoveryService.ThemeInfo selectedTheme)
+            {
+                SelectedThemePath = selectedTheme.Path;
+            }
+
+            if (LegacyUseScrollableAchievementsCheckBox?.IsChecked is bool useScrollable)
+            {
+                UseScrollableAchievementsForThemeMigration = useScrollable;
+            }
+
+            if (LegacyHighlightLatestAchievementCheckBox?.IsChecked is bool highlightLatest)
+            {
+                HighlightLatestAchievementForThemeMigration = highlightLatest;
+            }
         }
 
         private void ThemeMigrationCustomExpander_Expanded(object sender, RoutedEventArgs e)
@@ -6241,22 +6283,28 @@ namespace PlayniteAchievements.Views
 
         private async Task ExecuteThemeMigrationAsync(MigrationMode mode, CustomMigrationSelection customSelection = null)
         {
-            if (string.IsNullOrWhiteSpace(SelectedThemePath))
+            var selectedThemePath = SelectedThemePath;
+            if (string.IsNullOrWhiteSpace(selectedThemePath))
             {
                 _logger.Warn("Migrate clicked but no theme selected.");
                 return;
             }
 
-            _logger.Info($"User requested {mode} theme migration for: {SelectedThemePath}");
+            var highlightLatest = customSelection?.HighlightLatestUnlockedAchievement;
+            var useScrollable = customSelection?.ModernizeCompactAchievementLists;
+            _logger.Info(
+                $"User requested {mode} theme migration for: {selectedThemePath}; " +
+                $"useScrollableAchievements={useScrollable?.ToString() ?? "not-applicable"}; " +
+                $"highlightLatestUnlockedAchievement={highlightLatest?.ToString() ?? "not-applicable"}");
 
             try
             {
-                var selectedThemeHasBackup = _themeMigration.HasBackup(SelectedThemePath);
+                var selectedThemeHasBackup = _themeMigration.HasBackup(selectedThemePath);
                 if (selectedThemeHasBackup)
                 {
-                    _logger.Info($"Selected theme already has backup. Reverting before migration: {SelectedThemePath}");
+                    _logger.Info($"Selected theme already has backup. Reverting before migration: {selectedThemePath}");
 
-                    var revertResult = await _themeMigration.RevertThemeAsync(SelectedThemePath);
+                    var revertResult = await _themeMigration.RevertThemeAsync(selectedThemePath);
                     if (!revertResult.Success)
                     {
                         _logger.Warn($"Pre-migration revert failed: {revertResult.Message}");
@@ -6269,11 +6317,14 @@ namespace PlayniteAchievements.Views
                     }
                 }
 
-                var result = await _themeMigration.MigrateThemeAsync(SelectedThemePath, mode, customSelection);
+                var result = await _themeMigration.MigrateThemeAsync(
+                    selectedThemePath,
+                    mode,
+                    customSelection);
 
                 if (result.Success)
                 {
-                    _logger.Info($"Theme migration ({mode}) successful: {SelectedThemePath}");
+                    _logger.Info($"Theme migration ({mode}) successful: {selectedThemePath}");
 
                     // Show restart notice whenever files were modified.
                     if (result.FilesProcessed > 0)
@@ -6620,7 +6671,9 @@ namespace PlayniteAchievements.Views
 
             return new CustomMigrationSelection(modernControlNames, modernizeBindings: true)
             {
-                ModernizeCompactAchievementLists = UseScrollableAchievementsForThemeMigration
+                ModernizeCompactAchievementLists = UseScrollableAchievementsForThemeMigration,
+                HighlightLatestUnlockedAchievement =
+                    HighlightLatestAchievementForThemeMigration
             };
         }
 
@@ -6630,7 +6683,9 @@ namespace PlayniteAchievements.Views
                 ControlMappings.LegacyToModernControlNames.Keys,
                 modernizeBindings: true)
             {
-                ModernizeCompactAchievementLists = UseScrollableAchievementsForThemeMigration
+                ModernizeCompactAchievementLists = UseScrollableAchievementsForThemeMigration,
+                HighlightLatestUnlockedAchievement =
+                    HighlightLatestAchievementForThemeMigration
             };
         }
 

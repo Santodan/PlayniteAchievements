@@ -34,6 +34,12 @@ namespace PlayniteAchievements.Services.ThemeMigration
         /// </summary>
         public bool ModernizeCompactAchievementLists { get; set; } = true;
 
+        /// <summary>
+        /// Gets or sets whether the modern unlocked-achievement list shows its newest
+        /// achievement as a larger featured row above the horizontal scroller.
+        /// </summary>
+        public bool HighlightLatestUnlockedAchievement { get; set; } = true;
+
         public bool ShouldModernizeControl(string legacyControlName)
         {
             return !string.IsNullOrWhiteSpace(legacyControlName) &&

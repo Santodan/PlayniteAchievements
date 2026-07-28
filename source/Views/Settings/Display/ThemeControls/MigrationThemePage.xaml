@@ -31,13 +31,22 @@
 
                     <!-- Theme Dropdown -->
                     <Grid Style="{StaticResource SettingRowStyle}">
-                        <ComboBox ItemsSource="{Binding AvailableThemes}"
+                        <ComboBox x:Name="ThemeMigrationThemeComboBox"
+                                  ItemsSource="{Binding AvailableThemes}"
                                   DisplayMemberPath="BestDisplayName"
                                   SelectedValuePath="Path"
-                                  SelectedValue="{Binding SelectedThemePath}"
+                                  SelectedValue="{Binding SelectedThemePath, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                  SelectionChanged="ThemeMigrationThemeComboBox_SelectionChanged"
                                   VerticalContentAlignment="Center"
                                   IsEnabled="{Binding HasThemesToMigrate}"/>
                     </Grid>
+
+                    <CheckBox x:Name="HighlightLatestUnlockedAchievementCheckBox"
+                              Content="{DynamicResource LOCPlayAch_ThemeMigration_HighlightLatestAchievement}"
+                              IsChecked="{Binding HighlightLatestUnlockedAchievement, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                              IsEnabled="{Binding HasThemesToMigrate}"
+                              Margin="0,8,0,0"
+                              ToolTip="{DynamicResource LOCPlayAch_ThemeMigration_HighlightLatestAchievement_Help}"/>
 
                     <!-- Migration Buttons -->
                     <StackPanel Orientation="Horizontal"

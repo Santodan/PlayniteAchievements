@@ -76,6 +76,8 @@
     <sys:String x:Key="LOCPlayAch_Format_Counts">{0}/{1}</sys:String>
     <sys:String x:Key="LOCPlayAch_Progress">Progress</sys:String>
     <sys:String x:Key="LOCPlayAch_RecentAchievements">Recent Achievements</sys:String>
+    <sys:String x:Key="LOCPlayAch_ThemeMigration_HighlightLatestAchievement">Highlight the latest unlocked achievement</sys:String>
+    <sys:String x:Key="LOCPlayAch_ThemeMigration_HighlightLatestAchievement_Help">Show the newest unlocked achievement as a larger row above the scrollable achievements. Disable this to keep every achievement inside the horizontal scroller.</sys:String>
     <sys:String x:Key="LOCPlayAch_StartPage_FriendsRecentAchievements">Friends' Recent Achievements</sys:String>
     <sys:String x:Key="LOCPlayAch_Score_Collection">Collection Score</sys:String>
     <sys:String x:Key="LOCPlayAch_Score_HeaderDetailFormat">{0} | {1} | {2}</sys:String>

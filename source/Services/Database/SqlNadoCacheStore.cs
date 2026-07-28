@@ -41,6 +41,14 @@ namespace PlayniteAchievements.Services.Database
             "u.IsCurrentUser = 0 AND u.IsActiveFriend = 1 AND u.FriendSource IS NOT NULL";
 
         /// <summary>
+        /// Selects personal progress while retaining Local-provider rows created by older
+        /// builds under the synthetic Local/local user. Requires Users as "u" and Games as "g".
+        /// Local does not support friend achievements, so this fallback cannot admit friend data.
+        /// </summary>
+        internal const string CurrentUserOrLegacyLocalPredicateSql =
+            "(u.IsCurrentUser = 1 OR (g.ProviderKey = 'Local' AND u.ProviderKey = 'Local'))";
+
+        /// <summary>
         /// Shared column list for achievement-detail join queries; requires AchievementDefinitions
         /// aliased as "ad" and UserAchievements aliased as "ua".
         /// </summary>
@@ -450,7 +458,8 @@ namespace PlayniteAchievements.Services.Database
                         SELECT 1
                         FROM UserGameProgress ugp
                         INNER JOIN Users u ON u.Id = ugp.UserId
-                        WHERE u.IsCurrentUser = 1
+                        INNER JOIN Games g ON g.Id = ugp.GameId
+                        WHERE " + CurrentUserOrLegacyLocalPredicateSql + @"
                         LIMIT 1
                       );");
                 return exists != 0;
@@ -465,7 +474,8 @@ namespace PlayniteAchievements.Services.Database
                     @"SELECT MAX(ugp.LastUpdatedUtc)
                       FROM UserGameProgress ugp
                       INNER JOIN Users u ON u.Id = ugp.UserId
-                      WHERE u.IsCurrentUser = 1;");
+                      INNER JOIN Games g ON g.Id = ugp.GameId
+                      WHERE " + CurrentUserOrLegacyLocalPredicateSql + ";");
                 return ParseUtc(value);
             });
         }
@@ -488,7 +498,8 @@ namespace PlayniteAchievements.Services.Database
                     @"SELECT ugp.LastUpdatedUtc
                       FROM UserGameProgress ugp
                       INNER JOIN Users u ON u.Id = ugp.UserId
-                      WHERE u.IsCurrentUser = 1
+                      INNER JOIN Games g ON g.Id = ugp.GameId
+                      WHERE " + CurrentUserOrLegacyLocalPredicateSql + @"
                         AND ugp.CacheKey = ?
                       ORDER BY ugp.LastUpdatedUtc DESC
                       LIMIT 1;",
@@ -552,7 +563,8 @@ namespace PlayniteAchievements.Services.Database
                     @"SELECT DISTINCT ugp.CacheKey AS CacheKey
                       FROM UserGameProgress ugp
                       INNER JOIN Users u ON u.Id = ugp.UserId
-                      WHERE u.IsCurrentUser = 1
+                      INNER JOIN Games g ON g.Id = ugp.GameId
+                      WHERE " + CurrentUserOrLegacyLocalPredicateSql + @"
                       ORDER BY ugp.CacheKey;").ToList();
 
                 return rows
@@ -590,7 +602,7 @@ namespace PlayniteAchievements.Services.Database
                       FROM UserGameProgress ugp
                       INNER JOIN Users u ON u.Id = ugp.UserId
                       INNER JOIN Games g ON g.Id = ugp.GameId
-                      WHERE u.IsCurrentUser = 1
+                      WHERE " + CurrentUserOrLegacyLocalPredicateSql + @"
                         AND ugp.CacheKey = ?
                       ORDER BY ugp.LastUpdatedUtc DESC
                       LIMIT 1;",
@@ -656,7 +668,7 @@ namespace PlayniteAchievements.Services.Database
                         FROM UserGameProgress ugp
                         INNER JOIN Users u ON u.Id = ugp.UserId
                         INNER JOIN Games g ON g.Id = ugp.GameId
-                        WHERE u.IsCurrentUser = 1
+                        WHERE " + CurrentUserOrLegacyLocalPredicateSql + @"
                           AND ugp.CacheKey IS NOT NULL
                           AND TRIM(ugp.CacheKey) <> ''
                     )
@@ -714,7 +726,8 @@ namespace PlayniteAchievements.Services.Database
                             ) AS RowNum
                         FROM UserGameProgress ugp
                         INNER JOIN Users u ON u.Id = ugp.UserId
-                        WHERE u.IsCurrentUser = 1
+                        INNER JOIN Games g ON g.Id = ugp.GameId
+                        WHERE " + CurrentUserOrLegacyLocalPredicateSql + @"
                           AND ugp.CacheKey IS NOT NULL
                           AND TRIM(ugp.CacheKey) <> ''
                     )
@@ -6812,6 +6825,12 @@ namespace PlayniteAchievements.Services.Database
             else if (string.Equals(providerKey, "RetroAchievements", StringComparison.OrdinalIgnoreCase))
             {
                 externalId = ProviderRegistry.Settings<RetroAchievementsSettings>().RaUsername;
+            }
+            else if (string.Equals(providerKey, "Local", StringComparison.OrdinalIgnoreCase))
+            {
+                // Keep the stable identity used before v3. Using the generic "unmapped"
+                // identity creates a second Local user and hides legacy Local progress.
+                externalId = "local";
             }
 
             if (string.IsNullOrWhiteSpace(externalId))

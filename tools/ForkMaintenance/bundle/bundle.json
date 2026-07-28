@@ -1,6 +1,6 @@
 {
     "schemaVersion":  1,
-    "generatedUtc":  "2026-07-27T15:15:35.7734262Z",
+    "generatedUtc":  "2026-07-28T14:52:46.0922857Z",
     "baselineRef":  "upstream/main",
     "baselineCommit":  "21f3b22393c99a80aee0f49b9bdca1aa80686f23",
     "protectedPaths":  [
@@ -9,13 +9,13 @@
                        ],
     "patch":  {
                   "path":  "fork-changes.patch",
-                  "sha256":  "B3796499427E16A878F1D84A4542FA10F621ACFF1F38DAF4BBF57DAA9A36C6C9"
+                  "sha256":  "F23FB1CEBB7EE8D8D1022F204541B6DF63E762D09840952421205E7E131FE49D"
               },
     "localizationRecipes":  {
                                 "path":  "localization-recipes.json",
-                                "sha256":  "00F9B23AEE9BF2E805933906D232676182D648EE10A83A2A360DB239D167583C",
+                                "sha256":  "709FADBFFF92440429AE6A6518F324FAC112309BEC4674D520CB222A33E26A55",
                                 "fileCount":  1,
-                                "entryCount":  361
+                                "entryCount":  363
                             },
     "overlayFiles":  [
                          {
@@ -292,11 +292,11 @@
                          },
                          {
                              "path":  "source/Views/LegacyNotificationSettingsControl.xaml",
-                             "sha256":  "204D94F5C4A7C01325BFC8F4DF68779E79971DCB6F0B583E935473015C906C8C"
+                             "sha256":  "E7B1F5F3BCDD361BA9AB27D53422708BC9680C1CE6FDAA68A1821A0ED3CB9AC5"
                          },
                          {
                              "path":  "source/Views/LegacyNotificationSettingsControl.xaml.cs",
-                             "sha256":  "A9CE8DA78A691FC885AB85CE0E8641819BEA9E96AFBAEA3067EB92859BE4ED30"
+                             "sha256":  "4F80643A4D2B92B2E28EED35070D8F682F4037107182F67816F55F2A081C6AD3"
                          },
                          {
                              "path":  "source/Views/LocalAchievementEditorControl.xaml",

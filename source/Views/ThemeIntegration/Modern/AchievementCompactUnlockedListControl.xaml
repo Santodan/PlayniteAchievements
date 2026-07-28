@@ -32,6 +32,10 @@
                                      Value="{x:Null}">
                             <Setter Property="Visibility" Value="Collapsed"/>
                         </DataTrigger>
+                        <DataTrigger Binding="{Binding ShowFeaturedItem, RelativeSource={RelativeSource AncestorType=modern:AchievementCompactUnlockedListControl}}"
+                                     Value="False">
+                            <Setter Property="Visibility" Value="Collapsed"/>
+                        </DataTrigger>
                         <DataTrigger Binding="{Binding Persisted.EnableAchievementCompactUnlockedListControl, RelativeSource={RelativeSource AncestorType=local:ThemeControlBase}}"
                                      Value="False">
                             <Setter Property="Visibility" Value="Collapsed"/>
@@ -80,8 +84,8 @@
                 <Style TargetType="{x:Type Border}">
                     <Setter Property="Visibility" Value="Collapsed"/>
                     <Style.Triggers>
-                        <DataTrigger Binding="{Binding FeaturedItem, RelativeSource={RelativeSource AncestorType=modern:AchievementCompactListControlBase}}"
-                                     Value="{x:Null}">
+                        <DataTrigger Binding="{Binding DisplayItems.Count, RelativeSource={RelativeSource AncestorType=modern:AchievementCompactListControlBase}}"
+                                     Value="0">
                             <Setter Property="Visibility" Value="Visible"/>
                         </DataTrigger>
                         <DataTrigger Binding="{Binding Persisted.EnableAchievementCompactUnlockedListControl, RelativeSource={RelativeSource AncestorType=local:ThemeControlBase}}"
@@ -107,8 +111,8 @@
                 <Style TargetType="{x:Type ItemsControl}">
                     <Setter Property="Visibility" Value="Visible"/>
                     <Style.Triggers>
-                        <DataTrigger Binding="{Binding FeaturedItem, RelativeSource={RelativeSource AncestorType=modern:AchievementCompactListControlBase}}"
-                                     Value="{x:Null}">
+                        <DataTrigger Binding="{Binding DisplayItems.Count, RelativeSource={RelativeSource AncestorType=modern:AchievementCompactListControlBase}}"
+                                     Value="0">
                             <Setter Property="Visibility" Value="Collapsed"/>
                         </DataTrigger>
                         <DataTrigger Binding="{Binding Persisted.EnableAchievementCompactUnlockedListControl, RelativeSource={RelativeSource AncestorType=local:ThemeControlBase}}"

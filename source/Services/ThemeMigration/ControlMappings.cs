@@ -8,6 +8,12 @@ namespace PlayniteAchievements.Services.ThemeMigration
     /// </summary>
     public static class ControlMappings
     {
+        public const string HighlightedUnlockedListControlName =
+            "AchievementCompactUnlockedList";
+
+        public const string ScrollOnlyUnlockedListControlName =
+            "AchievementCompactUnlockedScrollableList";
+
         public static readonly HashSet<string> CompactAchievementListControlNames = new HashSet<string>
         {
             "PluginCompactList",
@@ -26,7 +32,7 @@ namespace PlayniteAchievements.Services.ThemeMigration
             { "PluginChart", "AchievementBarChart" },
             { "PluginCompactList", "AchievementCompactList" },
             { "PluginCompactLocked", "AchievementCompactLockedList" },
-            { "PluginCompactUnlocked", "AchievementCompactUnlockedList" },
+            { "PluginCompactUnlocked", HighlightedUnlockedListControlName },
             { "PluginList", "AchievementDataGrid" },
             { "PluginProgressBar", "AchievementProgressBar" },
             { "PluginUserStats", "AchievementStats" },

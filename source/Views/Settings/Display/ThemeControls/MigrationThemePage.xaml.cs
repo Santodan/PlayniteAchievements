@@ -46,19 +46,50 @@ namespace PlayniteAchievements.Views.Settings.Display.ThemeControls
         private async void MigrateThemeLimited_Click(object sender, RoutedEventArgs e)
         {
             if (_controller == null) return;
+            CommitMigrationControls();
             await _controller.MigrateAsync(MigrationMode.Limited);
         }
 
         private async void MigrateThemeFull_Click(object sender, RoutedEventArgs e)
         {
             if (_controller == null) return;
-            await _controller.MigrateAsync(MigrationMode.Full);
+            CommitMigrationControls();
+            await _controller.MigrateAsync(
+                MigrationMode.Full,
+                _controller.BuildFullMigrationSelection());
         }
 
         private async void MigrateThemeCustom_Click(object sender, RoutedEventArgs e)
         {
             if (_controller == null) return;
+            CommitMigrationControls();
             await _controller.MigrateCustomAsync();
+        }
+
+        private void ThemeMigrationThemeComboBox_SelectionChanged(
+            object sender,
+            SelectionChangedEventArgs e)
+        {
+            CommitMigrationControls();
+        }
+
+        private void CommitMigrationControls()
+        {
+            if (_controller == null)
+            {
+                return;
+            }
+
+            if (ThemeMigrationThemeComboBox?.SelectedItem is
+                ThemeDiscoveryService.ThemeInfo selectedTheme)
+            {
+                _controller.SelectedThemePath = selectedTheme.Path;
+            }
+
+            if (HighlightLatestUnlockedAchievementCheckBox?.IsChecked is bool highlightLatest)
+            {
+                _controller.HighlightLatestUnlockedAchievement = highlightLatest;
+            }
         }
 
         private void ThemeMigrationCustomExpander_Expanded(object sender, RoutedEventArgs e)

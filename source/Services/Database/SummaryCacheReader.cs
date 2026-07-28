@@ -237,7 +237,7 @@ namespace PlayniteAchievements.Services.Database
                     FROM UserGameProgress ugp
                     INNER JOIN Users u ON u.Id = ugp.UserId
                     INNER JOIN Games g ON g.Id = ugp.GameId
-                    WHERE u.IsCurrentUser = 1
+                    WHERE " + SqlNadoCacheStore.CurrentUserOrLegacyLocalPredicateSql + @"
                       AND ugp.CacheKey IS NOT NULL
                       AND TRIM(ugp.CacheKey) <> ''
                 )
@@ -319,7 +319,7 @@ namespace PlayniteAchievements.Services.Database
                     FROM UserGameProgress ugp
                     INNER JOIN Users u ON u.Id = ugp.UserId
                     INNER JOIN Games g ON g.Id = ugp.GameId
-                    WHERE u.IsCurrentUser = 1
+                    WHERE " + SqlNadoCacheStore.CurrentUserOrLegacyLocalPredicateSql + @"
                       AND ugp.CacheKey IS NOT NULL
                       AND TRIM(ugp.CacheKey) <> ''
                 )
@@ -373,7 +373,7 @@ namespace PlayniteAchievements.Services.Database
                     FROM UserGameProgress ugp
                     INNER JOIN Users u ON u.Id = ugp.UserId
                     INNER JOIN Games g ON g.Id = ugp.GameId
-                    WHERE u.IsCurrentUser = 1
+                    WHERE " + SqlNadoCacheStore.CurrentUserOrLegacyLocalPredicateSql + @"
                       AND ugp.CacheKey IS NOT NULL
                       AND TRIM(ugp.CacheKey) <> ''
                 )
@@ -419,7 +419,7 @@ namespace PlayniteAchievements.Services.Database
                     FROM UserGameProgress ugp
                     INNER JOIN Users u ON u.Id = ugp.UserId
                     INNER JOIN Games g ON g.Id = ugp.GameId
-                    WHERE u.IsCurrentUser = 1
+                    WHERE " + SqlNadoCacheStore.CurrentUserOrLegacyLocalPredicateSql + @"
                       AND ugp.CacheKey IS NOT NULL
                       AND TRIM(ugp.CacheKey) <> ''
                 )

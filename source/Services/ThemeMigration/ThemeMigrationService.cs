@@ -428,6 +428,13 @@ namespace PlayniteAchievements.Services.ThemeMigration
                     totalCount += CountOccurrences(content, $"PlayniteAchievements_{mapping.Key}");
                 }
 
+                if (ShouldConfigureUnlockedListHighlight(mode, customSelection))
+                {
+                    var sourceVariant = GetOppositeUnlockedListControlName(customSelection);
+                    totalCount += CountStandaloneControlNameOccurrences(content, sourceVariant);
+                    totalCount += CountOccurrences(content, $"PlayniteAchievements_{sourceVariant}");
+                }
+
                 if (ShouldModernizeBindings(mode, customSelection))
                 {
                     foreach (var bindingPath in ControlMappings.LegacyToModernBindingPaths.Keys)
@@ -770,6 +777,21 @@ namespace PlayniteAchievements.Services.ThemeMigration
                 controlReplacements += ReplaceStandaloneControlName(ref result, mapping.Key, mapping.Value);
             }
 
+            if (ShouldConfigureUnlockedListHighlight(mode, customSelection))
+            {
+                var sourceVariant = GetOppositeUnlockedListControlName(customSelection);
+                var targetVariant = GetSelectedUnlockedListControlName(customSelection);
+                controlReplacements += ReplacePrefixedControlName(
+                    ref result,
+                    "PlayniteAchievements",
+                    sourceVariant,
+                    targetVariant);
+                controlReplacements += ReplaceStandaloneControlName(
+                    ref result,
+                    sourceVariant,
+                    targetVariant);
+            }
+
             // Replace LegacyData binding paths with Theme binding paths
             // These appear in XAML as {Binding LegacyData.HasData} etc.
             if (ShouldModernizeBindings(mode, customSelection))
@@ -815,7 +837,9 @@ namespace PlayniteAchievements.Services.ThemeMigration
                         !ControlMappings.CompactAchievementListControlNames.Contains(mapping.Key));
                 }
 
-                return mappings;
+                return mappings.Select(mapping => ResolveSelectedControlMapping(
+                    mapping,
+                    customSelection));
             }
 
             if (mode != MigrationMode.Custom || customSelection == null)
@@ -824,7 +848,54 @@ namespace PlayniteAchievements.Services.ThemeMigration
             }
 
             return ControlMappings.LegacyToModernControlNames
-                .Where(mapping => customSelection.ShouldModernizeControl(mapping.Key));
+                .Where(mapping => customSelection.ShouldModernizeControl(mapping.Key))
+                .Select(mapping => ResolveSelectedControlMapping(mapping, customSelection));
+        }
+
+        private static KeyValuePair<string, string> ResolveSelectedControlMapping(
+            KeyValuePair<string, string> mapping,
+            CustomMigrationSelection customSelection)
+        {
+            if (!string.Equals(
+                    mapping.Key,
+                    "PluginCompactUnlocked",
+                    StringComparison.Ordinal))
+            {
+                return mapping;
+            }
+
+            return new KeyValuePair<string, string>(
+                mapping.Key,
+                GetSelectedUnlockedListControlName(customSelection));
+        }
+
+        private static bool ShouldConfigureUnlockedListHighlight(
+            MigrationMode mode,
+            CustomMigrationSelection customSelection)
+        {
+            if (mode == MigrationMode.Full)
+            {
+                return customSelection?.ModernizeCompactAchievementLists != false;
+            }
+
+            return mode == MigrationMode.Custom &&
+                   customSelection?.ShouldModernizeControl("PluginCompactUnlocked") == true;
+        }
+
+        private static string GetSelectedUnlockedListControlName(
+            CustomMigrationSelection customSelection)
+        {
+            return customSelection?.HighlightLatestUnlockedAchievement == false
+                ? ControlMappings.ScrollOnlyUnlockedListControlName
+                : ControlMappings.HighlightedUnlockedListControlName;
+        }
+
+        private static string GetOppositeUnlockedListControlName(
+            CustomMigrationSelection customSelection)
+        {
+            return customSelection?.HighlightLatestUnlockedAchievement == false
+                ? ControlMappings.HighlightedUnlockedListControlName
+                : ControlMappings.ScrollOnlyUnlockedListControlName;
         }
 
         private static int ReplacePrefixedControlName(ref string content, string prefix, string legacyName, string modernName)

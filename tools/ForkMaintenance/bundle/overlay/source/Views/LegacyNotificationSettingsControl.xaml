@@ -4328,19 +4328,29 @@
 
                                 <!-- Theme Dropdown -->
                                 <Grid Style="{StaticResource SettingRowStyle}">
-                                    <ComboBox ItemsSource="{Binding AvailableThemes, ElementName=LegacyNotificationSettingsControlRoot}"
+                                    <ComboBox x:Name="LegacyThemeMigrationThemeComboBox"
+                                              ItemsSource="{Binding AvailableThemes, ElementName=LegacyNotificationSettingsControlRoot}"
                                               DisplayMemberPath="BestDisplayName"
                                               SelectedValuePath="Path"
-                                              SelectedValue="{Binding SelectedThemePath, ElementName=LegacyNotificationSettingsControlRoot}"
+                                              SelectedValue="{Binding SelectedThemePath, ElementName=LegacyNotificationSettingsControlRoot, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                              SelectionChanged="LegacyThemeMigrationThemeComboBox_SelectionChanged"
                                               VerticalContentAlignment="Center"
                                               IsEnabled="{Binding HasThemesToMigrate, ElementName=LegacyNotificationSettingsControlRoot}"/>
                                 </Grid>
 
-                                <CheckBox Content="Scrollable achievements"
+                                <CheckBox x:Name="LegacyUseScrollableAchievementsCheckBox"
+                                          Content="Scrollable achievements"
                                           IsChecked="{Binding UseScrollableAchievementsForThemeMigration, ElementName=LegacyNotificationSettingsControlRoot, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
                                           IsEnabled="{Binding HasThemesToMigrate, ElementName=LegacyNotificationSettingsControlRoot}"
                                           Margin="0,8,0,0"
-                                          ToolTip="Use the main fork's scrollable compact achievement lists. Leave unchecked for the highlighted +X layout."/>
+                                          ToolTip="Use the modern scrollable compact achievement lists. Leave unchecked to retain the legacy +X layout."/>
+
+                                <CheckBox x:Name="LegacyHighlightLatestAchievementCheckBox"
+                                          Content="{DynamicResource LOCPlayAch_ThemeMigration_HighlightLatestAchievement}"
+                                          IsChecked="{Binding HighlightLatestAchievementForThemeMigration, ElementName=LegacyNotificationSettingsControlRoot, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                          IsEnabled="{Binding UseScrollableAchievementsForThemeMigration, ElementName=LegacyNotificationSettingsControlRoot}"
+                                          Margin="0,8,0,0"
+                                          ToolTip="{DynamicResource LOCPlayAch_ThemeMigration_HighlightLatestAchievement_Help}"/>
 
                                 <!-- Migration Buttons -->
                                 <StackPanel Orientation="Horizontal"

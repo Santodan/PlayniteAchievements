@@ -1,8 +1,10 @@
 using System;
 using System.Collections.ObjectModel;
+using System.IO;
 using System.Linq;
 using System.Threading.Tasks;
 using System.Windows;
+using Newtonsoft.Json.Linq;
 using Playnite.SDK;
 using PlayniteAchievements.Common;
 using PlayniteAchievements.Models;
@@ -29,6 +31,7 @@ namespace PlayniteAchievements.Views.Settings.Display.ThemeControls
         private bool _hasRevertableThemes;
         private bool _showNoThemesMessage = true;
         private bool _showNoRevertableThemesMessage = true;
+        private bool _highlightLatestUnlockedAchievement = true;
 
         public ThemeMigrationController(
             PlayniteAchievementsSettings settings,
@@ -93,6 +96,12 @@ namespace PlayniteAchievements.Views.Settings.Display.ThemeControls
             private set => SetValue(ref _showNoRevertableThemesMessage, value);
         }
 
+        public bool HighlightLatestUnlockedAchievement
+        {
+            get => _highlightLatestUnlockedAchievement;
+            set => SetValue(ref _highlightLatestUnlockedAchievement, value);
+        }
+
         /// <summary>
         /// Loads the theme lists on first use. Called from each page's Loaded event so whichever
         /// page is shown first triggers the discovery.
@@ -126,8 +135,10 @@ namespace PlayniteAchievements.Views.Settings.Display.ThemeControls
                 var cache = _settings?.Persisted?.ThemeMigrationVersionCache;
                 var themes = _themeDiscovery.DiscoverThemes(themesPath, cache);
 
-                // Themes that need migration (no backup, has SuccessStory)
-                foreach (var theme in themes.Where(t => t.NeedsMigration))
+                // Include themes that still need conversion and already-migrated themes with a
+                // backup. The latter must remain selectable so migration options (such as the
+                // featured achievement row) can be changed without reverting the whole theme.
+                foreach (var theme in themes.Where(t => t.NeedsMigration || t.HasBackup))
                 {
                     AvailableThemes.Add(theme);
                 }
@@ -137,6 +148,8 @@ namespace PlayniteAchievements.Views.Settings.Display.ThemeControls
                 {
                     RevertableThemes.Add(theme);
                 }
+
+                SelectConfiguredDesktopTheme();
 
                 UpdateThemeMigrationState();
                 _themesLoaded = true;
@@ -167,21 +180,28 @@ namespace PlayniteAchievements.Views.Settings.Display.ThemeControls
 
         public async Task MigrateAsync(MigrationMode mode, CustomMigrationSelection customSelection = null)
         {
-            if (string.IsNullOrWhiteSpace(SelectedThemePath))
+            var selectedThemePath = SelectedThemePath;
+            if (string.IsNullOrWhiteSpace(selectedThemePath))
             {
                 _logger?.Warn("Migrate clicked but no theme selected.");
                 return;
             }
 
-            _logger?.Info($"User requested {mode} theme migration for: {SelectedThemePath}");
+            var highlightLatest = customSelection?.HighlightLatestUnlockedAchievement;
+            _logger?.Info(
+                $"User requested {mode} theme migration for: {selectedThemePath}; " +
+                $"highlightLatestUnlockedAchievement={highlightLatest?.ToString() ?? "not-applicable"}");
 
             try
             {
-                var result = await _themeMigration.MigrateThemeAsync(SelectedThemePath, mode, customSelection);
+                var result = await _themeMigration.MigrateThemeAsync(
+                    selectedThemePath,
+                    mode,
+                    customSelection);
 
                 if (result.Success)
                 {
-                    _logger?.Info($"Theme migration ({mode}) successful: {SelectedThemePath}");
+                    _logger?.Info($"Theme migration ({mode}) successful: {selectedThemePath}");
 
                     // Only show restart dialog if files were actually modified
                     if (result.FilesBackedUp > 0)
@@ -288,7 +308,65 @@ namespace PlayniteAchievements.Views.Settings.Display.ThemeControls
                 .Select(option => option.Key)
                 .ToList();
 
-            return new CustomMigrationSelection(modernControlNames, modernizeBindings: true);
+            return new CustomMigrationSelection(modernControlNames, modernizeBindings: true)
+            {
+                HighlightLatestUnlockedAchievement =
+                    HighlightLatestUnlockedAchievement
+            };
+        }
+
+        private void SelectConfiguredDesktopTheme()
+        {
+            if (AvailableThemes.Count == 0)
+            {
+                SelectedThemePath = string.Empty;
+                return;
+            }
+
+            if (AvailableThemes.Any(theme =>
+                    string.Equals(theme.Path, SelectedThemePath, StringComparison.OrdinalIgnoreCase)))
+            {
+                return;
+            }
+
+            string configuredTheme = null;
+            try
+            {
+                var configurationPath = _plugin?.PlayniteApi?.Paths?.ConfigurationPath;
+                var configPath = string.IsNullOrWhiteSpace(configurationPath)
+                    ? null
+                    : Path.Combine(configurationPath, "config.json");
+                if (!string.IsNullOrWhiteSpace(configPath) && File.Exists(configPath))
+                {
+                    configuredTheme = JObject.Parse(File.ReadAllText(configPath))
+                        .Value<string>("Theme");
+                }
+            }
+            catch (Exception ex)
+            {
+                _logger?.Debug(ex, "Failed to resolve the configured desktop theme.");
+            }
+
+            var selected = AvailableThemes.FirstOrDefault(theme =>
+                !string.IsNullOrWhiteSpace(configuredTheme) &&
+                string.Equals(
+                    new DirectoryInfo(theme.Path).Name,
+                    configuredTheme,
+                    StringComparison.OrdinalIgnoreCase));
+
+            SelectedThemePath = (selected ?? AvailableThemes.FirstOrDefault())?.Path ??
+                                string.Empty;
+        }
+
+        public CustomMigrationSelection BuildFullMigrationSelection()
+        {
+            return new CustomMigrationSelection(
+                ControlMappings.LegacyToModernControlNames.Keys,
+                modernizeBindings: true)
+            {
+                ModernizeCompactAchievementLists = true,
+                HighlightLatestUnlockedAchievement = HighlightLatestUnlockedAchievement
+            };
         }
 
         private void InitializeCustomOptions()

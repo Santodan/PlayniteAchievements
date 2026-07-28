@@ -1748,6 +1748,16 @@
                             "desiredXml":  "\u003csys:String x:Key=\"LOCPlayAch_ThemeMigration_Custom\" xmlns:x=\"http://schemas.microsoft.com/winfx/2006/xaml\" xmlns:sys=\"clr-namespace:System;assembly=mscorlib\"\u003eCustom\u003c/sys:String\u003e"
                         },
                         {
+                            "key":  "LOCPlayAch_ThemeMigration_HighlightLatestAchievement",
+                            "baseXml":  null,
+                            "desiredXml":  "\u003csys:String x:Key=\"LOCPlayAch_ThemeMigration_HighlightLatestAchievement\" xmlns:x=\"http://schemas.microsoft.com/winfx/2006/xaml\" xmlns:sys=\"clr-namespace:System;assembly=mscorlib\"\u003eHighlight the latest unlocked achievement\u003c/sys:String\u003e"
+                        },
+                        {
+                            "key":  "LOCPlayAch_ThemeMigration_HighlightLatestAchievement_Help",
+                            "baseXml":  null,
+                            "desiredXml":  "\u003csys:String x:Key=\"LOCPlayAch_ThemeMigration_HighlightLatestAchievement_Help\" xmlns:x=\"http://schemas.microsoft.com/winfx/2006/xaml\" xmlns:sys=\"clr-namespace:System;assembly=mscorlib\"\u003eShow the newest unlocked achievement as a larger row above the scrollable achievements. Disable this to keep every achievement inside the horizontal scroller.\u003c/sys:String\u003e"
+                        },
+                        {
                             "key":  "LOCPlayAch_ThemeMigration_StartPageCompatibility_ApplyButton",
                             "baseXml":  null,
                             "desiredXml":  "\u003csys:String x:Key=\"LOCPlayAch_ThemeMigration_StartPageCompatibility_ApplyButton\" xmlns:x=\"http://schemas.microsoft.com/winfx/2006/xaml\" xmlns:sys=\"clr-namespace:System;assembly=mscorlib\"\u003eApply Compatibility Migration\u003c/sys:String\u003e"

@@ -1,3 +1,14 @@
+warning: in the working copy of 'source/Services/Database/SqlNadoCacheStore.cs', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'source/Services/Database/SummaryCacheReader.cs', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'source/Services/ThemeIntegration/ThemeControlRegistry.cs', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'source/Services/ThemeMigration/ControlMappings.cs', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'source/Services/ThemeMigration/CustomMigrationSelection.cs', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'source/Services/ThemeMigration/ThemeMigrationService.cs', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'source/Views/Settings/Display/ThemeControls/MigrationThemePage.xaml', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'source/Views/Settings/Display/ThemeControls/MigrationThemePage.xaml.cs', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'source/Views/Settings/Display/ThemeControls/ThemeMigrationController.cs', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'source/Views/ThemeIntegration/Modern/AchievementCompactUnlockedListControl.xaml', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'source/Views/ThemeIntegration/Modern/AchievementCompactUnlockedListControl.xaml.cs', LF will be replaced by CRLF the next time Git touches it
 diff --git a/.gitignore b/.gitignore
 index 5e12022a1ec68295804fa1a6b2b12d0466614631..dd93b805a2211987591bc7b59a92b5c6e77af5c5 100644
 --- a/.gitignore
@@ -101,10 +112,10 @@ index 4bbe03feb756665ed105752ea1f9fa3e7bdd2314..9dce25a1da1a5cae228d23f2d3212262
 +    Image: https://raw.githubusercontent.com/santodan/PlayniteAchievements/main/Images/aniki-remake1.png
 \ No newline at end of file
 diff --git a/README.md b/README.md
-index 39887bdbdaaae092ed292fa99f10d9b84b089fce..ea53873f47b501ba459f6725b79f25297fd2de2e 100644
+index 39887bdbdaaae092ed292fa99f10d9b84b089fce..85de2951450a7c6051386baa19dc819c9436a3f8 100644
 --- a/README.md
 +++ b/README.md
-@@ -1,267 +1,407 @@
+@@ -1,267 +1,409 @@
  <p align="center">
 -  <picture>
 -    <source
@@ -302,6 +313,14 @@ index 39887bdbdaaae092ed292fa99f10d9b84b089fce..ea53873f47b501ba459f6725b79f2529
 -Each of these tabs has its own wiki page: [Overview](https://github.com/justin-delano/PlayniteAchievements/wiki/Overview), [Capstones](https://github.com/justin-delano/PlayniteAchievements/wiki/Capstones), [Categories](https://github.com/justin-delano/PlayniteAchievements/wiki/Categories), [Filters](https://github.com/justin-delano/PlayniteAchievements/wiki/Filters), [Notes](https://github.com/justin-delano/PlayniteAchievements/wiki/Notes), [Order](https://github.com/justin-delano/PlayniteAchievements/wiki/Achievement-Order), [Icons](https://github.com/justin-delano/PlayniteAchievements/wiki/Icons), and [Overrides](https://github.com/justin-delano/PlayniteAchievements/wiki/Overrides).
 -
 -# Overlay
+-
+-PlayniteAchievements includes a robust achievement notification and tracking system. When achievements are unlocked while you are in a game, notifications appear, and screenshots or videos can be taken to record your progress.
+-
+-Screenshots can be taken with/without the achievement notification on screen, or they can be taken with a full presentation frame.
+-
+-Unlock videos show the moment you earned an achievement, with a configurable amount of buffer time around the moment.
+-
+-**Clean**
 +> Official documentation for the base project should be taken from the original repository.
 +>
 +> - Original repository: https://github.com/justin-delano/PlayniteAchievements
@@ -315,10 +334,10 @@ index 39887bdbdaaae092ed292fa99f10d9b84b089fce..ea53873f47b501ba459f6725b79f2529
 +>
 +> I'm not a developer, I'm a troubleshooting guy, so everything is made with LLM
  
--PlayniteAchievements includes a robust achievement notification and tracking system. When achievements are unlocked while you are in a game, notifications appear, and screenshots or videos can be taken to record your progress.
+-![Clean unlock screenshot](Images/001_First%20Contact_clean.png)
 +# What This Fork Focuses On
  
--Screenshots can be taken with/without the achievement notification on screen, or they can be taken with a full presentation frame.
+-**Notification**
 +- Local save support and local achievement
 +- No need for a steam account to gather the achievements schema
 +  - There is the option to select between Steam ( API ), SteamHunters and Completionist.me
@@ -332,94 +351,92 @@ index 39887bdbdaaae092ed292fa99f10d9b84b089fce..ea53873f47b501ba459f6725b79f2529
 +- `SuccessStory` Import
 +- Theme and `StartPage` migration
  
--Unlock videos show the moment you earned an achievement, with a configurable amount of buffer time around the moment.
+-![Unlock screenshot with notification](Images/001_First%20Contact_toast.png)
 +Guides available in [Achievement Notifications Guide](ACHIEVEMENT_NOTIFICATIONS_GUIDE.md) and [Local Provider Troubleshooting](LOCAL_PROVIDER_TROUBLESHOOTING.md)
  
--**Clean**
+-**Framed**
 +## Local Provider Folder List And Browse Flow
  
--![Clean unlock screenshot](Images/001_First%20Contact_clean.png)
+-![Framed unlock screenshot](Images/001_First%20Contact_framed.png)
 +You can set any custom folder where you have saves located in your system as exception to never detect achievements from it
  
--**Notification**
+-NOTE: Achievement notifications will not show for games that use DirectX 9 and lower in Exclusive Fullscreen mode.
 +<img src="Images/LocalAchivementsFolders.png" alt="Sidebar single-game view" width="900">
  
--![Unlock screenshot with notification](Images/001_First%20Contact_toast.png)
- 
--**Framed**
-+## Local Game Options Overrides
- 
--![Framed unlock screenshot](Images/001_First%20Contact_framed.png)
-+If you Right-click the game it will show a quicker way to do these changes:
- 
--NOTE: Achievement notifications will not show for games that use DirectX 9 and lower in Exclusive Fullscreen mode.
-+<img src="Images/LocalAchivementsRightClickOptions.png" alt="Sidebar single-game view" width="900">
- 
 -Themes can create custom notification and frame styles, for full consistency. For example, in [Aniki-ReMake](https://github.com/Mike-Aniki/Aniki-ReMake):
-+From the PlayniteAchievements menu inside the game
  
 -**Toast**
-+<img src="Images/LocalAchivementsOverrides.png" alt="Sidebar single-game view" width="900">
++## Local Game Options Overrides
  
 -![Aniki-ReMake custom toast](Images/PlayniteAchievements%20-%20Mike%20Aniki%20Toast.png)
++If you Right-click the game it will show a quicker way to do these changes:
  
 -**Frame**
-+## Local Achievements' Games import and `SuccessStory Import`
++<img src="Images/LocalAchivementsRightClickOptions.png" alt="Sidebar single-game view" width="900">
  
 -![Aniki-ReMake custom frame](Images/PlayniteAchievements%20-%20Mike%20Aniki%20Frame.png)
-+This is a way of adding all of those achievements that are in the folders ina  way that it isn't needed to go through the folders and adding one by one.
++From the PlayniteAchievements menu inside the game
  
 -Notification and capture settings are described on the [General](https://github.com/justin-delano/PlayniteAchievements/wiki/General) settings page. Theme authors can build custom styles with [Toast and Frame Overrides](https://github.com/justin-delano/PlayniteAchievements/wiki/Toast-And-Frame-Overrides).
-+There is also the option to import data from `SuccessStory`. This will go through all the JSON files in the selected SuccessStory folder and import the `Local` games and also the achievements for the games that were detected in them.
++<img src="Images/LocalAchivementsOverrides.png" alt="Sidebar single-game view" width="900">
  
 -# Integration with Themes
-+<img src="Images/LocalAchivementsGamesImport.png" alt="Sidebar single-game view" width="900">
  
 -Any desktop theme created with SuccessStory support can migrate the theme to use PlayniteAchievements instead.
++## Local Achievements' Games import and `SuccessStory Import`
  
 -Many fullscreen themes can be migrated as well, but these complex themes are more likely to reveal compatibility issues. I recommend using [Aniki-ReMake](https://github.com/Mike-Aniki/Aniki-ReMake) for the most comprehensive integration of PlayniteAchievements features.
-+## Local Achievement Notification
++This is a way of adding all of those achievements that are in the folders ina  way that it isn't needed to go through the folders and adding one by one.
  
 -See [Theme Migration](https://github.com/justin-delano/PlayniteAchievements/wiki/Theme-Migration), [Theme Bindings](https://github.com/justin-delano/PlayniteAchievements/wiki/Theme-Bindings), and [Migrating From Legacy](https://github.com/justin-delano/PlayniteAchievements/wiki/Migrating-From-Legacy) on the wiki for more detail.
++There is also the option to import data from `SuccessStory`. This will go through all the JSON files in the selected SuccessStory folder and import the `Local` games and also the achievements for the games that were detected in them.
+ 
+-# Integration with other Plugins
++<img src="Images/LocalAchivementsGamesImport.png" alt="Sidebar single-game view" width="900">
+ 
+-PlayniteAchievements supports additional features when used with the following extensions:
+ 
+-## UniPlaySong
++## Local Achievement Notification
+ 
+-When [UniPlaySong](https://github.com/aHuddini/UniPlaySong) is installed, achievement notifications are accompanied by custom musical jingles. Themes can also take advantage of this to have their own custom consistent jingles.
 +This was a request from a user to have a sound playing when an achievement is unlocked while playing a game.<br>
 +Extra sounds in the [Resources/AdditionalSounds](source/Resources/AdditionalSounds)<br>
 +A notification for when the game that is been played has a new achievement unlocked.<br>
 +You can customize the overlay or use one of the provided themes.<br>
 +You can enable / disable the `Achievement Notification` in the right click  menu for each game.
- 
--# Integration with other Plugins
++
 +<img src="Images/AchievementNotificationMenu.png" alt="Sidebar single-game view" width="900">
 +
 +<img src="Images/AchievementNotificationTest.png" alt="Sidebar single-game view">
  
--PlayniteAchievements supports additional features when used with the following extensions:
+-## StartPage
  
--## UniPlaySong
+-PlayniteAchievements tables and visualizations can be added to [StartPage](https://github.com/felixkmh/StartPage-for-Playnite), with their own separate customization, so you can create stunning dashboards like the example below:
 +## `StartPage` and Themes compatibility
  
--When [UniPlaySong](https://github.com/aHuddini/UniPlaySong) is installed, achievement notifications are accompanied by custom musical jingles. Themes can also take advantage of this to have their own custom consistent jingles.
+-![StartPage dashboard](Images/PlayniteAchievements%20-%20StartPage.png)
 +In the `Theme Migration` tab you will have the possibility to make theme compatible with this fork, and that's also for theme that already support the original PlayniteAchievements fork, they still need to go through the `Theme Migration` since they are point to the other repo and not this one
  
--## StartPage
+-## Docs
 +There is also the `StartPage Compatibility` so the `Local` achievements appear in the `StartPage` extension when `PlayniteAchievements` is selected
 +
 +<img src="Images/ThemeMigration.png" alt="Sidebar single-game view"  width="900">
 +
 +
 +# Fork Changelog
- 
--PlayniteAchievements tables and visualizations can be added to [StartPage](https://github.com/felixkmh/StartPage-for-Playnite), with their own separate customization, so you can create stunning dashboards like the example below:
++
 +The entries below are fork-side changes, grouped by date. When a date includes an upstream sync, only the fork-specific additions are called out here.
 +
 +## Next release - TBD
- 
--![StartPage dashboard](Images/PlayniteAchievements%20-%20StartPage.png)
++
 +- v3.0.0 merge
- 
--## Docs
-+## 2026-07-27 - v2.5.3.4
++- `Start-page` migration fixed to not show the friend's achievements
++- Added the option for the highlighted achievement in the `Theme Migration`
  
 -- [Open the wiki](https://github.com/justin-delano/PlayniteAchievements/wiki)
++## 2026-07-27 - v2.5.3.4
++
 +- Fixed `RetroAchievements Game ID Override` displaying `No override set` after setting an override
 +- Removed `Display Order` column since the third click feature sorts with the correct RA order
 +- Restored the third click in the header to remove the column sort
@@ -4287,6 +4304,146 @@ index 6e83dc54921c59a459066b1a86651fae5d9a16a6..9878d09e10e6872b49f35530a0e70ecd
          public CacheWriteResult SaveGameData(string key, GameAchievementData data)
          {
              using (PerfScope.Start(_logger, "Cache.SaveGameData", thresholdMs: 25, context: key))
+diff --git a/source/Services/Database/SqlNadoCacheStore.cs b/source/Services/Database/SqlNadoCacheStore.cs
+index 31febf0c72e684c0432a107ad2c125fc82ee9b61..346864ff73aec79f92721916da4955853c852382 100644
+--- a/source/Services/Database/SqlNadoCacheStore.cs
++++ b/source/Services/Database/SqlNadoCacheStore.cs
+@@ -40,6 +40,14 @@ internal sealed class SqlNadoCacheStore : IDisposable
+         private const string ActiveFriendPredicateSql =
+             "u.IsCurrentUser = 0 AND u.IsActiveFriend = 1 AND u.FriendSource IS NOT NULL";
+ 
++        /// <summary>
++        /// Selects personal progress while retaining Local-provider rows created by older
++        /// builds under the synthetic Local/local user. Requires Users as "u" and Games as "g".
++        /// Local does not support friend achievements, so this fallback cannot admit friend data.
++        /// </summary>
++        internal const string CurrentUserOrLegacyLocalPredicateSql =
++            "(u.IsCurrentUser = 1 OR (g.ProviderKey = 'Local' AND u.ProviderKey = 'Local'))";
++
+         /// <summary>
+         /// Shared column list for achievement-detail join queries; requires AchievementDefinitions
+         /// aliased as "ad" and UserAchievements aliased as "ua".
+@@ -450,7 +458,8 @@ public bool HasAnyCurrentUserCacheRows()
+                         SELECT 1
+                         FROM UserGameProgress ugp
+                         INNER JOIN Users u ON u.Id = ugp.UserId
+-                        WHERE u.IsCurrentUser = 1
++                        INNER JOIN Games g ON g.Id = ugp.GameId
++                        WHERE " + CurrentUserOrLegacyLocalPredicateSql + @"
+                         LIMIT 1
+                       );");
+                 return exists != 0;
+@@ -465,7 +474,8 @@ LIMIT 1
+                     @"SELECT MAX(ugp.LastUpdatedUtc)
+                       FROM UserGameProgress ugp
+                       INNER JOIN Users u ON u.Id = ugp.UserId
+-                      WHERE u.IsCurrentUser = 1;");
++                      INNER JOIN Games g ON g.Id = ugp.GameId
++                      WHERE " + CurrentUserOrLegacyLocalPredicateSql + ";");
+                 return ParseUtc(value);
+             });
+         }
+@@ -488,7 +498,8 @@ FROM UserGameProgress ugp
+                     @"SELECT ugp.LastUpdatedUtc
+                       FROM UserGameProgress ugp
+                       INNER JOIN Users u ON u.Id = ugp.UserId
+-                      WHERE u.IsCurrentUser = 1
++                      INNER JOIN Games g ON g.Id = ugp.GameId
++                      WHERE " + CurrentUserOrLegacyLocalPredicateSql + @"
+                         AND ugp.CacheKey = ?
+                       ORDER BY ugp.LastUpdatedUtc DESC
+                       LIMIT 1;",
+@@ -552,7 +563,8 @@ public List<string> GetCachedGameIdsForCurrentUsers()
+                     @"SELECT DISTINCT ugp.CacheKey AS CacheKey
+                       FROM UserGameProgress ugp
+                       INNER JOIN Users u ON u.Id = ugp.UserId
+-                      WHERE u.IsCurrentUser = 1
++                      INNER JOIN Games g ON g.Id = ugp.GameId
++                      WHERE " + CurrentUserOrLegacyLocalPredicateSql + @"
+                       ORDER BY ugp.CacheKey;").ToList();
+ 
+                 return rows
+@@ -590,7 +602,7 @@ g.LibrarySourceName AS LibrarySourceName
+                       FROM UserGameProgress ugp
+                       INNER JOIN Users u ON u.Id = ugp.UserId
+                       INNER JOIN Games g ON g.Id = ugp.GameId
+-                      WHERE u.IsCurrentUser = 1
++                      WHERE " + CurrentUserOrLegacyLocalPredicateSql + @"
+                         AND ugp.CacheKey = ?
+                       ORDER BY ugp.LastUpdatedUtc DESC
+                       LIMIT 1;",
+@@ -656,7 +668,7 @@ PARTITION BY ugp.CacheKey
+                         FROM UserGameProgress ugp
+                         INNER JOIN Users u ON u.Id = ugp.UserId
+                         INNER JOIN Games g ON g.Id = ugp.GameId
+-                        WHERE u.IsCurrentUser = 1
++                        WHERE " + CurrentUserOrLegacyLocalPredicateSql + @"
+                           AND ugp.CacheKey IS NOT NULL
+                           AND TRIM(ugp.CacheKey) <> ''
+                     )
+@@ -714,7 +726,8 @@ PARTITION BY ugp.CacheKey
+                             ) AS RowNum
+                         FROM UserGameProgress ugp
+                         INNER JOIN Users u ON u.Id = ugp.UserId
+-                        WHERE u.IsCurrentUser = 1
++                        INNER JOIN Games g ON g.Id = ugp.GameId
++                        WHERE " + CurrentUserOrLegacyLocalPredicateSql + @"
+                           AND ugp.CacheKey IS NOT NULL
+                           AND TRIM(ugp.CacheKey) <> ''
+                     )
+@@ -6813,6 +6826,12 @@ private ResolvedUser ResolveCurrentUser(string providerKey)
+             {
+                 externalId = ProviderRegistry.Settings<RetroAchievementsSettings>().RaUsername;
+             }
++            else if (string.Equals(providerKey, "Local", StringComparison.OrdinalIgnoreCase))
++            {
++                // Keep the stable identity used before v3. Using the generic "unmapped"
++                // identity creates a second Local user and hides legacy Local progress.
++                externalId = "local";
++            }
+ 
+             if (string.IsNullOrWhiteSpace(externalId))
+             {
+diff --git a/source/Services/Database/SummaryCacheReader.cs b/source/Services/Database/SummaryCacheReader.cs
+index 68956ece6cf135f254eb2f02e7a81035e910edf1..a60c2da7819ca61cd746f0ba492a4fbe84baa180 100644
+--- a/source/Services/Database/SummaryCacheReader.cs
++++ b/source/Services/Database/SummaryCacheReader.cs
+@@ -237,7 +237,7 @@ PARTITION BY ugp.CacheKey
+                     FROM UserGameProgress ugp
+                     INNER JOIN Users u ON u.Id = ugp.UserId
+                     INNER JOIN Games g ON g.Id = ugp.GameId
+-                    WHERE u.IsCurrentUser = 1
++                    WHERE " + SqlNadoCacheStore.CurrentUserOrLegacyLocalPredicateSql + @"
+                       AND ugp.CacheKey IS NOT NULL
+                       AND TRIM(ugp.CacheKey) <> ''
+                 )
+@@ -319,7 +319,7 @@ PARTITION BY ugp.CacheKey
+                     FROM UserGameProgress ugp
+                     INNER JOIN Users u ON u.Id = ugp.UserId
+                     INNER JOIN Games g ON g.Id = ugp.GameId
+-                    WHERE u.IsCurrentUser = 1
++                    WHERE " + SqlNadoCacheStore.CurrentUserOrLegacyLocalPredicateSql + @"
+                       AND ugp.CacheKey IS NOT NULL
+                       AND TRIM(ugp.CacheKey) <> ''
+                 )
+@@ -373,7 +373,7 @@ PARTITION BY ugp.CacheKey
+                     FROM UserGameProgress ugp
+                     INNER JOIN Users u ON u.Id = ugp.UserId
+                     INNER JOIN Games g ON g.Id = ugp.GameId
+-                    WHERE u.IsCurrentUser = 1
++                    WHERE " + SqlNadoCacheStore.CurrentUserOrLegacyLocalPredicateSql + @"
+                       AND ugp.CacheKey IS NOT NULL
+                       AND TRIM(ugp.CacheKey) <> ''
+                 )
+@@ -419,7 +419,7 @@ PARTITION BY ugp.CacheKey
+                     FROM UserGameProgress ugp
+                     INNER JOIN Users u ON u.Id = ugp.UserId
+                     INNER JOIN Games g ON g.Id = ugp.GameId
+-                    WHERE u.IsCurrentUser = 1
++                    WHERE " + SqlNadoCacheStore.CurrentUserOrLegacyLocalPredicateSql + @"
+                       AND ugp.CacheKey IS NOT NULL
+                       AND TRIM(ugp.CacheKey) <> ''
+                 )
 diff --git a/source/Services/GameCustomData/GameCustomDataLookup.cs b/source/Services/GameCustomData/GameCustomDataLookup.cs
 index 7195126f8f6a0c8a987d2e35b93f5746ba009469..d3538265ba74fd2179428a93112c7e85335a42a7 100644
 --- a/source/Services/GameCustomData/GameCustomDataLookup.cs
@@ -12311,14 +12468,40 @@ index e2edea0011fc5f0d7a734646978ee28ca09b9c98..ca58804401acc29add866d7b1e7be707
              return AchievementSortHelper.CreateDefaultSortedList(
                  items,
                  AchievementSortScope.RecentAchievements);
+diff --git a/source/Services/ThemeIntegration/ThemeControlRegistry.cs b/source/Services/ThemeIntegration/ThemeControlRegistry.cs
+index e4734ce8eecce4f6d2861d0ccb4f5e064865cab7..f490a402ffcc30c37a53a8da7ecd7c7f963b3581 100644
+--- a/source/Services/ThemeIntegration/ThemeControlRegistry.cs
++++ b/source/Services/ThemeIntegration/ThemeControlRegistry.cs
+@@ -29,6 +29,7 @@ internal sealed class ThemeControlRegistry
+                 { "AchievementCompactList", () => new Views.ThemeIntegration.Modern.AchievementCompactListControl() },
+                 { "AchievementCompactLockedList", () => new Views.ThemeIntegration.Modern.AchievementCompactLockedListControl() },
+                 { "AchievementCompactUnlockedList", () => new Views.ThemeIntegration.Modern.AchievementCompactUnlockedListControl() },
++                { "AchievementCompactUnlockedScrollableList", () => new Views.ThemeIntegration.Modern.AchievementCompactUnlockedListControl { ShowFeaturedItem = false } },
+                 { "AchievementChart", () => new Views.ThemeIntegration.Modern.AchievementBarChartControl() },
+                 { "AchievementBarChart", () => new Views.ThemeIntegration.Modern.AchievementBarChartControl() },
+                 { "AchievementPieChart", () => new Views.ThemeIntegration.Modern.AchievementPieChartControl() },
+@@ -60,6 +61,7 @@ internal sealed class ThemeControlRegistry
+             "AchievementCompactList",
+             "AchievementCompactLockedList",
+             "AchievementCompactUnlockedList",
++            "AchievementCompactUnlockedScrollableList",
+             "AchievementBarChart",
+             "AchievementPieChart",
+             "AchievementStats",
 diff --git a/source/Services/ThemeMigration/ControlMappings.cs b/source/Services/ThemeMigration/ControlMappings.cs
-index 029c3ba7c845bc03a451d63f5603c366f0ef50ef..b301c8d6d085ffc01cfc293356451a886bc86f07 100644
+index 029c3ba7c845bc03a451d63f5603c366f0ef50ef..8e89dc4e5e6325e2bf203861da23b90825bcd77a 100644
 --- a/source/Services/ThemeMigration/ControlMappings.cs
 +++ b/source/Services/ThemeMigration/ControlMappings.cs
-@@ -8,6 +8,14 @@ namespace PlayniteAchievements.Services.ThemeMigration
+@@ -8,6 +8,20 @@ namespace PlayniteAchievements.Services.ThemeMigration
      /// </summary>
      public static class ControlMappings
      {
++        public const string HighlightedUnlockedListControlName =
++            "AchievementCompactUnlockedList";
++
++        public const string ScrollOnlyUnlockedListControlName =
++            "AchievementCompactUnlockedScrollableList";
++
 +        public static readonly HashSet<string> CompactAchievementListControlNames = new HashSet<string>
 +        {
 +            "PluginCompactList",
@@ -12330,11 +12513,20 @@ index 029c3ba7c845bc03a451d63f5603c366f0ef50ef..b301c8d6d085ffc01cfc293356451a88
          /// <summary>
          /// Maps Legacy control names to Modern control names.
          /// Keys are the legacy names (without underscore prefix), values are the modern names.
+@@ -18,7 +32,7 @@ public static class ControlMappings
+             { "PluginChart", "AchievementBarChart" },
+             { "PluginCompactList", "AchievementCompactList" },
+             { "PluginCompactLocked", "AchievementCompactLockedList" },
+-            { "PluginCompactUnlocked", "AchievementCompactUnlockedList" },
++            { "PluginCompactUnlocked", HighlightedUnlockedListControlName },
+             { "PluginList", "AchievementDataGrid" },
+             { "PluginProgressBar", "AchievementProgressBar" },
+             { "PluginUserStats", "AchievementStats" },
 diff --git a/source/Services/ThemeMigration/CustomMigrationSelection.cs b/source/Services/ThemeMigration/CustomMigrationSelection.cs
-index 7aa5493030e6e24468154d40ea153dc70295f35d..559db4ee27ba72edc3b80ba51e12cab6dbd5b27c 100644
+index 7aa5493030e6e24468154d40ea153dc70295f35d..ba0c78afe90f5e6bab50e440842bdf5e19c6fa28 100644
 --- a/source/Services/ThemeMigration/CustomMigrationSelection.cs
 +++ b/source/Services/ThemeMigration/CustomMigrationSelection.cs
-@@ -28,10 +28,18 @@ public CustomMigrationSelection(IEnumerable<string> modernControlNames = null, b
+@@ -28,10 +28,24 @@ public CustomMigrationSelection(IEnumerable<string> modernControlNames = null, b
          /// </summary>
          public bool ModernizeBindings { get; set; }
  
@@ -12343,6 +12535,12 @@ index 7aa5493030e6e24468154d40ea153dc70295f35d..559db4ee27ba72edc3b80ba51e12cab6
 +        /// the scrollable modern controls. When false, they remain in the legacy +X layout.
 +        /// </summary>
 +        public bool ModernizeCompactAchievementLists { get; set; } = true;
++
++        /// <summary>
++        /// Gets or sets whether the modern unlocked-achievement list shows its newest
++        /// achievement as a larger featured row above the horizontal scroller.
++        /// </summary>
++        public bool HighlightLatestUnlockedAchievement { get; set; } = true;
 +
          public bool ShouldModernizeControl(string legacyControlName)
          {
@@ -12576,7 +12774,7 @@ index 3060a8f3b0919e794e8988fdb08c9ff41126556b..13cfcd60019034621b70dbc493f425ba
  
          private static string GetStandaloneControlNamePattern(string controlName)
 diff --git a/source/Services/ThemeMigration/ThemeMigrationService.cs b/source/Services/ThemeMigration/ThemeMigrationService.cs
-index 3d6443c00ad71f3045beaed435923d89a44ae4e5..b4812b3a2aaaeefc3d779ad12a27d43ef6b5a134 100644
+index 3d6443c00ad71f3045beaed435923d89a44ae4e5..59485458d7fed7922da40717631b1746c6fd6092 100644
 --- a/source/Services/ThemeMigration/ThemeMigrationService.cs
 +++ b/source/Services/ThemeMigration/ThemeMigrationService.cs
 @@ -24,6 +24,17 @@ public sealed class ThemeMigrationService
@@ -12765,7 +12963,21 @@ index 3d6443c00ad71f3045beaed435923d89a44ae4e5..b4812b3a2aaaeefc3d779ad12a27d43e
  
                  foreach (var mapping in GetSelectedControlMappings(mode, customSelection))
                  {
-@@ -563,27 +637,75 @@ private string ApplyReplacements(string content, string originalContent, ref int
+@@ -354,6 +428,13 @@ private string GetRelativePath(string fullPath, string themePath)
+                     totalCount += CountOccurrences(content, $"PlayniteAchievements_{mapping.Key}");
+                 }
+ 
++                if (ShouldConfigureUnlockedListHighlight(mode, customSelection))
++                {
++                    var sourceVariant = GetOppositeUnlockedListControlName(customSelection);
++                    totalCount += CountStandaloneControlNameOccurrences(content, sourceVariant);
++                    totalCount += CountOccurrences(content, $"PlayniteAchievements_{sourceVariant}");
++                }
++
+                 if (ShouldModernizeBindings(mode, customSelection))
+                 {
+                     foreach (var bindingPath in ControlMappings.LegacyToModernBindingPaths.Keys)
+@@ -563,27 +644,75 @@ private string ApplyReplacements(string content, string originalContent, ref int
              string result = content;
  
              // Replace SuccessStoryFullscreenHelper first (most specific - fullscreen installation checks)
@@ -12850,7 +13062,7 @@ index 3d6443c00ad71f3045beaed435923d89a44ae4e5..b4812b3a2aaaeefc3d779ad12a27d43e
  
              // Convert DataContext bindings to use PluginSettings with our exposed properties
              // {Binding SelectedGame.DisplayBackgroundImageObject} -> {PluginSettings Plugin=PlayniteAchievements, Path=SelectedGameBackgroundPath}
-@@ -613,6 +735,17 @@ private string ApplyReplacements(string content, string originalContent, ref int
+@@ -613,6 +742,17 @@ private string ApplyReplacements(string content, string originalContent, ref int
              result = result.Replace("&#xE820;", "&#xEDD7;");
              replacements += CountOccurrences(originalContent, "&#xE820;");
  
@@ -12868,7 +13080,29 @@ index 3d6443c00ad71f3045beaed435923d89a44ae4e5..b4812b3a2aaaeefc3d779ad12a27d43e
              return result;
          }
  
-@@ -675,7 +808,14 @@ private static IEnumerable<KeyValuePair<string, string>> GetSelectedControlMappi
+@@ -637,6 +777,21 @@ private string ApplyModernizationReplacements(
+                 controlReplacements += ReplaceStandaloneControlName(ref result, mapping.Key, mapping.Value);
+             }
+ 
++            if (ShouldConfigureUnlockedListHighlight(mode, customSelection))
++            {
++                var sourceVariant = GetOppositeUnlockedListControlName(customSelection);
++                var targetVariant = GetSelectedUnlockedListControlName(customSelection);
++                controlReplacements += ReplacePrefixedControlName(
++                    ref result,
++                    "PlayniteAchievements",
++                    sourceVariant,
++                    targetVariant);
++                controlReplacements += ReplaceStandaloneControlName(
++                    ref result,
++                    sourceVariant,
++                    targetVariant);
++            }
++
+             // Replace LegacyData binding paths with Theme binding paths
+             // These appear in XAML as {Binding LegacyData.HasData} etc.
+             if (ShouldModernizeBindings(mode, customSelection))
+@@ -675,7 +830,16 @@ private static IEnumerable<KeyValuePair<string, string>> GetSelectedControlMappi
          {
              if (mode == MigrationMode.Full)
              {
@@ -12880,10 +13114,68 @@ index 3d6443c00ad71f3045beaed435923d89a44ae4e5..b4812b3a2aaaeefc3d779ad12a27d43e
 +                        !ControlMappings.CompactAchievementListControlNames.Contains(mapping.Key));
 +                }
 +
-+                return mappings;
++                return mappings.Select(mapping => ResolveSelectedControlMapping(
++                    mapping,
++                    customSelection));
              }
  
              if (mode != MigrationMode.Custom || customSelection == null)
+@@ -684,7 +848,54 @@ private static IEnumerable<KeyValuePair<string, string>> GetSelectedControlMappi
+             }
+ 
+             return ControlMappings.LegacyToModernControlNames
+-                .Where(mapping => customSelection.ShouldModernizeControl(mapping.Key));
++                .Where(mapping => customSelection.ShouldModernizeControl(mapping.Key))
++                .Select(mapping => ResolveSelectedControlMapping(mapping, customSelection));
++        }
++
++        private static KeyValuePair<string, string> ResolveSelectedControlMapping(
++            KeyValuePair<string, string> mapping,
++            CustomMigrationSelection customSelection)
++        {
++            if (!string.Equals(
++                    mapping.Key,
++                    "PluginCompactUnlocked",
++                    StringComparison.Ordinal))
++            {
++                return mapping;
++            }
++
++            return new KeyValuePair<string, string>(
++                mapping.Key,
++                GetSelectedUnlockedListControlName(customSelection));
++        }
++
++        private static bool ShouldConfigureUnlockedListHighlight(
++            MigrationMode mode,
++            CustomMigrationSelection customSelection)
++        {
++            if (mode == MigrationMode.Full)
++            {
++                return customSelection?.ModernizeCompactAchievementLists != false;
++            }
++
++            return mode == MigrationMode.Custom &&
++                   customSelection?.ShouldModernizeControl("PluginCompactUnlocked") == true;
++        }
++
++        private static string GetSelectedUnlockedListControlName(
++            CustomMigrationSelection customSelection)
++        {
++            return customSelection?.HighlightLatestUnlockedAchievement == false
++                ? ControlMappings.ScrollOnlyUnlockedListControlName
++                : ControlMappings.HighlightedUnlockedListControlName;
++        }
++
++        private static string GetOppositeUnlockedListControlName(
++            CustomMigrationSelection customSelection)
++        {
++            return customSelection?.HighlightLatestUnlockedAchievement == false
++                ? ControlMappings.HighlightedUnlockedListControlName
++                : ControlMappings.ScrollOnlyUnlockedListControlName;
+         }
+ 
+         private static int ReplacePrefixedControlName(ref string content, string prefix, string legacyName, string modernName)
 diff --git a/source/Services/UI/PluginWindowService.cs b/source/Services/UI/PluginWindowService.cs
 index c34d6e525fc997f2cd8c0c675d23653fefd4db50..86f0c80f358a67c476bcda71905c35d5fb1c496b 100644
 --- a/source/Services/UI/PluginWindowService.cs
@@ -16358,6 +16650,252 @@ index 77e8ef1b4465530ced324cd31dcf84dda24060e5..ef4b83cd28935ed7c952abf29974aa3b
          }
  
          private void ResetRecentAchievementsToDefaultSort()
+diff --git a/source/Views/Settings/Display/ThemeControls/MigrationThemePage.xaml b/source/Views/Settings/Display/ThemeControls/MigrationThemePage.xaml
+index 9ef788133e43b513e99a92b0247a19fabfed8d75..d4eeb16367e0e8e70662e173c3a324985c8d511f 100644
+--- a/source/Views/Settings/Display/ThemeControls/MigrationThemePage.xaml
++++ b/source/Views/Settings/Display/ThemeControls/MigrationThemePage.xaml
+@@ -31,14 +31,23 @@
+ 
+                     <!-- Theme Dropdown -->
+                     <Grid Style="{StaticResource SettingRowStyle}">
+-                        <ComboBox ItemsSource="{Binding AvailableThemes}"
++                        <ComboBox x:Name="ThemeMigrationThemeComboBox"
++                                  ItemsSource="{Binding AvailableThemes}"
+                                   DisplayMemberPath="BestDisplayName"
+                                   SelectedValuePath="Path"
+-                                  SelectedValue="{Binding SelectedThemePath}"
++                                  SelectedValue="{Binding SelectedThemePath, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
++                                  SelectionChanged="ThemeMigrationThemeComboBox_SelectionChanged"
+                                   VerticalContentAlignment="Center"
+                                   IsEnabled="{Binding HasThemesToMigrate}"/>
+                     </Grid>
+ 
++                    <CheckBox x:Name="HighlightLatestUnlockedAchievementCheckBox"
++                              Content="{DynamicResource LOCPlayAch_ThemeMigration_HighlightLatestAchievement}"
++                              IsChecked="{Binding HighlightLatestUnlockedAchievement, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
++                              IsEnabled="{Binding HasThemesToMigrate}"
++                              Margin="0,8,0,0"
++                              ToolTip="{DynamicResource LOCPlayAch_ThemeMigration_HighlightLatestAchievement_Help}"/>
++
+                     <!-- Migration Buttons -->
+                     <StackPanel Orientation="Horizontal"
+                                 HorizontalAlignment="Right"
+diff --git a/source/Views/Settings/Display/ThemeControls/MigrationThemePage.xaml.cs b/source/Views/Settings/Display/ThemeControls/MigrationThemePage.xaml.cs
+index 0384607fbc223720c577c9b5cfb39e3973db286d..d0edb093bba8c4ffd25b3284c216cc053165b464 100644
+--- a/source/Views/Settings/Display/ThemeControls/MigrationThemePage.xaml.cs
++++ b/source/Views/Settings/Display/ThemeControls/MigrationThemePage.xaml.cs
+@@ -46,21 +46,52 @@ private void OnControllerPropertyChanged(object sender, PropertyChangedEventArgs
+         private async void MigrateThemeLimited_Click(object sender, RoutedEventArgs e)
+         {
+             if (_controller == null) return;
++            CommitMigrationControls();
+             await _controller.MigrateAsync(MigrationMode.Limited);
+         }
+ 
+         private async void MigrateThemeFull_Click(object sender, RoutedEventArgs e)
+         {
+             if (_controller == null) return;
+-            await _controller.MigrateAsync(MigrationMode.Full);
++            CommitMigrationControls();
++            await _controller.MigrateAsync(
++                MigrationMode.Full,
++                _controller.BuildFullMigrationSelection());
+         }
+ 
+         private async void MigrateThemeCustom_Click(object sender, RoutedEventArgs e)
+         {
+             if (_controller == null) return;
++            CommitMigrationControls();
+             await _controller.MigrateCustomAsync();
+         }
+ 
++        private void ThemeMigrationThemeComboBox_SelectionChanged(
++            object sender,
++            SelectionChangedEventArgs e)
++        {
++            CommitMigrationControls();
++        }
++
++        private void CommitMigrationControls()
++        {
++            if (_controller == null)
++            {
++                return;
++            }
++
++            if (ThemeMigrationThemeComboBox?.SelectedItem is
++                ThemeDiscoveryService.ThemeInfo selectedTheme)
++            {
++                _controller.SelectedThemePath = selectedTheme.Path;
++            }
++
++            if (HighlightLatestUnlockedAchievementCheckBox?.IsChecked is bool highlightLatest)
++            {
++                _controller.HighlightLatestUnlockedAchievement = highlightLatest;
++            }
++        }
++
+         private void ThemeMigrationCustomExpander_Expanded(object sender, RoutedEventArgs e)
+         {
+             UpdateModeButtonState();
+diff --git a/source/Views/Settings/Display/ThemeControls/ThemeMigrationController.cs b/source/Views/Settings/Display/ThemeControls/ThemeMigrationController.cs
+index f380a0c8f2e4d0168462c3a8ab921737dafb2d7b..afbba282d0cb6e10ba038e1555ca7d301ca0e4d5 100644
+--- a/source/Views/Settings/Display/ThemeControls/ThemeMigrationController.cs
++++ b/source/Views/Settings/Display/ThemeControls/ThemeMigrationController.cs
+@@ -1,8 +1,10 @@
+ using System;
+ using System.Collections.ObjectModel;
++using System.IO;
+ using System.Linq;
+ using System.Threading.Tasks;
+ using System.Windows;
++using Newtonsoft.Json.Linq;
+ using Playnite.SDK;
+ using PlayniteAchievements.Common;
+ using PlayniteAchievements.Models;
+@@ -29,6 +31,7 @@ internal sealed class ThemeMigrationController : ObservableObject
+         private bool _hasRevertableThemes;
+         private bool _showNoThemesMessage = true;
+         private bool _showNoRevertableThemesMessage = true;
++        private bool _highlightLatestUnlockedAchievement = true;
+ 
+         public ThemeMigrationController(
+             PlayniteAchievementsSettings settings,
+@@ -93,6 +96,12 @@ public bool ShowNoRevertableThemesMessage
+             private set => SetValue(ref _showNoRevertableThemesMessage, value);
+         }
+ 
++        public bool HighlightLatestUnlockedAchievement
++        {
++            get => _highlightLatestUnlockedAchievement;
++            set => SetValue(ref _highlightLatestUnlockedAchievement, value);
++        }
++
+         /// <summary>
+         /// Loads the theme lists on first use. Called from each page's Loaded event so whichever
+         /// page is shown first triggers the discovery.
+@@ -126,8 +135,10 @@ private void LoadThemes()
+                 var cache = _settings?.Persisted?.ThemeMigrationVersionCache;
+                 var themes = _themeDiscovery.DiscoverThemes(themesPath, cache);
+ 
+-                // Themes that need migration (no backup, has SuccessStory)
+-                foreach (var theme in themes.Where(t => t.NeedsMigration))
++                // Include themes that still need conversion and already-migrated themes with a
++                // backup. The latter must remain selectable so migration options (such as the
++                // featured achievement row) can be changed without reverting the whole theme.
++                foreach (var theme in themes.Where(t => t.NeedsMigration || t.HasBackup))
+                 {
+                     AvailableThemes.Add(theme);
+                 }
+@@ -138,6 +149,8 @@ private void LoadThemes()
+                     RevertableThemes.Add(theme);
+                 }
+ 
++                SelectConfiguredDesktopTheme();
++
+                 UpdateThemeMigrationState();
+                 _themesLoaded = true;
+ 
+@@ -167,21 +180,28 @@ public Task MigrateCustomAsync()
+ 
+         public async Task MigrateAsync(MigrationMode mode, CustomMigrationSelection customSelection = null)
+         {
+-            if (string.IsNullOrWhiteSpace(SelectedThemePath))
++            var selectedThemePath = SelectedThemePath;
++            if (string.IsNullOrWhiteSpace(selectedThemePath))
+             {
+                 _logger?.Warn("Migrate clicked but no theme selected.");
+                 return;
+             }
+ 
+-            _logger?.Info($"User requested {mode} theme migration for: {SelectedThemePath}");
++            var highlightLatest = customSelection?.HighlightLatestUnlockedAchievement;
++            _logger?.Info(
++                $"User requested {mode} theme migration for: {selectedThemePath}; " +
++                $"highlightLatestUnlockedAchievement={highlightLatest?.ToString() ?? "not-applicable"}");
+ 
+             try
+             {
+-                var result = await _themeMigration.MigrateThemeAsync(SelectedThemePath, mode, customSelection);
++                var result = await _themeMigration.MigrateThemeAsync(
++                    selectedThemePath,
++                    mode,
++                    customSelection);
+ 
+                 if (result.Success)
+                 {
+-                    _logger?.Info($"Theme migration ({mode}) successful: {SelectedThemePath}");
++                    _logger?.Info($"Theme migration ({mode}) successful: {selectedThemePath}");
+ 
+                     // Only show restart dialog if files were actually modified
+                     if (result.FilesBackedUp > 0)
+@@ -288,7 +308,65 @@ private CustomMigrationSelection BuildCustomMigrationSelection()
+                 .Select(option => option.Key)
+                 .ToList();
+ 
+-            return new CustomMigrationSelection(modernControlNames, modernizeBindings: true);
++            return new CustomMigrationSelection(modernControlNames, modernizeBindings: true)
++            {
++                HighlightLatestUnlockedAchievement =
++                    HighlightLatestUnlockedAchievement
++            };
++        }
++
++        private void SelectConfiguredDesktopTheme()
++        {
++            if (AvailableThemes.Count == 0)
++            {
++                SelectedThemePath = string.Empty;
++                return;
++            }
++
++            if (AvailableThemes.Any(theme =>
++                    string.Equals(theme.Path, SelectedThemePath, StringComparison.OrdinalIgnoreCase)))
++            {
++                return;
++            }
++
++            string configuredTheme = null;
++            try
++            {
++                var configurationPath = _plugin?.PlayniteApi?.Paths?.ConfigurationPath;
++                var configPath = string.IsNullOrWhiteSpace(configurationPath)
++                    ? null
++                    : Path.Combine(configurationPath, "config.json");
++                if (!string.IsNullOrWhiteSpace(configPath) && File.Exists(configPath))
++                {
++                    configuredTheme = JObject.Parse(File.ReadAllText(configPath))
++                        .Value<string>("Theme");
++                }
++            }
++            catch (Exception ex)
++            {
++                _logger?.Debug(ex, "Failed to resolve the configured desktop theme.");
++            }
++
++            var selected = AvailableThemes.FirstOrDefault(theme =>
++                !string.IsNullOrWhiteSpace(configuredTheme) &&
++                string.Equals(
++                    new DirectoryInfo(theme.Path).Name,
++                    configuredTheme,
++                    StringComparison.OrdinalIgnoreCase));
++
++            SelectedThemePath = (selected ?? AvailableThemes.FirstOrDefault())?.Path ??
++                                string.Empty;
++        }
++
++        public CustomMigrationSelection BuildFullMigrationSelection()
++        {
++            return new CustomMigrationSelection(
++                ControlMappings.LegacyToModernControlNames.Keys,
++                modernizeBindings: true)
++            {
++                ModernizeCompactAchievementLists = true,
++                HighlightLatestUnlockedAchievement = HighlightLatestUnlockedAchievement
++            };
+         }
+ 
+         private void InitializeCustomOptions()
 diff --git a/source/Views/SettingsControl.xaml b/source/Views/SettingsControl.xaml
 index 186d5ab9b60a538326b3a9efd9666e966ac531dc..c81ebca40ac154cd5e65b1dd1560b60f46b16c23 100644
 --- a/source/Views/SettingsControl.xaml
@@ -16759,7 +17297,7 @@ index 969bf9ea7585ac41717223a508794d0ccc00ecbd..f60e86a50a4732880a633e94fafd6903
      }
  }
 diff --git a/source/Views/ThemeIntegration/Modern/AchievementCompactUnlockedListControl.xaml b/source/Views/ThemeIntegration/Modern/AchievementCompactUnlockedListControl.xaml
-index 0094945d5bacfc5153a3c1421ac3dcad5b4c5d10..9f468946e036b134ae92ed6675c8f22d2c5bbc9c 100644
+index 0094945d5bacfc5153a3c1421ac3dcad5b4c5d10..8f48b1c4cba4fa2014f2853025f85635e7278100 100644
 --- a/source/Views/ThemeIntegration/Modern/AchievementCompactUnlockedListControl.xaml
 +++ b/source/Views/ThemeIntegration/Modern/AchievementCompactUnlockedListControl.xaml
 @@ -7,7 +7,8 @@
@@ -16772,7 +17310,7 @@ index 0094945d5bacfc5153a3c1421ac3dcad5b4c5d10..9f468946e036b134ae92ed6675c8f22d
                     UseLayoutRounding="True"
                     SnapsToDevicePixels="True"
                     ShowRarityGlow="{Binding Persisted.ModernUnlockedListShowRarityGlow}">
-@@ -20,92 +21,143 @@
+@@ -20,92 +21,147 @@
          </ResourceDictionary>
      </modern:AchievementCompactListControlBase.Resources>
  
@@ -16817,6 +17355,10 @@ index 0094945d5bacfc5153a3c1421ac3dcad5b4c5d10..9f468946e036b134ae92ed6675c8f22d
 +                    <Style.Triggers>
 +                        <DataTrigger Binding="{Binding FeaturedItem, RelativeSource={RelativeSource AncestorType=modern:AchievementCompactListControlBase}}"
 +                                     Value="{x:Null}">
++                            <Setter Property="Visibility" Value="Collapsed"/>
++                        </DataTrigger>
++                        <DataTrigger Binding="{Binding ShowFeaturedItem, RelativeSource={RelativeSource AncestorType=modern:AchievementCompactUnlockedListControl}}"
++                                     Value="False">
 +                            <Setter Property="Visibility" Value="Collapsed"/>
 +                        </DataTrigger>
 +                        <DataTrigger Binding="{Binding Persisted.EnableAchievementCompactUnlockedListControl, RelativeSource={RelativeSource AncestorType=local:ThemeControlBase}}"
@@ -16918,8 +17460,8 @@ index 0094945d5bacfc5153a3c1421ac3dcad5b4c5d10..9f468946e036b134ae92ed6675c8f22d
 +                <Style TargetType="{x:Type Border}">
 +                    <Setter Property="Visibility" Value="Collapsed"/>
 +                    <Style.Triggers>
-+                        <DataTrigger Binding="{Binding FeaturedItem, RelativeSource={RelativeSource AncestorType=modern:AchievementCompactListControlBase}}"
-+                                     Value="{x:Null}">
++                        <DataTrigger Binding="{Binding DisplayItems.Count, RelativeSource={RelativeSource AncestorType=modern:AchievementCompactListControlBase}}"
++                                     Value="0">
 +                            <Setter Property="Visibility" Value="Visible"/>
 +                        </DataTrigger>
 +                        <DataTrigger Binding="{Binding Persisted.EnableAchievementCompactUnlockedListControl, RelativeSource={RelativeSource AncestorType=local:ThemeControlBase}}"
@@ -16945,8 +17487,8 @@ index 0094945d5bacfc5153a3c1421ac3dcad5b4c5d10..9f468946e036b134ae92ed6675c8f22d
 +                <Style TargetType="{x:Type ItemsControl}">
 +                    <Setter Property="Visibility" Value="Visible"/>
 +                    <Style.Triggers>
-+                        <DataTrigger Binding="{Binding FeaturedItem, RelativeSource={RelativeSource AncestorType=modern:AchievementCompactListControlBase}}"
-+                                     Value="{x:Null}">
++                        <DataTrigger Binding="{Binding DisplayItems.Count, RelativeSource={RelativeSource AncestorType=modern:AchievementCompactListControlBase}}"
++                                     Value="0">
 +                            <Setter Property="Visibility" Value="Collapsed"/>
 +                        </DataTrigger>
 +                        <DataTrigger Binding="{Binding Persisted.EnableAchievementCompactUnlockedListControl, RelativeSource={RelativeSource AncestorType=local:ThemeControlBase}}"
@@ -17000,7 +17542,7 @@ index 0094945d5bacfc5153a3c1421ac3dcad5b4c5d10..9f468946e036b134ae92ed6675c8f22d
 +    </StackPanel>
 +</modern:AchievementCompactListControlBase>
 diff --git a/source/Views/ThemeIntegration/Modern/AchievementCompactUnlockedListControl.xaml.cs b/source/Views/ThemeIntegration/Modern/AchievementCompactUnlockedListControl.xaml.cs
-index b3e9affa517c40f4cb9f2e6add88ac4866194e72..12ee6113d4534cbfcea014b14d337cd208fe686f 100644
+index b3e9affa517c40f4cb9f2e6add88ac4866194e72..8a6ecbdd88ea8c8ee46721f0552005a37fd25573 100644
 --- a/source/Views/ThemeIntegration/Modern/AchievementCompactUnlockedListControl.xaml.cs
 +++ b/source/Views/ThemeIntegration/Modern/AchievementCompactUnlockedListControl.xaml.cs
 @@ -1,6 +1,11 @@
@@ -17015,10 +17557,17 @@ index b3e9affa517c40f4cb9f2e6add88ac4866194e72..12ee6113d4534cbfcea014b14d337cd2
  
  namespace PlayniteAchievements.Views.ThemeIntegration.Modern
  {
-@@ -11,11 +16,24 @@ namespace PlayniteAchievements.Views.ThemeIntegration.Modern
+@@ -11,11 +16,51 @@ namespace PlayniteAchievements.Views.ThemeIntegration.Modern
      /// </summary>
      public partial class AchievementCompactUnlockedListControl : AchievementCompactListControlBase
      {
++        public static readonly System.Windows.DependencyProperty ShowFeaturedItemProperty =
++            System.Windows.DependencyProperty.Register(
++                nameof(ShowFeaturedItem),
++                typeof(bool),
++                typeof(AchievementCompactUnlockedListControl),
++                new System.Windows.PropertyMetadata(true, OnShowFeaturedItemChanged));
++
 +        public static readonly System.Windows.DependencyProperty FeaturedItemProperty =
 +            System.Windows.DependencyProperty.Register(
 +                nameof(FeaturedItem),
@@ -17037,10 +17586,30 @@ index b3e9affa517c40f4cb9f2e6add88ac4866194e72..12ee6113d4534cbfcea014b14d337cd2
 +            private set => SetValue(FeaturedItemProperty, value);
 +        }
 +
++        /// <summary>
++        /// Gets or sets whether the newest unlocked achievement is featured above the
++        /// horizontal list. When disabled, every item remains in the scrollable row.
++        /// </summary>
++        public bool ShowFeaturedItem
++        {
++            get => (bool)GetValue(ShowFeaturedItemProperty);
++            set => SetValue(ShowFeaturedItemProperty, value);
++        }
++
++        private static void OnShowFeaturedItemChanged(
++            System.Windows.DependencyObject dependencyObject,
++            System.Windows.DependencyPropertyChangedEventArgs eventArgs)
++        {
++            if (dependencyObject is AchievementCompactUnlockedListControl control)
++            {
++                control.RefreshItemsSource();
++            }
++        }
++
          /// <summary>
          /// Returns true only for unlocked achievements.
          /// </summary>
-@@ -26,14 +44,27 @@ public AchievementCompactUnlockedListControl()
+@@ -26,14 +71,31 @@ public AchievementCompactUnlockedListControl()
          /// </summary>
          protected override AchievementSortSurface SortSurface => AchievementSortSurface.CompactUnlockedList;
  
@@ -17060,12 +17629,16 @@ index b3e9affa517c40f4cb9f2e6add88ac4866194e72..12ee6113d4534cbfcea014b14d337cd2
          /// </summary>
          protected override void RefreshItemsSource()
          {
-+            FeaturedItem = DisplayItems.FirstOrDefault();
++            FeaturedItem = ShowFeaturedItem
++                ? DisplayItems.FirstOrDefault()
++                : null;
 +
              if (AchievementsList != null)
              {
 -                AchievementsList.ItemsSource = DisplayItems;
-+                AchievementsList.ItemsSource = DisplayItems.Skip(1).ToList();
++                AchievementsList.ItemsSource = ShowFeaturedItem
++                    ? DisplayItems.Skip(1).ToList()
++                    : DisplayItems.ToList();
              }
          }
      }
