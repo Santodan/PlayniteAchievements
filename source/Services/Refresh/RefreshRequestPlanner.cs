@@ -668,7 +668,7 @@ namespace PlayniteAchievements.Services.Refresh
                     FriendExternalUserIds = options.FriendExternalUserIds,
                     // SelectedGame/Full are user-initiated "refresh this" actions, so they re-download
                     // schemas by default; PreferCachedDefinitions lets latency-sensitive programmatic
-                    // callers (the in-game poller) reuse cached Ok schemas instead.
+                    // callers (the in-game monitor) reuse cached Ok schemas instead.
                     ForceDefinitionRefresh = !options.PreferCachedDefinitions &&
                                              (options.ForceDefinitionRefresh ||
                                               friendScope == FriendRefreshScope.SelectedGame ||

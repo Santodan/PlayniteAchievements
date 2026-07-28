@@ -8,6 +8,7 @@ using PlayniteAchievements.Models.Friends;
 using PlayniteAchievements.Services.Database;
 using PlayniteAchievements.Services.Friends;
 using PlayniteAchievements.Services.Images;
+using PlayniteAchievements.Providers;
 using Playnite.SDK;
 using System.Windows;
 
@@ -29,7 +30,7 @@ namespace PlayniteAchievements.Services.Cache
         void ResyncAllAchievementFilters(IReadOnlyDictionary<Guid, IReadOnlyList<(string ApiName, string Kind)>> entriesByGameId);
     }
 
-    public sealed class CacheManager : ICacheManager, ICacheReadOptimizations, IAchievementFilterMirror, IFriendCacheManager, IDisposable
+    public sealed class CacheManager : ICacheManager, ICacheReadOptimizations, IAchievementFilterMirror, IFriendCacheManager, IInGameProgressCacheWriter, IDisposable
     {
         private const int MaxInMemoryGames = 256;
 
@@ -945,6 +946,70 @@ namespace PlayniteAchievements.Services.Cache
 
                 return CacheWriteResult.CreateSuccess(normalizedKey, writeTime);
             }
+        }
+
+        InGameProgressWriteResult IInGameProgressCacheWriter.ApplyInGameProgress(
+            string cacheKey,
+            string providerKey,
+            IReadOnlyList<AchievementProgressObservation> observations)
+        {
+            var normalizedKey = UserKey(cacheKey);
+            if (string.IsNullOrWhiteSpace(normalizedKey))
+            {
+                return InGameProgressWriteResult.Failed("invalid_key");
+            }
+
+            InGameProgressWriteResult result;
+            var scopeChanged = false;
+            try
+            {
+                lock (_sync)
+                {
+                    EnsureReady_Locked("ApplyInGameProgress");
+                    result = _store.ApplyInGameProgress(normalizedKey, providerKey, observations);
+                    if (result?.Success == true && result.Changed)
+                    {
+                        var reloaded = _store.LoadCurrentUserGameData(normalizedKey);
+                        if (reloaded != null)
+                        {
+                            NormalizeLoadedData(normalizedKey, reloaded);
+                            SetMemoryGameData_Locked(normalizedKey, reloaded);
+                        }
+
+                        scopeChanged = RefreshScopeToken_Locked(clearMemoryOnChange: false);
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                _logger?.Error(
+                    ex,
+                    $"In-game cache progress write failed. key={normalizedKey}, provider={providerKey ?? "unknown"}");
+                return InGameProgressWriteResult.Failed("sql_write_failed");
+            }
+
+            if (result?.Success != true || !result.Changed)
+            {
+                return result ?? InGameProgressWriteResult.Failed("write_failed");
+            }
+
+            if (scopeChanged)
+            {
+                RaiseCacheDeltaUpdatedEvent(string.Empty, CacheDeltaOperationType.FullReset);
+            }
+
+            RaiseGameCacheUpdatedEvent(normalizedKey);
+            RaiseCacheDeltaUpdatedEvent(normalizedKey, CacheDeltaOperationType.Upsert);
+            if (Guid.TryParse(normalizedKey, out var gameId) && gameId != Guid.Empty)
+            {
+                RaiseCacheInvalidatedEvent(CacheInvalidatedEventArgs.Scoped(new[] { gameId }));
+            }
+            else
+            {
+                RaiseCacheInvalidatedEvent(CacheInvalidatedEventArgs.FullInvalidation);
+            }
+
+            return result;
         }
 
         public void RemoveGameData(Guid playniteGameId)

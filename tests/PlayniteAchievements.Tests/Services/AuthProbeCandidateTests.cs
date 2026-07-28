@@ -27,6 +27,26 @@ namespace PlayniteAchievements.Services.Tests
     public class AuthProbeCandidateTests
     {
         [TestMethod]
+        public async Task AuthContext_IncludesCurrentUserOfflineFallback_WhenLiveAuthFails()
+        {
+            var provider = new FakeProvider(
+                "Steam",
+                _ => true,
+                isAuthenticated: false,
+                canAttemptOfflineRefresh: true);
+            var runtime = CreateRuntime(Array.Empty<Game>(), provider);
+
+            var context = await runtime.GetRefreshAuthContextAsync();
+
+            CollectionAssert.AreEqual(
+                new[] { "Steam" },
+                context.AuthenticatedProviders
+                    .Select(item => item.ProviderKey)
+                    .ToArray());
+            Assert.IsFalse(context.IsProviderAuthenticated("Steam"));
+        }
+
+        [TestMethod]
         public void ResolveAuthProbeCandidates_NullRequest_ReturnsAllProviders()
         {
             var planner = CreatePlanner(Array.Empty<Game>());
@@ -295,20 +315,23 @@ namespace PlayniteAchievements.Services.Tests
             }
         }
 
-        private sealed class FakeProvider : IDataProvider
+        private sealed class FakeProvider : IDataProvider, IOfflineRefreshFallbackProvider
         {
             private readonly Func<Game, bool> _isCapable;
             private readonly bool _isAuthenticated;
+            private readonly bool _canAttemptOfflineRefresh;
 
             public FakeProvider(
                 string providerKey,
                 Func<Game, bool> isCapable,
                 bool isAuthenticated = true,
-                IFriendsProvider friendsProvider = null)
+                IFriendsProvider friendsProvider = null,
+                bool canAttemptOfflineRefresh = false)
             {
                 ProviderKey = providerKey;
                 _isCapable = isCapable ?? (_ => false);
                 _isAuthenticated = isAuthenticated;
+                _canAttemptOfflineRefresh = canAttemptOfflineRefresh;
                 Friends = friendsProvider;
             }
 
@@ -330,6 +353,8 @@ namespace PlayniteAchievements.Services.Tests
 
             public ISessionManager AuthSession => null;
             public IFriendsProvider Friends { get; }
+            bool IOfflineRefreshFallbackProvider.CanAttemptOfflineRefresh =>
+                _canAttemptOfflineRefresh;
 
             public bool IsCapable(Game game) => _isCapable(game);
 

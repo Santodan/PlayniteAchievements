@@ -20,7 +20,7 @@ using System.Text;
 
 namespace PlayniteAchievements.Providers.ShadPS4
 {
-    internal sealed class ShadPS4DataProvider : DataProviderBase<ShadPS4Settings>, IDataProvider, IProviderOverride
+    internal sealed class ShadPS4DataProvider : DataProviderBase<ShadPS4Settings>, IDataProvider, IProviderOverride, IInGameProgressSource
     {
         public ProviderOverrideDescriptor OverrideDescriptor { get; } = ProviderOverrideDescriptor.Text(
             "LOCPlayAch_ManageAchievements_Overrides_ProviderValueLabel_ShadPS4",
@@ -480,6 +480,100 @@ namespace PlayniteAchievements.Providers.ShadPS4
             CancellationToken cancel)
         {
             return _scanner.RefreshAsync(gamesToRefresh, onGameStarting, onGameCompleted, cancel);
+        }
+
+        InGameProgressRegistration IInGameProgressSource.TryRegister(
+            Game game,
+            GameAchievementData cachedSchema)
+        {
+            if (game == null ||
+                cachedSchema?.Achievements == null ||
+                cachedSchema.Achievements.Count == 0 ||
+                !string.Equals(cachedSchema.ProviderKey, ProviderKey, StringComparison.OrdinalIgnoreCase))
+            {
+                return null;
+            }
+
+            var progressPath = ResolveInGameProgressPath(game);
+            var directory = string.IsNullOrWhiteSpace(progressPath)
+                ? null
+                : Path.GetDirectoryName(progressPath);
+            if (string.IsNullOrWhiteSpace(directory) || !Directory.Exists(directory))
+            {
+                return null;
+            }
+
+            return new InGameProgressRegistration
+            {
+                ProviderKey = ProviderKey,
+                WatchTargets = new[] { progressPath },
+                PollInterval = TimeSpan.FromSeconds(60),
+                State = progressPath
+            };
+        }
+
+        Task<IReadOnlyList<InGameProgressQueryResult>> IInGameProgressSource.QueryAsync(
+            IReadOnlyList<InGameTrackingContext> games,
+            CancellationToken cancellationToken)
+        {
+            var results = new List<InGameProgressQueryResult>();
+            foreach (var context in games ?? Array.Empty<InGameTrackingContext>())
+            {
+                cancellationToken.ThrowIfCancellationRequested();
+                var gameId = context?.Game?.Id ?? Guid.Empty;
+                var path = context?.Registration?.State as string;
+                if (!ShadPS4ProgressReader.TryRead(path, out var unlocked))
+                {
+                    results.Add(InGameProgressQueryResult.Failed(gameId, "file_unstable"));
+                    continue;
+                }
+
+                var observations = unlocked.Select(pair => new AchievementProgressObservation
+                {
+                    ApiName = pair.Key,
+                    Unlocked = true,
+                    UnlockTimeUtc = pair.Value
+                }).ToList();
+                results.Add(InGameProgressQueryResult.Succeeded(gameId, observations));
+            }
+
+            return Task.FromResult<IReadOnlyList<InGameProgressQueryResult>>(results);
+        }
+
+        private string ResolveInGameProgressPath(Game game)
+        {
+            if (game == null)
+            {
+                return null;
+            }
+
+            if (TryGetMatchIdOverride(game.Id, out var matchId))
+            {
+                switch (ShadPS4MatchIdHelper.GetKind(matchId))
+                {
+                    case ShadPS4MatchIdKind.NpCommId:
+                        return GetOrBuildNpCommIdCache().TryGetValue(matchId, out var npXml)
+                            ? npXml
+                            : null;
+                    case ShadPS4MatchIdKind.TitleId:
+                        return GetOrBuildTitleCache().TryGetValue(matchId, out var titleDirectory)
+                            ? Path.Combine(titleDirectory, "trophyfiles", "trophy00", "Xml", "TROP.XML")
+                            : null;
+                }
+            }
+
+            var npCommId = ResolveNpCommIdForGame(game);
+            if (!string.IsNullOrWhiteSpace(npCommId) &&
+                GetOrBuildNpCommIdCache().TryGetValue(npCommId, out var perUserXml))
+            {
+                return perUserXml;
+            }
+
+            var titleId = ExtractTitleIdFromGame(game);
+            return !string.IsNullOrWhiteSpace(titleId) &&
+                   GetOrBuildTitleCache().TryGetValue(titleId, out var trophyDirectory)
+                ? Path.Combine(trophyDirectory, "trophyfiles", "trophy00", "Xml", "TROP.XML")
+                : null;
         }
 
         /// <inheritdoc />

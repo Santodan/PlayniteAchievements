@@ -33,8 +33,15 @@ namespace PlayniteAchievements.Providers.RPCS3
     /// Data provider for RPCS3 PlayStation 3 emulator trophy tracking.
     /// Parses local trophy files (TROPCONF.SFM + TROPUSR.DAT) from RPCS3 installation.
     /// </summary>
-    internal sealed class Rpcs3DataProvider : DataProviderBase<Rpcs3Settings>, IDataProvider, IProviderOverride
+    internal sealed class Rpcs3DataProvider : DataProviderBase<Rpcs3Settings>, IDataProvider, IProviderOverride, IInGameProgressSource
     {
+        private sealed class Rpcs3InGameSource
+        {
+            public string NpCommId { get; set; }
+            public string Path { get; set; }
+            public bool IsCollection { get; set; }
+        }
+
         public ProviderOverrideDescriptor OverrideDescriptor { get; } = ProviderOverrideDescriptor.Text(
             "LOCPlayAch_ManageAchievements_Overrides_ProviderValueLabel_RPCS3",
             raw => Rpcs3MatchIdHelper.TryNormalize(raw, out var matchId)
@@ -713,6 +720,112 @@ namespace PlayniteAchievements.Providers.RPCS3
             CancellationToken cancel)
         {
             return _scanner.RefreshAsync(gamesToRefresh, onGameStarting, onGameCompleted, cancel);
+        }
+
+        InGameProgressRegistration IInGameProgressSource.TryRegister(
+            Game game,
+            GameAchievementData cachedSchema)
+        {
+            if (game == null ||
+                cachedSchema?.Achievements == null ||
+                cachedSchema.Achievements.Count == 0 ||
+                !string.Equals(cachedSchema.ProviderKey, ProviderKey, StringComparison.OrdinalIgnoreCase) ||
+                string.IsNullOrWhiteSpace(cachedSchema.ProviderGameKey))
+            {
+                return null;
+            }
+
+            var npCommIds = cachedSchema.ProviderGameKey
+                .Split(new[] { '+' }, StringSplitOptions.RemoveEmptyEntries)
+                .Select(Rpcs3MatchIdHelper.Normalize)
+                .Where(id => !string.IsNullOrWhiteSpace(id))
+                .Distinct(StringComparer.OrdinalIgnoreCase)
+                .ToList();
+            var trophyRoot = GetTrophyFolder(game);
+            if (npCommIds.Count == 0 || string.IsNullOrWhiteSpace(trophyRoot))
+            {
+                return null;
+            }
+
+            var isCollection = npCommIds.Count > 1;
+            var sources = npCommIds
+                .Select(id => new Rpcs3InGameSource
+                {
+                    NpCommId = id,
+                    Path = Path.Combine(trophyRoot, id, "TROPUSR.DAT"),
+                    IsCollection = isCollection
+                })
+                .Where(source => Directory.Exists(Path.GetDirectoryName(source.Path)))
+                .ToList();
+            if (sources.Count != npCommIds.Count)
+            {
+                return null;
+            }
+
+            return new InGameProgressRegistration
+            {
+                ProviderKey = ProviderKey,
+                WatchTargets = sources.Select(source => source.Path).ToList(),
+                PollInterval = TimeSpan.FromSeconds(60),
+                State = sources
+            };
+        }
+
+        Task<IReadOnlyList<InGameProgressQueryResult>> IInGameProgressSource.QueryAsync(
+            IReadOnlyList<InGameTrackingContext> games,
+            CancellationToken cancellationToken)
+        {
+            var results = new List<InGameProgressQueryResult>();
+            foreach (var context in games ?? Array.Empty<InGameTrackingContext>())
+            {
+                cancellationToken.ThrowIfCancellationRequested();
+                var gameId = context?.Game?.Id ?? Guid.Empty;
+                var sources = context?.Registration?.State as List<Rpcs3InGameSource>;
+                var schema = context?.CachedSchema?.Achievements;
+                if (sources == null || schema == null)
+                {
+                    results.Add(InGameProgressQueryResult.Failed(gameId, "registration_missing"));
+                    continue;
+                }
+
+                var observations = new List<AchievementProgressObservation>();
+                var success = true;
+                foreach (var source in sources)
+                {
+                    var prefix = source.NpCommId + ":";
+                    var ids = schema
+                        .Select(achievement => achievement?.ApiName)
+                        .Where(apiName => !string.IsNullOrWhiteSpace(apiName))
+                        .Select(apiName =>
+                            source.IsCollection && apiName.StartsWith(prefix, StringComparison.OrdinalIgnoreCase)
+                                ? apiName.Substring(prefix.Length)
+                                : source.IsCollection ? null : apiName)
+                        .Where(apiName => int.TryParse(apiName, out _))
+                        .Select(int.Parse)
+                        .ToList();
+
+                    if (!Rpcs3TrophyParser.TryParseTrophyProgress(source.Path, ids, out var unlocked))
+                    {
+                        success = false;
+                        break;
+                    }
+
+                    observations.AddRange(unlocked.Select(pair => new AchievementProgressObservation
+                    {
+                        ApiName = source.IsCollection
+                            ? source.NpCommId + ":" + pair.Key
+                            : pair.Key.ToString(),
+                        Unlocked = true,
+                        UnlockTimeUtc = pair.Value
+                    }));
+                }
+
+                results.Add(success
+                    ? InGameProgressQueryResult.Succeeded(gameId, observations)
+                    : InGameProgressQueryResult.Failed(gameId, "file_unstable"));
+            }
+
+            return Task.FromResult<IReadOnlyList<InGameProgressQueryResult>>(results);
         }
 
         /// <inheritdoc />
