@@ -89,7 +89,7 @@ namespace PlayniteAchievements
         private readonly SubscriptionCollection _eventSubscriptions = new SubscriptionCollection();
 
         private readonly BackgroundUpdater _backgroundUpdates;
-        private readonly InGameAchievementPoller _inGamePoller;
+        private readonly InGameAchievementMonitor _inGameMonitor;
         private readonly ActiveGameWindowTracker _windowTracker;
         private readonly ToastNotificationService _toastNotifications;
         private readonly Services.Recording.UnlockRecordingService _unlockRecordings;
@@ -138,6 +138,7 @@ namespace PlayniteAchievements
         public MemoryImageService ImageService => _imageService;
         public DiskImageService DiskImageService => _diskImageService;
         public ManagedCustomIconService ManagedCustomIconService => _managedCustomIconService;
+        public ICacheManager CacheManager => _cacheManager;
         public NotificationImageStore NotificationImageStore => _notificationImageStore;
         public ThemeIntegrationService ThemeIntegrationService => _themeIntegrationService;
         public ThemeIntegrationService ThemeUpdateService => _themeIntegrationService;
@@ -511,13 +512,12 @@ namespace PlayniteAchievements
                         _toastNotifications,
                         key => Services.UI.ProviderNotificationPolicy.Resolve(settings?.Persisted, key).Recordings,
                         _windowTracker);
-                    _inGamePoller = new InGameAchievementPoller(
+                    _inGameMonitor = new InGameAchievementMonitor(
                         PlayniteApi,
                         settings,
                         _logger,
                         _cacheManager,
                         _refreshService,
-                        providers,
                         (request, policy) => _refreshCoordinator.ExecuteAsync(request, policy),
                         NotifyAchievementUnlocked);
                     _backgroundUpdates = new BackgroundUpdater(_refreshCoordinator, _refreshService, _cacheManager, settings, _logger, _notifications, null);
@@ -774,7 +774,7 @@ namespace PlayniteAchievements
                 _windowTracker?.OnGameStarted(args?.Game, args?.StartedProcessId);
                 _libraryProjectionService?.SetGameSessionActive(true);
                 _achievementHotkeyTargetResolver?.NotifyGameStarted(args?.Game);
-                _inGamePoller?.Start(args?.Game);
+                _inGameMonitor?.Start(args?.Game);
                 _unlockRecordings?.OnGameStarted(args?.Game);
             }
             catch (Exception ex)
@@ -785,6 +785,17 @@ namespace PlayniteAchievements
 
         public override void OnGameStopped(OnGameStoppedEventArgs args)
         {
+            try
+            {
+                // Detach exact-path watchers and cancel queued progress reads before clearing
+                // session toasts or handing recording ownership to another running game.
+                _inGameMonitor?.Stop(args?.Game);
+            }
+            catch (Exception ex)
+            {
+                _logger?.Debug(ex, $"Failed to stop in-game monitor for {args?.Game?.Name}.");
+            }
+
             try
             {
                 UntrackStoppedGame(args?.Game);
@@ -812,7 +823,7 @@ namespace PlayniteAchievements
                 _logger?.Debug(ex, "Failed to track stopped game for achievement hotkeys.");
             }
 
-            _ = StopPollingAndRefreshStoppedGameAsync(args?.Game);
+            _ = RefreshStoppedGameAsync(args?.Game);
         }
 
         /// <summary>
@@ -850,20 +861,11 @@ namespace PlayniteAchievements
             return null;
         }
 
-        private async Task StopPollingAndRefreshStoppedGameAsync(Game game)
+        private async Task RefreshStoppedGameAsync(Game game)
         {
             if (game == null)
             {
                 return;
-            }
-
-            try
-            {
-                _inGamePoller?.Stop(game);
-            }
-            catch (Exception ex)
-            {
-                _logger?.Debug(ex, $"Failed to stop in-game poller for {game.Name}.");
             }
 
             // The game-close refresh runs a Single request, which bypasses user exclusions so a
@@ -890,7 +892,7 @@ namespace PlayniteAchievements
                 return;
             }
 
-            // With other games still running the poller may have a tick in flight; wait for it
+            // With other games still running the monitor may have a refresh in flight; wait for it
             // (bounded) because RefreshRuntime rejects concurrent runs rather than queueing them —
             // a blind execute would silently drop this game's final refresh.
             for (var waited = 0; waited < 60 && _refreshService?.IsRebuilding == true; waited += 5)
@@ -1055,7 +1057,7 @@ namespace PlayniteAchievements
                 e.PropertyName == nameof(PersistedSettings.InGameFriendRefreshMultiplier) ||
                 e.PropertyName == nameof(PersistedSettings.InGameFriendBatchSize))
             {
-                RestartInGamePollerForRunningGames();
+                ReconfigureInGameMonitor();
             }
 
             if (e.PropertyName == nameof(PersistedSettings.UseUniformRarityBadges) ||
@@ -1148,11 +1150,11 @@ namespace PlayniteAchievements
             }
         }
 
-        private void RestartInGamePollerForRunningGames()
+        private void ReconfigureInGameMonitor()
         {
             try
             {
-                var running = _inGamePoller?.RunningGames?.ToList() ?? new List<Game>();
+                var running = _inGameMonitor?.RunningGames?.ToList() ?? new List<Game>();
                 if (running.Count == 0)
                 {
                     running = PlayniteApi?.Database?.Games?
@@ -1161,18 +1163,18 @@ namespace PlayniteAchievements
                         .ToList() ?? new List<Game>();
                 }
 
-                _inGamePoller?.StopAll();
+                _inGameMonitor?.Reconfigure();
                 if (_applicationStarted)
                 {
                     foreach (var game in running)
                     {
-                        _inGamePoller?.Start(game);
+                        _inGameMonitor?.Start(game);
                     }
                 }
             }
             catch (Exception ex)
             {
-                _logger?.Error(ex, "Failed to restart in-game achievement poller.");
+                _logger?.Error(ex, "Failed to reconfigure in-game achievement monitor.");
             }
         }
 
@@ -1192,7 +1194,7 @@ namespace PlayniteAchievements
             }
 
             _backgroundUpdates.Stop();
-            try { _inGamePoller?.Dispose(); } catch (Exception ex) { _logger?.Debug(ex, "Failed to dispose inGamePoller"); }
+            try { _inGameMonitor?.Dispose(); } catch (Exception ex) { _logger?.Debug(ex, "Failed to dispose inGameMonitor"); }
             try { _toastNotifications?.Dispose(); } catch (Exception ex) { _logger?.Debug(ex, "Failed to dispose toastNotifications"); }
             try { _unlockRecordings?.Dispose(); } catch (Exception ex) { _logger?.Debug(ex, "Failed to dispose unlockRecordings"); }
             try { _windowTracker?.Dispose(); } catch (Exception ex) { _logger?.Debug(ex, "Failed to dispose windowTracker"); }
@@ -1296,6 +1298,8 @@ namespace PlayniteAchievements
         {
             _refreshService.GameRefreshed += OnAchievementGameRefreshed;
             _eventSubscriptions.Add(() => _refreshService.GameRefreshed -= OnAchievementGameRefreshed);
+            _inGameMonitor.ProgressApplied += OnAchievementGameRefreshed;
+            _eventSubscriptions.Add(() => _inGameMonitor.ProgressApplied -= OnAchievementGameRefreshed);
 
             try
             {

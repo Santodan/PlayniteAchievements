@@ -59,4 +59,13 @@ namespace PlayniteAchievements.Providers
         /// </summary>
         ProviderSettingsViewBase CreateSettingsView();
     }
+
+    /// <summary>
+    /// Optional current-user refresh capability for providers that can produce a safe result
+    /// without live web authentication. The provider still owns the final per-game decision.
+    /// </summary>
+    internal interface IOfflineRefreshFallbackProvider
+    {
+        bool CanAttemptOfflineRefresh { get; }
+    }
 }

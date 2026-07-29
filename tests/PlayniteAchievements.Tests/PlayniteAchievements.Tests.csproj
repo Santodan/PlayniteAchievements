@@ -55,16 +55,24 @@
     <Compile Include="..\..\source\Providers\GOG\Models\GogProductData.cs" Link="Source\Providers\GOG\Models\GogProductData.cs" />
 
     <Compile Include="..\..\source\Services\Database\SqlNadoCacheBehavior.cs" Link="Source\Services\Database\SqlNadoCacheBehavior.cs" />
+    <Compile Include="..\..\source\Services\Database\InGameProgressSqlWriter.cs" Link="Source\Services\Database\InGameProgressSqlWriter.cs" />
+    <Compile Include="..\..\source\Services\Cache\IInGameProgressCacheWriter.cs" Link="Source\Services\Cache\IInGameProgressCacheWriter.cs" />
+    <Compile Include="..\..\source\Services\InGameMonitoring\InGameReadSchedule.cs" Link="Source\Services\InGameMonitoring\InGameReadSchedule.cs" />
     <Compile Include="..\..\source\Providers\Steam\SteamTimeParser.cs" Link="Source\Providers\Steam\SteamTimeParser.cs" />
     <Compile Include="..\..\source\Providers\Steam\SteamStatsPageClassifier.cs" Link="Source\Providers\Steam\SteamStatsPageClassifier.cs" />
     <Compile Include="..\..\source\Providers\Steam\SteamImageUrls.cs" Link="Source\Providers\Steam\SteamImageUrls.cs" />
     <Compile Include="..\..\source\Providers\Steam\SteamGameIdentity.cs" Link="Source\Providers\Steam\SteamGameIdentity.cs" />
     <Compile Include="..\..\source\Providers\Steam\SteamExophaseFriendOwnershipMapper.cs" Link="Source\Providers\Steam\SteamExophaseFriendOwnershipMapper.cs" />
     <Compile Include="..\..\source\Providers\Steam\SteamSettings.cs" Link="Source\Providers\Steam\SteamSettings.cs" />
+    <Compile Include="..\..\source\Providers\Steam\Local\SteamIdHelper.cs" Link="Source\Providers\Steam\Local\SteamIdHelper.cs" />
+    <Compile Include="..\..\source\Providers\Steam\Local\SteamInstallLocator.cs" Link="Source\Providers\Steam\Local\SteamInstallLocator.cs" />
+    <Compile Include="..\..\source\Providers\Steam\Local\SteamBinaryKeyValuesReader.cs" Link="Source\Providers\Steam\Local\SteamBinaryKeyValuesReader.cs" />
+    <Compile Include="..\..\source\Providers\Steam\Local\SteamLocalStatsReader.cs" Link="Source\Providers\Steam\Local\SteamLocalStatsReader.cs" />
     <Compile Include="..\..\source\Providers\Steam\SteamHuntersApiClient.cs" Link="Source\Providers\Steam\SteamHuntersApiClient.cs" />
     <Compile Include="..\..\source\Providers\Steam\SteamHuntersCategoryEnricher.cs" Link="Source\Providers\Steam\SteamHuntersCategoryEnricher.cs" />
     <Compile Include="..\..\source\Providers\Steam\SteamFriendListItem.cs" Link="Source\Providers\Steam\SteamFriendListItem.cs" />
     <Compile Include="..\..\source\Providers\Steam\SteamFriendListBuilder.cs" Link="Source\Providers\Steam\SteamFriendListBuilder.cs" />
+    <Compile Include="..\..\source\Providers\IInGameProgressSource.cs" Link="Source\Providers\IInGameProgressSource.cs" />
     <Compile Include="..\..\source\Models\RefreshMode.cs" Link="Source\Models\RefreshMode.cs" />
     <Compile Include="..\..\source\Models\CustomRefreshOptions.cs" Link="Source\Models\CustomRefreshOptions.cs" />
     <Compile Include="..\..\source\Models\RefreshRequest.cs" Link="Source\Models\RefreshRequest.cs" />
@@ -143,6 +151,7 @@
     <Compile Include="..\..\source\Providers\ShadPS4\ShadPS4PathResolver.cs" Link="Source\Providers\ShadPS4\ShadPS4PathResolver.cs" />
     <Compile Include="..\..\source\Providers\ShadPS4\ShadPS4Settings.cs" Link="Source\Providers\ShadPS4\ShadPS4Settings.cs" />
     <Compile Include="..\..\source\Providers\ShadPS4\ShadPS4DataProvider.cs" Link="Source\Providers\ShadPS4\ShadPS4DataProvider.cs" />
+    <Compile Include="..\..\source\Providers\ShadPS4\ShadPS4ProgressReader.cs" Link="Source\Providers\ShadPS4\ShadPS4ProgressReader.cs" />
     <Compile Include="..\..\source\Providers\ShadPS4\ShadPS4MatchIdHelper.cs" Link="Source\Providers\ShadPS4\ShadPS4MatchIdHelper.cs" />
     <Compile Include="..\..\source\Providers\ShadPS4\ShadPS4Scanner.cs" Link="Source\Providers\ShadPS4\ShadPS4Scanner.cs" />
     <Compile Include="..\..\source\Providers\RPCS3\Rpcs3Settings.cs" Link="Source\Providers\RPCS3\Rpcs3Settings.cs" />
@@ -169,6 +178,7 @@
     <Compile Include="..\..\source\Providers\RetroAchievements\RetroAchievementsRarityCalculator.cs" Link="Source\Providers\RetroAchievements\RetroAchievementsRarityCalculator.cs" />
     <Compile Include="..\..\source\Providers\RetroAchievements\RetroAchievementsAchievementMapper.cs" Link="Source\Providers\RetroAchievements\RetroAchievementsAchievementMapper.cs" />
     <Compile Include="..\..\source\Providers\RetroAchievements\Models\RaApiResponseModels.cs" Link="Source\Providers\RetroAchievements\Models\RaApiResponseModels.cs" />
+    <Compile Include="..\..\source\Providers\RetroAchievements\RetroAchievementsRecentProgressMapper.cs" Link="Source\Providers\RetroAchievements\RetroAchievementsRecentProgressMapper.cs" />
     <Compile Include="..\..\source\Providers\RetroAchievements\RetroAchievementsSubsetConsoleResolver.cs" Link="Source\Providers\RetroAchievements\RetroAchievementsSubsetConsoleResolver.cs" />
     <Compile Include="..\..\source\Providers\RetroAchievements\RetroAchievementsCategoryImagePlanner.cs" Link="Source\Providers\RetroAchievements\RetroAchievementsCategoryImagePlanner.cs" />
     <Compile Include="..\..\source\Providers\RetroAchievements\RetroAchievementsSubsetTitleResolver.cs" Link="Source\Providers\RetroAchievements\RetroAchievementsSubsetTitleResolver.cs" />

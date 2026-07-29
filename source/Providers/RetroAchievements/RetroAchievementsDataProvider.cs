@@ -19,7 +19,7 @@ using System.Threading.Tasks;
 
 namespace PlayniteAchievements.Providers.RetroAchievements
 {
-    internal sealed class RetroAchievementsDataProvider : DataProviderBase<RetroAchievementsSettings>, IDataProvider, IAchievementPageLinkProvider, IProviderOverride, IDisposable
+    internal sealed class RetroAchievementsDataProvider : DataProviderBase<RetroAchievementsSettings>, IDataProvider, IAchievementPageLinkProvider, IProviderOverride, IInGameProgressSource, IDisposable
     {
         public ProviderOverrideDescriptor OverrideDescriptor { get; } = ProviderOverrideDescriptor.Text(
             "LOCPlayAch_ManageAchievements_Overrides_ProviderValueLabel_RetroAchievements",
@@ -49,6 +49,9 @@ namespace PlayniteAchievements.Providers.RetroAchievements
         private string _clientUsername;
         private string _clientApiKey;
         private string _clientLanguage;
+        private readonly object _recentLock = new object();
+        private readonly Dictionary<string, DateTime> _recentSeen =
+            new Dictionary<string, DateTime>(StringComparer.Ordinal);
 
         public RetroAchievementsDataProvider(ILogger logger, PlayniteAchievementsSettings settings, IPlayniteAPI playniteApi, string pluginUserDataPath)
         {
@@ -218,6 +221,73 @@ namespace PlayniteAchievements.Providers.RetroAchievements
         {
             EnsureInitialized();
             return _scanner.RefreshAsync(gamesToRefresh, onGameStarting, onGameCompleted, cancel);
+        }
+
+        InGameProgressRegistration IInGameProgressSource.TryRegister(
+            Game game,
+            GameAchievementData cachedSchema)
+        {
+            if (game == null ||
+                cachedSchema?.Achievements == null ||
+                cachedSchema.Achievements.Count == 0 ||
+                !string.Equals(cachedSchema.ProviderKey, ProviderKey, StringComparison.OrdinalIgnoreCase))
+            {
+                return null;
+            }
+
+            return new InGameProgressRegistration
+            {
+                ProviderKey = ProviderKey,
+                IsRemote = true,
+                PollInterval = TimeSpan.FromSeconds(5)
+            };
+        }
+
+        async Task<IReadOnlyList<InGameProgressQueryResult>> IInGameProgressSource.QueryAsync(
+            IReadOnlyList<InGameTrackingContext> games,
+            CancellationToken cancellationToken)
+        {
+            var contexts = (games ?? Array.Empty<InGameTrackingContext>())
+                .Where(context => context?.Game != null && context.CachedSchema?.Achievements != null)
+                .ToList();
+            if (contexts.Count == 0)
+            {
+                return Array.Empty<InGameProgressQueryResult>();
+            }
+
+            EnsureInitialized();
+            var recent = await _apiClient
+                .GetUserRecentAchievementsAsync(lookbackMinutes: 2, cancellationToken)
+                .ConfigureAwait(false) ?? new List<Models.RaRecentAchievement>();
+
+            cancellationToken.ThrowIfCancellationRequested();
+            return RetroAchievementsRecentProgressMapper.Map(
+                recent,
+                contexts,
+                MarkRecentSeen);
+        }
+
+        private bool MarkRecentSeen(string key, DateTime unlockUtc)
+        {
+            lock (_recentLock)
+            {
+                var cutoff = DateTime.UtcNow.AddMinutes(-10);
+                foreach (var stale in _recentSeen
+                    .Where(pair => pair.Value < cutoff)
+                    .Select(pair => pair.Key)
+                    .ToList())
+                {
+                    _recentSeen.Remove(stale);
+                }
+
+                if (_recentSeen.ContainsKey(key))
+                {
+                    return false;
+                }
+
+                _recentSeen[key] = unlockUtc;
+                return true;
+            }
         }
 
         private void EnsureInitialized()

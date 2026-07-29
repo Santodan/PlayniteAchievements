@@ -23,6 +23,15 @@ namespace PlayniteAchievements.Providers.RPCS3
         private const uint TrophyStateTableType = 6;
         private const uint TrophyStateEntryContentsSize = 0x60;
         private const int TrophyStateEntryHeaderSize = 0x10;
+
+        // Magic-byte patterns used by the live in-game progress reader (below), which
+        // scans TROPUSR.DAT heuristically while a game is running; the authoritative
+        // unlock-state table is parsed separately by TryReadTropusrStates.
+        private static readonly byte[][] ProgressMagicBytePatterns =
+        {
+            new byte[] { 0, 0, 0, 4, 0, 0, 0, 0x50, 0, 0, 0 },
+            new byte[] { 0, 0, 0, 6, 0, 0, 0, 0x60, 0, 0, 0 }
+        };
         private const int TrophyStateEntrySize = TrophyStateEntryHeaderSize + (int)TrophyStateEntryContentsSize;
 
         /// <summary>
@@ -788,6 +797,150 @@ namespace PlayniteAchievements.Providers.RPCS3
                 "latam" => "es-419",
                 _ => null
             };
+        }
+
+        /// <summary>
+        /// Progress-only TROPHY reader used while a game is running. Trophy ids come from the
+        /// existing cache schema, so this never reads TROPCONF or any icon metadata.
+        /// </summary>
+        internal static bool TryParseTrophyProgress(
+            string tropusrPath,
+            IReadOnlyCollection<int> trophyIds,
+            out Dictionary<int, DateTime?> unlockedById)
+        {
+            unlockedById = new Dictionary<int, DateTime?>();
+            var ids = (trophyIds ?? Array.Empty<int>())
+                .Where(id => id >= 0)
+                .Distinct()
+                .OrderBy(id => id)
+                .ToList();
+            if (string.IsNullOrWhiteSpace(tropusrPath) || !File.Exists(tropusrPath) || ids.Count == 0)
+            {
+                return false;
+            }
+
+            try
+            {
+                byte[] bytes;
+                using (var stream = new FileStream(
+                    tropusrPath,
+                    FileMode.Open,
+                    FileAccess.Read,
+                    FileShare.ReadWrite | FileShare.Delete))
+                using (var memory = new MemoryStream())
+                {
+                    stream.CopyTo(memory);
+                    bytes = memory.ToArray();
+                }
+
+                var entryOffsets = FindProgressEntryOffsets(bytes);
+                if (entryOffsets.Count < ids.Count)
+                {
+                    return false;
+                }
+
+                var relevantOffsets = entryOffsets
+                    .Skip(entryOffsets.Count - ids.Count)
+                    .ToList();
+                var parsedIds = new HashSet<int>();
+                for (var index = 0; index < relevantOffsets.Count; index++)
+                {
+                    var entryOffset = relevantOffsets[index];
+                    var entryEnd = index + 1 < relevantOffsets.Count
+                        ? relevantOffsets[index + 1] - ProgressMagicBytePatterns[0].Length
+                        : bytes.Length;
+                    if (entryOffset < 0 || entryEnd - entryOffset < 29)
+                    {
+                        unlockedById.Clear();
+                        return false;
+                    }
+
+                    var trophyId = bytes[entryOffset];
+                    if (!ids.Contains(trophyId))
+                    {
+                        unlockedById.Clear();
+                        return false;
+                    }
+
+                    parsedIds.Add(trophyId);
+                    var unlocked =
+                        bytes[entryOffset + 9] == 0 &&
+                        bytes[entryOffset + 10] == 0 &&
+                        bytes[entryOffset + 11] == 0 &&
+                        bytes[entryOffset + 12] == 1;
+                    if (unlocked)
+                    {
+                        DateTime? unlockTimeUtc = null;
+                        ulong rawTimestamp = 0;
+                        for (var timestampIndex = 22; timestampIndex < 29; timestampIndex++)
+                        {
+                            rawTimestamp =
+                                (rawTimestamp << 8) |
+                                bytes[entryOffset + timestampIndex];
+                        }
+
+                        if (rawTimestamp > 0 && rawTimestamp <= (ulong)(long.MaxValue / 10))
+                        {
+                            var ticks = (long)rawTimestamp * 10L;
+                            if (ticks > 0 && ticks < DateTime.MaxValue.Ticks)
+                            {
+                                unlockTimeUtc = new DateTime(ticks, DateTimeKind.Utc);
+                            }
+                        }
+
+                        unlockedById[trophyId] = unlockTimeUtc;
+                    }
+                }
+
+                if (parsedIds.Count != ids.Count)
+                {
+                    unlockedById.Clear();
+                    return false;
+                }
+
+                return true;
+            }
+            catch
+            {
+                unlockedById.Clear();
+                return false;
+            }
+        }
+
+        private static List<int> FindProgressEntryOffsets(byte[] bytes)
+        {
+            var offsets = new List<int>();
+            if (bytes == null || bytes.Length < ProgressMagicBytePatterns[0].Length)
+            {
+                return offsets;
+            }
+
+            for (var index = 0; index <= bytes.Length - ProgressMagicBytePatterns[0].Length; index++)
+            {
+                foreach (var pattern in ProgressMagicBytePatterns)
+                {
+                    var matches = true;
+                    for (var patternIndex = 0; patternIndex < pattern.Length; patternIndex++)
+                    {
+                        if (bytes[index + patternIndex] != pattern[patternIndex])
+                        {
+                            matches = false;
+                            break;
+                        }
+                    }
+
+                    if (!matches)
+                    {
+                        continue;
+                    }
+
+                    offsets.Add(index + pattern.Length);
+                    index += pattern.Length - 1;
+                    break;
+                }
+            }
+
+            return offsets;
         }
     }
 }

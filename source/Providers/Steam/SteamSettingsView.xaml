@@ -98,6 +98,21 @@
             <Border Style="{StaticResource SectionBorderStyle}"
                     IsEnabled="{Binding Settings.IsEnabled}">
                 <StackPanel>
+                    <TextBlock Text="{DynamicResource LOCPlayAch_Settings_SteamInstallPathOverride}"
+                               Foreground="{DynamicResource PlayAch.Brush.Text}"
+                               FontWeight="SemiBold"/>
+                    <TextBox Text="{Binding Settings.SteamInstallPathOverride, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                             Margin="0,8,0,0"/>
+                    <TextBlock Text="{DynamicResource LOCPlayAch_Settings_SteamInstallPathOverride_Help}"
+                               Style="{StaticResource MutedTextStyle}"
+                               Margin="0,8,0,0"
+                               TextWrapping="Wrap"/>
+                </StackPanel>
+            </Border>
+
+            <Border Style="{StaticResource SectionBorderStyle}"
+                    IsEnabled="{Binding Settings.IsEnabled}">
+                <StackPanel>
                     <CheckBox Content="{DynamicResource LOCPlayAch_Settings_SteamHuntersCategories}"
                               IsChecked="{Binding Settings.UseSteamHuntersForCategories, Mode=TwoWay}"
                               FontWeight="SemiBold"

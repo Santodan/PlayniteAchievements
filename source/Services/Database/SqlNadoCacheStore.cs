@@ -5278,6 +5278,20 @@ namespace PlayniteAchievements.Services.Database
             return iconUrl.Substring(lastSlash + 1);
         }
 
+        /// <summary>
+        /// Applies a live-session progress delta against an existing current-user schema. This
+        /// deliberately does not call any of the definition upsert/removal paths used by a normal
+        /// refresh.
+        /// </summary>
+        internal InGameProgressWriteResult ApplyInGameProgress(
+            string key,
+            string providerKey,
+            IReadOnlyList<AchievementProgressObservation> observations)
+        {
+            return WithDb(db =>
+                InGameProgressSqlWriter.Apply(db, key, providerKey, observations));
+        }
+
         // Returns the ApiName renames applied while upserting definitions (old -> new), so the
         // caller can rewrite ApiName-keyed per-game custom data (notes, order, filters, overrides).
         public Dictionary<string, string> SaveCurrentUserGameData(string key, GameAchievementData data)
