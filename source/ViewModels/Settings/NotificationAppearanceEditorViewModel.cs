@@ -47,6 +47,8 @@ namespace PlayniteAchievements.ViewModels.Settings
         private string _completionHeaderText;
         private string _friendCompletionHeaderText;
         private bool _hasHeaderFormatError;
+        private string _cardWidthText = string.Empty;
+        private string _cardMinHeightText = string.Empty;
 
         public NotificationAppearanceEditorViewModel(
             PlayniteAchievementsSettings settings,
@@ -132,6 +134,89 @@ namespace PlayniteAchievements.ViewModels.Settings
                 }
             }
         }
+
+        #region Card dimensions (toast surface only; blank = template default)
+
+        /// <summary>
+        /// Toast card width text (LostFocus commit). Blank or invalid clears the override
+        /// (falls back to the default width); a positive number stores it.
+        /// </summary>
+        public string CardWidthText
+        {
+            get => _cardWidthText;
+            set
+            {
+                if (SetValueAndReturn(ref _cardWidthText, value))
+                {
+                    CommitCardDimension(value, isWidth: true);
+                }
+            }
+        }
+
+        /// <summary>
+        /// Toast card minimum-height text (LostFocus commit). Blank or invalid clears the
+        /// override; a positive number stores it. The card still grows for taller content.
+        /// </summary>
+        public string CardMinHeightText
+        {
+            get => _cardMinHeightText;
+            set
+            {
+                if (SetValueAndReturn(ref _cardMinHeightText, value))
+                {
+                    CommitCardDimension(value, isWidth: false);
+                }
+            }
+        }
+
+        private void CommitCardDimension(string text, bool isWidth)
+        {
+            var surface = Surface;
+            if (surface == null || !_isEditable)
+            {
+                RefreshCardDimensions();
+                return;
+            }
+
+            double? parsed = null;
+            if (!string.IsNullOrWhiteSpace(text))
+            {
+                if (double.TryParse(text.Trim(), NumberStyles.Float, CultureInfo.CurrentCulture, out var current) &&
+                    current > 0)
+                {
+                    parsed = current;
+                }
+                else if (double.TryParse(text.Trim(), NumberStyles.Float, CultureInfo.InvariantCulture, out var invariant) &&
+                         invariant > 0)
+                {
+                    parsed = invariant;
+                }
+            }
+
+            if (isWidth)
+            {
+                surface.CardWidth = parsed;
+            }
+            else
+            {
+                surface.CardMinHeight = parsed;
+            }
+
+            RefreshCardDimensions();
+        }
+
+        private void RefreshCardDimensions()
+        {
+            var surface = Surface;
+            SetValue(ref _cardWidthText,
+                surface?.CardWidth?.ToString(CultureInfo.CurrentCulture) ?? string.Empty,
+                nameof(CardWidthText));
+            SetValue(ref _cardMinHeightText,
+                surface?.CardMinHeight?.ToString(CultureInfo.CurrentCulture) ?? string.Empty,
+                nameof(CardMinHeightText));
+        }
+
+        #endregion
 
         #region Header texts (pending until Apply; toast surface hosts the shared group)
 
@@ -504,6 +589,7 @@ namespace PlayniteAchievements.ViewModels.Settings
 
             Subscribe();
             SyncLineRows();
+            RefreshCardDimensions();
             HasHeaderFormatError = false;
             RefreshHeaderTexts();
 
@@ -604,6 +690,11 @@ namespace PlayniteAchievements.ViewModels.Settings
             else if (e.PropertyName == nameof(NotificationSurfaceStyle.FontFamily))
             {
                 OnPropertyChanged(nameof(SelectedFontFamilyOption));
+            }
+            else if (e.PropertyName == nameof(NotificationSurfaceStyle.CardWidth) ||
+                     e.PropertyName == nameof(NotificationSurfaceStyle.CardMinHeight))
+            {
+                RefreshCardDimensions();
             }
 
             NotifyStyleEdited();

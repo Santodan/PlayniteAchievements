@@ -70,6 +70,50 @@
                       Margin="0,0,14,8"/>
         </WrapPanel>
 
+        <!-- Toast-only chrome: the frame has no accent strip, timer bar, or free card size. -->
+        <StackPanel Visibility="{Binding IsToastSurface, Converter={StaticResource BoolToVis}}">
+            <WrapPanel Margin="0,0,0,4">
+                <CheckBox Content="{DynamicResource LOCPlayAch_Settings_Style_ShowAccentStrip}"
+                          IsChecked="{Binding Surface.ShowAccentStrip}"
+                          Margin="0,0,14,8"/>
+                <CheckBox Content="{DynamicResource LOCPlayAch_Settings_Style_ShowCountdownBar}"
+                          IsChecked="{Binding Surface.ShowCountdownBar}"
+                          Margin="0,0,14,8"/>
+            </WrapPanel>
+
+            <Grid HorizontalAlignment="Left" Margin="0,0,0,4">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="Auto" MinWidth="110"/>
+                    <ColumnDefinition Width="Auto"/>
+                    <ColumnDefinition Width="Auto" MinWidth="110"/>
+                    <ColumnDefinition Width="Auto"/>
+                </Grid.ColumnDefinitions>
+                <TextBlock Grid.Column="0"
+                           Text="{DynamicResource LOCPlayAch_Settings_Style_CardWidth}"
+                           Foreground="{DynamicResource PlayAch.Brush.Text}"
+                           VerticalAlignment="Center"
+                           Margin="0,0,8,0"/>
+                <TextBox Grid.Column="1"
+                         Text="{Binding CardWidthText, Mode=TwoWay, UpdateSourceTrigger=LostFocus}"
+                         Width="70"
+                         TextAlignment="Right"
+                         Margin="0,0,20,0"/>
+                <TextBlock Grid.Column="2"
+                           Text="{DynamicResource LOCPlayAch_Settings_Style_CardHeight}"
+                           Foreground="{DynamicResource PlayAch.Brush.Text}"
+                           VerticalAlignment="Center"
+                           Margin="0,0,8,0"/>
+                <TextBox Grid.Column="3"
+                         Text="{Binding CardMinHeightText, Mode=TwoWay, UpdateSourceTrigger=LostFocus}"
+                         Width="70"
+                         TextAlignment="Right"/>
+            </Grid>
+            <TextBlock Text="{DynamicResource LOCPlayAch_Settings_Style_CardSizeHint}"
+                       Style="{StaticResource MutedTextStyle}"
+                       TextWrapping="Wrap"
+                       Margin="0,0,0,4"/>
+        </StackPanel>
+
         <!-- Text lines: drag to reorder, per-line font size -->
         <TextBlock Text="{DynamicResource LOCPlayAch_Settings_Style_TextLines}"
                    Style="{StaticResource EditorGroupLabelStyle}"/>
