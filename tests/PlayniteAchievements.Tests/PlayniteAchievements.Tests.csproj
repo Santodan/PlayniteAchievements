@@ -48,6 +48,9 @@
     <Compile Include="..\..\source\Providers\Ffxiv\FfxivParsing.cs" Link="Source\Providers\Ffxiv\FfxivParsing.cs" />
     <Compile Include="..\..\source\Providers\Ffxiv\FfxivModels.cs" Link="Source\Providers\Ffxiv\FfxivModels.cs" />
 
+    <Compile Include="..\..\source\Providers\GameJolt\GameJoltModels.cs" Link="Source\Providers\GameJolt\GameJoltModels.cs" />
+    <Compile Include="..\..\source\Providers\GameJolt\GameJoltTrophyMapper.cs" Link="Source\Providers\GameJolt\GameJoltTrophyMapper.cs" />
+
     <Compile Include="..\..\source\Providers\GOG\GogApiClient.cs" Link="Source\Providers\GOG\GogApiClient.cs" />
     <Compile Include="..\..\source\Providers\GOG\GogAuthModels.cs" Link="Source\Providers\GOG\GogAuthModels.cs" />
     <Compile Include="..\..\source\Providers\GOG\GogClientIdCacheStore.cs" Link="Source\Providers\GOG\GogClientIdCacheStore.cs" />
