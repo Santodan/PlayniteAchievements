@@ -12,6 +12,17 @@ using Playnite.SDK;
 
 namespace PlayniteAchievements.Services.UI
 {
+    /// <summary>
+    /// Which template a fire-test preview should render: the plugin's own template honoring the
+    /// user's appearance customization, or a specific theme mode's template override.
+    /// </summary>
+    public enum NotificationTemplatePreviewSource
+    {
+        PluginStyle,
+        DesktopTheme,
+        FullscreenTheme
+    }
+
     public sealed class AchievementToastTemplateResolver
     {
         public const string TemplateKey = "PlayAch.Template.AchievementToast";
@@ -75,6 +86,78 @@ namespace PlayniteAchievements.Services.UI
         }
 
         /// <summary>
+        /// Resolves the notification or frame template from one explicit source for the fire-test
+        /// buttons: the plugin's bundled template (ignoring themes), or a specific theme mode's
+        /// override file (Desktop/Fullscreen). Unlike the normal resolve, the theme sources force
+        /// the requested mode instead of the running app mode, so the settings window (always
+        /// desktop) can still preview the fullscreen theme's template. Falls back to the bundled
+        /// template when the requested theme ships no override.
+        /// </summary>
+        public DataTemplate ResolvePreviewTemplate(NotificationTemplatePreviewSource source, bool isFrame)
+        {
+            var key = isFrame ? FrameTemplateKey : TemplateKey;
+            var overrideRelativePath = isFrame ? FrameThemeOverrideRelativePath : ThemeOverrideRelativePath;
+            var pluginDefault = isFrame ? _loadDefaultFrameTemplate : _loadDefaultTemplate;
+
+            if (source == NotificationTemplatePreviewSource.PluginStyle)
+            {
+                return LoadPluginDefaultResource(key, pluginDefault);
+            }
+
+            var modeName = source == NotificationTemplatePreviewSource.FullscreenTheme ? "Fullscreen" : "Desktop";
+            try
+            {
+                var dictionary = LoadActiveThemeDictionary(Application.Current?.Resources, overrideRelativePath, modeName);
+                if (dictionary != null && TryGetDirectResource(dictionary, key, out DataTemplate themeTemplate))
+                {
+                    return themeTemplate;
+                }
+            }
+            catch (Exception ex)
+            {
+                _logger?.Debug(ex, $"Failed to resolve {modeName} theme preview template for '{key}'.");
+            }
+
+            return LoadPluginDefaultResource(key, pluginDefault);
+        }
+
+        /// <summary>
+        /// True when the given preview source can supply its own template: the plugin style
+        /// always can; a theme mode can only when its active theme actually ships the surface
+        /// override. Lets the UI disable a theme fire-test button that would just fall back to
+        /// the plugin template.
+        /// </summary>
+        public bool ThemeProvidesTemplate(NotificationTemplatePreviewSource source, bool isFrame)
+        {
+            if (source == NotificationTemplatePreviewSource.PluginStyle)
+            {
+                return true;
+            }
+
+            var key = isFrame ? FrameTemplateKey : TemplateKey;
+            var overrideRelativePath = isFrame ? FrameThemeOverrideRelativePath : ThemeOverrideRelativePath;
+            var modeName = source == NotificationTemplatePreviewSource.FullscreenTheme ? "Fullscreen" : "Desktop";
+
+            try
+            {
+                // A theme merged into the running app's resources only reflects the current mode.
+                if (string.Equals(modeName, GetThemeModeName(), StringComparison.OrdinalIgnoreCase) &&
+                    TryFindLoadedThemeResource<DataTemplate>(Application.Current?.Resources, key, out _))
+                {
+                    return true;
+                }
+
+                var dictionary = LoadActiveThemeDictionary(Application.Current?.Resources, overrideRelativePath, modeName);
+                return dictionary != null && TryGetDirectResource(dictionary, key, out DataTemplate _);
+            }
+            catch (Exception ex)
+            {
+                _logger?.Debug(ex, $"Failed to probe {modeName} theme template for '{key}'.");
+                return false;
+            }
+        }
+
+        /// <summary>
         /// Resolves one of the toast animation storyboards (slide-in/out, countdown) using the same
         /// theme-override precedence as the toast template: an already-loaded theme resource, then
         /// the active theme's AchievementToast.xaml, then the bundled plugin default. Returns null
@@ -114,7 +197,14 @@ namespace PlayniteAchievements.Services.UI
             ResourceDictionary applicationResources,
             string overrideRelativePath)
         {
-            var modeName = GetThemeModeName();
+            return ResolveActiveThemeOverridePaths(applicationResources, overrideRelativePath, GetThemeModeName());
+        }
+
+        public IReadOnlyList<string> ResolveActiveThemeOverridePaths(
+            ResourceDictionary applicationResources,
+            string overrideRelativePath,
+            string modeName)
+        {
             var themeId = GetActiveThemeId(modeName);
             var themesRoots = GetThemesRootPaths();
             var themeDirectories = ResolveThemeDirectories(applicationResources, themesRoots, modeName, themeId);
@@ -322,11 +412,12 @@ namespace PlayniteAchievements.Services.UI
         /// </summary>
         private ResourceDictionary LoadActiveThemeDictionary(
             ResourceDictionary applicationResources,
-            string overrideRelativePath)
+            string overrideRelativePath,
+            string modeNameOverride = null)
         {
-            var modeName = GetThemeModeName();
+            var modeName = modeNameOverride ?? GetThemeModeName();
             var themeId = GetActiveThemeId(modeName);
-            var path = ResolveActiveThemeOverridePaths(applicationResources, overrideRelativePath)
+            var path = ResolveActiveThemeOverridePaths(applicationResources, overrideRelativePath, modeName)
                 .FirstOrDefault(File.Exists);
             if (string.IsNullOrWhiteSpace(path))
             {
