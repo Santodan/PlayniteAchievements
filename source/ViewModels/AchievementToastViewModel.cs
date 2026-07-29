@@ -138,7 +138,13 @@ namespace PlayniteAchievements.ViewModels
             }
         }
         private bool HasRarityData => _args.GlobalPercent.HasValue || !string.IsNullOrWhiteSpace(_args.RarityTier);
-        public bool ShowBadge => _style.Toast.ShowRarityBadge && (IsCapstone || HasTrophy || HasRarityData);
+        private bool HasBadgeData => IsCapstone || HasTrophy || HasRarityData;
+        public bool ShowBadge => _style.Toast.ShowRarityBadge && HasBadgeData;
+
+        // The rarity/trophy badge drawn inline before the achievement name (an alternative to
+        // the icon-column footer badge). Shares the same badge image sources.
+        public bool ShowInlineBadge => _style.Toast.InlineRarityBadge && HasBadgeData;
+        public bool FrameShowInlineBadge => _style.Frame.InlineRarityBadge && HasBadgeData;
         public bool ShowGameName => _style.Toast.ShowGameName && !string.IsNullOrWhiteSpace(_args.GameName);
         public bool ShowGameCategorySeparator => ShowGameName && ShowCategory;
         public bool HasFriendAvatar => !string.IsNullOrWhiteSpace(FriendAvatar);
@@ -484,7 +490,9 @@ namespace PlayniteAchievements.ViewModels
                             titleSize,
                             family,
                             isFrame ? FrameShowName : ShowName,
-                            isFrame ? FrameTitleBrush : TitleBrush));
+                            isFrame ? FrameTitleBrush : TitleBrush,
+                            isFrame ? FrameShowInlineBadge : ShowInlineBadge,
+                            isFrame ? (object)FrameBadgeImage : ToastBadgeSource));
                         break;
                     case NotificationSurfaceStyle.LineDescription:
                         lines.Add(new ToastDescriptionLine(

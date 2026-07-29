@@ -69,16 +69,31 @@ namespace PlayniteAchievements.ViewModels
             double fontSize,
             FontFamily fontFamily,
             bool showName,
-            Brush titleBrush)
+            Brush titleBrush,
+            bool showInlineBadge,
+            object inlineBadgeSource)
             : base(parent, fontSize, fontFamily)
         {
             ShowName = showName;
             TitleBrush = titleBrush;
+            ShowInlineBadge = showInlineBadge;
+            InlineBadgeSource = inlineBadgeSource;
         }
 
         public bool ShowName { get; }
 
         public Brush TitleBrush { get; }
+
+        /// <summary>
+        /// Whether the rarity/trophy badge is drawn inline, immediately before the name.
+        /// </summary>
+        public bool ShowInlineBadge { get; }
+
+        /// <summary>
+        /// The inline badge image: a path string for the toast (so animated GIFs play) or a
+        /// pre-decoded ImageSource for the offscreen frame render.
+        /// </summary>
+        public object InlineBadgeSource { get; }
     }
 
     /// <summary>
