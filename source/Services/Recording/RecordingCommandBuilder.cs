@@ -231,9 +231,13 @@ namespace PlayniteAchievements.Services.Recording
             }
         }
 
+        // The rolling buffer is a background capture that's discarded except the ~15s exported on
+        // an unlock, so every encoder uses its fastest/lowest-latency preset: -cq/-global_quality
+        // still pins visual quality, while the fast preset spends the least encode-engine time
+        // (trading a little compression efficiency, i.e. bitrate, for lower GPU/CPU load).
         private const string X264Arguments = "-c:v libx264 -preset ultrafast -crf 23";
-        private const string NvencArguments = "-c:v h264_nvenc -preset p4 -rc vbr -cq 23 -b:v 0";
-        private const string QsvArguments = "-c:v h264_qsv -global_quality 23";
+        private const string NvencArguments = "-c:v h264_nvenc -preset p1 -rc vbr -cq 23 -b:v 0";
+        private const string QsvArguments = "-c:v h264_qsv -preset veryfast -global_quality 23";
         private const string AmfArguments = "-c:v h264_amf -quality speed -rc cqp";
 
         /// <summary>

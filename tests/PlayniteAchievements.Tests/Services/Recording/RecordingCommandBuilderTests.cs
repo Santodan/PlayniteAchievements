@@ -269,10 +269,10 @@ namespace PlayniteAchievements.Services.Tests.Recording
         {
             StringAssert.Contains(
                 RecordingCommandBuilder.BuildEncoderArguments(RecordingEncoder.Nvenc, null),
-                "h264_nvenc -preset p4 -rc vbr -cq 23 -b:v 0");
+                "h264_nvenc -preset p1 -rc vbr -cq 23 -b:v 0");
             StringAssert.Contains(
                 RecordingCommandBuilder.BuildEncoderArguments(RecordingEncoder.Qsv, null),
-                "h264_qsv -global_quality 23");
+                "h264_qsv -preset veryfast -global_quality 23");
             StringAssert.Contains(
                 RecordingCommandBuilder.BuildEncoderArguments(RecordingEncoder.Amf, null),
                 "h264_amf -quality speed -rc cqp");
