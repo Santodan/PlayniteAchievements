@@ -32,6 +32,17 @@
                 <ContentControl x:Name="GeneralSettingsContent"/>
             </TabItem>
 
+            <!-- ================== TAB: NOTIFICATIONS ================== -->
+            <TabItem x:Name="NotificationsTab" AutomationProperties.Name="{DynamicResource LOCPlayAch_Settings_TabNotifications}">
+                <TabItem.Header>
+                    <StackPanel Style="{StaticResource TabHeaderWithIconStyle}">
+                        <TextBlock Style="{StaticResource HeaderIconStyle}" Text="&#xEC5F;"/>
+                        <TextBlock Text="{DynamicResource LOCPlayAch_Settings_TabNotifications}" VerticalAlignment="Center"/>
+                    </StackPanel>
+                </TabItem.Header>
+                <ContentControl x:Name="NotificationsSettingsContent"/>
+            </TabItem>
+
             <!-- ================== TAB: PROVIDERS ================== -->
             <TabItem x:Name="ProvidersTab" AutomationProperties.Name="{DynamicResource LOCPlayAch_CustomRefresh_ProvidersHeader}">
                 <TabItem.Header>

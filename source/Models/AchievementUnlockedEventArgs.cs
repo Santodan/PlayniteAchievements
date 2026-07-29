@@ -63,5 +63,12 @@ namespace PlayniteAchievements.Models
         /// the toast always shows on screen regardless of the user's enable toggles.
         /// </summary>
         public bool IsPreview { get; set; }
+
+        /// <summary>
+        /// For fire-test previews only: forces which template renders this notification (the
+        /// plugin's own template, or a specific theme mode's override). Null for real unlocks,
+        /// which resolve the template normally.
+        /// </summary>
+        public Services.UI.NotificationTemplatePreviewSource? PreviewTemplateSource { get; set; }
     }
 }

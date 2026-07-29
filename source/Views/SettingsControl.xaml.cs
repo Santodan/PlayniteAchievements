@@ -30,6 +30,7 @@ namespace PlayniteAchievements.Views
         private readonly Func<Window, string, string> _pickColor;
         private DisplaySettingsTab _displaySettingsTab;
         private GeneralSettingsTab _generalSettingsTab;
+        private Settings.Notifications.NotificationsSettingsTab _notificationsSettingsTab;
         private bool _providerNavigationBuilt;
         private readonly HashSet<string> _autoAuthCheckedProviders = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
         private CancellationTokenSource _autoAuthDebounceCts;
@@ -115,6 +116,15 @@ namespace PlayniteAchievements.Views
                     _logger,
                     JumpToTab);
                 GeneralSettingsContent.Content = _generalSettingsTab;
+            }
+
+            if (NotificationsSettingsContent != null)
+            {
+                _notificationsSettingsTab = new Settings.Notifications.NotificationsSettingsTab(
+                    _settingsViewModel.Settings,
+                    _plugin,
+                    _logger);
+                NotificationsSettingsContent.Content = _notificationsSettingsTab;
             }
 
             _settingsViewModel.Settings.PropertyChanged += Settings_PropertyChanged;
@@ -415,6 +425,7 @@ namespace PlayniteAchievements.Views
             AttachPersistedSettings(null);
             _displaySettingsTab?.Dispose();
             _generalSettingsTab?.Dispose();
+            _notificationsSettingsTab?.Dispose();
         }
 
         private void Persisted_PropertyChanged(object sender, System.ComponentModel.PropertyChangedEventArgs e)

@@ -12,6 +12,18 @@ using Playnite.SDK;
 
 namespace PlayniteAchievements.Services.UI
 {
+    /// <summary>
+    /// Which template a fire-test preview should render: the plugin's own template honoring the
+    /// user's appearance customization, or the currently-running theme's override. A theme's
+    /// template can only render while that theme is the active theme (its resources are loaded),
+    /// so the theme source always targets the current app mode.
+    /// </summary>
+    public enum NotificationTemplatePreviewSource
+    {
+        PluginStyle,
+        ActiveTheme
+    }
+
     public sealed class AchievementToastTemplateResolver
     {
         public const string TemplateKey = "PlayAch.Template.AchievementToast";
@@ -47,15 +59,15 @@ namespace PlayniteAchievements.Services.UI
             _loadDefaultFrameTemplate = loadDefaultFrameTemplate;
         }
 
-        public DataTemplate ResolveTemplate()
+        public DataTemplate ResolveTemplate(bool allowThemeSources = true)
         {
-            return ResolveTemplate(Application.Current?.Resources);
+            return ResolveTemplate(Application.Current?.Resources, allowThemeSources);
         }
 
-        public DataTemplate ResolveTemplate(ResourceDictionary applicationResources)
+        public DataTemplate ResolveTemplate(ResourceDictionary applicationResources, bool allowThemeSources = true)
         {
             return ResolveResource<DataTemplate>(
-                applicationResources, TemplateKey, ThemeOverrideRelativePath, _loadDefaultTemplate);
+                applicationResources, TemplateKey, ThemeOverrideRelativePath, _loadDefaultTemplate, allowThemeSources);
         }
 
         /// <summary>
@@ -63,15 +75,71 @@ namespace PlayniteAchievements.Services.UI
         /// never shown on screen) using the same theme-override precedence as the toast template,
         /// except the theme file is PlayniteAchievements\ScreenshotFrame.xaml.
         /// </summary>
-        public DataTemplate ResolveFrameTemplate()
+        public DataTemplate ResolveFrameTemplate(bool allowThemeSources = true)
         {
-            return ResolveFrameTemplate(Application.Current?.Resources);
+            return ResolveFrameTemplate(Application.Current?.Resources, allowThemeSources);
         }
 
-        public DataTemplate ResolveFrameTemplate(ResourceDictionary applicationResources)
+        public DataTemplate ResolveFrameTemplate(ResourceDictionary applicationResources, bool allowThemeSources = true)
         {
             return ResolveResource<DataTemplate>(
-                applicationResources, FrameTemplateKey, FrameThemeOverrideRelativePath, _loadDefaultFrameTemplate);
+                applicationResources, FrameTemplateKey, FrameThemeOverrideRelativePath, _loadDefaultFrameTemplate, allowThemeSources);
+        }
+
+        /// <summary>
+        /// Resolves the notification or frame template from one explicit source for the fire-test
+        /// buttons: the plugin's bundled template (ignoring themes), or the currently-running
+        /// theme's override (which renders because its resources are loaded in the active mode).
+        /// Falls back to the bundled template when the active theme ships no override.
+        /// </summary>
+        public DataTemplate ResolvePreviewTemplate(NotificationTemplatePreviewSource source, bool isFrame)
+        {
+            var key = isFrame ? FrameTemplateKey : TemplateKey;
+            var overrideRelativePath = isFrame ? FrameThemeOverrideRelativePath : ThemeOverrideRelativePath;
+            var pluginDefault = isFrame ? _loadDefaultFrameTemplate : _loadDefaultTemplate;
+
+            if (source == NotificationTemplatePreviewSource.PluginStyle)
+            {
+                return LoadPluginDefaultResource(key, pluginDefault);
+            }
+
+            // The active theme: resolve exactly as a real notification would (loaded theme
+            // resource, then the theme's override file, then the bundled default).
+            return ResolveResource<DataTemplate>(
+                Application.Current?.Resources, key, overrideRelativePath, pluginDefault, allowThemeSources: true);
+        }
+
+        /// <summary>
+        /// True when the given preview source can supply its own template: the plugin style
+        /// always can; the active theme only when it actually ships the surface override. Lets
+        /// the UI disable a theme fire-test button that would just fall back to the plugin
+        /// template.
+        /// </summary>
+        public bool ThemeProvidesTemplate(NotificationTemplatePreviewSource source, bool isFrame)
+        {
+            if (source == NotificationTemplatePreviewSource.PluginStyle)
+            {
+                return true;
+            }
+
+            var key = isFrame ? FrameTemplateKey : TemplateKey;
+            var overrideRelativePath = isFrame ? FrameThemeOverrideRelativePath : ThemeOverrideRelativePath;
+
+            try
+            {
+                if (TryFindLoadedThemeResource<DataTemplate>(Application.Current?.Resources, key, out _))
+                {
+                    return true;
+                }
+
+                var dictionary = LoadActiveThemeDictionary(Application.Current?.Resources, overrideRelativePath);
+                return dictionary != null && TryGetDirectResource(dictionary, key, out DataTemplate _);
+            }
+            catch (Exception ex)
+            {
+                _logger?.Debug(ex, $"Failed to probe active theme template for '{key}'.");
+                return false;
+            }
         }
 
         /// <summary>
@@ -81,9 +149,10 @@ namespace PlayniteAchievements.Services.UI
         /// when no key is found anywhere, letting the caller fall back to a code-built animation so a
         /// broken theme override never disables toasts.
         /// </summary>
-        public Storyboard ResolveStoryboard(string key)
+        public Storyboard ResolveStoryboard(string key, bool allowThemeSources = true)
         {
-            return ResolveResource<Storyboard>(Application.Current?.Resources, key, ThemeOverrideRelativePath, null);
+            return ResolveResource<Storyboard>(
+                Application.Current?.Resources, key, ThemeOverrideRelativePath, null, allowThemeSources);
         }
 
         /// <summary>
@@ -93,9 +162,10 @@ namespace PlayniteAchievements.Services.UI
         /// the default. The bundled plugin dictionary intentionally does not define these keys, so
         /// the fallback yields null rather than a plugin-supplied value.
         /// </summary>
-        public object ResolveResourceValue(string key)
+        public object ResolveResourceValue(string key, bool allowThemeSources = true)
         {
-            return ResolveResource<object>(Application.Current?.Resources, key, ThemeOverrideRelativePath, null);
+            return ResolveResource<object>(
+                Application.Current?.Resources, key, ThemeOverrideRelativePath, null, allowThemeSources);
         }
 
         public string ResolveActiveThemeOverridePath()
@@ -112,7 +182,14 @@ namespace PlayniteAchievements.Services.UI
             ResourceDictionary applicationResources,
             string overrideRelativePath)
         {
-            var modeName = GetThemeModeName();
+            return ResolveActiveThemeOverridePaths(applicationResources, overrideRelativePath, GetThemeModeName());
+        }
+
+        public IReadOnlyList<string> ResolveActiveThemeOverridePaths(
+            ResourceDictionary applicationResources,
+            string overrideRelativePath,
+            string modeName)
+        {
             var themeId = GetActiveThemeId(modeName);
             var themesRoots = GetThemesRootPaths();
             var themeDirectories = ResolveThemeDirectories(applicationResources, themesRoots, modeName, themeId);
@@ -226,17 +303,23 @@ namespace PlayniteAchievements.Services.UI
             ResourceDictionary applicationResources,
             string key,
             string overrideRelativePath,
-            Func<T> pluginDefaultOverride)
+            Func<T> pluginDefaultOverride,
+            bool allowThemeSources = true)
             where T : class
         {
-            if (TryFindLoadedThemeResource<T>(applicationResources, key, out var loaded))
+            // allowThemeSources=false is the user's per-surface theme-styling opt-out: both
+            // theme lookups are skipped so the bundled plugin resource always wins.
+            if (allowThemeSources)
             {
-                return loaded;
-            }
+                if (TryFindLoadedThemeResource<T>(applicationResources, key, out var loaded))
+                {
+                    return loaded;
+                }
 
-            if (TryLoadActiveThemeResource<T>(applicationResources, key, overrideRelativePath, out var themeResource))
-            {
-                return themeResource;
+                if (TryLoadActiveThemeResource<T>(applicationResources, key, overrideRelativePath, out var themeResource))
+                {
+                    return themeResource;
+                }
             }
 
             return LoadPluginDefaultResource(key, pluginDefaultOverride);
@@ -314,11 +397,12 @@ namespace PlayniteAchievements.Services.UI
         /// </summary>
         private ResourceDictionary LoadActiveThemeDictionary(
             ResourceDictionary applicationResources,
-            string overrideRelativePath)
+            string overrideRelativePath,
+            string modeNameOverride = null)
         {
-            var modeName = GetThemeModeName();
+            var modeName = modeNameOverride ?? GetThemeModeName();
             var themeId = GetActiveThemeId(modeName);
-            var path = ResolveActiveThemeOverridePaths(applicationResources, overrideRelativePath)
+            var path = ResolveActiveThemeOverridePaths(applicationResources, overrideRelativePath, modeName)
                 .FirstOrDefault(File.Exists);
             if (string.IsNullOrWhiteSpace(path))
             {

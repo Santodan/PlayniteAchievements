@@ -427,7 +427,14 @@ namespace PlayniteAchievements.Services.UI
                 ItemsSource = toastItems,
                 IsHitTestVisible = false
             };
-            var template = _templateResolver.ResolveTemplate();
+            // Fire-test previews force a specific template source (plugin style, or a theme
+            // mode's override); real unlocks resolve normally against the theme-styling toggle.
+            var previewSource = toastItems
+                .Select(vm => vm.PreviewTemplateSource)
+                .FirstOrDefault(source => source.HasValue);
+            var template = previewSource.HasValue
+                ? _templateResolver.ResolvePreviewTemplate(previewSource.Value, isFrame: false)
+                : _templateResolver.ResolveTemplate(ToastThemeStylingEnabled);
             if (template != null)
             {
                 items.ItemTemplate = template;
@@ -545,6 +552,15 @@ namespace PlayniteAchievements.Services.UI
                     await Task.Delay(210).ConfigureAwait(true);
                 }
             }
+            catch (Exception ex) when (previewSource.HasValue)
+            {
+                // A fire-test preview of a theme template can throw when the template references
+                // resources defined only in that theme's own dictionaries (e.g. a theme style
+                // key), which are not loaded unless that theme is the running theme. Surface it
+                // instead of silently showing nothing.
+                _logger?.Warn(ex, $"Failed to render {previewSource} notification preview template.");
+                NotifyPreviewRenderFailed(previewSource.Value, ex);
+            }
             finally
             {
                 // Null after the save pipeline takes ownership; disposes the pending capture when
@@ -579,6 +595,30 @@ namespace PlayniteAchievements.Services.UI
         /// hide/show. Returns true when the wave expired while hidden (the caller then skips the
         /// slide-out of an invisible window).
         /// </summary>
+        /// <summary>
+        /// Tells the user why a theme fire-test preview showed nothing: the theme's template
+        /// depends on resources only present while that theme is the running theme, so it cannot
+        /// render from the settings window. Preview-only, so a plain message is fine.
+        /// </summary>
+        private void NotifyPreviewRenderFailed(NotificationTemplatePreviewSource source, Exception ex)
+        {
+            if (source == NotificationTemplatePreviewSource.PluginStyle)
+            {
+                return;
+            }
+
+            try
+            {
+                _api?.Dialogs?.ShowMessage(
+                    ResourceProvider.GetString("LOCPlayAch_Notification_ThemePreviewUnavailable"),
+                    ResourceProvider.GetString("LOCPlayAch_Title_PluginName"));
+            }
+            catch (Exception dialogEx)
+            {
+                _logger?.Debug(dialogEx, "Failed to surface notification preview render failure.");
+            }
+        }
+
         private async Task<bool> HoldWaveWithFocusHidingAsync(Window window, int remainingMs)
         {
             // No game to key focus off (previews, non-running games) -> plain hold.
@@ -786,7 +826,8 @@ namespace PlayniteAchievements.Services.UI
                     var captured = cleanBitmap;
                     var cleanSource = await Task.Run(() => ScreenshotFrameCompositor.ToBitmapSource(captured))
                         .ConfigureAwait(true);
-                    var frameTemplate = _templateResolver.ResolveFrameTemplate();
+                    var frameTemplate = _templateResolver.ResolveFrameTemplate(
+                        _settings?.Persisted?.FrameUseThemeStyling ?? true);
                     if (cleanSource != null && frameTemplate != null)
                     {
                         foreach (var item in plan.Items)
@@ -1243,7 +1284,8 @@ namespace PlayniteAchievements.Services.UI
             try
             {
                 var raw = _templateResolver?.ResolveResourceValue(
-                    AchievementToastTemplateResolver.PositionResourceKey);
+                    AchievementToastTemplateResolver.PositionResourceKey,
+                    ToastThemeStylingEnabled);
                 var text = raw?.ToString().Trim();
                 if (!string.IsNullOrEmpty(text) &&
                     Enum.TryParse(text, ignoreCase: true, result: out ToastScreenCorner parsed) &&
@@ -1272,7 +1314,8 @@ namespace PlayniteAchievements.Services.UI
             try
             {
                 var raw = _templateResolver?.ResolveResourceValue(
-                    AchievementToastTemplateResolver.DurationSecondsResourceKey);
+                    AchievementToastTemplateResolver.DurationSecondsResourceKey,
+                    ToastThemeStylingEnabled);
                 if (raw is double d)
                 {
                     return Math.Max(2, (int)Math.Round(d));
@@ -1391,11 +1434,17 @@ namespace PlayniteAchievements.Services.UI
         /// use its code-built fallback. Only the first DoubleAnimation is used; the window slide and
         /// countdown each drive a single property.
         /// </summary>
+        /// <summary>
+        /// The toast theme opt-out covers the whole theme toast surface (template, storyboards,
+        /// position, duration) since they all ship in the same theme override file.
+        /// </summary>
+        private bool ToastThemeStylingEnabled => _settings?.Persisted?.ToastUseThemeStyling ?? true;
+
         private DoubleAnimation ResolveAnimation(string storyboardKey)
         {
             try
             {
-                var storyboard = _templateResolver?.ResolveStoryboard(storyboardKey);
+                var storyboard = _templateResolver?.ResolveStoryboard(storyboardKey, ToastThemeStylingEnabled);
                 var animation = storyboard == null ? null : GetFirstDoubleAnimation(storyboard);
                 return (DoubleAnimation)animation?.Clone();
             }
