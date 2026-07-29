@@ -97,9 +97,11 @@ namespace PlayniteAchievements.ViewModels
         public object InlineBadgeSource { get; }
 
         /// <summary>
-        /// Inline badge render size, slightly larger than the title text.
+        /// Inline badge render size, slightly larger than the title text. Uses the same
+        /// title-relative ratio as the footer badge so the badge is one consistent size across
+        /// every rarity display mode.
         /// </summary>
-        public double InlineBadgeSize => FontSize * 1.25;
+        public double InlineBadgeSize => FontSize * AchievementToastViewModel.BadgeToTitleRatio;
 
         /// <summary>
         /// Top margin for the title row. The inline badge's left edge stays flush with the

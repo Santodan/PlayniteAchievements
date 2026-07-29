@@ -18,6 +18,11 @@ namespace PlayniteAchievements.ViewModels
         private const string DefaultIcon =
             "pack://application:,,,/PlayniteAchievements;component/Resources/UnlockedAchIcon.png";
 
+        // The rarity badge renders at this multiple of the title font size, in every rarity
+        // display mode. Shared by the inline (title-line) badge and the footer badge so a badge
+        // is the same size whether it sits inline before the name or in the icon column.
+        public const double BadgeToTitleRatio = 1.25;
+
         // Frame font fallbacks are 1080-reference-canvas DIPs matching the bundled frame
         // template's historical literals, deliberately independent of theme font sizes.
         private const double FrameHeaderFontFallback = 17;
@@ -478,6 +483,17 @@ namespace PlayniteAchievements.ViewModels
             ?? ResolveFontSizeResource("PlayAch.FontSize.Caption", 11);
         public double FrameHeaderFontSize => _style.Frame.HeaderFontSize ?? FrameHeaderFontFallback;
 
+        // Effective title size per surface: the single source of truth for both the title line
+        // and the badge size, so the inline and footer badges always match.
+        public double ToastTitleFontSize => _style.Toast.TitleFontSize
+            ?? ResolveFontSizeResource("PlayAch.FontSize.Title", 16);
+        public double FrameTitleFontSize => _style.Frame.TitleFontSize ?? FrameTitleFontFallback;
+
+        // Rarity badge render size per surface, identical across every rarity display mode
+        // (inline badge and footer badge both bind to this).
+        public double ToastBadgeSize => ToastTitleFontSize * BadgeToTitleRatio;
+        public double FrameBadgeSize => FrameTitleFontSize * BadgeToTitleRatio;
+
         /// <summary>
         /// The toast's text lines in the user's order; hidden lines are still present with
         /// their visibility flags false so completion triggers can force them visible.
@@ -497,8 +513,7 @@ namespace PlayniteAchievements.ViewModels
             var surface = isFrame ? _style.Frame : _style.Toast;
             var family = isFrame ? FrameFontFamily : ToastFontFamily;
             var headerSize = isFrame ? FrameHeaderFontSize : ToastHeaderFontSize;
-            var titleSize = surface.TitleFontSize ??
-                (isFrame ? FrameTitleFontFallback : ResolveFontSizeResource("PlayAch.FontSize.Title", 16));
+            var titleSize = isFrame ? FrameTitleFontSize : ToastTitleFontSize;
             var bodySize = surface.BodyFontSize ??
                 (isFrame ? FrameBodyFontFallback : ResolveFontSizeResource("PlayAch.FontSize.Caption", 11));
             var gameCategorySize = surface.HeaderFontSize ??

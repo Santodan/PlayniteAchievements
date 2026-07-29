@@ -346,10 +346,13 @@
                           Height="55"
                           HorizontalAlignment="Center">
                         <!-- Completion notifications swap the achievement icon for the
-                             completed-game badge and the completed glow. -->
+                             completed-game badge and the completed glow. Glow lives on a cached
+                             backing layer so the front icon stays sharp and only the glow pulses. -->
                         <Image Stretch="Uniform"
                                RenderOptions.BitmapScalingMode="HighQuality"
-                               helpers:AsyncImage.DecodePixel="160">
+                               helpers:AsyncImage.DecodePixel="160"
+                               IsHitTestVisible="False"
+                               CacheMode="BitmapCache">
                             <Image.Style>
                                 <Style TargetType="Image">
                                     <Setter Property="helpers:AsyncImage.Uri" Value="{Binding IconPath}"/>
@@ -358,6 +361,30 @@
                                         <DataTrigger Binding="{Binding IsGameCompleted}" Value="True">
                                             <Setter Property="helpers:AsyncImage.Uri" Value="{Binding ToastCompletedBadgeSource}"/>
                                             <Setter Property="Effect" Value="{Binding CompletedGlowEffect}"/>
+                                        </DataTrigger>
+                                        <!-- Fade in/out pulse when AnimateRarityGlows is on. -->
+                                        <DataTrigger Binding="{Binding AnimateRarityGlows}" Value="True">
+                                            <DataTrigger.EnterActions>
+                                                <BeginStoryboard x:Name="RarityGlowPulse" Storyboard="{StaticResource PlayAch.Storyboard.RarityGlowPulse}"/>
+                                            </DataTrigger.EnterActions>
+                                            <DataTrigger.ExitActions>
+                                                <StopStoryboard BeginStoryboardName="RarityGlowPulse"/>
+                                            </DataTrigger.ExitActions>
+                                        </DataTrigger>
+                                    </Style.Triggers>
+                                </Style>
+                            </Image.Style>
+                        </Image>
+                        <!-- Front icon: crisp, no glow. -->
+                        <Image Stretch="Uniform"
+                               RenderOptions.BitmapScalingMode="HighQuality"
+                               helpers:AsyncImage.DecodePixel="160">
+                            <Image.Style>
+                                <Style TargetType="Image">
+                                    <Setter Property="helpers:AsyncImage.Uri" Value="{Binding IconPath}"/>
+                                    <Style.Triggers>
+                                        <DataTrigger Binding="{Binding IsGameCompleted}" Value="True">
+                                            <Setter Property="helpers:AsyncImage.Uri" Value="{Binding ToastCompletedBadgeSource}"/>
                                         </DataTrigger>
                                     </Style.Triggers>
                                 </Style>
@@ -378,8 +405,8 @@
                              animated GIF badges animating. -->
                         <Image helpers:AsyncImage.Uri="{Binding ToastBadgeSource}"
                                helpers:AsyncImage.DecodePixel="64"
-                               Width="22"
-                               Height="22"
+                               Width="{Binding ToastBadgeSize}"
+                               Height="{Binding ToastBadgeSize}"
                                VerticalAlignment="Center"
                                RenderOptions.BitmapScalingMode="HighQuality"
                                Visibility="{Binding ShowBadge, Converter={StaticResource BooleanToVisibilityConverter}}"/>
@@ -524,8 +551,8 @@
                             <!-- Sync-loaded custom badge image (offscreen render contract);
                                  animated GIF badges contribute their first frame here. -->
                             <Image Source="{Binding FrameBadgeImage}"
-                                   Width="28"
-                                   Height="28"
+                                   Width="{Binding FrameBadgeSize}"
+                                   Height="{Binding FrameBadgeSize}"
                                    VerticalAlignment="Center"
                                    RenderOptions.BitmapScalingMode="HighQuality"
                                    Visibility="{Binding FrameShowBadge, Converter={StaticResource BooleanToVisibilityConverter}}"/>
