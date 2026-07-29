@@ -115,11 +115,15 @@ namespace PlayniteAchievements.Models.Settings
         private bool _rarityColoredName = true;
         private bool _showUnlockTime;
         private bool _showProviderIcon = true;
+        private bool _showAccentStrip = true;
+        private bool _showCountdownBar = true;
         private List<string> _lineOrder;
         private string _fontFamily;
         private double? _headerFontSize;
         private double? _titleFontSize;
         private double? _bodyFontSize;
+        private double? _cardWidth;
+        private double? _cardMinHeight;
 
         public bool ShowHeader
         {
@@ -192,6 +196,46 @@ namespace PlayniteAchievements.Models.Settings
         {
             get => _showProviderIcon;
             set => SetValue(ref _showProviderIcon, value);
+        }
+
+        /// <summary>
+        /// Shows the left-edge rarity accent strip. Toast surface only; the frame has no accent
+        /// strip and ignores this.
+        /// </summary>
+        public bool ShowAccentStrip
+        {
+            get => _showAccentStrip;
+            set => SetValue(ref _showAccentStrip, value);
+        }
+
+        /// <summary>
+        /// Shows the bottom countdown/auto-dismiss timer bar. Toast surface only; the frame is a
+        /// static image and ignores this. Hiding the bar does not change the dismiss timing.
+        /// </summary>
+        public bool ShowCountdownBar
+        {
+            get => _showCountdownBar;
+            set => SetValue(ref _showCountdownBar, value);
+        }
+
+        /// <summary>
+        /// Toast card width in DIPs, or null for the default (410). Toast surface only; the
+        /// frame is composited at the screenshot's size and ignores this.
+        /// </summary>
+        public double? CardWidth
+        {
+            get => _cardWidth;
+            set => SetValue(ref _cardWidth, value);
+        }
+
+        /// <summary>
+        /// Toast card minimum height in DIPs, or null for the default (64). The card still
+        /// grows taller when content requires it. Toast surface only.
+        /// </summary>
+        public double? CardMinHeight
+        {
+            get => _cardMinHeight;
+            set => SetValue(ref _cardMinHeight, value);
         }
 
         /// <summary>
@@ -286,11 +330,15 @@ namespace PlayniteAchievements.Models.Settings
                 RarityColoredName = RarityColoredName,
                 ShowUnlockTime = ShowUnlockTime,
                 ShowProviderIcon = ShowProviderIcon,
+                ShowAccentStrip = ShowAccentStrip,
+                ShowCountdownBar = ShowCountdownBar,
                 LineOrder = LineOrder != null ? new List<string>(LineOrder) : null,
                 FontFamily = FontFamily,
                 HeaderFontSize = HeaderFontSize,
                 TitleFontSize = TitleFontSize,
-                BodyFontSize = BodyFontSize
+                BodyFontSize = BodyFontSize,
+                CardWidth = CardWidth,
+                CardMinHeight = CardMinHeight
             };
         }
 
