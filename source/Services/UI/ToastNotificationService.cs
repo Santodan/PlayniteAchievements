@@ -427,7 +427,14 @@ namespace PlayniteAchievements.Services.UI
                 ItemsSource = toastItems,
                 IsHitTestVisible = false
             };
-            var template = _templateResolver.ResolveTemplate(ToastThemeStylingEnabled);
+            // Fire-test previews force a specific template source (plugin style, or a theme
+            // mode's override); real unlocks resolve normally against the theme-styling toggle.
+            var previewSource = toastItems
+                .Select(vm => vm.PreviewTemplateSource)
+                .FirstOrDefault(source => source.HasValue);
+            var template = previewSource.HasValue
+                ? _templateResolver.ResolvePreviewTemplate(previewSource.Value, isFrame: false)
+                : _templateResolver.ResolveTemplate(ToastThemeStylingEnabled);
             if (template != null)
             {
                 items.ItemTemplate = template;
