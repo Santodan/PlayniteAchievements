@@ -5,7 +5,6 @@ using PlayniteAchievements.Models;
 using System;
 using System.Collections.Generic;
 using System.Linq;
-using System.Text.RegularExpressions;
 using System.Threading;
 using System.Threading.Tasks;
 
@@ -261,7 +260,7 @@ namespace PlayniteAchievements.Providers.GameJolt
 
                 try
                 {
-                    var username = ExtractUsernameFromHtml(view.GetPageSource());
+                    var username = GameJoltTrophyMapper.ExtractUsernameFromHtml(view.GetPageSource());
                     if (!string.IsNullOrWhiteSpace(username))
                     {
                         _capturedCookies = GameJoltCookieSnapshotStore.FilterGameJoltCookies(view.GetCookies());
@@ -285,37 +284,6 @@ namespace PlayniteAchievements.Providers.GameJolt
             {
                 _logger?.Warn(ex, "[GameJoltAuth] Failed to check authentication status.");
             }
-        }
-
-        /// <summary>
-        /// Scrapes the logged-in username from the post-login page. GameJolt renders the account menu as
-        /// a "-username" element containing "Hey @username". Brittle by nature; failure just means the
-        /// login is not detected and the user can retry.
-        /// </summary>
-        internal static string ExtractUsernameFromHtml(string html)
-        {
-            if (string.IsNullOrWhiteSpace(html))
-            {
-                return null;
-            }
-
-            var match = Regex.Match(
-                html,
-                "class=\"-username\"[^>]*>(?:\\s*Hey\\s*)?@?([^<]+)<",
-                RegexOptions.IgnoreCase);
-            if (!match.Success || match.Groups.Count <= 1)
-            {
-                return null;
-            }
-
-            var username = match.Groups[1].Value
-                .Replace("Hey @", string.Empty)
-                .Replace("Hey", string.Empty)
-                .Trim()
-                .TrimStart('@')
-                .Trim();
-
-            return string.IsNullOrWhiteSpace(username) ? null : username;
         }
 
         private static bool IsLoginPageUrl(string url)

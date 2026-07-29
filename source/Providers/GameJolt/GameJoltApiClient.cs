@@ -102,26 +102,12 @@ namespace PlayniteAchievements.Providers.GameJolt
         }
 
         /// <summary>
-        /// Ensures a username carries the leading '@' the site-api profile/trophy endpoints require.
-        /// </summary>
-        internal static string FormatUser(string username)
-        {
-            var trimmed = (username ?? string.Empty).Trim();
-            if (string.IsNullOrEmpty(trimmed))
-            {
-                return trimmed;
-            }
-
-            return trimmed.StartsWith("@", StringComparison.Ordinal) ? trimmed : "@" + trimmed;
-        }
-
-        /// <summary>
         /// Fetches the profile for a handle and returns the canonical username, or null when the profile
         /// has no user (not logged in, or unknown handle). Used by the session manager to confirm login.
         /// </summary>
         public async Task<string> GetProfileUsernameAsync(string handle, CancellationToken ct)
         {
-            var url = string.Format(CultureInfo.InvariantCulture, UrlProfileFormat, FormatUser(handle));
+            var url = string.Format(CultureInfo.InvariantCulture, UrlProfileFormat, GameJoltTrophyMapper.FormatUser(handle));
             var json = await FetchJsonAsync(url, ct).ConfigureAwait(false);
             return GameJoltTrophyMapper.ParseUsername(json);
         }
@@ -151,7 +137,7 @@ namespace PlayniteAchievements.Providers.GameJolt
             var unlocksUrl = string.Format(
                 CultureInfo.InvariantCulture,
                 UrlProfileTrophiesGameFormat,
-                FormatUser(username),
+                GameJoltTrophyMapper.FormatUser(username),
                 trophyId);
             var unlocksJson = await FetchJsonAsync(unlocksUrl, ct).ConfigureAwait(false);
             GameJoltTrophyMapper.ApplyUnlocks(achievements, unlocksJson, trophyId);

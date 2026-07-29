@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Globalization;
 using System.Linq;
+using System.Text.RegularExpressions;
 using Newtonsoft.Json;
 using PlayniteAchievements.Models.Achievements;
 
@@ -20,6 +21,51 @@ namespace PlayniteAchievements.Providers.GameJolt
         public static string ParseUsername(string profileJson)
         {
             return ParseProfile(profileJson)?.Payload?.User?.Username;
+        }
+
+        /// <summary>
+        /// Ensures a username carries the leading '@' the site-api profile/trophy endpoints require.
+        /// </summary>
+        public static string FormatUser(string username)
+        {
+            var trimmed = (username ?? string.Empty).Trim();
+            if (string.IsNullOrEmpty(trimmed))
+            {
+                return trimmed;
+            }
+
+            return trimmed.StartsWith("@", StringComparison.Ordinal) ? trimmed : "@" + trimmed;
+        }
+
+        /// <summary>
+        /// Scrapes the logged-in username from the post-login page. GameJolt renders the account menu as
+        /// a "-username" element containing "Hey @username". Brittle by nature; a failed scrape just means
+        /// the login is not detected and the user can retry.
+        /// </summary>
+        public static string ExtractUsernameFromHtml(string html)
+        {
+            if (string.IsNullOrWhiteSpace(html))
+            {
+                return null;
+            }
+
+            var match = Regex.Match(
+                html,
+                "class=\"-username\"[^>]*>(?:\\s*Hey\\s*)?@?([^<]+)<",
+                RegexOptions.IgnoreCase);
+            if (!match.Success || match.Groups.Count <= 1)
+            {
+                return null;
+            }
+
+            var username = match.Groups[1].Value
+                .Replace("Hey @", string.Empty)
+                .Replace("Hey", string.Empty)
+                .Trim()
+                .TrimStart('@')
+                .Trim();
+
+            return string.IsNullOrWhiteSpace(username) ? null : username;
         }
 
         public static GameJoltProfileResponse ParseProfile(string profileJson)
