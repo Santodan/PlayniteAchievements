@@ -113,6 +113,7 @@ namespace PlayniteAchievements.Models.Settings
         private bool _showRarityPercent = true;
         private bool _inlineRarityBadge;
         private bool _showRarityGlow = true;
+        private bool _notificationBorderGlow;
         private bool _rarityColoredName = true;
         private bool _showUnlockTime;
         private bool _showProviderIcon = true;
@@ -183,6 +184,16 @@ namespace PlayniteAchievements.Models.Settings
         {
             get => _showRarityGlow;
             set => SetValue(ref _showRarityGlow, value);
+        }
+
+        /// <summary>
+        /// When true, a rarity-colored glow is drawn on the notification card border. Toast
+        /// surface only; the frame has no card border and ignores this.
+        /// </summary>
+        public bool NotificationBorderGlow
+        {
+            get => _notificationBorderGlow;
+            set => SetValue(ref _notificationBorderGlow, value);
         }
 
         public bool RarityColoredName
@@ -340,6 +351,7 @@ namespace PlayniteAchievements.Models.Settings
                 ShowRarityPercent = ShowRarityPercent,
                 InlineRarityBadge = InlineRarityBadge,
                 ShowRarityGlow = ShowRarityGlow,
+                NotificationBorderGlow = NotificationBorderGlow,
                 RarityColoredName = RarityColoredName,
                 ShowUnlockTime = ShowUnlockTime,
                 ShowProviderIcon = ShowProviderIcon,
