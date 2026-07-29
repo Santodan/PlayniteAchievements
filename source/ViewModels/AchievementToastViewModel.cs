@@ -53,6 +53,10 @@ namespace PlayniteAchievements.ViewModels
 
         // Raw fields consumed by the unlock-screenshot feature (not shown in the toast UI).
         internal bool IsPreview => _args.IsPreview;
+
+        // Fire-test preview only: forces the template source for this notification. Null for
+        // real unlocks. Read by the notification service when resolving the wave's template.
+        internal Services.UI.NotificationTemplatePreviewSource? PreviewTemplateSource => _args.PreviewTemplateSource;
         internal string AchievementName => ResolveAchievementName(_args);
         internal int AchievementNumber => _args.AchievementNumber;
 
