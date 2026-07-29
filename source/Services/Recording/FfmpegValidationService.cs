@@ -52,6 +52,14 @@ namespace PlayniteAchievements.Services.Recording
             /// </summary>
             public bool SupportsDdagrab { get; set; }
 
+            /// <summary>
+            /// True when the build can run the GPU-resident NVENC capture chain: h264_nvenc is
+            /// available and the -filters output lists both hwmap and scale_cuda (and, if the
+            /// smoke test ran, a 1s GPU-chain capture succeeded). Drives the recording service's
+            /// choice to keep ddagrab frames on the GPU instead of the hwdownload round trip.
+            /// </summary>
+            public bool SupportsNvencGpuCapture { get; set; }
+
             /// <summary>Diagnostic detail for the settings status line when invalid.</summary>
             public string Error { get; set; }
 
@@ -109,6 +117,8 @@ namespace PlayniteAchievements.Services.Recording
             var filterLines = await RunProbeAsync(path, RecordingCommandBuilder.FiltersProbeArguments)
                 .ConfigureAwait(false);
             result.SupportsDdagrab = ParseDdagrabSupport(filterLines);
+            result.SupportsNvencGpuCapture =
+                result.AvailableEncoders.Contains("h264_nvenc") && ParseNvencGpuFilters(filterLines);
 
             if (runSmokeTest)
             {
@@ -128,6 +138,15 @@ namespace PlayniteAchievements.Services.Recording
                         .ConfigureAwait(false))
                 {
                     result.SupportsDdagrab = false;
+                }
+
+                // The GPU-resident chain needs working D3D11->CUDA interop, which filter presence
+                // doesn't guarantee; a failed GPU smoke test drops it to the hwdownload path.
+                if (result.SupportsNvencGpuCapture &&
+                    !await RunSmokeTestAsync(path, RecordingCommandBuilder.BuildNvencGpuSmokeTestArguments())
+                        .ConfigureAwait(false))
+                {
+                    result.SupportsNvencGpuCapture = false;
                 }
             }
 
@@ -203,6 +222,17 @@ namespace PlayniteAchievements.Services.Recording
         {
             return stdOutLines != null &&
                    stdOutLines.Any(line => line != null && Regex.IsMatch(line, @"\bddagrab\b"));
+        }
+
+        /// <summary>
+        /// True when the -filters output lists both hwmap and scale_cuda, the two filters the
+        /// GPU-resident NVENC chain relies on to keep frames on the GPU.
+        /// </summary>
+        internal static bool ParseNvencGpuFilters(IReadOnlyList<string> stdOutLines)
+        {
+            return stdOutLines != null &&
+                   stdOutLines.Any(line => line != null && Regex.IsMatch(line, @"\bhwmap\b")) &&
+                   stdOutLines.Any(line => line != null && Regex.IsMatch(line, @"\bscale_cuda\b"));
         }
     }
 }
