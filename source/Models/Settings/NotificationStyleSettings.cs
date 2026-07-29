@@ -119,6 +119,7 @@ namespace PlayniteAchievements.Models.Settings
         private bool _showProviderIcon = true;
         private bool _showAccentStrip = true;
         private bool _showCountdownBar = true;
+        private string _countdownBarColor;
         private List<string> _lineOrder;
         private string _fontFamily;
         private double? _headerFontSize;
@@ -242,6 +243,16 @@ namespace PlayniteAchievements.Models.Settings
         }
 
         /// <summary>
+        /// Custom color (e.g. "#RRGGBB") for the countdown timer bar, or null/blank to follow
+        /// the default progress-fill brush. Toast surface only.
+        /// </summary>
+        public string CountdownBarColor
+        {
+            get => _countdownBarColor;
+            set => SetValue(ref _countdownBarColor, value);
+        }
+
+        /// <summary>
         /// Toast card width in DIPs, or null for the default (410). Toast surface only; the
         /// frame is composited at the screenshot's size and ignores this.
         /// </summary>
@@ -357,6 +368,7 @@ namespace PlayniteAchievements.Models.Settings
                 ShowProviderIcon = ShowProviderIcon,
                 ShowAccentStrip = ShowAccentStrip,
                 ShowCountdownBar = ShowCountdownBar,
+                CountdownBarColor = CountdownBarColor,
                 LineOrder = LineOrder != null ? new List<string>(LineOrder) : null,
                 FontFamily = FontFamily,
                 HeaderFontSize = HeaderFontSize,
