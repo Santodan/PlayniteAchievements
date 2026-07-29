@@ -105,6 +105,12 @@ namespace PlayniteAchievements.ViewModels
         public bool IsGameCompleted => _args.IsGameCompleted;
 
         /// <summary>
+        /// When true, the live desktop toast's rarity/completed glow gently fades in and out.
+        /// Mirrors the global display setting.
+        /// </summary>
+        public bool AnimateRarityGlows => _settings.AnimateRarityGlows;
+
+        /// <summary>
         /// True on a real achievement unlock when the game is complete after it (all
         /// achievements unlocked, or the capstone unlocked) — computed for your own unlocks and
         /// friend unlocks alike, so a template can restyle the unlock that finished the game.
@@ -356,10 +362,14 @@ namespace PlayniteAchievements.ViewModels
         // Rarity-colored glow on the toast card border (replaces the default drop shadow when
         // the border-glow option is on). Toast surface only. Completion uses the completed glow.
         public bool HasBorderGlow => _style.Toast.NotificationBorderGlow;
+
+        // Cloned to an unfrozen copy so the card's border-glow pulse can animate its Opacity
+        // (the shared GetGlow/GetCompletedGlow instances are frozen and immutable). Null for
+        // Common rarity (no glow), matching the icon glow.
         public Effect BorderGlowEffect => HasBorderGlow
-            ? (IsGameCompleted
-                ? RarityAppearanceHelper.GetCompletedGlow(useEndColor: true, _settings)
-                : RarityAppearanceHelper.GetGlow(_rarity, 20, _settings))
+            ? (Effect)(IsGameCompleted
+                ? RarityAppearanceHelper.GetCompletedGlow(useEndColor: true, _settings).Clone()
+                : RarityAppearanceHelper.GetGlow(_rarity, 20, _settings)?.Clone())
             : null;
 
         // Secondary rarity/trophy/capstone badge. Completion notifications resolve to null
@@ -519,6 +529,12 @@ namespace PlayniteAchievements.ViewModels
             var gameCategorySize = surface.HeaderFontSize ??
                 (isFrame ? FrameGameCategoryFontFallback : ResolveFontSizeResource("PlayAch.FontSize.Caption", 11));
 
+            var showGameName = isFrame ? FrameShowGameName : ShowGameName;
+            var showCategory = isFrame ? FrameShowCategory : ShowCategory;
+            // The description gives up its second line when a game/category line follows it, so the
+            // two rows together stay within the card instead of overflowing.
+            var descriptionMaxLines = (showGameName || showCategory) ? 1 : 2;
+
             var lines = new List<ToastLineDescriptor>(NotificationSurfaceStyle.DefaultLineOrder.Count);
             foreach (var token in NotificationSurfaceStyle.CanonicalizeLineOrder(surface.LineOrder))
             {
@@ -549,15 +565,16 @@ namespace PlayniteAchievements.ViewModels
                             this,
                             bodySize,
                             family,
-                            isFrame ? FrameShowDescription : ShowDescription));
+                            isFrame ? FrameShowDescription : ShowDescription,
+                            descriptionMaxLines));
                         break;
                     case NotificationSurfaceStyle.LineGameCategory:
                         lines.Add(new ToastGameCategoryLine(
                             this,
                             gameCategorySize,
                             family,
-                            isFrame ? FrameShowGameName : ShowGameName,
-                            isFrame ? FrameShowCategory : ShowCategory,
+                            showGameName,
+                            showCategory,
                             isFrame ? FrameShowGameCategorySeparator : ShowGameCategorySeparator));
                         break;
                 }

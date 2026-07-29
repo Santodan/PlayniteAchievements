@@ -120,19 +120,27 @@ namespace PlayniteAchievements.ViewModels
             AchievementToastViewModel parent,
             double fontSize,
             FontFamily fontFamily,
-            bool showDescription)
+            bool showDescription,
+            int maxLines)
             : base(parent, fontSize, fontFamily)
         {
             ShowDescription = showDescription;
+            MaxLines = maxLines < 1 ? 1 : maxLines;
         }
 
         public bool ShowDescription { get; }
 
         /// <summary>
-        /// Two wrapped lines at the row's font size, replacing the old fixed pixel clamp so
-        /// larger fonts still show two lines.
+        /// Wrapped-line budget for the description: two lines when no game/category line follows,
+        /// one line when it does, so the card stays compact. Set by the owning view model.
         /// </summary>
-        public double MaxTextHeight => FontSize * 1.4 * 2;
+        public int MaxLines { get; }
+
+        /// <summary>
+        /// The clamp height for <see cref="MaxLines"/> wrapped lines at the row's font size,
+        /// scaling with larger fonts (replaces the old fixed pixel clamp).
+        /// </summary>
+        public double MaxTextHeight => FontSize * 1.4 * MaxLines;
     }
 
     /// <summary>

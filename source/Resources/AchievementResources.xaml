@@ -154,9 +154,10 @@
         <!-- Optional inline rarity badge sits immediately before the name; completion
              notifications force the title, swap it for "Game Complete!", and color it with the
              completed brush. -->
-        <StackPanel Orientation="Horizontal"
-                    Margin="{Binding InlineBadgeLineMargin}">
-            <Image helpers:AsyncImage.Uri="{Binding InlineBadgeSource}"
+        <DockPanel LastChildFill="True"
+                   Margin="{Binding InlineBadgeLineMargin}">
+            <Image DockPanel.Dock="Left"
+                   helpers:AsyncImage.Uri="{Binding InlineBadgeSource}"
                    helpers:AsyncImage.DecodePixel="64"
                    Width="{Binding InlineBadgeSize}"
                    Height="{Binding InlineBadgeSize}"
@@ -185,12 +186,12 @@
                     </Style>
                 </TextBlock.Style>
             </TextBlock>
-        </StackPanel>
+        </DockPanel>
     </DataTemplate>
 
     <DataTemplate DataType="{x:Type vm:ToastDescriptionLine}">
-        <!-- MaxTextHeight is two wrapped lines at the row's font size, replacing the old fixed
-             pixel clamp so larger fonts still show two lines. -->
+        <!-- MaxTextHeight clamps to one or two wrapped lines at the row's font size (two when no
+             game/category line follows, one when it does); the trailing ellipsis marks overflow. -->
         <TextBlock Text="{Binding Parent.Description}"
                    Style="{DynamicResource PlayAch.TextBlock.BaseStyle}"
                    Foreground="{DynamicResource PlayAch.Brush.Text.Secondary}"
@@ -204,12 +205,30 @@
     </DataTemplate>
 
     <DataTemplate DataType="{x:Type vm:ToastGameCategoryLine}">
-        <StackPanel Orientation="Horizontal"
-                    Margin="0,2,0,0">
+        <!-- Game name fills and trims; the separator and category dock to the right so a long
+             game name never pushes them (or itself) into the provider-icon column. -->
+        <DockPanel LastChildFill="True"
+                   Margin="0,2,0,0">
+            <TextBlock DockPanel.Dock="Right"
+                       Text="{Binding Parent.Category}"
+                       Style="{DynamicResource PlayAch.TextBlock.BaseStyle}"
+                       Foreground="{DynamicResource PlayAch.Brush.Text.Secondary}"
+                       FontSize="{Binding FontSize}"
+                       FontFamily="{Binding FontFamily}"
+                       TextTrimming="CharacterEllipsis"
+                       Visibility="{Binding ShowCategory, Converter={StaticResource BooleanToVisibilityConverter}}"/>
+            <TextBlock DockPanel.Dock="Right"
+                       Text="  &#8226;  "
+                       Style="{DynamicResource PlayAch.TextBlock.BaseStyle}"
+                       Foreground="{DynamicResource PlayAch.Brush.Text.Secondary}"
+                       FontSize="{Binding FontSize}"
+                       FontFamily="{Binding FontFamily}"
+                       Visibility="{Binding ShowSeparator, Converter={StaticResource BooleanToVisibilityConverter}}"/>
             <TextBlock Text="{Binding Parent.GameName}"
                        Foreground="{DynamicResource PlayAch.Brush.Text.Secondary}"
                        FontSize="{Binding FontSize}"
                        FontFamily="{Binding FontFamily}"
+                       TextWrapping="NoWrap"
                        TextTrimming="CharacterEllipsis">
                 <TextBlock.Style>
                     <Style TargetType="TextBlock" BasedOn="{StaticResource PlayAch.TextBlock.BaseStyle}">
@@ -223,20 +242,7 @@
                     </Style>
                 </TextBlock.Style>
             </TextBlock>
-            <TextBlock Text="  &#8226;  "
-                       Style="{DynamicResource PlayAch.TextBlock.BaseStyle}"
-                       Foreground="{DynamicResource PlayAch.Brush.Text.Secondary}"
-                       FontSize="{Binding FontSize}"
-                       FontFamily="{Binding FontFamily}"
-                       Visibility="{Binding ShowSeparator, Converter={StaticResource BooleanToVisibilityConverter}}"/>
-            <TextBlock Text="{Binding Parent.Category}"
-                       Style="{DynamicResource PlayAch.TextBlock.BaseStyle}"
-                       Foreground="{DynamicResource PlayAch.Brush.Text.Secondary}"
-                       FontSize="{Binding FontSize}"
-                       FontFamily="{Binding FontFamily}"
-                       TextTrimming="CharacterEllipsis"
-                       Visibility="{Binding ShowCategory, Converter={StaticResource BooleanToVisibilityConverter}}"/>
-        </StackPanel>
+        </DockPanel>
     </DataTemplate>
 
     <DataTemplate x:Key="PlayAch.Template.AchievementToast"
@@ -266,6 +272,19 @@
                         <DataTrigger Binding="{Binding HasBorderGlow}" Value="True">
                             <Setter Property="Effect" Value="{Binding BorderGlowEffect}"/>
                         </DataTrigger>
+                        <!-- Fade the outer border glow in and out when AnimateRarityGlows is on. -->
+                        <MultiDataTrigger>
+                            <MultiDataTrigger.Conditions>
+                                <Condition Binding="{Binding HasBorderGlow}" Value="True"/>
+                                <Condition Binding="{Binding AnimateRarityGlows}" Value="True"/>
+                            </MultiDataTrigger.Conditions>
+                            <MultiDataTrigger.EnterActions>
+                                <BeginStoryboard x:Name="OuterGlowPulse" Storyboard="{StaticResource PlayAch.Storyboard.RarityGlowEffectPulse}"/>
+                            </MultiDataTrigger.EnterActions>
+                            <MultiDataTrigger.ExitActions>
+                                <StopStoryboard BeginStoryboardName="OuterGlowPulse"/>
+                            </MultiDataTrigger.ExitActions>
+                        </MultiDataTrigger>
                     </Style.Triggers>
                 </Style>
             </Border.Style>
@@ -427,6 +446,7 @@
                 <ItemsControl Grid.Column="1"
                               VerticalAlignment="Center"
                               IsTabStop="False"
+                              ClipToBounds="True"
                               ItemsSource="{Binding ToastLines}"/>
                     </Grid>
 
@@ -574,6 +594,7 @@
                     <ItemsControl Grid.Column="1"
                                   VerticalAlignment="Center"
                                   IsTabStop="False"
+                                  ClipToBounds="True"
                                   Margin="26,0,22,0"
                                   ItemsSource="{Binding FrameLines}"/>
 
