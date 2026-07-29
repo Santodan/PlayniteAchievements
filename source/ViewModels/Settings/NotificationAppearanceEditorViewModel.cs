@@ -135,6 +135,78 @@ namespace PlayniteAchievements.ViewModels.Settings
             }
         }
 
+        #region Rarity badge / percent display (single dropdown over three surface flags)
+
+        private static IReadOnlyList<RarityBadgeDisplayOption> _rarityBadgeDisplayOptions;
+
+        public IReadOnlyList<RarityBadgeDisplayOption> RarityBadgeDisplayOptions =>
+            _rarityBadgeDisplayOptions ?? (_rarityBadgeDisplayOptions = new[]
+            {
+                new RarityBadgeDisplayOption(RarityBadgeDisplay.BadgeAndPercentFooter, L("LOCPlayAch_Settings_Style_Rarity_BadgePercentFooter")),
+                new RarityBadgeDisplayOption(RarityBadgeDisplay.BadgeFooter, L("LOCPlayAch_Settings_Style_Rarity_BadgeFooter")),
+                new RarityBadgeDisplayOption(RarityBadgeDisplay.PercentFooter, L("LOCPlayAch_Settings_Style_Rarity_PercentFooter")),
+                new RarityBadgeDisplayOption(RarityBadgeDisplay.InlineBadge, L("LOCPlayAch_Settings_Style_Rarity_InlineBadge")),
+                new RarityBadgeDisplayOption(RarityBadgeDisplay.None, L("LOCPlayAch_Common_None"))
+            });
+
+        /// <summary>
+        /// The rarity badge/percent layout, derived from and written back to the surface's
+        /// three flags (footer badge, footer percent, inline badge). The dropdown keeps them in
+        /// a consistent, mutually exclusive combination.
+        /// </summary>
+        public RarityBadgeDisplayOption SelectedRarityBadgeDisplay
+        {
+            get
+            {
+                var surface = Surface;
+                RarityBadgeDisplay value;
+                if (surface == null)
+                {
+                    value = RarityBadgeDisplay.BadgeAndPercentFooter;
+                }
+                else if (surface.InlineRarityBadge)
+                {
+                    value = RarityBadgeDisplay.InlineBadge;
+                }
+                else if (surface.ShowRarityBadge && surface.ShowRarityPercent)
+                {
+                    value = RarityBadgeDisplay.BadgeAndPercentFooter;
+                }
+                else if (surface.ShowRarityBadge)
+                {
+                    value = RarityBadgeDisplay.BadgeFooter;
+                }
+                else if (surface.ShowRarityPercent)
+                {
+                    value = RarityBadgeDisplay.PercentFooter;
+                }
+                else
+                {
+                    value = RarityBadgeDisplay.None;
+                }
+
+                return RarityBadgeDisplayOptions.FirstOrDefault(option => option.Value == value)
+                       ?? RarityBadgeDisplayOptions[0];
+            }
+            set
+            {
+                var surface = Surface;
+                if (surface == null || value == null)
+                {
+                    return;
+                }
+
+                var mode = value.Value;
+                surface.ShowRarityBadge = mode == RarityBadgeDisplay.BadgeAndPercentFooter ||
+                                          mode == RarityBadgeDisplay.BadgeFooter;
+                surface.ShowRarityPercent = mode == RarityBadgeDisplay.BadgeAndPercentFooter ||
+                                            mode == RarityBadgeDisplay.PercentFooter;
+                surface.InlineRarityBadge = mode == RarityBadgeDisplay.InlineBadge;
+            }
+        }
+
+        #endregion
+
         #region Card dimensions (toast surface only; blank = template default)
 
         /// <summary>
@@ -598,6 +670,7 @@ namespace PlayniteAchievements.ViewModels.Settings
             OnPropertyChanged(nameof(ProviderKey));
             OnPropertyChanged(nameof(IsEditable));
             OnPropertyChanged(nameof(SelectedFontFamilyOption));
+            OnPropertyChanged(nameof(SelectedRarityBadgeDisplay));
         }
 
         private void Subscribe()
@@ -696,6 +769,12 @@ namespace PlayniteAchievements.ViewModels.Settings
             {
                 RefreshCardDimensions();
             }
+            else if (e.PropertyName == nameof(NotificationSurfaceStyle.ShowRarityBadge) ||
+                     e.PropertyName == nameof(NotificationSurfaceStyle.ShowRarityPercent) ||
+                     e.PropertyName == nameof(NotificationSurfaceStyle.InlineRarityBadge))
+            {
+                OnPropertyChanged(nameof(SelectedRarityBadgeDisplay));
+            }
 
             NotifyStyleEdited();
         }
@@ -781,6 +860,34 @@ namespace PlayniteAchievements.ViewModels.Settings
         {
             return ResourceProvider.GetString(key);
         }
+    }
+
+    /// <summary>
+    /// Rarity badge/percent layout choices offered by the single "Rarity" dropdown.
+    /// </summary>
+    internal enum RarityBadgeDisplay
+    {
+        BadgeAndPercentFooter,
+        BadgeFooter,
+        PercentFooter,
+        InlineBadge,
+        None
+    }
+
+    /// <summary>
+    /// One entry of the rarity display dropdown: the layout value and its localized label.
+    /// </summary>
+    internal sealed class RarityBadgeDisplayOption
+    {
+        public RarityBadgeDisplayOption(RarityBadgeDisplay value, string display)
+        {
+            Value = value;
+            Display = display;
+        }
+
+        public RarityBadgeDisplay Value { get; }
+
+        public string Display { get; }
     }
 
     /// <summary>

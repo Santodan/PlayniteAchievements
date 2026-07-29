@@ -53,12 +53,6 @@
             <CheckBox Content="{DynamicResource LOCPlayAch_Common_UnlockTime}"
                       IsChecked="{Binding Surface.ShowUnlockTime}"
                       Margin="0,0,14,8"/>
-            <CheckBox Content="{DynamicResource LOCPlayAch_Settings_ToastShowRarityBadge}"
-                      IsChecked="{Binding Surface.ShowRarityBadge}"
-                      Margin="0,0,14,8"/>
-            <CheckBox Content="{DynamicResource LOCPlayAch_Settings_ToastShowRarityPercent}"
-                      IsChecked="{Binding Surface.ShowRarityPercent}"
-                      Margin="0,0,14,8"/>
             <CheckBox Content="{DynamicResource LOCPlayAch_Settings_ToastShowRarityGlow}"
                       IsChecked="{Binding Surface.ShowRarityGlow}"
                       Margin="0,0,14,8"/>
@@ -69,6 +63,18 @@
                       IsChecked="{Binding Surface.ShowProviderIcon}"
                       Margin="0,0,14,8"/>
         </WrapPanel>
+
+        <!-- Rarity badge + percent layout, driven by a single dropdown. -->
+        <StackPanel Orientation="Horizontal" Margin="0,0,0,4">
+            <TextBlock Text="{DynamicResource LOCPlayAch_Settings_Style_Rarity}"
+                       Foreground="{DynamicResource PlayAch.Brush.Text}"
+                       VerticalAlignment="Center"
+                       Margin="0,0,8,0"/>
+            <ComboBox ItemsSource="{Binding RarityBadgeDisplayOptions}"
+                      SelectedItem="{Binding SelectedRarityBadgeDisplay, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                      DisplayMemberPath="Display"
+                      MinWidth="200"/>
+        </StackPanel>
 
         <!-- Toast-only chrome: the frame has no accent strip, timer bar, or free card size. -->
         <StackPanel Visibility="{Binding IsToastSurface, Converter={StaticResource BoolToVis}}">
