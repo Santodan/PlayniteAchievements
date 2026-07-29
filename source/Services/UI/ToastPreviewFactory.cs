@@ -16,7 +16,10 @@ namespace PlayniteAchievements.Services.UI
         /// Returns preview args for the given sample kind: common / uncommon / rare /
         /// ultrarare / capstone / complete / friend / mockup.
         /// </summary>
-        public static AchievementUnlockedEventArgs BuildPreviewArgs(string kind, string providerKey = null)
+        public static AchievementUnlockedEventArgs BuildPreviewArgs(
+            string kind,
+            string providerKey = null,
+            NotificationTemplatePreviewSource? previewSource = null)
         {
             var sampleGame = L("LOCPlayAch_Settings_ToastPreviewSampleGame");
             var sampleCategory = L("LOCPlayAch_Settings_ToastPreviewSampleCategory");
@@ -38,10 +41,11 @@ namespace PlayniteAchievements.Services.UI
                     capstone.IsCompletionAchievement = true;
                     return capstone;
                 case "complete":
-                    // The standalone completion notification (own wave after unlock toasts).
+                    // The standalone completion notification (own wave after the unlock wave).
                     return new AchievementUnlockedEventArgs
                     {
                         IsPreview = true,
+                        PreviewTemplateSource = previewSource,
                         ProviderKey = providerKey,
                         GameName = sampleGame,
                         UnlockedCount = 40,
@@ -66,6 +70,7 @@ namespace PlayniteAchievements.Services.UI
                 return new AchievementUnlockedEventArgs
                 {
                     IsPreview = true,
+                    PreviewTemplateSource = previewSource,
                     ProviderKey = providerKey,
                     GameName = sampleGame,
                     Category = sampleCategory,
