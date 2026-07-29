@@ -32,6 +32,7 @@ namespace PlayniteAchievements.Views.Settings.General
 
         private Window _framePreviewWindow;
         private string _selectedProviderKey;
+        private readonly string _fallbackSampleProviderKey;
         private NotificationStyleSettings _currentStyle;
         private bool _suppressCustomizeEvents;
 
@@ -51,6 +52,12 @@ namespace PlayniteAchievements.Views.Settings.General
             _logger = logger;
 
             _toastTemplateResolver = new AchievementToastTemplateResolver(plugin.PlayniteApi, logger);
+
+            // A sample provider so the mock and fire-tests always show a provider icon, even
+            // when the global default (no platform selected) is being edited.
+            _fallbackSampleProviderKey =
+                (plugin.ProviderRegistry?.GetSettingsViewProviderKeys() ?? Enumerable.Empty<string>())
+                .FirstOrDefault(key => !string.IsNullOrWhiteSpace(key));
 
             _toastEditorViewModel = new NotificationAppearanceEditorViewModel(
                 settings, plugin, logger, isFrameSurface: false);
@@ -72,7 +79,39 @@ namespace PlayniteAchievements.Views.Settings.General
                 OnPersistedPropertyChanged,
                 ApplySelection);
 
-            Loaded += (s, e) => UpdateMockups();
+            Loaded += (s, e) =>
+            {
+                UpdateMockups();
+                RefreshFireButtons();
+            };
+        }
+
+        /// <summary>
+        /// The provider key used for sample/fire content: the selected platform, or a fallback
+        /// sample provider so the global-default preview still shows a provider icon.
+        /// </summary>
+        private string EffectiveSampleProviderKey =>
+            _selectedProviderKey ?? _fallbackSampleProviderKey;
+
+        /// <summary>
+        /// Disables the desktop/fullscreen theme fire-test buttons when the corresponding active
+        /// theme ships no template for the surface (they would just fall back to plugin style).
+        /// </summary>
+        private void RefreshFireButtons()
+        {
+            if (NotificationDesktopThemeButton == null)
+            {
+                return;
+            }
+
+            NotificationDesktopThemeButton.IsEnabled =
+                _toastTemplateResolver.ThemeProvidesTemplate(NotificationTemplatePreviewSource.DesktopTheme, isFrame: false);
+            NotificationFullscreenThemeButton.IsEnabled =
+                _toastTemplateResolver.ThemeProvidesTemplate(NotificationTemplatePreviewSource.FullscreenTheme, isFrame: false);
+            FrameDesktopThemeButton.IsEnabled =
+                _toastTemplateResolver.ThemeProvidesTemplate(NotificationTemplatePreviewSource.DesktopTheme, isFrame: true);
+            FrameFullscreenThemeButton.IsEnabled =
+                _toastTemplateResolver.ThemeProvidesTemplate(NotificationTemplatePreviewSource.FullscreenTheme, isFrame: true);
         }
 
         private List<NotificationStylePlatformOption> BuildPlatformOptions()
@@ -248,31 +287,40 @@ namespace PlayniteAchievements.Views.Settings.General
             ToastMockupHost.ContentTemplate =
                 _toastTemplateResolver.ResolveTemplate(persisted.ToastUseThemeStyling);
             ToastMockupHost.Content = new AchievementToastViewModel(
-                ToastPreviewFactory.BuildPreviewArgs("mockup", _selectedProviderKey),
+                ToastPreviewFactory.BuildPreviewArgs("mockup", EffectiveSampleProviderKey),
                 persisted,
                 _currentStyle);
 
             FrameMockupHost.ContentTemplate =
                 _toastTemplateResolver.ResolveFrameTemplate(persisted.FrameUseThemeStyling);
             FrameMockupHost.Content = new AchievementToastViewModel(
-                ToastPreviewFactory.BuildPreviewArgs("mockup", _selectedProviderKey),
+                ToastPreviewFactory.BuildPreviewArgs("mockup", EffectiveSampleProviderKey),
                 persisted,
                 _currentStyle);
         }
 
-        private void ToastPreviewButton_Click(object sender, RoutedEventArgs e)
+        private void FireNotification_Click(object sender, RoutedEventArgs e)
         {
-            if (!(sender is Button { CommandParameter: string kind }))
+            if (!TryResolvePreviewSource(sender, out var source))
             {
                 return;
             }
+
+            var kind = NotificationSampleSelector?.SelectedValue as string ?? "rare";
 
             // Flush any debounced edits so the real notification pipeline resolves the same
             // style the mockup shows.
             _toastEditorViewModel?.FlushPendingPersist();
             _frameEditorViewModel?.FlushPendingPersist();
             PlayniteAchievementsPlugin.NotifyAchievementUnlocked(
-                ToastPreviewFactory.BuildPreviewArgs(kind, _selectedProviderKey));
+                ToastPreviewFactory.BuildPreviewArgs(kind, EffectiveSampleProviderKey, source));
+        }
+
+        private static bool TryResolvePreviewSource(object sender, out NotificationTemplatePreviewSource source)
+        {
+            source = NotificationTemplatePreviewSource.PluginStyle;
+            return sender is Button { Tag: string tag } &&
+                   Enum.TryParse(tag, ignoreCase: true, out source);
         }
 
         /// <summary>
@@ -281,18 +329,26 @@ namespace PlayniteAchievements.Views.Settings.General
         /// Fill onto the monitor), so what is shown matches what gets stamped onto saved
         /// images. Dismissed by click, Escape, or a 10s auto-close timer.
         /// </summary>
-        private void FramePreviewButton_Click(object sender, RoutedEventArgs e)
+        private void FireFrame_Click(object sender, RoutedEventArgs e)
         {
-            var kind = (sender as Button)?.CommandParameter as string ?? "mockup";
+            if (!TryResolvePreviewSource(sender, out var source))
+            {
+                return;
+            }
+
+            var kind = FrameSampleSelector?.SelectedValue as string ?? "rare";
             var persisted = _settings?.Persisted;
             if (persisted == null)
             {
                 return;
             }
 
+            _toastEditorViewModel?.FlushPendingPersist();
+            _frameEditorViewModel?.FlushPendingPersist();
+
             CloseFramePreview();
 
-            var template = _toastTemplateResolver.ResolveFrameTemplate(persisted.FrameUseThemeStyling);
+            var template = _toastTemplateResolver.ResolvePreviewTemplate(source, isFrame: true);
             if (template == null)
             {
                 return;
@@ -327,7 +383,7 @@ namespace PlayniteAchievements.Views.Settings.General
             canvas.Children.Add(new ContentControl
             {
                 Content = new AchievementToastViewModel(
-                    ToastPreviewFactory.BuildPreviewArgs(kind, _selectedProviderKey),
+                    ToastPreviewFactory.BuildPreviewArgs(kind, EffectiveSampleProviderKey),
                     persisted,
                     _currentStyle),
                 ContentTemplate = template,

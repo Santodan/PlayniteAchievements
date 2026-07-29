@@ -104,35 +104,38 @@
                                 <TextBlock Text="{DynamicResource LOCPlayAch_Settings_ToastPreviewHint}"
                                            Style="{StaticResource MutedTextStyle}"
                                            TextWrapping="Wrap"
-                                           Margin="0,14,0,10"/>
+                                           Margin="0,14,0,6"/>
+                                <StackPanel Orientation="Horizontal" Margin="0,0,0,8">
+                                    <TextBlock Text="{DynamicResource LOCPlayAch_Settings_Style_SampleUnlock}"
+                                               Foreground="{DynamicResource PlayAch.Brush.Text}"
+                                               VerticalAlignment="Center"
+                                               Margin="0,0,8,0"/>
+                                    <ComboBox x:Name="NotificationSampleSelector"
+                                              SelectedValuePath="Tag"
+                                              MinWidth="160">
+                                        <ComboBoxItem Tag="common" Content="{DynamicResource LOCPlayAch_Rarity_Common}"/>
+                                        <ComboBoxItem Tag="uncommon" Content="{DynamicResource LOCPlayAch_Rarity_Uncommon}"/>
+                                        <ComboBoxItem Tag="rare" Content="{DynamicResource LOCPlayAch_Rarity_Rare}" IsSelected="True"/>
+                                        <ComboBoxItem Tag="ultrarare" Content="{DynamicResource LOCPlayAch_Rarity_UltraRare}"/>
+                                        <ComboBoxItem Tag="capstone" Content="{DynamicResource LOCPlayAch_Completed}"/>
+                                        <ComboBoxItem Tag="complete" Content="{DynamicResource LOCPlayAch_Toast_GameComplete}"/>
+                                        <ComboBoxItem Tag="friend" Content="{DynamicResource LOCPlayAch_Settings_ToastPreviewFriend}"/>
+                                    </ComboBox>
+                                </StackPanel>
                                 <WrapPanel>
-                                    <Button Click="ToastPreviewButton_Click"
-                                            CommandParameter="common"
-                                            Content="{DynamicResource LOCPlayAch_Rarity_Common}"
+                                    <Button Click="FireNotification_Click"
+                                            Tag="PluginStyle"
+                                            Content="{DynamicResource LOCPlayAch_Settings_Style_FirePluginStyle}"
                                             Margin="0,0,8,8"/>
-                                    <Button Click="ToastPreviewButton_Click"
-                                            CommandParameter="uncommon"
-                                            Content="{DynamicResource LOCPlayAch_Rarity_Uncommon}"
+                                    <Button x:Name="NotificationDesktopThemeButton"
+                                            Click="FireNotification_Click"
+                                            Tag="DesktopTheme"
+                                            Content="{DynamicResource LOCPlayAch_Settings_Style_FireDesktopTheme}"
                                             Margin="0,0,8,8"/>
-                                    <Button Click="ToastPreviewButton_Click"
-                                            CommandParameter="rare"
-                                            Content="{DynamicResource LOCPlayAch_Rarity_Rare}"
-                                            Margin="0,0,8,8"/>
-                                    <Button Click="ToastPreviewButton_Click"
-                                            CommandParameter="ultrarare"
-                                            Content="{DynamicResource LOCPlayAch_Rarity_UltraRare}"
-                                            Margin="0,0,8,8"/>
-                                    <Button Click="ToastPreviewButton_Click"
-                                            CommandParameter="capstone"
-                                            Content="{DynamicResource LOCPlayAch_Completed}"
-                                            Margin="0,0,8,8"/>
-                                    <Button Click="ToastPreviewButton_Click"
-                                            CommandParameter="complete"
-                                            Content="{DynamicResource LOCPlayAch_Toast_GameComplete}"
-                                            Margin="0,0,8,8"/>
-                                    <Button Click="ToastPreviewButton_Click"
-                                            CommandParameter="friend"
-                                            Content="{DynamicResource LOCPlayAch_Settings_ToastPreviewFriend}"
+                                    <Button x:Name="NotificationFullscreenThemeButton"
+                                            Click="FireNotification_Click"
+                                            Tag="FullscreenTheme"
+                                            Content="{DynamicResource LOCPlayAch_Settings_Style_FireFullscreenTheme}"
                                             Margin="0,0,8,8"/>
                                 </WrapPanel>
                             </StackPanel>
@@ -173,37 +176,39 @@
                                 <TextBlock Text="{DynamicResource LOCPlayAch_Settings_FramePreviewButton}"
                                            Style="{StaticResource MutedTextStyle}"
                                            TextWrapping="Wrap"
-                                           Margin="0,14,0,10"/>
+                                           Margin="0,14,0,6"/>
+                                <StackPanel Orientation="Horizontal" Margin="0,0,0,8">
+                                    <TextBlock Text="{DynamicResource LOCPlayAch_Settings_Style_SampleUnlock}"
+                                               Foreground="{DynamicResource PlayAch.Brush.Text}"
+                                               VerticalAlignment="Center"
+                                               Margin="0,0,8,0"/>
+                                    <ComboBox x:Name="FrameSampleSelector"
+                                              SelectedValuePath="Tag"
+                                              MinWidth="160">
+                                        <ComboBoxItem Tag="common" Content="{DynamicResource LOCPlayAch_Rarity_Common}"/>
+                                        <ComboBoxItem Tag="uncommon" Content="{DynamicResource LOCPlayAch_Rarity_Uncommon}"/>
+                                        <ComboBoxItem Tag="rare" Content="{DynamicResource LOCPlayAch_Rarity_Rare}" IsSelected="True"/>
+                                        <ComboBoxItem Tag="ultrarare" Content="{DynamicResource LOCPlayAch_Rarity_UltraRare}"/>
+                                        <ComboBoxItem Tag="capstone" Content="{DynamicResource LOCPlayAch_Completed}"/>
+                                        <ComboBoxItem Tag="complete" Content="{DynamicResource LOCPlayAch_Toast_GameComplete}"/>
+                                    </ComboBox>
+                                </StackPanel>
                                 <WrapPanel>
-                                    <Button Click="FramePreviewButton_Click"
-                                            CommandParameter="common"
-                                            Content="{DynamicResource LOCPlayAch_Rarity_Common}"
+                                    <Button Click="FireFrame_Click"
+                                            Tag="PluginStyle"
+                                            Content="{DynamicResource LOCPlayAch_Settings_Style_FirePluginStyle}"
                                             Margin="0,0,8,8"/>
-                                    <Button Click="FramePreviewButton_Click"
-                                            CommandParameter="uncommon"
-                                            Content="{DynamicResource LOCPlayAch_Rarity_Uncommon}"
+                                    <Button x:Name="FrameDesktopThemeButton"
+                                            Click="FireFrame_Click"
+                                            Tag="DesktopTheme"
+                                            Content="{DynamicResource LOCPlayAch_Settings_Style_FireDesktopTheme}"
                                             Margin="0,0,8,8"/>
-                                    <Button Click="FramePreviewButton_Click"
-                                            CommandParameter="rare"
-                                            Content="{DynamicResource LOCPlayAch_Rarity_Rare}"
-                                            Margin="0,0,8,8"/>
-                                    <Button Click="FramePreviewButton_Click"
-                                            CommandParameter="ultrarare"
-                                            Content="{DynamicResource LOCPlayAch_Rarity_UltraRare}"
-                                            Margin="0,0,8,8"/>
-                                    <Button Click="FramePreviewButton_Click"
-                                            CommandParameter="capstone"
-                                            Content="{DynamicResource LOCPlayAch_Completed}"
-                                            Margin="0,0,8,8"/>
-                                    <Button Click="FramePreviewButton_Click"
-                                            CommandParameter="complete"
-                                            Content="{DynamicResource LOCPlayAch_Toast_GameComplete}"
+                                    <Button x:Name="FrameFullscreenThemeButton"
+                                            Click="FireFrame_Click"
+                                            Tag="FullscreenTheme"
+                                            Content="{DynamicResource LOCPlayAch_Settings_Style_FireFullscreenTheme}"
                                             Margin="0,0,8,8"/>
                                 </WrapPanel>
-                                <TextBlock Text="{DynamicResource LOCPlayAch_Settings_FramePreviewHint}"
-                                           Style="{StaticResource MutedTextStyle}"
-                                           TextWrapping="Wrap"
-                                           Margin="0,6,0,0"/>
                             </StackPanel>
                         </TabItem>
                     </TabControl>
