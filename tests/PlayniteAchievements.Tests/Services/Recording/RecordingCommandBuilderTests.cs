@@ -96,6 +96,70 @@ namespace PlayniteAchievements.Services.Tests.Recording
         }
 
         [TestMethod]
+        public void Capture_NvencGpuResident_KeepsFramesOnGpuWithoutHwdownload()
+        {
+            var options = DefaultOptions();
+            options.Backend = RecordingCaptureBackend.Ddagrab;
+            options.EncoderArguments = "-c:v h264_nvenc -preset p4 -rc vbr -cq 23 -b:v 0";
+            options.NvencGpuResident = true;
+
+            var args = RecordingCommandBuilder.BuildCaptureArguments(options);
+
+            StringAssert.Contains(args, "hwmap=derive_type=cuda,format=cuda,scale_cuda=format=nv12");
+            StringAssert.Contains(args, "-c:v h264_nvenc");
+            Assert.IsFalse(args.Contains("hwdownload"), args);
+            Assert.IsFalse(args.Contains("-vf"), args);
+            Assert.IsFalse(args.Contains("-pix_fmt"), args);
+            // The output half is unchanged from the CPU path.
+            StringAssert.Contains(args, "-g 30 -keyint_min 30");
+            StringAssert.Contains(args, "-force_key_frames \"expr:gte(t,n_forced*1)\"");
+            StringAssert.Contains(args, "-f segment -segment_time 5 -reset_timestamps 1 -strftime 1");
+        }
+
+        [TestMethod]
+        public void Capture_NvencGpuResident_FixedResolutionsScaleOnGpu()
+        {
+            var options = DefaultOptions();
+            options.Backend = RecordingCaptureBackend.Ddagrab;
+            options.EncoderArguments = "-c:v h264_nvenc";
+            options.NvencGpuResident = true;
+
+            options.Resolution = RecordingResolution.P1080;
+            StringAssert.Contains(
+                RecordingCommandBuilder.BuildCaptureArguments(options), "scale_cuda=-2:1080:format=nv12");
+
+            options.Resolution = RecordingResolution.P720;
+            StringAssert.Contains(
+                RecordingCommandBuilder.BuildCaptureArguments(options), "scale_cuda=-2:720:format=nv12");
+        }
+
+        [TestMethod]
+        public void Capture_NvencGpuResident_IgnoredForGdigrabBackend()
+        {
+            var options = DefaultOptions();
+            options.Backend = RecordingCaptureBackend.Gdigrab;
+            options.NvencGpuResident = true;
+
+            var args = RecordingCommandBuilder.BuildCaptureArguments(options);
+
+            StringAssert.Contains(args, "-f gdigrab");
+            Assert.IsFalse(args.Contains("hwmap"), args);
+            Assert.IsFalse(args.Contains("scale_cuda"), args);
+            StringAssert.Contains(args, "-pix_fmt yuv420p");
+        }
+
+        [TestMethod]
+        public void NvencGpuSmokeTest_RunsGpuChainToNullMuxer()
+        {
+            var args = RecordingCommandBuilder.BuildNvencGpuSmokeTestArguments(1);
+
+            StringAssert.Contains(args, "ddagrab=output_idx=1:framerate=10");
+            StringAssert.Contains(args, "hwmap=derive_type=cuda,format=cuda,scale_cuda=format=nv12");
+            StringAssert.Contains(args, "-c:v h264_nvenc");
+            StringAssert.Contains(args, "-t 1 -f null -");
+        }
+
+        [TestMethod]
         public void ResolveBackend_AutoPrefersDdagrabWhenSupported()
         {
             Assert.AreEqual(
