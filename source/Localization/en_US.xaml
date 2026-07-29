@@ -559,6 +559,11 @@
     <sys:String x:Key="LOCPlayAch_Settings_Style_FollowDefaultHint">This platform follows the default appearance until customized.</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_Style_RevertConfirm">Revert this platform to the default notification appearance? Its custom images will be deleted.</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_Style_ShowProviderIcon">Show provider icon</sys:String>
+    <sys:String x:Key="LOCPlayAch_Settings_Style_ShowAccentStrip">Left rarity accent</sys:String>
+    <sys:String x:Key="LOCPlayAch_Settings_Style_ShowCountdownBar">Timer bar</sys:String>
+    <sys:String x:Key="LOCPlayAch_Settings_Style_CardWidth">Width</sys:String>
+    <sys:String x:Key="LOCPlayAch_Settings_Style_CardHeight">Height</sys:String>
+    <sys:String x:Key="LOCPlayAch_Settings_Style_CardSizeHint">Toast card size in pixels. Leave blank for the default. Height is a minimum — the card grows taller for longer content.</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_Style_UseThemeTemplate">Allow the theme to style this surface</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_Style_UseThemeTemplateHint">When a theme provides its own template it ignores the appearance options below. Turn this off to always use the plugin's template.</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_Style_TextLines">Text lines</sys:String>
