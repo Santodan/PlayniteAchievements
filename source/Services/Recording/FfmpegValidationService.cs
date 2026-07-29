@@ -6,6 +6,7 @@ using System.Linq;
 using System.Text.RegularExpressions;
 using System.Threading.Tasks;
 using Playnite.SDK;
+using PlayniteAchievements.Models.Settings;
 
 namespace PlayniteAchievements.Services.Recording
 {
@@ -26,6 +27,14 @@ namespace PlayniteAchievements.Services.Recording
             "h264_qsv",
             "h264_amf",
             "libx264"
+        };
+
+        /// <summary>Hardware encoders that have a GPU-resident (no-hwdownload) capture path.</summary>
+        private static readonly RecordingEncoder[] GpuCaptureEncoders =
+        {
+            RecordingEncoder.Nvenc,
+            RecordingEncoder.Amf,
+            RecordingEncoder.Qsv
         };
 
         private readonly ILogger _logger;
@@ -53,12 +62,32 @@ namespace PlayniteAchievements.Services.Recording
             public bool SupportsDdagrab { get; set; }
 
             /// <summary>
-            /// True when the build can run the GPU-resident NVENC capture chain: h264_nvenc is
-            /// available and the -filters output lists both hwmap and scale_cuda (and, if the
-            /// smoke test ran, a 1s GPU-chain capture succeeded). Drives the recording service's
-            /// choice to keep ddagrab frames on the GPU instead of the hwdownload round trip.
+            /// Per hardware encoder, true when the build can feed ddagrab's D3D11 frames straight
+            /// into that encoder (the encoder is present and ddagrab is usable) and, if the smoke
+            /// test ran, a 1s ddagrab-&gt;encoder run succeeded. Drives the recording service's
+            /// choice to keep frames on the GPU instead of the hwdownload round trip.
             /// </summary>
             public bool SupportsNvencGpuCapture { get; set; }
+
+            public bool SupportsAmfGpuCapture { get; set; }
+
+            public bool SupportsQsvGpuCapture { get; set; }
+
+            /// <summary>GPU-resident capture support for a specific resolved encoder.</summary>
+            public bool SupportsGpuCapture(RecordingEncoder encoder)
+            {
+                switch (encoder)
+                {
+                    case RecordingEncoder.Nvenc:
+                        return SupportsNvencGpuCapture;
+                    case RecordingEncoder.Amf:
+                        return SupportsAmfGpuCapture;
+                    case RecordingEncoder.Qsv:
+                        return SupportsQsvGpuCapture;
+                    default:
+                        return false;
+                }
+            }
 
             /// <summary>Diagnostic detail for the settings status line when invalid.</summary>
             public string Error { get; set; }
@@ -117,8 +146,7 @@ namespace PlayniteAchievements.Services.Recording
             var filterLines = await RunProbeAsync(path, RecordingCommandBuilder.FiltersProbeArguments)
                 .ConfigureAwait(false);
             result.SupportsDdagrab = ParseDdagrabSupport(filterLines);
-            result.SupportsNvencGpuCapture =
-                result.AvailableEncoders.Contains("h264_nvenc") && ParseNvencGpuFilters(filterLines);
+            DeriveGpuCaptureSupport(result);
 
             if (runSmokeTest)
             {
@@ -140,13 +168,18 @@ namespace PlayniteAchievements.Services.Recording
                     result.SupportsDdagrab = false;
                 }
 
-                // The GPU-resident chain needs working D3D11->CUDA interop, which filter presence
-                // doesn't guarantee; a failed GPU smoke test drops it to the hwdownload path.
-                if (result.SupportsNvencGpuCapture &&
-                    !await RunSmokeTestAsync(path, RecordingCommandBuilder.BuildNvencGpuSmokeTestArguments())
-                        .ConfigureAwait(false))
+                // ddagrab may have just been disabled; re-derive per-encoder support, then confirm
+                // each supported ddagrab->encoder chain actually runs on this build and hardware
+                // (filter/encoder presence alone can pass on setups where the direct feed fails).
+                DeriveGpuCaptureSupport(result);
+                foreach (var encoder in GpuCaptureEncoders)
                 {
-                    result.SupportsNvencGpuCapture = false;
+                    if (result.SupportsGpuCapture(encoder) &&
+                        !await RunSmokeTestAsync(path, RecordingCommandBuilder.BuildGpuSmokeTestArguments(encoder))
+                            .ConfigureAwait(false))
+                    {
+                        SetGpuCaptureSupport(result, encoder, false);
+                    }
                 }
             }
 
@@ -225,14 +258,34 @@ namespace PlayniteAchievements.Services.Recording
         }
 
         /// <summary>
-        /// True when the -filters output lists both hwmap and scale_cuda, the two filters the
-        /// GPU-resident NVENC chain relies on to keep frames on the GPU.
+        /// A hardware encoder gets a GPU-resident capture path when it is present and ddagrab is
+        /// usable — the direct feed adds no CUDA filters, so nothing else in -filters is required.
         /// </summary>
-        internal static bool ParseNvencGpuFilters(IReadOnlyList<string> stdOutLines)
+        private static void DeriveGpuCaptureSupport(FfmpegValidationResult result)
         {
-            return stdOutLines != null &&
-                   stdOutLines.Any(line => line != null && Regex.IsMatch(line, @"\bhwmap\b")) &&
-                   stdOutLines.Any(line => line != null && Regex.IsMatch(line, @"\bscale_cuda\b"));
+            result.SupportsNvencGpuCapture =
+                result.SupportsDdagrab && result.AvailableEncoders.Contains("h264_nvenc");
+            result.SupportsAmfGpuCapture =
+                result.SupportsDdagrab && result.AvailableEncoders.Contains("h264_amf");
+            result.SupportsQsvGpuCapture =
+                result.SupportsDdagrab && result.AvailableEncoders.Contains("h264_qsv");
+        }
+
+        private static void SetGpuCaptureSupport(
+            FfmpegValidationResult result, RecordingEncoder encoder, bool value)
+        {
+            switch (encoder)
+            {
+                case RecordingEncoder.Nvenc:
+                    result.SupportsNvencGpuCapture = value;
+                    break;
+                case RecordingEncoder.Amf:
+                    result.SupportsAmfGpuCapture = value;
+                    break;
+                case RecordingEncoder.Qsv:
+                    result.SupportsQsvGpuCapture = value;
+                    break;
+            }
         }
     }
 }
