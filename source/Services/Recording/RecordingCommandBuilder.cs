@@ -52,6 +52,14 @@ namespace PlayniteAchievements.Services.Recording
             /// <summary>Encoder argument fragment from <see cref="BuildEncoderArguments"/>.</summary>
             public string EncoderArguments { get; set; }
 
+            /// <summary>
+            /// When true (only valid with a Ddagrab backend and an NVENC encoder), the captured
+            /// D3D11 frames are mapped to CUDA and scaled/converted on the GPU, then fed straight
+            /// to NVENC — no per-frame GPU-&gt;CPU-&gt;GPU round trip. Gated by
+            /// <see cref="FfmpegValidationService.FfmpegValidationResult.SupportsNvencGpuCapture"/>.
+            /// </summary>
+            public bool NvencGpuResident { get; set; }
+
             public int SegmentSeconds { get; set; }
 
             public string BufferDirectory { get; set; }
@@ -76,15 +84,33 @@ namespace PlayniteAchievements.Services.Recording
             var width = Math.Max(2, options.MonitorWidth & ~1);
             var height = Math.Max(2, options.MonitorHeight & ~1);
 
+            // The GPU-resident path only applies to Ddagrab (its D3D11 output is what CUDA maps).
+            var gpuResident = options.NvencGpuResident && options.Backend == RecordingCaptureBackend.Ddagrab;
+
             var builder = new StringBuilder();
             builder.Append("-hide_banner -loglevel warning -y");
 
             if (options.Backend == RecordingCaptureBackend.Ddagrab)
             {
-                builder.Append(Invariant(
-                    " -f lavfi -i \"ddagrab=output_idx={0}:framerate={1}:draw_mouse=1,hwdownload,format=bgra\"",
-                    Math.Max(0, options.MonitorIndex),
-                    fps));
+                if (gpuResident)
+                {
+                    // Map the captured D3D11 surface to CUDA (zero-copy on the same GPU), scale
+                    // and convert to nv12 on the GPU, then feed NVENC directly — no hwdownload,
+                    // so frames never touch system RAM. The scale spec also carries the downscale
+                    // (empty for Native), which is why the CPU -vf scale below is skipped here.
+                    builder.Append(Invariant(
+                        " -f lavfi -i \"ddagrab=output_idx={0}:framerate={1}:draw_mouse=1,hwmap=derive_type=cuda,format=cuda,scale_cuda={2}format=nv12\"",
+                        Math.Max(0, options.MonitorIndex),
+                        fps,
+                        ScaleCudaSpec(options.Resolution)));
+                }
+                else
+                {
+                    builder.Append(Invariant(
+                        " -f lavfi -i \"ddagrab=output_idx={0}:framerate={1}:draw_mouse=1,hwdownload,format=bgra\"",
+                        Math.Max(0, options.MonitorIndex),
+                        fps));
+                }
             }
             else
             {
@@ -97,10 +123,15 @@ namespace PlayniteAchievements.Services.Recording
                     height));
             }
 
-            var scale = ScaleFilter(options.Resolution);
-            if (scale != null)
+            // The GPU-resident path scales inside the CUDA input chain; the CPU scale filter
+            // runs after hwdownload and only applies to the other paths.
+            if (!gpuResident)
             {
-                builder.Append(" -vf ").Append(scale);
+                var scale = ScaleFilter(options.Resolution);
+                if (scale != null)
+                {
+                    builder.Append(" -vf ").Append(scale);
+                }
             }
 
             if (!string.IsNullOrWhiteSpace(options.EncoderArguments))
@@ -108,7 +139,12 @@ namespace PlayniteAchievements.Services.Recording
                 builder.Append(' ').Append(options.EncoderArguments.Trim());
             }
 
-            builder.Append(" -pix_fmt yuv420p");
+            // NVENC on the GPU-resident path takes nv12 hwframes (format set by scale_cuda), so
+            // an explicit -pix_fmt would be rejected; the CPU paths still need it.
+            if (!gpuResident)
+            {
+                builder.Append(" -pix_fmt yuv420p");
+            }
             builder.Append(Invariant(" -g {0} -keyint_min {0}", fps));
             builder.Append(" -force_key_frames \"expr:gte(t,n_forced*1)\"");
             builder.Append(Invariant(" -f segment -segment_time {0} -reset_timestamps 1 -strftime 1", Math.Max(1, options.SegmentSeconds)));
@@ -353,6 +389,19 @@ namespace PlayniteAchievements.Services.Recording
                 Math.Max(0, monitorIndex));
         }
 
+        /// <summary>
+        /// A 1-second run of the full GPU-resident chain (ddagrab -&gt; CUDA map -&gt; scale_cuda
+        /// -&gt; NVENC) to the null muxer — verifies the build's CUDA interop and NVENC actually
+        /// work together on this machine before the capture session relies on it (filter presence
+        /// alone can pass on builds where the interop fails at runtime).
+        /// </summary>
+        public static string BuildNvencGpuSmokeTestArguments(int monitorIndex = 0)
+        {
+            return Invariant(
+                "-hide_banner -loglevel warning -f lavfi -i \"ddagrab=output_idx={0}:framerate=10,hwmap=derive_type=cuda,format=cuda,scale_cuda=format=nv12\" -c:v h264_nvenc -t 1 -f null -",
+                Math.Max(0, monitorIndex));
+        }
+
         public const string VersionProbeArguments = "-hide_banner -version";
 
         public const string EncodersProbeArguments = "-hide_banner -encoders";
@@ -369,6 +418,25 @@ namespace PlayniteAchievements.Services.Recording
                     return "scale=-2:720";
                 default:
                     return null;
+            }
+        }
+
+        /// <summary>
+        /// The scale_cuda size prefix for the GPU-resident chain, appended before
+        /// <c>format=nv12</c>. Native needs no resize (format-only conversion), so it returns an
+        /// empty string; the fixed resolutions carry a <c>-2:{height}:</c> (even width, preserved
+        /// aspect) prefix.
+        /// </summary>
+        private static string ScaleCudaSpec(RecordingResolution resolution)
+        {
+            switch (resolution)
+            {
+                case RecordingResolution.P1080:
+                    return "-2:1080:";
+                case RecordingResolution.P720:
+                    return "-2:720:";
+                default:
+                    return string.Empty;
             }
         }
 
