@@ -322,6 +322,15 @@ namespace PlayniteAchievements.ViewModels
             ? RarityAppearanceHelper.GetGlow(_rarity, 20, _settings)
             : null;
 
+        // Rarity-colored glow on the toast card border (replaces the default drop shadow when
+        // the border-glow option is on). Toast surface only. Completion uses the completed glow.
+        public bool HasBorderGlow => _style.Toast.NotificationBorderGlow;
+        public Effect BorderGlowEffect => HasBorderGlow
+            ? (IsGameCompleted
+                ? RarityAppearanceHelper.GetCompletedGlow(useEndColor: true, _settings)
+                : RarityAppearanceHelper.GetGlow(_rarity, 20, _settings))
+            : null;
+
         // Secondary rarity/trophy/capstone badge. Completion notifications resolve to null
         // naturally (no capstone, trophy, or rarity data on them).
         public ImageSource BadgeImage => CreateBadge(IsCapstone);
