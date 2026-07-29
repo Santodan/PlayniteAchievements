@@ -99,7 +99,7 @@ namespace PlayniteAchievements.ViewModels
         /// <summary>
         /// Inline badge render size, slightly larger than the title text.
         /// </summary>
-        public double InlineBadgeSize => FontSize * 1.5;
+        public double InlineBadgeSize => FontSize * 1.25;
 
         /// <summary>
         /// Top margin for the title row. The inline badge's left edge stays flush with the
