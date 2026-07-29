@@ -44,6 +44,7 @@
     <Color x:Key="PlayAch.Color.ProviderEA">#E11D48</Color>
     <Color x:Key="PlayAch.Color.ProviderEpic">#26BBFF</Color>
     <Color x:Key="PlayAch.Color.ProviderGog">#A855F7</Color>
+    <Color x:Key="PlayAch.Color.ProviderGameJolt">#CCFF00</Color>
     <Color x:Key="PlayAch.Color.ProviderGooglePlay">#0F9D58</Color>
     <Color x:Key="PlayAch.Color.ProviderHoyoverse">#D4ACF8</Color>
     <Color x:Key="PlayAch.Color.ProviderManual">#FF652C</Color>
@@ -112,6 +113,7 @@
     <SolidColorBrush x:Key="PlayAch.Brush.ProviderEA" Color="{StaticResource PlayAch.Color.ProviderEA}"/>
     <SolidColorBrush x:Key="PlayAch.Brush.ProviderEpic" Color="{StaticResource PlayAch.Color.ProviderEpic}"/>
     <SolidColorBrush x:Key="PlayAch.Brush.ProviderGog" Color="{StaticResource PlayAch.Color.ProviderGog}"/>
+    <SolidColorBrush x:Key="PlayAch.Brush.ProviderGameJolt" Color="{StaticResource PlayAch.Color.ProviderGameJolt}"/>
     <SolidColorBrush x:Key="PlayAch.Brush.ProviderGooglePlay" Color="{StaticResource PlayAch.Color.ProviderGooglePlay}"/>
     <SolidColorBrush x:Key="PlayAch.Brush.ProviderHoyoverse" Color="{StaticResource PlayAch.Color.ProviderHoyoverse}"/>
     <SolidColorBrush x:Key="PlayAch.Brush.ProviderManual" Color="{StaticResource PlayAch.Color.ProviderManual}"/>
