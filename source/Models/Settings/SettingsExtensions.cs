@@ -140,6 +140,7 @@ namespace PlayniteAchievements.Models.Settings
                 : new HashSet<Guid>();
             target.ModernCompactListShowRarityGlow = source.ModernCompactListShowRarityGlow;
             target.ModernUnlockedListShowRarityGlow = source.ModernUnlockedListShowRarityGlow;
+            target.AnimateRarityGlows = source.AnimateRarityGlows;
             target.UseUniformRarityBadges = source.UseUniformRarityBadges;
             target.UseTrophiesForRarity = source.UseTrophiesForRarity;
             target.RoundRarityPercentages = source.RoundRarityPercentages;

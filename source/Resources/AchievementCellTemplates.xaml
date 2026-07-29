@@ -362,6 +362,26 @@
                 <Border.CacheMode>
                     <BitmapCache/>
                 </Border.CacheMode>
+                <!-- Fade in/out pulse on the cached glow layer when AnimateRarityGlows is on. -->
+                <Border.Style>
+                    <Style TargetType="Border">
+                        <Style.Triggers>
+                            <MultiDataTrigger>
+                                <MultiDataTrigger.Conditions>
+                                    <Condition Binding="{Binding Unlocked}" Value="True"/>
+                                    <Condition Binding="{Binding ShowRarityGlow, RelativeSource={RelativeSource AncestorType=controls:AchievementDataGridControl}}" Value="True"/>
+                                    <Condition Binding="{Binding AnimateRarityGlows, RelativeSource={RelativeSource AncestorType=controls:AchievementDataGridControl}}" Value="True"/>
+                                </MultiDataTrigger.Conditions>
+                                <MultiDataTrigger.EnterActions>
+                                    <BeginStoryboard x:Name="RarityGlowPulse" Storyboard="{StaticResource PlayAch.Storyboard.RarityGlowPulse}"/>
+                                </MultiDataTrigger.EnterActions>
+                                <MultiDataTrigger.ExitActions>
+                                    <StopStoryboard BeginStoryboardName="RarityGlowPulse"/>
+                                </MultiDataTrigger.ExitActions>
+                            </MultiDataTrigger>
+                        </Style.Triggers>
+                    </Style>
+                </Border.Style>
                 <Image Stretch="Uniform"
                        Margin="2"
                        RenderOptions.BitmapScalingMode="HighQuality"

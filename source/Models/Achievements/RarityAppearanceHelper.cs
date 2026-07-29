@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Windows;
+using System.Windows.Data;
 using System.Windows.Media;
 using System.Windows.Media.Effects;
 using System.Windows.Threading;
@@ -211,6 +212,28 @@ namespace PlayniteAchievements.Models.Achievements
         public static Color GetTrophyPieColor(string trophyKey, PersistedSettings settings = null)
         {
             return GetTrophyColor(trophyKey, settings);
+        }
+
+        /// <summary>
+        /// Binds a control's AnimateRarityGlows dependency property to the single global setting so
+        /// the rarity-glow pulse toggle reaches every glow surface without per-usage-site plumbing.
+        /// The live PersistedSettings instance is mutated in place on save (and raises
+        /// PropertyChanged), so this one-way binding tracks the toggle. No-op when the plugin
+        /// instance is unavailable (design time, tests), leaving the DP at its default (true).
+        /// </summary>
+        public static void BindAnimateRarityGlows(FrameworkElement element, DependencyProperty property)
+        {
+            var persisted = PlayniteAchievementsPlugin.Instance?.Settings?.Persisted;
+            if (element == null || property == null || persisted == null)
+            {
+                return;
+            }
+
+            element.SetBinding(property, new Binding(nameof(PersistedSettings.AnimateRarityGlows))
+            {
+                Source = persisted,
+                Mode = BindingMode.OneWay
+            });
         }
 
         public static DropShadowEffect GetGlow(RarityTier tier, double blurRadius, PersistedSettings settings = null)

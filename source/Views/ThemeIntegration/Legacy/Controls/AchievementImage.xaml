@@ -39,6 +39,7 @@
                        helpers:AsyncImage.DecodePixel="256"
                        SnapsToDevicePixels="True"
                        IsHitTestVisible="False"
+                       CacheMode="BitmapCache"
                        Width="{Binding RelativeSource={RelativeSource AncestorType=UserControl}, Path=Width}"
                        Height="{Binding RelativeSource={RelativeSource AncestorType=UserControl}, Path=Height}"
                        HorizontalAlignment="Center" VerticalAlignment="Center">
@@ -73,6 +74,21 @@
                                     </MultiDataTrigger.Conditions>
                                     <Setter Property="Visibility" Value="Collapsed"/>
                                     <Setter Property="Effect" Value="{x:Null}"/>
+                                </MultiDataTrigger>
+                                <!-- Fade in/out pulse on the cached glow layer when AnimateRarityGlows is on. -->
+                                <MultiDataTrigger>
+                                    <MultiDataTrigger.Conditions>
+                                        <Condition Binding="{Binding RelativeSource={RelativeSource AncestorType=UserControl}, Path=EnableRaretyIndicator}" Value="True"/>
+                                        <Condition Binding="{Binding RelativeSource={RelativeSource AncestorType=UserControl}, Path=IsLocked}" Value="False"/>
+                                        <Condition Binding="{Binding RelativeSource={RelativeSource AncestorType=UserControl}, Path=ShowRarityGlow}" Value="True"/>
+                                        <Condition Binding="{Binding RelativeSource={RelativeSource AncestorType=UserControl}, Path=AnimateRarityGlows}" Value="True"/>
+                                    </MultiDataTrigger.Conditions>
+                                    <MultiDataTrigger.EnterActions>
+                                        <BeginStoryboard x:Name="RarityGlowPulse" Storyboard="{StaticResource PlayAch.Storyboard.RarityGlowPulse}"/>
+                                    </MultiDataTrigger.EnterActions>
+                                    <MultiDataTrigger.ExitActions>
+                                        <StopStoryboard BeginStoryboardName="RarityGlowPulse"/>
+                                    </MultiDataTrigger.ExitActions>
                                 </MultiDataTrigger>
                             </Style.Triggers>
                         </Style>

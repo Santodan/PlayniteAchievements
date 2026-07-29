@@ -309,6 +309,23 @@ namespace PlayniteAchievements.Views.Controls
             set => SetValue(ShowCompletionGlowProperty, value);
         }
 
+        /// <summary>
+        /// When true, the completion glow on completed game art gently fades in and out.
+        /// Self-bound to the global setting in the constructor.
+        /// </summary>
+        public static readonly DependencyProperty AnimateRarityGlowsProperty =
+            DependencyProperty.Register(
+                nameof(AnimateRarityGlows),
+                typeof(bool),
+                typeof(GameSummariesGridControl),
+                new PropertyMetadata(true));
+
+        public bool AnimateRarityGlows
+        {
+            get => (bool)GetValue(AnimateRarityGlowsProperty);
+            set => SetValue(AnimateRarityGlowsProperty, value);
+        }
+
         public static readonly DependencyProperty ColumnSettingsKeyProperty =
             DependencyProperty.Register(
                 nameof(ColumnSettingsKey),
@@ -491,6 +508,7 @@ namespace PlayniteAchievements.Views.Controls
         public GameSummariesGridControl()
         {
             InitializeComponent();
+            RarityAppearanceHelper.BindAnimateRarityGlows(this, AnimateRarityGlowsProperty);
             UpdateColumnHeadersVisibility();
         }
 

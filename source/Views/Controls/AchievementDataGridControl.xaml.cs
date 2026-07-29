@@ -11,6 +11,7 @@ using System.Windows.Input;
 using Playnite.SDK;
 using PlayniteAchievements.Common;
 using PlayniteAchievements.Models;
+using PlayniteAchievements.Models.Achievements;
 using PlayniteAchievements.Models.Settings;
 using PlayniteAchievements.Services;
 using PlayniteAchievements.Services.Achievements;
@@ -413,6 +414,23 @@ namespace PlayniteAchievements.Views.Controls
         {
             get => (bool)GetValue(ShowRarityGlowProperty);
             set => SetValue(ShowRarityGlowProperty, value);
+        }
+
+        /// <summary>
+        /// Identifies the AnimateRarityGlows dependency property. When true, rarity glows in this
+        /// grid gently fade in and out. Self-bound to the global setting in the constructor.
+        /// </summary>
+        public static readonly DependencyProperty AnimateRarityGlowsProperty =
+            DependencyProperty.Register(nameof(AnimateRarityGlows), typeof(bool),
+                typeof(AchievementDataGridControl), new PropertyMetadata(true));
+
+        /// <summary>
+        /// Gets or sets whether unlocked achievement icons in this grid pulse their rarity glow.
+        /// </summary>
+        public bool AnimateRarityGlows
+        {
+            get => (bool)GetValue(AnimateRarityGlowsProperty);
+            set => SetValue(AnimateRarityGlowsProperty, value);
         }
 
         /// <summary>
@@ -1790,6 +1808,7 @@ namespace PlayniteAchievements.Views.Controls
         public AchievementDataGridControl()
         {
             InitializeComponent();
+            RarityAppearanceHelper.BindAnimateRarityGlows(this, AnimateRarityGlowsProperty);
             DataContextChanged += OnDataContextChanged;
             Unloaded += OnUnloaded;
             UpdateColumnHeadersVisibility();

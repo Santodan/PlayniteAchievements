@@ -152,6 +152,20 @@
                                                 </MultiDataTrigger.Conditions>
                                                 <Setter Property="Visibility" Value="Visible"/>
                                             </MultiDataTrigger>
+                                            <!-- Fade the completion glow in and out when AnimateRarityGlows is on. -->
+                                            <MultiDataTrigger>
+                                                <MultiDataTrigger.Conditions>
+                                                    <Condition Binding="{Binding IsCompleted}" Value="True"/>
+                                                    <Condition Binding="{Binding ShowCompletionGlow, RelativeSource={RelativeSource AncestorType=controls:GameSummariesGridControl}}" Value="True"/>
+                                                    <Condition Binding="{Binding AnimateRarityGlows, RelativeSource={RelativeSource AncestorType=controls:GameSummariesGridControl}}" Value="True"/>
+                                                </MultiDataTrigger.Conditions>
+                                                <MultiDataTrigger.EnterActions>
+                                                    <BeginStoryboard x:Name="CompletionGlowPulse" Storyboard="{StaticResource PlayAch.Storyboard.RarityGlowPulse}"/>
+                                                </MultiDataTrigger.EnterActions>
+                                                <MultiDataTrigger.ExitActions>
+                                                    <StopStoryboard BeginStoryboardName="CompletionGlowPulse"/>
+                                                </MultiDataTrigger.ExitActions>
+                                            </MultiDataTrigger>
                                         </Style.Triggers>
                                     </Style>
                                 </Border.Style>

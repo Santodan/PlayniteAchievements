@@ -117,6 +117,13 @@
                                        Style="{StaticResource MutedTextStyle}"
                                        Margin="24,0,0,10"
                                        TextWrapping="Wrap"/>
+                            <CheckBox Content="{DynamicResource LOCPlayAch_Settings_AnimateRarityGlows}"
+                                      IsChecked="{Binding Persisted.AnimateRarityGlows}"
+                                      Margin="{StaticResource PlayAch.Thickness.Bottom.Xs}"/>
+                            <TextBlock Text="{DynamicResource LOCPlayAch_Settings_AnimateRarityGlows_Help}"
+                                       Style="{StaticResource MutedTextStyle}"
+                                       Margin="24,0,0,10"
+                                       TextWrapping="Wrap"/>
                             <CheckBox Content="{DynamicResource LOCPlayAch_Settings_ShowTopMenuBarButton}"
                                       IsChecked="{Binding Persisted.ShowTopMenuBarButton}"
                                       Margin="{StaticResource PlayAch.Thickness.Bottom.Xs}"/>

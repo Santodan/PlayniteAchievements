@@ -122,6 +122,7 @@ namespace PlayniteAchievements.Models.Settings
         private HashSet<Guid> _separateLockedIconEnabledGameIds = new HashSet<Guid>();
         private bool _modernCompactListShowRarityGlow = true;
         private bool _modernUnlockedListShowRarityGlow = true;
+        private bool _animateRarityGlows = true;
         private bool _useUniformRarityBadges = false;
         private bool _useTrophiesForRarity = false;
         private bool _roundRarityPercentages = false;
@@ -1399,6 +1400,16 @@ namespace PlayniteAchievements.Models.Settings
         }
 
         /// <summary>
+        /// When true, rarity glows gently fade in and out (a subtle opacity pulse) wherever they
+        /// appear. When false, glows render at static full opacity. Applies globally.
+        /// </summary>
+        public bool AnimateRarityGlows
+        {
+            get => _animateRarityGlows;
+            set => SetValue(ref _animateRarityGlows, value);
+        }
+
+        /// <summary>
         /// When true, all rarity badges use the hexagon shape while keeping rarity colors.
         /// </summary>
         public bool UseUniformRarityBadges
@@ -2403,6 +2414,7 @@ namespace PlayniteAchievements.Models.Settings
                 UseSeparateLockedIconsWhenAvailable = this.UseSeparateLockedIconsWhenAvailable,
                 ModernCompactListShowRarityGlow = this.ModernCompactListShowRarityGlow,
                 ModernUnlockedListShowRarityGlow = this.ModernUnlockedListShowRarityGlow,
+                AnimateRarityGlows = this.AnimateRarityGlows,
                 UseUniformRarityBadges = this.UseUniformRarityBadges,
                 UseTrophiesForRarity = this.UseTrophiesForRarity,
                 RoundRarityPercentages = this.RoundRarityPercentages,
@@ -2552,6 +2564,7 @@ namespace PlayniteAchievements.Models.Settings
             SeparateLockedIconEnabledGameIds = new HashSet<Guid>();
             ModernCompactListShowRarityGlow = defaults.ModernCompactListShowRarityGlow;
             ModernUnlockedListShowRarityGlow = defaults.ModernUnlockedListShowRarityGlow;
+            AnimateRarityGlows = defaults.AnimateRarityGlows;
             UseUniformRarityBadges = defaults.UseUniformRarityBadges;
             UseTrophiesForRarity = defaults.UseTrophiesForRarity;
             RoundRarityPercentages = defaults.RoundRarityPercentages;
