@@ -534,10 +534,8 @@
     <sys:String x:Key="LOCPlayAch_Settings_ToastPosition_TopLeft">Top left</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_ToastShowHeader">Header line</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_ToastShowName">Achievement name</sys:String>
-    <sys:String x:Key="LOCPlayAch_Settings_ToastShowRarityBadge">Rarity badge</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_ToastShowRarityGlow">Rarity glow</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_ToastRarityColoredName">Rarity-colored name</sys:String>
-    <sys:String x:Key="LOCPlayAch_Settings_ToastShowRarityPercent">Rarity percent</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_ToastShowDescription">Description</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_ToastShowGameName">Game name</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_TabNotifications">Notifications</sys:String>
@@ -559,6 +557,11 @@
     <sys:String x:Key="LOCPlayAch_Settings_Style_FollowDefaultHint">This platform follows the default appearance until customized.</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_Style_RevertConfirm">Revert this platform to the default notification appearance? Its custom images will be deleted.</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_Style_ShowProviderIcon">Show provider icon</sys:String>
+    <sys:String x:Key="LOCPlayAch_Settings_Style_Rarity">Rarity</sys:String>
+    <sys:String x:Key="LOCPlayAch_Settings_Style_Rarity_BadgePercentFooter">Badge + percent footer</sys:String>
+    <sys:String x:Key="LOCPlayAch_Settings_Style_Rarity_BadgeFooter">Badge footer</sys:String>
+    <sys:String x:Key="LOCPlayAch_Settings_Style_Rarity_PercentFooter">Percent footer</sys:String>
+    <sys:String x:Key="LOCPlayAch_Settings_Style_Rarity_InlineBadge">Inline badge</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_Style_ShowAccentStrip">Left rarity accent</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_Style_ShowCountdownBar">Timer bar</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_Style_CardWidth">Width</sys:String>
