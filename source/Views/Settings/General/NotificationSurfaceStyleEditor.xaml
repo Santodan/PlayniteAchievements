@@ -65,26 +65,57 @@
 
     <StackPanel IsEnabled="{Binding IsEditable}">
 
-        <!-- Shown fields: which elements appear on the surface. -->
+        <!-- Shown fields: which elements appear on the surface, plus the name-line offset. -->
         <Border Style="{StaticResource EditorCardStyle}">
-            <UniformGrid Columns="2">
-                <CheckBox Content="{DynamicResource LOCPlayAch_Settings_ToastShowHeader}"
-                          IsChecked="{Binding Surface.ShowHeader}"/>
-                <CheckBox Content="{DynamicResource LOCPlayAch_Settings_ToastShowName}"
-                          IsChecked="{Binding Surface.ShowName}"/>
-                <CheckBox Content="{DynamicResource LOCPlayAch_Settings_ToastShowDescription}"
-                          IsChecked="{Binding Surface.ShowDescription}"/>
-                <CheckBox Content="{DynamicResource LOCPlayAch_Settings_ToastShowGameName}"
-                          IsChecked="{Binding Surface.ShowGameName}"/>
-                <CheckBox Content="{DynamicResource LOCPlayAch_Common_Label_Category}"
-                          IsChecked="{Binding Surface.ShowCategory}"/>
-                <CheckBox Content="{DynamicResource LOCPlayAch_Common_UnlockTime}"
-                          IsChecked="{Binding Surface.ShowUnlockTime}"/>
-                <CheckBox Content="{DynamicResource LOCPlayAch_Settings_ToastRarityColoredName}"
-                          IsChecked="{Binding Surface.RarityColoredName}"/>
-                <CheckBox Content="{DynamicResource LOCPlayAch_Common_Label_Platform}"
-                          IsChecked="{Binding Surface.ShowProviderIcon}"/>
-            </UniformGrid>
+            <StackPanel>
+                <UniformGrid Columns="2">
+                    <CheckBox Content="{DynamicResource LOCPlayAch_Settings_ToastShowHeader}"
+                              IsChecked="{Binding Surface.ShowHeader}"/>
+                    <CheckBox Content="{DynamicResource LOCPlayAch_Settings_ToastShowName}"
+                              IsChecked="{Binding Surface.ShowName}"/>
+                    <CheckBox Content="{DynamicResource LOCPlayAch_Settings_ToastShowDescription}"
+                              IsChecked="{Binding Surface.ShowDescription}"/>
+                    <CheckBox Content="{DynamicResource LOCPlayAch_Settings_ToastShowGameName}"
+                              IsChecked="{Binding Surface.ShowGameName}"/>
+                    <CheckBox Content="{DynamicResource LOCPlayAch_Common_Label_Category}"
+                              IsChecked="{Binding Surface.ShowCategory}"/>
+                    <CheckBox Content="{DynamicResource LOCPlayAch_Common_UnlockTime}"
+                              IsChecked="{Binding Surface.ShowUnlockTime}"/>
+                    <CheckBox Content="{DynamicResource LOCPlayAch_Settings_ToastRarityColoredName}"
+                              IsChecked="{Binding Surface.RarityColoredName}"/>
+                    <CheckBox Content="{DynamicResource LOCPlayAch_Common_Label_Platform}"
+                              IsChecked="{Binding Surface.ShowProviderIcon}"/>
+                </UniformGrid>
+
+                <!-- Name-line offset: positive indents the name line (badge included) to the
+                     right; negative pushes the other lines right instead, so the name line never
+                     slides left under the icon. -->
+                <TextBlock Text="{DynamicResource LOCPlayAch_Settings_Style_TitleLineOffset}"
+                           Style="{StaticResource EditorSubGroupHeaderStyle}"/>
+                <Grid HorizontalAlignment="Left"
+                      MinWidth="260">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*"/>
+                        <ColumnDefinition Width="Auto"/>
+                    </Grid.ColumnDefinitions>
+                    <Slider Grid.Column="0"
+                            Minimum="-50"
+                            Maximum="50"
+                            SmallChange="1"
+                            LargeChange="5"
+                            TickFrequency="1"
+                            IsSnapToTickEnabled="True"
+                            Value="{Binding Surface.TitleLineOffset, Mode=TwoWay}"
+                            VerticalAlignment="Center"/>
+                    <TextBlock Grid.Column="1"
+                               Text="{Binding Surface.TitleLineOffset, StringFormat={}{0:0}}"
+                               MinWidth="34"
+                               TextAlignment="Right"
+                               VerticalAlignment="Center"
+                               Margin="8,0,0,0"
+                               Foreground="{DynamicResource PlayAch.Brush.Text}"/>
+                </Grid>
+            </StackPanel>
         </Border>
 
         <!-- Rarity badge/percent and glow layouts, each a single dropdown, on aligned rows. -->
@@ -332,34 +363,6 @@
                         </DataTemplate>
                     </ComboBox.ItemTemplate>
                 </ComboBox>
-
-                <!-- Slides the whole achievement-name line (badge included) left/right so it can
-                     be aligned with the rows below. -->
-                <TextBlock Text="{DynamicResource LOCPlayAch_Settings_Style_TitleLineOffset}"
-                           Style="{StaticResource EditorSubGroupHeaderStyle}"/>
-                <Grid HorizontalAlignment="Left"
-                      MinWidth="260">
-                    <Grid.ColumnDefinitions>
-                        <ColumnDefinition Width="*"/>
-                        <ColumnDefinition Width="Auto"/>
-                    </Grid.ColumnDefinitions>
-                    <Slider Grid.Column="0"
-                            Minimum="-50"
-                            Maximum="50"
-                            SmallChange="1"
-                            LargeChange="5"
-                            TickFrequency="1"
-                            IsSnapToTickEnabled="True"
-                            Value="{Binding Surface.TitleLineOffset, Mode=TwoWay}"
-                            VerticalAlignment="Center"/>
-                    <TextBlock Grid.Column="1"
-                               Text="{Binding Surface.TitleLineOffset, StringFormat={}{0:0}}"
-                               MinWidth="34"
-                               TextAlignment="Right"
-                               VerticalAlignment="Center"
-                               Margin="8,0,0,0"
-                               Foreground="{DynamicResource PlayAch.Brush.Text}"/>
-                </Grid>
             </StackPanel>
         </Border>
 

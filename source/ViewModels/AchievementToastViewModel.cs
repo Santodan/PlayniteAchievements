@@ -535,6 +535,13 @@ namespace PlayniteAchievements.ViewModels
             // two rows together stay within the card instead of overflowing.
             var descriptionMaxLines = (showGameName || showCategory) ? 1 : 2;
 
+            // Name-line offset: a positive value indents the title line to the right; a negative
+            // value indents every other line instead, so the title line (with its inline badge)
+            // never slides left under the icon column.
+            var offset = surface.TitleLineOffset;
+            var titleIndent = offset > 0 ? offset : 0;
+            var otherIndent = offset < 0 ? -offset : 0;
+
             var lines = new List<ToastLineDescriptor>(NotificationSurfaceStyle.DefaultLineOrder.Count);
             foreach (var token in NotificationSurfaceStyle.CanonicalizeLineOrder(surface.LineOrder))
             {
@@ -558,8 +565,7 @@ namespace PlayniteAchievements.ViewModels
                             isFrame ? FrameShowName : ShowName,
                             isFrame ? FrameTitleBrush : TitleBrush,
                             isFrame ? FrameShowInlineBadge : ShowInlineBadge,
-                            isFrame ? (object)FrameBadgeImage : ToastBadgeSource,
-                            surface.TitleLineOffset));
+                            isFrame ? (object)FrameBadgeImage : ToastBadgeSource));
                         break;
                     case NotificationSurfaceStyle.LineDescription:
                         lines.Add(new ToastDescriptionLine(
@@ -579,6 +585,11 @@ namespace PlayniteAchievements.ViewModels
                             isFrame ? FrameShowGameCategorySeparator : ShowGameCategorySeparator));
                         break;
                 }
+            }
+
+            foreach (var line in lines)
+            {
+                line.LeftIndent = line is ToastTitleLine ? titleIndent : otherIndent;
             }
 
             return lines;

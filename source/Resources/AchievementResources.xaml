@@ -155,7 +155,7 @@
              notifications force the title, swap it for "Game Complete!", and color it with the
              completed brush. -->
         <DockPanel LastChildFill="True"
-                   Margin="{Binding TitleLineMargin}">
+                   Margin="0,1,0,0">
             <Image DockPanel.Dock="Left"
                    helpers:AsyncImage.Uri="{Binding InlineBadgeSource}"
                    helpers:AsyncImage.DecodePixel="64"
@@ -412,7 +412,14 @@
                               VerticalAlignment="Center"
                               IsTabStop="False"
                               ClipToBounds="True"
-                              ItemsSource="{Binding ToastLines}"/>
+                              ItemsSource="{Binding ToastLines}">
+                    <ItemsControl.ItemContainerStyle>
+                        <!-- Per-line left indent for the name-line offset (see LeftIndent). -->
+                        <Style TargetType="ContentPresenter">
+                            <Setter Property="Margin" Value="{Binding LeftIndentMargin}"/>
+                        </Style>
+                    </ItemsControl.ItemContainerStyle>
+                </ItemsControl>
                     </Grid>
 
                     <!-- Countdown bar: depletes over the toast's display duration. The service runs
@@ -561,7 +568,14 @@
                                   IsTabStop="False"
                                   ClipToBounds="True"
                                   Margin="26,0,22,0"
-                                  ItemsSource="{Binding FrameLines}"/>
+                                  ItemsSource="{Binding FrameLines}">
+                        <ItemsControl.ItemContainerStyle>
+                            <!-- Per-line left indent for the name-line offset (see LeftIndent). -->
+                            <Style TargetType="ContentPresenter">
+                                <Setter Property="Margin" Value="{Binding LeftIndentMargin}"/>
+                            </Style>
+                        </ItemsControl.ItemContainerStyle>
+                    </ItemsControl>
 
                     <!-- Provider icon, vertically centered (toggleable). The converter yields a
                          DrawingImage, which renders synchronously offscreen. -->

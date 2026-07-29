@@ -27,6 +27,17 @@ namespace PlayniteAchievements.ViewModels
         // Bound as a local value on each line TextBlock: the shared TextBlock base style sets
         // FontFamily via a style setter, which would beat an inherited TextElement.FontFamily.
         public FontFamily FontFamily { get; }
+
+        /// <summary>
+        /// Horizontal left indent (DIPs) applied to this line through the ItemsControl item
+        /// container. Drives the name-line offset: a positive offset indents the title line, a
+        /// negative offset indents the remaining lines instead, so the title line (with its inline
+        /// badge) never slides left under the icon column.
+        /// </summary>
+        public double LeftIndent { get; set; }
+
+        /// <summary>The <see cref="LeftIndent"/> expressed as a left-only margin for the container.</summary>
+        public Thickness LeftIndentMargin => new Thickness(LeftIndent, 0, 0, 0);
     }
 
     /// <summary>
@@ -72,15 +83,13 @@ namespace PlayniteAchievements.ViewModels
             bool showName,
             Brush titleBrush,
             bool showInlineBadge,
-            object inlineBadgeSource,
-            double lineOffset)
+            object inlineBadgeSource)
             : base(parent, fontSize, fontFamily)
         {
             ShowName = showName;
             TitleBrush = titleBrush;
             ShowInlineBadge = showInlineBadge;
             InlineBadgeSource = inlineBadgeSource;
-            LineOffset = lineOffset;
         }
 
         public bool ShowName { get; }
@@ -105,16 +114,6 @@ namespace PlayniteAchievements.ViewModels
         /// </summary>
         public double InlineBadgeSize => FontSize * AchievementToastViewModel.BadgeToTitleRatio;
 
-        /// <summary>
-        /// User-set horizontal offset (DIPs) for the whole title line, including the inline badge.
-        /// </summary>
-        public double LineOffset { get; }
-
-        /// <summary>
-        /// Margin for the title row: the user's horizontal offset on the left (so the whole line,
-        /// badge included, can be slid to align with the rows below) plus the fixed 1px top gap.
-        /// </summary>
-        public Thickness TitleLineMargin => new Thickness(LineOffset, 1, 0, 0);
     }
 
     /// <summary>
