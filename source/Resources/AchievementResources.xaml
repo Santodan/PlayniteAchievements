@@ -223,6 +223,7 @@
                   DataType="{x:Type vm:AchievementToastViewModel}">
         <Border Width="{Binding ToastCardWidth}"
                 Height="{Binding ToastCardHeight}"
+                MinHeight="64"
                 Margin="14"
                 CornerRadius="8"
                 Background="{DynamicResource PlayAch.Brush.PopupSurface}"

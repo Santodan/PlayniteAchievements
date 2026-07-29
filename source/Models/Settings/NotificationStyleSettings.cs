@@ -264,9 +264,10 @@ namespace PlayniteAchievements.Models.Settings
         }
 
         /// <summary>
-        /// Toast card height in DIPs, or null for the default (120). A fixed height (not a
-        /// minimum): the card renders at exactly this height and clamped text fits within it,
-        /// so the background image keeps its aspect ratio. Toast surface only.
+        /// Toast card height in DIPs, or null to size to content (the natural height, floored by
+        /// the template's MinHeight). When set, it is a fixed height — the card renders at exactly
+        /// this height and clamped text fits within it, so a background image keeps its aspect
+        /// ratio. Toast surface only.
         /// </summary>
         public double? CardHeight
         {

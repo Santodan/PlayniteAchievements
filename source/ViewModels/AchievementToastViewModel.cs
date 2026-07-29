@@ -9,6 +9,7 @@ using Playnite.SDK;
 using PlayniteAchievements.Models;
 using PlayniteAchievements.Models.Achievements;
 using PlayniteAchievements.Models.Settings;
+using PlayniteAchievements.Services.GameCustomData;
 using PlayniteAchievements.Services.UI;
 
 namespace PlayniteAchievements.ViewModels
@@ -40,13 +41,29 @@ namespace PlayniteAchievements.ViewModels
         public AchievementToastViewModel(
             AchievementUnlockedEventArgs args,
             PersistedSettings settings,
-            NotificationStyleSettings styleOverride = null)
+            NotificationStyleSettings styleOverride = null,
+            GameCustomDataStore gameCustomDataStore = null,
+            bool? toastUseThemeStylingOverride = null,
+            bool? frameUseThemeStylingOverride = null)
         {
             _args = args ?? new AchievementUnlockedEventArgs();
             _settings = settings ?? new PersistedSettings();
-            _style = styleOverride ?? NotificationStyleResolver.Resolve(_settings, _args.ProviderKey);
+            var resolved = NotificationStyleResolver.ResolveAppearance(
+                _settings,
+                _args.ProviderKey,
+                _args.PlayniteGameId,
+                gameCustomDataStore);
+            _style = styleOverride ?? resolved.Style;
+            ToastUseThemeStyling =
+                toastUseThemeStylingOverride ?? resolved.ToastUseThemeStyling;
+            FrameUseThemeStyling =
+                frameUseThemeStylingOverride ?? resolved.FrameUseThemeStyling;
             _rarity = ParseRarity(_args.RarityTier);
         }
+
+        public bool ToastUseThemeStyling { get; }
+
+        public bool FrameUseThemeStyling { get; }
 
         public bool IsFriendUnlock => _args.IsFriendUnlock;
 
@@ -468,7 +485,10 @@ namespace PlayniteAchievements.ViewModels
 
         // User toast card dimensions, falling back to the bundled template's defaults.
         public double ToastCardWidth => _style.Toast.CardWidth is double w && w > 0 ? w : 410;
-        public double ToastCardHeight => _style.Toast.CardHeight is double h && h > 0 ? h : 120;
+
+        // NaN maps to WPF "Auto": with no explicit height the card sizes to its content (its
+        // natural height), floored by the template's MinHeight. A set value fixes the height.
+        public double ToastCardHeight => _style.Toast.CardHeight is double h && h > 0 ? h : double.NaN;
 
         // User toast background image (frames never get a background). Missing files fall
         // back to the default surface brush via HasToastBackground.
