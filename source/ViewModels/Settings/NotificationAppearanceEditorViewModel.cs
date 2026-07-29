@@ -369,6 +369,50 @@ namespace PlayniteAchievements.ViewModels.Settings
                 nameof(CardMinHeightText));
         }
 
+        /// <summary>
+        /// Custom countdown-bar color hex, or blank to follow the default progress brush.
+        /// Writing it updates the swatch and persists.
+        /// </summary>
+        public string CountdownBarColorText
+        {
+            get => Surface?.CountdownBarColor ?? string.Empty;
+            set
+            {
+                var surface = Surface;
+                if (surface == null || !_isEditable)
+                {
+                    return;
+                }
+
+                surface.CountdownBarColor = string.IsNullOrWhiteSpace(value) ? null : value.Trim();
+            }
+        }
+
+        /// <summary>Preview swatch for the countdown-bar color (custom color, else default).</summary>
+        public Brush CountdownBarSwatch
+        {
+            get
+            {
+                var color = Surface?.CountdownBarColor;
+                if (!string.IsNullOrWhiteSpace(color))
+                {
+                    try
+                    {
+                        var brush = new SolidColorBrush((Color)ColorConverter.ConvertFromString(color));
+                        brush.Freeze();
+                        return brush;
+                    }
+                    catch
+                    {
+                        // Malformed stored color; show the default.
+                    }
+                }
+
+                return System.Windows.Application.Current?.TryFindResource("PlayAch.Brush.Progress.Fill") as Brush
+                       ?? Brushes.Gray;
+            }
+        }
+
         #endregion
 
         #region Header texts (pending until Apply; toast surface hosts the shared group)
@@ -753,6 +797,8 @@ namespace PlayniteAchievements.ViewModels.Settings
             OnPropertyChanged(nameof(SelectedFontFamilyOption));
             OnPropertyChanged(nameof(SelectedRarityBadgeDisplay));
             OnPropertyChanged(nameof(SelectedGlowDisplay));
+            OnPropertyChanged(nameof(CountdownBarColorText));
+            OnPropertyChanged(nameof(CountdownBarSwatch));
         }
 
         private void Subscribe()
@@ -850,6 +896,11 @@ namespace PlayniteAchievements.ViewModels.Settings
                      e.PropertyName == nameof(NotificationSurfaceStyle.CardMinHeight))
             {
                 RefreshCardDimensions();
+            }
+            else if (e.PropertyName == nameof(NotificationSurfaceStyle.CountdownBarColor))
+            {
+                OnPropertyChanged(nameof(CountdownBarColorText));
+                OnPropertyChanged(nameof(CountdownBarSwatch));
             }
             else if (e.PropertyName == nameof(NotificationSurfaceStyle.ShowRarityBadge) ||
                      e.PropertyName == nameof(NotificationSurfaceStyle.ShowRarityPercent) ||

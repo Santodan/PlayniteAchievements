@@ -70,6 +70,8 @@ namespace PlayniteAchievements.Views.Settings.General
             // this section's inherited settings DataContext.
             ToastEditor.DataContext = _toastEditorViewModel;
             FrameEditor.DataContext = _frameEditorViewModel;
+            ToastEditor.ColorPicker = (owner, current) => _plugin.PickColor(owner, current);
+            FrameEditor.ColorPicker = (owner, current) => _plugin.PickColor(owner, current);
 
             PlatformSelector.ItemsSource = BuildPlatformOptions();
             PlatformSelector.SelectedIndex = 0;

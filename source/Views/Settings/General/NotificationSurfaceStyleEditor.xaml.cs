@@ -47,6 +47,35 @@ namespace PlayniteAchievements.Views.Settings.General
         private NotificationAppearanceEditorViewModel ViewModel =>
             DataContext as NotificationAppearanceEditorViewModel;
 
+        /// <summary>
+        /// Opens a color picker (owner window, current value) → chosen color, or null if
+        /// cancelled. Set by the host section so the editor can reuse the plugin's picker.
+        /// </summary>
+        public Func<Window, string, string> ColorPicker { get; set; }
+
+        private void PickCountdownColor_Click(object sender, RoutedEventArgs e)
+        {
+            var viewModel = ViewModel;
+            if (viewModel == null || ColorPicker == null)
+            {
+                return;
+            }
+
+            var picked = ColorPicker(Window.GetWindow(this), viewModel.CountdownBarColorText);
+            if (!string.IsNullOrWhiteSpace(picked))
+            {
+                viewModel.CountdownBarColorText = picked;
+            }
+        }
+
+        private void ResetCountdownColor_Click(object sender, RoutedEventArgs e)
+        {
+            if (ViewModel != null)
+            {
+                ViewModel.CountdownBarColorText = null;
+            }
+        }
+
         private async void ImageBrowse_Click(object sender, RoutedEventArgs e)
         {
             var viewModel = ViewModel;
