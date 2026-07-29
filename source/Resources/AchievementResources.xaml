@@ -155,11 +155,11 @@
              notifications force the title, swap it for "Game Complete!", and color it with the
              completed brush. -->
         <StackPanel Orientation="Horizontal"
-                    Margin="0,1,0,0">
+                    Margin="{Binding InlineBadgeLineMargin}">
             <Image helpers:AsyncImage.Uri="{Binding InlineBadgeSource}"
                    helpers:AsyncImage.DecodePixel="64"
-                   Width="{Binding FontSize}"
-                   Height="{Binding FontSize}"
+                   Width="{Binding InlineBadgeSize}"
+                   Height="{Binding InlineBadgeSize}"
                    VerticalAlignment="Center"
                    Margin="0,0,5,0"
                    RenderOptions.BitmapScalingMode="HighQuality"
@@ -341,7 +341,7 @@
                 <StackPanel Grid.Column="0"
                             VerticalAlignment="Center"
                             HorizontalAlignment="Center"
-                            Margin="0,0,26,0">
+                            Margin="0,0,13,0">
                     <Grid Width="55"
                           Height="55"
                           HorizontalAlignment="Center">
@@ -378,8 +378,8 @@
                              animated GIF badges animating. -->
                         <Image helpers:AsyncImage.Uri="{Binding ToastBadgeSource}"
                                helpers:AsyncImage.DecodePixel="64"
-                               Width="21"
-                               Height="21"
+                               Width="26"
+                               Height="26"
                                VerticalAlignment="Center"
                                RenderOptions.BitmapScalingMode="HighQuality"
                                Visibility="{Binding ShowBadge, Converter={StaticResource BooleanToVisibilityConverter}}"/>
@@ -524,8 +524,8 @@
                             <!-- Sync-loaded custom badge image (offscreen render contract);
                                  animated GIF badges contribute their first frame here. -->
                             <Image Source="{Binding FrameBadgeImage}"
-                                   Width="28"
-                                   Height="28"
+                                   Width="34"
+                                   Height="34"
                                    VerticalAlignment="Center"
                                    RenderOptions.BitmapScalingMode="HighQuality"
                                    Visibility="{Binding FrameShowBadge, Converter={StaticResource BooleanToVisibilityConverter}}"/>
