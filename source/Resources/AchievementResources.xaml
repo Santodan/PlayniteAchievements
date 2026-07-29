@@ -417,7 +417,7 @@
                             Margin="0,8,0,0"
                             CornerRadius="2"
                             HorizontalAlignment="Stretch"
-                            Background="{DynamicResource PlayAch.Brush.Progress.Fill}"
+                            Background="{Binding CountdownBarBrush}"
                             Visibility="{Binding ShowCountdownBar, Converter={StaticResource BooleanToVisibilityConverter}}"
                             RenderTransformOrigin="0,0">
                         <Border.RenderTransform>

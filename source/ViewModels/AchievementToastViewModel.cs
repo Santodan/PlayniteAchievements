@@ -284,6 +284,32 @@ namespace PlayniteAchievements.ViewModels
         /// capstones, otherwise the rarity color). Completion notifications keep this untouched —
         /// the templates restyle them with the palette below.
         /// </summary>
+        // Countdown timer bar fill: the user's custom color when set, else the default
+        // progress-fill brush. Toast surface only.
+        public Brush CountdownBarBrush
+        {
+            get
+            {
+                var color = _style.Toast.CountdownBarColor;
+                if (!string.IsNullOrWhiteSpace(color))
+                {
+                    try
+                    {
+                        var brush = new SolidColorBrush((Color)ColorConverter.ConvertFromString(color));
+                        brush.Freeze();
+                        return brush;
+                    }
+                    catch
+                    {
+                        // Fall through to the default brush on a malformed stored color.
+                    }
+                }
+
+                return Application.Current?.TryFindResource("PlayAch.Brush.Progress.Fill") as Brush
+                       ?? Brushes.Gray;
+            }
+        }
+
         public Brush AccentBrush => IsCapstone
             ? RarityAppearanceHelper.GetCompletedBrush(_settings)
             : RarityAppearanceHelper.GetBrush(_rarity, _settings);
