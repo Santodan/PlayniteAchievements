@@ -25,37 +25,6 @@
     <converters:PercentToCompactRarityGlowConverter x:Key="CompactPercentToRarityGlow"/>
     <converters:RarityToShineBrushConverter x:Key="RarityToShineBrush"/>
     <converters:PercentToRarityBadgeConverter x:Key="PercentToRarityBadgeConverter"/>
-
-    <!-- Subtle fade in/out pulse for rarity glows. Begun on the glow's BitmapCache layer so it
-         animates that element's composite opacity (not the frozen DropShadowEffect); the blur
-         stays cached and only the opacity multiplies per frame. Gated per surface on
-         PersistedSettings.AnimateRarityGlows via the glow-layer style triggers. -->
-    <Storyboard x:Key="PlayAch.Storyboard.RarityGlowPulse"
-                RepeatBehavior="Forever"
-                AutoReverse="True">
-        <DoubleAnimation Storyboard.TargetProperty="Opacity"
-                         From="0.6" To="1.0"
-                         Duration="0:0:3">
-            <DoubleAnimation.EasingFunction>
-                <SineEase EasingMode="EaseInOut"/>
-            </DoubleAnimation.EasingFunction>
-        </DoubleAnimation>
-    </Storyboard>
-
-    <!-- Same pulse, but on a DropShadowEffect's own Opacity for glows applied directly as an
-         element Effect (the toast card border glow), where the glow can't be isolated onto its
-         own layer. The effect must be unfrozen for this to animate. -->
-    <Storyboard x:Key="PlayAch.Storyboard.RarityGlowEffectPulse"
-                RepeatBehavior="Forever"
-                AutoReverse="True">
-        <DoubleAnimation Storyboard.TargetProperty="(UIElement.Effect).(DropShadowEffect.Opacity)"
-                         From="0.6" To="1.0"
-                         Duration="0:0:3">
-            <DoubleAnimation.EasingFunction>
-                <SineEase EasingMode="EaseInOut"/>
-            </DoubleAnimation.EasingFunction>
-        </DoubleAnimation>
-    </Storyboard>
     <converters:LockedIconSelectorConverter x:Key="LockedIconSelectorConverter"/>
     <converters:ImageFitDimensionConverter x:Key="ImageFitDimension"/>
     <converters:GameMetadataTextConverter x:Key="GameMetadataText"/>

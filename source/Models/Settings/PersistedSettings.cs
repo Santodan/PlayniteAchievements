@@ -123,6 +123,9 @@ namespace PlayniteAchievements.Models.Settings
         private bool _modernCompactListShowRarityGlow = true;
         private bool _modernUnlockedListShowRarityGlow = true;
         private bool _animateRarityGlows = true;
+        private double _rarityGlowPulseMinOpacity = 0.6;
+        private double _rarityGlowPulseMaxOpacity = 1.0;
+        private double _rarityGlowPulseSpeed = 0.5;
         private bool _useUniformRarityBadges = false;
         private bool _useTrophiesForRarity = false;
         private bool _roundRarityPercentages = false;
@@ -1410,6 +1413,38 @@ namespace PlayniteAchievements.Models.Settings
         }
 
         /// <summary>
+        /// Low endpoint of the rarity-glow pulse, 0-1 (clamped). The glow fades between this and
+        /// <see cref="RarityGlowPulseMaxOpacity"/>. Higher = subtler pulse.
+        /// </summary>
+        public double RarityGlowPulseMinOpacity
+        {
+            get => _rarityGlowPulseMinOpacity;
+            set => SetValue(ref _rarityGlowPulseMinOpacity, Clamp01(value));
+        }
+
+        /// <summary>
+        /// High endpoint of the rarity-glow pulse, 0-1 (clamped). Usually 1.0 (full brightness);
+        /// lower values keep the glow from ever reaching full.
+        /// </summary>
+        public double RarityGlowPulseMaxOpacity
+        {
+            get => _rarityGlowPulseMaxOpacity;
+            set => SetValue(ref _rarityGlowPulseMaxOpacity, Clamp01(value));
+        }
+
+        /// <summary>
+        /// Pulse speed as a normalized 0-1 value (clamped): 0 = slowest, 1 = fastest. Mapped to a
+        /// concrete fade duration where the pulse is applied.
+        /// </summary>
+        public double RarityGlowPulseSpeed
+        {
+            get => _rarityGlowPulseSpeed;
+            set => SetValue(ref _rarityGlowPulseSpeed, Clamp01(value));
+        }
+
+        private static double Clamp01(double value) => value < 0.0 ? 0.0 : (value > 1.0 ? 1.0 : value);
+
+        /// <summary>
         /// When true, all rarity badges use the hexagon shape while keeping rarity colors.
         /// </summary>
         public bool UseUniformRarityBadges
@@ -2415,6 +2450,9 @@ namespace PlayniteAchievements.Models.Settings
                 ModernCompactListShowRarityGlow = this.ModernCompactListShowRarityGlow,
                 ModernUnlockedListShowRarityGlow = this.ModernUnlockedListShowRarityGlow,
                 AnimateRarityGlows = this.AnimateRarityGlows,
+                RarityGlowPulseMinOpacity = this.RarityGlowPulseMinOpacity,
+                RarityGlowPulseMaxOpacity = this.RarityGlowPulseMaxOpacity,
+                RarityGlowPulseSpeed = this.RarityGlowPulseSpeed,
                 UseUniformRarityBadges = this.UseUniformRarityBadges,
                 UseTrophiesForRarity = this.UseTrophiesForRarity,
                 RoundRarityPercentages = this.RoundRarityPercentages,
@@ -2565,6 +2603,9 @@ namespace PlayniteAchievements.Models.Settings
             ModernCompactListShowRarityGlow = defaults.ModernCompactListShowRarityGlow;
             ModernUnlockedListShowRarityGlow = defaults.ModernUnlockedListShowRarityGlow;
             AnimateRarityGlows = defaults.AnimateRarityGlows;
+            RarityGlowPulseMinOpacity = defaults.RarityGlowPulseMinOpacity;
+            RarityGlowPulseMaxOpacity = defaults.RarityGlowPulseMaxOpacity;
+            RarityGlowPulseSpeed = defaults.RarityGlowPulseSpeed;
             UseUniformRarityBadges = defaults.UseUniformRarityBadges;
             UseTrophiesForRarity = defaults.UseTrophiesForRarity;
             RoundRarityPercentages = defaults.RoundRarityPercentages;

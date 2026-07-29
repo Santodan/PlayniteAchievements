@@ -141,6 +141,9 @@ namespace PlayniteAchievements.Models.Settings
             target.ModernCompactListShowRarityGlow = source.ModernCompactListShowRarityGlow;
             target.ModernUnlockedListShowRarityGlow = source.ModernUnlockedListShowRarityGlow;
             target.AnimateRarityGlows = source.AnimateRarityGlows;
+            target.RarityGlowPulseMinOpacity = source.RarityGlowPulseMinOpacity;
+            target.RarityGlowPulseMaxOpacity = source.RarityGlowPulseMaxOpacity;
+            target.RarityGlowPulseSpeed = source.RarityGlowPulseSpeed;
             target.UseUniformRarityBadges = source.UseUniformRarityBadges;
             target.UseTrophiesForRarity = source.UseTrophiesForRarity;
             target.RoundRarityPercentages = source.RoundRarityPercentages;

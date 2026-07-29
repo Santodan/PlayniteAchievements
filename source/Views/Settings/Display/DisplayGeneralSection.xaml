@@ -7,6 +7,7 @@
              xmlns:base="clr-namespace:PlayniteAchievements.Views.ThemeIntegration.Base"
              xmlns:modern="clr-namespace:PlayniteAchievements.Views.ThemeIntegration.Modern"
              xmlns:settings="clr-namespace:PlayniteAchievements.Models.Settings"
+             xmlns:helpers="clr-namespace:PlayniteAchievements.Views.Helpers"
              mc:Ignorable="d"
              d:DesignHeight="600"
              d:DesignWidth="700">
@@ -122,8 +123,49 @@
                                       Margin="{StaticResource PlayAch.Thickness.Bottom.Xs}"/>
                             <TextBlock Text="{DynamicResource LOCPlayAch_Settings_AnimateRarityGlows_Help}"
                                        Style="{StaticResource MutedTextStyle}"
-                                       Margin="24,0,0,10"
+                                       Margin="24,0,0,6"
                                        TextWrapping="Wrap"/>
+                            <Grid Margin="24,0,0,10"
+                                  IsEnabled="{Binding Persisted.AnimateRarityGlows}">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="Auto"/>
+                                    <ColumnDefinition Width="Auto"/>
+                                </Grid.ColumnDefinitions>
+                                <Grid.RowDefinitions>
+                                    <RowDefinition Height="Auto"/>
+                                    <RowDefinition Height="Auto"/>
+                                    <RowDefinition Height="Auto"/>
+                                </Grid.RowDefinitions>
+                                <TextBlock Grid.Row="0" Grid.Column="0"
+                                           Text="{DynamicResource LOCPlayAch_Settings_RarityGlowPulseMinOpacity}"
+                                           Foreground="{DynamicResource PlayAch.Brush.Text}"
+                                           VerticalAlignment="Center"
+                                           Margin="0,0,8,6"/>
+                                <TextBox Grid.Row="0" Grid.Column="1"
+                                         helpers:UnitIntervalInput.Value="{Binding Persisted.RarityGlowPulseMinOpacity, Mode=TwoWay}"
+                                         Width="{StaticResource PlayAch.Size.Input.NarrowWidth}"
+                                         TextAlignment="Right"
+                                         Margin="0,0,0,6"/>
+                                <TextBlock Grid.Row="1" Grid.Column="0"
+                                           Text="{DynamicResource LOCPlayAch_Settings_RarityGlowPulseMaxOpacity}"
+                                           Foreground="{DynamicResource PlayAch.Brush.Text}"
+                                           VerticalAlignment="Center"
+                                           Margin="0,0,8,6"/>
+                                <TextBox Grid.Row="1" Grid.Column="1"
+                                         helpers:UnitIntervalInput.Value="{Binding Persisted.RarityGlowPulseMaxOpacity, Mode=TwoWay}"
+                                         Width="{StaticResource PlayAch.Size.Input.NarrowWidth}"
+                                         TextAlignment="Right"
+                                         Margin="0,0,0,6"/>
+                                <TextBlock Grid.Row="2" Grid.Column="0"
+                                           Text="{DynamicResource LOCPlayAch_Settings_RarityGlowPulseSpeed}"
+                                           Foreground="{DynamicResource PlayAch.Brush.Text}"
+                                           VerticalAlignment="Center"
+                                           Margin="0,0,8,0"/>
+                                <TextBox Grid.Row="2" Grid.Column="1"
+                                         helpers:UnitIntervalInput.Value="{Binding Persisted.RarityGlowPulseSpeed, Mode=TwoWay}"
+                                         Width="{StaticResource PlayAch.Size.Input.NarrowWidth}"
+                                         TextAlignment="Right"/>
+                            </Grid>
                             <CheckBox Content="{DynamicResource LOCPlayAch_Settings_ShowTopMenuBarButton}"
                                       IsChecked="{Binding Persisted.ShowTopMenuBarButton}"
                                       Margin="{StaticResource PlayAch.Thickness.Bottom.Xs}"/>

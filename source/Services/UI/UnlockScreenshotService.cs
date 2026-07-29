@@ -5,6 +5,7 @@ using System.Drawing.Imaging;
 using System.Globalization;
 using System.IO;
 using System.Runtime.InteropServices;
+using System.Text;
 using System.Windows.Forms;
 using Playnite.SDK;
 using PlayniteAchievements.Services.Images;
@@ -285,7 +286,7 @@ namespace PlayniteAchievements.Services.UI
             string variantSuffix = null,
             string extension = ".png")
         {
-            var game = AchievementIconCachePathBuilder.SanitizeSegment(gameName);
+            var game = SanitizeCaptureGameName(gameName);
             var name = AchievementIconCachePathBuilder.SanitizeSegment(achievementName);
 
             var width = Math.Max(3, Math.Max(1, total).ToString(CultureInfo.InvariantCulture).Length);
@@ -298,6 +299,24 @@ namespace PlayniteAchievements.Services.UI
                 ? string.Empty
                 : $"_{AchievementIconCachePathBuilder.SanitizeSegment(variantSuffix)}";
             return (game, $"{prefix}_{name}{suffix}{extension}");
+        }
+
+        private static string SanitizeCaptureGameName(string gameName)
+        {
+            var invalidChars = Path.GetInvalidFileNameChars();
+            var builder = new StringBuilder(gameName?.Length ?? 0);
+
+            foreach (var c in gameName ?? string.Empty)
+            {
+                if (char.IsControl(c) || Array.IndexOf(invalidChars, c) >= 0)
+                {
+                    continue;
+                }
+
+                builder.Append(c);
+            }
+
+            return AchievementIconCachePathBuilder.SanitizeSegment(builder.ToString());
         }
 
         /// <summary>
