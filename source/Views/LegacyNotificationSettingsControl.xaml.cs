@@ -1841,6 +1841,28 @@ namespace PlayniteAchievements.Views
             localSettings.ScreenshotSaveFolder = selectedPath;
         }
 
+        private void NotificationsRecordingFfmpegBrowse_Click(object sender, RoutedEventArgs e)
+        {
+            var selectedPath = _plugin?.PlayniteApi?.Dialogs?.SelectFile("ffmpeg.exe|ffmpeg.exe|Executable files|*.exe");
+            if (string.IsNullOrWhiteSpace(selectedPath))
+                return;
+
+            var localSettings = _providerRegistry?.GetSettingsForEdit("Local") as Providers.Local.LocalSettings;
+            if (localSettings != null)
+                localSettings.FfmpegPath = selectedPath;
+        }
+
+        private void NotificationsRecordingSaveFolder_Click(object sender, RoutedEventArgs e)
+        {
+            var selectedPath = _plugin?.PlayniteApi?.Dialogs?.SelectFolder();
+            if (string.IsNullOrWhiteSpace(selectedPath))
+                return;
+
+            var localSettings = _providerRegistry?.GetSettingsForEdit("Local") as Providers.Local.LocalSettings;
+            if (localSettings != null)
+                localSettings.RecordingSaveFolder = selectedPath;
+        }
+
         private void NotificationsTestUnlockSoundButton_Click(object sender, RoutedEventArgs e)
         {
             var localSettings = _providerRegistry?.GetSettingsForEdit("Local") as Providers.Local.LocalSettings;

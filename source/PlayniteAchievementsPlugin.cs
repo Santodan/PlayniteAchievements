@@ -334,12 +334,33 @@ namespace PlayniteAchievements
             try
             {
                 _providerRegistry?.PersistAllProviderSettings(false);
+                ApplyCustomRecordingSettings();
                 SavePluginSettings(_settingsViewModel.Settings);
             }
             catch (Exception ex)
             {
                 _logger?.Warn(ex, "Failed to persist plugin settings.");
             }
+        }
+
+        private void ApplyCustomRecordingSettings()
+        {
+            var custom = ProviderRegistry.Settings<Providers.Local.LocalSettings>();
+            var persisted = _settingsViewModel?.Settings?.Persisted;
+            if (custom?.EnableActiveGameMonitoring != true || persisted == null)
+            {
+                return;
+            }
+
+            persisted.EnableUnlockRecordings = custom.EnableUnlockRecordings;
+            persisted.FfmpegPath = custom.FfmpegPath;
+            persisted.UnlockRecordingDirectory = custom.RecordingSaveFolder;
+            persisted.RecordingClipSeconds = custom.RecordingClipSeconds;
+            persisted.RecordingFps = custom.RecordingFps;
+            persisted.RecordingResolution = custom.RecordingResolution;
+            persisted.RecordingEncoder = custom.RecordingEncoder;
+            persisted.RecordingCaptureBackend = custom.RecordingCaptureBackend;
+            persisted.RecordingIncludeAudio = custom.RecordingIncludeAudio;
         }
 
         // Public bridge method for external helpers/themes that used to target SuccessStory via reflection.
@@ -581,6 +602,7 @@ namespace PlayniteAchievements
                     }
 
                     _notifications = new NotificationPublisher(api, settings, _logger);
+                    ApplyCustomRecordingSettings();
                     _refreshCoordinator = new RefreshEntryPoint(
                         _refreshService,
                         _logger,

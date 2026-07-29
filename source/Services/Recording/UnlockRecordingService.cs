@@ -10,6 +10,9 @@ using Playnite.SDK;
 using PlayniteAchievements.Models;
 using PlayniteAchievements.Models.Settings;
 using PlayniteAchievements.Services.UI;
+using PlayniteAchievements.Providers;
+using PlayniteAchievements.Providers.Local;
+using PlayniteAchievements.Services.Local;
 
 namespace PlayniteAchievements.Services.Recording
 {
@@ -143,6 +146,7 @@ namespace PlayniteAchievements.Services.Recording
         private sealed class ClipRequest
         {
             public CaptureSession Session;
+            public Guid PlayniteGameId;
             public string ProviderKey;
             public string GameName;
             public string AchievementName;
@@ -767,6 +771,7 @@ namespace PlayniteAchievements.Services.Recording
             var request = new ClipRequest
             {
                 Session = session,
+                PlayniteGameId = e.PlayniteGameId,
                 ProviderKey = e.ProviderKey,
                 GameName = e.GameName,
                 // Resolved through the shared helper so completion notifications (no
@@ -1253,6 +1258,42 @@ namespace PlayniteAchievements.Services.Recording
         {
             try
             {
+                var custom = ProviderRegistry.Settings<LocalSettings>();
+                if (custom?.EnableActiveGameMonitoring == true)
+                {
+                    var game = _api?.Database?.Games?.Get(request.PlayniteGameId);
+                    var timestamp = DateTime.Now;
+                    var directoryTemplate = string.IsNullOrWhiteSpace(custom.RecordingSaveFolder)
+                        ? custom.EffectiveScreenshotSaveFolder
+                        : custom.RecordingSaveFolder;
+                    var customBaseDir = LocalAchievementScreenshotService.ReplaceTokens(
+                        directoryTemplate,
+                        game,
+                        request.AchievementName,
+                        timestamp,
+                        Math.Max(1, request.AchievementNumber),
+                        Math.Max(1, request.TotalCount),
+                        sanitizeValues: true,
+                        providerName: request.ProviderKey);
+                    if (string.IsNullOrWhiteSpace(customBaseDir))
+                    {
+                        return null;
+                    }
+
+                    var filename = LocalAchievementScreenshotService.ReplaceTokens(
+                        custom.RecordingFilenameTemplate,
+                        game,
+                        request.AchievementName,
+                        timestamp,
+                        Math.Max(1, request.AchievementNumber),
+                        Math.Max(1, request.TotalCount),
+                        sanitizeValues: false,
+                        providerName: request.ProviderKey);
+                    filename = LocalAchievementScreenshotService.SanitizeFileName(filename);
+                    Directory.CreateDirectory(customBaseDir);
+                    return LocalAchievementScreenshotService.BuildUniquePath(customBaseDir, filename, ".mp4");
+                }
+
                 var baseDir = ResolveOutputDirectory(persisted);
                 if (string.IsNullOrWhiteSpace(baseDir))
                 {

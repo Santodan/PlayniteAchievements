@@ -8,6 +8,9 @@ using System.Runtime.InteropServices;
 using System.Windows.Forms;
 using Playnite.SDK;
 using PlayniteAchievements.Services.Images;
+using PlayniteAchievements.Providers.Local;
+using PlayniteAchievements.Services.Local;
+using Playnite.SDK.Models;
 
 namespace PlayniteAchievements.Services.UI
 {
@@ -182,6 +185,100 @@ namespace PlayniteAchievements.Services.UI
             {
                 _logger?.Debug(ex, "Unlock screenshot capture failed.");
                 return null;
+            }
+        }
+
+        public Bitmap CaptureUsingMode(
+            LocalUnlockScreenshotCaptureMode mode,
+            IntPtr knownHwnd,
+            int? startedProcessId)
+        {
+            try
+            {
+                Rectangle bounds;
+                if (mode == LocalUnlockScreenshotCaptureMode.FullDesktop)
+                {
+                    bounds = SystemInformation.VirtualScreen;
+                }
+                else
+                {
+                    var foreground = GetForegroundWindow();
+                    if (!TryGetWindowRectangle(foreground, out bounds))
+                    {
+                        return CaptureGameWindow(knownHwnd, startedProcessId);
+                    }
+                }
+
+                if (bounds.Width <= 0 || bounds.Height <= 0)
+                {
+                    return null;
+                }
+
+                var bitmap = new Bitmap(bounds.Width, bounds.Height, PixelFormat.Format32bppArgb);
+                using (var graphics = Graphics.FromImage(bitmap))
+                {
+                    graphics.CopyFromScreen(bounds.Location, Point.Empty, bounds.Size);
+                }
+
+                return bitmap;
+            }
+            catch (Exception ex)
+            {
+                _logger?.Debug(ex, "Custom unlock screenshot capture failed.");
+                return null;
+            }
+        }
+
+        public void SaveUsingCustomSettings(
+            Bitmap bitmap,
+            LocalSettings settings,
+            Game game,
+            string providerKey,
+            string achievementName,
+            int number,
+            int total)
+        {
+            if (bitmap == null || settings == null)
+            {
+                return;
+            }
+
+            try
+            {
+                var timestamp = DateTime.Now;
+                var directory = LocalAchievementScreenshotService.ReplaceTokens(
+                    settings.EffectiveScreenshotSaveFolder,
+                    game,
+                    achievementName,
+                    timestamp,
+                    Math.Max(1, number),
+                    Math.Max(1, total),
+                    sanitizeValues: true,
+                    providerName: providerKey);
+                var filename = LocalAchievementScreenshotService.ReplaceTokens(
+                    settings.ScreenshotFilenameTemplate,
+                    game,
+                    achievementName,
+                    timestamp,
+                    Math.Max(1, number),
+                    Math.Max(1, total),
+                    sanitizeValues: false,
+                    providerName: providerKey);
+                filename = LocalAchievementScreenshotService.SanitizeFileName(filename);
+                Directory.CreateDirectory(directory);
+                var extension = settings.ScreenshotImageFormat == LocalUnlockScreenshotImageFormat.Jpeg
+                    ? ".jpg"
+                    : ".png";
+                var path = LocalAchievementScreenshotService.BuildUniquePath(directory, filename, extension);
+                bitmap.Save(
+                    path,
+                    settings.ScreenshotImageFormat == LocalUnlockScreenshotImageFormat.Jpeg
+                        ? ImageFormat.Jpeg
+                        : ImageFormat.Png);
+            }
+            catch (Exception ex)
+            {
+                _logger?.Debug(ex, "Custom unlock screenshot save failed.");
             }
         }
 
