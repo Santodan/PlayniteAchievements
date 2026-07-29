@@ -80,6 +80,7 @@
     <Compile Include="..\..\source\Services\LegacyManualLinkImporter.cs" Link="Source\Services\LegacyManualLinkImporter.cs" />
     <Compile Include="..\..\source\Services\GameCustomData\GameCustomDataStore.cs" Link="Source\Services\GameCustomData\GameCustomDataStore.cs" />
     <Compile Include="..\..\source\Services\GameCustomData\GameCustomDataLookup.cs" Link="Source\Services\GameCustomData\GameCustomDataLookup.cs" />
+    <Compile Include="..\..\source\Services\Notifications\NotificationStylePortableStore.cs" Link="Source\Services\Notifications\NotificationStylePortableStore.cs" />
     <Compile Include="..\..\source\Providers\Overrides\ProviderOverrideValueKind.cs" Link="Source\Providers\Overrides\ProviderOverrideValueKind.cs" />
     <Compile Include="..\..\source\Providers\Overrides\ProviderOverrideChoice.cs" Link="Source\Providers\Overrides\ProviderOverrideChoice.cs" />
     <Compile Include="..\..\source\Providers\Overrides\ProviderOverrideValidation.cs" Link="Source\Providers\Overrides\ProviderOverrideValidation.cs" />
@@ -103,6 +104,7 @@
     <Compile Include="..\..\source\Services\Images\MemoryImageService.cs" Link="Source\Services\Images\MemoryImageService.cs" />
     <Compile Include="..\..\source\Services\Images\ManagedCustomIconService.cs" Link="Source\Services\Images\ManagedCustomIconService.cs" />
     <Compile Include="..\..\source\Services\Images\AchievementIconService.cs" Link="Source\Services\Images\AchievementIconService.cs" />
+    <Compile Include="..\..\source\Services\Images\NotificationImageStore.cs" Link="Source\Services\Images\NotificationImageStore.cs" />
     <Compile Include="..\..\source\Services\Achievements\AchievementSortHelper.cs" Link="Source\Services\Achievements\AchievementSortHelper.cs" />
     <Compile Include="..\..\source\Services\Achievements\AchievementCategoryFilterOrderHelper.cs" Link="Source\Services\Achievements\AchievementCategoryFilterOrderHelper.cs" />
     <Compile Include="..\..\source\Services\Achievements\AchievementOrderHelper.cs" Link="Source\Services\Achievements\AchievementOrderHelper.cs" />
