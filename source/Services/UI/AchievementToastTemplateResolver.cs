@@ -14,13 +14,14 @@ namespace PlayniteAchievements.Services.UI
 {
     /// <summary>
     /// Which template a fire-test preview should render: the plugin's own template honoring the
-    /// user's appearance customization, or a specific theme mode's template override.
+    /// user's appearance customization, or the currently-running theme's override. A theme's
+    /// template can only render while that theme is the active theme (its resources are loaded),
+    /// so the theme source always targets the current app mode.
     /// </summary>
     public enum NotificationTemplatePreviewSource
     {
         PluginStyle,
-        DesktopTheme,
-        FullscreenTheme
+        ActiveTheme
     }
 
     public sealed class AchievementToastTemplateResolver
@@ -87,11 +88,9 @@ namespace PlayniteAchievements.Services.UI
 
         /// <summary>
         /// Resolves the notification or frame template from one explicit source for the fire-test
-        /// buttons: the plugin's bundled template (ignoring themes), or a specific theme mode's
-        /// override file (Desktop/Fullscreen). Unlike the normal resolve, the theme sources force
-        /// the requested mode instead of the running app mode, so the settings window (always
-        /// desktop) can still preview the fullscreen theme's template. Falls back to the bundled
-        /// template when the requested theme ships no override.
+        /// buttons: the plugin's bundled template (ignoring themes), or the currently-running
+        /// theme's override (which renders because its resources are loaded in the active mode).
+        /// Falls back to the bundled template when the active theme ships no override.
         /// </summary>
         public DataTemplate ResolvePreviewTemplate(NotificationTemplatePreviewSource source, bool isFrame)
         {
@@ -104,28 +103,17 @@ namespace PlayniteAchievements.Services.UI
                 return LoadPluginDefaultResource(key, pluginDefault);
             }
 
-            var modeName = source == NotificationTemplatePreviewSource.FullscreenTheme ? "Fullscreen" : "Desktop";
-            try
-            {
-                var dictionary = LoadActiveThemeDictionary(Application.Current?.Resources, overrideRelativePath, modeName);
-                if (dictionary != null && TryGetDirectResource(dictionary, key, out DataTemplate themeTemplate))
-                {
-                    return themeTemplate;
-                }
-            }
-            catch (Exception ex)
-            {
-                _logger?.Debug(ex, $"Failed to resolve {modeName} theme preview template for '{key}'.");
-            }
-
-            return LoadPluginDefaultResource(key, pluginDefault);
+            // The active theme: resolve exactly as a real notification would (loaded theme
+            // resource, then the theme's override file, then the bundled default).
+            return ResolveResource<DataTemplate>(
+                Application.Current?.Resources, key, overrideRelativePath, pluginDefault, allowThemeSources: true);
         }
 
         /// <summary>
         /// True when the given preview source can supply its own template: the plugin style
-        /// always can; a theme mode can only when its active theme actually ships the surface
-        /// override. Lets the UI disable a theme fire-test button that would just fall back to
-        /// the plugin template.
+        /// always can; the active theme only when it actually ships the surface override. Lets
+        /// the UI disable a theme fire-test button that would just fall back to the plugin
+        /// template.
         /// </summary>
         public bool ThemeProvidesTemplate(NotificationTemplatePreviewSource source, bool isFrame)
         {
@@ -136,23 +124,20 @@ namespace PlayniteAchievements.Services.UI
 
             var key = isFrame ? FrameTemplateKey : TemplateKey;
             var overrideRelativePath = isFrame ? FrameThemeOverrideRelativePath : ThemeOverrideRelativePath;
-            var modeName = source == NotificationTemplatePreviewSource.FullscreenTheme ? "Fullscreen" : "Desktop";
 
             try
             {
-                // A theme merged into the running app's resources only reflects the current mode.
-                if (string.Equals(modeName, GetThemeModeName(), StringComparison.OrdinalIgnoreCase) &&
-                    TryFindLoadedThemeResource<DataTemplate>(Application.Current?.Resources, key, out _))
+                if (TryFindLoadedThemeResource<DataTemplate>(Application.Current?.Resources, key, out _))
                 {
                     return true;
                 }
 
-                var dictionary = LoadActiveThemeDictionary(Application.Current?.Resources, overrideRelativePath, modeName);
+                var dictionary = LoadActiveThemeDictionary(Application.Current?.Resources, overrideRelativePath);
                 return dictionary != null && TryGetDirectResource(dictionary, key, out DataTemplate _);
             }
             catch (Exception ex)
             {
-                _logger?.Debug(ex, $"Failed to probe {modeName} theme template for '{key}'.");
+                _logger?.Debug(ex, $"Failed to probe active theme template for '{key}'.");
                 return false;
             }
         }
