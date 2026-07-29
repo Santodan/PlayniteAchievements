@@ -1,14 +1,18 @@
 using System;
 using System.Collections.Generic;
 using System.ComponentModel;
+using System.IO;
 using System.Linq;
 using System.Threading;
+using System.Threading.Tasks;
 using System.Windows;
 using System.Windows.Controls;
+using Microsoft.Win32;
 using Playnite.SDK;
 using PlayniteAchievements.Models;
 using PlayniteAchievements.Models.Settings;
 using PlayniteAchievements.Providers;
+using PlayniteAchievements.Services.Notifications;
 using PlayniteAchievements.Services.UI;
 using PlayniteAchievements.ViewModels;
 using PlayniteAchievements.ViewModels.Settings;
@@ -432,6 +436,173 @@ namespace PlayniteAchievements.Views.Settings.General
             }
 
             _framePreviewWindow = null;
+        }
+
+        /// <summary>
+        /// Exports the style for the current platform selection to a shareable .pastyle (JSON) or
+        /// .pastyle.zip (JSON + bundled images) file. Debounced edits are flushed first so the file
+        /// matches what the editors show.
+        /// </summary>
+        private void ExportStyle_Click(object sender, RoutedEventArgs e)
+        {
+            var style = _currentStyle;
+            var store = _plugin?.NotificationStylePortableStore;
+            if (style == null || store == null)
+            {
+                return;
+            }
+
+            try
+            {
+                _toastEditorViewModel?.FlushPendingPersist();
+                _frameEditorViewModel?.FlushPendingPersist();
+
+                var dialog = new SaveFileDialog
+                {
+                    Filter =
+                        "Playnite Achievements Style Package (*.pastyle.zip)|*.pastyle.zip|" +
+                        "Playnite Achievements Style (*.pastyle)|*.pastyle",
+                    AddExtension = true,
+                    DefaultExt = ".zip",
+                    FileName = BuildDefaultStyleFileName()
+                };
+
+                if (dialog.ShowDialog() != true)
+                {
+                    return;
+                }
+
+                // FilterIndex is 1-based: 1 = package (images), 2 = plain JSON.
+                var usePackage = dialog.FilterIndex != 2;
+                var extension = usePackage
+                    ? NotificationStylePortableStore.PackageFileExtension
+                    : NotificationStylePortableStore.FileExtension;
+                var destinationPath = NotificationStylePortableStore.NormalizeExportPath(
+                    dialog.FileName, extension);
+
+                if (usePackage)
+                {
+                    store.ExportPackage(style, destinationPath);
+                }
+                else
+                {
+                    store.ExportPa(style, destinationPath);
+                }
+
+                _plugin.PlayniteApi?.Dialogs?.ShowMessage(
+                    L("LOCPlayAch_Status_Succeeded") + "\n" + destinationPath,
+                    L("LOCPlayAch_Title_PluginName"),
+                    MessageBoxButton.OK,
+                    MessageBoxImage.Information);
+            }
+            catch (Exception ex)
+            {
+                _logger?.Error(ex, "Failed exporting notification style.");
+                _plugin.PlayniteApi?.Dialogs?.ShowMessage(
+                    string.Format(L("LOCPlayAch_Status_Failed"), ex.Message),
+                    L("LOCPlayAch_Title_PluginName"),
+                    MessageBoxButton.OK,
+                    MessageBoxImage.Error);
+            }
+        }
+
+        /// <summary>
+        /// Imports a .pastyle/.pastyle.zip onto the current platform selection, replacing the
+        /// selected style (creating the provider's whole-style copy if it was following the
+        /// default). Bundled images are re-materialized into managed storage.
+        /// </summary>
+        private async void ImportStyle_Click(object sender, RoutedEventArgs e)
+        {
+            var persisted = _settings?.Persisted;
+            var store = _plugin?.NotificationStylePortableStore;
+            if (persisted == null || store == null)
+            {
+                return;
+            }
+
+            try
+            {
+                var dialog = new OpenFileDialog
+                {
+                    Filter =
+                        "Playnite Achievements Style Files (*.pastyle;*.pastyle.zip)|*.pastyle;*.pastyle.zip|" +
+                        "Playnite Achievements Style Package (*.pastyle.zip)|*.pastyle.zip|" +
+                        "Playnite Achievements Style (*.pastyle)|*.pastyle",
+                    CheckFileExists = true,
+                    Multiselect = false
+                };
+
+                if (dialog.ShowDialog() != true)
+                {
+                    return;
+                }
+
+                var confirm = _plugin.PlayniteApi.Dialogs.ShowMessage(
+                    L("LOCPlayAch_Settings_Style_ImportConfirm"),
+                    L("LOCPlayAch_Title_PluginName"),
+                    MessageBoxButton.YesNo,
+                    MessageBoxImage.Question);
+                if (confirm != MessageBoxResult.Yes)
+                {
+                    return;
+                }
+
+                var providerKey = _selectedProviderKey;
+                var imported = await store.ImportAsync(dialog.FileName, providerKey, CancellationToken.None);
+                if (imported == null)
+                {
+                    throw new InvalidOperationException("Imported notification style was empty.");
+                }
+
+                if (providerKey == null)
+                {
+                    persisted.NotificationStyle = imported;
+                }
+                else
+                {
+                    persisted.SetProviderNotificationStyle(providerKey, imported);
+                }
+
+                _plugin.PersistSettingsForUi();
+
+                // Drop slot files the replaced style no longer references.
+                _plugin.NotificationImageStore.PruneOrphans(persisted);
+
+                ApplySelection();
+                UpdateMockups();
+
+                _plugin.PlayniteApi?.Dialogs?.ShowMessage(
+                    L("LOCPlayAch_Status_Succeeded"),
+                    L("LOCPlayAch_Title_PluginName"),
+                    MessageBoxButton.OK,
+                    MessageBoxImage.Information);
+            }
+            catch (Exception ex)
+            {
+                _logger?.Error(ex, "Failed importing notification style.");
+                _plugin.PlayniteApi?.Dialogs?.ShowMessage(
+                    string.Format(L("LOCPlayAch_Status_Failed"), ex.Message),
+                    L("LOCPlayAch_Title_PluginName"),
+                    MessageBoxButton.OK,
+                    MessageBoxImage.Error);
+            }
+        }
+
+        /// <summary>
+        /// A file-name-safe default based on the selected platform's display name.
+        /// </summary>
+        private string BuildDefaultStyleFileName()
+        {
+            var option = PlatformSelector?.SelectedItem as NotificationStylePlatformOption;
+            var name = option?.DisplayName;
+            if (string.IsNullOrWhiteSpace(name))
+            {
+                name = "notification-style";
+            }
+
+            var invalid = Path.GetInvalidFileNameChars();
+            var sanitized = new string(name.Trim().Where(c => !invalid.Contains(c)).ToArray());
+            return string.IsNullOrWhiteSpace(sanitized) ? "notification-style" : sanitized;
         }
 
         public void Dispose()
