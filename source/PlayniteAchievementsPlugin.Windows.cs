@@ -86,6 +86,62 @@ namespace PlayniteAchievements
             return _windowService?.PickColor(owner, currentValue);
         }
 
+        private bool _settingsPopoutOpen;
+
+        /// <summary>
+        /// Hosts the plugin's own settings UI in a managed popout window. Used from the
+        /// fullscreen main menu, where Playnite's native plugin-settings dialog
+        /// (OpenSettingsView) is unavailable. Drives BeginEdit on open and EndEdit on close so
+        /// changes persist the same way the desktop settings dialog saves on OK.
+        /// </summary>
+        private void OpenSettingsWindow()
+        {
+            if (_settingsPopoutOpen)
+            {
+                return;
+            }
+
+            try
+            {
+                _settingsViewModel.BeginEdit();
+                var view = GetSettingsView(false);
+                _settingsPopoutOpen = true;
+
+                _windowService.OpenManagedPopout(
+                    ResourceProvider.GetString("LOCPlayAch_Landing_OpenSettings"),
+                    view,
+                    new Views.Helpers.WindowOptions
+                    {
+                        ShowMinimizeButton = false,
+                        ShowMaximizeButton = true,
+                        ShowCloseButton = true,
+                        CanBeResizable = true,
+                        Width = 1100,
+                        Height = 820
+                    },
+                    "SettingsPopout",
+                    closed: () =>
+                    {
+                        _settingsPopoutOpen = false;
+                        try
+                        {
+                            _settingsViewModel.EndEdit();
+                        }
+                        catch (Exception ex)
+                        {
+                            _logger?.Error(ex, "Failed to persist settings from the popout window.");
+                        }
+
+                        (view as IDisposable)?.Dispose();
+                    });
+            }
+            catch (Exception ex)
+            {
+                _settingsPopoutOpen = false;
+                _logger?.Error(ex, "Failed to open the settings popout window.");
+            }
+        }
+
         private void ToggleOverviewWindowFromHotkey()
         {
             _windowService.ToggleOverviewWindowFromHotkey();
