@@ -296,11 +296,10 @@
     <sys:String x:Key="LOCPlayAch_ManageAchievements_Overrides_CustomDataHint">Export or import this game's custom data as .PA files (.PA.ZIP includes images), or clear it. Refresh and summary exclusions are not included.</sys:String>
     <sys:String x:Key="LOCPlayAch_ManageAchievements_Overrides_ExclusionHeader">Game Exclusion</sys:String>
     <sys:String x:Key="LOCPlayAch_ManageAchievements_Overrides_ExclusionHint">Exclude this game from tracking or include it again.</sys:String>
-    <sys:String x:Key="LOCPlayAch_ManageAchievements_Overrides_ExportPaButton">Export .PA</sys:String>
-    <sys:String x:Key="LOCPlayAch_ManageAchievements_Overrides_ExportPackageButton">Export .PA.ZIP</sys:String>
+    <sys:String x:Key="LOCPlayAch_ManageAchievements_Overrides_ExportButton">Export</sys:String>
     <sys:String x:Key="LOCPlayAch_ManageAchievements_Overrides_ExportPaOmittedLocalIcons">.PA export omitted {0} local image override(s). Use .PA.ZIP to export full image sets.</sys:String>
+    <sys:String x:Key="LOCPlayAch_ManageAchievements_Overrides_ImportButton">Import</sys:String>
     <sys:String x:Key="LOCPlayAch_ManageAchievements_Overrides_ImportIgnoredPackageImages">Ignored {0} image file(s) whose names did not match any achievement in this game.</sys:String>
-    <sys:String x:Key="LOCPlayAch_ManageAchievements_Overrides_ImportPortableButton">Import .PA / .PA.ZIP</sys:String>
     <sys:String x:Key="LOCPlayAch_ManageAchievements_Overrides_LockedIcons_StatusOverride">Enabled via override</sys:String>
     <sys:String x:Key="LOCPlayAch_ManageAchievements_Overrides_LockedIcons_StatusSettings">Enabled via settings</sys:String>
     <sys:String x:Key="LOCPlayAch_ManageAchievements_Overrides_LockedIconsCheckbox">Always use separate locked icons for this game</sys:String>
