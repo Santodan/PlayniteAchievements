@@ -87,11 +87,13 @@ namespace PlayniteAchievements.Services.Notifications
 
         private readonly NotificationImageStore _imageStore;
         private readonly ILogger _logger;
+        // Null omitted (null == "use default" for these fields), but NOT DefaultValueHandling.Ignore:
+        // the surface-style booleans default to true, so ignoring default values would silently drop
+        // every explicit "false" and the importer would flip it back to true.
         private readonly JsonSerializerSettings _writeSettings = new JsonSerializerSettings
         {
             Formatting = Formatting.Indented,
-            NullValueHandling = NullValueHandling.Ignore,
-            DefaultValueHandling = DefaultValueHandling.Ignore
+            NullValueHandling = NullValueHandling.Ignore
         };
 
         public NotificationStylePortableStore(NotificationImageStore imageStore, ILogger logger = null)
