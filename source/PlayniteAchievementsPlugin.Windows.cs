@@ -76,6 +76,16 @@ namespace PlayniteAchievements
             _windowService.OpenOverviewWindow();
         }
 
+        /// <summary>
+        /// Opens the plugin's color picker for the given owner window and current value,
+        /// returning the chosen color string (or the current value on cancel). Exposed so
+        /// settings sections can reuse the same picker.
+        /// </summary>
+        public string PickColor(System.Windows.Window owner, string currentValue)
+        {
+            return _windowService?.PickColor(owner, currentValue);
+        }
+
         private void ToggleOverviewWindowFromHotkey()
         {
             _windowService.ToggleOverviewWindowFromHotkey();
