@@ -72,13 +72,15 @@ namespace PlayniteAchievements.ViewModels
             bool showName,
             Brush titleBrush,
             bool showInlineBadge,
-            object inlineBadgeSource)
+            object inlineBadgeSource,
+            double lineOffset)
             : base(parent, fontSize, fontFamily)
         {
             ShowName = showName;
             TitleBrush = titleBrush;
             ShowInlineBadge = showInlineBadge;
             InlineBadgeSource = inlineBadgeSource;
+            LineOffset = lineOffset;
         }
 
         public bool ShowName { get; }
@@ -104,11 +106,15 @@ namespace PlayniteAchievements.ViewModels
         public double InlineBadgeSize => FontSize * AchievementToastViewModel.BadgeToTitleRatio;
 
         /// <summary>
-        /// Top margin for the title row. The inline badge's left edge stays flush with the
-        /// text lines below (both start at x=0); the badge sits before the name rather than
-        /// being pulled left to center on the first-letter column.
+        /// User-set horizontal offset (DIPs) for the whole title line, including the inline badge.
         /// </summary>
-        public Thickness InlineBadgeLineMargin => new Thickness(0, 1, 0, 0);
+        public double LineOffset { get; }
+
+        /// <summary>
+        /// Margin for the title row: the user's horizontal offset on the left (so the whole line,
+        /// badge included, can be slid to align with the rows below) plus the fixed 1px top gap.
+        /// </summary>
+        public Thickness TitleLineMargin => new Thickness(LineOffset, 1, 0, 0);
     }
 
     /// <summary>

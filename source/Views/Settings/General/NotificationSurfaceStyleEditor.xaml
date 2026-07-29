@@ -332,6 +332,34 @@
                         </DataTemplate>
                     </ComboBox.ItemTemplate>
                 </ComboBox>
+
+                <!-- Slides the whole achievement-name line (badge included) left/right so it can
+                     be aligned with the rows below. -->
+                <TextBlock Text="{DynamicResource LOCPlayAch_Settings_Style_TitleLineOffset}"
+                           Style="{StaticResource EditorSubGroupHeaderStyle}"/>
+                <Grid HorizontalAlignment="Left"
+                      MinWidth="260">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*"/>
+                        <ColumnDefinition Width="Auto"/>
+                    </Grid.ColumnDefinitions>
+                    <Slider Grid.Column="0"
+                            Minimum="-50"
+                            Maximum="50"
+                            SmallChange="1"
+                            LargeChange="5"
+                            TickFrequency="1"
+                            IsSnapToTickEnabled="True"
+                            Value="{Binding Surface.TitleLineOffset, Mode=TwoWay}"
+                            VerticalAlignment="Center"/>
+                    <TextBlock Grid.Column="1"
+                               Text="{Binding Surface.TitleLineOffset, StringFormat={}{0:0}}"
+                               MinWidth="34"
+                               TextAlignment="Right"
+                               VerticalAlignment="Center"
+                               Margin="8,0,0,0"
+                               Foreground="{DynamicResource PlayAch.Brush.Text}"/>
+                </Grid>
             </StackPanel>
         </Border>
 

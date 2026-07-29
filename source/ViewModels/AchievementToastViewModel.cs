@@ -558,7 +558,8 @@ namespace PlayniteAchievements.ViewModels
                             isFrame ? FrameShowName : ShowName,
                             isFrame ? FrameTitleBrush : TitleBrush,
                             isFrame ? FrameShowInlineBadge : ShowInlineBadge,
-                            isFrame ? (object)FrameBadgeImage : ToastBadgeSource));
+                            isFrame ? (object)FrameBadgeImage : ToastBadgeSource,
+                            surface.TitleLineOffset));
                         break;
                     case NotificationSurfaceStyle.LineDescription:
                         lines.Add(new ToastDescriptionLine(

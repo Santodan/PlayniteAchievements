@@ -155,7 +155,7 @@
              notifications force the title, swap it for "Game Complete!", and color it with the
              completed brush. -->
         <DockPanel LastChildFill="True"
-                   Margin="{Binding InlineBadgeLineMargin}">
+                   Margin="{Binding TitleLineMargin}">
             <Image DockPanel.Dock="Left"
                    helpers:AsyncImage.Uri="{Binding InlineBadgeSource}"
                    helpers:AsyncImage.DecodePixel="64"
@@ -314,7 +314,7 @@
                     </Image.Source>
                 </Image>
 
-                <Grid Grid.Column="1" Margin="8">
+                <Grid Grid.Column="1" Margin="14,8,8,8">
                     <Grid.RowDefinitions>
                         <RowDefinition Height="*"/>
                         <RowDefinition Height="Auto"/>

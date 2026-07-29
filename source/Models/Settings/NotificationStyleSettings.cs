@@ -127,6 +127,7 @@ namespace PlayniteAchievements.Models.Settings
         private double? _bodyFontSize;
         private double? _cardWidth;
         private double? _cardHeight;
+        private double _titleLineOffset;
 
         public bool ShowHeader
         {
@@ -274,6 +275,17 @@ namespace PlayniteAchievements.Models.Settings
         }
 
         /// <summary>
+        /// Horizontal offset in DIPs for the achievement-name (title) line, including its inline
+        /// badge, so the user can slide the whole line to align it with the rows below. Zero (the
+        /// default) leaves the line at its natural start.
+        /// </summary>
+        public double TitleLineOffset
+        {
+            get => _titleLineOffset;
+            set => SetValue(ref _titleLineOffset, value);
+        }
+
+        /// <summary>
         /// User-defined text line order using the Line* tokens, or null for
         /// <see cref="DefaultLineOrder"/>. Kept null until the user reorders so the default
         /// can evolve without stale persisted copies.
@@ -376,7 +388,8 @@ namespace PlayniteAchievements.Models.Settings
                 TitleFontSize = TitleFontSize,
                 BodyFontSize = BodyFontSize,
                 CardWidth = CardWidth,
-                CardHeight = CardHeight
+                CardHeight = CardHeight,
+                TitleLineOffset = TitleLineOffset
             };
         }
 
