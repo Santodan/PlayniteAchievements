@@ -53,28 +53,44 @@
             <CheckBox Content="{DynamicResource LOCPlayAch_Common_UnlockTime}"
                       IsChecked="{Binding Surface.ShowUnlockTime}"
                       Margin="0,0,14,8"/>
-            <CheckBox Content="{DynamicResource LOCPlayAch_Settings_ToastShowRarityGlow}"
-                      IsChecked="{Binding Surface.ShowRarityGlow}"
-                      Margin="0,0,14,8"/>
             <CheckBox Content="{DynamicResource LOCPlayAch_Settings_ToastRarityColoredName}"
                       IsChecked="{Binding Surface.RarityColoredName}"
                       Margin="0,0,14,8"/>
-            <CheckBox Content="{DynamicResource LOCPlayAch_Settings_Style_ShowProviderIcon}"
+            <CheckBox Content="{DynamicResource LOCPlayAch_Common_Label_Platform}"
                       IsChecked="{Binding Surface.ShowProviderIcon}"
                       Margin="0,0,14,8"/>
         </WrapPanel>
 
-        <!-- Rarity badge + percent layout, driven by a single dropdown. -->
-        <StackPanel Orientation="Horizontal" Margin="0,0,0,4">
-            <TextBlock Text="{DynamicResource LOCPlayAch_Settings_Style_Rarity}"
+        <!-- Rarity badge/percent and glow layouts, each a single dropdown. -->
+        <Grid HorizontalAlignment="Left" Margin="0,0,0,4">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="Auto"/>
+                <ColumnDefinition Width="Auto"/>
+                <ColumnDefinition Width="Auto"/>
+                <ColumnDefinition Width="Auto"/>
+            </Grid.ColumnDefinitions>
+            <TextBlock Grid.Column="0"
+                       Text="{DynamicResource LOCPlayAch_Settings_Style_Rarity}"
                        Foreground="{DynamicResource PlayAch.Brush.Text}"
                        VerticalAlignment="Center"
                        Margin="0,0,8,0"/>
-            <ComboBox ItemsSource="{Binding RarityBadgeDisplayOptions}"
+            <ComboBox Grid.Column="1"
+                      ItemsSource="{Binding RarityBadgeDisplayOptions}"
                       SelectedItem="{Binding SelectedRarityBadgeDisplay, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
                       DisplayMemberPath="Display"
-                      MinWidth="200"/>
-        </StackPanel>
+                      MinWidth="190"
+                      Margin="0,0,20,0"/>
+            <TextBlock Grid.Column="2"
+                       Text="{DynamicResource LOCPlayAch_Settings_ToastShowRarityGlow}"
+                       Foreground="{DynamicResource PlayAch.Brush.Text}"
+                       VerticalAlignment="Center"
+                       Margin="0,0,8,0"/>
+            <ComboBox Grid.Column="3"
+                      ItemsSource="{Binding GlowDisplayOptions}"
+                      SelectedItem="{Binding SelectedGlowDisplay, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                      DisplayMemberPath="Display"
+                      MinWidth="140"/>
+        </Grid>
 
         <!-- Toast-only chrome: the frame has no accent strip, timer bar, or free card size. -->
         <StackPanel Visibility="{Binding IsToastSurface, Converter={StaticResource BoolToVis}}">

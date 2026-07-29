@@ -207,6 +207,69 @@ namespace PlayniteAchievements.ViewModels.Settings
 
         #endregion
 
+        #region Glow display (single dropdown over icon glow + border glow flags)
+
+        private static IReadOnlyList<GlowDisplayOption> _glowDisplayOptions;
+
+        public IReadOnlyList<GlowDisplayOption> GlowDisplayOptions =>
+            _glowDisplayOptions ?? (_glowDisplayOptions = new[]
+            {
+                new GlowDisplayOption(GlowDisplay.Icon, L("LOCPlayAch_Column_Icon")),
+                new GlowDisplayOption(GlowDisplay.Notification, L("LOCPlayAch_Settings_Style_ToastTab")),
+                new GlowDisplayOption(GlowDisplay.Both, L("LOCPlayAch_Common_Both")),
+                new GlowDisplayOption(GlowDisplay.None, L("LOCPlayAch_Common_None"))
+            });
+
+        /// <summary>
+        /// The glow layout, derived from and written back to the surface's icon-glow and
+        /// border-glow flags.
+        /// </summary>
+        public GlowDisplayOption SelectedGlowDisplay
+        {
+            get
+            {
+                var surface = Surface;
+                GlowDisplay value;
+                if (surface == null)
+                {
+                    value = GlowDisplay.Icon;
+                }
+                else if (surface.ShowRarityGlow && surface.NotificationBorderGlow)
+                {
+                    value = GlowDisplay.Both;
+                }
+                else if (surface.NotificationBorderGlow)
+                {
+                    value = GlowDisplay.Notification;
+                }
+                else if (surface.ShowRarityGlow)
+                {
+                    value = GlowDisplay.Icon;
+                }
+                else
+                {
+                    value = GlowDisplay.None;
+                }
+
+                return GlowDisplayOptions.FirstOrDefault(option => option.Value == value)
+                       ?? GlowDisplayOptions[0];
+            }
+            set
+            {
+                var surface = Surface;
+                if (surface == null || value == null)
+                {
+                    return;
+                }
+
+                var mode = value.Value;
+                surface.ShowRarityGlow = mode == GlowDisplay.Icon || mode == GlowDisplay.Both;
+                surface.NotificationBorderGlow = mode == GlowDisplay.Notification || mode == GlowDisplay.Both;
+            }
+        }
+
+        #endregion
+
         #region Card dimensions (toast surface only; blank = template default)
 
         /// <summary>
@@ -671,6 +734,7 @@ namespace PlayniteAchievements.ViewModels.Settings
             OnPropertyChanged(nameof(IsEditable));
             OnPropertyChanged(nameof(SelectedFontFamilyOption));
             OnPropertyChanged(nameof(SelectedRarityBadgeDisplay));
+            OnPropertyChanged(nameof(SelectedGlowDisplay));
         }
 
         private void Subscribe()
@@ -775,6 +839,11 @@ namespace PlayniteAchievements.ViewModels.Settings
             {
                 OnPropertyChanged(nameof(SelectedRarityBadgeDisplay));
             }
+            else if (e.PropertyName == nameof(NotificationSurfaceStyle.ShowRarityGlow) ||
+                     e.PropertyName == nameof(NotificationSurfaceStyle.NotificationBorderGlow))
+            {
+                OnPropertyChanged(nameof(SelectedGlowDisplay));
+            }
 
             NotifyStyleEdited();
         }
@@ -860,6 +929,33 @@ namespace PlayniteAchievements.ViewModels.Settings
         {
             return ResourceProvider.GetString(key);
         }
+    }
+
+    /// <summary>
+    /// Glow placement choices offered by the single "Glow" dropdown.
+    /// </summary>
+    internal enum GlowDisplay
+    {
+        Icon,
+        Notification,
+        Both,
+        None
+    }
+
+    /// <summary>
+    /// One entry of the glow display dropdown: the placement value and its localized label.
+    /// </summary>
+    internal sealed class GlowDisplayOption
+    {
+        public GlowDisplayOption(GlowDisplay value, string display)
+        {
+            Value = value;
+            Display = display;
+        }
+
+        public GlowDisplay Value { get; }
+
+        public string Display { get; }
     }
 
     /// <summary>
