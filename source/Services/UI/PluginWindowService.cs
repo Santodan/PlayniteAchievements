@@ -762,6 +762,44 @@ namespace PlayniteAchievements.Services.UI
             }
         }
 
+        /// <summary>
+        /// Hosts an arbitrary plugin control in a managed popout window (fullscreen-capable, so
+        /// it works where Playnite's native plugin settings dialog is unavailable). Soft-close
+        /// is disabled so a stray click does not dismiss it. The <paramref name="closed"/>
+        /// callback runs when the window closes.
+        /// </summary>
+        public void OpenManagedPopout(
+            string title,
+            UserControl view,
+            WindowOptions windowOptions,
+            string placementKey,
+            Action closed)
+        {
+            InvokeOnUiThread(() =>
+            {
+                try
+                {
+                    var isFullscreen = DetectFullscreenMode();
+                    var window = CreateManagedPopoutWindow(
+                        title,
+                        view,
+                        windowOptions,
+                        isFullscreen,
+                        placementKey,
+                        closed: closed,
+                        enableSoftClose: false);
+                    ShowWindow(window, isFullscreen);
+                }
+                catch (Exception ex)
+                {
+                    _logger.Error(ex, $"Failed to open managed popout window '{title}'.");
+                    _api?.Dialogs?.ShowErrorMessage(
+                        ex.Message,
+                        ResourceProvider.GetString("LOCPlayAch_Title_PluginName"));
+                }
+            });
+        }
+
         private bool TryActivateOverviewWindow(bool closeIfActive)
         {
             var window = FindOpenOverviewWindow();
