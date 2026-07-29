@@ -98,8 +98,7 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
         public RelayCommand RefreshStateCommand { get; }
         public AsyncCommand RefreshGameCommand { get; }
         public RelayCommand ClearGameDataCommand { get; }
-        public RelayCommand ExportCustomJsonCommand { get; }
-        public RelayCommand ExportCustomPackageCommand { get; }
+        public RelayCommand ExportCustomCommand { get; }
         public RelayCommand ImportCustomJsonCommand { get; }
         public RelayCommand ClearCustomDataCommand { get; }
 
@@ -138,8 +137,7 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
             RefreshStateCommand = new RelayCommand(_ => Reload());
             RefreshGameCommand = new AsyncCommand(_ => RefreshGameAsync(), _ => HasGame && !IsRefreshing && !(_refreshService?.IsRebuilding ?? false));
             ClearGameDataCommand = new RelayCommand(_ => ClearGameData(), _ => HasGame);
-            ExportCustomJsonCommand = new RelayCommand(_ => ExportCustomJson(), _ => HasGame && CanExportCustomJson);
-            ExportCustomPackageCommand = new RelayCommand(_ => ExportCustomPackage(), _ => HasGame && CanExportCustomJson);
+            ExportCustomCommand = new RelayCommand(_ => ExportCustom(), _ => HasGame && CanExportCustomJson);
             ImportCustomJsonCommand = new RelayCommand(_ => ImportCustomJson(), _ => HasGame);
             ClearCustomDataCommand = new RelayCommand(_ => ClearCustomData(), _ => HasGame && CanClearCustomData);
 
@@ -835,7 +833,7 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
             }
         }
 
-        private void ExportCustomJson()
+        private void ExportCustom()
         {
             if (!HasGame)
             {
@@ -852,10 +850,12 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
 
                 var dialog = new SaveFileDialog
                 {
-                    Filter = "Playnite Achievements Portable (*.pa)|*.pa",
+                    Filter =
+                        "Playnite Achievements Package (*.pa.zip)|*.pa.zip|" +
+                        "Playnite Achievements Portable (*.pa)|*.pa",
                     AddExtension = true,
-                    DefaultExt = GameCustomDataStore.PortableFileExtension,
-                    FileName = BuildDefaultPortablePaFileName()
+                    DefaultExt = ".zip",
+                    FileName = BuildDefaultPortableFileBaseName()
                 };
 
                 if (dialog.ShowDialog() != true)
@@ -863,16 +863,31 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
                     return;
                 }
 
-                var destinationPath = NormalizePortableExportPath(
-                    dialog.FileName,
-                    GameCustomDataStore.PortableFileExtension);
-                var result = store.ExportPortablePa(_gameId, destinationPath);
-                var successMessage = L("LOCPlayAch_Status_Succeeded") + "\n" + result.DestinationPath;
-                if (result.HasOmittedLocalIconOverrides)
+                // FilterIndex is 1-based: 1 = package (bundled images), 2 = plain .pa (JSON only).
+                var usePackage = dialog.FilterIndex != 2;
+
+                string successMessage;
+                if (usePackage)
                 {
-                    successMessage += "\n\n" + string.Format(
-                        L("LOCPlayAch_ManageAchievements_Overrides_ExportPaOmittedLocalIcons"),
-                        result.OmittedLocalIconOverrideCount);
+                    var destinationPath = NormalizePortableExportPath(
+                        dialog.FileName,
+                        GameCustomDataStore.PortablePackageFileExtension);
+                    store.ExportPortablePackage(_gameId, destinationPath);
+                    successMessage = L("LOCPlayAch_Status_Succeeded") + "\n" + destinationPath;
+                }
+                else
+                {
+                    var destinationPath = NormalizePortableExportPath(
+                        dialog.FileName,
+                        GameCustomDataStore.PortableFileExtension);
+                    var result = store.ExportPortablePa(_gameId, destinationPath);
+                    successMessage = L("LOCPlayAch_Status_Succeeded") + "\n" + result.DestinationPath;
+                    if (result.HasOmittedLocalIconOverrides)
+                    {
+                        successMessage += "\n\n" + string.Format(
+                            L("LOCPlayAch_ManageAchievements_Overrides_ExportPaOmittedLocalIcons"),
+                            result.OmittedLocalIconOverrideCount);
+                    }
                 }
 
                 _playniteApi?.Dialogs?.ShowMessage(
@@ -884,55 +899,6 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
             catch (Exception ex)
             {
                 _logger?.Error(ex, $"Failed exporting custom game data for gameId={_gameId}");
-                _playniteApi?.Dialogs?.ShowMessage(
-                    string.Format(L("LOCPlayAch_Status_Failed"), ex.Message),
-                    L("LOCPlayAch_Title_PluginName"),
-                    MessageBoxButton.OK,
-                    MessageBoxImage.Error);
-            }
-        }
-
-        private void ExportCustomPackage()
-        {
-            if (!HasGame)
-            {
-                return;
-            }
-
-            try
-            {
-                var store = _plugin?.GameCustomDataStore;
-                if (store == null)
-                {
-                    throw new InvalidOperationException("Game custom data store is not available.");
-                }
-
-                var dialog = new SaveFileDialog
-                {
-                    Filter = "Playnite Achievements Package (*.pa.zip)|*.pa.zip",
-                    AddExtension = true,
-                    DefaultExt = ".zip",
-                    FileName = BuildDefaultPortablePackageFileName()
-                };
-
-                if (dialog.ShowDialog() != true)
-                {
-                    return;
-                }
-
-                var destinationPath = NormalizePortableExportPath(
-                    dialog.FileName,
-                    GameCustomDataStore.PortablePackageFileExtension);
-                store.ExportPortablePackage(_gameId, destinationPath);
-                _playniteApi?.Dialogs?.ShowMessage(
-                    L("LOCPlayAch_Status_Succeeded") + "\n" + destinationPath,
-                    L("LOCPlayAch_Title_PluginName"),
-                    MessageBoxButton.OK,
-                    MessageBoxImage.Information);
-            }
-            catch (Exception ex)
-            {
-                _logger?.Error(ex, $"Failed exporting custom game package for gameId={_gameId}");
                 _playniteApi?.Dialogs?.ShowMessage(
                     string.Format(L("LOCPlayAch_Status_Failed"), ex.Message),
                     L("LOCPlayAch_Title_PluginName"),
@@ -1269,8 +1235,7 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
             RefreshStateCommand?.RaiseCanExecuteChanged();
             RefreshGameCommand?.RaiseCanExecuteChanged();
             ClearGameDataCommand?.RaiseCanExecuteChanged();
-            ExportCustomJsonCommand?.RaiseCanExecuteChanged();
-            ExportCustomPackageCommand?.RaiseCanExecuteChanged();
+            ExportCustomCommand?.RaiseCanExecuteChanged();
             ImportCustomJsonCommand?.RaiseCanExecuteChanged();
             ClearCustomDataCommand?.RaiseCanExecuteChanged();
         }
@@ -1581,16 +1546,6 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
         private static string L(string key)
         {
             return ResourceProvider.GetString(key);
-        }
-
-        private string BuildDefaultPortablePaFileName()
-        {
-            return BuildDefaultPortableFileBaseName() + GameCustomDataStore.PortableFileExtension;
-        }
-
-        private string BuildDefaultPortablePackageFileName()
-        {
-            return BuildDefaultPortableFileBaseName() + GameCustomDataStore.PortablePackageFileExtension;
         }
 
         private string BuildDefaultPortableFileBaseName()
