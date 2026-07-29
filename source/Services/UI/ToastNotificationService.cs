@@ -552,6 +552,15 @@ namespace PlayniteAchievements.Services.UI
                     await Task.Delay(210).ConfigureAwait(true);
                 }
             }
+            catch (Exception ex) when (previewSource.HasValue)
+            {
+                // A fire-test preview of a theme template can throw when the template references
+                // resources defined only in that theme's own dictionaries (e.g. a theme style
+                // key), which are not loaded unless that theme is the running theme. Surface it
+                // instead of silently showing nothing.
+                _logger?.Warn(ex, $"Failed to render {previewSource} notification preview template.");
+                NotifyPreviewRenderFailed(previewSource.Value, ex);
+            }
             finally
             {
                 // Null after the save pipeline takes ownership; disposes the pending capture when
@@ -586,6 +595,30 @@ namespace PlayniteAchievements.Services.UI
         /// hide/show. Returns true when the wave expired while hidden (the caller then skips the
         /// slide-out of an invisible window).
         /// </summary>
+        /// <summary>
+        /// Tells the user why a theme fire-test preview showed nothing: the theme's template
+        /// depends on resources only present while that theme is the running theme, so it cannot
+        /// render from the settings window. Preview-only, so a plain message is fine.
+        /// </summary>
+        private void NotifyPreviewRenderFailed(NotificationTemplatePreviewSource source, Exception ex)
+        {
+            if (source == NotificationTemplatePreviewSource.PluginStyle)
+            {
+                return;
+            }
+
+            try
+            {
+                _api?.Dialogs?.ShowMessage(
+                    ResourceProvider.GetString("LOCPlayAch_Notification_ThemePreviewUnavailable"),
+                    ResourceProvider.GetString("LOCPlayAch_Title_PluginName"));
+            }
+            catch (Exception dialogEx)
+            {
+                _logger?.Debug(dialogEx, "Failed to surface notification preview render failure.");
+            }
+        }
+
         private async Task<bool> HoldWaveWithFocusHidingAsync(Window window, int remainingMs)
         {
             // No game to key focus off (previews, non-running games) -> plain hold.

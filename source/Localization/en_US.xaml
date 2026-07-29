@@ -563,6 +563,7 @@
     <sys:String x:Key="LOCPlayAch_Settings_Style_ShowCountdownBar">Timer bar</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_Style_CardWidth">Width</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_Style_CardHeight">Height</sys:String>
+    <sys:String x:Key="LOCPlayAch_Notification_ThemePreviewUnavailable">This theme's notification can't be previewed from Settings because it relies on resources that only load while that theme is running. To see it, run Playnite in that mode with the theme active and fire the test there.</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_Style_SampleUnlock">Example unlock</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_Style_FirePluginStyle">Plugin</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_Style_FireDesktopTheme">Desktop</sys:String>
