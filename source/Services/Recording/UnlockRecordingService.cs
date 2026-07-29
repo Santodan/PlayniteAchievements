@@ -129,10 +129,10 @@ namespace PlayniteAchievements.Services.Recording
             /// <summary>True when Backend came from the Auto setting, allowing the ddagrab
             /// crash path to downgrade to gdigrab instead of retrying an explicit choice.</summary>
             public bool BackendAutoResolved;
-            /// <summary>True when this session captures via the GPU-resident NVENC chain (ddagrab
-            /// frames kept on the GPU). The crash path clears it to fall back to the hwdownload
-            /// ddagrab path before any ddagrab-&gt;gdigrab downgrade.</summary>
-            public bool NvencGpuActive;
+            /// <summary>The GPU-resident bridge this session captures through (ddagrab frames kept
+            /// on the GPU), or None for the hwdownload path. The crash path resets it to None to
+            /// fall back to the hwdownload ddagrab path before any ddagrab-&gt;gdigrab downgrade.</summary>
+            public RecordingCommandBuilder.GpuCaptureBridge GpuBridge;
             public System.Drawing.Rectangle MonitorBounds;
             public Guid OwnerGameId;
             public string GameName;
@@ -426,9 +426,12 @@ namespace PlayniteAchievements.Services.Recording
                 session.EncoderArguments = encoderArgs;
                 session.Backend = backend;
                 session.BackendAutoResolved = persisted.RecordingCaptureBackend == RecordingCaptureBackend.Auto;
-                session.NvencGpuActive = backend == RecordingCaptureBackend.Ddagrab &&
-                    encoderArgs?.IndexOf("h264_nvenc", StringComparison.OrdinalIgnoreCase) >= 0 &&
-                    await ResolveNvencGpuCaptureAsync(session.FfmpegPath).ConfigureAwait(false);
+                // GPU-resident capture is native-only (the direct feed has no scaler) and only for
+                // a hardware encoder the probed build can actually feed ddagrab frames into.
+                session.GpuBridge = backend == RecordingCaptureBackend.Ddagrab &&
+                    persisted.RecordingResolution == RecordingResolution.Native
+                    ? await ResolveGpuBridgeAsync(session.FfmpegPath, encoderArgs).ConfigureAwait(false)
+                    : RecordingCommandBuilder.GpuCaptureBridge.None;
                 session.MonitorBounds = bounds.Value;
                 session.CaptureArguments = BuildCaptureArgumentsFor(session, persisted, bounds.Value);
 
@@ -459,7 +462,7 @@ namespace PlayniteAchievements.Services.Recording
                     TimeSpan.FromSeconds(PruneIntervalSeconds),
                     TimeSpan.FromSeconds(PruneIntervalSeconds));
                 _logger?.Info(
-                    $"[Recording] Capture started for '{session.GameName}' on monitor {bounds.Value} ({backend}, {encoderArgs}{(session.NvencGpuActive ? ", GPU-resident" : string.Empty)}), buffer={session.BufferDirectory}.");
+                    $"[Recording] Capture started for '{session.GameName}' on monitor {bounds.Value} ({backend}, {encoderArgs}{(session.GpuBridge != RecordingCommandBuilder.GpuCaptureBridge.None ? $", GPU-resident:{session.GpuBridge}" : string.Empty)}), buffer={session.BufferDirectory}.");
 
                 // Capture started from the fallback (foreground) monitor before the game window
                 // existed: keep watching, and if the game window appears on a different monitor,
@@ -496,7 +499,7 @@ namespace PlayniteAchievements.Services.Recording
                     MonitorIndex = ResolveMonitorIndex(bounds),
                     Resolution = persisted.RecordingResolution,
                     EncoderArguments = session.EncoderArguments,
-                    NvencGpuResident = session.NvencGpuActive,
+                    GpuBridge = session.GpuBridge,
                     SegmentSeconds = SegmentSeconds,
                     BufferDirectory = session.BufferDirectory
                 });
@@ -613,15 +616,15 @@ namespace PlayniteAchievements.Services.Recording
                 return;
             }
 
-            // A GPU-resident capture that dies (CUDA interop/driver quirks the smoke test didn't
+            // A GPU-resident capture that dies (driver/hardware quirks the smoke test didn't
             // surface) first drops to the hwdownload ddagrab path — same backend, no round-trip
             // savings but still Desktop Duplication — before any ddagrab->gdigrab downgrade.
-            if (session.NvencGpuActive)
+            if (session.GpuBridge != RecordingCommandBuilder.GpuCaptureBridge.None)
             {
                 var persisted = _settings?.Persisted;
                 if (persisted != null)
                 {
-                    session.NvencGpuActive = false;
+                    session.GpuBridge = RecordingCommandBuilder.GpuCaptureBridge.None;
                     session.CaptureArguments = BuildCaptureArgumentsFor(session, persisted, session.MonitorBounds);
                     _logger?.Info("[Recording] GPU-resident capture failed; falling back to the hwdownload ddagrab path for this session.");
                 }
@@ -1506,21 +1509,30 @@ namespace PlayniteAchievements.Services.Recording
         }
 
         /// <summary>
-        /// Whether the ffmpeg build can keep ddagrab frames on the GPU for NVENC. Reads the same
-        /// cached probe as the encoder/backend resolution; a probe failure just disables the GPU
-        /// path (the hwdownload path still works).
+        /// The GPU-resident bridge to use for the resolved encoder, or None when the build/hardware
+        /// can't keep ddagrab frames on the GPU for it. Reads the same cached probe as the
+        /// encoder/backend resolution; a probe failure just falls back to the hwdownload path.
         /// </summary>
-        private async Task<bool> ResolveNvencGpuCaptureAsync(string ffmpegPath)
+        private async Task<RecordingCommandBuilder.GpuCaptureBridge> ResolveGpuBridgeAsync(
+            string ffmpegPath, string encoderArgs)
         {
+            var encoder = RecordingCommandBuilder.DetectEncoderFamily(encoderArgs);
+            if (RecordingCommandBuilder.BridgeFor(encoder) == RecordingCommandBuilder.GpuCaptureBridge.None)
+            {
+                return RecordingCommandBuilder.GpuCaptureBridge.None;
+            }
+
             try
             {
                 var result = await _validation.ValidateAsync(ffmpegPath).ConfigureAwait(false);
-                return result?.SupportsNvencGpuCapture == true;
+                return result?.SupportsGpuCapture(encoder) == true
+                    ? RecordingCommandBuilder.BridgeFor(encoder)
+                    : RecordingCommandBuilder.GpuCaptureBridge.None;
             }
             catch (Exception ex)
             {
-                _logger?.Debug(ex, "[Recording] NVENC GPU-capture probe failed; using the hwdownload path.");
-                return false;
+                _logger?.Debug(ex, "[Recording] GPU-capture probe failed; using the hwdownload path.");
+                return RecordingCommandBuilder.GpuCaptureBridge.None;
             }
         }
 

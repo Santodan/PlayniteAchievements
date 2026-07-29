@@ -96,67 +96,120 @@ namespace PlayniteAchievements.Services.Tests.Recording
         }
 
         [TestMethod]
-        public void Capture_NvencGpuResident_KeepsFramesOnGpuWithoutHwdownload()
+        public void Capture_DirectBridge_FeedsDdagrabStraightToEncoder()
+        {
+            // NVENC and AMF both use the Direct bridge: raw D3D11 frames to the encoder, no
+            // hwdownload, no filter, no -pix_fmt.
+            foreach (var encoderArgs in new[] { "-c:v h264_nvenc -preset p4 -rc vbr -cq 23 -b:v 0", "-c:v h264_amf -quality speed -rc cqp" })
+            {
+                var options = DefaultOptions();
+                options.Backend = RecordingCaptureBackend.Ddagrab;
+                options.EncoderArguments = encoderArgs;
+                options.GpuBridge = RecordingCommandBuilder.GpuCaptureBridge.Direct;
+
+                var args = RecordingCommandBuilder.BuildCaptureArguments(options);
+
+                StringAssert.Contains(args, "-i \"ddagrab=output_idx=1:framerate=30:draw_mouse=1\"");
+                Assert.IsFalse(args.Contains("hwdownload"), args);
+                Assert.IsFalse(args.Contains("hwmap"), args);
+                Assert.IsFalse(args.Contains("scale_cuda"), args);
+                Assert.IsFalse(args.Contains("-vf"), args);
+                Assert.IsFalse(args.Contains("-pix_fmt"), args);
+                // The output half is unchanged from the hwdownload path.
+                StringAssert.Contains(args, "-g 30 -keyint_min 30");
+                StringAssert.Contains(args, "-force_key_frames \"expr:gte(t,n_forced*1)\"");
+                StringAssert.Contains(args, "-f segment -segment_time 5 -reset_timestamps 1 -strftime 1");
+            }
+        }
+
+        [TestMethod]
+        public void Capture_QsvHwmapBridge_MapsToQsvSurfaces()
         {
             var options = DefaultOptions();
             options.Backend = RecordingCaptureBackend.Ddagrab;
-            options.EncoderArguments = "-c:v h264_nvenc -preset p4 -rc vbr -cq 23 -b:v 0";
-            options.NvencGpuResident = true;
+            options.EncoderArguments = "-c:v h264_qsv -global_quality 23";
+            options.GpuBridge = RecordingCommandBuilder.GpuCaptureBridge.QsvHwmap;
 
             var args = RecordingCommandBuilder.BuildCaptureArguments(options);
 
-            StringAssert.Contains(args, "hwmap=derive_type=cuda,format=cuda,scale_cuda=format=nv12");
-            StringAssert.Contains(args, "-c:v h264_nvenc");
+            StringAssert.Contains(args, "-i \"ddagrab=output_idx=1:framerate=30:draw_mouse=1,hwmap=derive_type=qsv\"");
+            StringAssert.Contains(args, "-c:v h264_qsv");
             Assert.IsFalse(args.Contains("hwdownload"), args);
-            Assert.IsFalse(args.Contains("-vf"), args);
             Assert.IsFalse(args.Contains("-pix_fmt"), args);
-            // The output half is unchanged from the CPU path.
-            StringAssert.Contains(args, "-g 30 -keyint_min 30");
-            StringAssert.Contains(args, "-force_key_frames \"expr:gte(t,n_forced*1)\"");
-            StringAssert.Contains(args, "-f segment -segment_time 5 -reset_timestamps 1 -strftime 1");
         }
 
         [TestMethod]
-        public void Capture_NvencGpuResident_FixedResolutionsScaleOnGpu()
+        public void Capture_GpuBridge_FixedResolutionFallsBackToHwdownloadPath()
         {
+            // The GPU-resident path is native-only (no GPU scaler), so a downscale request keeps
+            // the hwdownload + CPU scale path even with a bridge set.
             var options = DefaultOptions();
             options.Backend = RecordingCaptureBackend.Ddagrab;
             options.EncoderArguments = "-c:v h264_nvenc";
-            options.NvencGpuResident = true;
-
+            options.GpuBridge = RecordingCommandBuilder.GpuCaptureBridge.Direct;
             options.Resolution = RecordingResolution.P1080;
-            StringAssert.Contains(
-                RecordingCommandBuilder.BuildCaptureArguments(options), "scale_cuda=-2:1080:format=nv12");
 
-            options.Resolution = RecordingResolution.P720;
-            StringAssert.Contains(
-                RecordingCommandBuilder.BuildCaptureArguments(options), "scale_cuda=-2:720:format=nv12");
+            var args = RecordingCommandBuilder.BuildCaptureArguments(options);
+
+            StringAssert.Contains(args, "hwdownload,format=bgra");
+            StringAssert.Contains(args, "-vf scale=-2:1080");
+            StringAssert.Contains(args, "-pix_fmt yuv420p");
         }
 
         [TestMethod]
-        public void Capture_NvencGpuResident_IgnoredForGdigrabBackend()
+        public void Capture_GpuBridge_IgnoredForGdigrabBackend()
         {
             var options = DefaultOptions();
             options.Backend = RecordingCaptureBackend.Gdigrab;
-            options.NvencGpuResident = true;
+            options.GpuBridge = RecordingCommandBuilder.GpuCaptureBridge.Direct;
 
             var args = RecordingCommandBuilder.BuildCaptureArguments(options);
 
             StringAssert.Contains(args, "-f gdigrab");
             Assert.IsFalse(args.Contains("hwmap"), args);
-            Assert.IsFalse(args.Contains("scale_cuda"), args);
             StringAssert.Contains(args, "-pix_fmt yuv420p");
         }
 
         [TestMethod]
-        public void NvencGpuSmokeTest_RunsGpuChainToNullMuxer()
+        public void BridgeFor_MapsEncoderFamiliesToBridges()
         {
-            var args = RecordingCommandBuilder.BuildNvencGpuSmokeTestArguments(1);
+            Assert.AreEqual(RecordingCommandBuilder.GpuCaptureBridge.Direct, RecordingCommandBuilder.BridgeFor(RecordingEncoder.Nvenc));
+            Assert.AreEqual(RecordingCommandBuilder.GpuCaptureBridge.Direct, RecordingCommandBuilder.BridgeFor(RecordingEncoder.Amf));
+            Assert.AreEqual(RecordingCommandBuilder.GpuCaptureBridge.QsvHwmap, RecordingCommandBuilder.BridgeFor(RecordingEncoder.Qsv));
+            Assert.AreEqual(RecordingCommandBuilder.GpuCaptureBridge.None, RecordingCommandBuilder.BridgeFor(RecordingEncoder.X264));
+            Assert.AreEqual(RecordingCommandBuilder.GpuCaptureBridge.None, RecordingCommandBuilder.BridgeFor(RecordingEncoder.Auto));
+        }
 
-            StringAssert.Contains(args, "ddagrab=output_idx=1:framerate=10");
-            StringAssert.Contains(args, "hwmap=derive_type=cuda,format=cuda,scale_cuda=format=nv12");
-            StringAssert.Contains(args, "-c:v h264_nvenc");
-            StringAssert.Contains(args, "-t 1 -f null -");
+        [TestMethod]
+        public void DetectEncoderFamily_RecognizesEachCodec()
+        {
+            Assert.AreEqual(RecordingEncoder.Nvenc, RecordingCommandBuilder.DetectEncoderFamily("-c:v h264_nvenc -preset p4"));
+            Assert.AreEqual(RecordingEncoder.Qsv, RecordingCommandBuilder.DetectEncoderFamily("-c:v h264_qsv -global_quality 23"));
+            Assert.AreEqual(RecordingEncoder.Amf, RecordingCommandBuilder.DetectEncoderFamily("-c:v h264_amf -quality speed -rc cqp"));
+            Assert.AreEqual(RecordingEncoder.X264, RecordingCommandBuilder.DetectEncoderFamily("-c:v libx264 -preset ultrafast -crf 23"));
+            Assert.AreEqual(RecordingEncoder.Auto, RecordingCommandBuilder.DetectEncoderFamily(null));
+        }
+
+        [TestMethod]
+        public void GpuSmokeTest_PerEncoderChainToNullMuxer()
+        {
+            var nvenc = RecordingCommandBuilder.BuildGpuSmokeTestArguments(RecordingEncoder.Nvenc, 1);
+            StringAssert.Contains(nvenc, "-i \"ddagrab=output_idx=1:framerate=10\"");
+            StringAssert.Contains(nvenc, "-c:v h264_nvenc");
+            StringAssert.Contains(nvenc, "-t 1 -f null -");
+            Assert.IsFalse(nvenc.Contains("hwmap"), nvenc);
+
+            var qsv = RecordingCommandBuilder.BuildGpuSmokeTestArguments(RecordingEncoder.Qsv, 1);
+            StringAssert.Contains(qsv, "ddagrab=output_idx=1:framerate=10,hwmap=derive_type=qsv");
+            StringAssert.Contains(qsv, "-c:v h264_qsv");
+
+            var amf = RecordingCommandBuilder.BuildGpuSmokeTestArguments(RecordingEncoder.Amf, 0);
+            StringAssert.Contains(amf, "-c:v h264_amf");
+            Assert.IsFalse(amf.Contains("hwmap"), amf);
+
+            // Software / Auto have no GPU-resident path.
+            Assert.IsNull(RecordingCommandBuilder.BuildGpuSmokeTestArguments(RecordingEncoder.X264));
+            Assert.IsNull(RecordingCommandBuilder.BuildGpuSmokeTestArguments(RecordingEncoder.Auto));
         }
 
         [TestMethod]

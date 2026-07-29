@@ -30,6 +30,7 @@ using Playnite.SDK.Plugins;
 using PlayniteAchievements.Common;
 using PlayniteAchievements.Services.Images;
 using PlayniteAchievements.Services.Logging;
+using PlayniteAchievements.Services.Notifications;
 using PlayniteAchievements.Services.Summaries;
 using PlayniteAchievements.Services.Library;
 using PlayniteAchievements.Services.Friends;
@@ -82,6 +83,7 @@ namespace PlayniteAchievements
         private readonly DiskImageService _diskImageService;
         private readonly ManagedCustomIconService _managedCustomIconService;
         private readonly NotificationImageStore _notificationImageStore;
+        private NotificationStylePortableStore _notificationStylePortableStore;
         private readonly NotificationPublisher _notifications;
         private readonly ProviderRegistry _providerRegistry;
         private readonly GameCustomDataStore _gameCustomDataStore;
@@ -140,6 +142,9 @@ namespace PlayniteAchievements
         public ManagedCustomIconService ManagedCustomIconService => _managedCustomIconService;
         public ICacheManager CacheManager => _cacheManager;
         public NotificationImageStore NotificationImageStore => _notificationImageStore;
+        public NotificationStylePortableStore NotificationStylePortableStore =>
+            _notificationStylePortableStore ?? (_notificationStylePortableStore =
+                new NotificationStylePortableStore(_notificationImageStore, _logger));
         public ThemeIntegrationService ThemeIntegrationService => _themeIntegrationService;
         public ThemeIntegrationService ThemeUpdateService => _themeIntegrationService;
         public TagSyncService TagSyncService => _tagSyncService;

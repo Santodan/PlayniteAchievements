@@ -557,6 +557,10 @@
     <sys:String x:Key="LOCPlayAch_Settings_Style_CustomizeForPlatform">Customize for this platform</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_Style_FollowDefaultHint">This platform follows the default appearance until customized.</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_Style_RevertConfirm">Revert this platform to the default notification appearance? Its custom images will be deleted.</sys:String>
+    <sys:String x:Key="LOCPlayAch_Settings_Style_ExportButton">Export Style</sys:String>
+    <sys:String x:Key="LOCPlayAch_Settings_Style_ImportButton">Import Style</sys:String>
+    <sys:String x:Key="LOCPlayAch_Settings_Style_ShareHint">Export the selected style to a shareable file, or import one. Use the .pastyle.zip format to include custom images.</sys:String>
+    <sys:String x:Key="LOCPlayAch_Settings_Style_ImportConfirm">Import this notification style and replace the current appearance for the selected platform?</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_Style_Rarity_BadgePercentFooter">Badge + percent footer</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_Style_Rarity_BadgeFooter">Badge footer</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_Style_Rarity_PercentFooter">Percent footer</sys:String>
@@ -584,7 +588,7 @@
     <sys:String x:Key="LOCPlayAch_Settings_Style_HeaderFriendCompleted">Friend completed the game</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_Style_HeaderFormatInvalid">The friend header must include {0} for the friend's name.</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_Style_BackgroundImage">Background image</sys:String>
-    <sys:String x:Key="LOCPlayAch_Settings_Style_BackgroundImageHint">PNG, JPG, or GIF shown behind the notification. Animated GIFs play, and a dark overlay keeps text readable. Frames have no background.</sys:String>
+    <sys:String x:Key="LOCPlayAch_Settings_Style_BackgroundImageHint">PNG, JPG, or GIF shown behind the notification. Animated GIFs play. Frames have no background.</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_Style_BadgeImages">Badge images</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_Style_BadgeImagesHint">Replace the drawn rarity and completion badges on notifications and frames. A custom rarity image also replaces the trophy badge.</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_Style_SharedAcrossSurfacesHint">Applies to both the notification and the screenshot frame.</sys:String>

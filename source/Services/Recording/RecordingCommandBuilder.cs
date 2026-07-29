@@ -29,6 +29,23 @@ namespace PlayniteAchievements.Services.Recording
 
         private const string SegmentStrftimePattern = "seg_%Y%m%d-%H%M%S.ts";
 
+        /// <summary>
+        /// How ddagrab's captured D3D11 frames reach the encoder, chosen by the resolved encoder.
+        /// The whole point is to avoid both a GPU-&gt;CPU round trip and any compute-core color
+        /// conversion — the hardware encoder converts BGRA-&gt;NV12 in its own dedicated block.
+        /// </summary>
+        public enum GpuCaptureBridge
+        {
+            /// <summary>Download to system RAM (software encoders, downscaling, gdigrab).</summary>
+            None = 0,
+
+            /// <summary>Feed ddagrab's D3D11 frames straight to a D3D11-native encoder (NVENC, AMF).</summary>
+            Direct = 1,
+
+            /// <summary>Map the D3D11 frames to QSV surfaces (same-GPU share) for h264_qsv.</summary>
+            QsvHwmap = 2,
+        }
+
         public sealed class CaptureOptions
         {
             public RecordingCaptureBackend Backend { get; set; }
@@ -53,12 +70,12 @@ namespace PlayniteAchievements.Services.Recording
             public string EncoderArguments { get; set; }
 
             /// <summary>
-            /// When true (only valid with a Ddagrab backend and an NVENC encoder), the captured
-            /// D3D11 frames are mapped to CUDA and scaled/converted on the GPU, then fed straight
-            /// to NVENC — no per-frame GPU-&gt;CPU-&gt;GPU round trip. Gated by
-            /// <see cref="FfmpegValidationService.FfmpegValidationResult.SupportsNvencGpuCapture"/>.
+            /// How the captured frames reach the encoder. Any value other than None keeps the
+            /// frames on the GPU (no hwdownload, no CPU scale, no -pix_fmt) and is only valid for
+            /// a native-resolution Ddagrab capture; the recording service sets it from the
+            /// resolved encoder and the probed hardware support.
             /// </summary>
-            public bool NvencGpuResident { get; set; }
+            public GpuCaptureBridge GpuBridge { get; set; }
 
             public int SegmentSeconds { get; set; }
 
@@ -84,8 +101,12 @@ namespace PlayniteAchievements.Services.Recording
             var width = Math.Max(2, options.MonitorWidth & ~1);
             var height = Math.Max(2, options.MonitorHeight & ~1);
 
-            // The GPU-resident path only applies to Ddagrab (its D3D11 output is what CUDA maps).
-            var gpuResident = options.NvencGpuResident && options.Backend == RecordingCaptureBackend.Ddagrab;
+            // A non-None bridge keeps ddagrab's D3D11 frames on the GPU (the hardware encoder does
+            // BGRA->NV12 in its own block). It only applies to a native-resolution Ddagrab
+            // capture — there is no GPU scaler here, so a downscale must take the hwdownload path.
+            var gpuResident = options.Backend == RecordingCaptureBackend.Ddagrab
+                && options.GpuBridge != GpuCaptureBridge.None
+                && options.Resolution == RecordingResolution.Native;
 
             var builder = new StringBuilder();
             builder.Append("-hide_banner -loglevel warning -y");
@@ -94,15 +115,17 @@ namespace PlayniteAchievements.Services.Recording
             {
                 if (gpuResident)
                 {
-                    // Map the captured D3D11 surface to CUDA (zero-copy on the same GPU), scale
-                    // and convert to nv12 on the GPU, then feed NVENC directly — no hwdownload,
-                    // so frames never touch system RAM. The scale spec also carries the downscale
-                    // (empty for Native), which is why the CPU -vf scale below is skipped here.
+                    // Direct (NVENC/AMF) hands the raw D3D11 frames to the encoder; QsvHwmap adds
+                    // a same-GPU surface share so h264_qsv can consume them. Neither downloads to
+                    // RAM and neither does a compute-core color conversion.
+                    var bridgeFilter = options.GpuBridge == GpuCaptureBridge.QsvHwmap
+                        ? ",hwmap=derive_type=qsv"
+                        : string.Empty;
                     builder.Append(Invariant(
-                        " -f lavfi -i \"ddagrab=output_idx={0}:framerate={1}:draw_mouse=1,hwmap=derive_type=cuda,format=cuda,scale_cuda={2}format=nv12\"",
+                        " -f lavfi -i \"ddagrab=output_idx={0}:framerate={1}:draw_mouse=1{2}\"",
                         Math.Max(0, options.MonitorIndex),
                         fps,
-                        ScaleCudaSpec(options.Resolution)));
+                        bridgeFilter));
                 }
                 else
                 {
@@ -123,8 +146,9 @@ namespace PlayniteAchievements.Services.Recording
                     height));
             }
 
-            // The GPU-resident path scales inside the CUDA input chain; the CPU scale filter
-            // runs after hwdownload and only applies to the other paths.
+            // GPU-resident capture is native-only (the service never sets a bridge for a
+            // downscale), so there is never a scale filter for it; the CPU scale filter runs
+            // after hwdownload on the downscale paths.
             if (!gpuResident)
             {
                 var scale = ScaleFilter(options.Resolution);
@@ -139,8 +163,9 @@ namespace PlayniteAchievements.Services.Recording
                 builder.Append(' ').Append(options.EncoderArguments.Trim());
             }
 
-            // NVENC on the GPU-resident path takes nv12 hwframes (format set by scale_cuda), so
-            // an explicit -pix_fmt would be rejected; the CPU paths still need it.
+            // On a GPU-resident bridge the encoder consumes hardware frames and converts to NV12
+            // in its own block, so an explicit -pix_fmt would be rejected; the hwdownload paths
+            // hand the encoder software frames that still need it.
             if (!gpuResident)
             {
                 builder.Append(" -pix_fmt yuv420p");
@@ -390,16 +415,97 @@ namespace PlayniteAchievements.Services.Recording
         }
 
         /// <summary>
-        /// A 1-second run of the full GPU-resident chain (ddagrab -&gt; CUDA map -&gt; scale_cuda
-        /// -&gt; NVENC) to the null muxer — verifies the build's CUDA interop and NVENC actually
-        /// work together on this machine before the capture session relies on it (filter presence
-        /// alone can pass on builds where the interop fails at runtime).
+        /// A 1-second run of the GPU-resident chain for the given hardware encoder (ddagrab's
+        /// D3D11 frames through its bridge into the encoder) to the null muxer — verifies the
+        /// build and hardware actually encode this way before a capture session relies on it.
+        /// Returns null for encoders without a GPU-resident path (libx264, Auto).
         /// </summary>
-        public static string BuildNvencGpuSmokeTestArguments(int monitorIndex = 0)
+        public static string BuildGpuSmokeTestArguments(RecordingEncoder encoder, int monitorIndex = 0)
         {
+            var codec = EncoderCodec(encoder);
+            if (codec == null || BridgeFor(encoder) == GpuCaptureBridge.None)
+            {
+                return null;
+            }
+
+            var bridgeFilter = BridgeFor(encoder) == GpuCaptureBridge.QsvHwmap
+                ? ",hwmap=derive_type=qsv"
+                : string.Empty;
             return Invariant(
-                "-hide_banner -loglevel warning -f lavfi -i \"ddagrab=output_idx={0}:framerate=10,hwmap=derive_type=cuda,format=cuda,scale_cuda=format=nv12\" -c:v h264_nvenc -t 1 -f null -",
-                Math.Max(0, monitorIndex));
+                "-hide_banner -loglevel warning -f lavfi -i \"ddagrab=output_idx={0}:framerate=10{1}\" -c:v {2} -t 1 -f null -",
+                Math.Max(0, monitorIndex),
+                bridgeFilter,
+                codec);
+        }
+
+        /// <summary>
+        /// The GPU-resident bridge a resolved encoder uses: NVENC and AMF take ddagrab's D3D11
+        /// frames directly; QSV needs a same-GPU surface map; software (and unresolved Auto) has
+        /// no GPU-resident path.
+        /// </summary>
+        public static GpuCaptureBridge BridgeFor(RecordingEncoder encoder)
+        {
+            switch (encoder)
+            {
+                case RecordingEncoder.Nvenc:
+                case RecordingEncoder.Amf:
+                    return GpuCaptureBridge.Direct;
+                case RecordingEncoder.Qsv:
+                    return GpuCaptureBridge.QsvHwmap;
+                default:
+                    return GpuCaptureBridge.None;
+            }
+        }
+
+        /// <summary>
+        /// Identifies which hardware/software encoder a built argument fragment uses, so the
+        /// recording service can pick the matching capture bridge after an Auto resolution has
+        /// already chosen the encoder. Returns Auto when none is recognized.
+        /// </summary>
+        public static RecordingEncoder DetectEncoderFamily(string encoderArguments)
+        {
+            if (string.IsNullOrEmpty(encoderArguments))
+            {
+                return RecordingEncoder.Auto;
+            }
+
+            if (encoderArguments.IndexOf("h264_nvenc", StringComparison.OrdinalIgnoreCase) >= 0)
+            {
+                return RecordingEncoder.Nvenc;
+            }
+
+            if (encoderArguments.IndexOf("h264_qsv", StringComparison.OrdinalIgnoreCase) >= 0)
+            {
+                return RecordingEncoder.Qsv;
+            }
+
+            if (encoderArguments.IndexOf("h264_amf", StringComparison.OrdinalIgnoreCase) >= 0)
+            {
+                return RecordingEncoder.Amf;
+            }
+
+            if (encoderArguments.IndexOf("libx264", StringComparison.OrdinalIgnoreCase) >= 0)
+            {
+                return RecordingEncoder.X264;
+            }
+
+            return RecordingEncoder.Auto;
+        }
+
+        /// <summary>The ffmpeg codec name for a hardware encoder, or null for software/Auto.</summary>
+        public static string EncoderCodec(RecordingEncoder encoder)
+        {
+            switch (encoder)
+            {
+                case RecordingEncoder.Nvenc:
+                    return "h264_nvenc";
+                case RecordingEncoder.Qsv:
+                    return "h264_qsv";
+                case RecordingEncoder.Amf:
+                    return "h264_amf";
+                default:
+                    return null;
+            }
         }
 
         public const string VersionProbeArguments = "-hide_banner -version";
@@ -418,25 +524,6 @@ namespace PlayniteAchievements.Services.Recording
                     return "scale=-2:720";
                 default:
                     return null;
-            }
-        }
-
-        /// <summary>
-        /// The scale_cuda size prefix for the GPU-resident chain, appended before
-        /// <c>format=nv12</c>. Native needs no resize (format-only conversion), so it returns an
-        /// empty string; the fixed resolutions carry a <c>-2:{height}:</c> (even width, preserved
-        /// aspect) prefix.
-        /// </summary>
-        private static string ScaleCudaSpec(RecordingResolution resolution)
-        {
-            switch (resolution)
-            {
-                case RecordingResolution.P1080:
-                    return "-2:1080:";
-                case RecordingResolution.P720:
-                    return "-2:720:";
-                default:
-                    return string.Empty;
             }
         }
 

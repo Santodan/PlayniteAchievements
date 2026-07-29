@@ -71,6 +71,22 @@
                                    TextWrapping="Wrap"
                                    Visibility="Collapsed"
                                    Margin="0,8,0,0"/>
+
+                        <!-- Share the selected style: export to a .pastyle(.zip) file or import
+                             one onto the current platform selection. -->
+                        <WrapPanel Margin="0,14,0,0">
+                            <Button x:Name="ExportStyleButton"
+                                    Click="ExportStyle_Click"
+                                    Content="{DynamicResource LOCPlayAch_Settings_Style_ExportButton}"
+                                    Margin="0,0,8,0"/>
+                            <Button x:Name="ImportStyleButton"
+                                    Click="ImportStyle_Click"
+                                    Content="{DynamicResource LOCPlayAch_Settings_Style_ImportButton}"/>
+                        </WrapPanel>
+                        <TextBlock Text="{DynamicResource LOCPlayAch_Settings_Style_ShareHint}"
+                                   Style="{StaticResource MutedTextStyle}"
+                                   TextWrapping="Wrap"
+                                   Margin="0,8,0,0"/>
                     </StackPanel>
                 </Border>
 
