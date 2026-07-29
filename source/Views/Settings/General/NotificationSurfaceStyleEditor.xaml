@@ -388,6 +388,24 @@
                             Margin="8,0,0,0"
                             VerticalAlignment="Center"/>
                 </Grid>
+                <!-- Image size + one-click fit so users don't have to guess card dimensions to
+                     match a chosen background (the card crops to its own aspect via UniformToFill). -->
+                <Grid Margin="0,0,0,6"
+                      Visibility="{Binding HasBackgroundImage, Converter={StaticResource BoolToVis}}">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="Auto"/>
+                        <ColumnDefinition Width="*"/>
+                        <ColumnDefinition Width="Auto"/>
+                    </Grid.ColumnDefinitions>
+                    <TextBlock Grid.Column="0"
+                               Text="{Binding BackgroundImageDimensionsText}"
+                               Style="{StaticResource MutedTextStyle}"
+                               VerticalAlignment="Center"/>
+                    <Button Grid.Column="2"
+                            Content="{DynamicResource LOCPlayAch_Settings_Style_FitCardToImage}"
+                            Click="FitCardToImage_Click"
+                            VerticalAlignment="Center"/>
+                </Grid>
                 <TextBlock Text="{DynamicResource LOCPlayAch_Settings_Style_SharedAcrossSurfacesHint}"
                            Style="{StaticResource MutedTextStyle}"
                            TextWrapping="Wrap"/>

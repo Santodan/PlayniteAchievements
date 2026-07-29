@@ -569,6 +569,7 @@
     <sys:String x:Key="LOCPlayAch_Settings_Style_CountdownBarColor">Timer bar color</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_Style_CardWidth">Width</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_Style_CardHeight">Height</sys:String>
+    <sys:String x:Key="LOCPlayAch_Settings_Style_FitCardToImage">Fit card to image</sys:String>
     <sys:String x:Key="LOCPlayAch_Notification_ThemePreviewUnavailable">The active theme's notification template could not be rendered. It may reference resources that are not currently available.</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_Style_SampleUnlock">Example unlock</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_Style_FirePluginStyle">Plugin</sys:String>
@@ -878,6 +879,9 @@
     <sys:String x:Key="LOCPlayAch_Settings_ShowCompletedProgressColoring_Help">Use the completed game colors for the progress bars of fully completed games.</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_AnimateRarityGlows">Animate Rarity Glows</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_AnimateRarityGlows_Help">Gently fade rarity glows in and out on unlocked achievement icons and in unlock notifications.</sys:String>
+    <sys:String x:Key="LOCPlayAch_Settings_RarityGlowPulseMinOpacity">Pulse minimum opacity (0-1)</sys:String>
+    <sys:String x:Key="LOCPlayAch_Settings_RarityGlowPulseMaxOpacity">Pulse maximum opacity (0-1)</sys:String>
+    <sys:String x:Key="LOCPlayAch_Settings_RarityGlowPulseSpeed">Pulse duration, seconds</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_ColorNamesByRarity">Color Names by Rarity</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_ColorRarityTextByRarity">Color Rarity Text by Rarity</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_ShowNameAboveProgress">Show Name Above Progress Bar</sys:String>

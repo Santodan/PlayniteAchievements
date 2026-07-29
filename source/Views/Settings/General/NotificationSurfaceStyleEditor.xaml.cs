@@ -76,6 +76,11 @@ namespace PlayniteAchievements.Views.Settings.General
             }
         }
 
+        private void FitCardToImage_Click(object sender, RoutedEventArgs e)
+        {
+            ViewModel?.FitCardToBackgroundImage();
+        }
+
         private async void ImageBrowse_Click(object sender, RoutedEventArgs e)
         {
             var viewModel = ViewModel;

@@ -3,10 +3,12 @@ using System.Collections.Generic;
 using System.Collections.ObjectModel;
 using System.ComponentModel;
 using System.Globalization;
+using System.IO;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using System.Windows.Media;
+using System.Windows.Media.Imaging;
 using System.Windows.Threading;
 using Playnite.SDK;
 using PlayniteAchievements.Models;
@@ -367,6 +369,80 @@ namespace PlayniteAchievements.ViewModels.Settings
             SetValue(ref _cardMinHeightText,
                 surface?.CardMinHeight?.ToString(CultureInfo.CurrentCulture) ?? string.Empty,
                 nameof(CardMinHeightText));
+        }
+
+        // Anchor width used when fitting the card to a background image; mirrors the toast view
+        // model's ToastCardWidth fallback so a blank width fits at the same size the card renders.
+        private const double DefaultCardWidth = 410;
+
+        /// <summary>
+        /// Whether a toast background image is set. Drives the fit-to-image affordance, which is
+        /// meaningless on the frame surface (no background) or with no image chosen.
+        /// </summary>
+        public bool HasBackgroundImage =>
+            !IsFrameSurface && !string.IsNullOrWhiteSpace(_style?.ToastBackgroundImagePath);
+
+        /// <summary>
+        /// The background image's pixel dimensions as "W × H" (empty when none is set), so the
+        /// user can see what the "fit card to image" button sizes the card to.
+        /// </summary>
+        public string BackgroundImageDimensionsText =>
+            HasBackgroundImage &&
+            TryReadImagePixelSize(_style.ToastBackgroundImagePath, out var w, out var h)
+                ? string.Format(CultureInfo.CurrentCulture, "{0} × {1}", w, h)
+                : string.Empty;
+
+        /// <summary>
+        /// Sets the toast card's width and min-height to the background image's aspect ratio,
+        /// keeping the current width as the anchor, so the UniformToFill background shows the whole
+        /// image without cropping. Users still enter card dimensions manually; this just removes
+        /// the guesswork of matching a specific image.
+        /// </summary>
+        public void FitCardToBackgroundImage()
+        {
+            var surface = Surface;
+            if (surface == null || !_isEditable || !HasBackgroundImage)
+            {
+                return;
+            }
+
+            if (!TryReadImagePixelSize(_style.ToastBackgroundImagePath, out var imageWidth, out var imageHeight) ||
+                imageWidth <= 0 || imageHeight <= 0)
+            {
+                return;
+            }
+
+            var width = surface.CardWidth is double w && w > 0 ? w : DefaultCardWidth;
+            surface.CardWidth = width;
+            surface.CardMinHeight = Math.Round(width * imageHeight / imageWidth);
+            RefreshCardDimensions();
+        }
+
+        // Reads an image's pixel dimensions from its header without decoding the full bitmap.
+        // Returns the first frame's size for animated GIFs (their logical canvas size).
+        private static bool TryReadImagePixelSize(string path, out int width, out int height)
+        {
+            width = 0;
+            height = 0;
+            try
+            {
+                if (string.IsNullOrWhiteSpace(path) || !File.Exists(path))
+                {
+                    return false;
+                }
+
+                var frame = BitmapFrame.Create(
+                    new Uri(path, UriKind.Absolute),
+                    BitmapCreateOptions.DelayCreation,
+                    BitmapCacheOption.None);
+                width = frame.PixelWidth;
+                height = frame.PixelHeight;
+                return width > 0 && height > 0;
+            }
+            catch
+            {
+                return false;
+            }
         }
 
         /// <summary>
@@ -799,6 +875,8 @@ namespace PlayniteAchievements.ViewModels.Settings
             OnPropertyChanged(nameof(SelectedGlowDisplay));
             OnPropertyChanged(nameof(CountdownBarColorText));
             OnPropertyChanged(nameof(CountdownBarSwatch));
+            OnPropertyChanged(nameof(HasBackgroundImage));
+            OnPropertyChanged(nameof(BackgroundImageDimensionsText));
         }
 
         private void Subscribe()
@@ -871,6 +949,8 @@ namespace PlayniteAchievements.ViewModels.Settings
                 e.PropertyName == nameof(NotificationStyleSettings.ToastBackgroundImagePath))
             {
                 OnPropertyChanged(nameof(Style));
+                OnPropertyChanged(nameof(HasBackgroundImage));
+                OnPropertyChanged(nameof(BackgroundImageDimensionsText));
             }
 
             NotifyStyleEdited();
