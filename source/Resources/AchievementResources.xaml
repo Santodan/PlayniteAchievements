@@ -229,8 +229,8 @@
 
     <DataTemplate x:Key="PlayAch.Template.AchievementToast"
                   DataType="{x:Type vm:AchievementToastViewModel}">
-        <Border Width="410"
-                MinHeight="64"
+        <Border Width="{Binding ToastCardWidth}"
+                MinHeight="{Binding ToastCardMinHeight}"
                 Margin="14"
                 CornerRadius="8"
                 Background="{DynamicResource PlayAch.Brush.PopupSurface}"
@@ -273,7 +273,8 @@
                      the IsGameCompleted trigger can override them. -->
                 <Border Grid.Column="0"
                         Width="4"
-                        CornerRadius="8,0,0,8">
+                        CornerRadius="8,0,0,8"
+                        Visibility="{Binding ShowAccentStrip, Converter={StaticResource BooleanToVisibilityConverter}}">
                     <Border.Style>
                         <Style TargetType="Border">
                             <Setter Property="Background" Value="{Binding AccentBrush}"/>
@@ -391,6 +392,7 @@
                             CornerRadius="2"
                             HorizontalAlignment="Stretch"
                             Background="{DynamicResource PlayAch.Brush.Progress.Fill}"
+                            Visibility="{Binding ShowCountdownBar, Converter={StaticResource BooleanToVisibilityConverter}}"
                             RenderTransformOrigin="0,0">
                         <Border.RenderTransform>
                             <ScaleTransform ScaleX="1"
