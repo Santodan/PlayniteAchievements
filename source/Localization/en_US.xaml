@@ -563,11 +563,10 @@
     <sys:String x:Key="LOCPlayAch_Settings_Style_ShowCountdownBar">Timer bar</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_Style_CardWidth">Width</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_Style_CardHeight">Height</sys:String>
-    <sys:String x:Key="LOCPlayAch_Notification_ThemePreviewUnavailable">This theme's notification can't be previewed from Settings because it relies on resources that only load while that theme is running. To see it, run Playnite in that mode with the theme active and fire the test there.</sys:String>
+    <sys:String x:Key="LOCPlayAch_Notification_ThemePreviewUnavailable">The active theme's notification template could not be rendered. It may reference resources that are not currently available.</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_Style_SampleUnlock">Example unlock</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_Style_FirePluginStyle">Plugin</sys:String>
-    <sys:String x:Key="LOCPlayAch_Settings_Style_FireDesktopTheme">Desktop</sys:String>
-    <sys:String x:Key="LOCPlayAch_Settings_Style_FireFullscreenTheme">Fullscreen</sys:String>
+    <sys:String x:Key="LOCPlayAch_Settings_Style_FireTheme">Theme</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_Style_UseThemeTemplate">Allow the theme to style this surface</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_Style_UseThemeTemplateHint">When a theme provides its own template it ignores the appearance options below. Turn this off to always use the plugin's template.</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_Style_TextLines">Text lines</sys:String>
