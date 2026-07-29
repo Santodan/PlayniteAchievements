@@ -225,11 +225,24 @@ namespace PlayniteAchievements.Views.Helpers
 
             if (fe.IsVisible)
             {
+                // A GIF animation kept alive across the hide is still attached to the element,
+                // so re-loading would needlessly tear it down (and the async rebuild can race a
+                // subsequent hide, leaving a static frame). Only (re)start when nothing is running.
+                if (GetActiveAnimatedGifSource(fe) != null)
+                {
+                    return;
+                }
+
                 _ = StartLoadAsync(fe);
                 return;
             }
 
-            CancelExisting(fe);
+            // The element (or its window) was hidden — e.g. the toast's focus-hiding loop toggling
+            // window visibility while a game is foreground. Cancel a pending async load so a late
+            // static frame cannot overwrite the animation, but leave any running GIF animation in
+            // place: its timeline keeps advancing and resumes rendering when the element reappears,
+            // instead of restarting from scratch on every focus flip.
+            CancelPendingLoad(fe);
         }
 
         private static void CancelExisting(DependencyObject d)
@@ -238,6 +251,29 @@ namespace PlayniteAchievements.Views.Helpers
             {
                 StopAnimation(d);
 
+                var existing = GetLoadCts(d);
+                if (existing != null)
+                {
+                    existing.Cancel();
+                    existing.Dispose();
+                }
+            }
+            catch
+            {
+            }
+            finally
+            {
+                SetLoadCts(d, null);
+            }
+        }
+
+        // Cancels only a pending async load (leaving any running GIF animation untouched), used
+        // when an element is merely hidden rather than having its logical source change. Keeping
+        // the animation attached lets it resume on re-show without an async rebuild.
+        private static void CancelPendingLoad(DependencyObject d)
+        {
+            try
+            {
                 var existing = GetLoadCts(d);
                 if (existing != null)
                 {
