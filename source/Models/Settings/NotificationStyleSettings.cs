@@ -111,6 +111,7 @@ namespace PlayniteAchievements.Models.Settings
         private bool _showGameName = true;
         private bool _showRarityBadge = true;
         private bool _showRarityPercent = true;
+        private bool _inlineRarityBadge;
         private bool _showRarityGlow = true;
         private bool _rarityColoredName = true;
         private bool _showUnlockTime;
@@ -165,6 +166,17 @@ namespace PlayniteAchievements.Models.Settings
         {
             get => _showRarityPercent;
             set => SetValue(ref _showRarityPercent, value);
+        }
+
+        /// <summary>
+        /// When true, the rarity/trophy badge is drawn inline before the achievement name
+        /// instead of in the icon-column footer. Mutually exclusive with the footer badge in
+        /// the settings UI, though independent in the model.
+        /// </summary>
+        public bool InlineRarityBadge
+        {
+            get => _inlineRarityBadge;
+            set => SetValue(ref _inlineRarityBadge, value);
         }
 
         public bool ShowRarityGlow
@@ -326,6 +338,7 @@ namespace PlayniteAchievements.Models.Settings
                 ShowGameName = ShowGameName,
                 ShowRarityBadge = ShowRarityBadge,
                 ShowRarityPercent = ShowRarityPercent,
+                InlineRarityBadge = InlineRarityBadge,
                 ShowRarityGlow = ShowRarityGlow,
                 RarityColoredName = RarityColoredName,
                 ShowUnlockTime = ShowUnlockTime,
