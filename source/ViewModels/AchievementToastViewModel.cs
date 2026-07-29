@@ -401,6 +401,15 @@ namespace PlayniteAchievements.ViewModels
         public bool ShowProviderIcon => _style.Toast.ShowProviderIcon && !string.IsNullOrWhiteSpace(ProviderIconKey);
         public bool FrameShowProviderIcon => _style.Frame.ShowProviderIcon && !string.IsNullOrWhiteSpace(ProviderIconKey);
 
+        // Left rarity accent strip and bottom countdown bar (toast only; hiding the bar does
+        // not change auto-dismiss timing).
+        public bool ShowAccentStrip => _style.Toast.ShowAccentStrip;
+        public bool ShowCountdownBar => _style.Toast.ShowCountdownBar;
+
+        // User toast card dimensions, falling back to the bundled template's defaults.
+        public double ToastCardWidth => _style.Toast.CardWidth is double w && w > 0 ? w : 410;
+        public double ToastCardMinHeight => _style.Toast.CardMinHeight is double h && h > 0 ? h : 64;
+
         // User toast background image (frames never get a background). Missing files fall
         // back to the default surface brush via HasToastBackground.
         public string ToastBackgroundImagePath => _style.ToastBackgroundImagePath;
