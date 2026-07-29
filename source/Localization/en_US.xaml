@@ -557,7 +557,6 @@
     <sys:String x:Key="LOCPlayAch_Settings_Style_CustomizeForPlatform">Customize for this platform</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_Style_FollowDefaultHint">This platform follows the default appearance until customized.</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_Style_RevertConfirm">Revert this platform to the default notification appearance? Its custom images will be deleted.</sys:String>
-    <sys:String x:Key="LOCPlayAch_Settings_Style_Rarity">Rarity</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_Style_Rarity_BadgePercentFooter">Badge + percent footer</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_Style_Rarity_BadgeFooter">Badge footer</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_Style_Rarity_PercentFooter">Percent footer</sys:String>

@@ -46,6 +46,13 @@
                 <Setter Property="Margin" Value="0,0,8,0"/>
             </Style>
 
+            <!-- Uniform spacing for every checkbox in the editor, so the option grids share one
+                 consistent horizontal/vertical rhythm instead of per-item margins. -->
+            <Style TargetType="CheckBox">
+                <Setter Property="VerticalAlignment" Value="Center"/>
+                <Setter Property="Margin" Value="0,0,16,10"/>
+            </Style>
+
             <Style x:Key="LineOrderGridRowStyle"
                    TargetType="DataGridRow"
                    BasedOn="{StaticResource AchievementRowStyle}">
@@ -61,29 +68,21 @@
         <Border Style="{StaticResource EditorCardStyle}">
             <UniformGrid Columns="2">
                 <CheckBox Content="{DynamicResource LOCPlayAch_Settings_ToastShowHeader}"
-                          IsChecked="{Binding Surface.ShowHeader}"
-                          Margin="0,0,16,10"/>
+                          IsChecked="{Binding Surface.ShowHeader}"/>
                 <CheckBox Content="{DynamicResource LOCPlayAch_Settings_ToastShowName}"
-                          IsChecked="{Binding Surface.ShowName}"
-                          Margin="0,0,16,10"/>
+                          IsChecked="{Binding Surface.ShowName}"/>
                 <CheckBox Content="{DynamicResource LOCPlayAch_Settings_ToastShowDescription}"
-                          IsChecked="{Binding Surface.ShowDescription}"
-                          Margin="0,0,16,10"/>
+                          IsChecked="{Binding Surface.ShowDescription}"/>
                 <CheckBox Content="{DynamicResource LOCPlayAch_Settings_ToastShowGameName}"
-                          IsChecked="{Binding Surface.ShowGameName}"
-                          Margin="0,0,16,10"/>
+                          IsChecked="{Binding Surface.ShowGameName}"/>
                 <CheckBox Content="{DynamicResource LOCPlayAch_Common_Label_Category}"
-                          IsChecked="{Binding Surface.ShowCategory}"
-                          Margin="0,0,16,10"/>
+                          IsChecked="{Binding Surface.ShowCategory}"/>
                 <CheckBox Content="{DynamicResource LOCPlayAch_Common_UnlockTime}"
-                          IsChecked="{Binding Surface.ShowUnlockTime}"
-                          Margin="0,0,16,10"/>
+                          IsChecked="{Binding Surface.ShowUnlockTime}"/>
                 <CheckBox Content="{DynamicResource LOCPlayAch_Settings_ToastRarityColoredName}"
-                          IsChecked="{Binding Surface.RarityColoredName}"
-                          Margin="0,0,16,0"/>
+                          IsChecked="{Binding Surface.RarityColoredName}"/>
                 <CheckBox Content="{DynamicResource LOCPlayAch_Common_Label_Platform}"
-                          IsChecked="{Binding Surface.ShowProviderIcon}"
-                          Margin="0,0,16,0"/>
+                          IsChecked="{Binding Surface.ShowProviderIcon}"/>
             </UniformGrid>
         </Border>
 
@@ -100,7 +99,7 @@
                 </Grid.RowDefinitions>
 
                 <TextBlock Grid.Row="0" Grid.Column="0"
-                           Text="{DynamicResource LOCPlayAch_Settings_Style_Rarity}"
+                           Text="{DynamicResource LOCPlayAch_Column_Rarity}"
                            Style="{StaticResource EditorRowLabelStyle}"
                            Margin="0,0,8,8"/>
                 <ComboBox Grid.Row="0" Grid.Column="1"
@@ -126,13 +125,11 @@
         <Border Style="{StaticResource EditorCardStyle}"
                 Visibility="{Binding IsToastSurface, Converter={StaticResource BoolToVis}}">
             <StackPanel>
-                <UniformGrid Columns="2" Margin="0,0,0,10">
+                <UniformGrid Columns="2">
                     <CheckBox Content="{DynamicResource LOCPlayAch_Settings_Style_ShowAccentStrip}"
-                              IsChecked="{Binding Surface.ShowAccentStrip}"
-                              Margin="0,0,16,0"/>
+                              IsChecked="{Binding Surface.ShowAccentStrip}"/>
                     <CheckBox Content="{DynamicResource LOCPlayAch_Settings_Style_ShowCountdownBar}"
-                              IsChecked="{Binding Surface.ShowCountdownBar}"
-                              Margin="0,0,16,0"/>
+                              IsChecked="{Binding Surface.ShowCountdownBar}"/>
                 </UniformGrid>
 
                 <Grid HorizontalAlignment="Left">
@@ -314,7 +311,7 @@
                            Margin="0,0,0,6"/>
                 <Grid Margin="0,0,0,6">
                     <Grid.ColumnDefinitions>
-                        <ColumnDefinition Width="48"/>
+                        <ColumnDefinition Width="Auto"/>
                         <ColumnDefinition Width="*"/>
                         <ColumnDefinition Width="Auto"/>
                         <ColumnDefinition Width="Auto"/>
@@ -366,7 +363,7 @@
                 <Grid>
                     <Grid.ColumnDefinitions>
                         <ColumnDefinition Width="Auto" MinWidth="110"/>
-                        <ColumnDefinition Width="48"/>
+                        <ColumnDefinition Width="Auto"/>
                         <ColumnDefinition Width="*"/>
                         <ColumnDefinition Width="Auto"/>
                         <ColumnDefinition Width="Auto"/>
