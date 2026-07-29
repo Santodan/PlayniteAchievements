@@ -151,29 +151,41 @@
     </DataTemplate>
 
     <DataTemplate DataType="{x:Type vm:ToastTitleLine}">
-        <!-- Completion notifications force the title, swap it for "Game Complete!", and color
-             it with the completed brush. -->
-        <TextBlock FontSize="{Binding FontSize}"
-                   FontFamily="{Binding FontFamily}"
-                   FontWeight="SemiBold"
-                   TextWrapping="NoWrap"
-                   TextTrimming="CharacterEllipsis"
-                   Margin="0,1,0,0">
-            <TextBlock.Style>
-                <Style TargetType="TextBlock" BasedOn="{StaticResource PlayAch.TextBlock.BaseStyle}">
-                    <Setter Property="Text" Value="{Binding Parent.TitleText}"/>
-                    <Setter Property="Foreground" Value="{Binding TitleBrush}"/>
-                    <Setter Property="Visibility" Value="{Binding ShowName, Converter={StaticResource BooleanToVisibilityConverter}}"/>
-                    <Style.Triggers>
-                        <DataTrigger Binding="{Binding Parent.IsGameCompleted}" Value="True">
-                            <Setter Property="Text" Value="{DynamicResource LOCPlayAch_Toast_GameComplete}"/>
-                            <Setter Property="Foreground" Value="{Binding Parent.CompletedBrush}"/>
-                            <Setter Property="Visibility" Value="Visible"/>
-                        </DataTrigger>
-                    </Style.Triggers>
-                </Style>
-            </TextBlock.Style>
-        </TextBlock>
+        <!-- Optional inline rarity badge sits immediately before the name; completion
+             notifications force the title, swap it for "Game Complete!", and color it with the
+             completed brush. -->
+        <StackPanel Orientation="Horizontal"
+                    Margin="0,1,0,0">
+            <Image helpers:AsyncImage.Uri="{Binding InlineBadgeSource}"
+                   helpers:AsyncImage.DecodePixel="64"
+                   Width="{Binding FontSize}"
+                   Height="{Binding FontSize}"
+                   VerticalAlignment="Center"
+                   Margin="0,0,5,0"
+                   RenderOptions.BitmapScalingMode="HighQuality"
+                   Visibility="{Binding ShowInlineBadge, Converter={StaticResource BooleanToVisibilityConverter}}"/>
+            <TextBlock FontSize="{Binding FontSize}"
+                       FontFamily="{Binding FontFamily}"
+                       FontWeight="SemiBold"
+                       TextWrapping="NoWrap"
+                       TextTrimming="CharacterEllipsis"
+                       VerticalAlignment="Center">
+                <TextBlock.Style>
+                    <Style TargetType="TextBlock" BasedOn="{StaticResource PlayAch.TextBlock.BaseStyle}">
+                        <Setter Property="Text" Value="{Binding Parent.TitleText}"/>
+                        <Setter Property="Foreground" Value="{Binding TitleBrush}"/>
+                        <Setter Property="Visibility" Value="{Binding ShowName, Converter={StaticResource BooleanToVisibilityConverter}}"/>
+                        <Style.Triggers>
+                            <DataTrigger Binding="{Binding Parent.IsGameCompleted}" Value="True">
+                                <Setter Property="Text" Value="{DynamicResource LOCPlayAch_Toast_GameComplete}"/>
+                                <Setter Property="Foreground" Value="{Binding Parent.CompletedBrush}"/>
+                                <Setter Property="Visibility" Value="Visible"/>
+                            </DataTrigger>
+                        </Style.Triggers>
+                    </Style>
+                </TextBlock.Style>
+            </TextBlock>
+        </StackPanel>
     </DataTemplate>
 
     <DataTemplate DataType="{x:Type vm:ToastDescriptionLine}">
