@@ -102,14 +102,11 @@ namespace PlayniteAchievements.ViewModels
         public double InlineBadgeSize => FontSize * 1.5;
 
         /// <summary>
-        /// Left offset for the title row when the inline badge shows: pulls the row left by half
-        /// the badge so the badge is centered on the first-letter column of the lines below
-        /// (which start at x=0), instead of pushing the whole name to the right. Zero when the
-        /// badge is hidden.
+        /// Top margin for the title row. The inline badge's left edge stays flush with the
+        /// text lines below (both start at x=0); the badge sits before the name rather than
+        /// being pulled left to center on the first-letter column.
         /// </summary>
-        public Thickness InlineBadgeLineMargin => ShowInlineBadge
-            ? new Thickness(-(InlineBadgeSize / 2.0), 1, 0, 0)
-            : new Thickness(0, 1, 0, 0);
+        public Thickness InlineBadgeLineMargin => new Thickness(0, 1, 0, 0);
     }
 
     /// <summary>
