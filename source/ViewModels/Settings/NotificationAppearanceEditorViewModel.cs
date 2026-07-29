@@ -209,16 +209,27 @@ namespace PlayniteAchievements.ViewModels.Settings
 
         #region Glow display (single dropdown over icon glow + border glow flags)
 
-        private static IReadOnlyList<GlowDisplayOption> _glowDisplayOptions;
+        private static IReadOnlyList<GlowDisplayOption> _toastGlowDisplayOptions;
+        private static IReadOnlyList<GlowDisplayOption> _frameGlowDisplayOptions;
 
-        public IReadOnlyList<GlowDisplayOption> GlowDisplayOptions =>
-            _glowDisplayOptions ?? (_glowDisplayOptions = new[]
+        /// <summary>
+        /// Glow choices for the surface. The frame has no card border, so it only offers the
+        /// icon glow (Icon/None); the toast additionally offers the border glow (Notification)
+        /// and Both.
+        /// </summary>
+        public IReadOnlyList<GlowDisplayOption> GlowDisplayOptions => IsFrameSurface
+            ? (_frameGlowDisplayOptions ?? (_frameGlowDisplayOptions = new[]
+            {
+                new GlowDisplayOption(GlowDisplay.Icon, L("LOCPlayAch_Column_Icon")),
+                new GlowDisplayOption(GlowDisplay.None, L("LOCPlayAch_Common_None"))
+            }))
+            : (_toastGlowDisplayOptions ?? (_toastGlowDisplayOptions = new[]
             {
                 new GlowDisplayOption(GlowDisplay.Icon, L("LOCPlayAch_Column_Icon")),
                 new GlowDisplayOption(GlowDisplay.Notification, L("LOCPlayAch_Settings_Style_ToastTab")),
                 new GlowDisplayOption(GlowDisplay.Both, L("LOCPlayAch_Common_Both")),
                 new GlowDisplayOption(GlowDisplay.None, L("LOCPlayAch_Common_None"))
-            });
+            }));
 
         /// <summary>
         /// The glow layout, derived from and written back to the surface's icon-glow and
@@ -233,6 +244,11 @@ namespace PlayniteAchievements.ViewModels.Settings
                 if (surface == null)
                 {
                     value = GlowDisplay.Icon;
+                }
+                else if (IsFrameSurface)
+                {
+                    // The frame has no border glow; only the icon glow applies.
+                    value = surface.ShowRarityGlow ? GlowDisplay.Icon : GlowDisplay.None;
                 }
                 else if (surface.ShowRarityGlow && surface.NotificationBorderGlow)
                 {
@@ -264,7 +280,9 @@ namespace PlayniteAchievements.ViewModels.Settings
 
                 var mode = value.Value;
                 surface.ShowRarityGlow = mode == GlowDisplay.Icon || mode == GlowDisplay.Both;
-                surface.NotificationBorderGlow = mode == GlowDisplay.Notification || mode == GlowDisplay.Both;
+                // The frame never has a border glow regardless of the selection.
+                surface.NotificationBorderGlow = !IsFrameSurface &&
+                    (mode == GlowDisplay.Notification || mode == GlowDisplay.Both);
             }
         }
 
