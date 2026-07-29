@@ -468,7 +468,7 @@ namespace PlayniteAchievements.ViewModels
 
         // User toast card dimensions, falling back to the bundled template's defaults.
         public double ToastCardWidth => _style.Toast.CardWidth is double w && w > 0 ? w : 410;
-        public double ToastCardMinHeight => _style.Toast.CardMinHeight is double h && h > 0 ? h : 64;
+        public double ToastCardHeight => _style.Toast.CardHeight is double h && h > 0 ? h : 120;
 
         // User toast background image (frames never get a background). Missing files fall
         // back to the default surface brush via HasToastBackground.

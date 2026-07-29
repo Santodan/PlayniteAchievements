@@ -50,7 +50,7 @@ namespace PlayniteAchievements.ViewModels.Settings
         private string _friendCompletionHeaderText;
         private bool _hasHeaderFormatError;
         private string _cardWidthText = string.Empty;
-        private string _cardMinHeightText = string.Empty;
+        private string _cardHeightText = string.Empty;
 
         public NotificationAppearanceEditorViewModel(
             PlayniteAchievementsSettings settings,
@@ -309,15 +309,15 @@ namespace PlayniteAchievements.ViewModels.Settings
         }
 
         /// <summary>
-        /// Toast card minimum-height text (LostFocus commit). Blank or invalid clears the
-        /// override; a positive number stores it. The card still grows for taller content.
+        /// Toast card height text (LostFocus commit). Blank or invalid clears the override
+        /// (falls back to the default height); a positive number sets a fixed card height.
         /// </summary>
-        public string CardMinHeightText
+        public string CardHeightText
         {
-            get => _cardMinHeightText;
+            get => _cardHeightText;
             set
             {
-                if (SetValueAndReturn(ref _cardMinHeightText, value))
+                if (SetValueAndReturn(ref _cardHeightText, value))
                 {
                     CommitCardDimension(value, isWidth: false);
                 }
@@ -354,7 +354,7 @@ namespace PlayniteAchievements.ViewModels.Settings
             }
             else
             {
-                surface.CardMinHeight = parsed;
+                surface.CardHeight = parsed;
             }
 
             RefreshCardDimensions();
@@ -366,9 +366,9 @@ namespace PlayniteAchievements.ViewModels.Settings
             SetValue(ref _cardWidthText,
                 surface?.CardWidth?.ToString(CultureInfo.CurrentCulture) ?? string.Empty,
                 nameof(CardWidthText));
-            SetValue(ref _cardMinHeightText,
-                surface?.CardMinHeight?.ToString(CultureInfo.CurrentCulture) ?? string.Empty,
-                nameof(CardMinHeightText));
+            SetValue(ref _cardHeightText,
+                surface?.CardHeight?.ToString(CultureInfo.CurrentCulture) ?? string.Empty,
+                nameof(CardHeightText));
         }
 
         // Anchor width used when fitting the card to a background image; mirrors the toast view
@@ -393,10 +393,10 @@ namespace PlayniteAchievements.ViewModels.Settings
                 : string.Empty;
 
         /// <summary>
-        /// Sets the toast card's width and min-height to the background image's aspect ratio,
-        /// keeping the current width as the anchor, so the UniformToFill background shows the whole
-        /// image without cropping. Users still enter card dimensions manually; this just removes
-        /// the guesswork of matching a specific image.
+        /// Sets the toast card's width and height to the background image's aspect ratio, keeping
+        /// the current width as the anchor, so the UniformToFill background shows the whole image
+        /// without cropping. Users still enter card dimensions manually; this just removes the
+        /// guesswork of matching a specific image.
         /// </summary>
         public void FitCardToBackgroundImage()
         {
@@ -414,7 +414,7 @@ namespace PlayniteAchievements.ViewModels.Settings
 
             var width = surface.CardWidth is double w && w > 0 ? w : DefaultCardWidth;
             surface.CardWidth = width;
-            surface.CardMinHeight = Math.Round(width * imageHeight / imageWidth);
+            surface.CardHeight = Math.Round(width * imageHeight / imageWidth);
             RefreshCardDimensions();
         }
 
@@ -973,7 +973,7 @@ namespace PlayniteAchievements.ViewModels.Settings
                 OnPropertyChanged(nameof(SelectedFontFamilyOption));
             }
             else if (e.PropertyName == nameof(NotificationSurfaceStyle.CardWidth) ||
-                     e.PropertyName == nameof(NotificationSurfaceStyle.CardMinHeight))
+                     e.PropertyName == nameof(NotificationSurfaceStyle.CardHeight))
             {
                 RefreshCardDimensions();
             }

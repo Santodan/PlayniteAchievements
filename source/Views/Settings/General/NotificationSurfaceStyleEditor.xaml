@@ -157,7 +157,7 @@
                                Text="{DynamicResource LOCPlayAch_Settings_Style_CardHeight}"
                                Style="{StaticResource EditorRowLabelStyle}"/>
                     <TextBox Grid.Row="1" Grid.Column="1"
-                             Text="{Binding CardMinHeightText, Mode=TwoWay, UpdateSourceTrigger=LostFocus}"
+                             Text="{Binding CardHeightText, Mode=TwoWay, UpdateSourceTrigger=LostFocus}"
                              Width="70"
                              TextAlignment="Right"/>
                 </Grid>

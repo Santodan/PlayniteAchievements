@@ -126,7 +126,7 @@ namespace PlayniteAchievements.Models.Settings
         private double? _titleFontSize;
         private double? _bodyFontSize;
         private double? _cardWidth;
-        private double? _cardMinHeight;
+        private double? _cardHeight;
 
         public bool ShowHeader
         {
@@ -263,13 +263,14 @@ namespace PlayniteAchievements.Models.Settings
         }
 
         /// <summary>
-        /// Toast card minimum height in DIPs, or null for the default (64). The card still
-        /// grows taller when content requires it. Toast surface only.
+        /// Toast card height in DIPs, or null for the default (120). A fixed height (not a
+        /// minimum): the card renders at exactly this height and clamped text fits within it,
+        /// so the background image keeps its aspect ratio. Toast surface only.
         /// </summary>
-        public double? CardMinHeight
+        public double? CardHeight
         {
-            get => _cardMinHeight;
-            set => SetValue(ref _cardMinHeight, value);
+            get => _cardHeight;
+            set => SetValue(ref _cardHeight, value);
         }
 
         /// <summary>
@@ -375,7 +376,7 @@ namespace PlayniteAchievements.Models.Settings
                 TitleFontSize = TitleFontSize,
                 BodyFontSize = BodyFontSize,
                 CardWidth = CardWidth,
-                CardMinHeight = CardMinHeight
+                CardHeight = CardHeight
             };
         }
 

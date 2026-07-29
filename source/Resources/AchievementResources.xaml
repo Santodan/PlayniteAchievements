@@ -222,12 +222,13 @@
     <DataTemplate x:Key="PlayAch.Template.AchievementToast"
                   DataType="{x:Type vm:AchievementToastViewModel}">
         <Border Width="{Binding ToastCardWidth}"
-                MinHeight="{Binding ToastCardMinHeight}"
+                Height="{Binding ToastCardHeight}"
                 Margin="14"
                 CornerRadius="8"
                 Background="{DynamicResource PlayAch.Brush.PopupSurface}"
                 BorderBrush="{DynamicResource PlayAch.Brush.PopupBorder}"
-                BorderThickness="1">
+                BorderThickness="1"
+                helpers:RarityGlowPulse.Target="Effect">
             <!-- Default is a neutral drop shadow; the border-glow option swaps it for a
                  rarity-colored glow. Effect is set via Style (not a local value) so the
                  trigger can override it. -->
@@ -252,12 +253,7 @@
                                 <Condition Binding="{Binding HasBorderGlow}" Value="True"/>
                                 <Condition Binding="{Binding AnimateRarityGlows}" Value="True"/>
                             </MultiDataTrigger.Conditions>
-                            <MultiDataTrigger.EnterActions>
-                                <BeginStoryboard x:Name="OuterGlowPulse" Storyboard="{StaticResource PlayAch.Storyboard.RarityGlowEffectPulse}"/>
-                            </MultiDataTrigger.EnterActions>
-                            <MultiDataTrigger.ExitActions>
-                                <StopStoryboard BeginStoryboardName="OuterGlowPulse"/>
-                            </MultiDataTrigger.ExitActions>
+                            <Setter Property="helpers:RarityGlowPulse.IsActive" Value="True"/>
                         </MultiDataTrigger>
                     </Style.Triggers>
                 </Style>
@@ -357,12 +353,7 @@
                                         </DataTrigger>
                                         <!-- Fade in/out pulse when AnimateRarityGlows is on. -->
                                         <DataTrigger Binding="{Binding AnimateRarityGlows}" Value="True">
-                                            <DataTrigger.EnterActions>
-                                                <BeginStoryboard x:Name="RarityGlowPulse" Storyboard="{StaticResource PlayAch.Storyboard.RarityGlowPulse}"/>
-                                            </DataTrigger.EnterActions>
-                                            <DataTrigger.ExitActions>
-                                                <StopStoryboard BeginStoryboardName="RarityGlowPulse"/>
-                                            </DataTrigger.ExitActions>
+                                            <Setter Property="helpers:RarityGlowPulse.IsActive" Value="True"/>
                                         </DataTrigger>
                                     </Style.Triggers>
                                 </Style>
