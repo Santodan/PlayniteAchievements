@@ -127,15 +127,10 @@
                                             Tag="PluginStyle"
                                             Content="{DynamicResource LOCPlayAch_Settings_Style_FirePluginStyle}"
                                             Margin="0,0,8,8"/>
-                                    <Button x:Name="NotificationDesktopThemeButton"
+                                    <Button x:Name="NotificationThemeButton"
                                             Click="FireNotification_Click"
-                                            Tag="DesktopTheme"
-                                            Content="{DynamicResource LOCPlayAch_Settings_Style_FireDesktopTheme}"
-                                            Margin="0,0,8,8"/>
-                                    <Button x:Name="NotificationFullscreenThemeButton"
-                                            Click="FireNotification_Click"
-                                            Tag="FullscreenTheme"
-                                            Content="{DynamicResource LOCPlayAch_Settings_Style_FireFullscreenTheme}"
+                                            Tag="ActiveTheme"
+                                            Content="{DynamicResource LOCPlayAch_Settings_Style_FireTheme}"
                                             Margin="0,0,8,8"/>
                                 </WrapPanel>
                             </StackPanel>
@@ -198,15 +193,10 @@
                                             Tag="PluginStyle"
                                             Content="{DynamicResource LOCPlayAch_Settings_Style_FirePluginStyle}"
                                             Margin="0,0,8,8"/>
-                                    <Button x:Name="FrameDesktopThemeButton"
+                                    <Button x:Name="FrameThemeButton"
                                             Click="FireFrame_Click"
-                                            Tag="DesktopTheme"
-                                            Content="{DynamicResource LOCPlayAch_Settings_Style_FireDesktopTheme}"
-                                            Margin="0,0,8,8"/>
-                                    <Button x:Name="FrameFullscreenThemeButton"
-                                            Click="FireFrame_Click"
-                                            Tag="FullscreenTheme"
-                                            Content="{DynamicResource LOCPlayAch_Settings_Style_FireFullscreenTheme}"
+                                            Tag="ActiveTheme"
+                                            Content="{DynamicResource LOCPlayAch_Settings_Style_FireTheme}"
                                             Margin="0,0,8,8"/>
                                 </WrapPanel>
                             </StackPanel>

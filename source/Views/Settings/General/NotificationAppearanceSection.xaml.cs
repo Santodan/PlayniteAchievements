@@ -99,19 +99,15 @@ namespace PlayniteAchievements.Views.Settings.General
         /// </summary>
         private void RefreshFireButtons()
         {
-            if (NotificationDesktopThemeButton == null)
+            if (NotificationThemeButton == null)
             {
                 return;
             }
 
-            NotificationDesktopThemeButton.IsEnabled =
-                _toastTemplateResolver.ThemeProvidesTemplate(NotificationTemplatePreviewSource.DesktopTheme, isFrame: false);
-            NotificationFullscreenThemeButton.IsEnabled =
-                _toastTemplateResolver.ThemeProvidesTemplate(NotificationTemplatePreviewSource.FullscreenTheme, isFrame: false);
-            FrameDesktopThemeButton.IsEnabled =
-                _toastTemplateResolver.ThemeProvidesTemplate(NotificationTemplatePreviewSource.DesktopTheme, isFrame: true);
-            FrameFullscreenThemeButton.IsEnabled =
-                _toastTemplateResolver.ThemeProvidesTemplate(NotificationTemplatePreviewSource.FullscreenTheme, isFrame: true);
+            NotificationThemeButton.IsEnabled =
+                _toastTemplateResolver.ThemeProvidesTemplate(NotificationTemplatePreviewSource.ActiveTheme, isFrame: false);
+            FrameThemeButton.IsEnabled =
+                _toastTemplateResolver.ThemeProvidesTemplate(NotificationTemplatePreviewSource.ActiveTheme, isFrame: true);
         }
 
         private List<NotificationStylePlatformOption> BuildPlatformOptions()
