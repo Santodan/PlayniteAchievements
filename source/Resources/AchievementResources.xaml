@@ -205,44 +205,18 @@
     </DataTemplate>
 
     <DataTemplate DataType="{x:Type vm:ToastGameCategoryLine}">
-        <!-- Game name fills and trims; the separator and category dock to the right so a long
-             game name never pushes them (or itself) into the provider-icon column. -->
-        <DockPanel LastChildFill="True"
-                   Margin="0,2,0,0">
-            <TextBlock DockPanel.Dock="Right"
-                       Text="{Binding Parent.Category}"
-                       Style="{DynamicResource PlayAch.TextBlock.BaseStyle}"
-                       Foreground="{DynamicResource PlayAch.Brush.Text.Secondary}"
-                       FontSize="{Binding FontSize}"
-                       FontFamily="{Binding FontFamily}"
-                       TextTrimming="CharacterEllipsis"
-                       Visibility="{Binding ShowCategory, Converter={StaticResource BooleanToVisibilityConverter}}"/>
-            <TextBlock DockPanel.Dock="Right"
-                       Text="  &#8226;  "
-                       Style="{DynamicResource PlayAch.TextBlock.BaseStyle}"
-                       Foreground="{DynamicResource PlayAch.Brush.Text.Secondary}"
-                       FontSize="{Binding FontSize}"
-                       FontFamily="{Binding FontFamily}"
-                       Visibility="{Binding ShowSeparator, Converter={StaticResource BooleanToVisibilityConverter}}"/>
-            <TextBlock Text="{Binding Parent.GameName}"
-                       Foreground="{DynamicResource PlayAch.Brush.Text.Secondary}"
-                       FontSize="{Binding FontSize}"
-                       FontFamily="{Binding FontFamily}"
-                       TextWrapping="NoWrap"
-                       TextTrimming="CharacterEllipsis">
-                <TextBlock.Style>
-                    <Style TargetType="TextBlock" BasedOn="{StaticResource PlayAch.TextBlock.BaseStyle}">
-                        <Setter Property="Visibility" Value="{Binding ShowGameName, Converter={StaticResource BooleanToVisibilityConverter}}"/>
-                        <Style.Triggers>
-                            <!-- The game name is the completion message's subject. -->
-                            <DataTrigger Binding="{Binding Parent.IsGameCompleted}" Value="True">
-                                <Setter Property="Visibility" Value="Visible"/>
-                            </DataTrigger>
-                        </Style.Triggers>
-                    </Style>
-                </TextBlock.Style>
-            </TextBlock>
-        </DockPanel>
+        <!-- "game name • category" as one bounded, left-aligned string: the category stays
+             adjacent to the game name and the pair trims together with a trailing ellipsis
+             rather than overflowing into the provider-icon column. -->
+        <TextBlock Text="{Binding GameCategoryText}"
+                   Style="{DynamicResource PlayAch.TextBlock.BaseStyle}"
+                   Foreground="{DynamicResource PlayAch.Brush.Text.Secondary}"
+                   FontSize="{Binding FontSize}"
+                   FontFamily="{Binding FontFamily}"
+                   TextWrapping="NoWrap"
+                   TextTrimming="CharacterEllipsis"
+                   Margin="0,2,0,0"
+                   Visibility="{Binding HasGameCategoryContent, Converter={StaticResource BooleanToVisibilityConverter}}"/>
     </DataTemplate>
 
     <DataTemplate x:Key="PlayAch.Template.AchievementToast"

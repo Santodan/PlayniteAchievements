@@ -167,5 +167,38 @@ namespace PlayniteAchievements.ViewModels
         public bool ShowCategory { get; }
 
         public bool ShowSeparator { get; }
+
+        // The game name (also the completion message's subject) when shown.
+        private string EffectiveGameName =>
+            (ShowGameName || Parent.IsGameCompleted) ? Parent.GameName : null;
+
+        private string EffectiveCategory => ShowCategory ? Parent.Category : null;
+
+        /// <summary>
+        /// The whole row composed into one string ("game • category") so a single bounded
+        /// TextBlock can keep the category adjacent to the game name and trim the pair as a unit,
+        /// instead of a horizontal panel that cannot trim its children or a dock layout that
+        /// floats the category to the far edge.
+        /// </summary>
+        public string GameCategoryText
+        {
+            get
+            {
+                var name = EffectiveGameName;
+                var category = EffectiveCategory;
+                var hasName = !string.IsNullOrWhiteSpace(name);
+                var hasCategory = !string.IsNullOrWhiteSpace(category);
+
+                if (hasName && hasCategory)
+                {
+                    return ShowSeparator ? name + "  •  " + category : name + " " + category;
+                }
+
+                return hasName ? name : (hasCategory ? category : string.Empty);
+            }
+        }
+
+        /// <summary>Collapses the row when neither the game name nor the category is shown.</summary>
+        public bool HasGameCategoryContent => !string.IsNullOrEmpty(GameCategoryText);
     }
 }
