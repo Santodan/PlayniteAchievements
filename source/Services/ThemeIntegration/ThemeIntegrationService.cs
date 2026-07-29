@@ -1650,6 +1650,7 @@ namespace PlayniteAchievements.Services.ThemeIntegration
             _settings.ModernTheme.PrestigeLevel = library.PrestigeLevel;
             _settings.ModernTheme.PrestigeLevelProgress = library.PrestigeLevelProgress;
             _settings.ModernTheme.PrestigeRank = library.PrestigeRank;
+            PersistScoreSnapshot(library);
             _settings.ModernTheme.SteamGames = ProjectGameSummaries(library.SteamGames);
             _settings.ModernTheme.GOGGames = ProjectGameSummaries(library.GOGGames);
             _settings.ModernTheme.EpicGames = ProjectGameSummaries(library.EpicGames);
@@ -1722,6 +1723,138 @@ namespace PlayniteAchievements.Services.ThemeIntegration
             NotifySettingProperties(ThemeDelegatedPropertyCatalog.DynamicAllGames);
             NotifySettingProperties(ThemeDelegatedPropertyCatalog.DynamicFriends);
         }
+
+        private void PersistScoreSnapshot(LibraryRuntimeState library)
+        {
+            try
+            {
+                if (library == null || !library.HasData)
+                {
+                    return;
+                }
+
+                var persisted = _settings?.Persisted;
+                if (persisted == null)
+                {
+                    return;
+                }
+
+                if (persisted.LastAllGamesCollectorScore == library.CollectorScore &&
+                    persisted.LastAllGamesCollectorLevel == library.CollectorLevel &&
+                    Math.Abs(persisted.LastAllGamesCollectorLevelProgress - library.CollectorLevelProgress) < 0.0001 &&
+                    string.Equals(persisted.LastAllGamesCollectorRank, library.CollectorRank, StringComparison.Ordinal) &&
+                    persisted.LastAllGamesPrestigeScore == library.PrestigeScore &&
+                    persisted.LastAllGamesPrestigeLevel == library.PrestigeLevel &&
+                    Math.Abs(persisted.LastAllGamesPrestigeLevelProgress - library.PrestigeLevelProgress) < 0.0001 &&
+                    string.Equals(persisted.LastAllGamesPrestigeRank, library.PrestigeRank, StringComparison.Ordinal))
+                {
+                    return;
+                }
+
+#if !TEST
+                PublishScoreProgressNotifications(persisted, library);
+#endif
+
+                persisted.LastAllGamesCollectorScore = library.CollectorScore;
+                persisted.LastAllGamesCollectorLevel = library.CollectorLevel;
+                persisted.LastAllGamesCollectorLevelProgress = library.CollectorLevelProgress;
+                persisted.LastAllGamesCollectorRank = library.CollectorRank;
+                persisted.LastAllGamesPrestigeScore = library.PrestigeScore;
+                persisted.LastAllGamesPrestigeLevel = library.PrestigeLevel;
+                persisted.LastAllGamesPrestigeLevelProgress = library.PrestigeLevelProgress;
+                persisted.LastAllGamesPrestigeRank = library.PrestigeRank;
+
+#if !TEST
+                PlayniteAchievementsPlugin.Instance?.PersistSettingsForUiSilently();
+#endif
+            }
+            catch (Exception ex)
+            {
+                _logger?.Debug(ex, "Failed to persist all-games score snapshot.");
+            }
+        }
+
+#if !TEST
+        private void PublishScoreProgressNotifications(PersistedSettings persisted, LibraryRuntimeState library)
+        {
+            // A zero snapshot represents startup/migration, not an earned progression event.
+            if (persisted == null || library == null ||
+                (persisted.LastAllGamesCollectorScore <= 0 && persisted.LastAllGamesPrestigeScore <= 0))
+            {
+                return;
+            }
+
+            var local = ProviderRegistry.Settings<Providers.Local.LocalSettings>();
+            if (local?.EnableActiveGameMonitoring != true)
+            {
+                return;
+            }
+
+            var publisher = new NotificationPublisher(_api, _settings, _logger);
+            PublishScoreProgress(
+                publisher,
+                "Collection",
+                local.CollectionProgressNotifications,
+                local,
+                persisted.LastAllGamesCollectorScore,
+                persisted.LastAllGamesCollectorLevel,
+                persisted.LastAllGamesCollectorRank,
+                library.CollectorScore,
+                library.CollectorLevel,
+                library.CollectorRank);
+            PublishScoreProgress(
+                publisher,
+                "Prestige",
+                local.PrestigeProgressNotifications,
+                local,
+                persisted.LastAllGamesPrestigeScore,
+                persisted.LastAllGamesPrestigeLevel,
+                persisted.LastAllGamesPrestigeRank,
+                library.PrestigeScore,
+                library.PrestigeLevel,
+                library.PrestigeRank);
+        }
+
+        private static void PublishScoreProgress(
+            NotificationPublisher publisher,
+            string scoreName,
+            Providers.Local.ScoreProgressNotificationSettings notification,
+            Providers.Local.LocalSettings local,
+            int oldScore,
+            int oldLevel,
+            string oldRank,
+            int newScore,
+            int newLevel,
+            string newRank)
+        {
+            if (notification == null || oldScore <= 0 || newScore <= oldScore)
+            {
+                return;
+            }
+
+            if (notification.NotifyTierUp &&
+                !string.Equals(oldRank, newRank, StringComparison.Ordinal))
+            {
+                publisher.SendScoreProgressNotification(
+                    scoreName,
+                    "tier",
+                    newLevel,
+                    newRank,
+                    notification,
+                    local);
+            }
+            else if (notification.NotifyLevelUp && newLevel > oldLevel)
+            {
+                publisher.SendScoreProgressNotification(
+                    scoreName,
+                    "level",
+                    newLevel,
+                    newRank,
+                    notification,
+                    local);
+            }
+        }
+#endif
 
         #endregion
 
