@@ -732,17 +732,17 @@ namespace PlayniteAchievements
                         }
                     };
 
-                    // Fullscreen has no plugin settings entry, so surface the same
-                    // OpenSettingsView() the settings hotkey uses (opens the native settings
-                    // dialog with its own Save/Cancel), giving fullscreen access to the
-                    // notification appearance editor and fire-tests.
+                    // Fullscreen can't open Playnite's native plugin-settings dialog
+                    // (OpenSettingsView is a no-op there), so host the plugin's settings UI in a
+                    // managed popout instead — giving fullscreen access to the notification
+                    // appearance editor and fire-tests. Closing the window saves.
                     yield return new MainMenuItem
                     {
                         Description = ResourceProvider.GetString("LOCPlayAch_Landing_OpenSettings"),
                         MenuSection = PluginMainMenuSection,
                         Action = (a) =>
                         {
-                            OpenSettingsView();
+                            OpenSettingsWindow();
                         }
                     };
 
