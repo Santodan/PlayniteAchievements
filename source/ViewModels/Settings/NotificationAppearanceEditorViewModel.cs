@@ -371,6 +371,36 @@ namespace PlayniteAchievements.ViewModels.Settings
                 nameof(CardHeightText));
         }
 
+        // Slider/textbox range for the name-line offset; must match the Slider bounds in the view.
+        private const double TitleLineOffsetLimit = 50;
+
+        /// <summary>
+        /// Editable text mirror of the name-line offset, kept in sync with the slider. Parsing
+        /// clamps to the slider range and rounds to a whole DIP; invalid input reverts.
+        /// </summary>
+        public string TitleLineOffsetText
+        {
+            get => Surface?.TitleLineOffset.ToString(CultureInfo.CurrentCulture) ?? string.Empty;
+            set
+            {
+                var surface = Surface;
+                if (surface != null && _isEditable)
+                {
+                    var text = value?.Trim();
+                    if (double.TryParse(text, NumberStyles.Float, CultureInfo.CurrentCulture, out var parsed) ||
+                        double.TryParse(text, NumberStyles.Float, CultureInfo.InvariantCulture, out parsed))
+                    {
+                        surface.TitleLineOffset = Math.Max(
+                            -TitleLineOffsetLimit,
+                            Math.Min(TitleLineOffsetLimit, Math.Round(parsed)));
+                    }
+                }
+
+                // Reflect the committed (possibly clamped or reverted) value back into the box.
+                OnPropertyChanged(nameof(TitleLineOffsetText));
+            }
+        }
+
         // Anchor width used when fitting the card to a background image; mirrors the toast view
         // model's ToastCardWidth fallback so a blank width fits at the same size the card renders.
         private const double DefaultCardWidth = 410;
@@ -877,6 +907,7 @@ namespace PlayniteAchievements.ViewModels.Settings
             OnPropertyChanged(nameof(CountdownBarSwatch));
             OnPropertyChanged(nameof(HasBackgroundImage));
             OnPropertyChanged(nameof(BackgroundImageDimensionsText));
+            OnPropertyChanged(nameof(TitleLineOffsetText));
         }
 
         private void Subscribe()
@@ -976,6 +1007,10 @@ namespace PlayniteAchievements.ViewModels.Settings
                      e.PropertyName == nameof(NotificationSurfaceStyle.CardHeight))
             {
                 RefreshCardDimensions();
+            }
+            else if (e.PropertyName == nameof(NotificationSurfaceStyle.TitleLineOffset))
+            {
+                OnPropertyChanged(nameof(TitleLineOffsetText));
             }
             else if (e.PropertyName == nameof(NotificationSurfaceStyle.CountdownBarColor))
             {

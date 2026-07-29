@@ -107,13 +107,12 @@
                             IsSnapToTickEnabled="True"
                             Value="{Binding Surface.TitleLineOffset, Mode=TwoWay}"
                             VerticalAlignment="Center"/>
-                    <TextBlock Grid.Column="1"
-                               Text="{Binding Surface.TitleLineOffset, StringFormat={}{0:0}}"
-                               MinWidth="34"
-                               TextAlignment="Right"
-                               VerticalAlignment="Center"
-                               Margin="8,0,0,0"
-                               Foreground="{DynamicResource PlayAch.Brush.Text}"/>
+                    <TextBox Grid.Column="1"
+                             Text="{Binding TitleLineOffsetText, Mode=TwoWay, UpdateSourceTrigger=LostFocus}"
+                             Width="50"
+                             TextAlignment="Right"
+                             VerticalAlignment="Center"
+                             Margin="8,0,0,0"/>
                 </Grid>
             </StackPanel>
         </Border>
