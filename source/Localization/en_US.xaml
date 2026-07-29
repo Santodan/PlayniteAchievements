@@ -554,7 +554,7 @@
     <sys:String x:Key="LOCPlayAch_Settings_CaptureMinimumRarity">Minimum rarity to capture</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_AlwaysCaptureCompletion">Always capture game completion unlocks</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_FrameHeader">Screenshot frame</sys:String>
-    <sys:String x:Key="LOCPlayAch_Settings_Style_ToastTab">Toast</sys:String>
+    <sys:String x:Key="LOCPlayAch_Settings_Style_ToastTab">Notification</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_Style_CustomizeForPlatform">Customize for this platform</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_Style_FollowDefaultHint">This platform follows the default appearance until customized.</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_Style_RevertConfirm">Revert this platform to the default notification appearance? Its custom images will be deleted.</sys:String>
@@ -563,7 +563,10 @@
     <sys:String x:Key="LOCPlayAch_Settings_Style_ShowCountdownBar">Timer bar</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_Style_CardWidth">Width</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_Style_CardHeight">Height</sys:String>
-    <sys:String x:Key="LOCPlayAch_Settings_Style_CardSizeHint">Toast card size in pixels. Leave blank for the default. Height is a minimum — the card grows taller for longer content.</sys:String>
+    <sys:String x:Key="LOCPlayAch_Settings_Style_SampleUnlock">Example unlock</sys:String>
+    <sys:String x:Key="LOCPlayAch_Settings_Style_FirePluginStyle">Plugin</sys:String>
+    <sys:String x:Key="LOCPlayAch_Settings_Style_FireDesktopTheme">Desktop</sys:String>
+    <sys:String x:Key="LOCPlayAch_Settings_Style_FireFullscreenTheme">Fullscreen</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_Style_UseThemeTemplate">Allow the theme to style this surface</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_Style_UseThemeTemplateHint">When a theme provides its own template it ignores the appearance options below. Turn this off to always use the plugin's template.</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_Style_TextLines">Text lines</sys:String>
@@ -578,10 +581,10 @@
     <sys:String x:Key="LOCPlayAch_Settings_Style_HeaderFriendCompleted">Friend completed the game</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_Style_HeaderFormatInvalid">The friend header must include {0} for the friend's name.</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_Style_BackgroundImage">Background image</sys:String>
-    <sys:String x:Key="LOCPlayAch_Settings_Style_BackgroundImageHint">PNG, JPG, or GIF shown behind the toast. Animated GIFs play, and a dark overlay keeps text readable. Frames have no background.</sys:String>
+    <sys:String x:Key="LOCPlayAch_Settings_Style_BackgroundImageHint">PNG, JPG, or GIF shown behind the notification. Animated GIFs play, and a dark overlay keeps text readable. Frames have no background.</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_Style_BadgeImages">Badge images</sys:String>
-    <sys:String x:Key="LOCPlayAch_Settings_Style_BadgeImagesHint">Replace the drawn rarity and completion badges on toasts and frames. A custom rarity image also replaces the trophy badge.</sys:String>
-    <sys:String x:Key="LOCPlayAch_Settings_Style_SharedAcrossSurfacesHint">Applies to both the toast and the screenshot frame.</sys:String>
+    <sys:String x:Key="LOCPlayAch_Settings_Style_BadgeImagesHint">Replace the drawn rarity and completion badges on notifications and frames. A custom rarity image also replaces the trophy badge.</sys:String>
+    <sys:String x:Key="LOCPlayAch_Settings_Style_SharedAcrossSurfacesHint">Applies to both the notification and the screenshot frame.</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_RecordingsHeader">Unlock recordings</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_EnableUnlockRecordings">Save a Video Clip When You Unlock an Achievement</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_RecordingFfmpegPath">ffmpeg path</sys:String>
