@@ -47,8 +47,9 @@
             </Style>
 
             <!-- Uniform spacing for every checkbox in the editor, so the option grids share one
-                 consistent horizontal/vertical rhythm instead of per-item margins. -->
-            <Style TargetType="CheckBox">
+                 consistent horizontal/vertical rhythm. Based on the app's custom checkbox style
+                 so the visual template is preserved (a keyless override would strip it). -->
+            <Style TargetType="CheckBox" BasedOn="{StaticResource PlayAch.CheckBox.BaseStyle}">
                 <Setter Property="VerticalAlignment" Value="Center"/>
                 <Setter Property="Margin" Value="0,0,16,10"/>
             </Style>
