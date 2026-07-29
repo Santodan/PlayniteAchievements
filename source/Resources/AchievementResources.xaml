@@ -248,13 +248,27 @@
                 Background="{DynamicResource PlayAch.Brush.PopupSurface}"
                 BorderBrush="{DynamicResource PlayAch.Brush.PopupBorder}"
                 BorderThickness="1">
-            <Border.Effect>
-                <DropShadowEffect BlurRadius="12"
-                                  ShadowDepth="3"
-                                  Direction="300"
-                                  Opacity="0.5"
-                                  Color="#000000"/>
-            </Border.Effect>
+            <!-- Default is a neutral drop shadow; the border-glow option swaps it for a
+                 rarity-colored glow. Effect is set via Style (not a local value) so the
+                 trigger can override it. -->
+            <Border.Style>
+                <Style TargetType="Border">
+                    <Setter Property="Effect">
+                        <Setter.Value>
+                            <DropShadowEffect BlurRadius="12"
+                                              ShadowDepth="3"
+                                              Direction="300"
+                                              Opacity="0.5"
+                                              Color="#000000"/>
+                        </Setter.Value>
+                    </Setter>
+                    <Style.Triggers>
+                        <DataTrigger Binding="{Binding HasBorderGlow}" Value="True">
+                            <Setter Property="Effect" Value="{Binding BorderGlowEffect}"/>
+                        </DataTrigger>
+                    </Style.Triggers>
+                </Style>
+            </Border.Style>
             <Grid>
                 <!-- Optional user background image behind the whole card. The Border's corner
                      radius clips the brush; the explicit DecodePixel matters because ImageBrush
