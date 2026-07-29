@@ -282,11 +282,6 @@
                                     helpers:AsyncImage.DecodePixel="512"/>
                     </Border.Background>
                 </Border>
-                <!-- Light dim scrim keeping text readable over arbitrary backgrounds without
-                     noticeably darkening the image (~25% black). -->
-                <Border CornerRadius="8"
-                        Background="#40000000"
-                        Visibility="{Binding HasToastBackground, Converter={StaticResource BooleanToVisibilityConverter}}"/>
 
                 <Grid>
                 <Grid.ColumnDefinitions>
