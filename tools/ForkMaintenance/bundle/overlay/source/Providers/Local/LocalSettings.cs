@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using Newtonsoft.Json;
+using PlayniteAchievements.Models.Settings;
 using PlayniteAchievements.Providers.Settings;
 
 namespace PlayniteAchievements.Providers.Local
@@ -341,6 +342,7 @@ namespace PlayniteAchievements.Providers.Local
         public const int ProviderIconMaxPixelSize = 64;
         public const string DefaultBundledUnlockSoundPath = @"Resources\Sounds\Steam.wav";
         public const string DefaultScreenshotFilenameTemplate = "<dateTime>_<gameName>_<achievementName>";
+        public const string DefaultRecordingFilenameTemplate = "<dateTime>_<gameName>_<achievementName>";
         public const string SteamAppCacheUserNone = "<none>";
 
         private Dictionary<Guid, int> _steamAppIdOverrides = new Dictionary<Guid, int>();
@@ -362,6 +364,16 @@ namespace PlayniteAchievements.Providers.Local
         private int _screenshotDelayMilliseconds = 750;
         private LocalUnlockScreenshotCaptureMode _screenshotCaptureMode = LocalUnlockScreenshotCaptureMode.FullDesktop;
         private LocalUnlockScreenshotImageFormat _screenshotImageFormat = LocalUnlockScreenshotImageFormat.Png;
+        private bool _enableUnlockRecordings;
+        private string _ffmpegPath = string.Empty;
+        private string _recordingSaveFolder = string.Empty;
+        private string _recordingFilenameTemplate = DefaultRecordingFilenameTemplate;
+        private int _recordingClipSeconds = 15;
+        private int _recordingFps = 30;
+        private RecordingResolution _recordingResolution = RecordingResolution.Native;
+        private RecordingEncoder _recordingEncoder = RecordingEncoder.Auto;
+        private RecordingCaptureBackend _recordingCaptureBackend = RecordingCaptureBackend.Auto;
+        private bool _recordingIncludeAudio;
         private LocalUnlockNotificationDeliveryMode _unlockNotificationDeliveryMode = LocalUnlockNotificationDeliveryMode.Hybrid;
         private LocalUnlockOverlayPosition _unlockOverlayPosition = LocalUnlockOverlayPosition.TopRight;
         private bool _showOverlayOnActiveGameMonitor = false;
@@ -648,6 +660,68 @@ namespace PlayniteAchievements.Providers.Local
         {
             get => _unlockOverlayPosition;
             set => SetValue(ref _unlockOverlayPosition, value);
+        }
+
+        public bool EnableUnlockRecordings
+        {
+            get => _enableUnlockRecordings;
+            set => SetValue(ref _enableUnlockRecordings, value);
+        }
+
+        public string FfmpegPath
+        {
+            get => _ffmpegPath;
+            set => SetValue(ref _ffmpegPath, value ?? string.Empty);
+        }
+
+        public string RecordingSaveFolder
+        {
+            get => _recordingSaveFolder;
+            set => SetValue(ref _recordingSaveFolder, value ?? string.Empty);
+        }
+
+        public string RecordingFilenameTemplate
+        {
+            get => _recordingFilenameTemplate;
+            set => SetValue(
+                ref _recordingFilenameTemplate,
+                string.IsNullOrWhiteSpace(value) ? DefaultRecordingFilenameTemplate : value);
+        }
+
+        public int RecordingClipSeconds
+        {
+            get => _recordingClipSeconds;
+            set => SetValue(ref _recordingClipSeconds, Math.Min(60, Math.Max(5, value)));
+        }
+
+        public int RecordingFps
+        {
+            get => _recordingFps;
+            set => SetValue(ref _recordingFps, Math.Min(60, Math.Max(10, value)));
+        }
+
+        public RecordingResolution RecordingResolution
+        {
+            get => _recordingResolution;
+            set => SetValue(ref _recordingResolution, value);
+        }
+
+        public RecordingEncoder RecordingEncoder
+        {
+            get => _recordingEncoder;
+            set => SetValue(ref _recordingEncoder, value);
+        }
+
+        public RecordingCaptureBackend RecordingCaptureBackend
+        {
+            get => _recordingCaptureBackend;
+            set => SetValue(ref _recordingCaptureBackend, value);
+        }
+
+        public bool RecordingIncludeAudio
+        {
+            get => _recordingIncludeAudio;
+            set => SetValue(ref _recordingIncludeAudio, value);
         }
 
         public bool ShowOverlayOnActiveGameMonitor

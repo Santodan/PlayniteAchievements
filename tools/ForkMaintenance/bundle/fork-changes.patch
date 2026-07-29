@@ -1,6 +1,3 @@
-warning: in the working copy of 'source/PlayniteAchievementsPlugin.cs', LF will be replaced by CRLF the next time Git touches it
-warning: in the working copy of 'source/Services/InGameAchievementPoller.cs', LF will be replaced by CRLF the next time Git touches it
-warning: in the working copy of 'source/Services/UI/ToastNotificationService.cs', LF will be replaced by CRLF the next time Git touches it
 diff --git a/.gitignore b/.gitignore
 index 5e12022a1ec68295804fa1a6b2b12d0466614631..dd93b805a2211987591bc7b59a92b5c6e77af5c5 100644
 --- a/.gitignore
@@ -104,10 +101,10 @@ index 4bbe03feb756665ed105752ea1f9fa3e7bdd2314..9dce25a1da1a5cae228d23f2d3212262
 +    Image: https://raw.githubusercontent.com/santodan/PlayniteAchievements/main/Images/aniki-remake1.png
 \ No newline at end of file
 diff --git a/README.md b/README.md
-index 39887bdbdaaae092ed292fa99f10d9b84b089fce..85de2951450a7c6051386baa19dc819c9436a3f8 100644
+index 39887bdbdaaae092ed292fa99f10d9b84b089fce..fcf58cec1ce4026598efa9909a5c3de38d60bdb9 100644
 --- a/README.md
 +++ b/README.md
-@@ -1,267 +1,409 @@
+@@ -1,267 +1,412 @@
  <p align="center">
 -  <picture>
 -    <source
@@ -313,6 +310,14 @@ index 39887bdbdaaae092ed292fa99f10d9b84b089fce..85de2951450a7c6051386baa19dc819c
 -Unlock videos show the moment you earned an achievement, with a configurable amount of buffer time around the moment.
 -
 -**Clean**
+-
+-![Clean unlock screenshot](Images/001_First%20Contact_clean.png)
+-
+-**Notification**
+-
+-![Unlock screenshot with notification](Images/001_First%20Contact_toast.png)
+-
+-**Framed**
 +> Official documentation for the base project should be taken from the original repository.
 +>
 +> - Original repository: https://github.com/justin-delano/PlayniteAchievements
@@ -326,10 +331,10 @@ index 39887bdbdaaae092ed292fa99f10d9b84b089fce..85de2951450a7c6051386baa19dc819c
 +>
 +> I'm not a developer, I'm a troubleshooting guy, so everything is made with LLM
  
--![Clean unlock screenshot](Images/001_First%20Contact_clean.png)
+-![Framed unlock screenshot](Images/001_First%20Contact_framed.png)
 +# What This Fork Focuses On
  
--**Notification**
+-NOTE: Achievement notifications will not show for games that use DirectX 9 and lower in Exclusive Fullscreen mode.
 +- Local save support and local achievement
 +- No need for a steam account to gather the achievements schema
 +  - There is the option to select between Steam ( API ), SteamHunters and Completionist.me
@@ -343,74 +348,71 @@ index 39887bdbdaaae092ed292fa99f10d9b84b089fce..85de2951450a7c6051386baa19dc819c
 +- `SuccessStory` Import
 +- Theme and `StartPage` migration
  
--![Unlock screenshot with notification](Images/001_First%20Contact_toast.png)
+-Themes can create custom notification and frame styles, for full consistency. For example, in [Aniki-ReMake](https://github.com/Mike-Aniki/Aniki-ReMake):
 +Guides available in [Achievement Notifications Guide](ACHIEVEMENT_NOTIFICATIONS_GUIDE.md) and [Local Provider Troubleshooting](LOCAL_PROVIDER_TROUBLESHOOTING.md)
  
--**Framed**
+-**Toast**
 +## Local Provider Folder List And Browse Flow
  
--![Framed unlock screenshot](Images/001_First%20Contact_framed.png)
+-![Aniki-ReMake custom toast](Images/PlayniteAchievements%20-%20Mike%20Aniki%20Toast.png)
 +You can set any custom folder where you have saves located in your system as exception to never detect achievements from it
  
--NOTE: Achievement notifications will not show for games that use DirectX 9 and lower in Exclusive Fullscreen mode.
+-**Frame**
 +<img src="Images/LocalAchivementsFolders.png" alt="Sidebar single-game view" width="900">
  
--Themes can create custom notification and frame styles, for full consistency. For example, in [Aniki-ReMake](https://github.com/Mike-Aniki/Aniki-ReMake):
- 
--**Toast**
-+## Local Game Options Overrides
- 
--![Aniki-ReMake custom toast](Images/PlayniteAchievements%20-%20Mike%20Aniki%20Toast.png)
-+If you Right-click the game it will show a quicker way to do these changes:
- 
--**Frame**
-+<img src="Images/LocalAchivementsRightClickOptions.png" alt="Sidebar single-game view" width="900">
- 
 -![Aniki-ReMake custom frame](Images/PlayniteAchievements%20-%20Mike%20Aniki%20Frame.png)
-+From the PlayniteAchievements menu inside the game
  
 -Notification and capture settings are described on the [General](https://github.com/justin-delano/PlayniteAchievements/wiki/General) settings page. Theme authors can build custom styles with [Toast and Frame Overrides](https://github.com/justin-delano/PlayniteAchievements/wiki/Toast-And-Frame-Overrides).
-+<img src="Images/LocalAchivementsOverrides.png" alt="Sidebar single-game view" width="900">
++## Local Game Options Overrides
  
 -# Integration with Themes
++If you Right-click the game it will show a quicker way to do these changes:
  
 -Any desktop theme created with SuccessStory support can migrate the theme to use PlayniteAchievements instead.
-+## Local Achievements' Games import and `SuccessStory Import`
++<img src="Images/LocalAchivementsRightClickOptions.png" alt="Sidebar single-game view" width="900">
  
 -Many fullscreen themes can be migrated as well, but these complex themes are more likely to reveal compatibility issues. I recommend using [Aniki-ReMake](https://github.com/Mike-Aniki/Aniki-ReMake) for the most comprehensive integration of PlayniteAchievements features.
-+This is a way of adding all of those achievements that are in the folders ina  way that it isn't needed to go through the folders and adding one by one.
++From the PlayniteAchievements menu inside the game
  
 -See [Theme Migration](https://github.com/justin-delano/PlayniteAchievements/wiki/Theme-Migration), [Theme Bindings](https://github.com/justin-delano/PlayniteAchievements/wiki/Theme-Bindings), and [Migrating From Legacy](https://github.com/justin-delano/PlayniteAchievements/wiki/Migrating-From-Legacy) on the wiki for more detail.
-+There is also the option to import data from `SuccessStory`. This will go through all the JSON files in the selected SuccessStory folder and import the `Local` games and also the achievements for the games that were detected in them.
++<img src="Images/LocalAchivementsOverrides.png" alt="Sidebar single-game view" width="900">
  
 -# Integration with other Plugins
-+<img src="Images/LocalAchivementsGamesImport.png" alt="Sidebar single-game view" width="900">
  
 -PlayniteAchievements supports additional features when used with the following extensions:
++## Local Achievements' Games import and `SuccessStory Import`
  
 -## UniPlaySong
-+## Local Achievement Notification
++This is a way of adding all of those achievements that are in the folders ina  way that it isn't needed to go through the folders and adding one by one.
  
 -When [UniPlaySong](https://github.com/aHuddini/UniPlaySong) is installed, achievement notifications are accompanied by custom musical jingles. Themes can also take advantage of this to have their own custom consistent jingles.
++There is also the option to import data from `SuccessStory`. This will go through all the JSON files in the selected SuccessStory folder and import the `Local` games and also the achievements for the games that were detected in them.
+ 
+-## StartPage
++<img src="Images/LocalAchivementsGamesImport.png" alt="Sidebar single-game view" width="900">
+ 
+-PlayniteAchievements tables and visualizations can be added to [StartPage](https://github.com/felixkmh/StartPage-for-Playnite), with their own separate customization, so you can create stunning dashboards like the example below:
+ 
+-![StartPage dashboard](Images/PlayniteAchievements%20-%20StartPage.png)
++## Local Achievement Notification
++
 +This was a request from a user to have a sound playing when an achievement is unlocked while playing a game.<br>
 +Extra sounds in the [Resources/AdditionalSounds](source/Resources/AdditionalSounds)<br>
 +A notification for when the game that is been played has a new achievement unlocked.<br>
 +You can customize the overlay or use one of the provided themes.<br>
 +You can enable / disable the `Achievement Notification` in the right click  menu for each game.
-+
+ 
+-## Docs
 +<img src="Images/AchievementNotificationMenu.png" alt="Sidebar single-game view" width="900">
 +
 +<img src="Images/AchievementNotificationTest.png" alt="Sidebar single-game view">
- 
--## StartPage
- 
--PlayniteAchievements tables and visualizations can be added to [StartPage](https://github.com/felixkmh/StartPage-for-Playnite), with their own separate customization, so you can create stunning dashboards like the example below:
++
++
 +## `StartPage` and Themes compatibility
- 
--![StartPage dashboard](Images/PlayniteAchievements%20-%20StartPage.png)
++
 +In the `Theme Migration` tab you will have the possibility to make theme compatible with this fork, and that's also for theme that already support the original PlayniteAchievements fork, they still need to go through the `Theme Migration` since they are point to the other repo and not this one
  
--## Docs
+-- [Open the wiki](https://github.com/justin-delano/PlayniteAchievements/wiki)
 +There is also the `StartPage Compatibility` so the `Local` achievements appear in the `StartPage` extension when `PlayniteAchievements` is selected
 +
 +<img src="Images/ThemeMigration.png" alt="Sidebar single-game view"  width="900">
@@ -425,8 +427,10 @@ index 39887bdbdaaae092ed292fa99f10d9b84b089fce..85de2951450a7c6051386baa19dc819c
 +- v3.0.0 merge
 +- `Start-page` migration fixed to not show the friend's achievements
 +- Added the option for the highlighted achievement in the `Theme Migration`
- 
--- [Open the wiki](https://github.com/justin-delano/PlayniteAchievements/wiki)
++- Changed the trigger for the `Achievement Notification` to use the one from the original fork
++- Changed the screenshot in the `Achievement Notification` to use the one from the original fork but with these custom settings
++- Added the video settings to the `Achievement Notification` to use the one from the original fork but with these custom settings
++
 +## 2026-07-27 - v2.5.3.4
 +
 +- Fixed `RetroAchievements Game ID Override` displaying `No override set` after setting an override
@@ -1302,7 +1306,7 @@ index 1289e4dc41a1798bf2f6a851f893051019beabd2..466f834a77b62f7df7ded5c2d9fc83d6
          {
              _resourceService.EnsureAchievementResourcesLoaded(_settingsViewModel.Settings);
 diff --git a/source/PlayniteAchievementsPlugin.cs b/source/PlayniteAchievementsPlugin.cs
-index ffc5cb769181e0f751ee1ef8a2e32c143fff2362..7a017ff3350f9448166824698b23ef23e912d37a 100644
+index ffc5cb769181e0f751ee1ef8a2e32c143fff2362..c13ab15aa64ea449643afb08cfcbb7e364490fa1 100644
 --- a/source/PlayniteAchievementsPlugin.cs
 +++ b/source/PlayniteAchievementsPlugin.cs
 @@ -37,6 +37,7 @@
@@ -1427,7 +1431,7 @@ index ffc5cb769181e0f751ee1ef8a2e32c143fff2362..7a017ff3350f9448166824698b23ef23
          private void TryWarmCustomDataCache()
          {
              if (_gameCustomDataStore == null)
-@@ -239,6 +318,18 @@ private string GetPluginLocalizationDirectory()
+@@ -239,18 +318,49 @@ private string GetPluginLocalizationDirectory()
          }
  
          public void PersistSettingsForUi()
@@ -1446,16 +1450,39 @@ index ffc5cb769181e0f751ee1ef8a2e32c143fff2362..7a017ff3350f9448166824698b23ef23
          {
              try
              {
-@@ -249,8 +340,6 @@ public void PersistSettingsForUi()
+                 _providerRegistry?.PersistAllProviderSettings(false);
++                ApplyCustomRecordingSettings();
+                 SavePluginSettings(_settingsViewModel.Settings);
+             }
+             catch (Exception ex)
              {
                  _logger?.Warn(ex, "Failed to persist plugin settings.");
              }
--
++        }
+ 
 -            NotifySettingsSaved();
++        private void ApplyCustomRecordingSettings()
++        {
++            var custom = ProviderRegistry.Settings<Providers.Local.LocalSettings>();
++            var persisted = _settingsViewModel?.Settings?.Persisted;
++            if (custom?.EnableActiveGameMonitoring != true || persisted == null)
++            {
++                return;
++            }
++
++            persisted.EnableUnlockRecordings = custom.EnableUnlockRecordings;
++            persisted.FfmpegPath = custom.FfmpegPath;
++            persisted.UnlockRecordingDirectory = custom.RecordingSaveFolder;
++            persisted.RecordingClipSeconds = custom.RecordingClipSeconds;
++            persisted.RecordingFps = custom.RecordingFps;
++            persisted.RecordingResolution = custom.RecordingResolution;
++            persisted.RecordingEncoder = custom.RecordingEncoder;
++            persisted.RecordingCaptureBackend = custom.RecordingCaptureBackend;
++            persisted.RecordingIncludeAudio = custom.RecordingIncludeAudio;
          }
  
          // Public bridge method for external helpers/themes that used to target SuccessStory via reflection.
-@@ -385,7 +474,13 @@ public PlayniteAchievementsPlugin(IPlayniteAPI api) : base(api)
+@@ -385,7 +495,13 @@ public PlayniteAchievementsPlugin(IPlayniteAPI api) : base(api)
                  _manualSourceRegistry = new ManualSourceRegistry(_logger, settings, PlayniteApi, pluginUserDataPath);
  
                  // Create provider registry
@@ -1470,7 +1497,15 @@ index ffc5cb769181e0f751ee1ef8a2e32c143fff2362..7a017ff3350f9448166824698b23ef23
                  _providerRegistry.SyncFromSettings(settings.Persisted);
                  settings.Persisted?.MigrateLegacyProviderFriends();
                  _gameCustomDataStore = _settingsViewModel.GameCustomDataStore;
-@@ -497,7 +592,8 @@ public PlayniteAchievementsPlugin(IPlayniteAPI api) : base(api)
+@@ -486,6 +602,7 @@ public PlayniteAchievementsPlugin(IPlayniteAPI api) : base(api)
+                     }
+ 
+                     _notifications = new NotificationPublisher(api, settings, _logger);
++                    ApplyCustomRecordingSettings();
+                     _refreshCoordinator = new RefreshEntryPoint(
+                         _refreshService,
+                         _logger,
+@@ -497,7 +614,8 @@ public PlayniteAchievementsPlugin(IPlayniteAPI api) : base(api)
                          _logger,
                          () => _resourceService.EnsureAchievementResourcesLoaded(_settingsViewModel.Settings),
                          GetProcessIdForGame,
@@ -1480,7 +1515,7 @@ index ffc5cb769181e0f751ee1ef8a2e32c143fff2362..7a017ff3350f9448166824698b23ef23
                      _unlockRecordings = new Services.Recording.UnlockRecordingService(
                          PlayniteApi,
                          settings,
-@@ -515,7 +611,7 @@ public PlayniteAchievementsPlugin(IPlayniteAPI api) : base(api)
+@@ -515,7 +633,7 @@ public PlayniteAchievementsPlugin(IPlayniteAPI api) : base(api)
                          _refreshService,
                          providers,
                          (request, policy) => _refreshCoordinator.ExecuteAsync(request, policy),
@@ -1489,7 +1524,7 @@ index ffc5cb769181e0f751ee1ef8a2e32c143fff2362..7a017ff3350f9448166824698b23ef23
                      _backgroundUpdates = new BackgroundUpdater(_refreshCoordinator, _refreshService, _cacheManager, settings, _logger, _notifications, null);
  
                      // Create tag sync service
-@@ -669,7 +765,7 @@ public override IEnumerable<SidebarItem> GetSidebarItems()
+@@ -669,7 +787,7 @@ public override IEnumerable<SidebarItem> GetSidebarItems()
                  Opened = () =>
                  {
                      return new OverviewHostControl(
@@ -12677,6 +12712,79 @@ index e2edea0011fc5f0d7a734646978ee28ca09b9c98..f84e7abd2691402bee7a19c2601b490f
          }
  
          private static string BuildRecentGameKey(CachedRecentUnlockData recent)
+diff --git a/source/Services/Recording/UnlockRecordingService.cs b/source/Services/Recording/UnlockRecordingService.cs
+index 730defe4fa7c8217021ea1ee2a36690ab2095d5c..e8f6bb2b5e704231a08927bc91b6d235fe82d40f 100644
+--- a/source/Services/Recording/UnlockRecordingService.cs
++++ b/source/Services/Recording/UnlockRecordingService.cs
+@@ -10,6 +10,9 @@
+ using PlayniteAchievements.Models;
+ using PlayniteAchievements.Models.Settings;
+ using PlayniteAchievements.Services.UI;
++using PlayniteAchievements.Providers;
++using PlayniteAchievements.Providers.Local;
++using PlayniteAchievements.Services.Local;
+ 
+ namespace PlayniteAchievements.Services.Recording
+ {
+@@ -143,6 +146,7 @@ private sealed class CaptureSession
+         private sealed class ClipRequest
+         {
+             public CaptureSession Session;
++            public Guid PlayniteGameId;
+             public string ProviderKey;
+             public string GameName;
+             public string AchievementName;
+@@ -767,6 +771,7 @@ private void OnAchievementUnlocked(object sender, AchievementUnlockedEventArgs e
+             var request = new ClipRequest
+             {
+                 Session = session,
++                PlayniteGameId = e.PlayniteGameId,
+                 ProviderKey = e.ProviderKey,
+                 GameName = e.GameName,
+                 // Resolved through the shared helper so completion notifications (no
+@@ -1253,6 +1258,42 @@ private string BuildOutputPath(PersistedSettings persisted, ClipRequest request)
+         {
+             try
+             {
++                var custom = ProviderRegistry.Settings<LocalSettings>();
++                if (custom?.EnableActiveGameMonitoring == true)
++                {
++                    var game = _api?.Database?.Games?.Get(request.PlayniteGameId);
++                    var timestamp = DateTime.Now;
++                    var directoryTemplate = string.IsNullOrWhiteSpace(custom.RecordingSaveFolder)
++                        ? custom.EffectiveScreenshotSaveFolder
++                        : custom.RecordingSaveFolder;
++                    var customBaseDir = LocalAchievementScreenshotService.ReplaceTokens(
++                        directoryTemplate,
++                        game,
++                        request.AchievementName,
++                        timestamp,
++                        Math.Max(1, request.AchievementNumber),
++                        Math.Max(1, request.TotalCount),
++                        sanitizeValues: true,
++                        providerName: request.ProviderKey);
++                    if (string.IsNullOrWhiteSpace(customBaseDir))
++                    {
++                        return null;
++                    }
++
++                    var filename = LocalAchievementScreenshotService.ReplaceTokens(
++                        custom.RecordingFilenameTemplate,
++                        game,
++                        request.AchievementName,
++                        timestamp,
++                        Math.Max(1, request.AchievementNumber),
++                        Math.Max(1, request.TotalCount),
++                        sanitizeValues: false,
++                        providerName: request.ProviderKey);
++                    filename = LocalAchievementScreenshotService.SanitizeFileName(filename);
++                    Directory.CreateDirectory(customBaseDir);
++                    return LocalAchievementScreenshotService.BuildUniquePath(customBaseDir, filename, ".mp4");
++                }
++
+                 var baseDir = ResolveOutputDirectory(persisted);
+                 if (string.IsNullOrWhiteSpace(baseDir))
+                 {
 diff --git a/source/Services/ThemeIntegration/LibraryRuntimeStateBuilder.cs b/source/Services/ThemeIntegration/LibraryRuntimeStateBuilder.cs
 index 18cd63c9f7036a866e1782cca34c2ba8192621f4..1f8ca404df4712c62dc99b4138ff8b3ac03d347b 100644
 --- a/source/Services/ThemeIntegration/LibraryRuntimeStateBuilder.cs
@@ -12787,7 +12895,7 @@ index 87238bf154101a1cec44c82a9a3993afdb63ab3f..804d7ddb1a523649bd75f01e9426ea4a
              nameof(PlayniteAchievementsSettings.RPCS3Games),
              nameof(PlayniteAchievementsSettings.XeniaGames),
 diff --git a/source/Services/ThemeIntegration/ThemeIntegrationService.cs b/source/Services/ThemeIntegration/ThemeIntegrationService.cs
-index e92ba292d8f842fe3b19f09db0a69c296e0159fc..3a5ce4b38358c860936c8ccf124a7caefed507f4 100644
+index e92ba292d8f842fe3b19f09db0a69c296e0159fc..df62814a2eabbe506c5881605765f9added7dab6 100644
 --- a/source/Services/ThemeIntegration/ThemeIntegrationService.cs
 +++ b/source/Services/ThemeIntegration/ThemeIntegrationService.cs
 @@ -1455,6 +1455,15 @@ private void PopulateAllGamesDataSync(bool includeHeavyAchievementLists)
@@ -12806,7 +12914,15 @@ index e92ba292d8f842fe3b19f09db0a69c296e0159fc..3a5ce4b38358c860936c8ccf124a7cae
  
                  _hasLoadedLibraryState = true;
                  _lastLibraryRefreshIncludedHeavyAchievementLists = includeHeavyAchievementLists;
-@@ -1652,6 +1661,7 @@ private void ApplyLibraryState(LibraryRuntimeState state)
+@@ -1641,6 +1650,7 @@ private void ApplyLibraryState(LibraryRuntimeState state)
+             _settings.ModernTheme.PrestigeLevel = library.PrestigeLevel;
+             _settings.ModernTheme.PrestigeLevelProgress = library.PrestigeLevelProgress;
+             _settings.ModernTheme.PrestigeRank = library.PrestigeRank;
++            PersistScoreSnapshot(library);
+             _settings.ModernTheme.SteamGames = ProjectGameSummaries(library.SteamGames);
+             _settings.ModernTheme.GOGGames = ProjectGameSummaries(library.GOGGames);
+             _settings.ModernTheme.EpicGames = ProjectGameSummaries(library.EpicGames);
+@@ -1652,6 +1662,7 @@ private void ApplyLibraryState(LibraryRuntimeState state)
              _settings.ModernTheme.AppleGames = ProjectGameSummaries(library.AppleGames);
              _settings.ModernTheme.GooglePlayGames = ProjectGameSummaries(library.GooglePlayGames);
              _settings.ModernTheme.HoyoverseGames = ProjectGameSummaries(library.HoyoverseGames);
@@ -12814,7 +12930,146 @@ index e92ba292d8f842fe3b19f09db0a69c296e0159fc..3a5ce4b38358c860936c8ccf124a7cae
              _settings.ModernTheme.UbisoftGames = ProjectGameSummaries(library.UbisoftGames);
              _settings.ModernTheme.RPCS3Games = ProjectGameSummaries(library.RPCS3Games);
              _settings.ModernTheme.XeniaGames = ProjectGameSummaries(library.XeniaGames);
-@@ -3428,11 +3438,26 @@ private void ApplyDynamicGameSummaryBindings(bool updateOptions)
+@@ -1713,6 +1724,138 @@ private void ApplyLibraryState(LibraryRuntimeState state)
+             NotifySettingProperties(ThemeDelegatedPropertyCatalog.DynamicFriends);
+         }
+ 
++        private void PersistScoreSnapshot(LibraryRuntimeState library)
++        {
++            try
++            {
++                if (library == null || !library.HasData)
++                {
++                    return;
++                }
++
++                var persisted = _settings?.Persisted;
++                if (persisted == null)
++                {
++                    return;
++                }
++
++                if (persisted.LastAllGamesCollectorScore == library.CollectorScore &&
++                    persisted.LastAllGamesCollectorLevel == library.CollectorLevel &&
++                    Math.Abs(persisted.LastAllGamesCollectorLevelProgress - library.CollectorLevelProgress) < 0.0001 &&
++                    string.Equals(persisted.LastAllGamesCollectorRank, library.CollectorRank, StringComparison.Ordinal) &&
++                    persisted.LastAllGamesPrestigeScore == library.PrestigeScore &&
++                    persisted.LastAllGamesPrestigeLevel == library.PrestigeLevel &&
++                    Math.Abs(persisted.LastAllGamesPrestigeLevelProgress - library.PrestigeLevelProgress) < 0.0001 &&
++                    string.Equals(persisted.LastAllGamesPrestigeRank, library.PrestigeRank, StringComparison.Ordinal))
++                {
++                    return;
++                }
++
++#if !TEST
++                PublishScoreProgressNotifications(persisted, library);
++#endif
++
++                persisted.LastAllGamesCollectorScore = library.CollectorScore;
++                persisted.LastAllGamesCollectorLevel = library.CollectorLevel;
++                persisted.LastAllGamesCollectorLevelProgress = library.CollectorLevelProgress;
++                persisted.LastAllGamesCollectorRank = library.CollectorRank;
++                persisted.LastAllGamesPrestigeScore = library.PrestigeScore;
++                persisted.LastAllGamesPrestigeLevel = library.PrestigeLevel;
++                persisted.LastAllGamesPrestigeLevelProgress = library.PrestigeLevelProgress;
++                persisted.LastAllGamesPrestigeRank = library.PrestigeRank;
++
++#if !TEST
++                PlayniteAchievementsPlugin.Instance?.PersistSettingsForUiSilently();
++#endif
++            }
++            catch (Exception ex)
++            {
++                _logger?.Debug(ex, "Failed to persist all-games score snapshot.");
++            }
++        }
++
++#if !TEST
++        private void PublishScoreProgressNotifications(PersistedSettings persisted, LibraryRuntimeState library)
++        {
++            // A zero snapshot represents startup/migration, not an earned progression event.
++            if (persisted == null || library == null ||
++                (persisted.LastAllGamesCollectorScore <= 0 && persisted.LastAllGamesPrestigeScore <= 0))
++            {
++                return;
++            }
++
++            var local = ProviderRegistry.Settings<Providers.Local.LocalSettings>();
++            if (local?.EnableActiveGameMonitoring != true)
++            {
++                return;
++            }
++
++            var publisher = new NotificationPublisher(_api, _settings, _logger);
++            PublishScoreProgress(
++                publisher,
++                "Collection",
++                local.CollectionProgressNotifications,
++                local,
++                persisted.LastAllGamesCollectorScore,
++                persisted.LastAllGamesCollectorLevel,
++                persisted.LastAllGamesCollectorRank,
++                library.CollectorScore,
++                library.CollectorLevel,
++                library.CollectorRank);
++            PublishScoreProgress(
++                publisher,
++                "Prestige",
++                local.PrestigeProgressNotifications,
++                local,
++                persisted.LastAllGamesPrestigeScore,
++                persisted.LastAllGamesPrestigeLevel,
++                persisted.LastAllGamesPrestigeRank,
++                library.PrestigeScore,
++                library.PrestigeLevel,
++                library.PrestigeRank);
++        }
++
++        private static void PublishScoreProgress(
++            NotificationPublisher publisher,
++            string scoreName,
++            Providers.Local.ScoreProgressNotificationSettings notification,
++            Providers.Local.LocalSettings local,
++            int oldScore,
++            int oldLevel,
++            string oldRank,
++            int newScore,
++            int newLevel,
++            string newRank)
++        {
++            if (notification == null || oldScore <= 0 || newScore <= oldScore)
++            {
++                return;
++            }
++
++            if (notification.NotifyTierUp &&
++                !string.Equals(oldRank, newRank, StringComparison.Ordinal))
++            {
++                publisher.SendScoreProgressNotification(
++                    scoreName,
++                    "tier",
++                    newLevel,
++                    newRank,
++                    notification,
++                    local);
++            }
++            else if (notification.NotifyLevelUp && newLevel > oldLevel)
++            {
++                publisher.SendScoreProgressNotification(
++                    scoreName,
++                    "level",
++                    newLevel,
++                    newRank,
++                    notification,
++                    local);
++            }
++        }
++#endif
++
+         #endregion
+ 
+         #region Per-Game Theme Integration
+@@ -3428,11 +3571,26 @@ private void ApplyDynamicGameSummaryBindings(bool updateOptions)
              var viewState = _runtimeState.GameSummaries;
              var items = BuildDynamicGameSummaries(state, viewState);
              AttachGameSummaryCommands(items);
@@ -13834,10 +14089,19 @@ index c34d6e525fc997f2cd8c0c675d23653fefd4db50..bde5b5655adee90a4f15cfffabf6b5af
          {
              try
 diff --git a/source/Services/UI/ToastNotificationService.cs b/source/Services/UI/ToastNotificationService.cs
-index a6b270ea5d259156ddefe1460518b96f5ade0737..226d5b048f4dc06056941b0134aafe4acd3d3389 100644
+index a6b270ea5d259156ddefe1460518b96f5ade0737..c7b385f0d4c58a9b1e06b61ba99a56d3e3bc1297 100644
 --- a/source/Services/UI/ToastNotificationService.cs
 +++ b/source/Services/UI/ToastNotificationService.cs
-@@ -27,6 +27,7 @@ internal sealed class ToastNotificationService : IDisposable
+@@ -13,6 +13,8 @@
+ using PlayniteAchievements.Models.Settings;
+ using PlayniteAchievements.ViewModels;
+ using PlayniteAchievements.Views.Helpers;
++using PlayniteAchievements.Providers;
++using PlayniteAchievements.Providers.Local;
+ 
+ namespace PlayniteAchievements.Services.UI
+ {
+@@ -27,6 +29,7 @@ internal sealed class ToastNotificationService : IDisposable
          // Optional foreground tracker: supplies the learned game window handle, which beats the
          // pid-based resolve for launcher-wrapped titles.
          private readonly ActiveGameWindowTracker _windowTracker;
@@ -13845,7 +14109,7 @@ index a6b270ea5d259156ddefe1460518b96f5ade0737..226d5b048f4dc06056941b0134aafe4a
          private readonly UnlockScreenshotService _screenshotService;
          private readonly ScreenshotFrameCompositor _frameCompositor;
          private readonly AchievementToastTemplateResolver _templateResolver;
-@@ -48,7 +49,8 @@ public ToastNotificationService(
+@@ -48,7 +51,8 @@ public ToastNotificationService(
              ILogger logger,
              Action ensureResourcesLoaded,
              Func<Guid?, int?> getGameProcessId = null,
@@ -13855,7 +14119,7 @@ index a6b270ea5d259156ddefe1460518b96f5ade0737..226d5b048f4dc06056941b0134aafe4a
          {
              _api = api;
              _settings = settings;
-@@ -56,6 +58,7 @@ public ToastNotificationService(
+@@ -56,6 +60,7 @@ public ToastNotificationService(
              _ensureResourcesLoaded = ensureResourcesLoaded;
              _getGameProcessId = getGameProcessId;
              _windowTracker = windowTracker;
@@ -13863,7 +14127,7 @@ index a6b270ea5d259156ddefe1460518b96f5ade0737..226d5b048f4dc06056941b0134aafe4a
              _screenshotService = new UnlockScreenshotService(logger);
              _frameCompositor = new ScreenshotFrameCompositor(logger);
              _templateResolver = new AchievementToastTemplateResolver(api, logger);
-@@ -114,7 +117,7 @@ private bool ShouldProcess(AchievementUnlockedEventArgs args)
+@@ -114,7 +119,7 @@ private bool ShouldProcess(AchievementUnlockedEventArgs args)
                  return false;
              }
  
@@ -13872,7 +14136,21 @@ index a6b270ea5d259156ddefe1460518b96f5ade0737..226d5b048f4dc06056941b0134aafe4a
              {
                  return true;
              }
-@@ -139,13 +142,29 @@ private bool ShouldProcess(AchievementUnlockedEventArgs args)
+@@ -124,6 +129,13 @@ private bool ShouldProcess(AchievementUnlockedEventArgs args)
+                 return false;
+             }
+ 
++            if (_usesCustomNotification?.Invoke(args) == true)
++            {
++                var custom = ProviderRegistry.Settings<LocalSettings>();
++                return custom?.EnableUnlockScreenshots == true &&
++                       !string.IsNullOrWhiteSpace(custom.EffectiveScreenshotSaveFolder);
++            }
++
+             var persisted = _settings?.Persisted;
+             if (persisted?.EnableUnlockScreenshots != true ||
+                 string.IsNullOrWhiteSpace(persisted.UnlockScreenshotDirectory))
+@@ -139,13 +151,29 @@ private bool ShouldProcess(AchievementUnlockedEventArgs args)
          /// policy ANDs the EnableNotifications master switch into both toast flags and resolves
          /// all-false for null settings.
          /// </summary>
@@ -13903,7 +14181,7 @@ index a6b270ea5d259156ddefe1460518b96f5ade0737..226d5b048f4dc06056941b0134aafe4a
              var effective = ProviderNotificationPolicy.Resolve(_settings?.Persisted, providerKey);
              return isFriendUnlock
                  ? effective.FriendUnlockToasts
-@@ -370,7 +389,12 @@ private async Task ShowWaveAsync(IReadOnlyList<AchievementToastViewModel> wave)
+@@ -370,7 +398,12 @@ private async Task ShowWaveAsync(IReadOnlyList<AchievementToastViewModel> wave)
              // Toasts and screenshots gate independently: a wave can contain items that toast,
              // items that only produce screenshots, or a mix (waves batch by friend/own only).
              var toastItems = wave
@@ -13917,6 +14195,219 @@ index a6b270ea5d259156ddefe1460518b96f5ade0737..226d5b048f4dc06056941b0134aafe4a
                  .ToList();
  
              // The clean capture must precede window.Show(); overlapping it with the sound-align
+@@ -380,9 +413,19 @@ private async Task ShowWaveAsync(IReadOnlyList<AchievementToastViewModel> wave)
+             Task<System.Drawing.Bitmap> cleanCaptureTask = null;
+             if (plan != null && plan.NeedsCleanCapture)
+             {
++                if (plan.CaptureDelayMilliseconds > 0)
++                {
++                    await Task.Delay(plan.CaptureDelayMilliseconds).ConfigureAwait(true);
++                }
++
+                 var waveHwnd = ResolveWaveWindowHandle();
+                 var processId = _getGameProcessId?.Invoke(_activeWaveGameId);
+-                cleanCaptureTask = Task.Run(() => _screenshotService.CaptureGameWindow(waveHwnd, processId));
++                cleanCaptureTask = plan.UsesCustomSettings
++                    ? Task.Run(() => _screenshotService.CaptureUsingMode(
++                        plan.CustomSettings.ScreenshotCaptureMode,
++                        waveHwnd,
++                        processId))
++                    : Task.Run(() => _screenshotService.CaptureGameWindow(waveHwnd, processId));
+             }
+ 
+             // Screenshot-only wave: no sound, no window, no delays — capture and save. Running
+@@ -661,6 +704,12 @@ private sealed class WaveScreenshotPlan
+ 
+             public string FramedSuffix { get; set; }
+ 
++            public LocalSettings CustomSettings { get; set; }
++
++            public bool UsesCustomSettings => CustomSettings != null;
++
++            public int CaptureDelayMilliseconds => CustomSettings?.ScreenshotDelayMilliseconds ?? 0;
++
+             public bool NeedsCleanCapture => Items.Any(i =>
+                 (i.Variants & (ScreenshotVariants.Clean | ScreenshotVariants.Framed)) != 0);
+ 
+@@ -693,6 +742,34 @@ private WaveScreenshotPlan BuildScreenshotPlan(
+             }
+ 
+             var persisted = _settings?.Persisted;
++            var custom = ProviderRegistry.Settings<LocalSettings>();
++            if (_usesCustomNotification?.Invoke(new AchievementUnlockedEventArgs
++                {
++                    PlayniteGameId = first.PlayniteGameId,
++                    ProviderKey = first.ProviderKey,
++                    IsFriendUnlock = first.IsFriendUnlock,
++                    IsGameCompleted = first.IsGameCompleted
++                }) == true)
++            {
++                if (custom?.EnableUnlockScreenshots != true ||
++                    string.IsNullOrWhiteSpace(custom.EffectiveScreenshotSaveFolder))
++                {
++                    return null;
++                }
++
++                var customPlan = new WaveScreenshotPlan
++                {
++                    BaseDirectory = custom.EffectiveScreenshotSaveFolder,
++                    CustomSettings = custom
++                };
++                foreach (var vm in wave.Where(vm => !vm.IsPreview && !vm.IsFriendUnlock))
++                {
++                    customPlan.Items.Add((vm, ScreenshotVariants.Clean));
++                }
++
++                return customPlan.Items.Count > 0 ? customPlan : null;
++            }
++
+             var baseDir = persisted?.UnlockScreenshotDirectory;
+             if (persisted?.EnableUnlockScreenshots != true || string.IsNullOrWhiteSpace(baseDir))
+             {
+@@ -813,10 +890,24 @@ private async Task SaveWaveScreenshotsAsync(
+                             var vm = item.Vm;
+                             if ((item.Variants & ScreenshotVariants.Clean) != 0 && clean != null)
+                             {
+-                                _screenshotService.Save(
+-                                    clean, baseDir, vm.ProviderKey, vm.GameName, vm.AchievementName,
+-                                    vm.AchievementNumber, vm.TotalCount,
+-                                    plan.CleanSuffix);
++                                if (plan.UsesCustomSettings)
++                                {
++                                    _screenshotService.SaveUsingCustomSettings(
++                                        clean,
++                                        plan.CustomSettings,
++                                        _api?.Database?.Games?.Get(vm.PlayniteGameId),
++                                        vm.ProviderKey,
++                                        vm.AchievementName,
++                                        vm.AchievementNumber,
++                                        vm.TotalCount);
++                                }
++                                else
++                                {
++                                    _screenshotService.Save(
++                                        clean, baseDir, vm.ProviderKey, vm.GameName, vm.AchievementName,
++                                        vm.AchievementNumber, vm.TotalCount,
++                                        plan.CleanSuffix);
++                                }
+                             }
+ 
+                             if ((item.Variants & ScreenshotVariants.WithToast) != 0 && toast != null)
+diff --git a/source/Services/UI/UnlockScreenshotService.cs b/source/Services/UI/UnlockScreenshotService.cs
+index 23fc3c37b79ca2a340d8850a6bafd5a3068904b1..a5d63452c86f9d3a0720c7e9214049532906784e 100644
+--- a/source/Services/UI/UnlockScreenshotService.cs
++++ b/source/Services/UI/UnlockScreenshotService.cs
+@@ -8,6 +8,9 @@
+ using System.Windows.Forms;
+ using Playnite.SDK;
+ using PlayniteAchievements.Services.Images;
++using PlayniteAchievements.Providers.Local;
++using PlayniteAchievements.Services.Local;
++using Playnite.SDK.Models;
+ 
+ namespace PlayniteAchievements.Services.UI
+ {
+@@ -185,6 +188,100 @@ public Bitmap CaptureGameWindow(IntPtr knownHwnd, int? startedProcessId)
+             }
+         }
+ 
++        public Bitmap CaptureUsingMode(
++            LocalUnlockScreenshotCaptureMode mode,
++            IntPtr knownHwnd,
++            int? startedProcessId)
++        {
++            try
++            {
++                Rectangle bounds;
++                if (mode == LocalUnlockScreenshotCaptureMode.FullDesktop)
++                {
++                    bounds = SystemInformation.VirtualScreen;
++                }
++                else
++                {
++                    var foreground = GetForegroundWindow();
++                    if (!TryGetWindowRectangle(foreground, out bounds))
++                    {
++                        return CaptureGameWindow(knownHwnd, startedProcessId);
++                    }
++                }
++
++                if (bounds.Width <= 0 || bounds.Height <= 0)
++                {
++                    return null;
++                }
++
++                var bitmap = new Bitmap(bounds.Width, bounds.Height, PixelFormat.Format32bppArgb);
++                using (var graphics = Graphics.FromImage(bitmap))
++                {
++                    graphics.CopyFromScreen(bounds.Location, Point.Empty, bounds.Size);
++                }
++
++                return bitmap;
++            }
++            catch (Exception ex)
++            {
++                _logger?.Debug(ex, "Custom unlock screenshot capture failed.");
++                return null;
++            }
++        }
++
++        public void SaveUsingCustomSettings(
++            Bitmap bitmap,
++            LocalSettings settings,
++            Game game,
++            string providerKey,
++            string achievementName,
++            int number,
++            int total)
++        {
++            if (bitmap == null || settings == null)
++            {
++                return;
++            }
++
++            try
++            {
++                var timestamp = DateTime.Now;
++                var directory = LocalAchievementScreenshotService.ReplaceTokens(
++                    settings.EffectiveScreenshotSaveFolder,
++                    game,
++                    achievementName,
++                    timestamp,
++                    Math.Max(1, number),
++                    Math.Max(1, total),
++                    sanitizeValues: true,
++                    providerName: providerKey);
++                var filename = LocalAchievementScreenshotService.ReplaceTokens(
++                    settings.ScreenshotFilenameTemplate,
++                    game,
++                    achievementName,
++                    timestamp,
++                    Math.Max(1, number),
++                    Math.Max(1, total),
++                    sanitizeValues: false,
++                    providerName: providerKey);
++                filename = LocalAchievementScreenshotService.SanitizeFileName(filename);
++                Directory.CreateDirectory(directory);
++                var extension = settings.ScreenshotImageFormat == LocalUnlockScreenshotImageFormat.Jpeg
++                    ? ".jpg"
++                    : ".png";
++                var path = LocalAchievementScreenshotService.BuildUniquePath(directory, filename, extension);
++                bitmap.Save(
++                    path,
++                    settings.ScreenshotImageFormat == LocalUnlockScreenshotImageFormat.Jpeg
++                        ? ImageFormat.Jpeg
++                        : ImageFormat.Png);
++            }
++            catch (Exception ex)
++            {
++                _logger?.Debug(ex, "Custom unlock screenshot save failed.");
++            }
++        }
++
+         /// <summary>
+         /// Saves an already-captured bitmap to
+         /// &lt;baseDir&gt;\Game\NNN_AchievementName_&lt;variant&gt;.png. Creates directories as
 diff --git a/source/ViewModels/Items/AchievementDisplayItem.cs b/source/ViewModels/Items/AchievementDisplayItem.cs
 index da0ac699cac4818f3f692a3bec59121251b785a2..b6ab81a5c7c1277da9be88c257cf2a75cb6af780 100644
 --- a/source/ViewModels/Items/AchievementDisplayItem.cs

@@ -1,6 +1,6 @@
 {
     "schemaVersion":  1,
-    "generatedUtc":  "2026-07-28T15:47:59.6293172Z",
+    "generatedUtc":  "2026-07-29T08:42:46.1436046Z",
     "baselineRef":  "upstream/main",
     "baselineCommit":  "21f3b22393c99a80aee0f49b9bdca1aa80686f23",
     "protectedPaths":  [
@@ -9,7 +9,7 @@
                        ],
     "patch":  {
                   "path":  "fork-changes.patch",
-                  "sha256":  "32EAB7359D6C77F04D3C11CD1A320F57E659BA63ADDF86A98BC99F00002065FD"
+                  "sha256":  "F66AE7AC777C395B6BB9D2AA1CBAC73621B45F988FA2D9789F3260FD7BD092A2"
               },
     "localizationRecipes":  {
                                 "path":  "localization-recipes.json",
@@ -136,7 +136,7 @@
                          },
                          {
                              "path":  "source/Providers/Local/LocalSettings.cs",
-                             "sha256":  "F876738F14810C611238CDBB95E0C784E2716F1A2A8746402F397E2CFE597AB9"
+                             "sha256":  "45517037C5E8C21A35B8007D22295285DD5ED1EE6D9B7B45134F0336921B36E7"
                          },
                          {
                              "path":  "source/Providers/Local/LocalSettingsView.xaml",
@@ -232,7 +232,7 @@
                          },
                          {
                              "path":  "source/Services/Local/LocalAchievementScreenshotService.cs",
-                             "sha256":  "CB9A103E87BF4E48B51C712BBAF7C3FA8A55AC27B20936ABA4EA688A39D398DA"
+                             "sha256":  "E9EB6373BFE6E1DDA8A4E2FCF27B9EE2698BAA204C788072DAE6A2D9E896DF11"
                          },
                          {
                              "path":  "source/Services/Refresh/CustomRefreshGameMatcher.cs",
@@ -292,11 +292,11 @@
                          },
                          {
                              "path":  "source/Views/LegacyNotificationSettingsControl.xaml",
-                             "sha256":  "47D55B016095B4618167242E170993DAE62BE88DC4DB56DB70A6F4A4DEFD7F2B"
+                             "sha256":  "B3262B12AC6DE5B091AFA0AB89D9C67676E54A493D56759FB941510810A34279"
                          },
                          {
                              "path":  "source/Views/LegacyNotificationSettingsControl.xaml.cs",
-                             "sha256":  "4F80643A4D2B92B2E28EED35070D8F682F4037107182F67816F55F2A081C6AD3"
+                             "sha256":  "18F04701E10BEB2EBDF49F6B076DA5DFB86D005527F66F1B33BDB9A7F2DA0695"
                          },
                          {
                              "path":  "source/Views/LocalAchievementEditorControl.xaml",

@@ -29,7 +29,11 @@ namespace PlayniteAchievements.Services.Local
             _logger = logger;
         }
 
-        public async Task TryCaptureUnlockScreenshotsAsync(Game game, IReadOnlyList<string> unlockedAchievements, CancellationToken cancellationToken)
+        public async Task TryCaptureUnlockScreenshotsAsync(
+            Game game,
+            IReadOnlyList<string> unlockedAchievements,
+            CancellationToken cancellationToken,
+            string providerName = ProviderName)
         {
             if (game == null || unlockedAchievements == null || unlockedAchievements.Count == 0)
             {
@@ -37,8 +41,7 @@ namespace PlayniteAchievements.Services.Local
             }
 
             var settings = ProviderRegistry.Settings<LocalSettings>();
-            if (settings?.IsEnabled != true ||
-                settings.EnableActiveGameMonitoring != true ||
+            if (settings?.EnableActiveGameMonitoring != true ||
                 settings.EnableUnlockScreenshots != true)
             {
                 return;
@@ -55,7 +58,7 @@ namespace PlayniteAchievements.Services.Local
                 var timestamp = DateTime.Now;
                 var unlockCount = unlockedAchievements.Count;
                 var achievementName = ResolveBatchAchievementName(unlockedAchievements);
-                var targetDirectory = ResolveTargetDirectory(settings, game, achievementName, timestamp, 1, unlockCount);
+                var targetDirectory = ResolveTargetDirectory(settings, game, achievementName, timestamp, 1, unlockCount, providerName);
                 if (string.IsNullOrWhiteSpace(targetDirectory))
                 {
                     return;
@@ -72,7 +75,7 @@ namespace PlayniteAchievements.Services.Local
 
                     cancellationToken.ThrowIfCancellationRequested();
 
-                    var baseFileName = BuildFileName(settings, game, achievementName, timestamp, 1, unlockCount);
+                    var baseFileName = BuildFileName(settings, game, achievementName, timestamp, 1, unlockCount, providerName);
                     var extension = GetFileExtension(settings);
                     var outputPath = BuildUniquePath(targetDirectory, baseFileName, extension);
                     SaveBitmap(bitmap, outputPath, settings);
@@ -83,7 +86,7 @@ namespace PlayniteAchievements.Services.Local
             }
             catch (Exception ex)
             {
-                _logger?.Warn(ex, $"Failed capturing Local unlock screenshot for '{game.Name}'.");
+                _logger?.Warn(ex, $"Failed capturing unlock screenshot for '{game.Name}'.");
             }
         }
 
@@ -107,7 +110,7 @@ namespace PlayniteAchievements.Services.Local
             return string.Format(CultureInfo.InvariantCulture, "{0} (+{1} more)", names[0], names.Count - 1);
         }
 
-        private static string ResolveTargetDirectory(LocalSettings settings, Game game, string achievementName, DateTime timestamp, int unlockIndex, int unlockCount)
+        private static string ResolveTargetDirectory(LocalSettings settings, Game game, string achievementName, DateTime timestamp, int unlockIndex, int unlockCount, string providerName)
         {
             var configuredPath = settings?.EffectiveScreenshotSaveFolder?.Trim();
             if (string.IsNullOrWhiteSpace(configuredPath))
@@ -117,7 +120,7 @@ namespace PlayniteAchievements.Services.Local
 
             try
             {
-                var expandedPath = ReplaceTokens(configuredPath, game, achievementName, timestamp, unlockIndex, unlockCount, sanitizeValues: true);
+                var expandedPath = ReplaceTokens(configuredPath, game, achievementName, timestamp, unlockIndex, unlockCount, sanitizeValues: true, providerName: providerName);
                 return Path.GetFullPath(expandedPath);
             }
             catch
@@ -184,20 +187,28 @@ namespace PlayniteAchievements.Services.Local
             return bitmap;
         }
 
-        private static string BuildFileName(LocalSettings settings, Game game, string achievementName, DateTime timestamp, int unlockIndex, int unlockCount)
+        private static string BuildFileName(LocalSettings settings, Game game, string achievementName, DateTime timestamp, int unlockIndex, int unlockCount, string providerName)
         {
             var template = string.IsNullOrWhiteSpace(settings?.ScreenshotFilenameTemplate)
                 ? LocalSettings.DefaultScreenshotFilenameTemplate
                 : settings.ScreenshotFilenameTemplate;
 
-            var replaced = ReplaceTokens(template, game, achievementName, timestamp, unlockIndex, unlockCount, sanitizeValues: false);
+            var replaced = ReplaceTokens(template, game, achievementName, timestamp, unlockIndex, unlockCount, sanitizeValues: false, providerName: providerName);
 
             return SanitizeFileName(string.IsNullOrWhiteSpace(replaced)
                 ? LocalSettings.DefaultScreenshotFilenameTemplate
                 : replaced);
         }
 
-        private static string ReplaceTokens(string template, Game game, string achievementName, DateTime timestamp, int unlockIndex, int unlockCount, bool sanitizeValues)
+        internal static string ReplaceTokens(
+            string template,
+            Game game,
+            string achievementName,
+            DateTime timestamp,
+            int unlockIndex,
+            int unlockCount,
+            bool sanitizeValues,
+            string providerName = ProviderName)
         {
             var sourceName = game?.Source?.Name ?? string.Empty;
             return TokenPattern.Replace(template ?? string.Empty, match =>
@@ -224,7 +235,7 @@ namespace PlayniteAchievements.Services.Local
                         value = sourceName;
                         break;
                     case "provider":
-                        value = ProviderName;
+                        value = providerName ?? ProviderName;
                         break;
                     case "gameid":
                         value = game?.Id.ToString() ?? string.Empty;
@@ -249,7 +260,7 @@ namespace PlayniteAchievements.Services.Local
             return string.Equals(sanitized, "unlock_screenshot", StringComparison.Ordinal) ? "_" : sanitized;
         }
 
-        private static string SanitizeFileName(string value)
+        internal static string SanitizeFileName(string value)
         {
             var invalidChars = Path.GetInvalidFileNameChars();
             var builder = new StringBuilder(value?.Length ?? 0);
@@ -279,7 +290,7 @@ namespace PlayniteAchievements.Services.Local
             return sanitized.Length <= 120 ? sanitized : sanitized.Substring(0, 120).Trim(' ', '.', '_');
         }
 
-        private static string BuildUniquePath(string directory, string baseFileName, string extension)
+        internal static string BuildUniquePath(string directory, string baseFileName, string extension)
         {
             var candidate = Path.Combine(directory, baseFileName + extension);
             if (!File.Exists(candidate))

@@ -21,6 +21,13 @@ must still be verified in Playnite.
 - Friend unlocks, game-completion events, screenshots, and recordings remain
   on the upstream event pipeline, and per-game real-time notification
   exclusions are respected.
+- When the custom notification is enabled, the upstream screenshot and
+  recording services use the custom tab's capture settings. Screenshot and
+  video destinations and filenames retain the fork wildcard support, and
+  enabling both upstream and custom controls does not duplicate captures.
+- Collection and Prestige score snapshots are compared after library-state
+  refreshes. Configured level-up/tier-up notifications fire once, tier takes
+  priority when both change, and initial/zero snapshots initialize silently.
 - The obsolete separate Exophase/RetroAchievements API-verification controls
   are not shown.
 
@@ -29,6 +36,9 @@ Primary fork areas:
 - `source/Services/NotificationPublisher.cs`
 - `source/Services/InGameAchievementPoller.cs`
 - `source/Services/UI/ToastNotificationService.cs`
+- `source/Services/UI/UnlockScreenshotService.cs`
+- `source/Services/Recording/UnlockRecordingService.cs`
+- `source/Services/ThemeIntegration/ThemeIntegrationService.cs`
 - `source/PlayniteAchievementsPlugin.cs`
 - `source/Services/Local/`
 - `source/Services/Exophase/`
