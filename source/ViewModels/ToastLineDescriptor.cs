@@ -1,3 +1,4 @@
+using System.Windows;
 using System.Windows.Media;
 
 namespace PlayniteAchievements.ViewModels
@@ -94,6 +95,21 @@ namespace PlayniteAchievements.ViewModels
         /// pre-decoded ImageSource for the offscreen frame render.
         /// </summary>
         public object InlineBadgeSource { get; }
+
+        /// <summary>
+        /// Inline badge render size, slightly larger than the title text.
+        /// </summary>
+        public double InlineBadgeSize => FontSize * 1.5;
+
+        /// <summary>
+        /// Left offset for the title row when the inline badge shows: pulls the row left by half
+        /// the badge so the badge is centered on the first-letter column of the lines below
+        /// (which start at x=0), instead of pushing the whole name to the right. Zero when the
+        /// badge is hidden.
+        /// </summary>
+        public Thickness InlineBadgeLineMargin => ShowInlineBadge
+            ? new Thickness(-(InlineBadgeSize / 2.0), 1, 0, 0)
+            : new Thickness(0, 1, 0, 0);
     }
 
     /// <summary>
