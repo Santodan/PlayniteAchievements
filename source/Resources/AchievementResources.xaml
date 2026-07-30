@@ -203,7 +203,9 @@
                         <Style.Triggers>
                             <DataTrigger Binding="{Binding Parent.IsGameCompleted}" Value="True">
                                 <Setter Property="Text" Value="{DynamicResource LOCPlayAch_Toast_GameComplete}"/>
-                                <Setter Property="Foreground" Value="{Binding Parent.CompletedBrush}"/>
+                                <!-- CompletedTitleBrush honors the surface's rarity-colored-name
+                                     toggle: completed color when on, plain text when off. -->
+                                <Setter Property="Foreground" Value="{Binding CompletedTitleBrush}"/>
                                 <Setter Property="Visibility" Value="Visible"/>
                             </DataTrigger>
                         </Style.Triggers>
@@ -314,6 +316,9 @@
                     </Border.Background>
                 </Border>
 
+                <!-- User left/right card padding insets the content; the background image above
+                     stays full-bleed (it is a sibling outside this Border). -->
+                <Border Padding="{Binding ToastContentPadding}">
                 <Grid>
                 <Grid.ColumnDefinitions>
                     <ColumnDefinition Width="Auto"/>
@@ -517,6 +522,7 @@
                     </Border.RenderTransform>
                 </Border>
                 </Grid>
+                </Border>
             </Grid>
         </Border>
     </DataTemplate>
