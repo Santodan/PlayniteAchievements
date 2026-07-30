@@ -207,6 +207,59 @@ namespace PlayniteAchievements.Providers.GameJolt
         }
 
         /// <summary>
+        /// Reads the global completion percentage from a game-trophy-percentage response, or null when
+        /// the payload has no percentage.
+        /// </summary>
+        public static double? ParsePercentage(string percentageJson)
+        {
+            if (string.IsNullOrWhiteSpace(percentageJson))
+            {
+                return null;
+            }
+
+            try
+            {
+                return JsonConvert.DeserializeObject<GameJoltPercentageResponse>(percentageJson)?.Payload?.Percentage;
+            }
+            catch (JsonException)
+            {
+                return null;
+            }
+        }
+
+        /// <summary>
+        /// Applies a global unlock percentage to an achievement: stores it as
+        /// <see cref="AchievementDetail.GlobalPercentUnlocked"/> and derives the rarity tier from it
+        /// (same percent-based rarity used by Steam/Exophase), overriding the difficulty-based fallback.
+        /// A null percentage leaves the difficulty-based rarity in place.
+        /// </summary>
+        public static void ApplyPercentage(AchievementDetail achievement, double? percentage)
+        {
+            if (achievement == null || !percentage.HasValue)
+            {
+                return;
+            }
+
+            var pct = percentage.Value;
+            if (double.IsNaN(pct) || double.IsInfinity(pct))
+            {
+                return;
+            }
+
+            if (pct < 0)
+            {
+                pct = 0;
+            }
+            else if (pct > 100)
+            {
+                pct = 100;
+            }
+
+            achievement.GlobalPercentUnlocked = pct;
+            achievement.Rarity = PercentRarityHelper.GetRarityTier(pct);
+        }
+
+        /// <summary>
         /// Converts a nullable Unix epoch in milliseconds to a UTC <see cref="DateTime"/>. Null (server
         /// reported an unlock with no timestamp) maps to null so the achievement is unlocked-without-date.
         /// </summary>
