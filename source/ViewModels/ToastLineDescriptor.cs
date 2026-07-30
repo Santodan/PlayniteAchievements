@@ -36,8 +36,17 @@ namespace PlayniteAchievements.ViewModels
         /// </summary>
         public double LeftIndent { get; set; }
 
-        /// <summary>The <see cref="LeftIndent"/> expressed as a left-only margin for the container.</summary>
-        public Thickness LeftIndentMargin => new Thickness(LeftIndent, 0, 0, 0);
+        /// <summary>
+        /// Extra top and bottom padding (DIPs) added around this line, from the surface's line
+        /// padding setting. Adds vertical breathing room between stacked text rows.
+        /// </summary>
+        public double VerticalPadding { get; set; }
+
+        /// <summary>
+        /// The line's container margin: the <see cref="LeftIndent"/> on the left and the
+        /// <see cref="VerticalPadding"/> on top and bottom.
+        /// </summary>
+        public Thickness LeftIndentMargin => new Thickness(LeftIndent, VerticalPadding, 0, VerticalPadding);
     }
 
     /// <summary>
@@ -82,12 +91,14 @@ namespace PlayniteAchievements.ViewModels
             FontFamily fontFamily,
             bool showName,
             Brush titleBrush,
+            Brush completedTitleBrush,
             bool showInlineBadge,
             object inlineBadgeSource)
             : base(parent, fontSize, fontFamily)
         {
             ShowName = showName;
             TitleBrush = titleBrush;
+            CompletedTitleBrush = completedTitleBrush;
             ShowInlineBadge = showInlineBadge;
             InlineBadgeSource = inlineBadgeSource;
         }
@@ -95,6 +106,12 @@ namespace PlayniteAchievements.ViewModels
         public bool ShowName { get; }
 
         public Brush TitleBrush { get; }
+
+        /// <summary>
+        /// The title color for the standalone "Game Complete!" notification, which honors this
+        /// surface's rarity-colored-name toggle: the completed color when on, plain text when off.
+        /// </summary>
+        public Brush CompletedTitleBrush { get; }
 
         /// <summary>
         /// Whether the rarity/trophy badge is drawn inline, immediately before the name.
