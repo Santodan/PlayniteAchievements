@@ -539,13 +539,24 @@ namespace PlayniteAchievements.ViewModels
         public double FrameTitleFontSize => _style.Frame.TitleFontSize ?? FrameTitleFontFallback;
 
         // Rarity badge render size per surface, identical across every rarity display mode
-        // (inline badge and footer badge both bind to this).
-        public double ToastBadgeSize => ToastTitleFontSize * BadgeToTitleRatio;
-        public double FrameBadgeSize => FrameTitleFontSize * BadgeToTitleRatio;
+        // (inline badge and footer badge both bind to this). A user RarityBadgeSize overrides the
+        // computed size everywhere the badge appears.
+        public double ToastBadgeSize => _style.Toast.RarityBadgeSize ?? (ToastTitleFontSize * BadgeToTitleRatio);
+        public double FrameBadgeSize => _style.Frame.RarityBadgeSize ?? (FrameTitleFontSize * BadgeToTitleRatio);
 
-        // Right-side badge render size per surface (larger; it stands in for the provider icon).
-        public double ToastRightBadgeSize => ToastTitleFontSize * RightBadgeToTitleRatio;
-        public double FrameRightBadgeSize => FrameTitleFontSize * RightBadgeToTitleRatio;
+        // Right-side badge render size per surface (larger by default; it stands in for the
+        // provider icon). A user RarityBadgeSize applies here too, so one setting controls the
+        // badge size no matter where it sits.
+        public double ToastRightBadgeSize => _style.Toast.RarityBadgeSize ?? (ToastTitleFontSize * RightBadgeToTitleRatio);
+        public double FrameRightBadgeSize => _style.Frame.RarityBadgeSize ?? (FrameTitleFontSize * RightBadgeToTitleRatio);
+
+        // Achievement icon render size per surface (user IconSize, else the bundled default).
+        public double ToastIconSize => _style.Toast.IconSize is double s && s > 0 ? s : 55;
+        public double FrameIconSize => _style.Frame.IconSize is double s && s > 0 ? s : 84;
+
+        // Provider (platform) icon render size per surface (user ProviderIconSize, else default).
+        public double ToastProviderIconSize => _style.Toast.ProviderIconSize is double s && s > 0 ? s : 24;
+        public double FrameProviderIconSize => _style.Frame.ProviderIconSize is double s && s > 0 ? s : 40;
 
         /// <summary>
         /// The toast's text lines in the user's order; hidden lines are still present with
