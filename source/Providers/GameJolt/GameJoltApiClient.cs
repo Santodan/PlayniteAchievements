@@ -129,6 +129,8 @@ namespace PlayniteAchievements.Providers.GameJolt
             var definitionsJson = await FetchJsonAsync(definitionsUrl, ct).ConfigureAwait(false);
 
             var achievements = GameJoltTrophyMapper.BuildDefinitions(definitionsJson, trophyId);
+            _logger?.Info($"[GameJolt] Game {trophyId}: definitions response length={definitionsJson?.Length ?? 0}, " +
+                $"parsed {achievements.Count} trophy definition(s).");
             if (achievements.Count == 0 || string.IsNullOrWhiteSpace(username))
             {
                 return achievements;
@@ -141,6 +143,10 @@ namespace PlayniteAchievements.Providers.GameJolt
                 trophyId);
             var unlocksJson = await FetchJsonAsync(unlocksUrl, ct).ConfigureAwait(false);
             GameJoltTrophyMapper.ApplyUnlocks(achievements, unlocksJson, trophyId);
+
+            var unlockedCount = achievements.Count(a => a.Unlocked);
+            _logger?.Info($"[GameJolt] Game {trophyId}: unlocks response length={unlocksJson?.Length ?? 0}, " +
+                $"{unlockedCount}/{achievements.Count} unlocked after merge.");
 
             return achievements;
         }
