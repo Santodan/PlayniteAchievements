@@ -289,32 +289,61 @@ namespace PlayniteAchievements.Views.Settings.General
             ToastThemeStylingCheckBox.IsEnabled = editable;
             FrameThemeStylingCheckBox.IsEnabled = editable;
             _suppressThemeStylingEvents = false;
-            RefreshThemeTemplateNotes();
         }
 
         /// <summary>
-        /// Surfaces an informational note when the active theme ships its own template for a
-        /// surface and theme styling is allowed: the theme controls the layout, so only the options
-        /// its template binds take effect. The editor stays fully editable — a theme is encouraged
-        /// to bind these properties, and any it ignores simply have no visible effect.
+        /// Sets the plain-language line under each surface's tester naming, in words, where the
+        /// shown style and look come from right now: the current scope (global / a platform / this
+        /// game) and the look (the plugin, the active theme, or an imported template). Recomputed
+        /// on every selection, toggle, import, and revert so it always matches the preview.
         /// </summary>
-        private void RefreshThemeTemplateNotes()
+        private void RefreshSourceSummary()
         {
-            if (ToastThemeTemplateNote == null || FrameThemeTemplateNote == null ||
-                _toastTemplateResolver == null)
+            if (ToastSourceSummary == null || FrameSourceSummary == null)
             {
                 return;
             }
 
-            var themeToast = _toastTemplateResolver.ThemeProvidesTemplate(
-                NotificationTemplatePreviewSource.ActiveTheme, isFrame: false);
-            var themeFrame = _toastTemplateResolver.ThemeProvidesTemplate(
-                NotificationTemplatePreviewSource.ActiveTheme, isFrame: true);
+            ToastSourceSummary.Text = BuildSourceSummary(isFrame: false, _currentToastUseThemeStyling);
+            FrameSourceSummary.Text = BuildSourceSummary(isFrame: true, _currentFrameUseThemeStyling);
+        }
 
-            ToastThemeTemplateNote.Visibility =
-                themeToast && _currentToastUseThemeStyling ? Visibility.Visible : Visibility.Collapsed;
-            FrameThemeTemplateNote.Visibility =
-                themeFrame && _currentFrameUseThemeStyling ? Visibility.Visible : Visibility.Collapsed;
+        private string BuildSourceSummary(bool isFrame, bool useThemeStyling)
+        {
+            string scope;
+            if (IsGameMode)
+            {
+                scope = L("LOCPlayAch_Settings_Style_SourceScope_Game");
+            }
+            else if (string.IsNullOrWhiteSpace(_selectedProviderKey))
+            {
+                scope = L("LOCPlayAch_Settings_Style_SourceScope_Global");
+            }
+            else
+            {
+                scope = string.Format(
+                    L("LOCPlayAch_Settings_Style_SourceScope_Platform"),
+                    ProviderRegistry.GetLocalizedName(_selectedProviderKey));
+            }
+
+            string look;
+            if (useThemeStyling && _toastTemplateResolver != null &&
+                _toastTemplateResolver.ThemeProvidesTemplate(NotificationTemplatePreviewSource.ActiveTheme, isFrame))
+            {
+                look = L("LOCPlayAch_Settings_Style_SourceLook_Theme");
+            }
+            else if (_toastTemplateResolver != null &&
+                     !string.IsNullOrWhiteSpace(
+                         _toastTemplateResolver.ResolveCustomTemplatePath(isFrame, ScopeProviderKey, ScopeGameId)))
+            {
+                look = L("LOCPlayAch_Settings_Style_SourceLook_Imported");
+            }
+            else
+            {
+                look = L("LOCPlayAch_Settings_Style_SourceLook_Plugin");
+            }
+
+            return string.Format(L("LOCPlayAch_Settings_Style_SourceSummary"), scope, look);
         }
 
         private void PersistGameStyle(NotificationStyleSettings style)
@@ -575,6 +604,9 @@ namespace PlayniteAchievements.Views.Settings.General
 
         private void UpdateMockups()
         {
+            // The source summary needs no mockup hosts, so refresh it before the host guard.
+            RefreshSourceSummary();
+
             var persisted = _settings?.Persisted;
             if (persisted == null || ToastMockupHost == null || FrameMockupHost == null ||
                 _toastTemplateResolver == null)

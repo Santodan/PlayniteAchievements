@@ -122,21 +122,6 @@
                                 BorderThickness="0">
                         <TabItem Header="{DynamicResource LOCPlayAch_Settings_Style_ToastTab}">
                             <StackPanel Margin="0,12,0,0">
-                                <CheckBox x:Name="ToastThemeStylingCheckBox"
-                                          Content="{DynamicResource LOCPlayAch_Settings_Style_UseThemeTemplate}"
-                                          Click="ThemeStylingCheckBox_Click"
-                                          Margin="0,0,0,4"/>
-                                <TextBlock Text="{DynamicResource LOCPlayAch_Settings_Style_UseThemeTemplateHint}"
-                                           Style="{StaticResource MutedTextStyle}"
-                                           TextWrapping="Wrap"
-                                           Margin="0,0,0,4"/>
-                                <TextBlock x:Name="ToastThemeTemplateNote"
-                                           Text="{DynamicResource LOCPlayAch_Settings_Style_ThemeTemplateActiveNote}"
-                                           Style="{StaticResource MutedTextStyle}"
-                                           TextWrapping="Wrap"
-                                           Visibility="Collapsed"
-                                           Margin="0,0,0,10"/>
-
                                 <Border Background="{DynamicResource PlayAch.Brush.Surface}"
                                         BorderBrush="{DynamicResource PlayAch.Brush.Border}"
                                         BorderThickness="1"
@@ -183,27 +168,25 @@
                                             Margin="0,0,8,8"/>
                                 </WrapPanel>
 
+                                <!-- Theme toggle grouped with the tester: it decides whether the
+                                     live notification (and the preview above) use the theme's design
+                                     or the plugin's. The summary line below names, in plain words,
+                                     exactly where the shown style and look come from right now. -->
+                                <CheckBox x:Name="ToastThemeStylingCheckBox"
+                                          Content="{DynamicResource LOCPlayAch_Settings_Style_UseThemeTemplate}"
+                                          Click="ThemeStylingCheckBox_Click"
+                                          Margin="0,0,0,4"/>
+                                <TextBlock x:Name="ToastSourceSummary"
+                                           Style="{StaticResource MutedTextStyle}"
+                                           TextWrapping="Wrap"
+                                           Margin="0,2,0,14"/>
+
                                 <general:NotificationSurfaceStyleEditor x:Name="ToastEditor"/>
                             </StackPanel>
                         </TabItem>
 
                         <TabItem Header="{DynamicResource LOCPlayAch_Settings_FrameHeader}">
                             <StackPanel Margin="0,12,0,0">
-                                <CheckBox x:Name="FrameThemeStylingCheckBox"
-                                          Content="{DynamicResource LOCPlayAch_Settings_Style_UseThemeTemplate}"
-                                          Click="ThemeStylingCheckBox_Click"
-                                          Margin="0,0,0,4"/>
-                                <TextBlock Text="{DynamicResource LOCPlayAch_Settings_Style_UseThemeTemplateHint}"
-                                           Style="{StaticResource MutedTextStyle}"
-                                           TextWrapping="Wrap"
-                                           Margin="0,0,0,4"/>
-                                <TextBlock x:Name="FrameThemeTemplateNote"
-                                           Text="{DynamicResource LOCPlayAch_Settings_Style_ThemeTemplateActiveNote}"
-                                           Style="{StaticResource MutedTextStyle}"
-                                           TextWrapping="Wrap"
-                                           Visibility="Collapsed"
-                                           Margin="0,0,0,10"/>
-
                                 <!-- The 16:9 grid stands in for the screenshot; the frame
                                      template lays out on the same 1080-DIP virtual canvas the
                                      compositor uses, scaled down uniformly. -->
@@ -257,6 +240,19 @@
                                             Content="{DynamicResource LOCPlayAch_Settings_Style_FireTheme}"
                                             Margin="0,0,8,8"/>
                                 </WrapPanel>
+
+                                <!-- Theme toggle grouped with the tester: it decides whether the
+                                     saved screenshot frame (and the preview above) use the theme's
+                                     design or the plugin's. The summary line below names, in plain
+                                     words, where the shown style and look come from right now. -->
+                                <CheckBox x:Name="FrameThemeStylingCheckBox"
+                                          Content="{DynamicResource LOCPlayAch_Settings_Style_UseThemeTemplate}"
+                                          Click="ThemeStylingCheckBox_Click"
+                                          Margin="0,0,0,4"/>
+                                <TextBlock x:Name="FrameSourceSummary"
+                                           Style="{StaticResource MutedTextStyle}"
+                                           TextWrapping="Wrap"
+                                           Margin="0,2,0,14"/>
 
                                 <general:NotificationSurfaceStyleEditor x:Name="FrameEditor"/>
                             </StackPanel>
