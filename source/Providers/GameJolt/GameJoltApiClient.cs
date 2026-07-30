@@ -24,6 +24,11 @@ namespace PlayniteAchievements.Providers.GameJolt
         private const string UrlProfileFormat = UrlSiteApi + "/web/profile/{0}";
         private const string UrlTrophiesGameFormat = UrlSiteApi + "/web/discover/games/trophies/{0}";
         private const string UrlProfileTrophiesGameFormat = UrlSiteApi + "/web/profile/trophies/game/{0}/{1}";
+        private const string UrlTrophyPercentageFormat = UrlSiteApi + "/web/profile/trophies/game-trophy-percentage/{0}";
+
+        // Upper bound on per-trophy percentage requests per game. Beyond this the extra requests are not
+        // worth the refresh time; those trophies keep their difficulty-based rarity.
+        private const int MaxPercentageRequests = 200;
 
         internal static readonly string[] CookieDomains = { "gamejolt.com", ".gamejolt.com" };
 
@@ -131,7 +136,14 @@ namespace PlayniteAchievements.Providers.GameJolt
             var achievements = GameJoltTrophyMapper.BuildDefinitions(definitionsJson, trophyId);
             _logger?.Info($"[GameJolt] Game {trophyId}: definitions response length={definitionsJson?.Length ?? 0}, " +
                 $"parsed {achievements.Count} trophy definition(s).");
-            if (achievements.Count == 0 || string.IsNullOrWhiteSpace(username))
+            if (achievements.Count == 0)
+            {
+                return achievements;
+            }
+
+            await ApplyGlobalPercentagesAsync(achievements, ct).ConfigureAwait(false);
+
+            if (string.IsNullOrWhiteSpace(username))
             {
                 return achievements;
             }
@@ -152,12 +164,59 @@ namespace PlayniteAchievements.Providers.GameJolt
         }
 
         /// <summary>
-        /// Navigates the offscreen view to a site-api URL (with session cookies restored) and returns the
-        /// JSON body rendered as page text. Retries once after a short delay when the first read is empty.
+        /// Fetches each trophy's global unlock percentage (the value the website shows on trophy open) and
+        /// applies it, so rarity comes from real community data instead of the difficulty fallback. This is
+        /// one request per trophy; a failure or missing value leaves the difficulty-based rarity in place.
+        /// The endpoint is public, so cookies are not restored.
         /// </summary>
-        private async Task<string> FetchJsonAsync(string url, CancellationToken ct)
+        private async Task ApplyGlobalPercentagesAsync(IReadOnlyList<AchievementDetail> achievements, CancellationToken ct)
         {
-            var (snapshotLoaded, snapshotCookies) = AcquireFetchCookies();
+            if (achievements == null || achievements.Count == 0)
+            {
+                return;
+            }
+
+            if (achievements.Count > MaxPercentageRequests)
+            {
+                _logger?.Info($"[GameJolt] Skipping global percentage fetch for {achievements.Count} trophies " +
+                    $"(cap {MaxPercentageRequests}); using difficulty-based rarity.");
+                return;
+            }
+
+            var applied = 0;
+            foreach (var achievement in achievements)
+            {
+                ct.ThrowIfCancellationRequested();
+
+                if (achievement?.ApiName == null ||
+                    !long.TryParse(achievement.ApiName, NumberStyles.Integer, CultureInfo.InvariantCulture, out var trophyId))
+                {
+                    continue;
+                }
+
+                var url = string.Format(CultureInfo.InvariantCulture, UrlTrophyPercentageFormat, trophyId);
+                var json = await FetchJsonAsync(url, ct, restoreCookies: false).ConfigureAwait(false);
+                var percentage = GameJoltTrophyMapper.ParsePercentage(json);
+                if (percentage.HasValue)
+                {
+                    GameJoltTrophyMapper.ApplyPercentage(achievement, percentage);
+                    applied++;
+                }
+            }
+
+            _logger?.Info($"[GameJolt] Applied global unlock percentage to {applied}/{achievements.Count} trophy(ies).");
+        }
+
+        /// <summary>
+        /// Navigates the offscreen view to a site-api URL and returns the JSON body rendered as page text.
+        /// Retries once after a short delay when the first read is empty. Session cookies are restored
+        /// unless <paramref name="restoreCookies"/> is false (for public endpoints).
+        /// </summary>
+        private async Task<string> FetchJsonAsync(string url, CancellationToken ct, bool restoreCookies = true)
+        {
+            var (snapshotLoaded, snapshotCookies) = restoreCookies
+                ? AcquireFetchCookies()
+                : (false, (List<HttpCookie>)null);
 
             try
             {
