@@ -24,6 +24,10 @@ namespace PlayniteAchievements.ViewModels
         // is the same size whether it sits inline before the name or in the icon column.
         public const double BadgeToTitleRatio = 1.25;
 
+        // The right-side rarity badge (which replaces the provider icon) renders larger, at this
+        // multiple of the title font size.
+        public const double RightBadgeToTitleRatio = 2.5;
+
         // Frame font fallbacks are 1080-reference-canvas DIPs matching the bundled frame
         // template's historical literals, deliberately independent of theme font sizes.
         private const double FrameHeaderFontFallback = 17;
@@ -111,7 +115,9 @@ namespace PlayniteAchievements.ViewModels
         public bool ShowName => _style.Toast.ShowName && !string.IsNullOrWhiteSpace(TitleText);
         public bool ShowDescription => _style.Toast.ShowDescription && !string.IsNullOrWhiteSpace(_args.Description);
         public bool ShowCategory => _style.Toast.ShowCategory && HasDistinctCategory;
-        public bool ShowPercent => _style.Toast.ShowRarityPercent && _args.GlobalPercent.HasValue;
+        // Footer percent (under the achievement icon). Suppressed when the percent is set to
+        // travel under the right-side badge instead.
+        public bool ShowPercent => _style.Toast.ShowRarityPercent && _args.GlobalPercent.HasValue && !ShowRightPercent;
         public bool IsCapstone => _args.IsCapstone;
 
         /// <summary>
@@ -167,12 +173,24 @@ namespace PlayniteAchievements.ViewModels
         }
         private bool HasRarityData => _args.GlobalPercent.HasValue || !string.IsNullOrWhiteSpace(_args.RarityTier);
         private bool HasBadgeData => IsCapstone || HasTrophy || HasRarityData;
-        public bool ShowBadge => _style.Toast.ShowRarityBadge && HasBadgeData;
+        public bool ShowBadge => _style.Toast.ShowRarityBadge && !_style.Toast.RightRarityBadge && HasBadgeData;
 
         // The rarity/trophy badge drawn inline before the achievement name (an alternative to
         // the icon-column footer badge). Shares the same badge image sources.
         public bool ShowInlineBadge => _style.Toast.InlineRarityBadge && HasBadgeData;
         public bool FrameShowInlineBadge => _style.Frame.InlineRarityBadge && HasBadgeData;
+
+        // The rarity/trophy badge drawn larger on the right, replacing the provider icon. Shares
+        // the same badge image sources as the footer/inline badges.
+        public bool ShowRightBadge => _style.Toast.RightRarityBadge && HasBadgeData;
+        public bool FrameShowRightBadge => _style.Frame.RightRarityBadge && HasBadgeData;
+
+        // Percent rendered under the right-side badge: only when the badge is on the right and the
+        // percent is set to travel with the badge. Otherwise the percent stays in the footer.
+        public bool ShowRightPercent => _style.Toast.ShowRarityPercent && _style.Toast.RarityPercentUnderBadge
+            && _style.Toast.RightRarityBadge && _args.GlobalPercent.HasValue;
+        public bool FrameShowRightPercent => _style.Frame.ShowRarityPercent && _style.Frame.RarityPercentUnderBadge
+            && _style.Frame.RightRarityBadge && _args.GlobalPercent.HasValue;
         public bool ShowGameName => _style.Toast.ShowGameName && !string.IsNullOrWhiteSpace(_args.GameName);
         public bool ShowGameCategorySeparator => ShowGameName && ShowCategory;
         public bool HasFriendAvatar => !string.IsNullOrWhiteSpace(FriendAvatar);
@@ -215,8 +233,8 @@ namespace PlayniteAchievements.ViewModels
         public bool FrameShowName => _style.Frame.ShowName && !string.IsNullOrWhiteSpace(TitleText);
         public bool FrameShowDescription => _style.Frame.ShowDescription && !string.IsNullOrWhiteSpace(_args.Description);
         public bool FrameShowCategory => _style.Frame.ShowCategory && HasDistinctCategory;
-        public bool FrameShowPercent => _style.Frame.ShowRarityPercent && _args.GlobalPercent.HasValue;
-        public bool FrameShowBadge => _style.Frame.ShowRarityBadge && (IsCapstone || HasTrophy || HasRarityData);
+        public bool FrameShowPercent => _style.Frame.ShowRarityPercent && _args.GlobalPercent.HasValue && !FrameShowRightPercent;
+        public bool FrameShowBadge => _style.Frame.ShowRarityBadge && !_style.Frame.RightRarityBadge && (IsCapstone || HasTrophy || HasRarityData);
         public bool FrameShowGameName => _style.Frame.ShowGameName && !string.IsNullOrWhiteSpace(_args.GameName);
         public bool FrameShowGameCategorySeparator => FrameShowGameName && FrameShowCategory;
         public bool FrameShowShineBorder => _style.Frame.ShowRarityGlow && IsHardcore;
@@ -475,8 +493,9 @@ namespace PlayniteAchievements.ViewModels
             }
         }
 
-        public bool ShowProviderIcon => _style.Toast.ShowProviderIcon && !string.IsNullOrWhiteSpace(ProviderIconKey);
-        public bool FrameShowProviderIcon => _style.Frame.ShowProviderIcon && !string.IsNullOrWhiteSpace(ProviderIconKey);
+        // The right-side badge replaces the provider icon, so the icon is hidden while it is on.
+        public bool ShowProviderIcon => _style.Toast.ShowProviderIcon && !_style.Toast.RightRarityBadge && !string.IsNullOrWhiteSpace(ProviderIconKey);
+        public bool FrameShowProviderIcon => _style.Frame.ShowProviderIcon && !_style.Frame.RightRarityBadge && !string.IsNullOrWhiteSpace(ProviderIconKey);
 
         // Left rarity accent strip and bottom countdown bar (toast only; hiding the bar does
         // not change auto-dismiss timing).
@@ -523,6 +542,10 @@ namespace PlayniteAchievements.ViewModels
         // (inline badge and footer badge both bind to this).
         public double ToastBadgeSize => ToastTitleFontSize * BadgeToTitleRatio;
         public double FrameBadgeSize => FrameTitleFontSize * BadgeToTitleRatio;
+
+        // Right-side badge render size per surface (larger; it stands in for the provider icon).
+        public double ToastRightBadgeSize => ToastTitleFontSize * RightBadgeToTitleRatio;
+        public double FrameRightBadgeSize => FrameTitleFontSize * RightBadgeToTitleRatio;
 
         /// <summary>
         /// The toast's text lines in the user's order; hidden lines are still present with
