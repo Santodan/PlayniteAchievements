@@ -406,14 +406,33 @@ namespace PlayniteAchievements.ViewModels
         // the border-glow option is on). Toast surface only. Completion uses the completed glow.
         public bool HasBorderGlow => _style.Toast.NotificationBorderGlow;
 
+        // The card border glow is larger than the icon glow (blur 20) so it reads as a halo
+        // around the whole card.
+        private const double BorderGlowBlurRadius = 36;
+
         // Cloned to an unfrozen copy so the card's border-glow pulse can animate its Opacity
-        // (the shared GetGlow/GetCompletedGlow instances are frozen and immutable). Null for
-        // Common rarity (no glow), matching the icon glow.
-        public Effect BorderGlowEffect => HasBorderGlow
-            ? (Effect)(IsGameCompleted
-                ? RarityAppearanceHelper.GetCompletedGlow(useEndColor: true, _settings).Clone()
-                : RarityAppearanceHelper.GetGlow(_rarity, 20, _settings)?.Clone())
-            : null;
+        // (the shared GetGlow/GetCompletedGlow instances are frozen and immutable), and so its
+        // BlurRadius can be widened to the border-glow radius. Null for Common rarity (no glow).
+        public Effect BorderGlowEffect
+        {
+            get
+            {
+                if (!HasBorderGlow)
+                {
+                    return null;
+                }
+
+                var glow = IsGameCompleted
+                    ? RarityAppearanceHelper.GetCompletedGlow(useEndColor: true, _settings)?.Clone()
+                    : RarityAppearanceHelper.GetGlow(_rarity, BorderGlowBlurRadius, _settings)?.Clone();
+                if (glow is DropShadowEffect dropShadow)
+                {
+                    dropShadow.BlurRadius = BorderGlowBlurRadius;
+                }
+
+                return glow;
+            }
+        }
 
         // Secondary rarity/trophy/capstone badge. Completion notifications resolve to null
         // naturally (no capstone, trophy, or rarity data on them).
