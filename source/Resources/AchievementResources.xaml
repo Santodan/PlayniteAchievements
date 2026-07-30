@@ -331,22 +331,46 @@
                     </Border.Style>
                 </Border>
 
-                <!-- Right-side provider icon, vertically centered (toggleable). -->
-                <Image Grid.Column="2"
-                       Width="24"
-                       Height="24"
-                       Margin="2,0,10,0"
-                       VerticalAlignment="Center"
-                       RenderOptions.BitmapScalingMode="HighQuality"
-                       Effect="{StaticResource PlayAch.Effect.ContentShadow}"
-                       Visibility="{Binding ShowProviderIcon, Converter={StaticResource BooleanToVisibilityConverter}}">
-                    <Image.Source>
-                        <MultiBinding Converter="{StaticResource ProviderIconConverter}">
-                            <Binding Path="ProviderIconKey"/>
-                            <Binding Path="ProviderColorHex"/>
-                        </MultiBinding>
-                    </Image.Source>
-                </Image>
+                <!-- Right column: the provider icon, or (when the rarity badge is placed on the
+                     right) a larger badge with an optional percent under it that stands in for the
+                     provider icon. The two are mutually exclusive by their visibility gates; the
+                     shared content shadow sits on the container. -->
+                <Grid Grid.Column="2"
+                      Margin="2,0,10,0"
+                      VerticalAlignment="Center"
+                      Effect="{StaticResource PlayAch.Effect.ContentShadow}">
+                    <Image Width="24"
+                           Height="24"
+                           VerticalAlignment="Center"
+                           RenderOptions.BitmapScalingMode="HighQuality"
+                           Visibility="{Binding ShowProviderIcon, Converter={StaticResource BooleanToVisibilityConverter}}">
+                        <Image.Source>
+                            <MultiBinding Converter="{StaticResource ProviderIconConverter}">
+                                <Binding Path="ProviderIconKey"/>
+                                <Binding Path="ProviderColorHex"/>
+                            </MultiBinding>
+                        </Image.Source>
+                    </Image>
+                    <StackPanel VerticalAlignment="Center"
+                                HorizontalAlignment="Center"
+                                Visibility="{Binding ShowRightBadge, Converter={StaticResource BooleanToVisibilityConverter}}">
+                        <!-- Reuses the shared badge source, so animated GIF badges animate. -->
+                        <Image helpers:AsyncImage.Uri="{Binding ToastBadgeSource}"
+                               helpers:AsyncImage.DecodePixel="96"
+                               Width="{Binding ToastRightBadgeSize}"
+                               Height="{Binding ToastRightBadgeSize}"
+                               HorizontalAlignment="Center"
+                               RenderOptions.BitmapScalingMode="HighQuality"/>
+                        <TextBlock Text="{Binding PercentText}"
+                                   Style="{DynamicResource PlayAch.TextBlock.BaseStyle}"
+                                   Foreground="{DynamicResource PlayAch.Brush.Text.Secondary}"
+                                   FontSize="{Binding ToastHeaderFontSize}"
+                                   FontFamily="{Binding ToastFontFamily}"
+                                   HorizontalAlignment="Center"
+                                   Margin="0,2,0,0"
+                                   Visibility="{Binding ShowRightPercent, Converter={StaticResource BooleanToVisibilityConverter}}"/>
+                    </StackPanel>
+                </Grid>
 
                 <Grid Grid.Column="1" Margin="14,8,8,8">
                     <Grid.RowDefinitions>
@@ -613,23 +637,43 @@
                         </ItemsControl.ItemContainerStyle>
                     </ItemsControl>
 
-                    <!-- Provider icon, vertically centered (toggleable). The converter yields a
-                         DrawingImage, which renders synchronously offscreen. -->
-                    <Image Grid.Column="2"
-                           Width="40"
-                           Height="40"
-                           Margin="0,0,22,0"
-                           VerticalAlignment="Center"
-                           RenderOptions.BitmapScalingMode="HighQuality"
-                           Effect="{StaticResource PlayAch.Effect.ContentShadow}"
-                           Visibility="{Binding FrameShowProviderIcon, Converter={StaticResource BooleanToVisibilityConverter}}">
-                        <Image.Source>
-                            <MultiBinding Converter="{StaticResource ProviderIconConverter}">
-                                <Binding Path="ProviderIconKey"/>
-                                <Binding Path="ProviderColorHex"/>
-                            </MultiBinding>
-                        </Image.Source>
-                    </Image>
+                    <!-- Provider icon column, or (when the rarity badge is placed on the right) a
+                         larger badge with an optional percent standing in for the provider icon.
+                         The converter and FrameBadgeImage render synchronously offscreen. -->
+                    <Grid Grid.Column="2"
+                          Margin="0,0,22,0"
+                          VerticalAlignment="Center"
+                          Effect="{StaticResource PlayAch.Effect.ContentShadow}">
+                        <Image Width="40"
+                               Height="40"
+                               VerticalAlignment="Center"
+                               RenderOptions.BitmapScalingMode="HighQuality"
+                               Visibility="{Binding FrameShowProviderIcon, Converter={StaticResource BooleanToVisibilityConverter}}">
+                            <Image.Source>
+                                <MultiBinding Converter="{StaticResource ProviderIconConverter}">
+                                    <Binding Path="ProviderIconKey"/>
+                                    <Binding Path="ProviderColorHex"/>
+                                </MultiBinding>
+                            </Image.Source>
+                        </Image>
+                        <StackPanel VerticalAlignment="Center"
+                                    HorizontalAlignment="Center"
+                                    Visibility="{Binding FrameShowRightBadge, Converter={StaticResource BooleanToVisibilityConverter}}">
+                            <Image Source="{Binding FrameBadgeImage}"
+                                   Width="{Binding FrameRightBadgeSize}"
+                                   Height="{Binding FrameRightBadgeSize}"
+                                   HorizontalAlignment="Center"
+                                   RenderOptions.BitmapScalingMode="HighQuality"/>
+                            <TextBlock Text="{Binding PercentText}"
+                                       Style="{DynamicResource PlayAch.TextBlock.BaseStyle}"
+                                       Foreground="{DynamicResource PlayAch.Brush.Text.Secondary}"
+                                       FontSize="{Binding FrameHeaderFontSize}"
+                                       FontFamily="{Binding FrameFontFamily}"
+                                       HorizontalAlignment="Center"
+                                       Margin="0,2,0,0"
+                                       Visibility="{Binding FrameShowRightPercent, Converter={StaticResource BooleanToVisibilityConverter}}"/>
+                        </StackPanel>
+                    </Grid>
 
                     <!-- Branding: shared screenshots identify the plugin. Product name stays a
                          literal (not localized). The logo is a DrawingImage (LogoResources.xaml),
