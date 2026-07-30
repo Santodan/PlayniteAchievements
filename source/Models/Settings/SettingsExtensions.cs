@@ -108,8 +108,12 @@ namespace PlayniteAchievements.Models.Settings
             target.UnlockScreenshotSuffixWithToast = source.UnlockScreenshotSuffixWithToast;
             target.UnlockScreenshotSuffixFramed = source.UnlockScreenshotSuffixFramed;
             target.UnlockScreenshotDirectory = source.UnlockScreenshotDirectory;
-            target.UnlockScreenshotMinimumRarity = source.UnlockScreenshotMinimumRarity;
-            target.UnlockScreenshotAlwaysCaptureCompletion = source.UnlockScreenshotAlwaysCaptureCompletion;
+            target.UnlockScreenshotCleanMinimumRarity = source.UnlockScreenshotCleanMinimumRarity;
+            target.UnlockScreenshotCleanAlwaysCaptureCompletion = source.UnlockScreenshotCleanAlwaysCaptureCompletion;
+            target.UnlockScreenshotWithToastMinimumRarity = source.UnlockScreenshotWithToastMinimumRarity;
+            target.UnlockScreenshotWithToastAlwaysCaptureCompletion = source.UnlockScreenshotWithToastAlwaysCaptureCompletion;
+            target.UnlockScreenshotFramedMinimumRarity = source.UnlockScreenshotFramedMinimumRarity;
+            target.UnlockScreenshotFramedAlwaysCaptureCompletion = source.UnlockScreenshotFramedAlwaysCaptureCompletion;
             target.EnableUnlockRecordings = source.EnableUnlockRecordings;
             target.FfmpegPath = source.FfmpegPath;
             target.UnlockRecordingDirectory = source.UnlockRecordingDirectory;
