@@ -236,7 +236,7 @@ namespace PlayniteAchievements.Providers.GameJolt
             }
         }
 
-        private void CloseWhenLoggedIn(object sender, WebViewLoadingChangedEventArgs e)
+        private async void CloseWhenLoggedIn(object sender, WebViewLoadingChangedEventArgs e)
         {
             try
             {
@@ -248,6 +248,7 @@ namespace PlayniteAchievements.Providers.GameJolt
                 var view = (IWebView)sender;
                 var address = view.GetCurrentAddress();
 
+                // Only act once the user has left the login page for a Game Jolt page.
                 if (IsLoginPageUrl(address) || !IsGameJoltHomeUrl(address))
                 {
                     return;
@@ -260,19 +261,27 @@ namespace PlayniteAchievements.Providers.GameJolt
 
                 try
                 {
-                    var username = GameJoltTrophyMapper.ExtractUsernameFromHtml(view.GetPageSource());
-                    if (!string.IsNullOrWhiteSpace(username))
+                    // Game Jolt is a SPA: the account menu carrying the username renders a moment
+                    // after navigation, so poll a few times before giving up.
+                    var captured = await WaitForLoggedInUserAsync(view, CancellationToken.None).ConfigureAwait(false);
+                    if (!string.IsNullOrWhiteSpace(captured.Username))
                     {
-                        _capturedCookies = GameJoltCookieSnapshotStore.FilterGameJoltCookies(view.GetCookies());
-                        _authResult = (true, username);
-                        try
+                        _capturedCookies = captured.Cookies;
+                        _authResult = (true, captured.Username);
+
+                        // Defer Close to the dispatcher: closing the modal view re-entrantly from
+                        // inside the LoadingChanged callback can wedge the dialog (and freeze the UI).
+                        _ = _api.MainView.UIDispatcher.BeginInvoke(new Action(() =>
                         {
-                            view.Close();
-                        }
-                        catch
-                        {
-                            // View may already be disposed.
-                        }
+                            try
+                            {
+                                view.Close();
+                            }
+                            catch (Exception closeEx)
+                            {
+                                _logger?.Debug(closeEx, "[GameJoltAuth] Failed to close login dialog.");
+                            }
+                        }));
                     }
                 }
                 finally
@@ -284,6 +293,53 @@ namespace PlayniteAchievements.Providers.GameJolt
             {
                 _logger?.Warn(ex, "[GameJoltAuth] Failed to check authentication status.");
             }
+        }
+
+        private async Task<(string Username, List<HttpCookie> Cookies)> WaitForLoggedInUserAsync(
+            IWebView view,
+            CancellationToken ct)
+        {
+            const int attempts = 8;
+            const int delayMs = 500;
+
+            for (var attempt = 0; attempt < attempts; attempt++)
+            {
+                ct.ThrowIfCancellationRequested();
+
+                var result = await ReadLoggedInUserAsync(view).ConfigureAwait(false);
+                if (!string.IsNullOrWhiteSpace(result.Username))
+                {
+                    return result;
+                }
+
+                await Task.Delay(delayMs, ct).ConfigureAwait(false);
+            }
+
+            return await ReadLoggedInUserAsync(view).ConfigureAwait(false);
+        }
+
+        /// <summary>
+        /// Reads the logged-in username (and session cookies) from the visible login view. All access to
+        /// the view is marshaled onto the UI thread; the outer awaits resume off the UI thread so the
+        /// modal dialog's message loop keeps pumping.
+        /// </summary>
+        private async Task<(string Username, List<HttpCookie> Cookies)> ReadLoggedInUserAsync(IWebView view)
+        {
+            var operation = _api.MainView.UIDispatcher.InvokeAsync(async () =>
+            {
+                var html = await view.GetPageSourceAsync().ConfigureAwait(true);
+                var username = GameJoltTrophyMapper.ExtractUsernameFromHtml(html);
+                if (string.IsNullOrWhiteSpace(username))
+                {
+                    return (Username: (string)null, Cookies: (List<HttpCookie>)null);
+                }
+
+                var cookies = GameJoltCookieSnapshotStore.FilterGameJoltCookies(view.GetCookies());
+                return (Username: username, Cookies: cookies);
+            });
+
+            var innerTask = await operation.Task.ConfigureAwait(false);
+            return await innerTask.ConfigureAwait(false);
         }
 
         private static bool IsLoginPageUrl(string url)
