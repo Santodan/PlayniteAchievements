@@ -69,7 +69,11 @@ namespace PlayniteAchievements.Views.Settings.General
                 ? null
                 : gameProviderKey.Trim();
 
-            _toastTemplateResolver = new AchievementToastTemplateResolver(plugin.PlayniteApi, logger);
+            _toastTemplateResolver = new AchievementToastTemplateResolver(
+                plugin.PlayniteApi,
+                logger,
+                customTemplatesDirectory: AchievementToastTemplateResolver.GetCustomTemplatesDirectory(
+                    plugin.GetPluginUserDataPath()));
 
             // A sample provider so the mock and fire-tests always show a provider icon, even
             // when the global default (no platform selected) is being edited.

@@ -64,7 +64,11 @@ namespace PlayniteAchievements.Services.UI
             _gameCustomDataStore = gameCustomDataStore;
             _screenshotService = new UnlockScreenshotService(logger);
             _frameCompositor = new ScreenshotFrameCompositor(logger);
-            _templateResolver = new AchievementToastTemplateResolver(api, logger);
+            _templateResolver = new AchievementToastTemplateResolver(
+                api,
+                logger,
+                customTemplatesDirectory: AchievementToastTemplateResolver.GetCustomTemplatesDirectory(
+                    PlayniteAchievementsPlugin.Instance?.GetPluginUserDataPath()));
             PlayniteAchievementsPlugin.AchievementUnlocked += OnAchievementUnlocked;
         }
 
