@@ -141,11 +141,63 @@ namespace PlayniteAchievements.Services.UI
                 return false;
             }
 
-            return ProviderNotificationPolicy.Resolve(persisted, args.ProviderKey).AnyScreenshot &&
-                   UnlockCaptureRarityFilter.ShouldCapture(
-                       args,
-                       persisted.UnlockScreenshotMinimumRarity,
-                       persisted.UnlockScreenshotAlwaysCaptureCompletion);
+            if (!System.Enum.TryParse(args.RarityTier, true, out RarityTier rarity))
+            {
+                rarity = RarityTier.Common;
+            }
+
+            var isCompletion = args.IsGameCompleted || args.IsCompletionAchievement || args.IsCapstone;
+
+            // Pipeline entry mirrors the old AnyScreenshot semantics: a screenshot-only wave still
+            // runs windowless, so assume a toast will show here; the with-toast variant is
+            // re-checked against the real toast state when the wave plan is built.
+            return ResolveQualifyingVariants(rarity, isCompletion, args.ProviderKey, persisted, toastWillShow: true)
+                != ScreenshotVariants.None;
+        }
+
+        /// <summary>
+        /// The screenshot variants enabled for this provider whose own per-variant rarity threshold
+        /// this unlock clears. The with-notification variant additionally requires an on-screen
+        /// toast (without one it would just duplicate the clean capture).
+        /// </summary>
+        private static ScreenshotVariants ResolveQualifyingVariants(
+            RarityTier rarity,
+            bool isCompletion,
+            string providerKey,
+            PersistedSettings persisted,
+            bool toastWillShow)
+        {
+            var effective = ProviderNotificationPolicy.Resolve(persisted, providerKey);
+            var variants = ScreenshotVariants.None;
+
+            if (effective.ScreenshotClean && UnlockCaptureRarityFilter.ShouldCapture(
+                    rarity,
+                    isCompletion,
+                    persisted.UnlockScreenshotCleanMinimumRarity,
+                    persisted.UnlockScreenshotCleanAlwaysCaptureCompletion))
+            {
+                variants |= ScreenshotVariants.Clean;
+            }
+
+            if (effective.ScreenshotWithToast && toastWillShow && UnlockCaptureRarityFilter.ShouldCapture(
+                    rarity,
+                    isCompletion,
+                    persisted.UnlockScreenshotWithToastMinimumRarity,
+                    persisted.UnlockScreenshotWithToastAlwaysCaptureCompletion))
+            {
+                variants |= ScreenshotVariants.WithToast;
+            }
+
+            if (effective.ScreenshotFramed && UnlockCaptureRarityFilter.ShouldCapture(
+                    rarity,
+                    isCompletion,
+                    persisted.UnlockScreenshotFramedMinimumRarity,
+                    persisted.UnlockScreenshotFramedAlwaysCaptureCompletion))
+            {
+                variants |= ScreenshotVariants.Framed;
+            }
+
+            return variants;
         }
 
         /// <summary>
@@ -771,35 +823,15 @@ namespace PlayniteAchievements.Services.UI
             };
             foreach (var vm in wave)
             {
-                if (!UnlockCaptureRarityFilter.ShouldCapture(
-                        vm.Rarity,
-                        vm.IsGameCompleted || vm.IsCompletionAchievement || vm.IsCapstone,
-                        persisted.UnlockScreenshotMinimumRarity,
-                        persisted.UnlockScreenshotAlwaysCaptureCompletion))
-                {
-                    continue;
-                }
-
-                // The policy ANDs the EnableUnlockScreenshots master switch into each variant flag.
-                var effective = ProviderNotificationPolicy.Resolve(persisted, vm.ProviderKey);
-                var variants = ScreenshotVariants.None;
-
-                if (effective.ScreenshotClean)
-                {
-                    variants |= ScreenshotVariants.Clean;
-                }
-
-                // Without an on-screen toast the with-toast variant would just duplicate the
-                // clean capture, so it only applies to waves that actually show one.
-                if (effective.ScreenshotWithToast && toastWillShow)
-                {
-                    variants |= ScreenshotVariants.WithToast;
-                }
-
-                if (effective.ScreenshotFramed)
-                {
-                    variants |= ScreenshotVariants.Framed;
-                }
+                // Each variant is gated independently by its own per-variant rarity threshold and
+                // completion bypass. The policy ANDs the EnableUnlockScreenshots master switch into
+                // each variant flag.
+                var variants = ResolveQualifyingVariants(
+                    vm.Rarity,
+                    vm.IsGameCompleted || vm.IsCompletionAchievement || vm.IsCapstone,
+                    vm.ProviderKey,
+                    persisted,
+                    toastWillShow);
 
                 if (variants != ScreenshotVariants.None)
                 {

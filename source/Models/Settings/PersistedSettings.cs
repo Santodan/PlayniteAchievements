@@ -88,8 +88,12 @@ namespace PlayniteAchievements.Models.Settings
         private string _unlockScreenshotSuffixWithToast = "notification";
         private string _unlockScreenshotSuffixFramed = "framed";
         private string _unlockScreenshotDirectory;
-        private RarityTier _unlockScreenshotMinimumRarity = RarityTier.Common;
-        private bool _unlockScreenshotAlwaysCaptureCompletion = true;
+        private RarityTier _unlockScreenshotCleanMinimumRarity = RarityTier.Common;
+        private bool _unlockScreenshotCleanAlwaysCaptureCompletion = true;
+        private RarityTier _unlockScreenshotWithToastMinimumRarity = RarityTier.Common;
+        private bool _unlockScreenshotWithToastAlwaysCaptureCompletion = true;
+        private RarityTier _unlockScreenshotFramedMinimumRarity = RarityTier.Common;
+        private bool _unlockScreenshotFramedAlwaysCaptureCompletion = true;
         private bool _enableUnlockRecordings = false;
         private string _ffmpegPath;
         private string _unlockRecordingDirectory;
@@ -1068,22 +1072,60 @@ namespace PlayniteAchievements.Models.Settings
         }
 
         /// <summary>
-        /// The least-rare achievement tier that produces unlock screenshots.
+        /// The least-rare achievement tier that produces clean-variant unlock screenshots.
         /// </summary>
-        public RarityTier UnlockScreenshotMinimumRarity
+        public RarityTier UnlockScreenshotCleanMinimumRarity
         {
-            get => _unlockScreenshotMinimumRarity;
-            set => SetValue(ref _unlockScreenshotMinimumRarity, value);
+            get => _unlockScreenshotCleanMinimumRarity;
+            set => SetValue(ref _unlockScreenshotCleanMinimumRarity, value);
         }
 
         /// <summary>
         /// When true, completing achievements, capstones, and standalone game-complete events
-        /// bypass the screenshot rarity threshold.
+        /// bypass the clean-variant screenshot rarity threshold.
         /// </summary>
-        public bool UnlockScreenshotAlwaysCaptureCompletion
+        public bool UnlockScreenshotCleanAlwaysCaptureCompletion
         {
-            get => _unlockScreenshotAlwaysCaptureCompletion;
-            set => SetValue(ref _unlockScreenshotAlwaysCaptureCompletion, value);
+            get => _unlockScreenshotCleanAlwaysCaptureCompletion;
+            set => SetValue(ref _unlockScreenshotCleanAlwaysCaptureCompletion, value);
+        }
+
+        /// <summary>
+        /// The least-rare achievement tier that produces with-notification-variant unlock screenshots.
+        /// </summary>
+        public RarityTier UnlockScreenshotWithToastMinimumRarity
+        {
+            get => _unlockScreenshotWithToastMinimumRarity;
+            set => SetValue(ref _unlockScreenshotWithToastMinimumRarity, value);
+        }
+
+        /// <summary>
+        /// When true, completing achievements, capstones, and standalone game-complete events
+        /// bypass the with-notification-variant screenshot rarity threshold.
+        /// </summary>
+        public bool UnlockScreenshotWithToastAlwaysCaptureCompletion
+        {
+            get => _unlockScreenshotWithToastAlwaysCaptureCompletion;
+            set => SetValue(ref _unlockScreenshotWithToastAlwaysCaptureCompletion, value);
+        }
+
+        /// <summary>
+        /// The least-rare achievement tier that produces framed-variant unlock screenshots.
+        /// </summary>
+        public RarityTier UnlockScreenshotFramedMinimumRarity
+        {
+            get => _unlockScreenshotFramedMinimumRarity;
+            set => SetValue(ref _unlockScreenshotFramedMinimumRarity, value);
+        }
+
+        /// <summary>
+        /// When true, completing achievements, capstones, and standalone game-complete events
+        /// bypass the framed-variant screenshot rarity threshold.
+        /// </summary>
+        public bool UnlockScreenshotFramedAlwaysCaptureCompletion
+        {
+            get => _unlockScreenshotFramedAlwaysCaptureCompletion;
+            set => SetValue(ref _unlockScreenshotFramedAlwaysCaptureCompletion, value);
         }
 
         /// <summary>
@@ -2420,8 +2462,12 @@ namespace PlayniteAchievements.Models.Settings
                 UnlockScreenshotSuffixWithToast = this.UnlockScreenshotSuffixWithToast,
                 UnlockScreenshotSuffixFramed = this.UnlockScreenshotSuffixFramed,
                 UnlockScreenshotDirectory = this.UnlockScreenshotDirectory,
-                UnlockScreenshotMinimumRarity = this.UnlockScreenshotMinimumRarity,
-                UnlockScreenshotAlwaysCaptureCompletion = this.UnlockScreenshotAlwaysCaptureCompletion,
+                UnlockScreenshotCleanMinimumRarity = this.UnlockScreenshotCleanMinimumRarity,
+                UnlockScreenshotCleanAlwaysCaptureCompletion = this.UnlockScreenshotCleanAlwaysCaptureCompletion,
+                UnlockScreenshotWithToastMinimumRarity = this.UnlockScreenshotWithToastMinimumRarity,
+                UnlockScreenshotWithToastAlwaysCaptureCompletion = this.UnlockScreenshotWithToastAlwaysCaptureCompletion,
+                UnlockScreenshotFramedMinimumRarity = this.UnlockScreenshotFramedMinimumRarity,
+                UnlockScreenshotFramedAlwaysCaptureCompletion = this.UnlockScreenshotFramedAlwaysCaptureCompletion,
                 EnableUnlockRecordings = this.EnableUnlockRecordings,
                 FfmpegPath = this.FfmpegPath,
                 UnlockRecordingDirectory = this.UnlockRecordingDirectory,

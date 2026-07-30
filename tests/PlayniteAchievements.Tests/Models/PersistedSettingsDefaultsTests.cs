@@ -17,10 +17,42 @@ namespace PlayniteAchievements.Models.Tests
         {
             var settings = new PersistedSettings();
 
-            Assert.AreEqual(RarityTier.Common, settings.UnlockScreenshotMinimumRarity);
-            Assert.IsTrue(settings.UnlockScreenshotAlwaysCaptureCompletion);
+            Assert.AreEqual(RarityTier.Common, settings.UnlockScreenshotCleanMinimumRarity);
+            Assert.IsTrue(settings.UnlockScreenshotCleanAlwaysCaptureCompletion);
+            Assert.AreEqual(RarityTier.Common, settings.UnlockScreenshotWithToastMinimumRarity);
+            Assert.IsTrue(settings.UnlockScreenshotWithToastAlwaysCaptureCompletion);
+            Assert.AreEqual(RarityTier.Common, settings.UnlockScreenshotFramedMinimumRarity);
+            Assert.IsTrue(settings.UnlockScreenshotFramedAlwaysCaptureCompletion);
             Assert.AreEqual(RarityTier.Common, settings.UnlockRecordingMinimumRarity);
             Assert.IsTrue(settings.UnlockRecordingAlwaysCaptureCompletion);
+        }
+
+        [TestMethod]
+        public void CloneAndCopyFrom_PreservePerVariantCaptureRarityFilters()
+        {
+            var source = new PersistedSettings
+            {
+                UnlockScreenshotCleanMinimumRarity = RarityTier.Uncommon,
+                UnlockScreenshotCleanAlwaysCaptureCompletion = false,
+                UnlockScreenshotWithToastMinimumRarity = RarityTier.Rare,
+                UnlockScreenshotWithToastAlwaysCaptureCompletion = false,
+                UnlockScreenshotFramedMinimumRarity = RarityTier.UltraRare,
+                UnlockScreenshotFramedAlwaysCaptureCompletion = false
+            };
+
+            var clone = source.Clone();
+            var target = new PersistedSettings();
+            target.CopyFrom(source);
+
+            foreach (var copy in new[] { clone, target })
+            {
+                Assert.AreEqual(RarityTier.Uncommon, copy.UnlockScreenshotCleanMinimumRarity);
+                Assert.IsFalse(copy.UnlockScreenshotCleanAlwaysCaptureCompletion);
+                Assert.AreEqual(RarityTier.Rare, copy.UnlockScreenshotWithToastMinimumRarity);
+                Assert.IsFalse(copy.UnlockScreenshotWithToastAlwaysCaptureCompletion);
+                Assert.AreEqual(RarityTier.UltraRare, copy.UnlockScreenshotFramedMinimumRarity);
+                Assert.IsFalse(copy.UnlockScreenshotFramedAlwaysCaptureCompletion);
+            }
         }
 
         [TestMethod]
