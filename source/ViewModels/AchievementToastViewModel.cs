@@ -378,6 +378,14 @@ namespace PlayniteAchievements.ViewModels
             ? AccentBrush
             : Application.Current?.TryFindResource("PlayAch.Brush.Text") as Brush ?? Brushes.White;
 
+        // Title color for the standalone "Game Complete!" notification. Honors each surface's
+        // rarity-colored-name toggle exactly like TitleBrush/FrameTitleBrush do for a normal unlock:
+        // the completed color when on, plain text when off.
+        public Brush CompletedTitleBrush => _style.Toast.RarityColoredName ? CompletedBrush : PlainTitleBrush;
+        public Brush FrameCompletedTitleBrush => _style.Frame.RarityColoredName ? CompletedBrush : PlainTitleBrush;
+        private static Brush PlainTitleBrush =>
+            Application.Current?.TryFindResource("PlayAch.Brush.Text") as Brush ?? Brushes.White;
+
         public bool IsHardcore => _args.IsHardcore;
 
         /// <summary>
@@ -511,6 +519,10 @@ namespace PlayniteAchievements.ViewModels
         public bool ShowAccentStrip => _style.Toast.ShowAccentStrip;
         public bool ShowCountdownBar => _style.Toast.ShowCountdownBar;
 
+        // User left/right padding for the toast card content (keeps the background image full-bleed).
+        public Thickness ToastContentPadding =>
+            new Thickness(_style.Toast.CardPaddingLeft ?? 0, 0, _style.Toast.CardPaddingRight ?? 0, 0);
+
         // User toast card dimensions, falling back to the bundled template's defaults.
         public double ToastCardWidth => _style.Toast.CardWidth is double w && w > 0 ? w : 410;
 
@@ -600,10 +612,14 @@ namespace PlayniteAchievements.ViewModels
 
             // Name-line offset: a positive value indents the title line to the right; a negative
             // value indents every other line instead, so the title line (with its inline badge)
-            // never slides left under the icon column.
-            var offset = surface.TitleLineOffset;
+            // never slides left under the icon column. The standalone completion notification has
+            // no inline badge (its title is "Game Complete!"), so the offset does not apply there.
+            var offset = IsGameCompleted ? 0 : surface.TitleLineOffset;
             var titleIndent = offset > 0 ? offset : 0;
             var otherIndent = offset < 0 ? -offset : 0;
+
+            // Extra top/bottom padding applied to every line.
+            var linePadding = surface.LinePadding is double lp && lp > 0 ? lp : 0;
 
             var lines = new List<ToastLineDescriptor>(NotificationSurfaceStyle.DefaultLineOrder.Count);
             foreach (var token in NotificationSurfaceStyle.CanonicalizeLineOrder(surface.LineOrder))
@@ -627,6 +643,7 @@ namespace PlayniteAchievements.ViewModels
                             family,
                             isFrame ? FrameShowName : ShowName,
                             isFrame ? FrameTitleBrush : TitleBrush,
+                            isFrame ? FrameCompletedTitleBrush : CompletedTitleBrush,
                             isFrame ? FrameShowInlineBadge : ShowInlineBadge,
                             isFrame ? (object)FrameBadgeImage : ToastBadgeSource));
                         break;
@@ -653,6 +670,7 @@ namespace PlayniteAchievements.ViewModels
             foreach (var line in lines)
             {
                 line.LeftIndent = line is ToastTitleLine ? titleIndent : otherIndent;
+                line.VerticalPadding = linePadding;
             }
 
             return lines;
