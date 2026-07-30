@@ -449,10 +449,10 @@ namespace PlayniteAchievements.Services.UI
             // A wave is game-homogeneous, so scope the custom template to this wave's game and
             // provider (game > provider > global) for real unlocks.
             var waveProviderKey = toastItems.FirstOrDefault()?.ProviderKey;
-            var waveGameId = _activeWaveGameId ?? Guid.Empty;
+            var waveScopeGameId = _activeWaveGameId ?? Guid.Empty;
             var template = previewSource.HasValue
-                ? _templateResolver.ResolvePreviewTemplate(previewSource.Value, isFrame: false, waveProviderKey, waveGameId)
-                : _templateResolver.ResolveTemplate(ToastThemeStylingEnabled, waveProviderKey, waveGameId);
+                ? _templateResolver.ResolvePreviewTemplate(previewSource.Value, isFrame: false, waveProviderKey, waveScopeGameId)
+                : _templateResolver.ResolveTemplate(ToastThemeStylingEnabled, waveProviderKey, waveScopeGameId);
             if (template != null)
             {
                 items.ItemTemplate = template;
