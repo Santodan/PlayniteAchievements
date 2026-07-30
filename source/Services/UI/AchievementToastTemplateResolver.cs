@@ -36,6 +36,13 @@ namespace PlayniteAchievements.Services.UI
         public const string ThemeOverrideRelativePath = "PlayniteAchievements\\AchievementToast.xaml";
         public const string FrameThemeOverrideRelativePath = "PlayniteAchievements\\ScreenshotFrame.xaml";
 
+        // Plugin-owned custom template files, installed via the .pastyle.zip import into
+        // <PluginUserData>\custom_templates and consulted below (after theme overrides, before the
+        // bundled default). Same authoring contract as a theme override file.
+        public const string CustomTemplatesDirectoryName = "custom_templates";
+        public const string CustomToastTemplateFileName = "AchievementToast.xaml";
+        public const string CustomFrameTemplateFileName = "ScreenshotFrame.xaml";
+
         private const string PluginDefaultDictionaryUri =
             "pack://application:,,,/PlayniteAchievements;component/Resources/AchievementResources.xaml";
 
@@ -46,17 +53,57 @@ namespace PlayniteAchievements.Services.UI
         private readonly ILogger _logger;
         private readonly Func<DataTemplate> _loadDefaultTemplate;
         private readonly Func<DataTemplate> _loadDefaultFrameTemplate;
+        private readonly string _customTemplatesDirectory;
 
         public AchievementToastTemplateResolver(
             IPlayniteAPI api,
             ILogger logger,
             Func<DataTemplate> loadDefaultTemplate = null,
-            Func<DataTemplate> loadDefaultFrameTemplate = null)
+            Func<DataTemplate> loadDefaultFrameTemplate = null,
+            string customTemplatesDirectory = null)
         {
             _api = api;
             _logger = logger;
             _loadDefaultTemplate = loadDefaultTemplate;
             _loadDefaultFrameTemplate = loadDefaultFrameTemplate;
+            _customTemplatesDirectory = string.IsNullOrWhiteSpace(customTemplatesDirectory)
+                ? null
+                : customTemplatesDirectory;
+        }
+
+        /// <summary>
+        /// Builds the custom-templates directory path under the plugin's user-data folder, or null
+        /// when the user-data path is unavailable. Shared by every construction site so the live
+        /// toast, the screenshot frame, and the settings mockups all resolve the same custom files.
+        /// </summary>
+        public static string GetCustomTemplatesDirectory(string pluginUserDataPath)
+        {
+            return string.IsNullOrWhiteSpace(pluginUserDataPath)
+                ? null
+                : Path.Combine(pluginUserDataPath, CustomTemplatesDirectoryName);
+        }
+
+        /// <summary>
+        /// Full path to the plugin-owned custom template file for the surface, or null when no
+        /// custom-templates directory was supplied (e.g. tests).
+        /// </summary>
+        public string GetCustomTemplatePath(bool isFrame)
+        {
+            if (_customTemplatesDirectory == null)
+            {
+                return null;
+            }
+
+            return Path.Combine(
+                _customTemplatesDirectory,
+                isFrame ? CustomFrameTemplateFileName : CustomToastTemplateFileName);
+        }
+
+        /// <summary>True when a plugin-owned custom template is installed for the surface.</summary>
+        public bool HasCustomTemplate(bool isFrame)
+        {
+            var path = GetCustomTemplatePath(isFrame);
+            return !string.IsNullOrWhiteSpace(path) && File.Exists(path);
         }
 
         public DataTemplate ResolveTemplate(bool allowThemeSources = true)
@@ -67,7 +114,8 @@ namespace PlayniteAchievements.Services.UI
         public DataTemplate ResolveTemplate(ResourceDictionary applicationResources, bool allowThemeSources = true)
         {
             return ResolveResource<DataTemplate>(
-                applicationResources, TemplateKey, ThemeOverrideRelativePath, _loadDefaultTemplate, allowThemeSources);
+                applicationResources, TemplateKey, ThemeOverrideRelativePath, _loadDefaultTemplate, allowThemeSources,
+                GetCustomTemplatePath(isFrame: false));
         }
 
         /// <summary>
@@ -83,7 +131,8 @@ namespace PlayniteAchievements.Services.UI
         public DataTemplate ResolveFrameTemplate(ResourceDictionary applicationResources, bool allowThemeSources = true)
         {
             return ResolveResource<DataTemplate>(
-                applicationResources, FrameTemplateKey, FrameThemeOverrideRelativePath, _loadDefaultFrameTemplate, allowThemeSources);
+                applicationResources, FrameTemplateKey, FrameThemeOverrideRelativePath, _loadDefaultFrameTemplate, allowThemeSources,
+                GetCustomTemplatePath(isFrame: true));
         }
 
         /// <summary>
@@ -100,13 +149,21 @@ namespace PlayniteAchievements.Services.UI
 
             if (source == NotificationTemplatePreviewSource.PluginStyle)
             {
+                // The plugin-owned path: the installed custom template if present, else the
+                // bundled default (themes are intentionally skipped for this preview).
+                if (TryLoadCustomTemplateResource<DataTemplate>(GetCustomTemplatePath(isFrame), key, out var custom))
+                {
+                    return custom;
+                }
+
                 return LoadPluginDefaultResource(key, pluginDefault);
             }
 
             // The active theme: resolve exactly as a real notification would (loaded theme
-            // resource, then the theme's override file, then the bundled default).
+            // resource, then the theme's override file, then the custom template, then bundled).
             return ResolveResource<DataTemplate>(
-                Application.Current?.Resources, key, overrideRelativePath, pluginDefault, allowThemeSources: true);
+                Application.Current?.Resources, key, overrideRelativePath, pluginDefault, allowThemeSources: true,
+                GetCustomTemplatePath(isFrame));
         }
 
         /// <summary>
@@ -304,11 +361,13 @@ namespace PlayniteAchievements.Services.UI
             string key,
             string overrideRelativePath,
             Func<T> pluginDefaultOverride,
-            bool allowThemeSources = true)
+            bool allowThemeSources = true,
+            string customTemplateFullPath = null)
             where T : class
         {
             // allowThemeSources=false is the user's per-surface theme-styling opt-out: both
-            // theme lookups are skipped so the bundled plugin resource always wins.
+            // theme lookups are skipped so the plugin-owned resources (custom template, then the
+            // bundled default) win.
             if (allowThemeSources)
             {
                 if (TryFindLoadedThemeResource<T>(applicationResources, key, out var loaded))
@@ -320,6 +379,14 @@ namespace PlayniteAchievements.Services.UI
                 {
                     return themeResource;
                 }
+            }
+
+            // Plugin-owned custom template (theme-independent), consulted whether or not theme
+            // sources are allowed. A parse failure here returns null and falls through to the
+            // bundled default, so a bad custom template can never break notifications.
+            if (TryLoadCustomTemplateResource<T>(customTemplateFullPath, key, out var customResource))
+            {
+                return customResource;
             }
 
             return LoadPluginDefaultResource(key, pluginDefaultOverride);
@@ -502,6 +569,262 @@ namespace PlayniteAchievements.Services.UI
                 _logger?.Debug(ex, $"Failed to load default achievement toast resource '{key}'.");
                 return null;
             }
+        }
+
+        /// <summary>
+        /// Loads a plugin-owned custom template file into a ResourceDictionary using WPF's native
+        /// Source-based loader — the same mechanism as the bundled default (LoadPluginDefaultResource)
+        /// — rather than a hand-rolled XamlReader stream. Cached per path by last-write time; a parse
+        /// failure caches null so the caller falls back to the bundled default. Returns null when the
+        /// path is unset or missing.
+        /// </summary>
+        private ResourceDictionary LoadCustomTemplateDictionary(string path)
+        {
+            if (string.IsNullOrWhiteSpace(path) || !File.Exists(path))
+            {
+                return null;
+            }
+
+            DateTime lastWriteUtc;
+            try
+            {
+                lastWriteUtc = File.GetLastWriteTimeUtc(path);
+            }
+            catch (Exception ex)
+            {
+                _logger?.Debug(ex, $"Failed to inspect custom notification template: {path}");
+                return null;
+            }
+
+            var cacheKey = $"custom|{path}";
+            if (ThemeDictionaryCache.TryGetValue(cacheKey, out var cached) &&
+                cached.LastWriteTimeUtc == lastWriteUtc)
+            {
+                return cached.Dictionary;
+            }
+
+            ResourceDictionary dictionary = null;
+            try
+            {
+                dictionary = new ResourceDictionary { Source = new Uri(path, UriKind.Absolute) };
+            }
+            catch (Exception ex)
+            {
+                _logger?.Warn(ex, $"Failed to load custom notification template (using bundled default): {path}");
+                dictionary = null;
+            }
+
+            ThemeDictionaryCache[cacheKey] = new CachedThemeDictionary(lastWriteUtc, dictionary);
+            return dictionary;
+        }
+
+        private bool TryLoadCustomTemplateResource<T>(string customTemplateFullPath, string key, out T resource)
+            where T : class
+        {
+            resource = null;
+            var dictionary = LoadCustomTemplateDictionary(customTemplateFullPath);
+            return dictionary != null && TryGetDirectResource(dictionary, key, out resource);
+        }
+
+        /// <summary>
+        /// Validates that <paramref name="xaml"/> loads (via the same native Source loader real
+        /// resolution uses) as a ResourceDictionary defining the surface's template key. Loose XAML
+        /// needs assembly-qualified namespaces, so this catches the classic authoring mistake at
+        /// install time. Returns true on success; otherwise sets <paramref name="error"/>.
+        /// </summary>
+        public bool TryValidateTemplateXaml(string xaml, bool isFrame, out string error)
+        {
+            error = null;
+            if (string.IsNullOrWhiteSpace(xaml))
+            {
+                error = "The template file is empty.";
+                return false;
+            }
+
+            var key = isFrame ? FrameTemplateKey : TemplateKey;
+            string tempPath = null;
+            try
+            {
+                var tempDir = Path.Combine(Path.GetTempPath(), "PlayniteAchievements", "TemplateValidate");
+                Directory.CreateDirectory(tempDir);
+                tempPath = Path.Combine(tempDir, Guid.NewGuid().ToString("N") + ".xaml");
+                File.WriteAllText(tempPath, xaml, new UTF8Encoding(encoderShouldEmitUTF8Identifier: false));
+
+                var dictionary = new ResourceDictionary { Source = new Uri(tempPath, UriKind.Absolute) };
+                if (!TryGetDirectResource(dictionary, key, out DataTemplate _))
+                {
+                    error = $"The file does not define a DataTemplate with x:Key \"{key}\".";
+                    return false;
+                }
+
+                return true;
+            }
+            catch (Exception ex)
+            {
+                error = ex.Message;
+                return false;
+            }
+            finally
+            {
+                if (tempPath != null)
+                {
+                    try { File.Delete(tempPath); }
+                    catch (Exception ex) { _logger?.Debug(ex, $"Failed to delete template validation temp file: {tempPath}"); }
+                }
+            }
+        }
+
+        /// <summary>
+        /// Installs a custom template for the surface after validating it, writing it into the
+        /// custom-templates directory and evicting the cached parse so the next resolve reloads it.
+        /// Throws when no directory is configured or the XAML fails validation.
+        /// </summary>
+        public void SaveCustomTemplate(bool isFrame, string xaml)
+        {
+            var path = GetCustomTemplatePath(isFrame);
+            if (path == null)
+            {
+                throw new InvalidOperationException("No custom templates directory is configured.");
+            }
+
+            if (!TryValidateTemplateXaml(xaml, isFrame, out var error))
+            {
+                throw new InvalidOperationException($"The custom template is not valid: {error}");
+            }
+
+            Directory.CreateDirectory(Path.GetDirectoryName(path));
+            File.WriteAllText(path, xaml, new UTF8Encoding(encoderShouldEmitUTF8Identifier: false));
+            ThemeDictionaryCache.Remove($"custom|{path}");
+        }
+
+        /// <summary>Removes the installed custom template for the surface, reverting to theme/bundled.</summary>
+        public void DeleteCustomTemplate(bool isFrame)
+        {
+            var path = GetCustomTemplatePath(isFrame);
+            if (string.IsNullOrWhiteSpace(path) || !File.Exists(path))
+            {
+                return;
+            }
+
+            try
+            {
+                File.Delete(path);
+            }
+            catch (Exception ex)
+            {
+                _logger?.Warn(ex, $"Failed to delete custom notification template: {path}");
+            }
+
+            ThemeDictionaryCache.Remove($"custom|{path}");
+        }
+
+        /// <summary>
+        /// Returns editable XAML for the surface to seed an export/starting point: the installed
+        /// custom template if present, else the active theme's override file if present, else a
+        /// generated minimal starter that follows the loose-XAML override contract (assembly-
+        /// qualified namespaces, merged plugin dictionary, the template key). Never returns the
+        /// compiled bundled template (its source is not shippable as loose XAML).
+        /// </summary>
+        public string ReadEffectiveTemplateXaml(bool isFrame)
+        {
+            var customPath = GetCustomTemplatePath(isFrame);
+            if (!string.IsNullOrWhiteSpace(customPath) && File.Exists(customPath))
+            {
+                try
+                {
+                    return File.ReadAllText(customPath);
+                }
+                catch (Exception ex)
+                {
+                    _logger?.Debug(ex, $"Failed to read custom template for export: {customPath}");
+                }
+            }
+
+            var overrideRelativePath = isFrame ? FrameThemeOverrideRelativePath : ThemeOverrideRelativePath;
+            var themePath = ResolveActiveThemeOverridePaths(Application.Current?.Resources, overrideRelativePath)
+                .FirstOrDefault(File.Exists);
+            if (!string.IsNullOrWhiteSpace(themePath))
+            {
+                try
+                {
+                    return ReadThemeOverrideText(themePath);
+                }
+                catch (Exception ex)
+                {
+                    _logger?.Debug(ex, $"Failed to read theme override for export: {themePath}");
+                }
+            }
+
+            return BuildStarterTemplateXaml(isFrame);
+        }
+
+        // A minimal, loose-XAML-correct starting point: assembly-qualified namespaces so
+        // XamlReader/Source can resolve the view model, the plugin dictionary merged for brushes
+        // and helpers, and the exact template key the resolver looks up. Kept intentionally small;
+        // the wiki documents every binding for users who want the full layout.
+        private static string BuildStarterTemplateXaml(bool isFrame)
+        {
+            if (isFrame)
+            {
+                return
+@"<ResourceDictionary xmlns=""http://schemas.microsoft.com/winfx/2006/xaml/presentation""
+                    xmlns:x=""http://schemas.microsoft.com/winfx/2006/xaml""
+                    xmlns:vm=""clr-namespace:PlayniteAchievements.ViewModels;assembly=PlayniteAchievements"">
+    <ResourceDictionary.MergedDictionaries>
+        <!-- Gives the template PlayAch brushes, converters, badges, and helpers. -->
+        <ResourceDictionary Source=""pack://application:,,,/PlayniteAchievements;component/Resources/AchievementResources.xaml""/>
+    </ResourceDictionary.MergedDictionaries>
+
+    <!-- Custom screenshot-frame template. Composited onto the saved screenshot; bind images
+         synchronously (Source=, not AsyncImage). See the wiki 'Toast and Frame overrides' page
+         for every available binding. Keep the x:Key and DataType exactly as below. -->
+    <DataTemplate x:Key=""PlayAch.Template.ScreenshotFrame""
+                  DataType=""{x:Type vm:AchievementToastViewModel}"">
+        <Grid>
+            <StackPanel VerticalAlignment=""Bottom"" Margin=""36,0,36,26"">
+                <TextBlock Text=""{Binding HeaderText}"" Foreground=""White"" FontSize=""17""/>
+                <TextBlock Text=""{Binding TitleText}"" Foreground=""{Binding FrameTitleBrush}""
+                           FontWeight=""SemiBold"" FontSize=""28""/>
+                <TextBlock Text=""{Binding Description}"" Foreground=""White"" TextWrapping=""Wrap""/>
+            </StackPanel>
+        </Grid>
+    </DataTemplate>
+</ResourceDictionary>
+";
+            }
+
+            return
+@"<ResourceDictionary xmlns=""http://schemas.microsoft.com/winfx/2006/xaml/presentation""
+                    xmlns:x=""http://schemas.microsoft.com/winfx/2006/xaml""
+                    xmlns:vm=""clr-namespace:PlayniteAchievements.ViewModels;assembly=PlayniteAchievements"">
+    <ResourceDictionary.MergedDictionaries>
+        <!-- Gives the template PlayAch brushes, converters, badges, and helpers. -->
+        <ResourceDictionary Source=""pack://application:,,,/PlayniteAchievements;component/Resources/AchievementResources.xaml""/>
+    </ResourceDictionary.MergedDictionaries>
+
+    <!-- Custom notification toast template. Edit freely; see the wiki 'Toast and Frame overrides'
+         page for every available binding. Keep the x:Key and DataType exactly as below. -->
+    <DataTemplate x:Key=""PlayAch.Template.AchievementToast""
+                  DataType=""{x:Type vm:AchievementToastViewModel}"">
+        <Border Background=""{DynamicResource PlayAch.Brush.PopupSurface}""
+                BorderBrush=""{DynamicResource PlayAch.Brush.PopupBorder}""
+                BorderThickness=""1""
+                CornerRadius=""8""
+                Padding=""12"">
+            <StackPanel>
+                <TextBlock Text=""{Binding HeaderText}""
+                           Foreground=""{DynamicResource PlayAch.Brush.Text.Secondary}""/>
+                <TextBlock Text=""{Binding TitleText}""
+                           Foreground=""{Binding TitleBrush}""
+                           FontWeight=""SemiBold""/>
+                <TextBlock Text=""{Binding Description}""
+                           Foreground=""{DynamicResource PlayAch.Brush.Text.Secondary}""
+                           TextWrapping=""Wrap""/>
+            </StackPanel>
+        </Border>
+    </DataTemplate>
+</ResourceDictionary>
+";
         }
 
         private string GetThemeModeName()
