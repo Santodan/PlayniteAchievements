@@ -243,15 +243,19 @@
                 MinHeight="64"
                 Margin="14"
                 CornerRadius="8"
-                Background="{DynamicResource PlayAch.Brush.PopupSurface}"
                 BorderBrush="{DynamicResource PlayAch.Brush.PopupBorder}"
-                BorderThickness="1"
                 helpers:RarityGlowPulse.Target="Effect">
             <!-- Default is a neutral drop shadow; the border-glow option swaps it for a
                  rarity-colored glow. Effect is set via Style (not a local value) so the
-                 trigger can override it. -->
+                 trigger can override it. Background and BorderThickness also live in the Style
+                 (not as local values) so the HasToastBackground trigger can drop the opaque card
+                 surface: with a user background image the surface goes transparent and the image's
+                 own (possibly rounded/transparent) alpha defines the shape, so the drop shadow /
+                 border glow wraps the image instead of a solid card rectangle. -->
             <Border.Style>
                 <Style TargetType="Border">
+                    <Setter Property="Background" Value="{DynamicResource PlayAch.Brush.PopupSurface}"/>
+                    <Setter Property="BorderThickness" Value="1"/>
                     <Setter Property="Effect">
                         <Setter.Value>
                             <DropShadowEffect BlurRadius="12"
@@ -262,6 +266,12 @@
                         </Setter.Value>
                     </Setter>
                     <Style.Triggers>
+                        <!-- A user background image defines the card shape: drop the opaque
+                             surface + border so the image's alpha shows and the glow wraps it. -->
+                        <DataTrigger Binding="{Binding HasToastBackground}" Value="True">
+                            <Setter Property="Background" Value="Transparent"/>
+                            <Setter Property="BorderThickness" Value="0"/>
+                        </DataTrigger>
                         <DataTrigger Binding="{Binding HasBorderGlow}" Value="True">
                             <Setter Property="Effect" Value="{Binding BorderGlowEffect}"/>
                         </DataTrigger>
@@ -277,10 +287,15 @@
                 </Style>
             </Border.Style>
             <Grid>
-                <!-- Optional user background image behind the whole card. The Border's corner
-                     radius clips the brush; the explicit DecodePixel matters because ImageBrush
-                     is a Freezable with no size AsyncImage could infer. Animated GIF backgrounds
-                     play (GifAnimationHelper animates ImageBrush.ImageSource). -->
+                <!-- Optional user background image behind the whole card. The corner radius is a
+                     max-rounding upper bound: an opaque rectangular image gets the card's rounded
+                     corners, while an image with its own more-rounded/transparent corners passes
+                     through unchanged (its alpha is more restrictive than the clip). With the card
+                     surface transparent (see the outer Border trigger), the outer drop shadow /
+                     glow then renders from this image's alpha, wrapping its real shape. The
+                     explicit DecodePixel matters because ImageBrush is a Freezable with no size
+                     AsyncImage could infer. Animated GIF backgrounds play (GifAnimationHelper
+                     animates ImageBrush.ImageSource). -->
                 <Border CornerRadius="8"
                         Visibility="{Binding HasToastBackground, Converter={StaticResource BooleanToVisibilityConverter}}">
                     <Border.Background>
