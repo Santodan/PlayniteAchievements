@@ -644,6 +644,13 @@ namespace PlayniteAchievements.ViewModels.Settings
                 if (resolved != null)
                 {
                     SetImagePath(slot, resolved);
+
+                    // The managed slot uses a fixed filename, so picking a different source
+                    // file resolves to the same path and would otherwise show the previously
+                    // cached bitmap. The pre-delete above writes a fresh (non-overwriting) file,
+                    // so DiskImageService.ImageFileOverwritten never fires; evict the memory
+                    // cache for this path explicitly (clears every decode-size/prefix variant).
+                    _plugin.ImageService?.EvictByUriSegment(resolved);
                 }
             }
             catch (Exception ex)
@@ -662,8 +669,37 @@ namespace PlayniteAchievements.ViewModels.Settings
                 return;
             }
 
+            var previous = GetImagePath(slot);
             _plugin.NotificationImageStore.DeleteSlot(_imageOwner, slot);
             SetImagePath(slot, null);
+
+            // Drop the removed slot's bitmap so a later re-pick at the same managed path does
+            // not resurface it from the memory cache.
+            if (!string.IsNullOrEmpty(previous))
+            {
+                _plugin.ImageService?.EvictByUriSegment(previous);
+            }
+        }
+
+        private string GetImagePath(NotificationImageSlot slot)
+        {
+            switch (slot)
+            {
+                case NotificationImageSlot.Background:
+                    return _style?.ToastBackgroundImagePath;
+                case NotificationImageSlot.BadgeCommon:
+                    return _style?.BadgeImages?.CommonPath;
+                case NotificationImageSlot.BadgeUncommon:
+                    return _style?.BadgeImages?.UncommonPath;
+                case NotificationImageSlot.BadgeRare:
+                    return _style?.BadgeImages?.RarePath;
+                case NotificationImageSlot.BadgeUltraRare:
+                    return _style?.BadgeImages?.UltraRarePath;
+                case NotificationImageSlot.BadgeCompletion:
+                    return _style?.BadgeImages?.CompletionPath;
+                default:
+                    return null;
+            }
         }
 
         private void SetImagePath(NotificationImageSlot slot, string path)
