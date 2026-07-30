@@ -133,6 +133,9 @@ namespace PlayniteAchievements.Models.Settings
         private double? _iconSize;
         private double? _rarityBadgeSize;
         private double? _providerIconSize;
+        private double? _cardPaddingLeft;
+        private double? _cardPaddingRight;
+        private double? _linePadding;
         private double _titleLineOffset;
 
         [JsonProperty(DefaultValueHandling = DefaultValueHandling.Include)]
@@ -351,6 +354,34 @@ namespace PlayniteAchievements.Models.Settings
         }
 
         /// <summary>
+        /// Left padding in DIPs for the card content, or null for none. Toast surface only; keeps
+        /// a background image full-bleed while insetting the content.
+        /// </summary>
+        public double? CardPaddingLeft
+        {
+            get => _cardPaddingLeft;
+            set => SetValue(ref _cardPaddingLeft, value);
+        }
+
+        /// <summary>
+        /// Right padding in DIPs for the card content, or null for none. Toast surface only.
+        /// </summary>
+        public double? CardPaddingRight
+        {
+            get => _cardPaddingRight;
+            set => SetValue(ref _cardPaddingRight, value);
+        }
+
+        /// <summary>
+        /// Extra top and bottom padding in DIPs added around each text line, or null for none.
+        /// </summary>
+        public double? LinePadding
+        {
+            get => _linePadding;
+            set => SetValue(ref _linePadding, value);
+        }
+
+        /// <summary>
         /// Horizontal offset in DIPs for the achievement-name (title) line, including its inline
         /// badge, so the user can slide the whole line to align it with the rows below. Zero (the
         /// default) leaves the line at its natural start.
@@ -470,6 +501,9 @@ namespace PlayniteAchievements.Models.Settings
                 IconSize = IconSize,
                 RarityBadgeSize = RarityBadgeSize,
                 ProviderIconSize = ProviderIconSize,
+                CardPaddingLeft = CardPaddingLeft,
+                CardPaddingRight = CardPaddingRight,
+                LinePadding = LinePadding,
                 TitleLineOffset = TitleLineOffset
             };
         }
