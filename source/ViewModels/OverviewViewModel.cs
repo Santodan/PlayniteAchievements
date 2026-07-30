@@ -1611,7 +1611,9 @@ namespace PlayniteAchievements.ViewModels
             return new RefreshRequest
             {
                 ModeKey = SelectedRefreshMode,
-                SingleGameId = singleGameId
+                SingleGameId = singleGameId,
+                // Only the single-game mode is a targeted refresh; bulk modes fail silently.
+                ShowEmptyTargetNotice = singleGameId.HasValue
             };
         }
 
@@ -1643,7 +1645,8 @@ namespace PlayniteAchievements.ViewModels
                     new RefreshRequest
                     {
                         Mode = RefreshModeType.Single,
-                        SingleGameId = gameId
+                        SingleGameId = gameId,
+                        ShowEmptyTargetNotice = true
                     },
                     new RefreshExecutionPolicy
                     {

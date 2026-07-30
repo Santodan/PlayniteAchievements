@@ -227,7 +227,8 @@ namespace PlayniteAchievements.ViewModels
                 new RefreshRequest
                 {
                     Mode = RefreshModeType.Single,
-                    SingleGameId = _gameId
+                    SingleGameId = _gameId,
+                    ShowEmptyTargetNotice = true
                 },
                 new RefreshExecutionPolicy
                 {

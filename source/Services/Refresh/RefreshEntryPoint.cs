@@ -340,7 +340,8 @@ namespace PlayniteAchievements.Services.Refresh
                 {
                     GameIds = normalizedGameIds,
                     SingleGameId = request.SingleGameId,
-                    Options = request.Options?.Clone()
+                    Options = request.Options?.Clone(),
+                    ShowEmptyTargetNotice = request.ShowEmptyTargetNotice
                 };
             }
 
@@ -350,7 +351,8 @@ namespace PlayniteAchievements.Services.Refresh
                 {
                     Mode = request.Mode.Value,
                     SingleGameId = request.SingleGameId,
-                    Options = request.Options?.Clone()
+                    Options = request.Options?.Clone(),
+                    ShowEmptyTargetNotice = request.ShowEmptyTargetNotice
                 };
             }
 
@@ -360,7 +362,8 @@ namespace PlayniteAchievements.Services.Refresh
                 {
                     ModeKey = request.ModeKey.Trim(),
                     SingleGameId = request.SingleGameId,
-                    Options = request.Options?.Clone()
+                    Options = request.Options?.Clone(),
+                    ShowEmptyTargetNotice = request.ShowEmptyTargetNotice
                 };
             }
 
@@ -368,7 +371,8 @@ namespace PlayniteAchievements.Services.Refresh
             {
                 Mode = RefreshModeType.Recent,
                 SingleGameId = request.SingleGameId,
-                Options = request.Options?.Clone()
+                Options = request.Options?.Clone(),
+                ShowEmptyTargetNotice = request.ShowEmptyTargetNotice
             };
         }
     }

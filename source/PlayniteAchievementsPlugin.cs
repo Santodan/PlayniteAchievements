@@ -276,7 +276,8 @@ namespace PlayniteAchievements
             return _refreshCoordinator?.ExecuteAsync(new RefreshRequest
             {
                 Mode = RefreshModeType.Single,
-                SingleGameId = playniteGameId
+                SingleGameId = playniteGameId,
+                ShowEmptyTargetNotice = true
             }) ?? Task.CompletedTask;
         }
 

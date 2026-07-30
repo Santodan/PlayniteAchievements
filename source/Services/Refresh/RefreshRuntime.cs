@@ -1831,7 +1831,14 @@ namespace PlayniteAchievements.Services.Refresh
 
                 if (!string.IsNullOrWhiteSpace(resolved.UserMessage))
                 {
-                    if (HasSteamTransientAuthFailure(effectiveAuthContext))
+                    if (request?.ShowEmptyTargetNotice != true)
+                    {
+                        // Only user-initiated, targeted single-game refreshes opt in to the
+                        // no-capable-provider modal. Background, import, and bulk refreshes leave
+                        // the flag false and fail silently rather than interrupting the user.
+                        _logger.Info("Refresh selection produced no targets; suppressing no-target modal for non-targeted refresh.");
+                    }
+                    else if (HasSteamTransientAuthFailure(effectiveAuthContext))
                     {
                         _logger.Warn("Refresh selection produced no targets because Steam web authentication could not be verified; suppressing generic no-target modal.");
                     }

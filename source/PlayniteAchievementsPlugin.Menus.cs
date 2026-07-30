@@ -334,7 +334,8 @@ namespace PlayniteAchievements
                             new RefreshRequest
                             {
                                 Mode = RefreshModeType.Single,
-                                SingleGameId = game.Id
+                                SingleGameId = game.Id,
+                                ShowEmptyTargetNotice = true
                             },
                             game.Id);
                     }
@@ -554,7 +555,8 @@ namespace PlayniteAchievements
                     new RefreshRequest
                     {
                         Mode = RefreshModeType.Single,
-                        SingleGameId = gameId
+                        SingleGameId = gameId,
+                        ShowEmptyTargetNotice = true
                     },
                     gameId);
             }
