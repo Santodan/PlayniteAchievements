@@ -179,6 +179,7 @@
                         <RowDefinition Height="Auto"/>
                         <RowDefinition Height="Auto"/>
                         <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="Auto"/>
                     </Grid.RowDefinitions>
 
                     <TextBlock Grid.Row="0" Grid.Column="0"
@@ -203,9 +204,19 @@
 
                     <TextBlock Grid.Row="2" Grid.Column="0"
                                Text="{DynamicResource LOCPlayAch_Common_Label_Platform}"
-                               Style="{StaticResource EditorRowLabelStyle}"/>
+                               Style="{StaticResource EditorRowLabelStyle}"
+                               Margin="0,0,8,8"/>
                     <TextBox Grid.Row="2" Grid.Column="1"
                              Text="{Binding ProviderIconSizeText, Mode=TwoWay, UpdateSourceTrigger=LostFocus}"
+                             Width="70"
+                             TextAlignment="Right"
+                             Margin="0,0,0,8"/>
+
+                    <TextBlock Grid.Row="3" Grid.Column="0"
+                               Text="{DynamicResource LOCPlayAch_Settings_Style_LinePadding}"
+                               Style="{StaticResource EditorRowLabelStyle}"/>
+                    <TextBox Grid.Row="3" Grid.Column="1"
+                             Text="{Binding LinePaddingText, Mode=TwoWay, UpdateSourceTrigger=LostFocus}"
                              Width="70"
                              TextAlignment="Right"/>
                 </Grid>
@@ -232,6 +243,8 @@
                     <Grid.RowDefinitions>
                         <RowDefinition Height="Auto"/>
                         <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="Auto"/>
                     </Grid.RowDefinitions>
 
                     <TextBlock Grid.Row="0" Grid.Column="0"
@@ -246,9 +259,29 @@
 
                     <TextBlock Grid.Row="1" Grid.Column="0"
                                Text="{DynamicResource LOCPlayAch_Settings_Style_CardHeight}"
-                               Style="{StaticResource EditorRowLabelStyle}"/>
+                               Style="{StaticResource EditorRowLabelStyle}"
+                               Margin="0,0,8,8"/>
                     <TextBox Grid.Row="1" Grid.Column="1"
                              Text="{Binding CardHeightText, Mode=TwoWay, UpdateSourceTrigger=LostFocus}"
+                             Width="70"
+                             TextAlignment="Right"
+                             Margin="0,0,0,8"/>
+
+                    <TextBlock Grid.Row="2" Grid.Column="0"
+                               Text="{DynamicResource LOCPlayAch_Settings_Style_CardPaddingLeft}"
+                               Style="{StaticResource EditorRowLabelStyle}"
+                               Margin="0,0,8,8"/>
+                    <TextBox Grid.Row="2" Grid.Column="1"
+                             Text="{Binding CardPaddingLeftText, Mode=TwoWay, UpdateSourceTrigger=LostFocus}"
+                             Width="70"
+                             TextAlignment="Right"
+                             Margin="0,0,0,8"/>
+
+                    <TextBlock Grid.Row="3" Grid.Column="0"
+                               Text="{DynamicResource LOCPlayAch_Settings_Style_CardPaddingRight}"
+                               Style="{StaticResource EditorRowLabelStyle}"/>
+                    <TextBox Grid.Row="3" Grid.Column="1"
+                             Text="{Binding CardPaddingRightText, Mode=TwoWay, UpdateSourceTrigger=LostFocus}"
                              Width="70"
                              TextAlignment="Right"/>
                 </Grid>

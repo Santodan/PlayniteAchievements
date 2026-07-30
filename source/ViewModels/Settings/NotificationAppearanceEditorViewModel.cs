@@ -56,6 +56,9 @@ namespace PlayniteAchievements.ViewModels.Settings
         private string _iconSizeText = string.Empty;
         private string _rarityBadgeSizeText = string.Empty;
         private string _providerIconSizeText = string.Empty;
+        private string _cardPaddingLeftText = string.Empty;
+        private string _cardPaddingRightText = string.Empty;
+        private string _linePaddingText = string.Empty;
 
         public NotificationAppearanceEditorViewModel(
             PlayniteAchievementsSettings settings,
@@ -426,6 +429,45 @@ namespace PlayniteAchievements.ViewModels.Settings
             }
         }
 
+        /// <summary>Left padding of the card content. Blank/invalid clears the override.</summary>
+        public string CardPaddingLeftText
+        {
+            get => _cardPaddingLeftText;
+            set
+            {
+                if (SetValueAndReturn(ref _cardPaddingLeftText, value))
+                {
+                    CommitSize(value, (surface, parsed) => surface.CardPaddingLeft = parsed);
+                }
+            }
+        }
+
+        /// <summary>Right padding of the card content. Blank/invalid clears the override.</summary>
+        public string CardPaddingRightText
+        {
+            get => _cardPaddingRightText;
+            set
+            {
+                if (SetValueAndReturn(ref _cardPaddingRightText, value))
+                {
+                    CommitSize(value, (surface, parsed) => surface.CardPaddingRight = parsed);
+                }
+            }
+        }
+
+        /// <summary>Extra top/bottom padding around each text line. Blank/invalid clears it.</summary>
+        public string LinePaddingText
+        {
+            get => _linePaddingText;
+            set
+            {
+                if (SetValueAndReturn(ref _linePaddingText, value))
+                {
+                    CommitSize(value, (surface, parsed) => surface.LinePadding = parsed);
+                }
+            }
+        }
+
         private void CommitCardDimension(string text, bool isWidth)
         {
             var surface = Surface;
@@ -501,6 +543,15 @@ namespace PlayniteAchievements.ViewModels.Settings
             SetValue(ref _providerIconSizeText,
                 surface?.ProviderIconSize?.ToString(CultureInfo.CurrentCulture) ?? string.Empty,
                 nameof(ProviderIconSizeText));
+            SetValue(ref _cardPaddingLeftText,
+                surface?.CardPaddingLeft?.ToString(CultureInfo.CurrentCulture) ?? string.Empty,
+                nameof(CardPaddingLeftText));
+            SetValue(ref _cardPaddingRightText,
+                surface?.CardPaddingRight?.ToString(CultureInfo.CurrentCulture) ?? string.Empty,
+                nameof(CardPaddingRightText));
+            SetValue(ref _linePaddingText,
+                surface?.LinePadding?.ToString(CultureInfo.CurrentCulture) ?? string.Empty,
+                nameof(LinePaddingText));
         }
 
         // Slider/textbox range for the name-line offset; must match the Slider bounds in the view.
