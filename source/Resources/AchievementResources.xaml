@@ -378,6 +378,10 @@
                     <StackPanel VerticalAlignment="Center"
                                 HorizontalAlignment="Center"
                                 Visibility="{Binding ShowRightBadge, Converter={StaticResource BooleanToVisibilityConverter}}">
+                        <!-- Center the badge (not the badge+percent group): top spacer = the
+                             percent's height balances the percent hanging below. -->
+                        <Border Height="{Binding ActualHeight, ElementName=ToastRightPercent}"
+                                IsHitTestVisible="False"/>
                         <!-- Reuses the shared badge source, so animated GIF badges animate. -->
                         <Image helpers:AsyncImage.Uri="{Binding ToastBadgeSource}"
                                helpers:AsyncImage.DecodePixel="96"
@@ -385,7 +389,8 @@
                                Height="{Binding ToastRightBadgeSize}"
                                HorizontalAlignment="Center"
                                RenderOptions.BitmapScalingMode="HighQuality"/>
-                        <TextBlock Text="{Binding PercentText}"
+                        <TextBlock x:Name="ToastRightPercent"
+                                   Text="{Binding PercentText}"
                                    Style="{DynamicResource PlayAch.TextBlock.BaseStyle}"
                                    Foreground="{DynamicResource PlayAch.Brush.Text.Secondary}"
                                    FontSize="{Binding ToastHeaderFontSize}"
@@ -396,7 +401,9 @@
                     </StackPanel>
                 </Grid>
 
-                <Grid Grid.Column="1" Grid.Row="0" Margin="14,8,8,0">
+                <!-- Symmetric top/bottom inset so the icon and text center truly on the row
+                     (an asymmetric inset biased the content downward). -->
+                <Grid Grid.Column="1" Grid.Row="0" Margin="14,8,8,8">
                         <Grid.ColumnDefinitions>
                             <ColumnDefinition Width="Auto"/>
                             <ColumnDefinition Width="*"/>
@@ -407,6 +414,11 @@
                             VerticalAlignment="Center"
                             HorizontalAlignment="Center"
                             Margin="0,0,13,0">
+                    <!-- Center the icon (not the icon+extras group) on the row: a top spacer equal
+                         to the extras' height balances the badge/percent hanging below, so the icon
+                         itself lands on the row's vertical center alongside the text. -->
+                    <Border Height="{Binding ActualHeight, ElementName=ToastIconExtras}"
+                            IsHitTestVisible="False"/>
                     <Grid Width="{Binding ToastIconSize}"
                           Height="{Binding ToastIconSize}"
                           HorizontalAlignment="Center">
@@ -458,7 +470,8 @@
                                 Visibility="{Binding ShowShineBorder, Converter={StaticResource BooleanToVisibilityConverter}}"/>
                     </Grid>
 
-                    <StackPanel Orientation="Horizontal"
+                    <StackPanel x:Name="ToastIconExtras"
+                                Orientation="Horizontal"
                                 HorizontalAlignment="Center"
                                 Margin="0,4,0,0"
                                 Effect="{StaticResource PlayAch.Effect.ContentShadow}">
