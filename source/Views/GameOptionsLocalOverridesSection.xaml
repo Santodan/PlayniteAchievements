@@ -100,6 +100,7 @@
                         <ColumnDefinition Width="Auto" />
                         <ColumnDefinition Width="Auto" />
                         <ColumnDefinition Width="Auto" />
+                        <ColumnDefinition Width="Auto" />
                     </Grid.ColumnDefinitions>
 
                     <TextBox Grid.Column="0"
@@ -111,11 +112,16 @@
                             Padding="12,6"
                             Margin="8,0,0,0" />
                     <Button Grid.Column="2"
+                            Content="{DynamicResource LOCPlayAch_Button_BrowseFile}"
+                            Command="{Binding BrowseLocalAchievementFileOverrideCommand}"
+                            Padding="12,6"
+                            Margin="8,0,0,0" />
+                    <Button Grid.Column="3"
                             Content="{DynamicResource LOCPlayAch_Button_Apply}"
                             Command="{Binding ApplyLocalFolderOverrideCommand}"
                             Padding="12,6"
                             Margin="8,0,0,0" />
-                    <Button Grid.Column="3"
+                    <Button Grid.Column="4"
                             Content="{DynamicResource LOCPlayAch_Button_Clear}"
                             Command="{Binding ClearLocalFolderOverrideCommand}"
                             Padding="12,6"

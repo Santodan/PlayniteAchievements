@@ -314,7 +314,9 @@ namespace PlayniteAchievements.Providers.Local
             // Schema-defined icons from the active schema should always remain usable.
             // Fetch toggle controls whether game/steam icon metadata gets injected upstream.
             var includeSchemaIconFallback = true;
-            var hasFolderOverride = game != null && TryGetFolderOverride(game.Id, out _);
+            string configuredFolderOverridePath = null;
+            var hasFolderOverride = game != null && TryGetFolderOverride(game.Id, out configuredFolderOverridePath);
+            var hasDirectAchievementFileOverride = hasFolderOverride && File.Exists(configuredFolderOverridePath);
             if (string.IsNullOrEmpty(appId))
             {
                 // If no app id is available from metadata, try to resolve it from a configured
@@ -622,6 +624,32 @@ namespace PlayniteAchievements.Providers.Local
                         Log($"SUCCESS: {game.Name} - Found {data.Achievements.Count} achievements from {rawSource}. schemaSource={steamSchemaSource ?? "none"}");
                         return data;
                     }
+                }
+
+                if (hasDirectAchievementFileOverride && hasAchievementsFile)
+                {
+                    // A directly selected achievement file is authoritative. In particular, an
+                    // intentionally empty file must not fall through to Steam appcache/library
+                    // progress and resurrect achievements from a different local source.
+                    if (steamSchema?.Achievements != null)
+                    {
+                        foreach (var schemaAch in steamSchema.Achievements)
+                        {
+                            if (!string.IsNullOrWhiteSpace(schemaAch?.Name))
+                            {
+                                data.Achievements.Add(CreateAchievementDetail(
+                                    schemaAch.Name,
+                                    new LocalEntry(),
+                                    schemaAch,
+                                    steamSchema,
+                                    preferLocalizedSchemaText,
+                                    includeSchemaIconFallback));
+                            }
+                        }
+                    }
+
+                    Log($"SUCCESS: {game.Name} - Direct Local achievement file override produced {data.Achievements.Count} locked achievements; Steam local cache fallbacks were skipped. file={configuredFolderOverridePath}");
+                    return data;
                 }
 
                 if (steamAppCacheEntries != null && steamAppCacheEntries.Count > 0)
@@ -4151,8 +4179,8 @@ namespace PlayniteAchievements.Providers.Local
                 return false;
             }
 
-            jsonPath = Path.Combine(localFolderPath, "achievements.json");
-            return true;
+            jsonPath = ResolveAchievementFilePath(localFolderPath, "achievements.json");
+            return !string.IsNullOrWhiteSpace(jsonPath);
         }
 
         internal bool TryResolveWritableAchievementFilePath(Game game, out string filePath, out LocalAchievementFileKind fileKind, out int appId, out bool isOverridden)
@@ -7317,7 +7345,7 @@ namespace PlayniteAchievements.Providers.Local
 
             if (game != null && TryGetFolderOverride(game.Id, out var overriddenFolderPath))
             {
-                if (Directory.Exists(overriddenFolderPath))
+                if (Directory.Exists(overriddenFolderPath) || File.Exists(overriddenFolderPath))
                 {
                     var overrideCandidates = string.IsNullOrWhiteSpace(appId)
                         ? new List<string>()
@@ -7330,7 +7358,7 @@ namespace PlayniteAchievements.Providers.Local
                     return true;
                 }
 
-                _logger?.Warn($"Local folder override for '{game.Name}' no longer exists: {overriddenFolderPath}");
+                _logger?.Warn($"Local save folder or file override for '{game.Name}' no longer exists: {overriddenFolderPath}");
             }
 
             if (string.IsNullOrWhiteSpace(appId))
@@ -7551,6 +7579,16 @@ namespace PlayniteAchievements.Providers.Local
             if (string.IsNullOrWhiteSpace(folderPath) || string.IsNullOrWhiteSpace(fileName))
             {
                 return null;
+            }
+
+            if (File.Exists(folderPath))
+            {
+                return string.Equals(
+                    Path.GetFileName(folderPath),
+                    fileName,
+                    StringComparison.OrdinalIgnoreCase)
+                    ? folderPath
+                    : null;
             }
 
             var directPath = Path.Combine(folderPath, fileName);
