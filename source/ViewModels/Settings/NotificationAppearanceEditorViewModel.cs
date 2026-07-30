@@ -139,58 +139,61 @@ namespace PlayniteAchievements.ViewModels.Settings
             }
         }
 
-        #region Rarity badge / percent display (single dropdown over three surface flags)
+        #region Rarity badge / percent placement (two dropdowns over the surface flags)
 
-        private static IReadOnlyList<RarityBadgeDisplayOption> _rarityBadgeDisplayOptions;
+        private static IReadOnlyList<RarityBadgePlacementOption> _badgePlacementOptions;
+        private static IReadOnlyList<RarityPercentPlacementOption> _percentPlacementOptions;
 
-        public IReadOnlyList<RarityBadgeDisplayOption> RarityBadgeDisplayOptions =>
-            _rarityBadgeDisplayOptions ?? (_rarityBadgeDisplayOptions = new[]
+        public IReadOnlyList<RarityBadgePlacementOption> BadgePlacementOptions =>
+            _badgePlacementOptions ?? (_badgePlacementOptions = new[]
             {
-                new RarityBadgeDisplayOption(RarityBadgeDisplay.BadgeAndPercentFooter, L("LOCPlayAch_Settings_Style_Rarity_BadgePercentFooter")),
-                new RarityBadgeDisplayOption(RarityBadgeDisplay.BadgeFooter, L("LOCPlayAch_Settings_Style_Rarity_BadgeFooter")),
-                new RarityBadgeDisplayOption(RarityBadgeDisplay.PercentFooter, L("LOCPlayAch_Settings_Style_Rarity_PercentFooter")),
-                new RarityBadgeDisplayOption(RarityBadgeDisplay.InlineBadge, L("LOCPlayAch_Settings_Style_Rarity_InlineBadge")),
-                new RarityBadgeDisplayOption(RarityBadgeDisplay.None, L("LOCPlayAch_Common_None"))
+                new RarityBadgePlacementOption(RarityBadgePlacement.None, L("LOCPlayAch_Common_None")),
+                new RarityBadgePlacementOption(RarityBadgePlacement.UnderIcon, L("LOCPlayAch_Settings_Style_Rarity_BadgeUnderIcon")),
+                new RarityBadgePlacementOption(RarityBadgePlacement.Inline, L("LOCPlayAch_Settings_Style_Rarity_InlineBadge")),
+                new RarityBadgePlacementOption(RarityBadgePlacement.Right, L("LOCPlayAch_Settings_Style_Rarity_BadgeRight"))
+            });
+
+        public IReadOnlyList<RarityPercentPlacementOption> PercentPlacementOptions =>
+            _percentPlacementOptions ?? (_percentPlacementOptions = new[]
+            {
+                new RarityPercentPlacementOption(RarityPercentPlacement.None, L("LOCPlayAch_Common_None")),
+                new RarityPercentPlacementOption(RarityPercentPlacement.UnderIcon, L("LOCPlayAch_Settings_Style_Rarity_PercentUnderIcon")),
+                new RarityPercentPlacementOption(RarityPercentPlacement.WithBadge, L("LOCPlayAch_Settings_Style_Rarity_PercentWithBadge"))
             });
 
         /// <summary>
-        /// The rarity badge/percent layout, derived from and written back to the surface's
-        /// three flags (footer badge, footer percent, inline badge). The dropdown keeps them in
-        /// a consistent, mutually exclusive combination.
+        /// Rarity badge placement, derived from and written back to the surface's footer / inline /
+        /// right badge flags, which the dropdown keeps mutually exclusive.
         /// </summary>
-        public RarityBadgeDisplayOption SelectedRarityBadgeDisplay
+        public RarityBadgePlacementOption SelectedBadgePlacement
         {
             get
             {
                 var surface = Surface;
-                RarityBadgeDisplay value;
+                RarityBadgePlacement value;
                 if (surface == null)
                 {
-                    value = RarityBadgeDisplay.BadgeAndPercentFooter;
+                    value = RarityBadgePlacement.UnderIcon;
+                }
+                else if (surface.RightRarityBadge)
+                {
+                    value = RarityBadgePlacement.Right;
                 }
                 else if (surface.InlineRarityBadge)
                 {
-                    value = RarityBadgeDisplay.InlineBadge;
-                }
-                else if (surface.ShowRarityBadge && surface.ShowRarityPercent)
-                {
-                    value = RarityBadgeDisplay.BadgeAndPercentFooter;
+                    value = RarityBadgePlacement.Inline;
                 }
                 else if (surface.ShowRarityBadge)
                 {
-                    value = RarityBadgeDisplay.BadgeFooter;
-                }
-                else if (surface.ShowRarityPercent)
-                {
-                    value = RarityBadgeDisplay.PercentFooter;
+                    value = RarityBadgePlacement.UnderIcon;
                 }
                 else
                 {
-                    value = RarityBadgeDisplay.None;
+                    value = RarityBadgePlacement.None;
                 }
 
-                return RarityBadgeDisplayOptions.FirstOrDefault(option => option.Value == value)
-                       ?? RarityBadgeDisplayOptions[0];
+                return BadgePlacementOptions.FirstOrDefault(option => option.Value == value)
+                       ?? BadgePlacementOptions[0];
             }
             set
             {
@@ -201,13 +204,61 @@ namespace PlayniteAchievements.ViewModels.Settings
                 }
 
                 var mode = value.Value;
-                surface.ShowRarityBadge = mode == RarityBadgeDisplay.BadgeAndPercentFooter ||
-                                          mode == RarityBadgeDisplay.BadgeFooter;
-                surface.ShowRarityPercent = mode == RarityBadgeDisplay.BadgeAndPercentFooter ||
-                                            mode == RarityBadgeDisplay.PercentFooter;
-                surface.InlineRarityBadge = mode == RarityBadgeDisplay.InlineBadge;
+                surface.ShowRarityBadge = mode == RarityBadgePlacement.UnderIcon;
+                surface.InlineRarityBadge = mode == RarityBadgePlacement.Inline;
+                surface.RightRarityBadge = mode == RarityBadgePlacement.Right;
             }
         }
+
+        /// <summary>
+        /// Rarity percent placement, derived from and written back to the surface's percent
+        /// visibility and under-badge flags.
+        /// </summary>
+        public RarityPercentPlacementOption SelectedPercentPlacement
+        {
+            get
+            {
+                var surface = Surface;
+                RarityPercentPlacement value;
+                if (surface == null)
+                {
+                    value = RarityPercentPlacement.UnderIcon;
+                }
+                else if (!surface.ShowRarityPercent)
+                {
+                    value = RarityPercentPlacement.None;
+                }
+                else if (surface.RarityPercentUnderBadge)
+                {
+                    value = RarityPercentPlacement.WithBadge;
+                }
+                else
+                {
+                    value = RarityPercentPlacement.UnderIcon;
+                }
+
+                return PercentPlacementOptions.FirstOrDefault(option => option.Value == value)
+                       ?? PercentPlacementOptions[0];
+            }
+            set
+            {
+                var surface = Surface;
+                if (surface == null || value == null)
+                {
+                    return;
+                }
+
+                var mode = value.Value;
+                surface.ShowRarityPercent = mode != RarityPercentPlacement.None;
+                surface.RarityPercentUnderBadge = mode == RarityPercentPlacement.WithBadge;
+            }
+        }
+
+        /// <summary>
+        /// Whether the provider-icon toggle is meaningful: the right-side badge replaces the
+        /// provider icon, so the toggle is disabled while that badge placement is selected.
+        /// </summary>
+        public bool IsProviderIconEnabled => Surface != null && !Surface.RightRarityBadge;
 
         #endregion
 
@@ -975,7 +1026,9 @@ namespace PlayniteAchievements.ViewModels.Settings
             OnPropertyChanged(nameof(ProviderKey));
             OnPropertyChanged(nameof(IsEditable));
             OnPropertyChanged(nameof(SelectedFontFamilyOption));
-            OnPropertyChanged(nameof(SelectedRarityBadgeDisplay));
+            OnPropertyChanged(nameof(SelectedBadgePlacement));
+            OnPropertyChanged(nameof(SelectedPercentPlacement));
+            OnPropertyChanged(nameof(IsProviderIconEnabled));
             OnPropertyChanged(nameof(SelectedGlowDisplay));
             OnPropertyChanged(nameof(CountdownBarColorText));
             OnPropertyChanged(nameof(CountdownBarSwatch));
@@ -1093,9 +1146,13 @@ namespace PlayniteAchievements.ViewModels.Settings
             }
             else if (e.PropertyName == nameof(NotificationSurfaceStyle.ShowRarityBadge) ||
                      e.PropertyName == nameof(NotificationSurfaceStyle.ShowRarityPercent) ||
-                     e.PropertyName == nameof(NotificationSurfaceStyle.InlineRarityBadge))
+                     e.PropertyName == nameof(NotificationSurfaceStyle.InlineRarityBadge) ||
+                     e.PropertyName == nameof(NotificationSurfaceStyle.RightRarityBadge) ||
+                     e.PropertyName == nameof(NotificationSurfaceStyle.RarityPercentUnderBadge))
             {
-                OnPropertyChanged(nameof(SelectedRarityBadgeDisplay));
+                OnPropertyChanged(nameof(SelectedBadgePlacement));
+                OnPropertyChanged(nameof(SelectedPercentPlacement));
+                OnPropertyChanged(nameof(IsProviderIconEnabled));
             }
             else if (e.PropertyName == nameof(NotificationSurfaceStyle.ShowRarityGlow) ||
                      e.PropertyName == nameof(NotificationSurfaceStyle.NotificationBorderGlow))
@@ -1234,29 +1291,54 @@ namespace PlayniteAchievements.ViewModels.Settings
     }
 
     /// <summary>
-    /// Rarity badge/percent layout choices offered by the single "Rarity" dropdown.
+    /// Rarity badge placement offered by the "Rarity badge" dropdown.
     /// </summary>
-    internal enum RarityBadgeDisplay
+    internal enum RarityBadgePlacement
     {
-        BadgeAndPercentFooter,
-        BadgeFooter,
-        PercentFooter,
-        InlineBadge,
-        None
+        None,
+        UnderIcon,
+        Inline,
+        Right
     }
 
     /// <summary>
-    /// One entry of the rarity display dropdown: the layout value and its localized label.
+    /// Rarity percent placement offered by the "Rarity percent" dropdown.
     /// </summary>
-    internal sealed class RarityBadgeDisplayOption
+    internal enum RarityPercentPlacement
     {
-        public RarityBadgeDisplayOption(RarityBadgeDisplay value, string display)
+        None,
+        UnderIcon,
+        WithBadge
+    }
+
+    /// <summary>
+    /// One entry of the rarity badge placement dropdown: the value and its localized label.
+    /// </summary>
+    internal sealed class RarityBadgePlacementOption
+    {
+        public RarityBadgePlacementOption(RarityBadgePlacement value, string display)
         {
             Value = value;
             Display = display;
         }
 
-        public RarityBadgeDisplay Value { get; }
+        public RarityBadgePlacement Value { get; }
+
+        public string Display { get; }
+    }
+
+    /// <summary>
+    /// One entry of the rarity percent placement dropdown: the value and its localized label.
+    /// </summary>
+    internal sealed class RarityPercentPlacementOption
+    {
+        public RarityPercentPlacementOption(RarityPercentPlacement value, string display)
+        {
+            Value = value;
+            Display = display;
+        }
+
+        public RarityPercentPlacement Value { get; }
 
         public string Display { get; }
     }
