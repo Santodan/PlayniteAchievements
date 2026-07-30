@@ -65,6 +65,15 @@
                       Opacity="0.6"
                       Color="#FF000000"/>
 
+    <!-- Stronger variant for the muted secondary-color text lines (header, description,
+         game/category), which are the hardest to read over busy background images. -->
+    <DropShadowEffect x:Key="PlayAch.Effect.ContentShadowStrong"
+                      BlurRadius="5"
+                      ShadowDepth="1"
+                      Direction="315"
+                      Opacity="0.95"
+                      Color="#FF000000"/>
+
     <!--
         Shared text-line templates for the toast and frame surfaces. Both templates render an
         ItemsControl over the view model's ToastLines/FrameLines, so the user's line order is
@@ -78,7 +87,7 @@
     <DataTemplate DataType="{x:Type vm:ToastHeaderLine}">
         <StackPanel Orientation="Horizontal"
                     VerticalAlignment="Center"
-                    Effect="{StaticResource PlayAch.Effect.ContentShadow}">
+                    Effect="{StaticResource PlayAch.Effect.ContentShadowStrong}">
             <Border Width="16"
                     Height="16"
                     CornerRadius="8"
@@ -216,7 +225,7 @@
                    TextTrimming="CharacterEllipsis"
                    MaxHeight="{Binding MaxTextHeight}"
                    Margin="0,2,0,0"
-                   Effect="{StaticResource PlayAch.Effect.ContentShadow}"
+                   Effect="{StaticResource PlayAch.Effect.ContentShadowStrong}"
                    Visibility="{Binding ShowDescription, Converter={StaticResource BooleanToVisibilityConverter}}"/>
     </DataTemplate>
 
@@ -232,7 +241,7 @@
                    TextWrapping="NoWrap"
                    TextTrimming="CharacterEllipsis"
                    Margin="0,2,0,0"
-                   Effect="{StaticResource PlayAch.Effect.ContentShadow}"
+                   Effect="{StaticResource PlayAch.Effect.ContentShadowStrong}"
                    Visibility="{Binding HasGameCategoryContent, Converter={StaticResource BooleanToVisibilityConverter}}"/>
     </DataTemplate>
 
