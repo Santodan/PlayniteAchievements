@@ -165,6 +165,53 @@
             </Grid>
         </Border>
 
+        <!-- Element sizes (both surfaces). A blank box uses the surface default. -->
+        <Border Style="{StaticResource EditorCardStyle}">
+            <StackPanel>
+                <TextBlock Text="{DynamicResource LOCPlayAch_Settings_Style_SizeHeader}"
+                           Style="{StaticResource EditorSubGroupHeaderStyle}"/>
+                <Grid HorizontalAlignment="Left">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="Auto" MinWidth="90"/>
+                        <ColumnDefinition Width="Auto"/>
+                    </Grid.ColumnDefinitions>
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="Auto"/>
+                    </Grid.RowDefinitions>
+
+                    <TextBlock Grid.Row="0" Grid.Column="0"
+                               Text="{DynamicResource LOCPlayAch_Column_Icon}"
+                               Style="{StaticResource EditorRowLabelStyle}"
+                               Margin="0,0,8,8"/>
+                    <TextBox Grid.Row="0" Grid.Column="1"
+                             Text="{Binding IconSizeText, Mode=TwoWay, UpdateSourceTrigger=LostFocus}"
+                             Width="70"
+                             TextAlignment="Right"
+                             Margin="0,0,0,8"/>
+
+                    <TextBlock Grid.Row="1" Grid.Column="0"
+                               Text="{DynamicResource LOCPlayAch_Settings_Style_Rarity_BadgeLabel}"
+                               Style="{StaticResource EditorRowLabelStyle}"
+                               Margin="0,0,8,8"/>
+                    <TextBox Grid.Row="1" Grid.Column="1"
+                             Text="{Binding RarityBadgeSizeText, Mode=TwoWay, UpdateSourceTrigger=LostFocus}"
+                             Width="70"
+                             TextAlignment="Right"
+                             Margin="0,0,0,8"/>
+
+                    <TextBlock Grid.Row="2" Grid.Column="0"
+                               Text="{DynamicResource LOCPlayAch_Common_Label_Platform}"
+                               Style="{StaticResource EditorRowLabelStyle}"/>
+                    <TextBox Grid.Row="2" Grid.Column="1"
+                             Text="{Binding ProviderIconSizeText, Mode=TwoWay, UpdateSourceTrigger=LostFocus}"
+                             Width="70"
+                             TextAlignment="Right"/>
+                </Grid>
+            </StackPanel>
+        </Border>
+
         <!-- Toast-only chrome and card size: the frame has no accent strip, timer bar, or free
              card size. -->
         <Border Style="{StaticResource EditorCardStyle}"
