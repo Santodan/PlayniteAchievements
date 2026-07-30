@@ -541,6 +541,12 @@ namespace PlayniteAchievements.Views.Settings.General
         /// Rebuilds both inline mockups from the resolved templates and the style being edited
         /// so every toggle, reorder, image, and font change previews live.
         /// </summary>
+        // The custom-template scope for the current selection: a game in game mode, else the
+        // selected provider (null = global). Mirrors how the .pastyle style scope is chosen.
+        private string ScopeProviderKey => IsGameMode ? null : _selectedProviderKey;
+
+        private Guid ScopeGameId => IsGameMode ? _gameId : Guid.Empty;
+
         private void UpdateMockups()
         {
             var persisted = _settings?.Persisted;
@@ -551,7 +557,7 @@ namespace PlayniteAchievements.Views.Settings.General
             }
 
             ToastMockupHost.ContentTemplate =
-                _toastTemplateResolver.ResolveTemplate(_currentToastUseThemeStyling);
+                _toastTemplateResolver.ResolveTemplate(_currentToastUseThemeStyling, ScopeProviderKey, ScopeGameId);
             ToastMockupHost.Content = new AchievementToastViewModel(
                 BuildPreviewArgs("mockup"),
                 persisted,
@@ -561,7 +567,7 @@ namespace PlayniteAchievements.Views.Settings.General
                 frameUseThemeStylingOverride: _currentFrameUseThemeStyling);
 
             FrameMockupHost.ContentTemplate =
-                _toastTemplateResolver.ResolveFrameTemplate(_currentFrameUseThemeStyling);
+                _toastTemplateResolver.ResolveFrameTemplate(_currentFrameUseThemeStyling, ScopeProviderKey, ScopeGameId);
             FrameMockupHost.Content = new AchievementToastViewModel(
                 BuildPreviewArgs("mockup"),
                 persisted,
@@ -620,7 +626,7 @@ namespace PlayniteAchievements.Views.Settings.General
 
             CloseFramePreview();
 
-            var template = _toastTemplateResolver.ResolvePreviewTemplate(source, isFrame: true);
+            var template = _toastTemplateResolver.ResolvePreviewTemplate(source, isFrame: true, ScopeProviderKey, ScopeGameId);
             if (template == null)
             {
                 return;
@@ -803,12 +809,12 @@ namespace PlayniteAchievements.Views.Settings.General
                     {
                         if (Confirm(L("LOCPlayAch_Settings_Style_ExportIncludeToastTemplate")))
                         {
-                            toastTemplateXaml = resolver.ReadEffectiveTemplateXaml(isFrame: false);
+                            toastTemplateXaml = resolver.ReadEffectiveTemplateXaml(isFrame: false, ScopeProviderKey, ScopeGameId);
                         }
 
                         if (Confirm(L("LOCPlayAch_Settings_Style_ExportIncludeFrameTemplate")))
                         {
-                            frameTemplateXaml = resolver.ReadEffectiveTemplateXaml(isFrame: true);
+                            frameTemplateXaml = resolver.ReadEffectiveTemplateXaml(isFrame: true, ScopeProviderKey, ScopeGameId);
                         }
                     }
 
@@ -1039,7 +1045,7 @@ namespace PlayniteAchievements.Views.Settings.General
                     return;
                 }
 
-                resolver.SaveCustomTemplate(isFrame, xaml);
+                resolver.SaveCustomTemplate(isFrame, xaml, ScopeProviderKey, ScopeGameId);
             }
             catch (Exception ex)
             {
@@ -1072,7 +1078,7 @@ namespace PlayniteAchievements.Views.Settings.General
 
             try
             {
-                if (!resolver.HasCustomTemplate(isFrame))
+                if (!resolver.HasCustomTemplate(isFrame, ScopeProviderKey, ScopeGameId))
                 {
                     _plugin.PlayniteApi?.Dialogs?.ShowMessage(
                         L("LOCPlayAch_Settings_Style_NoCustomTemplate"),
@@ -1082,7 +1088,7 @@ namespace PlayniteAchievements.Views.Settings.General
                     return;
                 }
 
-                resolver.DeleteCustomTemplate(isFrame);
+                resolver.DeleteCustomTemplate(isFrame, ScopeProviderKey, ScopeGameId);
                 UpdateMockups();
 
                 _plugin.PlayniteApi?.Dialogs?.ShowMessage(
