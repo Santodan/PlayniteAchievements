@@ -84,38 +84,97 @@ namespace PlayniteAchievements.Services.UI
         }
 
         /// <summary>
-        /// Full path to the plugin-owned custom template file for the surface, or null when no
-        /// custom-templates directory was supplied (e.g. tests).
+        /// The directory for a specific custom-template scope: a game (highest), a provider, or the
+        /// global default. Mirrors the notification-image owner layout. Null when no custom-templates
+        /// directory was supplied (e.g. tests).
         /// </summary>
-        public string GetCustomTemplatePath(bool isFrame)
+        private string GetScopeDirectory(string providerKey, Guid gameId)
         {
             if (_customTemplatesDirectory == null)
             {
                 return null;
             }
 
-            return Path.Combine(
-                _customTemplatesDirectory,
-                isFrame ? CustomFrameTemplateFileName : CustomToastTemplateFileName);
+            if (gameId != Guid.Empty)
+            {
+                return Path.Combine(_customTemplatesDirectory, "games", gameId.ToString("D"));
+            }
+
+            if (!string.IsNullOrWhiteSpace(providerKey))
+            {
+                return Path.Combine(_customTemplatesDirectory, "providers", providerKey.Trim());
+            }
+
+            return Path.Combine(_customTemplatesDirectory, "global");
         }
 
-        /// <summary>True when a plugin-owned custom template is installed for the surface.</summary>
-        public bool HasCustomTemplate(bool isFrame)
+        /// <summary>
+        /// Exact file path for one scope's custom template (used to install / remove / read that
+        /// scope), or null when no directory is configured. Does not fall back across scopes.
+        /// </summary>
+        public string GetScopedCustomTemplatePath(bool isFrame, string providerKey, Guid gameId)
         {
-            var path = GetCustomTemplatePath(isFrame);
+            var directory = GetScopeDirectory(providerKey, gameId);
+            return directory == null
+                ? null
+                : Path.Combine(directory, isFrame ? CustomFrameTemplateFileName : CustomToastTemplateFileName);
+        }
+
+        /// <summary>
+        /// The custom template that applies for an unlock, resolved most-specific first: the game's
+        /// template, then the provider's, then the global default. Returns the first that exists on
+        /// disk, or null when none is installed.
+        /// </summary>
+        public string ResolveCustomTemplatePath(bool isFrame, string providerKey, Guid gameId)
+        {
+            if (_customTemplatesDirectory == null)
+            {
+                return null;
+            }
+
+            if (gameId != Guid.Empty)
+            {
+                var gamePath = GetScopedCustomTemplatePath(isFrame, null, gameId);
+                if (!string.IsNullOrWhiteSpace(gamePath) && File.Exists(gamePath))
+                {
+                    return gamePath;
+                }
+            }
+
+            if (!string.IsNullOrWhiteSpace(providerKey))
+            {
+                var providerPath = GetScopedCustomTemplatePath(isFrame, providerKey, Guid.Empty);
+                if (!string.IsNullOrWhiteSpace(providerPath) && File.Exists(providerPath))
+                {
+                    return providerPath;
+                }
+            }
+
+            var globalPath = GetScopedCustomTemplatePath(isFrame, null, Guid.Empty);
+            return !string.IsNullOrWhiteSpace(globalPath) && File.Exists(globalPath) ? globalPath : null;
+        }
+
+        /// <summary>True when a custom template is installed for the exact scope.</summary>
+        public bool HasCustomTemplate(bool isFrame, string providerKey, Guid gameId)
+        {
+            var path = GetScopedCustomTemplatePath(isFrame, providerKey, gameId);
             return !string.IsNullOrWhiteSpace(path) && File.Exists(path);
         }
 
-        public DataTemplate ResolveTemplate(bool allowThemeSources = true)
+        public DataTemplate ResolveTemplate(bool allowThemeSources = true, string providerKey = null, Guid gameId = default)
         {
-            return ResolveTemplate(Application.Current?.Resources, allowThemeSources);
+            return ResolveTemplate(Application.Current?.Resources, allowThemeSources, providerKey, gameId);
         }
 
-        public DataTemplate ResolveTemplate(ResourceDictionary applicationResources, bool allowThemeSources = true)
+        public DataTemplate ResolveTemplate(
+            ResourceDictionary applicationResources,
+            bool allowThemeSources = true,
+            string providerKey = null,
+            Guid gameId = default)
         {
             return ResolveResource<DataTemplate>(
                 applicationResources, TemplateKey, ThemeOverrideRelativePath, _loadDefaultTemplate, allowThemeSources,
-                GetCustomTemplatePath(isFrame: false));
+                ResolveCustomTemplatePath(isFrame: false, providerKey, gameId));
         }
 
         /// <summary>
@@ -123,16 +182,20 @@ namespace PlayniteAchievements.Services.UI
         /// never shown on screen) using the same theme-override precedence as the toast template,
         /// except the theme file is PlayniteAchievements\ScreenshotFrame.xaml.
         /// </summary>
-        public DataTemplate ResolveFrameTemplate(bool allowThemeSources = true)
+        public DataTemplate ResolveFrameTemplate(bool allowThemeSources = true, string providerKey = null, Guid gameId = default)
         {
-            return ResolveFrameTemplate(Application.Current?.Resources, allowThemeSources);
+            return ResolveFrameTemplate(Application.Current?.Resources, allowThemeSources, providerKey, gameId);
         }
 
-        public DataTemplate ResolveFrameTemplate(ResourceDictionary applicationResources, bool allowThemeSources = true)
+        public DataTemplate ResolveFrameTemplate(
+            ResourceDictionary applicationResources,
+            bool allowThemeSources = true,
+            string providerKey = null,
+            Guid gameId = default)
         {
             return ResolveResource<DataTemplate>(
                 applicationResources, FrameTemplateKey, FrameThemeOverrideRelativePath, _loadDefaultFrameTemplate, allowThemeSources,
-                GetCustomTemplatePath(isFrame: true));
+                ResolveCustomTemplatePath(isFrame: true, providerKey, gameId));
         }
 
         /// <summary>
@@ -141,17 +204,22 @@ namespace PlayniteAchievements.Services.UI
         /// theme's override (which renders because its resources are loaded in the active mode).
         /// Falls back to the bundled template when the active theme ships no override.
         /// </summary>
-        public DataTemplate ResolvePreviewTemplate(NotificationTemplatePreviewSource source, bool isFrame)
+        public DataTemplate ResolvePreviewTemplate(
+            NotificationTemplatePreviewSource source,
+            bool isFrame,
+            string providerKey = null,
+            Guid gameId = default)
         {
             var key = isFrame ? FrameTemplateKey : TemplateKey;
             var overrideRelativePath = isFrame ? FrameThemeOverrideRelativePath : ThemeOverrideRelativePath;
             var pluginDefault = isFrame ? _loadDefaultFrameTemplate : _loadDefaultTemplate;
+            var customPath = ResolveCustomTemplatePath(isFrame, providerKey, gameId);
 
             if (source == NotificationTemplatePreviewSource.PluginStyle)
             {
                 // The plugin-owned path: the installed custom template if present, else the
                 // bundled default (themes are intentionally skipped for this preview).
-                if (TryLoadCustomTemplateResource<DataTemplate>(GetCustomTemplatePath(isFrame), key, out var custom))
+                if (TryLoadCustomTemplateResource<DataTemplate>(customPath, key, out var custom))
                 {
                     return custom;
                 }
@@ -163,7 +231,7 @@ namespace PlayniteAchievements.Services.UI
             // resource, then the theme's override file, then the custom template, then bundled).
             return ResolveResource<DataTemplate>(
                 Application.Current?.Resources, key, overrideRelativePath, pluginDefault, allowThemeSources: true,
-                GetCustomTemplatePath(isFrame));
+                customPath);
         }
 
         /// <summary>
@@ -679,9 +747,9 @@ namespace PlayniteAchievements.Services.UI
         /// custom-templates directory and evicting the cached parse so the next resolve reloads it.
         /// Throws when no directory is configured or the XAML fails validation.
         /// </summary>
-        public void SaveCustomTemplate(bool isFrame, string xaml)
+        public void SaveCustomTemplate(bool isFrame, string xaml, string providerKey, Guid gameId)
         {
-            var path = GetCustomTemplatePath(isFrame);
+            var path = GetScopedCustomTemplatePath(isFrame, providerKey, gameId);
             if (path == null)
             {
                 throw new InvalidOperationException("No custom templates directory is configured.");
@@ -697,10 +765,13 @@ namespace PlayniteAchievements.Services.UI
             ThemeDictionaryCache.Remove($"custom|{path}");
         }
 
-        /// <summary>Removes the installed custom template for the surface, reverting to theme/bundled.</summary>
-        public void DeleteCustomTemplate(bool isFrame)
+        /// <summary>
+        /// Removes the installed custom template for the exact scope, reverting that scope to the
+        /// next-most-specific custom template, then theme/bundled.
+        /// </summary>
+        public void DeleteCustomTemplate(bool isFrame, string providerKey, Guid gameId)
         {
-            var path = GetCustomTemplatePath(isFrame);
+            var path = GetScopedCustomTemplatePath(isFrame, providerKey, gameId);
             if (string.IsNullOrWhiteSpace(path) || !File.Exists(path))
             {
                 return;
@@ -725,9 +796,9 @@ namespace PlayniteAchievements.Services.UI
         /// qualified namespaces, merged plugin dictionary, the template key). Never returns the
         /// compiled bundled template (its source is not shippable as loose XAML).
         /// </summary>
-        public string ReadEffectiveTemplateXaml(bool isFrame)
+        public string ReadEffectiveTemplateXaml(bool isFrame, string providerKey, Guid gameId)
         {
-            var customPath = GetCustomTemplatePath(isFrame);
+            var customPath = ResolveCustomTemplatePath(isFrame, providerKey, gameId);
             if (!string.IsNullOrWhiteSpace(customPath) && File.Exists(customPath))
             {
                 try
