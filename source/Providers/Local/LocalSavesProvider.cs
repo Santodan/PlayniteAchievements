@@ -4231,7 +4231,55 @@ namespace PlayniteAchievements.Providers.Local
                 return false;
             }
 
-            return TryResolveLocalFolder(game, appId.ToString(CultureInfo.InvariantCulture), out selectedFolderPath, out candidateFolders, out isOverridden, out isAmbiguous);
+            var appIdText = appId.ToString(CultureInfo.InvariantCulture);
+
+            // An explicit per-game override must always remain visible, including an override
+            // that deliberately points at Steam's appcache stats directory.
+            if (TryGetFolderOverride(game.Id, out _))
+            {
+                return TryResolveLocalFolder(
+                    game,
+                    appIdText,
+                    out selectedFolderPath,
+                    out candidateFolders,
+                    out isOverridden,
+                    out isAmbiguous);
+            }
+
+            // Steam appcache is an internal cache source, not a local-save folder. It is added
+            // to automatic Local-provider discovery so its app-specific binary stats can be
+            // consumed, but showing it under "Local save folder override" incorrectly implies
+            // that the game is configured to read a local save from that directory.
+            var localSaveCandidates = FindLocalFolders(appIdText)
+                .Where(path => !IsSteamAppCacheStatsRoot(path))
+                .ToList();
+            candidateFolders = localSaveCandidates;
+
+            if (localSaveCandidates.Count == 0)
+            {
+                return false;
+            }
+
+            if (localSaveCandidates.Count == 1)
+            {
+                selectedFolderPath = localSaveCandidates[0];
+                return true;
+            }
+
+            isAmbiguous = true;
+            selectedFolderPath = ChooseBestLocalFolderCandidate(localSaveCandidates);
+            return !string.IsNullOrWhiteSpace(selectedFolderPath);
+        }
+
+        private bool IsSteamAppCacheStatsRoot(string path)
+        {
+            var normalizedPath = NormalizeDirectoryPath(path);
+            return !string.IsNullOrWhiteSpace(normalizedPath) &&
+                GetSteamAppCacheStatsRoots().Any(root =>
+                    string.Equals(
+                        NormalizeDirectoryPath(root),
+                        normalizedPath,
+                        StringComparison.OrdinalIgnoreCase));
         }
 
         public async Task<ExpectedAchievementsDownloadResult> DownloadExpectedAchievementsFileAsync(Game game, CancellationToken token)

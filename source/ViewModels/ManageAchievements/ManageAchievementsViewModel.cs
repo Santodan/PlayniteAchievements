@@ -1610,7 +1610,9 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
         private static string L(string key, string fallback)
         {
             var value = ResourceProvider.GetString(key);
-            return string.IsNullOrWhiteSpace(value) || string.Equals(value, key, StringComparison.Ordinal)
+            return string.IsNullOrWhiteSpace(value) ||
+                   string.Equals(value, key, StringComparison.Ordinal) ||
+                   string.Equals(value, $"<!{key}!>", StringComparison.Ordinal)
                 ? fallback
                 : value;
         }

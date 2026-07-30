@@ -103,7 +103,9 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
                 if (HasLocalFolderOverride) return string.Format(L("LOCPlayAch_Common_Status_OverrideSetValue", "Override set: {0}"), LocalFolderOverrideValue);
                 if (HasAmbiguousLocalFolders) return string.Format(L("LOCPlayAch_GameOptions_Status_LocalFolderAmbiguous", "Multiple local folders found. Using: {0}"), LocalFolderAutoPath);
                 if (!string.IsNullOrWhiteSpace(LocalFolderAutoPath)) return string.Format(L("LOCPlayAch_GameOptions_Status_LocalFolderAuto", "Detected folder: {0}"), LocalFolderAutoPath);
-                return L("LOCPlayAch_GameOptions_Status_LocalFolderNone", "No local folder detected");
+                return L(
+                    "LOCPlayAch_GameOptions_Status_LocalFolderNotInUse",
+                    "Not using a local save folder");
             }
         }
 

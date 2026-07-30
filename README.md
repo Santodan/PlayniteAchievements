@@ -105,6 +105,7 @@ The entries below are fork-side changes, grouped by date. When a date includes a
 - Changed the trigger for the `Achievement Notification` to use the one from the original fork
 - Changed the screenshot in the `Achievement Notification` to use the one from the original fork but with these custom settings
 - Added the video settings to the `Achievement Notification` to use the one from the original fork but with these custom settings
+- Change the `Local save folder override` to mention that it isn't using any local folder if that's the case
 
 ## 2026-07-27 - v2.5.3.4
 
