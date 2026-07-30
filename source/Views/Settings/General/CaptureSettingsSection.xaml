@@ -34,41 +34,95 @@
 
                         <StackPanel Margin="18,0,0,0"
                                     IsEnabled="{Binding Persisted.EnableUnlockScreenshots}">
-                            <WrapPanel Margin="0,0,0,6">
-                                <CheckBox Content="{DynamicResource LOCPlayAch_Settings_ScreenshotVariantClean}"
-                                          IsChecked="{Binding Persisted.UnlockScreenshotClean}"
-                                          Margin="0,0,14,8"/>
-                                <CheckBox Content="{DynamicResource LOCPlayAch_Settings_ScreenshotVariantWithToast}"
-                                          IsChecked="{Binding Persisted.UnlockScreenshotWithToast}"
-                                          Margin="0,0,14,8"/>
-                                <CheckBox Content="{DynamicResource LOCPlayAch_Settings_ScreenshotVariantFramed}"
-                                          IsChecked="{Binding Persisted.UnlockScreenshotFramed}"
-                                          Margin="0,0,14,8"/>
-                            </WrapPanel>
+                            <!-- Clean variant: independent rarity threshold + completion bypass -->
+                            <CheckBox Content="{DynamicResource LOCPlayAch_Settings_ScreenshotVariantClean}"
+                                      IsChecked="{Binding Persisted.UnlockScreenshotClean}"
+                                      Margin="0,0,0,4"/>
+                            <StackPanel Margin="18,0,0,10"
+                                        IsEnabled="{Binding Persisted.UnlockScreenshotClean}">
+                                <Grid Margin="0,0,0,6">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*"/>
+                                        <ColumnDefinition Width="Auto"/>
+                                    </Grid.ColumnDefinitions>
+                                    <TextBlock Grid.Column="0"
+                                               Text="{DynamicResource LOCPlayAch_Settings_CaptureMinimumRarity}"
+                                               Foreground="{DynamicResource PlayAch.Brush.Text}"
+                                               VerticalAlignment="Center"
+                                               Margin="0,0,8,0"/>
+                                    <ComboBox Grid.Column="1"
+                                              SelectedValue="{Binding Persisted.UnlockScreenshotCleanMinimumRarity, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                              SelectedValuePath="Tag"
+                                              MinWidth="140">
+                                        <ComboBoxItem Content="{DynamicResource LOCPlayAch_Common_All}" Tag="{x:Static ach:RarityTier.Common}"/>
+                                        <ComboBoxItem Content="{DynamicResource LOCPlayAch_Rarity_Uncommon}" Tag="{x:Static ach:RarityTier.Uncommon}"/>
+                                        <ComboBoxItem Content="{DynamicResource LOCPlayAch_Rarity_Rare}" Tag="{x:Static ach:RarityTier.Rare}"/>
+                                        <ComboBoxItem Content="{DynamicResource LOCPlayAch_Rarity_UltraRare}" Tag="{x:Static ach:RarityTier.UltraRare}"/>
+                                    </ComboBox>
+                                </Grid>
+                                <CheckBox Content="{DynamicResource LOCPlayAch_Settings_AlwaysCaptureCompletion}"
+                                          IsChecked="{Binding Persisted.UnlockScreenshotCleanAlwaysCaptureCompletion}"/>
+                            </StackPanel>
 
-                            <Grid Margin="0,0,0,8">
-                                <Grid.ColumnDefinitions>
-                                    <ColumnDefinition Width="*"/>
-                                    <ColumnDefinition Width="Auto"/>
-                                </Grid.ColumnDefinitions>
-                                <TextBlock Grid.Column="0"
-                                           Text="{DynamicResource LOCPlayAch_Settings_CaptureMinimumRarity}"
-                                           Foreground="{DynamicResource PlayAch.Brush.Text}"
-                                           VerticalAlignment="Center"
-                                           Margin="0,0,8,0"/>
-                                <ComboBox Grid.Column="1"
-                                          SelectedValue="{Binding Persisted.UnlockScreenshotMinimumRarity, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
-                                          SelectedValuePath="Tag"
-                                          MinWidth="140">
-                                    <ComboBoxItem Content="{DynamicResource LOCPlayAch_Common_All}" Tag="{x:Static ach:RarityTier.Common}"/>
-                                    <ComboBoxItem Content="{DynamicResource LOCPlayAch_Rarity_Uncommon}" Tag="{x:Static ach:RarityTier.Uncommon}"/>
-                                    <ComboBoxItem Content="{DynamicResource LOCPlayAch_Rarity_Rare}" Tag="{x:Static ach:RarityTier.Rare}"/>
-                                    <ComboBoxItem Content="{DynamicResource LOCPlayAch_Rarity_UltraRare}" Tag="{x:Static ach:RarityTier.UltraRare}"/>
-                                </ComboBox>
-                            </Grid>
-                            <CheckBox Content="{DynamicResource LOCPlayAch_Settings_AlwaysCaptureCompletion}"
-                                      IsChecked="{Binding Persisted.UnlockScreenshotAlwaysCaptureCompletion}"
-                                      Margin="0,0,0,10"/>
+                            <!-- With-notification variant: independent rarity threshold + completion bypass -->
+                            <CheckBox Content="{DynamicResource LOCPlayAch_Settings_ScreenshotVariantWithToast}"
+                                      IsChecked="{Binding Persisted.UnlockScreenshotWithToast}"
+                                      Margin="0,0,0,4"/>
+                            <StackPanel Margin="18,0,0,10"
+                                        IsEnabled="{Binding Persisted.UnlockScreenshotWithToast}">
+                                <Grid Margin="0,0,0,6">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*"/>
+                                        <ColumnDefinition Width="Auto"/>
+                                    </Grid.ColumnDefinitions>
+                                    <TextBlock Grid.Column="0"
+                                               Text="{DynamicResource LOCPlayAch_Settings_CaptureMinimumRarity}"
+                                               Foreground="{DynamicResource PlayAch.Brush.Text}"
+                                               VerticalAlignment="Center"
+                                               Margin="0,0,8,0"/>
+                                    <ComboBox Grid.Column="1"
+                                              SelectedValue="{Binding Persisted.UnlockScreenshotWithToastMinimumRarity, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                              SelectedValuePath="Tag"
+                                              MinWidth="140">
+                                        <ComboBoxItem Content="{DynamicResource LOCPlayAch_Common_All}" Tag="{x:Static ach:RarityTier.Common}"/>
+                                        <ComboBoxItem Content="{DynamicResource LOCPlayAch_Rarity_Uncommon}" Tag="{x:Static ach:RarityTier.Uncommon}"/>
+                                        <ComboBoxItem Content="{DynamicResource LOCPlayAch_Rarity_Rare}" Tag="{x:Static ach:RarityTier.Rare}"/>
+                                        <ComboBoxItem Content="{DynamicResource LOCPlayAch_Rarity_UltraRare}" Tag="{x:Static ach:RarityTier.UltraRare}"/>
+                                    </ComboBox>
+                                </Grid>
+                                <CheckBox Content="{DynamicResource LOCPlayAch_Settings_AlwaysCaptureCompletion}"
+                                          IsChecked="{Binding Persisted.UnlockScreenshotWithToastAlwaysCaptureCompletion}"/>
+                            </StackPanel>
+
+                            <!-- Framed variant: independent rarity threshold + completion bypass -->
+                            <CheckBox Content="{DynamicResource LOCPlayAch_Settings_ScreenshotVariantFramed}"
+                                      IsChecked="{Binding Persisted.UnlockScreenshotFramed}"
+                                      Margin="0,0,0,4"/>
+                            <StackPanel Margin="18,0,0,10"
+                                        IsEnabled="{Binding Persisted.UnlockScreenshotFramed}">
+                                <Grid Margin="0,0,0,6">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*"/>
+                                        <ColumnDefinition Width="Auto"/>
+                                    </Grid.ColumnDefinitions>
+                                    <TextBlock Grid.Column="0"
+                                               Text="{DynamicResource LOCPlayAch_Settings_CaptureMinimumRarity}"
+                                               Foreground="{DynamicResource PlayAch.Brush.Text}"
+                                               VerticalAlignment="Center"
+                                               Margin="0,0,8,0"/>
+                                    <ComboBox Grid.Column="1"
+                                              SelectedValue="{Binding Persisted.UnlockScreenshotFramedMinimumRarity, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                              SelectedValuePath="Tag"
+                                              MinWidth="140">
+                                        <ComboBoxItem Content="{DynamicResource LOCPlayAch_Common_All}" Tag="{x:Static ach:RarityTier.Common}"/>
+                                        <ComboBoxItem Content="{DynamicResource LOCPlayAch_Rarity_Uncommon}" Tag="{x:Static ach:RarityTier.Uncommon}"/>
+                                        <ComboBoxItem Content="{DynamicResource LOCPlayAch_Rarity_Rare}" Tag="{x:Static ach:RarityTier.Rare}"/>
+                                        <ComboBoxItem Content="{DynamicResource LOCPlayAch_Rarity_UltraRare}" Tag="{x:Static ach:RarityTier.UltraRare}"/>
+                                    </ComboBox>
+                                </Grid>
+                                <CheckBox Content="{DynamicResource LOCPlayAch_Settings_AlwaysCaptureCompletion}"
+                                          IsChecked="{Binding Persisted.UnlockScreenshotFramedAlwaysCaptureCompletion}"/>
+                            </StackPanel>
 
                             <TextBlock Text="{DynamicResource LOCPlayAch_Settings_ScreenshotSuffixes}"
                                        Foreground="{DynamicResource PlayAch.Brush.Text}"
