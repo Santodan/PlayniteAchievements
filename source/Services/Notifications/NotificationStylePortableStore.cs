@@ -31,6 +31,19 @@ namespace PlayniteAchievements.Services.Notifications
     }
 
     /// <summary>
+    /// Which optional parts a portable style file carries, so the import UI can offer only what is
+    /// actually present (data style, toast template, frame template).
+    /// </summary>
+    public sealed class NotificationStylePackageContents
+    {
+        public bool HasStyle { get; set; }
+
+        public bool HasToastTemplate { get; set; }
+
+        public bool HasFrameTemplate { get; set; }
+    }
+
+    /// <summary>
     /// Exports and imports a single notification appearance style to a shareable file. Plain
     /// <c>.pastyle</c> is JSON only and cannot carry local images; <c>.pastyle.zip</c> bundles the
     /// style's background and badge images under an <c>images/</c> folder so the look transfers
@@ -42,7 +55,15 @@ namespace PlayniteAchievements.Services.Notifications
         public const string FileExtension = ".pastyle";
         public const string PackageFileExtension = ".pastyle.zip";
         public const string ManifestEntryName = "notification-style.pastyle";
-        public const int CurrentVersion = 1;
+
+        // Optional full-template XAML entries a package may carry, independently, alongside the
+        // data-style manifest. Installed into the plugin-owned custom-template tier on import.
+        public const string ToastTemplateEntryName = "template-toast.xaml";
+        public const string FrameTemplateEntryName = "template-frame.xaml";
+
+        // v2 added the optional template-toast.xaml / template-frame.xaml entries. The Kind
+        // discriminator is unchanged, so older readers still validate and simply ignore templates.
+        public const int CurrentVersion = 2;
 
         private const string ImagesFolderName = "images";
 
@@ -136,8 +157,14 @@ namespace PlayniteAchievements.Services.Notifications
         /// <summary>
         /// Writes the style to a <c>.pastyle.zip</c> package, bundling every referenced image under
         /// <c>images/</c> and rewriting the manifest's paths to those relative entry names.
+        /// Optionally embeds full-template XAML for the toast and/or frame surfaces (independently)
+        /// so a single package can carry the data style, either template, both, or neither template.
         /// </summary>
-        public void ExportPackage(NotificationStyleSettings style, string destinationPath)
+        public void ExportPackage(
+            NotificationStyleSettings style,
+            string destinationPath,
+            string toastTemplateXaml = null,
+            string frameTemplateXaml = null)
         {
             if (style == null)
             {
@@ -185,6 +212,97 @@ namespace PlayniteAchievements.Services.Notifications
                     {
                         source.CopyTo(destination);
                     }
+                }
+
+                WriteTemplateEntry(archive, ToastTemplateEntryName, toastTemplateXaml);
+                WriteTemplateEntry(archive, FrameTemplateEntryName, frameTemplateXaml);
+            }
+        }
+
+        private static void WriteTemplateEntry(ZipArchive archive, string entryName, string xaml)
+        {
+            if (string.IsNullOrWhiteSpace(xaml))
+            {
+                return;
+            }
+
+            var entry = archive.CreateEntry(entryName, CompressionLevel.Optimal);
+            using (var writer = new StreamWriter(entry.Open()))
+            {
+                writer.Write(xaml);
+            }
+        }
+
+        /// <summary>
+        /// Reports which optional parts a <c>.pastyle</c>/<c>.pastyle.zip</c> carries so the import
+        /// UI can offer only the parts actually present. A plain <c>.pastyle</c> is always
+        /// style-only.
+        /// </summary>
+        public NotificationStylePackageContents InspectPackage(string sourcePath)
+        {
+            if (string.IsNullOrWhiteSpace(sourcePath) || !File.Exists(sourcePath))
+            {
+                throw new FileNotFoundException("File not found.", sourcePath);
+            }
+
+            if (!IsPackagePath(sourcePath))
+            {
+                // A plain .pastyle is JSON only; validate the Kind so foreign files are rejected here too.
+                var portable = JsonConvert.DeserializeObject<NotificationStylePortableFile>(File.ReadAllText(sourcePath));
+                ExtractStyleOrThrow(portable);
+                return new NotificationStylePackageContents { HasStyle = true };
+            }
+
+            using (var archive = ZipFile.OpenRead(sourcePath))
+            {
+                var names = archive.Entries
+                    .Select(entry => NormalizeArchiveEntryName(entry.FullName))
+                    .Where(name => !string.IsNullOrWhiteSpace(name))
+                    .ToList();
+
+                var hasManifest = names.Any(name =>
+                    string.Equals(name, ManifestEntryName, StringComparison.OrdinalIgnoreCase));
+                if (!hasManifest)
+                {
+                    throw new InvalidOperationException(
+                        "The .PASTYLE.ZIP does not contain a notification style manifest.");
+                }
+
+                return new NotificationStylePackageContents
+                {
+                    HasStyle = true,
+                    HasToastTemplate = names.Any(name =>
+                        string.Equals(name, ToastTemplateEntryName, StringComparison.OrdinalIgnoreCase)),
+                    HasFrameTemplate = names.Any(name =>
+                        string.Equals(name, FrameTemplateEntryName, StringComparison.OrdinalIgnoreCase))
+                };
+            }
+        }
+
+        /// <summary>
+        /// Reads the embedded template XAML for a surface from a package, or null when the package
+        /// carries no template for it. The caller validates and installs it via the resolver.
+        /// </summary>
+        public string ReadTemplateXaml(string sourcePath, bool isFrame)
+        {
+            if (!IsPackagePath(sourcePath) || !File.Exists(sourcePath))
+            {
+                return null;
+            }
+
+            var entryName = isFrame ? FrameTemplateEntryName : ToastTemplateEntryName;
+            using (var archive = ZipFile.OpenRead(sourcePath))
+            {
+                var entry = archive.Entries.FirstOrDefault(e =>
+                    string.Equals(NormalizeArchiveEntryName(e.FullName), entryName, StringComparison.OrdinalIgnoreCase));
+                if (entry == null)
+                {
+                    return null;
+                }
+
+                using (var reader = new StreamReader(entry.Open()))
+                {
+                    return reader.ReadToEnd();
                 }
             }
         }
