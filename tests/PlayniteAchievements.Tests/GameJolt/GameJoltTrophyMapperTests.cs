@@ -130,6 +130,45 @@ namespace PlayniteAchievements.GameJolt.Tests
         }
 
         [TestMethod]
+        public void ParsePercentage_ReadsPayloadPercentage()
+        {
+            Assert.AreEqual(12.5, GameJoltTrophyMapper.ParsePercentage(@"{ ""payload"": { ""percentage"": 12.5 } }"));
+            Assert.AreEqual(0d, GameJoltTrophyMapper.ParsePercentage(@"{ ""payload"": { ""percentage"": 0 } }"));
+            Assert.IsNull(GameJoltTrophyMapper.ParsePercentage(@"{ ""payload"": {} }"));
+            Assert.IsNull(GameJoltTrophyMapper.ParsePercentage("garbage"));
+            Assert.IsNull(GameJoltTrophyMapper.ParsePercentage(null));
+        }
+
+        [TestMethod]
+        public void ApplyPercentage_SetsPercentAndPercentBasedRarity()
+        {
+            // Default stub thresholds: <=5 UltraRare, <=10 Rare, <=50 Uncommon, else Common.
+            var rare = new AchievementDetail { Rarity = RarityTier.Common };
+            GameJoltTrophyMapper.ApplyPercentage(rare, 3.0);
+            Assert.AreEqual(3.0, rare.GlobalPercentUnlocked);
+            Assert.AreEqual(RarityTier.UltraRare, rare.Rarity);
+
+            var common = new AchievementDetail { Rarity = RarityTier.UltraRare };
+            GameJoltTrophyMapper.ApplyPercentage(common, 80.0);
+            Assert.AreEqual(80.0, common.GlobalPercentUnlocked);
+            Assert.AreEqual(RarityTier.Common, common.Rarity);
+
+            // Clamps out-of-range input.
+            var clamped = new AchievementDetail();
+            GameJoltTrophyMapper.ApplyPercentage(clamped, 150.0);
+            Assert.AreEqual(100.0, clamped.GlobalPercentUnlocked);
+        }
+
+        [TestMethod]
+        public void ApplyPercentage_NullLeavesDifficultyRarityIntact()
+        {
+            var achievement = new AchievementDetail { Rarity = RarityTier.Rare };
+            GameJoltTrophyMapper.ApplyPercentage(achievement, null);
+            Assert.IsNull(achievement.GlobalPercentUnlocked);
+            Assert.AreEqual(RarityTier.Rare, achievement.Rarity, "Difficulty-based rarity must remain when no percentage is available.");
+        }
+
+        [TestMethod]
         public void ResolveRarity_MapsDifficultyTiers()
         {
             Assert.AreEqual(RarityTier.UltraRare, GameJoltTrophyMapper.ResolveRarity(4), "4 = platinum");
