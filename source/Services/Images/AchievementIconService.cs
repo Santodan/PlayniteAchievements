@@ -38,7 +38,19 @@ namespace PlayniteAchievements.Services.Images
             public AchievementIconVariant Variant { get; set; }
             public string SourcePath { get; set; }
             public string TargetPath { get; set; }
+
+            // When set, the resolved primary icon is normalized to a centered square on disk
+            // (see ShouldForceSquareIcons). Locked variants copy the squared primary.
+            public bool ForceSquare { get; set; }
         }
+
+        // Xbox achievement art is not always square; force a centered square crop for it. Keyed on
+        // the provider key string ("Xbox") to keep this Services type free of a Providers reference
+        // (matches XboxDataProvider.ProviderKey).
+        private const string XboxProviderKey = "Xbox";
+
+        private static bool ShouldForceSquareIcons(string providerKey) =>
+            string.Equals(providerKey, XboxProviderKey, StringComparison.OrdinalIgnoreCase);
 
         private readonly DiskImageService _diskImageService;
         private readonly ManagedCustomIconService _managedCustomIconService;
@@ -112,6 +124,7 @@ namespace PlayniteAchievements.Services.Images
                     gameId,
                     buildLockedRequests: true,
                     forceRefreshExistingTargets: forceRefreshExistingTargets,
+                    forceSquareIcons: ShouldForceSquareIcons(data?.ProviderKey),
                     reportInitialProgress: false,
                     resolveTargetPath: (achievement, fileStem, variant) =>
                         _diskImageService.GetAchievementIconCachePath(
@@ -184,6 +197,7 @@ namespace PlayniteAchievements.Services.Images
                     gameId: null,
                     buildLockedRequests: false,
                     forceRefreshExistingTargets: false,
+                    forceSquareIcons: ShouldForceSquareIcons(definition.ProviderKey),
                     reportInitialProgress: true,
                     resolveTargetPath: (achievement, fileStem, variant) =>
                         _diskImageService.ResolveCacheRelativePath(
@@ -464,6 +478,7 @@ namespace PlayniteAchievements.Services.Images
             string gameId,
             bool buildLockedRequests,
             bool forceRefreshExistingTargets,
+            bool forceSquareIcons,
             bool reportInitialProgress,
             Func<AchievementDetail, string, AchievementIconVariant, string> resolveTargetPath,
             Func<AchievementDetail, string> resolveUnlockedFallback,
@@ -476,6 +491,7 @@ namespace PlayniteAchievements.Services.Images
                 fileStems,
                 gameId,
                 buildLockedRequests,
+                forceSquareIcons,
                 resolveTargetPath);
             var resolvedPaths = await ResolveIconRequestsAsync(
                     iconRequests,
@@ -501,6 +517,7 @@ namespace PlayniteAchievements.Services.Images
             IReadOnlyDictionary<string, string> fileStems,
             string gameId,
             bool buildLockedRequests,
+            bool forceSquareIcons,
             Func<AchievementDetail, string, AchievementIconVariant, string> resolveTargetPath)
         {
             var requests = new List<AchievementIconRequest>();
@@ -530,6 +547,7 @@ namespace PlayniteAchievements.Services.Images
                     gameId,
                     fileStem,
                     AchievementIconVariant.Unlocked,
+                    forceSquareIcons,
                     resolveTargetPath);
 
                 if (buildLockedRequests)
@@ -541,6 +559,7 @@ namespace PlayniteAchievements.Services.Images
                         gameId,
                         fileStem,
                         AchievementIconVariant.Locked,
+                        forceSquareIcons,
                         resolveTargetPath);
                 }
             }
@@ -698,6 +717,17 @@ namespace PlayniteAchievements.Services.Images
             if (string.IsNullOrWhiteSpace(primaryPath) || !File.Exists(primaryPath))
             {
                 return resolved;
+            }
+
+            // Normalize the primary to a centered square before locked variants copy it. Runs for
+            // both freshly downloaded and already-cached primaries (rewrites only when non-square),
+            // so the crop is independent of first-time download. Requests in a group share a source
+            // and therefore the same ForceSquare value.
+            if (requests[0]?.ForceSquare == true)
+            {
+                await _diskImageService
+                    .EnsureIconSquareAsync(primaryPath, cancel)
+                    .ConfigureAwait(false);
             }
 
             for (var i = 0; i < requests.Count; i++)
@@ -858,6 +888,7 @@ namespace PlayniteAchievements.Services.Images
             string gameId,
             string fileStem,
             AchievementIconVariant variant,
+            bool forceSquare,
             Func<AchievementDetail, string, AchievementIconVariant, string> resolveTargetPath)
         {
             if (requests == null ||
@@ -887,7 +918,8 @@ namespace PlayniteAchievements.Services.Images
                 Achievement = achievement,
                 Variant = variant,
                 SourcePath = sourcePath,
-                TargetPath = targetPath
+                TargetPath = targetPath,
+                ForceSquare = forceSquare
             });
         }
 
