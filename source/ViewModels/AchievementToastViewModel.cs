@@ -493,6 +493,15 @@ namespace PlayniteAchievements.ViewModels
             }
         }
 
+        /// <summary>
+        /// The provider (platform) icon as a ready-to-bind, provider-tinted <see cref="ImageSource"/>,
+        /// so theme and custom templates can bind <c>Image.Source="{Binding ProviderIcon}"</c>
+        /// directly without needing the ProviderIconConverter. Null when the provider is unknown.
+        /// Loads synchronously (a DrawingImage), so it is safe for the offscreen frame render too.
+        /// </summary>
+        public ImageSource ProviderIcon =>
+            Views.Converters.ProviderIconConverter.BuildIcon(ProviderIconKey, ProviderColorHex);
+
         // The right-side badge replaces the provider icon, so the icon is hidden while it is on.
         public bool ShowProviderIcon => _style.Toast.ShowProviderIcon && !_style.Toast.RightRarityBadge && !string.IsNullOrWhiteSpace(ProviderIconKey);
         public bool FrameShowProviderIcon => _style.Frame.ShowProviderIcon && !_style.Frame.RightRarityBadge && !string.IsNullOrWhiteSpace(ProviderIconKey);
