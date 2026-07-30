@@ -564,6 +564,14 @@
     <sys:String x:Key="LOCPlayAch_Settings_Style_ImportButton">Import Style</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_Style_ShareHint">Export the selected style to a shareable file, or import one. Use the .pastyle.zip format to include custom images.</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_Style_ImportConfirm">Import this notification style and replace the currently displayed appearance?</sys:String>
+    <sys:String x:Key="LOCPlayAch_Settings_Style_ExportIncludeToastTemplate">Include the current notification template in the package as an editable starting point?</sys:String>
+    <sys:String x:Key="LOCPlayAch_Settings_Style_ExportIncludeFrameTemplate">Include the current frame template in the package as an editable starting point?</sys:String>
+    <sys:String x:Key="LOCPlayAch_Settings_Style_ImportApplyStyle">Apply the appearance style from this file to the selected platform?</sys:String>
+    <sys:String x:Key="LOCPlayAch_Settings_Style_ImportInstallToastTemplate">This file includes a custom notification template. Install it? It replaces any current custom notification template and applies to all notifications.</sys:String>
+    <sys:String x:Key="LOCPlayAch_Settings_Style_ImportInstallFrameTemplate">This file includes a custom frame template. Install it? It replaces any current custom frame template and applies to all notifications.</sys:String>
+    <sys:String x:Key="LOCPlayAch_Settings_Style_RemoveToastTemplate">Remove custom notification template</sys:String>
+    <sys:String x:Key="LOCPlayAch_Settings_Style_RemoveFrameTemplate">Remove custom frame template</sys:String>
+    <sys:String x:Key="LOCPlayAch_Settings_Style_NoCustomTemplate">No custom template is installed for this surface.</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_Style_Rarity_BadgeLabel">Rarity badge</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_Style_Rarity_PercentLabel">Rarity percent</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_Style_Rarity_BadgeUnderIcon">Badge under icon</sys:String>
