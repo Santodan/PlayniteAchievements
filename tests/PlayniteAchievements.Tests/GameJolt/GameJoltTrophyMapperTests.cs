@@ -12,9 +12,9 @@ namespace PlayniteAchievements.GameJolt.Tests
         private const string DefinitionsJson = @"{
             ""payload"": {
                 ""trophies"": [
-                    { ""id"": 101, ""game_id"": 42, ""title"": ""First Steps"", ""description"": ""Start the game."", ""difficulty"": ""Bronze"", ""experience"": 20, ""secret"": false, ""img_thumbnail"": ""//m.gamejolt.net/a.png"" },
-                    { ""id"": 102, ""game_id"": 42, ""title"": ""Halfway"", ""description"": ""Reach the midpoint."", ""difficulty"": ""Gold"", ""experience"": 100, ""secret"": true, ""img_thumbnail"": ""https://m.gamejolt.net/b.png"" },
-                    { ""id"": 999, ""game_id"": 7, ""title"": ""Other Game"", ""description"": ""Should be filtered out."", ""difficulty"": ""Silver"", ""experience"": 50, ""secret"": false, ""img_thumbnail"": """" }
+                    { ""id"": 101, ""game_id"": 42, ""title"": ""First Steps"", ""description"": ""Start the game."", ""difficulty"": 1, ""experience"": 20, ""secret"": false, ""img_thumbnail"": ""//m.gamejolt.net/a.png"" },
+                    { ""id"": 102, ""game_id"": 42, ""title"": ""Halfway"", ""description"": ""Reach the midpoint."", ""difficulty"": 3, ""experience"": 100, ""secret"": true, ""img_thumbnail"": ""https://m.gamejolt.net/b.png"" },
+                    { ""id"": 999, ""game_id"": 7, ""title"": ""Other Game"", ""description"": ""Should be filtered out."", ""difficulty"": 2, ""experience"": 50, ""secret"": false, ""img_thumbnail"": """" }
                 ]
             }
         }";
@@ -29,15 +29,17 @@ namespace PlayniteAchievements.GameJolt.Tests
             var first = achievements.Single(a => a.ApiName == "101");
             Assert.AreEqual("First Steps", first.DisplayName);
             Assert.AreEqual("Start the game.", first.Description);
-            Assert.AreEqual(20, first.Points);
-            Assert.AreEqual("bronze", first.TrophyType);
-            Assert.AreEqual(RarityTier.Common, first.Rarity);
+            Assert.AreEqual(20, first.Points, "experience maps to Points.");
+            Assert.AreEqual("bronze", first.TrophyType, "difficulty 1 maps to bronze.");
+            Assert.AreEqual(RarityTier.Common, first.Rarity, "difficulty 1 (bronze) maps to Common.");
             Assert.IsFalse(first.Hidden);
             Assert.IsFalse(first.Unlocked);
             Assert.AreEqual("https://m.gamejolt.net/a.png", first.UnlockedIconPath, "Protocol-relative URL should be normalized to https.");
 
             var second = achievements.Single(a => a.ApiName == "102");
-            Assert.AreEqual(RarityTier.Rare, second.Rarity, "Gold difficulty maps to Rare.");
+            Assert.AreEqual(100, second.Points);
+            Assert.AreEqual("gold", second.TrophyType, "difficulty 3 maps to gold.");
+            Assert.AreEqual(RarityTier.Rare, second.Rarity, "difficulty 3 (gold) maps to Rare.");
             Assert.IsTrue(second.Hidden, "secret=true maps to Hidden.");
             Assert.AreEqual("https://m.gamejolt.net/b.png", second.UnlockedIconPath);
         }
@@ -130,11 +132,11 @@ namespace PlayniteAchievements.GameJolt.Tests
         [TestMethod]
         public void ResolveRarity_MapsDifficultyTiers()
         {
-            Assert.AreEqual(RarityTier.UltraRare, GameJoltTrophyMapper.ResolveRarity("Platinum"));
-            Assert.AreEqual(RarityTier.Rare, GameJoltTrophyMapper.ResolveRarity("gold"));
-            Assert.AreEqual(RarityTier.Uncommon, GameJoltTrophyMapper.ResolveRarity("SILVER"));
-            Assert.AreEqual(RarityTier.Common, GameJoltTrophyMapper.ResolveRarity("Bronze"));
-            Assert.AreEqual(RarityTier.Common, GameJoltTrophyMapper.ResolveRarity(null));
+            Assert.AreEqual(RarityTier.UltraRare, GameJoltTrophyMapper.ResolveRarity(4), "4 = platinum");
+            Assert.AreEqual(RarityTier.Rare, GameJoltTrophyMapper.ResolveRarity(3), "3 = gold");
+            Assert.AreEqual(RarityTier.Uncommon, GameJoltTrophyMapper.ResolveRarity(2), "2 = silver");
+            Assert.AreEqual(RarityTier.Common, GameJoltTrophyMapper.ResolveRarity(1), "1 = bronze");
+            Assert.AreEqual(RarityTier.Common, GameJoltTrophyMapper.ResolveRarity(0), "unknown = common");
         }
 
         [TestMethod]
