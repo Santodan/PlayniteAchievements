@@ -130,7 +130,7 @@ namespace PlayniteAchievements.Providers.GameJolt
                     UnlockedIconPath = icon,
                     LockedIconPath = icon,
                     Points = trophy.Experience,
-                    TrophyType = NormalizeDifficulty(trophy.Difficulty),
+                    TrophyType = MapDifficultyName(trophy.Difficulty),
                     Hidden = trophy.Secret,
                     GlobalPercentUnlocked = null,
                     Rarity = ResolveRarity(trophy.Difficulty),
@@ -249,25 +249,41 @@ namespace PlayniteAchievements.Providers.GameJolt
             return trimmed;
         }
 
-        internal static string NormalizeDifficulty(string difficulty)
+        /// <summary>
+        /// Maps GameJolt's numeric trophy difficulty (1=Bronze, 2=Silver, 3=Gold, 4=Platinum) to the
+        /// plugin's rarity tiers. Unknown values fall back to Common.
+        /// </summary>
+        internal static RarityTier ResolveRarity(int difficulty)
         {
-            return string.IsNullOrWhiteSpace(difficulty)
-                ? null
-                : difficulty.Trim().ToLowerInvariant();
-        }
-
-        internal static RarityTier ResolveRarity(string difficulty)
-        {
-            switch (NormalizeDifficulty(difficulty))
+            switch (difficulty)
             {
-                case "platinum":
+                case 4:
                     return RarityTier.UltraRare;
-                case "gold":
+                case 3:
                     return RarityTier.Rare;
-                case "silver":
+                case 2:
                     return RarityTier.Uncommon;
                 default:
                     return RarityTier.Common;
+            }
+        }
+
+        /// <summary>
+        /// Maps GameJolt's numeric trophy difficulty to a trophy-type label so trophy-type breakdowns
+        /// render meaningfully (bronze/silver/gold/platinum).
+        /// </summary>
+        internal static string MapDifficultyName(int difficulty)
+        {
+            switch (difficulty)
+            {
+                case 4:
+                    return "platinum";
+                case 3:
+                    return "gold";
+                case 2:
+                    return "silver";
+                default:
+                    return "bronze";
             }
         }
     }

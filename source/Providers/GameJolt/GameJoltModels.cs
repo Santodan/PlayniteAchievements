@@ -57,8 +57,9 @@ namespace PlayniteAchievements.Providers.GameJolt
         [JsonProperty("description")]
         public string Description { get; set; }
 
+        // Trophy difficulty tier: 1=Bronze, 2=Silver, 3=Gold, 4=Platinum.
         [JsonProperty("difficulty")]
-        public string Difficulty { get; set; }
+        public int Difficulty { get; set; }
 
         [JsonProperty("experience")]
         public int Experience { get; set; }
