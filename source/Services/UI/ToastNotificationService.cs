@@ -446,9 +446,13 @@ namespace PlayniteAchievements.Services.UI
             var previewSource = toastItems
                 .Select(vm => vm.PreviewTemplateSource)
                 .FirstOrDefault(source => source.HasValue);
+            // A wave is game-homogeneous, so scope the custom template to this wave's game and
+            // provider (game > provider > global) for real unlocks.
+            var waveProviderKey = toastItems.FirstOrDefault()?.ProviderKey;
+            var waveGameId = _activeWaveGameId ?? Guid.Empty;
             var template = previewSource.HasValue
-                ? _templateResolver.ResolvePreviewTemplate(previewSource.Value, isFrame: false)
-                : _templateResolver.ResolveTemplate(ToastThemeStylingEnabled);
+                ? _templateResolver.ResolvePreviewTemplate(previewSource.Value, isFrame: false, waveProviderKey, waveGameId)
+                : _templateResolver.ResolveTemplate(ToastThemeStylingEnabled, waveProviderKey, waveGameId);
             if (template != null)
             {
                 items.ItemTemplate = template;
@@ -840,11 +844,7 @@ namespace PlayniteAchievements.Services.UI
                     var captured = cleanBitmap;
                     var cleanSource = await Task.Run(() => ScreenshotFrameCompositor.ToBitmapSource(captured))
                         .ConfigureAwait(true);
-                    var frameTemplate = _templateResolver.ResolveFrameTemplate(
-                        plan.Items.Count > 0
-                            ? plan.Items[0].Vm.FrameUseThemeStyling
-                            : (_settings?.Persisted?.FrameUseThemeStyling ?? true));
-                    if (cleanSource != null && frameTemplate != null)
+                    if (cleanSource != null)
                     {
                         foreach (var item in plan.Items)
                         {
@@ -857,6 +857,17 @@ namespace PlayniteAchievements.Services.UI
                             if (_disposed)
                             {
                                 break;
+                            }
+
+                            // Scope the frame template to each item's game/provider (game >
+                            // provider > global) so a per-game or per-platform custom frame applies.
+                            var frameTemplate = _templateResolver.ResolveFrameTemplate(
+                                item.Vm.FrameUseThemeStyling,
+                                item.Vm.ProviderKey,
+                                item.Vm.PlayniteGameId);
+                            if (frameTemplate == null)
+                            {
+                                continue;
                             }
 
                             var framed = _frameCompositor.ComposeFramed(cleanSource, frameTemplate, item.Vm);
