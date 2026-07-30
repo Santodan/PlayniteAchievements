@@ -1213,6 +1213,7 @@ namespace PlayniteAchievements.Services.UI
                     {
                         createdWindow.MinWidth = 450;
                         createdWindow.MinHeight = 500;
+                        view.AttachTitleBarRefreshButton(createdWindow);
                     },
                     closed: view.Cleanup,
                     fullscreenController: view);

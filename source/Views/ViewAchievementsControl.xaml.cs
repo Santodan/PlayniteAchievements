@@ -6,6 +6,9 @@ using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Controls.Primitives;
 using System.Windows.Input;
+using System.Windows.Media;
+using System.Windows.Shell;
+using System.Windows.Automation;
 using Playnite.SDK.Events;
 using PlayniteAchievements.Models;
 using PlayniteAchievements.Services;
@@ -78,6 +81,72 @@ namespace PlayniteAchievements.Views
         public void RefreshView()
         {
             ViewModel?.RefreshView();
+        }
+
+        public void AttachTitleBarRefreshButton(Window window)
+        {
+            if (window == null)
+            {
+                return;
+            }
+
+            void AttachButton()
+            {
+                window.ApplyTemplate();
+
+                var minimizeButton =
+                    window.Template?.FindName("PART_ButtonMinimize", window) as Button ??
+                    VisualTreeHelpers.FindVisualChildren<Button>(window)
+                        .FirstOrDefault(button =>
+                            string.Equals(
+                                button?.Name,
+                                "PART_ButtonMinimize",
+                                StringComparison.Ordinal));
+                var titleBarButtons = minimizeButton != null
+                    ? VisualTreeHelper.GetParent(minimizeButton) as Panel
+                    : null;
+                if (titleBarButtons == null ||
+                    titleBarButtons.Children
+                        .OfType<FrameworkElement>()
+                        .Any(element => string.Equals(
+                            element.Name,
+                            "PlayAch_TitleBarRefreshButton",
+                            StringComparison.Ordinal)))
+                {
+                    return;
+                }
+
+                var refreshButton = new Button
+                {
+                    Name = "PlayAch_TitleBarRefreshButton",
+                    Command = ViewModel?.RefreshGameCommand,
+                    ToolTip = ResourceProvider.GetString("LOCPlayAch_Menu_RefreshGame"),
+                    Style = TryFindResource("ViewAchievementsTitleBarRefreshButtonStyle") as Style
+                };
+                AutomationProperties.SetName(
+                    refreshButton,
+                    ResourceProvider.GetString("LOCPlayAch_Menu_RefreshGame"));
+                WindowChrome.SetIsHitTestVisibleInChrome(refreshButton, true);
+
+                var minimizeIndex = titleBarButtons.Children.IndexOf(minimizeButton);
+                titleBarButtons.Children.Insert(
+                    minimizeIndex >= 0 ? minimizeIndex : 0,
+                    refreshButton);
+            }
+
+            if (window.IsLoaded)
+            {
+                AttachButton();
+                return;
+            }
+
+            RoutedEventHandler loaded = null;
+            loaded = (sender, args) =>
+            {
+                window.Loaded -= loaded;
+                AttachButton();
+            };
+            window.Loaded += loaded;
         }
 
         public void Cleanup()

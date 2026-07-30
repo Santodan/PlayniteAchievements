@@ -66,6 +66,53 @@
                     </Setter.Value>
                 </Setter>
             </Style>
+
+            <Style x:Key="ViewAchievementsTitleBarRefreshButtonStyle" TargetType="Button">
+                <Setter Property="Width" Value="30"/>
+                <Setter Property="Height" Value="24"/>
+                <Setter Property="Margin" Value="0,0,4,0"/>
+                <Setter Property="Padding" Value="6"/>
+                <Setter Property="Background" Value="Transparent"/>
+                <Setter Property="BorderThickness" Value="0"/>
+                <Setter Property="Foreground" Value="{DynamicResource GlyphBrush}"/>
+                <Setter Property="Cursor" Value="Hand"/>
+                <Setter Property="Focusable" Value="False"/>
+                <Setter Property="FocusVisualStyle" Value="{x:Null}"/>
+                <Setter Property="Template">
+                    <Setter.Value>
+                        <ControlTemplate TargetType="Button">
+                            <Border x:Name="HoverBackground"
+                                    Background="{TemplateBinding Background}"
+                                    CornerRadius="3">
+                                <Viewbox Margin="{TemplateBinding Padding}">
+                                    <Path Data="M 11,2 A 9,9 0 1 0 19.45,7.9 M 11,2 L 16.5,2 L 16.5,7.5"
+                                          Stroke="{TemplateBinding Foreground}"
+                                          StrokeThickness="2"
+                                          StrokeStartLineCap="Round"
+                                          StrokeEndLineCap="Round"
+                                          StrokeLineJoin="Round"
+                                          Fill="Transparent"
+                                          Stretch="Uniform"/>
+                                </Viewbox>
+                            </Border>
+                            <ControlTemplate.Triggers>
+                                <Trigger Property="IsMouseOver" Value="True">
+                                    <Setter Property="Background"
+                                            Value="{DynamicResource PlayAch.Brush.Button.Background.Hover}"/>
+                                    <Setter Property="Foreground"
+                                            Value="{DynamicResource HighlightGlyphBrush}"/>
+                                </Trigger>
+                                <Trigger Property="IsPressed" Value="True">
+                                    <Setter TargetName="HoverBackground" Property="Opacity" Value="0.65"/>
+                                </Trigger>
+                                <Trigger Property="IsEnabled" Value="False">
+                                    <Setter Property="Opacity" Value="0.4"/>
+                                </Trigger>
+                            </ControlTemplate.Triggers>
+                        </ControlTemplate>
+                    </Setter.Value>
+                </Setter>
+            </Style>
         </ResourceDictionary>
     </UserControl.Resources>
 
