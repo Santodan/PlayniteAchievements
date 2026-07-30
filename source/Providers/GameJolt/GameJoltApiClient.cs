@@ -26,10 +26,6 @@ namespace PlayniteAchievements.Providers.GameJolt
         private const string UrlProfileTrophiesGameFormat = UrlSiteApi + "/web/profile/trophies/game/{0}/{1}";
         private const string UrlTrophyPercentageFormat = UrlSiteApi + "/web/profile/trophies/game-trophy-percentage/{0}";
 
-        // Upper bound on per-trophy percentage requests per game. Beyond this the extra requests are not
-        // worth the refresh time; those trophies keep their difficulty-based rarity.
-        private const int MaxPercentageRequests = 200;
-
         internal static readonly string[] CookieDomains = { "gamejolt.com", ".gamejolt.com" };
 
         private readonly IPlayniteAPI _playniteApi;
@@ -176,35 +172,57 @@ namespace PlayniteAchievements.Providers.GameJolt
                 return;
             }
 
-            if (achievements.Count > MaxPercentageRequests)
+            var targets = new List<KeyValuePair<AchievementDetail, long>>();
+            foreach (var achievement in achievements)
             {
-                _logger?.Info($"[GameJolt] Skipping global percentage fetch for {achievements.Count} trophies " +
-                    $"(cap {MaxPercentageRequests}); using difficulty-based rarity.");
+                if (achievement?.ApiName != null &&
+                    long.TryParse(achievement.ApiName, NumberStyles.Integer, CultureInfo.InvariantCulture, out var trophyId))
+                {
+                    targets.Add(new KeyValuePair<AchievementDetail, long>(achievement, trophyId));
+                }
+            }
+
+            if (targets.Count == 0)
+            {
                 return;
             }
 
-            var applied = 0;
-            foreach (var achievement in achievements)
+            try
             {
-                ct.ThrowIfCancellationRequested();
-
-                if (achievement?.ApiName == null ||
-                    !long.TryParse(achievement.ApiName, NumberStyles.Integer, CultureInfo.InvariantCulture, out var trophyId))
+                await _offscreenViews.WithNavigableViewAsync(async view =>
                 {
-                    continue;
-                }
+                    // Establish the gamejolt.com origin once, then read every trophy's percentage via a fast
+                    // in-page same-origin fetch instead of a full navigation per trophy. Public endpoint.
+                    var firstUrl = string.Format(CultureInfo.InvariantCulture, UrlTrophyPercentageFormat, targets[0].Value);
+                    await view.NavigateAndWaitAsync(firstUrl, timeoutMs: 15000).ConfigureAwait(false);
 
-                var url = string.Format(CultureInfo.InvariantCulture, UrlTrophyPercentageFormat, trophyId);
-                var json = await FetchJsonAsync(url, ct, restoreCookies: false).ConfigureAwait(false);
-                var percentage = GameJoltTrophyMapper.ParsePercentage(json);
-                if (percentage.HasValue)
-                {
-                    GameJoltTrophyMapper.ApplyPercentage(achievement, percentage);
-                    applied++;
-                }
+                    var applied = 0;
+                    foreach (var target in targets)
+                    {
+                        ct.ThrowIfCancellationRequested();
+
+                        var url = string.Format(CultureInfo.InvariantCulture, UrlTrophyPercentageFormat, target.Value);
+                        var json = await FetchViaPageScriptAsync(view, url, ct).ConfigureAwait(false);
+                        var percentage = GameJoltTrophyMapper.ParsePercentage(json);
+                        if (percentage.HasValue)
+                        {
+                            GameJoltTrophyMapper.ApplyPercentage(target.Key, percentage);
+                            applied++;
+                        }
+                    }
+
+                    _logger?.Info($"[GameJolt] Applied global unlock percentage to {applied}/{targets.Count} trophy(ies).");
+                    return true;
+                }, ct).ConfigureAwait(false);
             }
-
-            _logger?.Info($"[GameJolt] Applied global unlock percentage to {applied}/{achievements.Count} trophy(ies).");
+            catch (OperationCanceledException)
+            {
+                throw;
+            }
+            catch (Exception ex)
+            {
+                _logger?.Warn(ex, "[GameJolt] Failed to fetch trophy percentages.");
+            }
         }
 
         /// <summary>
@@ -254,19 +272,125 @@ namespace PlayniteAchievements.Providers.GameJolt
             await view.NavigateAndWaitAsync(url, timeoutMs: 15000).ConfigureAwait(false);
             var text = await view.GetPageTextAsync().ConfigureAwait(false);
 
-            if (string.IsNullOrWhiteSpace(text))
-            {
-                return null;
-            }
-
-            if (text.IndexOf("Just a moment", StringComparison.OrdinalIgnoreCase) >= 0 ||
-                text.IndexOf("Verifying you are human", StringComparison.OrdinalIgnoreCase) >= 0)
+            if (!string.IsNullOrWhiteSpace(text) &&
+                (text.IndexOf("Just a moment", StringComparison.OrdinalIgnoreCase) >= 0 ||
+                 text.IndexOf("Verifying you are human", StringComparison.OrdinalIgnoreCase) >= 0))
             {
                 _logger?.Warn("[GameJolt] Cloudflare challenge detected on site-api request");
                 return null;
             }
 
-            return text;
+            // Prefer an in-page same-origin fetch over the navigation's rendered page text. A top-level
+            // browser navigation can return the SPA HTML shell, a truncated/partial render, or a different
+            // (subset) response than the site's own XHR receives. We are on the gamejolt.com origin after
+            // the navigation, so this returns exactly the canonical, complete JSON body the website gets.
+            var fetched = await FetchViaPageScriptAsync(view, url, ct).ConfigureAwait(false);
+            if (LooksLikeCompleteJson(fetched))
+            {
+                return fetched;
+            }
+
+            if (LooksLikeCompleteJson(text))
+            {
+                _logger?.Debug($"[GameJolt] Using navigation page text (in-page fetch unavailable) for {url}");
+                return text;
+            }
+
+            _logger?.Warn($"[GameJolt] Neither in-page fetch nor navigation yielded complete JSON for {url} " +
+                $"(navLen={text?.Length ?? 0}, prefix='{Prefix(text, 60)}').");
+            return fetched ?? text;
+        }
+
+        /// <summary>
+        /// Fetches a same-origin URL from inside the currently loaded page via <c>fetch()</c>, polling a
+        /// window sentinel for the result (the SDK's EvaluateScriptAsync does not await promises). Returns
+        /// the exact response body, avoiding the content-negotiation and text-rendering pitfalls of a
+        /// top-level navigation. Requires the view to already be on the gamejolt.com origin.
+        /// </summary>
+        private async Task<string> FetchViaPageScriptAsync(IWebView view, string url, CancellationToken ct)
+        {
+            var kickoff =
+                "(function(){try{window.__gjR=undefined;" +
+                "fetch('" + url + "',{headers:{'Accept':'application/json'},credentials:'include'})" +
+                ".then(function(r){return r.text();})" +
+                ".then(function(t){window.__gjR=t;})" +
+                ".catch(function(){window.__gjR='__ERR__';});return true;}" +
+                "catch(e){window.__gjR='__ERR__';return false;}})()";
+
+            try
+            {
+                await view.EvaluateScriptAsync(kickoff).ConfigureAwait(false);
+            }
+            catch (Exception ex)
+            {
+                _logger?.Debug(ex, "[GameJolt] in-page fetch kickoff failed");
+                return null;
+            }
+
+            for (var attempt = 0; attempt < 40; attempt++)
+            {
+                ct.ThrowIfCancellationRequested();
+                await Task.Delay(250, ct).ConfigureAwait(false);
+
+                object result;
+                try
+                {
+                    var eval = await view
+                        .EvaluateScriptAsync("(typeof window.__gjR==='undefined')?'__PENDING__':window.__gjR")
+                        .ConfigureAwait(false);
+                    if (eval?.Success != true || eval.Result == null)
+                    {
+                        continue;
+                    }
+
+                    result = eval.Result;
+                }
+                catch
+                {
+                    continue;
+                }
+
+                var value = Convert.ToString(result);
+                if (value == "__PENDING__")
+                {
+                    continue;
+                }
+
+                if (value == "__ERR__")
+                {
+                    _logger?.Warn($"[GameJolt] in-page fetch errored for {url}");
+                    return null;
+                }
+
+                return value;
+            }
+
+            _logger?.Warn($"[GameJolt] in-page fetch timed out for {url}");
+            return null;
+        }
+
+        private static bool LooksLikeCompleteJson(string text)
+        {
+            if (string.IsNullOrWhiteSpace(text))
+            {
+                return false;
+            }
+
+            var trimmed = text.Trim();
+            var first = trimmed[0];
+            var last = trimmed[trimmed.Length - 1];
+            return (first == '{' && last == '}') || (first == '[' && last == ']');
+        }
+
+        private static string Prefix(string value, int length)
+        {
+            if (string.IsNullOrEmpty(value))
+            {
+                return string.Empty;
+            }
+
+            var slice = value.Length <= length ? value : value.Substring(0, length);
+            return slice.Replace('\n', ' ').Replace('\r', ' ');
         }
 
         private async Task RestoreCookiesAsync(IWebView view, IReadOnlyList<HttpCookie> cookies, CancellationToken ct)
