@@ -339,8 +339,8 @@
                       Margin="2,0,10,0"
                       VerticalAlignment="Center"
                       Effect="{StaticResource PlayAch.Effect.ContentShadow}">
-                    <Image Width="24"
-                           Height="24"
+                    <Image Width="{Binding ToastProviderIconSize}"
+                           Height="{Binding ToastProviderIconSize}"
                            VerticalAlignment="Center"
                            RenderOptions.BitmapScalingMode="HighQuality"
                            Visibility="{Binding ShowProviderIcon, Converter={StaticResource BooleanToVisibilityConverter}}">
@@ -389,8 +389,8 @@
                             VerticalAlignment="Center"
                             HorizontalAlignment="Center"
                             Margin="0,0,13,0">
-                    <Grid Width="55"
-                          Height="55"
+                    <Grid Width="{Binding ToastIconSize}"
+                          Height="{Binding ToastIconSize}"
                           HorizontalAlignment="Center">
                         <!-- Completion notifications swap the achievement icon for the
                              completed-game badge and the completed glow. Glow lives on a cached
@@ -569,8 +569,8 @@
                     <!-- Icon column: icon with rarity glow, badge + percent centered below -->
                     <StackPanel Grid.Column="0"
                                 VerticalAlignment="Center">
-                        <Grid Width="84"
-                              Height="84"
+                        <Grid Width="{Binding FrameIconSize}"
+                              Height="{Binding FrameIconSize}"
                               HorizontalAlignment="Center">
                             <!-- Completion notifications swap the achievement icon for the
                                  completed-game badge and the completed glow (all sync-loaded, as
@@ -644,8 +644,8 @@
                           Margin="0,0,22,0"
                           VerticalAlignment="Center"
                           Effect="{StaticResource PlayAch.Effect.ContentShadow}">
-                        <Image Width="40"
-                               Height="40"
+                        <Image Width="{Binding FrameProviderIconSize}"
+                               Height="{Binding FrameProviderIconSize}"
                                VerticalAlignment="Center"
                                RenderOptions.BitmapScalingMode="HighQuality"
                                Visibility="{Binding FrameShowProviderIcon, Converter={StaticResource BooleanToVisibilityConverter}}">
