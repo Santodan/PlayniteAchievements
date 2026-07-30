@@ -122,6 +122,14 @@
                                 BorderThickness="0">
                         <TabItem Header="{DynamicResource LOCPlayAch_Settings_Style_ToastTab}">
                             <StackPanel Margin="0,12,0,0">
+                                <!-- Prominent, live line naming where the previewed style/look
+                                     come from (scope + template source). -->
+                                <TextBlock x:Name="ToastSourceSummary"
+                                           Foreground="{DynamicResource PlayAch.Brush.Text}"
+                                           FontWeight="SemiBold"
+                                           TextWrapping="Wrap"
+                                           Margin="0,0,0,8"/>
+
                                 <Border Background="{DynamicResource PlayAch.Brush.Surface}"
                                         BorderBrush="{DynamicResource PlayAch.Brush.Border}"
                                         BorderThickness="1"
@@ -175,11 +183,7 @@
                                 <CheckBox x:Name="ToastThemeStylingCheckBox"
                                           Content="{DynamicResource LOCPlayAch_Settings_Style_UseThemeTemplate}"
                                           Click="ThemeStylingCheckBox_Click"
-                                          Margin="0,0,0,4"/>
-                                <TextBlock x:Name="ToastSourceSummary"
-                                           Style="{StaticResource MutedTextStyle}"
-                                           TextWrapping="Wrap"
-                                           Margin="0,2,0,14"/>
+                                          Margin="0,0,0,14"/>
 
                                 <general:NotificationSurfaceStyleEditor x:Name="ToastEditor"/>
                             </StackPanel>
@@ -187,6 +191,14 @@
 
                         <TabItem Header="{DynamicResource LOCPlayAch_Settings_FrameHeader}">
                             <StackPanel Margin="0,12,0,0">
+                                <!-- Prominent, live line naming where the previewed style/look
+                                     come from (scope + template source). -->
+                                <TextBlock x:Name="FrameSourceSummary"
+                                           Foreground="{DynamicResource PlayAch.Brush.Text}"
+                                           FontWeight="SemiBold"
+                                           TextWrapping="Wrap"
+                                           Margin="0,0,0,8"/>
+
                                 <!-- The 16:9 grid stands in for the screenshot; the frame
                                      template lays out on the same 1080-DIP virtual canvas the
                                      compositor uses, scaled down uniformly. -->
@@ -248,11 +260,7 @@
                                 <CheckBox x:Name="FrameThemeStylingCheckBox"
                                           Content="{DynamicResource LOCPlayAch_Settings_Style_UseThemeTemplate}"
                                           Click="ThemeStylingCheckBox_Click"
-                                          Margin="0,0,0,4"/>
-                                <TextBlock x:Name="FrameSourceSummary"
-                                           Style="{StaticResource MutedTextStyle}"
-                                           TextWrapping="Wrap"
-                                           Margin="0,2,0,14"/>
+                                          Margin="0,0,0,14"/>
 
                                 <general:NotificationSurfaceStyleEditor x:Name="FrameEditor"/>
                             </StackPanel>
