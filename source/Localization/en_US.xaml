@@ -592,7 +592,8 @@
     <sys:String x:Key="LOCPlayAch_Settings_Style_FirePluginStyle">Plugin</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_Style_FireTheme">Theme</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_Style_UseThemeTemplate">Allow the theme to style this surface</sys:String>
-    <sys:String x:Key="LOCPlayAch_Settings_Style_UseThemeTemplateHint">When the active theme provides its own template for this surface, it controls the layout and the options below are disabled. Turn this off to use the plugin's template and customize it.</sys:String>
+    <sys:String x:Key="LOCPlayAch_Settings_Style_UseThemeTemplateHint">When the active theme provides its own template for this surface, that template controls the layout. Turn this off to use the plugin's template instead.</sys:String>
+    <sys:String x:Key="LOCPlayAch_Settings_Style_ThemeTemplateActiveNote">This surface is using the active theme's template, so the options below apply only where that template binds them. Turn off the option above to use the plugin's template, which honors them all.</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_Style_TextLines">Text lines</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_Style_TextLinesHint">Drag to reorder. A blank size uses the theme default.</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_Style_FontFamily">Font family</sys:String>
