@@ -289,18 +289,19 @@ namespace PlayniteAchievements.Views.Settings.General
             ToastThemeStylingCheckBox.IsEnabled = editable;
             FrameThemeStylingCheckBox.IsEnabled = editable;
             _suppressThemeStylingEvents = false;
-            RefreshEditorAvailability();
+            RefreshThemeTemplateNotes();
         }
 
         /// <summary>
-        /// When the active theme ships its own template for a surface and the user is letting the
-        /// theme style that surface, the per-field customization below mostly does not apply, so
-        /// the editor is disabled until the user unchecks "Allow the theme to style this surface".
-        /// With no theme template the editor is always available.
+        /// Surfaces an informational note when the active theme ships its own template for a
+        /// surface and theme styling is allowed: the theme controls the layout, so only the options
+        /// its template binds take effect. The editor stays fully editable — a theme is encouraged
+        /// to bind these properties, and any it ignores simply have no visible effect.
         /// </summary>
-        private void RefreshEditorAvailability()
+        private void RefreshThemeTemplateNotes()
         {
-            if (ToastEditor == null || FrameEditor == null || _toastTemplateResolver == null)
+            if (ToastThemeTemplateNote == null || FrameThemeTemplateNote == null ||
+                _toastTemplateResolver == null)
             {
                 return;
             }
@@ -310,8 +311,10 @@ namespace PlayniteAchievements.Views.Settings.General
             var themeFrame = _toastTemplateResolver.ThemeProvidesTemplate(
                 NotificationTemplatePreviewSource.ActiveTheme, isFrame: true);
 
-            ToastEditor.IsEnabled = !(themeToast && _currentToastUseThemeStyling);
-            FrameEditor.IsEnabled = !(themeFrame && _currentFrameUseThemeStyling);
+            ToastThemeTemplateNote.Visibility =
+                themeToast && _currentToastUseThemeStyling ? Visibility.Visible : Visibility.Collapsed;
+            FrameThemeTemplateNote.Visibility =
+                themeFrame && _currentFrameUseThemeStyling ? Visibility.Visible : Visibility.Collapsed;
         }
 
         private void PersistGameStyle(NotificationStyleSettings style)

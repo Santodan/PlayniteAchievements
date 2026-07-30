@@ -129,6 +129,12 @@
                                 <TextBlock Text="{DynamicResource LOCPlayAch_Settings_Style_UseThemeTemplateHint}"
                                            Style="{StaticResource MutedTextStyle}"
                                            TextWrapping="Wrap"
+                                           Margin="0,0,0,4"/>
+                                <TextBlock x:Name="ToastThemeTemplateNote"
+                                           Text="{DynamicResource LOCPlayAch_Settings_Style_ThemeTemplateActiveNote}"
+                                           Style="{StaticResource MutedTextStyle}"
+                                           TextWrapping="Wrap"
+                                           Visibility="Collapsed"
                                            Margin="0,0,0,10"/>
 
                                 <Border Background="{DynamicResource PlayAch.Brush.Surface}"
@@ -190,6 +196,12 @@
                                 <TextBlock Text="{DynamicResource LOCPlayAch_Settings_Style_UseThemeTemplateHint}"
                                            Style="{StaticResource MutedTextStyle}"
                                            TextWrapping="Wrap"
+                                           Margin="0,0,0,4"/>
+                                <TextBlock x:Name="FrameThemeTemplateNote"
+                                           Text="{DynamicResource LOCPlayAch_Settings_Style_ThemeTemplateActiveNote}"
+                                           Style="{StaticResource MutedTextStyle}"
+                                           TextWrapping="Wrap"
+                                           Visibility="Collapsed"
                                            Margin="0,0,0,10"/>
 
                                 <!-- The 16:9 grid stands in for the screenshot; the frame
