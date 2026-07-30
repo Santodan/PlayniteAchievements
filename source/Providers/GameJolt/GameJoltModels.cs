@@ -71,6 +71,20 @@ namespace PlayniteAchievements.Providers.GameJolt
         public string ImgThumbnail { get; set; }
     }
 
+    // GET /web/profile/trophies/game-trophy-percentage/{trophyId} -> global "% of players who
+    // achieved this trophy" (the value the website shows when a trophy is opened). Public endpoint.
+    internal sealed class GameJoltPercentageResponse
+    {
+        [JsonProperty("payload")]
+        public GameJoltPercentagePayload Payload { get; set; }
+    }
+
+    internal sealed class GameJoltPercentagePayload
+    {
+        [JsonProperty("percentage")]
+        public double? Percentage { get; set; }
+    }
+
     // GET /web/profile/trophies/game/@{username}/{gameId} -> the user's unlock status for the game.
     internal sealed class GameJoltProfileTrophiesResponse
     {
