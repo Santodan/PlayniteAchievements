@@ -53,6 +53,9 @@ namespace PlayniteAchievements.ViewModels.Settings
         private bool _hasHeaderFormatError;
         private string _cardWidthText = string.Empty;
         private string _cardHeightText = string.Empty;
+        private string _iconSizeText = string.Empty;
+        private string _rarityBadgeSizeText = string.Empty;
+        private string _providerIconSizeText = string.Empty;
 
         public NotificationAppearanceEditorViewModel(
             PlayniteAchievementsSettings settings,
@@ -377,6 +380,52 @@ namespace PlayniteAchievements.ViewModels.Settings
             }
         }
 
+        /// <summary>
+        /// Icon size (toast/frame). Blank or invalid clears the override (falls back to the
+        /// surface default); a positive number sets it.
+        /// </summary>
+        public string IconSizeText
+        {
+            get => _iconSizeText;
+            set
+            {
+                if (SetValueAndReturn(ref _iconSizeText, value))
+                {
+                    CommitSize(value, (surface, parsed) => surface.IconSize = parsed);
+                }
+            }
+        }
+
+        /// <summary>
+        /// Rarity badge size (applies to every badge placement). Blank/invalid clears the override.
+        /// </summary>
+        public string RarityBadgeSizeText
+        {
+            get => _rarityBadgeSizeText;
+            set
+            {
+                if (SetValueAndReturn(ref _rarityBadgeSizeText, value))
+                {
+                    CommitSize(value, (surface, parsed) => surface.RarityBadgeSize = parsed);
+                }
+            }
+        }
+
+        /// <summary>
+        /// Provider (platform) icon size. Blank/invalid clears the override.
+        /// </summary>
+        public string ProviderIconSizeText
+        {
+            get => _providerIconSizeText;
+            set
+            {
+                if (SetValueAndReturn(ref _providerIconSizeText, value))
+                {
+                    CommitSize(value, (surface, parsed) => surface.ProviderIconSize = parsed);
+                }
+            }
+        }
+
         private void CommitCardDimension(string text, bool isWidth)
         {
             var surface = Surface;
@@ -386,21 +435,7 @@ namespace PlayniteAchievements.ViewModels.Settings
                 return;
             }
 
-            double? parsed = null;
-            if (!string.IsNullOrWhiteSpace(text))
-            {
-                if (double.TryParse(text.Trim(), NumberStyles.Float, CultureInfo.CurrentCulture, out var current) &&
-                    current > 0)
-                {
-                    parsed = current;
-                }
-                else if (double.TryParse(text.Trim(), NumberStyles.Float, CultureInfo.InvariantCulture, out var invariant) &&
-                         invariant > 0)
-                {
-                    parsed = invariant;
-                }
-            }
-
+            var parsed = ParseOptionalPositive(text);
             if (isWidth)
             {
                 surface.CardWidth = parsed;
@@ -413,6 +448,41 @@ namespace PlayniteAchievements.ViewModels.Settings
             RefreshCardDimensions();
         }
 
+        private void CommitSize(string text, Action<NotificationSurfaceStyle, double?> apply)
+        {
+            var surface = Surface;
+            if (surface != null && _isEditable)
+            {
+                apply(surface, ParseOptionalPositive(text));
+            }
+
+            RefreshCardDimensions();
+        }
+
+        // Parses a blank/invalid entry as "no override" (null) and a positive number as the value,
+        // accepting both the current and invariant cultures.
+        private static double? ParseOptionalPositive(string text)
+        {
+            if (string.IsNullOrWhiteSpace(text))
+            {
+                return null;
+            }
+
+            if (double.TryParse(text.Trim(), NumberStyles.Float, CultureInfo.CurrentCulture, out var current) &&
+                current > 0)
+            {
+                return current;
+            }
+
+            if (double.TryParse(text.Trim(), NumberStyles.Float, CultureInfo.InvariantCulture, out var invariant) &&
+                invariant > 0)
+            {
+                return invariant;
+            }
+
+            return null;
+        }
+
         private void RefreshCardDimensions()
         {
             var surface = Surface;
@@ -422,6 +492,15 @@ namespace PlayniteAchievements.ViewModels.Settings
             SetValue(ref _cardHeightText,
                 surface?.CardHeight?.ToString(CultureInfo.CurrentCulture) ?? string.Empty,
                 nameof(CardHeightText));
+            SetValue(ref _iconSizeText,
+                surface?.IconSize?.ToString(CultureInfo.CurrentCulture) ?? string.Empty,
+                nameof(IconSizeText));
+            SetValue(ref _rarityBadgeSizeText,
+                surface?.RarityBadgeSize?.ToString(CultureInfo.CurrentCulture) ?? string.Empty,
+                nameof(RarityBadgeSizeText));
+            SetValue(ref _providerIconSizeText,
+                surface?.ProviderIconSize?.ToString(CultureInfo.CurrentCulture) ?? string.Empty,
+                nameof(ProviderIconSizeText));
         }
 
         // Slider/textbox range for the name-line offset; must match the Slider bounds in the view.
