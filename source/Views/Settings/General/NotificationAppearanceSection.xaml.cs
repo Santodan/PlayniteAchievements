@@ -289,6 +289,29 @@ namespace PlayniteAchievements.Views.Settings.General
             ToastThemeStylingCheckBox.IsEnabled = editable;
             FrameThemeStylingCheckBox.IsEnabled = editable;
             _suppressThemeStylingEvents = false;
+            RefreshEditorAvailability();
+        }
+
+        /// <summary>
+        /// When the active theme ships its own template for a surface and the user is letting the
+        /// theme style that surface, the per-field customization below mostly does not apply, so
+        /// the editor is disabled until the user unchecks "Allow the theme to style this surface".
+        /// With no theme template the editor is always available.
+        /// </summary>
+        private void RefreshEditorAvailability()
+        {
+            if (ToastEditor == null || FrameEditor == null || _toastTemplateResolver == null)
+            {
+                return;
+            }
+
+            var themeToast = _toastTemplateResolver.ThemeProvidesTemplate(
+                NotificationTemplatePreviewSource.ActiveTheme, isFrame: false);
+            var themeFrame = _toastTemplateResolver.ThemeProvidesTemplate(
+                NotificationTemplatePreviewSource.ActiveTheme, isFrame: true);
+
+            ToastEditor.IsEnabled = !(themeToast && _currentToastUseThemeStyling);
+            FrameEditor.IsEnabled = !(themeFrame && _currentFrameUseThemeStyling);
         }
 
         private void PersistGameStyle(NotificationStyleSettings style)
