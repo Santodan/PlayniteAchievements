@@ -130,6 +130,9 @@ namespace PlayniteAchievements.Models.Settings
         private double? _bodyFontSize;
         private double? _cardWidth;
         private double? _cardHeight;
+        private double? _iconSize;
+        private double? _rarityBadgeSize;
+        private double? _providerIconSize;
         private double _titleLineOffset;
 
         [JsonProperty(DefaultValueHandling = DefaultValueHandling.Include)]
@@ -318,6 +321,36 @@ namespace PlayniteAchievements.Models.Settings
         }
 
         /// <summary>
+        /// Achievement icon render size in DIPs, or null for the surface default (55 toast / 84
+        /// frame).
+        /// </summary>
+        public double? IconSize
+        {
+            get => _iconSize;
+            set => SetValue(ref _iconSize, value);
+        }
+
+        /// <summary>
+        /// Rarity/trophy badge render size in DIPs, applied to every badge placement (footer,
+        /// inline, and the large right-side badge), or null for the per-placement defaults.
+        /// </summary>
+        public double? RarityBadgeSize
+        {
+            get => _rarityBadgeSize;
+            set => SetValue(ref _rarityBadgeSize, value);
+        }
+
+        /// <summary>
+        /// Provider (platform) icon render size in DIPs, or null for the surface default (24 toast
+        /// / 40 frame).
+        /// </summary>
+        public double? ProviderIconSize
+        {
+            get => _providerIconSize;
+            set => SetValue(ref _providerIconSize, value);
+        }
+
+        /// <summary>
         /// Horizontal offset in DIPs for the achievement-name (title) line, including its inline
         /// badge, so the user can slide the whole line to align it with the rows below. Zero (the
         /// default) leaves the line at its natural start.
@@ -434,6 +467,9 @@ namespace PlayniteAchievements.Models.Settings
                 BodyFontSize = BodyFontSize,
                 CardWidth = CardWidth,
                 CardHeight = CardHeight,
+                IconSize = IconSize,
+                RarityBadgeSize = RarityBadgeSize,
+                ProviderIconSize = ProviderIconSize,
                 TitleLineOffset = TitleLineOffset
             };
         }
