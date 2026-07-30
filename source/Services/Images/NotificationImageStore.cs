@@ -9,6 +9,58 @@ using PlayniteAchievements.Models.Settings;
 
 namespace PlayniteAchievements.Services.Images
 {
+    public enum NotificationImageOwnerKind
+    {
+        Global,
+        Provider,
+        Game
+    }
+
+    /// <summary>
+    /// Identifies the independent owner of a notification style's managed image slots.
+    /// </summary>
+    public sealed class NotificationImageOwner
+    {
+        private NotificationImageOwner(NotificationImageOwnerKind kind, string providerKey, Guid gameId)
+        {
+            Kind = kind;
+            ProviderKey = providerKey;
+            GameId = gameId;
+        }
+
+        public NotificationImageOwnerKind Kind { get; }
+
+        public string ProviderKey { get; }
+
+        public Guid GameId { get; }
+
+        public static NotificationImageOwner Global { get; } =
+            new NotificationImageOwner(NotificationImageOwnerKind.Global, null, Guid.Empty);
+
+        public static NotificationImageOwner ForProvider(string providerKey)
+        {
+            if (string.IsNullOrWhiteSpace(providerKey))
+            {
+                return Global;
+            }
+
+            return new NotificationImageOwner(
+                NotificationImageOwnerKind.Provider,
+                providerKey.Trim(),
+                Guid.Empty);
+        }
+
+        public static NotificationImageOwner ForGame(Guid gameId)
+        {
+            if (gameId == Guid.Empty)
+            {
+                throw new ArgumentException("Game ID is required.", nameof(gameId));
+            }
+
+            return new NotificationImageOwner(NotificationImageOwnerKind.Game, null, gameId);
+        }
+    }
+
     /// <summary>
     /// The user-image slots a notification style can customize: the toast background and the
     /// five badge replacements.
@@ -29,13 +81,15 @@ namespace PlayniteAchievements.Services.Images
     /// managed storage (never referenced in place) with their original bytes and extension
     /// preserved, so animated GIFs stay animated. Global images live in global\; a provider's
     /// whole-style copy owns its own files under providers\&lt;key&gt;\ so later edits to the
-    /// global images cannot mutate a customized platform.
+    /// global images cannot mutate a customized platform. Per-game snapshots use isolated
+    /// games\&lt;game-guid&gt;\ folders.
     /// </summary>
     public sealed class NotificationImageStore
     {
         private const string RootFolderName = "notification_images";
         private const string GlobalFolderName = "global";
         private const string ProvidersFolderName = "providers";
+        private const string GamesFolderName = "games";
 
         private static readonly Dictionary<NotificationImageSlot, string> SlotStems =
             new Dictionary<NotificationImageSlot, string>
@@ -69,13 +123,27 @@ namespace PlayniteAchievements.Services.Images
             NotificationImageSlot slot,
             CancellationToken cancel)
         {
+            return await MaterializeAsync(
+                sourcePathOrUrl,
+                NotificationImageOwner.ForProvider(providerKeyOrNull),
+                slot,
+                cancel).ConfigureAwait(false);
+        }
+
+        public async Task<string> MaterializeAsync(
+            string sourcePathOrUrl,
+            NotificationImageOwner owner,
+            NotificationImageSlot slot,
+            CancellationToken cancel)
+        {
             if (string.IsNullOrWhiteSpace(sourcePathOrUrl))
             {
                 return null;
             }
 
             sourcePathOrUrl = sourcePathOrUrl.Trim();
-            var targetPath = Path.Combine(GetSlotDirectory(providerKeyOrNull), SlotStems[slot] + ".png");
+            owner = owner ?? NotificationImageOwner.Global;
+            var targetPath = Path.Combine(GetSlotDirectory(owner), SlotStems[slot] + ".png");
             if (string.Equals(sourcePathOrUrl, targetPath, StringComparison.OrdinalIgnoreCase) &&
                 File.Exists(targetPath))
             {
@@ -115,7 +183,7 @@ namespace PlayniteAchievements.Services.Images
                 // Replacing an image with one of a different format leaves the old file
                 // behind under the same stem (the copy may change the target extension to
                 // match the source); remove those stale siblings.
-                DeleteSlotFiles(providerKeyOrNull, slot, exceptPath: resolvedPath);
+                DeleteSlotFiles(owner, slot, exceptPath: resolvedPath);
             }
 
             return resolvedPath;
@@ -127,7 +195,12 @@ namespace PlayniteAchievements.Services.Images
         /// </summary>
         public void DeleteSlot(string providerKeyOrNull, NotificationImageSlot slot)
         {
-            DeleteSlotFiles(providerKeyOrNull, slot, exceptPath: null);
+            DeleteSlot(NotificationImageOwner.ForProvider(providerKeyOrNull), slot);
+        }
+
+        public void DeleteSlot(NotificationImageOwner owner, NotificationImageSlot slot)
+        {
+            DeleteSlotFiles(owner ?? NotificationImageOwner.Global, slot, exceptPath: null);
         }
 
         /// <summary>
@@ -145,6 +218,68 @@ namespace PlayniteAchievements.Services.Images
             TryDeleteDirectory(Path.Combine(GetRootDirectory(), ProvidersFolderName, folder));
         }
 
+        public void DeleteGameImages(Guid gameId)
+        {
+            if (gameId == Guid.Empty)
+            {
+                return;
+            }
+
+            TryDeleteDirectory(Path.Combine(
+                GetRootDirectory(),
+                GamesFolderName,
+                gameId.ToString("D")));
+        }
+
+        /// <summary>
+        /// Removes files in one game's slot folder that are no longer referenced by its current
+        /// style. A null style removes the whole folder.
+        /// </summary>
+        public void PruneGameImages(Guid gameId, NotificationStyleSettings style)
+        {
+            if (gameId == Guid.Empty)
+            {
+                return;
+            }
+
+            if (style == null)
+            {
+                DeleteGameImages(gameId);
+                return;
+            }
+
+            try
+            {
+                var directory = GetSlotDirectory(NotificationImageOwner.ForGame(gameId));
+                if (!Directory.Exists(directory))
+                {
+                    return;
+                }
+
+                var referenced = new HashSet<string>(
+                    EnumerateStylePaths(style)
+                        .Where(path => !string.IsNullOrWhiteSpace(path))
+                        .Select(path => Path.GetFullPath(path.Trim())),
+                    StringComparer.OrdinalIgnoreCase);
+                foreach (var file in Directory.EnumerateFiles(directory))
+                {
+                    if (!referenced.Contains(Path.GetFullPath(file)))
+                    {
+                        TryDeleteFile(file);
+                    }
+                }
+
+                if (!Directory.EnumerateFileSystemEntries(directory).Any())
+                {
+                    TryDeleteDirectory(directory);
+                }
+            }
+            catch (Exception ex)
+            {
+                _logger?.Debug(ex, $"Failed to prune notification images for game {gameId}.");
+            }
+        }
+
         /// <summary>
         /// Re-materializes every image referenced by <paramref name="styleCopy"/> into the
         /// provider's own folder and rewrites the copy's paths, so a customized platform owns
@@ -156,34 +291,61 @@ namespace PlayniteAchievements.Services.Images
             string providerKey,
             CancellationToken cancel)
         {
-            if (styleCopy == null || string.IsNullOrWhiteSpace(providerKey))
+            if (string.IsNullOrWhiteSpace(providerKey))
             {
                 return;
             }
 
+            await CopyImagesAsync(
+                styleCopy,
+                NotificationImageOwner.ForProvider(providerKey),
+                cancel).ConfigureAwait(false);
+        }
+
+        public Task CopyImagesForGameAsync(
+            NotificationStyleSettings styleCopy,
+            Guid gameId,
+            CancellationToken cancel)
+        {
+            return CopyImagesAsync(styleCopy, NotificationImageOwner.ForGame(gameId), cancel);
+        }
+
+        public async Task CopyImagesAsync(
+            NotificationStyleSettings styleCopy,
+            NotificationImageOwner owner,
+            CancellationToken cancel)
+        {
+            if (styleCopy == null)
+            {
+                return;
+            }
+
+            owner = owner ?? NotificationImageOwner.Global;
             styleCopy.ToastBackgroundImagePath = await MaterializeAsync(
-                styleCopy.ToastBackgroundImagePath, providerKey, NotificationImageSlot.Background, cancel)
+                styleCopy.ToastBackgroundImagePath, owner, NotificationImageSlot.Background, cancel)
                 .ConfigureAwait(false);
 
             var badges = styleCopy.BadgeImages;
             badges.CommonPath = await MaterializeAsync(
-                badges.CommonPath, providerKey, NotificationImageSlot.BadgeCommon, cancel).ConfigureAwait(false);
+                badges.CommonPath, owner, NotificationImageSlot.BadgeCommon, cancel).ConfigureAwait(false);
             badges.UncommonPath = await MaterializeAsync(
-                badges.UncommonPath, providerKey, NotificationImageSlot.BadgeUncommon, cancel).ConfigureAwait(false);
+                badges.UncommonPath, owner, NotificationImageSlot.BadgeUncommon, cancel).ConfigureAwait(false);
             badges.RarePath = await MaterializeAsync(
-                badges.RarePath, providerKey, NotificationImageSlot.BadgeRare, cancel).ConfigureAwait(false);
+                badges.RarePath, owner, NotificationImageSlot.BadgeRare, cancel).ConfigureAwait(false);
             badges.UltraRarePath = await MaterializeAsync(
-                badges.UltraRarePath, providerKey, NotificationImageSlot.BadgeUltraRare, cancel).ConfigureAwait(false);
+                badges.UltraRarePath, owner, NotificationImageSlot.BadgeUltraRare, cancel).ConfigureAwait(false);
             badges.CompletionPath = await MaterializeAsync(
-                badges.CompletionPath, providerKey, NotificationImageSlot.BadgeCompletion, cancel).ConfigureAwait(false);
+                badges.CompletionPath, owner, NotificationImageSlot.BadgeCompletion, cancel).ConfigureAwait(false);
         }
 
         /// <summary>
-        /// Best-effort startup cleanup: removes provider folders with no corresponding style
-        /// copy and slot files no persisted path references (covers crashes between a copy
-        /// and the settings persist).
+        /// Best-effort startup cleanup: removes provider/game folders with no corresponding
+        /// style copy and slot files no persisted path references (covers crashes between a
+        /// copy and persistence). Omitting game rows preserves game folders for legacy callers.
         /// </summary>
-        public void PruneOrphans(PersistedSettings settings)
+        public void PruneOrphans(
+            PersistedSettings settings,
+            IEnumerable<GameCustomDataFile> gameCustomData = null)
         {
             if (settings == null)
             {
@@ -209,12 +371,40 @@ namespace PlayniteAchievements.Services.Images
                     }
                 }
 
-                var referenced = new HashSet<string>(CollectReferencedPaths(settings), StringComparer.OrdinalIgnoreCase);
+                var gameRows = (gameCustomData ?? Enumerable.Empty<GameCustomDataFile>())
+                    .Where(data => data?.PlayniteGameId != Guid.Empty)
+                    .ToList();
+                var gamesRoot = Path.Combine(GetRootDirectory(), GamesFolderName);
+                if (gameCustomData != null && Directory.Exists(gamesRoot))
+                {
+                    var customizedGames = new HashSet<string>(
+                        gameRows
+                            .Where(data => data.NotificationAppearanceOverride?.Style != null)
+                            .Select(data => data.PlayniteGameId.ToString("D")),
+                        StringComparer.OrdinalIgnoreCase);
+                    foreach (var directory in Directory.EnumerateDirectories(gamesRoot))
+                    {
+                        if (!customizedGames.Contains(Path.GetFileName(directory)))
+                        {
+                            TryDeleteDirectory(directory);
+                        }
+                    }
+                }
+
+                var referenced = new HashSet<string>(
+                    CollectReferencedPaths(settings, gameCustomData == null ? null : gameRows),
+                    StringComparer.OrdinalIgnoreCase);
                 var root = GetRootDirectory();
                 if (Directory.Exists(root))
                 {
                     foreach (var file in Directory.EnumerateFiles(root, "*", SearchOption.AllDirectories))
                     {
+                        if (gameCustomData == null &&
+                            IsPathUnderDirectory(file, gamesRoot))
+                        {
+                            continue;
+                        }
+
                         if (!referenced.Contains(Path.GetFullPath(file)))
                         {
                             TryDeleteFile(file);
@@ -228,22 +418,19 @@ namespace PlayniteAchievements.Services.Images
             }
         }
 
-        private static IEnumerable<string> CollectReferencedPaths(PersistedSettings settings)
+        private static IEnumerable<string> CollectReferencedPaths(
+            PersistedSettings settings,
+            IEnumerable<GameCustomDataFile> gameCustomData)
         {
             var styles = new List<NotificationStyleSettings> { settings.NotificationStyle };
             styles.AddRange(settings.ProviderNotificationStyles.Values.Where(style => style != null));
+            styles.AddRange((gameCustomData ?? Enumerable.Empty<GameCustomDataFile>())
+                .Select(data => data?.NotificationAppearanceOverride?.Style)
+                .Where(style => style != null));
             foreach (var style in styles)
             {
-                var paths = new[]
-                {
-                    style.ToastBackgroundImagePath,
-                    style.BadgeImages.CommonPath,
-                    style.BadgeImages.UncommonPath,
-                    style.BadgeImages.RarePath,
-                    style.BadgeImages.UltraRarePath,
-                    style.BadgeImages.CompletionPath
-                };
-                foreach (var path in paths.Where(p => !string.IsNullOrWhiteSpace(p)))
+                foreach (var path in EnumerateStylePaths(style)
+                    .Where(p => !string.IsNullOrWhiteSpace(p)))
                 {
                     string full = null;
                     try
@@ -263,11 +450,14 @@ namespace PlayniteAchievements.Services.Images
             }
         }
 
-        private void DeleteSlotFiles(string providerKeyOrNull, NotificationImageSlot slot, string exceptPath)
+        private void DeleteSlotFiles(
+            NotificationImageOwner owner,
+            NotificationImageSlot slot,
+            string exceptPath)
         {
             try
             {
-                var directory = GetSlotDirectory(providerKeyOrNull);
+                var directory = GetSlotDirectory(owner);
                 if (!Directory.Exists(directory))
                 {
                     return;
@@ -297,12 +487,60 @@ namespace PlayniteAchievements.Services.Images
                 RootFolderName);
         }
 
-        private string GetSlotDirectory(string providerKeyOrNull)
+        private string GetSlotDirectory(NotificationImageOwner owner)
         {
-            var folder = SanitizeProviderFolderName(providerKeyOrNull);
-            return folder == null
-                ? Path.Combine(GetRootDirectory(), GlobalFolderName)
-                : Path.Combine(GetRootDirectory(), ProvidersFolderName, folder);
+            owner = owner ?? NotificationImageOwner.Global;
+            switch (owner.Kind)
+            {
+                case NotificationImageOwnerKind.Provider:
+                    var providerFolder = SanitizeProviderFolderName(owner.ProviderKey);
+                    return providerFolder == null
+                        ? Path.Combine(GetRootDirectory(), GlobalFolderName)
+                        : Path.Combine(GetRootDirectory(), ProvidersFolderName, providerFolder);
+
+                case NotificationImageOwnerKind.Game:
+                    if (owner.GameId == Guid.Empty)
+                    {
+                        throw new InvalidOperationException("Game image owner requires a game ID.");
+                    }
+
+                    return Path.Combine(
+                        GetRootDirectory(),
+                        GamesFolderName,
+                        owner.GameId.ToString("D"));
+
+                default:
+                    return Path.Combine(GetRootDirectory(), GlobalFolderName);
+            }
+        }
+
+        private static bool IsPathUnderDirectory(string path, string directory)
+        {
+            if (string.IsNullOrWhiteSpace(path) || string.IsNullOrWhiteSpace(directory))
+            {
+                return false;
+            }
+
+            var fullDirectory = Path.GetFullPath(directory)
+                .TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar) +
+                Path.DirectorySeparatorChar;
+            var fullPath = Path.GetFullPath(path);
+            return fullPath.StartsWith(fullDirectory, StringComparison.OrdinalIgnoreCase);
+        }
+
+        internal static IEnumerable<string> EnumerateStylePaths(NotificationStyleSettings style)
+        {
+            if (style == null)
+            {
+                yield break;
+            }
+
+            yield return style.ToastBackgroundImagePath;
+            yield return style.BadgeImages.CommonPath;
+            yield return style.BadgeImages.UncommonPath;
+            yield return style.BadgeImages.RarePath;
+            yield return style.BadgeImages.UltraRarePath;
+            yield return style.BadgeImages.CompletionPath;
         }
 
         private static string SanitizeProviderFolderName(string providerKey)

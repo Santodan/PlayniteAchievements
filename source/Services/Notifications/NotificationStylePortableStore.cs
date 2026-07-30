@@ -191,13 +191,24 @@ namespace PlayniteAchievements.Services.Notifications
 
         /// <summary>
         /// Reads a <c>.pastyle</c> or <c>.pastyle.zip</c> and returns a ready-to-apply style whose
-        /// image paths point into managed storage for <paramref name="targetProviderKeyOrNull"/>
-        /// (null = global). Bundled images are re-materialized; the manifest's image paths are
-        /// ignored so machine-specific paths never leak in.
+        /// image paths point into managed storage for the requested global/provider target.
+        /// Bundled images are re-materialized; the manifest's image paths are ignored so
+        /// machine-specific paths never leak in.
         /// </summary>
         public async Task<NotificationStyleSettings> ImportAsync(
             string sourcePath,
             string targetProviderKeyOrNull,
+            CancellationToken cancel)
+        {
+            return await ImportAsync(
+                sourcePath,
+                NotificationImageOwner.ForProvider(targetProviderKeyOrNull),
+                cancel).ConfigureAwait(false);
+        }
+
+        public async Task<NotificationStyleSettings> ImportAsync(
+            string sourcePath,
+            NotificationImageOwner targetOwner,
             CancellationToken cancel)
         {
             if (string.IsNullOrWhiteSpace(sourcePath))
@@ -207,7 +218,10 @@ namespace PlayniteAchievements.Services.Notifications
 
             if (IsPackagePath(sourcePath))
             {
-                return await ImportPackageAsync(sourcePath, targetProviderKeyOrNull, cancel).ConfigureAwait(false);
+                return await ImportPackageAsync(
+                    sourcePath,
+                    targetOwner ?? NotificationImageOwner.Global,
+                    cancel).ConfigureAwait(false);
             }
 
             if (!IsFilePath(sourcePath))
@@ -267,7 +281,7 @@ namespace PlayniteAchievements.Services.Notifications
 
         private async Task<NotificationStyleSettings> ImportPackageAsync(
             string sourcePath,
-            string targetProviderKeyOrNull,
+            NotificationImageOwner targetOwner,
             CancellationToken cancel)
         {
             if (!File.Exists(sourcePath))
@@ -305,7 +319,7 @@ namespace PlayniteAchievements.Services.Notifications
                     foreach (var binding in SlotBindings)
                     {
                         binding.SetPath(style, await MaterializeBundledSlotAsync(
-                            entriesByName, binding, targetProviderKeyOrNull, tempRoot, cancel).ConfigureAwait(false));
+                            entriesByName, binding, targetOwner, tempRoot, cancel).ConfigureAwait(false));
                     }
                 }
                 finally
@@ -320,7 +334,7 @@ namespace PlayniteAchievements.Services.Notifications
         private async Task<string> MaterializeBundledSlotAsync(
             IReadOnlyDictionary<string, ZipArchiveEntry> entriesByName,
             ImageSlotBinding binding,
-            string targetProviderKeyOrNull,
+            NotificationImageOwner targetOwner,
             string tempRoot,
             CancellationToken cancel)
         {
@@ -340,7 +354,7 @@ namespace PlayniteAchievements.Services.Notifications
             try
             {
                 return await _imageStore
-                    .MaterializeAsync(tempPath, targetProviderKeyOrNull, binding.Slot, cancel)
+                    .MaterializeAsync(tempPath, targetOwner, binding.Slot, cancel)
                     .ConfigureAwait(false);
             }
             finally

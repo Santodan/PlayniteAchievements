@@ -148,6 +148,11 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
 
         public string GameIdText => _gameId.ToString();
 
+        public string EffectiveProviderKey =>
+            _gameDataSnapshotProvider?.GetHydratedGameData()?.EffectiveProviderKey ??
+            _plugin?.AchievementDataService?.GetGameAchievementData(_gameId)?.EffectiveProviderKey ??
+            _cachedProviderKey;
+
         public ManageAchievementsTab SelectedTab
         {
             get => _selectedTab;
@@ -882,11 +887,11 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
                         GameCustomDataStore.PortableFileExtension);
                     var result = store.ExportPortablePa(_gameId, destinationPath);
                     successMessage = L("LOCPlayAch_Status_Succeeded") + "\n" + result.DestinationPath;
-                    if (result.HasOmittedLocalIconOverrides)
+                    if (result.HasOmittedLocalImageOverrides)
                     {
                         successMessage += "\n\n" + string.Format(
                             L("LOCPlayAch_ManageAchievements_Overrides_ExportPaOmittedLocalIcons"),
-                            result.OmittedLocalIconOverrideCount);
+                            result.OmittedLocalImageOverrideCount);
                     }
                 }
 

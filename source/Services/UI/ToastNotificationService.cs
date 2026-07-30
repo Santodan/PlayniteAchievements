@@ -12,6 +12,7 @@ using Playnite.SDK;
 using PlayniteAchievements.Models;
 using PlayniteAchievements.Models.Achievements;
 using PlayniteAchievements.Models.Settings;
+using PlayniteAchievements.Services.GameCustomData;
 using PlayniteAchievements.ViewModels;
 using PlayniteAchievements.Views.Helpers;
 
@@ -31,6 +32,7 @@ namespace PlayniteAchievements.Services.UI
         private readonly UnlockScreenshotService _screenshotService;
         private readonly ScreenshotFrameCompositor _frameCompositor;
         private readonly AchievementToastTemplateResolver _templateResolver;
+        private readonly GameCustomDataStore _gameCustomDataStore;
         private readonly Queue<AchievementToastViewModel> _queue = new Queue<AchievementToastViewModel>();
         private bool _processing;
         private bool _disposed;
@@ -38,6 +40,7 @@ namespace PlayniteAchievements.Services.UI
         // The corner the current wave uses, resolved once per wave (theme override or plugin
         // setting). Read by the per-frame positioning path so it isn't re-resolved every frame.
         private ToastScreenCorner _activePosition = ToastScreenCorner.BottomRight;
+        private bool _activeToastThemeStylingEnabled = true;
         // The game the current wave belongs to, resolved once per wave. Screenshot capture and
         // toast placement key window resolution off this game so a wave from one running game
         // never anchors to another running game's window.
@@ -49,7 +52,8 @@ namespace PlayniteAchievements.Services.UI
             ILogger logger,
             Action ensureResourcesLoaded,
             Func<Guid?, int?> getGameProcessId = null,
-            ActiveGameWindowTracker windowTracker = null)
+            ActiveGameWindowTracker windowTracker = null,
+            GameCustomDataStore gameCustomDataStore = null)
         {
             _api = api;
             _settings = settings;
@@ -57,6 +61,7 @@ namespace PlayniteAchievements.Services.UI
             _ensureResourcesLoaded = ensureResourcesLoaded;
             _getGameProcessId = getGameProcessId;
             _windowTracker = windowTracker;
+            _gameCustomDataStore = gameCustomDataStore;
             _screenshotService = new UnlockScreenshotService(logger);
             _frameCompositor = new ScreenshotFrameCompositor(logger);
             _templateResolver = new AchievementToastTemplateResolver(api, logger);
@@ -164,7 +169,11 @@ namespace PlayniteAchievements.Services.UI
                 return;
             }
 
-            _queue.Enqueue(new AchievementToastViewModel(args, _settings?.Persisted));
+            _queue.Enqueue(new AchievementToastViewModel(
+                args,
+                _settings?.Persisted,
+                styleOverride: null,
+                gameCustomDataStore: _gameCustomDataStore));
             if (!_processing)
             {
                 _processing = true;
@@ -365,6 +374,7 @@ namespace PlayniteAchievements.Services.UI
 
             _ensureResourcesLoaded?.Invoke();
 
+            _activeToastThemeStylingEnabled = wave[0].ToastUseThemeStyling;
             // Resolve the corner once for this wave: a theme override wins, otherwise the plugin
             // setting. Positioning (including the per-frame game-window follow) and slide direction
             // both read the resolved value.
@@ -827,7 +837,9 @@ namespace PlayniteAchievements.Services.UI
                     var cleanSource = await Task.Run(() => ScreenshotFrameCompositor.ToBitmapSource(captured))
                         .ConfigureAwait(true);
                     var frameTemplate = _templateResolver.ResolveFrameTemplate(
-                        _settings?.Persisted?.FrameUseThemeStyling ?? true);
+                        plan.Items.Count > 0
+                            ? plan.Items[0].Vm.FrameUseThemeStyling
+                            : (_settings?.Persisted?.FrameUseThemeStyling ?? true));
                     if (cleanSource != null && frameTemplate != null)
                     {
                         foreach (var item in plan.Items)
@@ -1438,7 +1450,7 @@ namespace PlayniteAchievements.Services.UI
         /// The toast theme opt-out covers the whole theme toast surface (template, storyboards,
         /// position, duration) since they all ship in the same theme override file.
         /// </summary>
-        private bool ToastThemeStylingEnabled => _settings?.Persisted?.ToastUseThemeStyling ?? true;
+        private bool ToastThemeStylingEnabled => _activeToastThemeStylingEnabled;
 
         private DoubleAnimation ResolveAnimation(string storyboardKey)
         {

@@ -11,7 +11,7 @@ namespace PlayniteAchievements.Services.GameCustomData
 {
     internal static class GameCustomDataNormalizer
     {
-        internal const int CurrentSchemaVersion = 5;
+        internal const int CurrentSchemaVersion = 6;
 
         private sealed class LegacyFilterExtractionResult
         {
@@ -68,6 +68,8 @@ namespace PlayniteAchievements.Services.GameCustomData
             normalized.AchievementUnlockedIconOverrides = NormalizeIconOverrides(normalized.AchievementUnlockedIconOverrides);
             normalized.AchievementLockedIconOverrides = NormalizeIconOverrides(normalized.AchievementLockedIconOverrides);
             normalized.AchievementNotes = AchievementNoteHelper.NormalizeNoteMap(normalized.AchievementNotes);
+            normalized.NotificationAppearanceOverride =
+                NormalizeNotificationAppearanceOverride(normalized.NotificationAppearanceOverride);
             normalized.ManualLink = NormalizeManualLink(normalized.ManualLink);
             return normalized;
         }
@@ -102,6 +104,8 @@ namespace PlayniteAchievements.Services.GameCustomData
             normalized.AchievementUnlockedIconOverrides = NormalizeIconOverrides(normalized.AchievementUnlockedIconOverrides);
             normalized.AchievementLockedIconOverrides = NormalizeIconOverrides(normalized.AchievementLockedIconOverrides);
             normalized.AchievementNotes = AchievementNoteHelper.NormalizeNoteMap(normalized.AchievementNotes);
+            normalized.NotificationAppearanceOverride =
+                NormalizeNotificationAppearanceOverride(normalized.NotificationAppearanceOverride);
             normalized.ManualLink = NormalizeManualLink(normalized.ManualLink);
             return normalized;
         }
@@ -134,6 +138,7 @@ namespace PlayniteAchievements.Services.GameCustomData
                    !string.IsNullOrWhiteSpace(data.ShadPS4MatchIdOverride) ||
                    data.ForceUseExophase == true ||
                    !string.IsNullOrWhiteSpace(data.ExophaseSlugOverride) ||
+                   data.NotificationAppearanceOverride != null ||
                     data.ManualLink != null;
         }
 
@@ -168,6 +173,7 @@ namespace PlayniteAchievements.Services.GameCustomData
                    !string.IsNullOrWhiteSpace(data.ShadPS4MatchIdOverride) ||
                    data.ForceUseExophase == true ||
                    !string.IsNullOrWhiteSpace(data.ExophaseSlugOverride) ||
+                   data.NotificationAppearanceOverride != null ||
                     data.ManualLink != null;
         }
 
@@ -197,6 +203,7 @@ namespace PlayniteAchievements.Services.GameCustomData
                    !string.IsNullOrWhiteSpace(data.ShadPS4MatchIdOverride) ||
                    data.ForceUseExophase == true ||
                    !string.IsNullOrWhiteSpace(data.ExophaseSlugOverride) ||
+                   data.NotificationAppearanceOverride != null ||
                     data.ManualLink != null;
         }
 
@@ -273,10 +280,24 @@ namespace PlayniteAchievements.Services.GameCustomData
                     : legacy.AchievementNotes != null && legacy.AchievementNotes.Count > 0
                         ? new Dictionary<string, string>(legacy.AchievementNotes, StringComparer.OrdinalIgnoreCase)
                         : null,
+                NotificationAppearanceOverride =
+                    NormalizeNotificationAppearanceOverride(existing.NotificationAppearanceOverride) ??
+                    NormalizeNotificationAppearanceOverride(legacy.NotificationAppearanceOverride),
                 ProviderOverride = ResolveEffectiveProviderOverride(existing) ??
                     ResolveEffectiveProviderOverride(legacy),
                 ManualLink = existing.ManualLink?.Clone() ?? legacy.ManualLink?.Clone()
             };
+        }
+
+        private static GameNotificationAppearanceOverride NormalizeNotificationAppearanceOverride(
+            GameNotificationAppearanceOverride value)
+        {
+            if (value?.Style == null)
+            {
+                return null;
+            }
+
+            return value.Clone();
         }
 
         internal static ProviderOverrideData NormalizeProviderOverride(ProviderOverrideData providerOverride)
@@ -825,13 +846,13 @@ namespace PlayniteAchievements.Services.GameCustomData
 
         internal static GameSummaryCategoryData NormalizeGameSummaryCategory(GameSummaryCategoryData value)
         {
-            var label = AchievementCategoryTypeHelper.NormalizeCategoryOrDefault(value?.Label);
+            var label = AchievementCategoryTypeHelper.NormalizeCategory(value?.Label);
             if (string.IsNullOrWhiteSpace(label))
             {
                 return null;
             }
 
-            var providerLabel = AchievementCategoryTypeHelper.NormalizeCategoryOrDefault(value?.ProviderLabel);
+            var providerLabel = AchievementCategoryTypeHelper.NormalizeCategory(value?.ProviderLabel);
             return new GameSummaryCategoryData
             {
                 Label = label,

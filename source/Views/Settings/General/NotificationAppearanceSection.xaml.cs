@@ -12,6 +12,7 @@ using Playnite.SDK;
 using PlayniteAchievements.Models;
 using PlayniteAchievements.Models.Settings;
 using PlayniteAchievements.Providers;
+using PlayniteAchievements.Services.Images;
 using PlayniteAchievements.Services.Notifications;
 using PlayniteAchievements.Services.UI;
 using PlayniteAchievements.ViewModels;
@@ -35,10 +36,17 @@ namespace PlayniteAchievements.Views.Settings.General
         private readonly NotificationAppearanceEditorViewModel _frameEditorViewModel;
 
         private Window _framePreviewWindow;
+        private readonly Guid _gameId;
+        private readonly string _gameProviderKey;
         private string _selectedProviderKey;
         private readonly string _fallbackSampleProviderKey;
         private NotificationStyleSettings _currentStyle;
+        private bool _currentToastUseThemeStyling = true;
+        private bool _currentFrameUseThemeStyling = true;
         private bool _suppressCustomizeEvents;
+        private bool _suppressThemeStylingEvents;
+
+        private bool IsGameMode => _gameId != Guid.Empty;
 
         public NotificationAppearanceSection()
         {
@@ -48,18 +56,24 @@ namespace PlayniteAchievements.Views.Settings.General
         internal NotificationAppearanceSection(
             PlayniteAchievementsSettings settings,
             PlayniteAchievementsPlugin plugin,
-            ILogger logger)
+            ILogger logger,
+            Guid gameId = default,
+            string gameProviderKey = null)
             : this()
         {
             _settings = settings ?? throw new ArgumentNullException(nameof(settings));
             _plugin = plugin ?? throw new ArgumentNullException(nameof(plugin));
             _logger = logger;
+            _gameId = gameId;
+            _gameProviderKey = string.IsNullOrWhiteSpace(gameProviderKey)
+                ? null
+                : gameProviderKey.Trim();
 
             _toastTemplateResolver = new AchievementToastTemplateResolver(plugin.PlayniteApi, logger);
 
             // A sample provider so the mock and fire-tests always show a provider icon, even
             // when the global default (no platform selected) is being edited.
-            _fallbackSampleProviderKey =
+            _fallbackSampleProviderKey = _gameProviderKey ??
                 (plugin.ProviderRegistry?.GetSettingsViewProviderKeys() ?? Enumerable.Empty<string>())
                 .FirstOrDefault(key => !string.IsNullOrWhiteSpace(key));
 
@@ -77,14 +91,25 @@ namespace PlayniteAchievements.Views.Settings.General
             ToastEditor.ColorPicker = (owner, current) => _plugin.PickColor(owner, current);
             FrameEditor.ColorPicker = (owner, current) => _plugin.PickColor(owner, current);
 
-            PlatformSelector.ItemsSource = BuildPlatformOptions();
-            PlatformSelector.SelectedIndex = 0;
+            if (IsGameMode)
+            {
+                PlatformHeader.Visibility = Visibility.Collapsed;
+                PlatformSelectorPanel.Visibility = Visibility.Collapsed;
+                FollowDefaultHint.Visibility = Visibility.Collapsed;
+                GameSelectionPanel.Visibility = Visibility.Visible;
+            }
+            else
+            {
+                PlatformSelector.ItemsSource = BuildPlatformOptions();
+                PlatformSelector.SelectedIndex = 0;
+            }
 
             _persistedSubscription = new PersistedSettingsSubscription(
                 _settings,
                 OnPersistedPropertyChanged,
                 ApplySelection);
 
+            ApplySelection();
             Loaded += (s, e) =>
             {
                 UpdateMockups();
@@ -97,7 +122,22 @@ namespace PlayniteAchievements.Views.Settings.General
         /// sample provider so the global-default preview still shows a provider icon.
         /// </summary>
         private string EffectiveSampleProviderKey =>
-            _selectedProviderKey ?? _fallbackSampleProviderKey;
+            IsGameMode
+                ? ResolveGameProviderKey() ?? _fallbackSampleProviderKey
+                : _selectedProviderKey ?? _fallbackSampleProviderKey;
+
+        private string ResolveGameProviderKey()
+        {
+            if (!IsGameMode)
+            {
+                return null;
+            }
+
+            return _plugin?.AchievementDataService
+                       ?.GetGameAchievementData(_gameId)
+                       ?.EffectiveProviderKey ??
+                   _gameProviderKey;
+        }
 
         /// <summary>
         /// Disables the desktop/fullscreen theme fire-test buttons when the corresponding active
@@ -143,6 +183,12 @@ namespace PlayniteAchievements.Views.Settings.General
         /// </summary>
         private void ApplySelection()
         {
+            if (IsGameMode)
+            {
+                ApplyGameSelection();
+                return;
+            }
+
             var option = PlatformSelector?.SelectedItem as NotificationStylePlatformOption;
             var persisted = _settings?.Persisted;
             if (option == null || persisted == null ||
@@ -176,9 +222,88 @@ namespace PlayniteAchievements.Views.Settings.General
             }
 
             _currentStyle = style;
+            _currentToastUseThemeStyling = persisted.ToastUseThemeStyling;
+            _currentFrameUseThemeStyling = persisted.FrameUseThemeStyling;
+            ApplyThemeStylingControls(editable: true);
             _toastEditorViewModel.SetStyle(style, editable ? option.Key : null, editable);
             _frameEditorViewModel.SetStyle(style, editable ? option.Key : null, editable);
             UpdateMockups();
+        }
+
+        private void ApplyGameSelection()
+        {
+            var persisted = _settings?.Persisted;
+            var store = _plugin?.GameCustomDataStore;
+            if (persisted == null || store == null ||
+                _toastEditorViewModel == null || _frameEditorViewModel == null)
+            {
+                return;
+            }
+
+            var hasOverride = store.TryLoad(_gameId, out var customData) &&
+                              customData?.NotificationAppearanceOverride?.Style != null;
+            var appearance = customData?.NotificationAppearanceOverride;
+            var providerKey = ResolveGameProviderKey();
+            _currentStyle = hasOverride
+                ? appearance.Style
+                : NotificationStyleResolver.Resolve(persisted, providerKey);
+            _currentToastUseThemeStyling = hasOverride
+                ? appearance.ToastUseThemeStyling
+                : persisted.ToastUseThemeStyling;
+            _currentFrameUseThemeStyling = hasOverride
+                ? appearance.FrameUseThemeStyling
+                : persisted.FrameUseThemeStyling;
+
+            _suppressCustomizeEvents = true;
+            CustomizeGameCheckBox.IsChecked = hasOverride;
+            _suppressCustomizeEvents = false;
+
+            var providerName = !string.IsNullOrWhiteSpace(providerKey)
+                ? ProviderRegistry.GetLocalizedName(providerKey)
+                : L("LOCPlayAch_Common_Default");
+            GameInheritanceHint.Text = hasOverride
+                ? L("LOCPlayAch_ManageAchievements_Notifications_SnapshotHint")
+                : string.Format(
+                    L("LOCPlayAch_ManageAchievements_Notifications_InheritHint"),
+                    providerName);
+
+            ApplyThemeStylingControls(hasOverride);
+            var owner = NotificationImageOwner.ForGame(_gameId);
+            Action<NotificationStyleSettings> persist = hasOverride
+                ? PersistGameStyle
+                : (Action<NotificationStyleSettings>)null;
+            _toastEditorViewModel.SetStyle(_currentStyle, owner, hasOverride, persist);
+            _frameEditorViewModel.SetStyle(_currentStyle, owner, hasOverride, persist);
+            UpdateMockups();
+        }
+
+        private void ApplyThemeStylingControls(bool editable)
+        {
+            _suppressThemeStylingEvents = true;
+            ToastThemeStylingCheckBox.IsChecked = _currentToastUseThemeStyling;
+            FrameThemeStylingCheckBox.IsChecked = _currentFrameUseThemeStyling;
+            ToastThemeStylingCheckBox.IsEnabled = editable;
+            FrameThemeStylingCheckBox.IsEnabled = editable;
+            _suppressThemeStylingEvents = false;
+        }
+
+        private void PersistGameStyle(NotificationStyleSettings style)
+        {
+            if (!IsGameMode || style == null)
+            {
+                return;
+            }
+
+            _plugin.GameCustomDataStore?.Update(_gameId, data =>
+            {
+                var appearance = data.NotificationAppearanceOverride;
+                if (appearance == null)
+                {
+                    return;
+                }
+
+                appearance.Style = style.Clone();
+            });
         }
 
         /// <summary>
@@ -239,6 +364,122 @@ namespace PlayniteAchievements.Views.Settings.General
             ApplySelection();
         }
 
+        private async void CustomizeGameCheckBox_Click(object sender, RoutedEventArgs e)
+        {
+            if (_suppressCustomizeEvents || !IsGameMode)
+            {
+                return;
+            }
+
+            var persisted = _settings?.Persisted;
+            var customDataStore = _plugin?.GameCustomDataStore;
+            if (persisted == null || customDataStore == null)
+            {
+                return;
+            }
+
+            try
+            {
+                _toastEditorViewModel?.FlushPendingPersist();
+                _frameEditorViewModel?.FlushPendingPersist();
+
+                if (CustomizeGameCheckBox.IsChecked == true)
+                {
+                    var copy = NotificationStyleResolver
+                        .Resolve(persisted, ResolveGameProviderKey())
+                        .Clone();
+                    await _plugin.NotificationImageStore.CopyImagesForGameAsync(
+                        copy,
+                        _gameId,
+                        CancellationToken.None);
+                    customDataStore.Update(_gameId, data =>
+                    {
+                        data.NotificationAppearanceOverride =
+                            new GameNotificationAppearanceOverride
+                            {
+                                Style = copy,
+                                ToastUseThemeStyling = persisted.ToastUseThemeStyling,
+                                FrameUseThemeStyling = persisted.FrameUseThemeStyling
+                            };
+                    });
+                }
+                else
+                {
+                    var result = _plugin.PlayniteApi.Dialogs.ShowMessage(
+                        L("LOCPlayAch_ManageAchievements_Notifications_RevertConfirm"),
+                        L("LOCPlayAch_Title_PluginName"),
+                        MessageBoxButton.YesNo,
+                        MessageBoxImage.Question);
+                    if (result != MessageBoxResult.Yes)
+                    {
+                        _suppressCustomizeEvents = true;
+                        CustomizeGameCheckBox.IsChecked = true;
+                        _suppressCustomizeEvents = false;
+                        return;
+                    }
+
+                    customDataStore.Update(
+                        _gameId,
+                        data => data.NotificationAppearanceOverride = null);
+                }
+            }
+            catch (Exception ex)
+            {
+                _logger?.Error(ex, $"Failed to toggle notification style customization for game {_gameId}.");
+            }
+
+            ApplySelection();
+        }
+
+        private void ThemeStylingCheckBox_Click(object sender, RoutedEventArgs e)
+        {
+            if (_suppressThemeStylingEvents)
+            {
+                return;
+            }
+
+            var toastValue = ToastThemeStylingCheckBox.IsChecked == true;
+            var frameValue = FrameThemeStylingCheckBox.IsChecked == true;
+            if (IsGameMode)
+            {
+                if (CustomizeGameCheckBox.IsChecked != true)
+                {
+                    ApplyGameSelection();
+                    return;
+                }
+
+                _currentToastUseThemeStyling = toastValue;
+                _currentFrameUseThemeStyling = frameValue;
+                _plugin.GameCustomDataStore?.Update(_gameId, data =>
+                {
+                    var appearance = data.NotificationAppearanceOverride;
+                    if (appearance == null)
+                    {
+                        return;
+                    }
+
+                    appearance.ToastUseThemeStyling = toastValue;
+                    appearance.FrameUseThemeStyling = frameValue;
+                });
+            }
+            else
+            {
+                var persisted = _settings?.Persisted;
+                if (persisted == null)
+                {
+                    return;
+                }
+
+                persisted.ToastUseThemeStyling = toastValue;
+                persisted.FrameUseThemeStyling = frameValue;
+                _currentToastUseThemeStyling = toastValue;
+                _currentFrameUseThemeStyling = frameValue;
+                _plugin.PersistSettingsForUi();
+            }
+
+            UpdateMockups();
+        }
+
         private void OnEditorStyleChanged(object sender, EventArgs e)
         {
             UpdateMockups();
@@ -257,6 +498,12 @@ namespace PlayniteAchievements.Views.Settings.General
 
             if (name == nameof(PersistedSettings.ProviderNotificationStyles))
             {
+                if (IsGameMode && CustomizeGameCheckBox?.IsChecked != true)
+                {
+                    ApplySelection();
+                    return;
+                }
+
                 // Raised by every debounced flush of a provider copy (the store re-clones);
                 // keep the editors on their working instance and only refresh derived UI.
                 UpdateMockups();
@@ -269,6 +516,19 @@ namespace PlayniteAchievements.Views.Settings.General
                 name == nameof(PersistedSettings.ProviderColorOverrides) ||
                 name == nameof(PersistedSettings.UseUniformRarityBadges))
             {
+                if (name == nameof(PersistedSettings.ToastUseThemeStyling) ||
+                    name == nameof(PersistedSettings.FrameUseThemeStyling))
+                {
+                    if (!IsGameMode || CustomizeGameCheckBox?.IsChecked != true)
+                    {
+                        _currentToastUseThemeStyling =
+                            _settings?.Persisted?.ToastUseThemeStyling ?? true;
+                        _currentFrameUseThemeStyling =
+                            _settings?.Persisted?.FrameUseThemeStyling ?? true;
+                        ApplyThemeStylingControls(editable: !IsGameMode);
+                    }
+                }
+
                 UpdateMockups();
             }
         }
@@ -287,18 +547,24 @@ namespace PlayniteAchievements.Views.Settings.General
             }
 
             ToastMockupHost.ContentTemplate =
-                _toastTemplateResolver.ResolveTemplate(persisted.ToastUseThemeStyling);
+                _toastTemplateResolver.ResolveTemplate(_currentToastUseThemeStyling);
             ToastMockupHost.Content = new AchievementToastViewModel(
-                ToastPreviewFactory.BuildPreviewArgs("mockup", EffectiveSampleProviderKey),
+                BuildPreviewArgs("mockup"),
                 persisted,
-                _currentStyle);
+                _currentStyle,
+                gameCustomDataStore: null,
+                toastUseThemeStylingOverride: _currentToastUseThemeStyling,
+                frameUseThemeStylingOverride: _currentFrameUseThemeStyling);
 
             FrameMockupHost.ContentTemplate =
-                _toastTemplateResolver.ResolveFrameTemplate(persisted.FrameUseThemeStyling);
+                _toastTemplateResolver.ResolveFrameTemplate(_currentFrameUseThemeStyling);
             FrameMockupHost.Content = new AchievementToastViewModel(
-                ToastPreviewFactory.BuildPreviewArgs("mockup", EffectiveSampleProviderKey),
+                BuildPreviewArgs("mockup"),
                 persisted,
-                _currentStyle);
+                _currentStyle,
+                gameCustomDataStore: null,
+                toastUseThemeStylingOverride: _currentToastUseThemeStyling,
+                frameUseThemeStylingOverride: _currentFrameUseThemeStyling);
         }
 
         private void FireNotification_Click(object sender, RoutedEventArgs e)
@@ -315,7 +581,7 @@ namespace PlayniteAchievements.Views.Settings.General
             _toastEditorViewModel?.FlushPendingPersist();
             _frameEditorViewModel?.FlushPendingPersist();
             PlayniteAchievementsPlugin.NotifyAchievementUnlocked(
-                ToastPreviewFactory.BuildPreviewArgs(kind, EffectiveSampleProviderKey, source));
+                BuildPreviewArgs(kind, source));
         }
 
         private static bool TryResolvePreviewSource(object sender, out NotificationTemplatePreviewSource source)
@@ -385,9 +651,12 @@ namespace PlayniteAchievements.Views.Settings.General
             canvas.Children.Add(new ContentControl
             {
                 Content = new AchievementToastViewModel(
-                    ToastPreviewFactory.BuildPreviewArgs(kind, EffectiveSampleProviderKey),
+                    BuildPreviewArgs(kind),
                     persisted,
-                    _currentStyle),
+                    _currentStyle,
+                    gameCustomDataStore: null,
+                    toastUseThemeStylingOverride: _currentToastUseThemeStyling,
+                    frameUseThemeStylingOverride: _currentFrameUseThemeStyling),
                 ContentTemplate = template,
             });
             window.Content = new System.Windows.Controls.Viewbox
@@ -423,6 +692,45 @@ namespace PlayniteAchievements.Views.Settings.General
             window.Show();
             window.Focus();
             autoClose.Start();
+        }
+
+        private AchievementUnlockedEventArgs BuildPreviewArgs(
+            string kind,
+            NotificationTemplatePreviewSource? previewSource = null)
+        {
+            var args = ToastPreviewFactory.BuildPreviewArgs(
+                kind,
+                EffectiveSampleProviderKey,
+                previewSource);
+            if (!IsGameMode)
+            {
+                return args;
+            }
+
+            args.PlayniteGameId = _gameId;
+            try
+            {
+                var game = _plugin.PlayniteApi?.Database?.Games?.Get(_gameId);
+                if (game != null)
+                {
+                    args.GameName = game.Name;
+                    args.GameIconPath = ResolveGameImagePath(game.Icon);
+                    args.GameCoverPath = ResolveGameImagePath(game.CoverImage);
+                }
+            }
+            catch (Exception ex)
+            {
+                _logger?.Debug(ex, $"Failed resolving game art for notification preview {_gameId}.");
+            }
+
+            return args;
+        }
+
+        private string ResolveGameImagePath(string imagePath)
+        {
+            return string.IsNullOrWhiteSpace(imagePath)
+                ? null
+                : _plugin.PlayniteApi?.Database?.GetFullFilePath(imagePath);
         }
 
         private void CloseFramePreview()
@@ -547,14 +855,42 @@ namespace PlayniteAchievements.Views.Settings.General
                     return;
                 }
 
+                _toastEditorViewModel?.FlushPendingPersist();
+                _frameEditorViewModel?.FlushPendingPersist();
+
                 var providerKey = _selectedProviderKey;
-                var imported = await store.ImportAsync(dialog.FileName, providerKey, CancellationToken.None);
+                var owner = IsGameMode
+                    ? NotificationImageOwner.ForGame(_gameId)
+                    : NotificationImageOwner.ForProvider(providerKey);
+                var imported = await store.ImportAsync(
+                    dialog.FileName,
+                    owner,
+                    CancellationToken.None);
                 if (imported == null)
                 {
                     throw new InvalidOperationException("Imported notification style was empty.");
                 }
 
-                if (providerKey == null)
+                if (IsGameMode)
+                {
+                    var customDataStore = _plugin.GameCustomDataStore;
+                    customDataStore.Update(_gameId, data =>
+                    {
+                        var existing = data.NotificationAppearanceOverride;
+                        data.NotificationAppearanceOverride =
+                            new GameNotificationAppearanceOverride
+                            {
+                                Style = imported,
+                                ToastUseThemeStyling =
+                                    existing?.ToastUseThemeStyling ??
+                                    persisted.ToastUseThemeStyling,
+                                FrameUseThemeStyling =
+                                    existing?.FrameUseThemeStyling ??
+                                    persisted.FrameUseThemeStyling
+                            };
+                    });
+                }
+                else if (providerKey == null)
                 {
                     persisted.NotificationStyle = imported;
                 }
@@ -563,10 +899,15 @@ namespace PlayniteAchievements.Views.Settings.General
                     persisted.SetProviderNotificationStyle(providerKey, imported);
                 }
 
-                _plugin.PersistSettingsForUi();
+                if (!IsGameMode)
+                {
+                    _plugin.PersistSettingsForUi();
+                }
 
                 // Drop slot files the replaced style no longer references.
-                _plugin.NotificationImageStore.PruneOrphans(persisted);
+                _plugin.NotificationImageStore.PruneOrphans(
+                    persisted,
+                    _plugin.GameCustomDataStore?.LoadAll());
 
                 ApplySelection();
                 UpdateMockups();
@@ -594,7 +935,9 @@ namespace PlayniteAchievements.Views.Settings.General
         private string BuildDefaultStyleFileName()
         {
             var option = PlatformSelector?.SelectedItem as NotificationStylePlatformOption;
-            var name = option?.DisplayName;
+            var name = IsGameMode
+                ? _plugin?.PlayniteApi?.Database?.Games?.Get(_gameId)?.Name
+                : option?.DisplayName;
             if (string.IsNullOrWhiteSpace(name))
             {
                 name = "notification-style";
@@ -603,6 +946,17 @@ namespace PlayniteAchievements.Views.Settings.General
             var invalid = Path.GetInvalidFileNameChars();
             var sanitized = new string(name.Trim().Where(c => !invalid.Contains(c)).ToArray());
             return string.IsNullOrWhiteSpace(sanitized) ? "notification-style" : sanitized;
+        }
+
+        public void RefreshData(bool discardPending = false)
+        {
+            if (discardPending)
+            {
+                _toastEditorViewModel?.DiscardPendingPersist();
+                _frameEditorViewModel?.DiscardPendingPersist();
+            }
+
+            ApplySelection();
         }
 
         public void Dispose()

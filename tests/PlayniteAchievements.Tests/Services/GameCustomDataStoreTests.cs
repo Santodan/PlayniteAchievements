@@ -543,6 +543,206 @@ namespace PlayniteAchievements.Services.Tests
         }
 
         [TestMethod]
+        public void NotificationAppearance_PlainPa_RoundTripsFalseFlagsAndOmitsLocalImages()
+        {
+            var tempDir = CreateTempDirectory();
+            var gameId = Guid.NewGuid();
+            var importedGameId = Guid.NewGuid();
+
+            try
+            {
+                var imagePath = Path.Combine(tempDir, "notification.png");
+                WritePngFile(imagePath);
+                var store = new GameCustomDataStore(tempDir);
+                var style = NotificationStyleSettings.CreateDefault();
+                style.Toast.ShowHeader = false;
+                style.Frame.ShowUnlockTime = false;
+                style.ToastBackgroundImagePath = imagePath;
+                store.Save(gameId, new GameCustomDataFile
+                {
+                    PlayniteGameId = gameId,
+                    NotificationAppearanceOverride = new GameNotificationAppearanceOverride
+                    {
+                        Style = style,
+                        ToastUseThemeStyling = false,
+                        FrameUseThemeStyling = false
+                    }
+                });
+
+                var exportPath = Path.Combine(tempDir, "notification.pa");
+                var result = store.ExportPortablePa(gameId, exportPath);
+                var json = File.ReadAllText(exportPath);
+                var portable = JsonConvert.DeserializeObject<GameCustomDataPortableFile>(json);
+
+                Assert.IsTrue(result.HasOmittedLocalImageOverrides);
+                Assert.AreEqual(1, result.OmittedLocalImageOverrideCount);
+                StringAssert.Contains(json, "\"ToastUseThemeStyling\": false");
+                StringAssert.Contains(json, "\"FrameUseThemeStyling\": false");
+                Assert.IsNull(portable.NotificationAppearanceOverride.Style.ToastBackgroundImagePath);
+                Assert.IsFalse(portable.NotificationAppearanceOverride.Style.Toast.ShowHeader);
+                Assert.IsFalse(portable.NotificationAppearanceOverride.Style.Frame.ShowUnlockTime);
+
+                var imported = store.ImportReplacePortable(importedGameId, exportPath).ImportedData;
+                Assert.IsNotNull(imported.NotificationAppearanceOverride);
+                Assert.IsFalse(imported.NotificationAppearanceOverride.ToastUseThemeStyling);
+                Assert.IsFalse(imported.NotificationAppearanceOverride.FrameUseThemeStyling);
+                Assert.IsFalse(imported.NotificationAppearanceOverride.Style.Toast.ShowHeader);
+                Assert.IsNull(imported.NotificationAppearanceOverride.Style.ToastBackgroundImagePath);
+            }
+            finally
+            {
+                DeleteDirectory(tempDir);
+            }
+        }
+
+        [TestMethod]
+        public void NotificationAppearance_PaZip_RoundTripsAllSlotsAndCleansGameOwnedFiles()
+        {
+            var tempDir = CreateTempDirectory();
+            var gameId = Guid.NewGuid();
+            var importedGameId = Guid.NewGuid();
+
+            try
+            {
+                var diskImageService = new DiskImageService(logger: null, cacheRoot: tempDir);
+                var imageStore = new NotificationImageStore(diskImageService, logger: null);
+                var store = new GameCustomDataStore(tempDir);
+                store.AttachNotificationImageStore(imageStore);
+
+                var sourcePaths = Enumerable.Range(0, 6)
+                    .Select(index => Path.Combine(tempDir, "source_" + index + ".png"))
+                    .ToList();
+                foreach (var sourcePath in sourcePaths)
+                {
+                    WritePngFile(sourcePath);
+                }
+
+                var style = NotificationStyleSettings.CreateDefault();
+                style.Toast.ShowDescription = false;
+                style.ToastBackgroundImagePath = sourcePaths[0];
+                style.BadgeImages.CommonPath = sourcePaths[1];
+                style.BadgeImages.UncommonPath = sourcePaths[2];
+                style.BadgeImages.RarePath = sourcePaths[3];
+                style.BadgeImages.UltraRarePath = sourcePaths[4];
+                style.BadgeImages.CompletionPath = sourcePaths[5];
+                store.Save(gameId, new GameCustomDataFile
+                {
+                    PlayniteGameId = gameId,
+                    NotificationAppearanceOverride = new GameNotificationAppearanceOverride
+                    {
+                        Style = style,
+                        ToastUseThemeStyling = false,
+                        FrameUseThemeStyling = true
+                    }
+                });
+
+                var packagePath = Path.Combine(tempDir, "notification.pa.zip");
+                store.ExportPortablePackage(gameId, packagePath);
+                using (var archive = ZipFile.OpenRead(packagePath))
+                {
+                    var entryNames = archive.Entries.Select(entry => entry.FullName).ToList();
+                    foreach (var stem in new[]
+                    {
+                        "notification_background",
+                        "notification_badge_common",
+                        "notification_badge_uncommon",
+                        "notification_badge_rare",
+                        "notification_badge_ultrarare",
+                        "notification_badge_completion"
+                    })
+                    {
+                        CollectionAssert.Contains(entryNames, "images/" + stem + ".png");
+                    }
+                }
+
+                var imported = store.ImportReplacePortable(importedGameId, packagePath).ImportedData;
+                var importedStyle = imported.NotificationAppearanceOverride.Style;
+                var importedPaths = new[]
+                {
+                    importedStyle.ToastBackgroundImagePath,
+                    importedStyle.BadgeImages.CommonPath,
+                    importedStyle.BadgeImages.UncommonPath,
+                    importedStyle.BadgeImages.RarePath,
+                    importedStyle.BadgeImages.UltraRarePath,
+                    importedStyle.BadgeImages.CompletionPath
+                };
+                var expectedDirectorySuffix = Path.Combine(
+                    "notification_images",
+                    "games",
+                    importedGameId.ToString("D"));
+                foreach (var importedPath in importedPaths)
+                {
+                    Assert.IsTrue(File.Exists(importedPath));
+                    Assert.IsTrue(Path.GetDirectoryName(importedPath).EndsWith(
+                        expectedDirectorySuffix,
+                        StringComparison.OrdinalIgnoreCase));
+                }
+
+                Assert.IsFalse(imported.NotificationAppearanceOverride.ToastUseThemeStyling);
+                Assert.IsTrue(imported.NotificationAppearanceOverride.FrameUseThemeStyling);
+                Assert.IsFalse(importedStyle.Toast.ShowDescription);
+
+                var staleBadgePath = importedStyle.BadgeImages.CommonPath;
+                store.Update(importedGameId, data =>
+                    data.NotificationAppearanceOverride.Style.BadgeImages.CommonPath = null);
+                Assert.IsFalse(File.Exists(staleBadgePath));
+
+                var gameImageDirectory = Path.GetDirectoryName(importedStyle.ToastBackgroundImagePath);
+                store.Delete(importedGameId);
+                Assert.IsFalse(Directory.Exists(gameImageDirectory));
+            }
+            finally
+            {
+                DeleteDirectory(tempDir);
+            }
+        }
+
+        [TestMethod]
+        public void NotificationAppearance_PaZip_RejectsTraversalSlotEntry()
+        {
+            var tempDir = CreateTempDirectory();
+            var gameId = Guid.NewGuid();
+
+            try
+            {
+                var diskImageService = new DiskImageService(logger: null, cacheRoot: tempDir);
+                var store = new GameCustomDataStore(tempDir);
+                store.AttachNotificationImageStore(
+                    new NotificationImageStore(diskImageService, logger: null));
+
+                var packagePath = Path.Combine(tempDir, "evil.pa.zip");
+                using (var archive = ZipFile.Open(packagePath, ZipArchiveMode.Create))
+                {
+                    var manifest = archive.CreateEntry(
+                        GameCustomDataStore.PortablePackageManifestEntryName);
+                    using (var writer = new StreamWriter(manifest.Open()))
+                    {
+                        writer.Write(JsonConvert.SerializeObject(
+                            new GameCustomDataPortableFile
+                            {
+                                NotificationAppearanceOverride =
+                                    new GameNotificationAppearanceOverride
+                                    {
+                                        Style = NotificationStyleSettings.CreateDefault()
+                                    }
+                            }));
+                    }
+
+                    WritePackageImageEntry(
+                        archive,
+                        "images/notification_background./../secret.png");
+                }
+
+                Assert.ThrowsException<InvalidOperationException>(() =>
+                    store.ImportReplacePortable(gameId, packagePath));
+            }
+            finally
+            {
+                DeleteDirectory(tempDir);
+            }
+        }
+
+        [TestMethod]
         public void ImportReplacePortable_RejectsLocalPathsInPa()
         {
             var tempDir = CreateTempDirectory();
@@ -1360,6 +1560,20 @@ namespace PlayniteAchievements.Services.Tests
             }
 
             File.WriteAllBytes(path, new byte[] { 1, 2, 3, 4 });
+        }
+
+        private static void WritePngFile(string path)
+        {
+            var directory = Path.GetDirectoryName(path);
+            if (!string.IsNullOrWhiteSpace(directory))
+            {
+                Directory.CreateDirectory(directory);
+            }
+
+            File.WriteAllBytes(
+                path,
+                Convert.FromBase64String(
+                    "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVQIW2NkYGD4DwABBAEAgh8sXQAAAABJRU5ErkJggg=="));
         }
 
         private static void WritePackageImageEntry(ZipArchive archive, string entryName)

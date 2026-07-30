@@ -417,6 +417,7 @@ namespace PlayniteAchievements
                     _notificationImageStore = new NotificationImageStore(_diskImageService, _logger);
                     _imageService = new MemoryImageService(_logger, _diskImageService);
                     _gameCustomDataStore.AttachManagedCustomIconService(_managedCustomIconService);
+                    _gameCustomDataStore.AttachNotificationImageStore(_notificationImageStore);
 
                     _refreshService = new RefreshRuntime(api, settings, _logger, this, providers, _diskImageService, _managedCustomIconService, _providerRegistry, ProviderRefreshOrder, onRefreshCompleted: payload => HandleRefreshAuthNotifications(payload));
                     _cacheManager = _refreshService.Cache;
@@ -507,7 +508,8 @@ namespace PlayniteAchievements
                         _logger,
                         () => _resourceService.EnsureAchievementResourcesLoaded(_settingsViewModel.Settings),
                         GetProcessIdForGame,
-                        _windowTracker);
+                        _windowTracker,
+                        _gameCustomDataStore);
                     _unlockRecordings = new Services.Recording.UnlockRecordingService(
                         PlayniteApi,
                         settings,
@@ -1031,7 +1033,9 @@ namespace PlayniteAchievements
                     _logger?.Error(ex, "Failed to re-localize notification header texts.");
                 }
 
-                _notificationImageStore?.PruneOrphans(_settingsViewModel?.Settings?.Persisted);
+                _notificationImageStore?.PruneOrphans(
+                    _settingsViewModel?.Settings?.Persisted,
+                    _gameCustomDataStore?.LoadAll());
 
                 // Auto-migrate themes that have been updated since the last migration.
                 _themeAutoMigrationService?.ScheduleAutoMigration();

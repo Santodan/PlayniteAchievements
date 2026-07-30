@@ -42,6 +42,8 @@ namespace PlayniteAchievements.ViewModels.Settings
         private NotificationBadgeImageSet _subscribedBadges;
         private NotificationHeaderTextSettings _subscribedHeaderTexts;
         private string _providerKey;
+        private NotificationImageOwner _imageOwner = NotificationImageOwner.Global;
+        private Action<NotificationStyleSettings> _persistStyle;
         private bool _isEditable = true;
 
         private string _unlockHeaderText;
@@ -632,8 +634,13 @@ namespace PlayniteAchievements.ViewModels.Settings
 
             try
             {
+                // Clear the existing slot first so the UI releases the old file and the managed
+                // slot starts empty before the new selection is materialized.
+                _plugin.NotificationImageStore.DeleteSlot(_imageOwner, slot);
+                SetImagePath(slot, null);
+
                 var resolved = await _plugin.NotificationImageStore.MaterializeAsync(
-                    sourcePathOrUrl, _providerKey, slot, CancellationToken.None);
+                    sourcePathOrUrl, _imageOwner, slot, CancellationToken.None);
                 if (resolved != null)
                 {
                     SetImagePath(slot, resolved);
@@ -655,7 +662,7 @@ namespace PlayniteAchievements.ViewModels.Settings
                 return;
             }
 
-            _plugin.NotificationImageStore.DeleteSlot(_providerKey, slot);
+            _plugin.NotificationImageStore.DeleteSlot(_imageOwner, slot);
             SetImagePath(slot, null);
         }
 
@@ -883,11 +890,42 @@ namespace PlayniteAchievements.ViewModels.Settings
         /// </summary>
         public void SetStyle(NotificationStyleSettings style, string providerKey, bool isEditable)
         {
+            SetStyle(
+                style,
+                NotificationImageOwner.ForProvider(providerKey),
+                isEditable,
+                persistStyle: null,
+                providerKey: providerKey);
+        }
+
+        /// <summary>
+        /// Points the editor at an arbitrary owned style, allowing the shared editor surface to
+        /// persist provider/global settings or a per-game custom-data snapshot through the same
+        /// debounce path.
+        /// </summary>
+        public void SetStyle(
+            NotificationStyleSettings style,
+            NotificationImageOwner imageOwner,
+            bool isEditable,
+            Action<NotificationStyleSettings> persistStyle)
+        {
+            SetStyle(style, imageOwner, isEditable, persistStyle, providerKey: null);
+        }
+
+        private void SetStyle(
+            NotificationStyleSettings style,
+            NotificationImageOwner imageOwner,
+            bool isEditable,
+            Action<NotificationStyleSettings> persistStyle,
+            string providerKey)
+        {
             FlushPendingPersist();
             Unsubscribe();
 
             _style = style;
             _providerKey = string.IsNullOrWhiteSpace(providerKey) ? null : providerKey;
+            _imageOwner = imageOwner ?? NotificationImageOwner.Global;
+            _persistStyle = persistStyle;
             _isEditable = isEditable;
 
             Subscribe();
@@ -1070,19 +1108,36 @@ namespace PlayniteAchievements.ViewModels.Settings
             _hasPendingPersist = false;
             try
             {
-                if (_providerKey != null && _style != null)
+                if (_persistStyle != null)
                 {
-                    // Re-store the edited copy; the setter clones it and raises
-                    // PropertyChanged(ProviderNotificationStyles).
-                    _settings.Persisted?.SetProviderNotificationStyle(_providerKey, _style);
+                    _persistStyle(_style);
                 }
+                else
+                {
+                    if (_providerKey != null && _style != null)
+                    {
+                        // Re-store the edited copy; the setter clones it and raises
+                        // PropertyChanged(ProviderNotificationStyles).
+                        _settings.Persisted?.SetProviderNotificationStyle(_providerKey, _style);
+                    }
 
-                _plugin.PersistSettingsForUi();
+                    _plugin.PersistSettingsForUi();
+                }
             }
             catch (Exception ex)
             {
                 _logger?.Warn(ex, "Failed to persist notification appearance settings.");
             }
+        }
+
+        /// <summary>
+        /// Drops a queued debounce without writing it. Used when an external whole-game import
+        /// or clear has already replaced the authoritative custom-data row.
+        /// </summary>
+        public void DiscardPendingPersist()
+        {
+            _persistDebounceTimer.Stop();
+            _hasPendingPersist = false;
         }
 
         public void Dispose()

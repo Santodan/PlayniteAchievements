@@ -2,7 +2,10 @@ using Microsoft.VisualStudio.TestTools.UnitTesting;
 using PlayniteAchievements.Models;
 using PlayniteAchievements.Models.Achievements;
 using PlayniteAchievements.Models.Settings;
+using PlayniteAchievements.Services.GameCustomData;
 using PlayniteAchievements.ViewModels;
+using System;
+using System.IO;
 
 namespace PlayniteAchievements.Tests.ViewModels
 {
@@ -191,6 +194,67 @@ namespace PlayniteAchievements.Tests.ViewModels
                 new PersistedSettings());
 
             Assert.AreEqual("Friend", viewModel.FriendDisplayName);
+        }
+
+        [TestMethod]
+        public void GameAppearance_AppliesToOwnFriendAndCompletionViewModels()
+        {
+            var tempDirectory = Path.Combine(
+                Path.GetTempPath(),
+                "PlayniteAchievementsTests",
+                Guid.NewGuid().ToString("N"));
+            Directory.CreateDirectory(tempDirectory);
+
+            try
+            {
+                var gameId = Guid.NewGuid();
+                var settings = new PersistedSettings();
+                settings.NotificationStyle.Toast.ShowGameName = true;
+                settings.NotificationStyle.Frame.ShowGameName = true;
+
+                var gameStyle = NotificationStyleSettings.CreateDefault();
+                gameStyle.Toast.ShowGameName = false;
+                gameStyle.Frame.ShowGameName = false;
+                var store = new GameCustomDataStore(tempDirectory);
+                store.Save(gameId, new GameCustomDataFile
+                {
+                    PlayniteGameId = gameId,
+                    NotificationAppearanceOverride = new GameNotificationAppearanceOverride
+                    {
+                        Style = gameStyle,
+                        ToastUseThemeStyling = false,
+                        FrameUseThemeStyling = false
+                    }
+                });
+
+                foreach (var args in new[]
+                {
+                    new AchievementUnlockedEventArgs(),
+                    new AchievementUnlockedEventArgs { IsFriendUnlock = true },
+                    new AchievementUnlockedEventArgs { IsGameCompleted = true }
+                })
+                {
+                    args.PlayniteGameId = gameId;
+                    args.GameName = "Test Game";
+                    var viewModel = new AchievementToastViewModel(
+                        args,
+                        settings,
+                        styleOverride: null,
+                        gameCustomDataStore: store);
+
+                    Assert.IsFalse(viewModel.ShowGameName);
+                    Assert.IsFalse(viewModel.FrameShowGameName);
+                    Assert.IsFalse(viewModel.ToastUseThemeStyling);
+                    Assert.IsFalse(viewModel.FrameUseThemeStyling);
+                }
+            }
+            finally
+            {
+                if (Directory.Exists(tempDirectory))
+                {
+                    Directory.Delete(tempDirectory, recursive: true);
+                }
+            }
         }
     }
 }

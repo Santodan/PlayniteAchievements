@@ -290,8 +290,12 @@
     <sys:String x:Key="LOCPlayAch_ManageAchievements_Order_MoveToTop">Move to Top</sys:String>
     <sys:String x:Key="LOCPlayAch_ManageAchievements_Order_MoveToBottom">Move to Bottom</sys:String>
     <sys:String x:Key="LOCPlayAch_ManageAchievements_Order_Reset">Reset Custom Order</sys:String>
+    <sys:String x:Key="LOCPlayAch_ManageAchievements_Notifications_Customize">Customize notifications for this game</sys:String>
+    <sys:String x:Key="LOCPlayAch_ManageAchievements_Notifications_SnapshotHint">This game uses an independent notification appearance snapshot. Later platform style changes will not affect it.</sys:String>
+    <sys:String x:Key="LOCPlayAch_ManageAchievements_Notifications_InheritHint">Following the {0} notification appearance. Enable customization to create an independent snapshot.</sys:String>
+    <sys:String x:Key="LOCPlayAch_ManageAchievements_Notifications_RevertConfirm">Discard this game's custom notification appearance and follow the platform style again? Its custom notification images will be deleted.</sys:String>
     <sys:String x:Key="LOCPlayAch_ManageAchievements_Overrides_ClearCustomDataButton">Clear Custom Data</sys:String>
-    <sys:String x:Key="LOCPlayAch_ManageAchievements_Overrides_ClearCustomDataConfirm">Clear all custom data for &quot;{0}&quot;?&#10;&#10;This deletes this game's manual links, capstones, custom icons, ordering, categories, exclusions, and platform overrides. Cached achievement data is kept.</sys:String>
+    <sys:String x:Key="LOCPlayAch_ManageAchievements_Overrides_ClearCustomDataConfirm">Clear all custom data for &quot;{0}&quot;?&#10;&#10;This deletes this game's manual links, capstones, custom icons, notification appearance, ordering, categories, exclusions, and platform overrides. Cached achievement data is kept.</sys:String>
     <sys:String x:Key="LOCPlayAch_ManageAchievements_Overrides_CustomDataHeader">Custom Data</sys:String>
     <sys:String x:Key="LOCPlayAch_ManageAchievements_Overrides_CustomDataHint">Export or import this game's custom data as .PA files (.PA.ZIP includes images), or clear it. Refresh and summary exclusions are not included.</sys:String>
     <sys:String x:Key="LOCPlayAch_ManageAchievements_Overrides_ExclusionHeader">Game Exclusion</sys:String>
@@ -559,7 +563,7 @@
     <sys:String x:Key="LOCPlayAch_Settings_Style_ExportButton">Export Style</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_Style_ImportButton">Import Style</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_Style_ShareHint">Export the selected style to a shareable file, or import one. Use the .pastyle.zip format to include custom images.</sys:String>
-    <sys:String x:Key="LOCPlayAch_Settings_Style_ImportConfirm">Import this notification style and replace the current appearance for the selected platform?</sys:String>
+    <sys:String x:Key="LOCPlayAch_Settings_Style_ImportConfirm">Import this notification style and replace the currently displayed appearance?</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_Style_Rarity_BadgePercentFooter">Badge + percent footer</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_Style_Rarity_BadgeFooter">Badge footer</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_Style_Rarity_PercentFooter">Percent footer</sys:String>

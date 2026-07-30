@@ -10,6 +10,7 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
         Category,
         Filters,
         Notes,
-        CustomIcons
+        CustomIcons,
+        Notifications
     }
 }

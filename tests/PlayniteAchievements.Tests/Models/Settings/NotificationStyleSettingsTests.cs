@@ -1,6 +1,9 @@
 using System.Collections.Generic;
+using System;
+using System.IO;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
 using PlayniteAchievements.Models.Settings;
+using PlayniteAchievements.Services.GameCustomData;
 using PlayniteAchievements.Services.UI;
 
 namespace PlayniteAchievements.Tests.Models.Settings
@@ -189,6 +192,82 @@ namespace PlayniteAchievements.Tests.Models.Settings
             Assert.IsFalse(forOther.Toast.ShowDescription);
 
             Assert.IsNotNull(NotificationStyleResolver.Resolve(null, "Steam"));
+        }
+
+        [TestMethod]
+        public void NotificationStyleResolver_GameSnapshotWinsThenReturnsToLiveProviderInheritance()
+        {
+            var tempDirectory = Path.Combine(
+                Path.GetTempPath(),
+                "PlayniteAchievementsTests",
+                Guid.NewGuid().ToString("N"));
+            Directory.CreateDirectory(tempDirectory);
+
+            try
+            {
+                var settings = new PersistedSettings
+                {
+                    ToastUseThemeStyling = true,
+                    FrameUseThemeStyling = true
+                };
+                settings.NotificationStyle.Toast.ShowHeader = false;
+                var providerStyle = NotificationStyleSettings.CreateDefault();
+                providerStyle.Toast.ShowHeader = true;
+                settings.SetProviderNotificationStyle("Steam", providerStyle);
+
+                var gameId = Guid.NewGuid();
+                var store = new GameCustomDataStore(tempDirectory);
+                var inherited = NotificationStyleResolver.ResolveAppearance(
+                    settings,
+                    "Steam",
+                    gameId,
+                    store);
+                Assert.IsTrue(inherited.Style.Toast.ShowHeader);
+                Assert.IsTrue(inherited.ToastUseThemeStyling);
+                Assert.IsTrue(inherited.FrameUseThemeStyling);
+
+                var gameStyle = providerStyle.Clone();
+                gameStyle.Toast.ShowHeader = true;
+                store.Save(gameId, new GameCustomDataFile
+                {
+                    PlayniteGameId = gameId,
+                    NotificationAppearanceOverride = new GameNotificationAppearanceOverride
+                    {
+                        Style = gameStyle,
+                        ToastUseThemeStyling = false,
+                        FrameUseThemeStyling = false
+                    }
+                });
+
+                settings.GetProviderNotificationStyle("Steam").Toast.ShowHeader = false;
+                settings.ToastUseThemeStyling = true;
+                settings.FrameUseThemeStyling = true;
+                var overridden = NotificationStyleResolver.ResolveAppearance(
+                    settings,
+                    "Steam",
+                    gameId,
+                    store);
+                Assert.IsTrue(overridden.Style.Toast.ShowHeader);
+                Assert.IsFalse(overridden.ToastUseThemeStyling);
+                Assert.IsFalse(overridden.FrameUseThemeStyling);
+
+                store.Delete(gameId);
+                var reverted = NotificationStyleResolver.ResolveAppearance(
+                    settings,
+                    "Steam",
+                    gameId,
+                    store);
+                Assert.IsFalse(reverted.Style.Toast.ShowHeader);
+                Assert.IsTrue(reverted.ToastUseThemeStyling);
+                Assert.IsTrue(reverted.FrameUseThemeStyling);
+            }
+            finally
+            {
+                if (Directory.Exists(tempDirectory))
+                {
+                    Directory.Delete(tempDirectory, recursive: true);
+                }
+            }
         }
     }
 }

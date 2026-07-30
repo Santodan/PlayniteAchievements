@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using Newtonsoft.Json;
 
 namespace PlayniteAchievements.Models.Settings
 {
@@ -129,42 +130,49 @@ namespace PlayniteAchievements.Models.Settings
         private double? _cardHeight;
         private double _titleLineOffset;
 
+        [JsonProperty(DefaultValueHandling = DefaultValueHandling.Include)]
         public bool ShowHeader
         {
             get => _showHeader;
             set => SetValue(ref _showHeader, value);
         }
 
+        [JsonProperty(DefaultValueHandling = DefaultValueHandling.Include)]
         public bool ShowName
         {
             get => _showName;
             set => SetValue(ref _showName, value);
         }
 
+        [JsonProperty(DefaultValueHandling = DefaultValueHandling.Include)]
         public bool ShowDescription
         {
             get => _showDescription;
             set => SetValue(ref _showDescription, value);
         }
 
+        [JsonProperty(DefaultValueHandling = DefaultValueHandling.Include)]
         public bool ShowCategory
         {
             get => _showCategory;
             set => SetValue(ref _showCategory, value);
         }
 
+        [JsonProperty(DefaultValueHandling = DefaultValueHandling.Include)]
         public bool ShowGameName
         {
             get => _showGameName;
             set => SetValue(ref _showGameName, value);
         }
 
+        [JsonProperty(DefaultValueHandling = DefaultValueHandling.Include)]
         public bool ShowRarityBadge
         {
             get => _showRarityBadge;
             set => SetValue(ref _showRarityBadge, value);
         }
 
+        [JsonProperty(DefaultValueHandling = DefaultValueHandling.Include)]
         public bool ShowRarityPercent
         {
             get => _showRarityPercent;
@@ -176,12 +184,14 @@ namespace PlayniteAchievements.Models.Settings
         /// instead of in the icon-column footer. Mutually exclusive with the footer badge in
         /// the settings UI, though independent in the model.
         /// </summary>
+        [JsonProperty(DefaultValueHandling = DefaultValueHandling.Include)]
         public bool InlineRarityBadge
         {
             get => _inlineRarityBadge;
             set => SetValue(ref _inlineRarityBadge, value);
         }
 
+        [JsonProperty(DefaultValueHandling = DefaultValueHandling.Include)]
         public bool ShowRarityGlow
         {
             get => _showRarityGlow;
@@ -192,12 +202,14 @@ namespace PlayniteAchievements.Models.Settings
         /// When true, a rarity-colored glow is drawn on the notification card border. Toast
         /// surface only; the frame has no card border and ignores this.
         /// </summary>
+        [JsonProperty(DefaultValueHandling = DefaultValueHandling.Include)]
         public bool NotificationBorderGlow
         {
             get => _notificationBorderGlow;
             set => SetValue(ref _notificationBorderGlow, value);
         }
 
+        [JsonProperty(DefaultValueHandling = DefaultValueHandling.Include)]
         public bool RarityColoredName
         {
             get => _rarityColoredName;
@@ -208,6 +220,7 @@ namespace PlayniteAchievements.Models.Settings
         /// Shows the unlock datetime on the surface's header line. Defaults differ per
         /// surface: off for the toast, on for the frame.
         /// </summary>
+        [JsonProperty(DefaultValueHandling = DefaultValueHandling.Include)]
         public bool ShowUnlockTime
         {
             get => _showUnlockTime;
@@ -217,6 +230,7 @@ namespace PlayniteAchievements.Models.Settings
         /// <summary>
         /// Shows the unlock's provider icon on the right side of the surface.
         /// </summary>
+        [JsonProperty(DefaultValueHandling = DefaultValueHandling.Include)]
         public bool ShowProviderIcon
         {
             get => _showProviderIcon;
@@ -227,6 +241,7 @@ namespace PlayniteAchievements.Models.Settings
         /// Shows the left-edge rarity accent strip. Toast surface only; the frame has no accent
         /// strip and ignores this.
         /// </summary>
+        [JsonProperty(DefaultValueHandling = DefaultValueHandling.Include)]
         public bool ShowAccentStrip
         {
             get => _showAccentStrip;
@@ -237,6 +252,7 @@ namespace PlayniteAchievements.Models.Settings
         /// Shows the bottom countdown/auto-dismiss timer bar. Toast surface only; the frame is a
         /// static image and ignores this. Hiding the bar does not change the dismiss timing.
         /// </summary>
+        [JsonProperty(DefaultValueHandling = DefaultValueHandling.Include)]
         public bool ShowCountdownBar
         {
             get => _showCountdownBar;

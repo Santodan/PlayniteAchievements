@@ -122,6 +122,92 @@ namespace PlayniteAchievements.Services.Tests
         }
 
         [TestMethod]
+        public async Task ImportPackage_ForGame_MaterializesImagesIntoIsolatedGameFolder()
+        {
+            var tempDir = CreateTempDirectory();
+            try
+            {
+                var store = CreateStore(tempDir, out _);
+                var source = Path.Combine(tempDir, "background.png");
+                WritePngFile(source);
+
+                var style = NotificationStyleSettings.CreateDefault();
+                style.ToastBackgroundImagePath = source;
+                var packagePath = Path.Combine(tempDir, "game-style.pastyle.zip");
+                store.ExportPackage(style, packagePath);
+
+                var gameId = Guid.NewGuid();
+                var imported = await store.ImportAsync(
+                    packagePath,
+                    NotificationImageOwner.ForGame(gameId),
+                    CancellationToken.None);
+
+                var expectedSuffix = Path.Combine(
+                    "notification_images",
+                    "games",
+                    gameId.ToString("D"),
+                    "background.png");
+                Assert.IsTrue(imported.ToastBackgroundImagePath.EndsWith(
+                    expectedSuffix,
+                    StringComparison.OrdinalIgnoreCase));
+                Assert.IsTrue(File.Exists(imported.ToastBackgroundImagePath));
+            }
+            finally
+            {
+                DeleteDirectory(tempDir);
+            }
+        }
+
+        [TestMethod]
+        public async Task PruneOrphans_UsesGameRowsWithoutTreatingLegacyCallsAsAuthoritative()
+        {
+            var tempDir = CreateTempDirectory();
+            try
+            {
+                CreateStore(tempDir, out var imageStore);
+                var source = Path.Combine(tempDir, "background.png");
+                WritePngFile(source);
+                var gameId = Guid.NewGuid();
+                var owner = NotificationImageOwner.ForGame(gameId);
+                var managedPath = await imageStore.MaterializeAsync(
+                    source,
+                    owner,
+                    NotificationImageSlot.Background,
+                    CancellationToken.None);
+
+                imageStore.PruneOrphans(new PersistedSettings());
+                Assert.IsTrue(File.Exists(managedPath));
+
+                var style = NotificationStyleSettings.CreateDefault();
+                style.ToastBackgroundImagePath = managedPath;
+                imageStore.PruneOrphans(
+                    new PersistedSettings(),
+                    new[]
+                    {
+                        new GameCustomDataFile
+                        {
+                            PlayniteGameId = gameId,
+                            NotificationAppearanceOverride =
+                                new GameNotificationAppearanceOverride
+                                {
+                                    Style = style
+                                }
+                        }
+                    });
+                Assert.IsTrue(File.Exists(managedPath));
+
+                imageStore.PruneOrphans(
+                    new PersistedSettings(),
+                    Array.Empty<GameCustomDataFile>());
+                Assert.IsFalse(File.Exists(managedPath));
+            }
+            finally
+            {
+                DeleteDirectory(tempDir);
+            }
+        }
+
+        [TestMethod]
         public void ExportPa_WithLocalImages_Throws()
         {
             var tempDir = CreateTempDirectory();
@@ -218,6 +304,13 @@ namespace PlayniteAchievements.Services.Tests
             }
 
             File.WriteAllText(path, content);
+        }
+
+        private static void WritePngFile(string path)
+        {
+            var pngBytes = Convert.FromBase64String(
+                "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVQIW2NkYGD4DwABBAEAgh8sXQAAAABJRU5ErkJggg==");
+            File.WriteAllBytes(path, pngBytes);
         }
 
         private static string CreateTempDirectory()

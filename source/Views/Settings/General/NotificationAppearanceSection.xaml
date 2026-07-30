@@ -25,12 +25,14 @@
                      given its own whole-style copy via the Customize checkbox. -->
                 <Border Style="{StaticResource SectionBorderStyle}">
                     <StackPanel>
-                        <TextBlock Text="{DynamicResource LOCPlayAch_Common_Label_Platform}"
+                        <TextBlock x:Name="PlatformHeader"
+                                   Text="{DynamicResource LOCPlayAch_Common_Label_Platform}"
                                    Style="{StaticResource SectionHeaderStyle}"
                                    Margin="{StaticResource PlayAch.Thickness.Bottom.Md}"/>
                         <Border Style="{StaticResource SectionAccentRuleStyle}"/>
 
-                        <StackPanel Orientation="Horizontal">
+                        <StackPanel x:Name="PlatformSelectorPanel"
+                                    Orientation="Horizontal">
                             <ComboBox x:Name="PlatformSelector"
                                       MinWidth="220"
                                       SelectionChanged="PlatformSelector_SelectionChanged">
@@ -71,6 +73,19 @@
                                    TextWrapping="Wrap"
                                    Visibility="Collapsed"
                                    Margin="0,8,0,0"/>
+                        <StackPanel x:Name="GameSelectionPanel"
+                                    Visibility="Collapsed">
+                            <TextBlock Text="{DynamicResource LOCPlayAch_Section_Notifications}"
+                                       Style="{StaticResource SectionHeaderStyle}"/>
+                            <CheckBox x:Name="CustomizeGameCheckBox"
+                                      Content="{DynamicResource LOCPlayAch_ManageAchievements_Notifications_Customize}"
+                                      Click="CustomizeGameCheckBox_Click"
+                                      Margin="0,10,0,0"/>
+                            <TextBlock x:Name="GameInheritanceHint"
+                                       Style="{StaticResource MutedTextStyle}"
+                                       TextWrapping="Wrap"
+                                       Margin="0,8,0,0"/>
+                        </StackPanel>
 
                         <!-- Share the selected style: export to a .pastyle(.zip) file or import
                              one onto the current platform selection. -->
@@ -96,8 +111,9 @@
                                 BorderThickness="0">
                         <TabItem Header="{DynamicResource LOCPlayAch_Settings_Style_ToastTab}">
                             <StackPanel Margin="0,12,0,0">
-                                <CheckBox Content="{DynamicResource LOCPlayAch_Settings_Style_UseThemeTemplate}"
-                                          IsChecked="{Binding Persisted.ToastUseThemeStyling}"
+                                <CheckBox x:Name="ToastThemeStylingCheckBox"
+                                          Content="{DynamicResource LOCPlayAch_Settings_Style_UseThemeTemplate}"
+                                          Click="ThemeStylingCheckBox_Click"
                                           Margin="0,0,0,4"/>
                                 <TextBlock Text="{DynamicResource LOCPlayAch_Settings_Style_UseThemeTemplateHint}"
                                            Style="{StaticResource MutedTextStyle}"
@@ -154,8 +170,9 @@
 
                         <TabItem Header="{DynamicResource LOCPlayAch_Settings_FrameHeader}">
                             <StackPanel Margin="0,12,0,0">
-                                <CheckBox Content="{DynamicResource LOCPlayAch_Settings_Style_UseThemeTemplate}"
-                                          IsChecked="{Binding Persisted.FrameUseThemeStyling}"
+                                <CheckBox x:Name="FrameThemeStylingCheckBox"
+                                          Content="{DynamicResource LOCPlayAch_Settings_Style_UseThemeTemplate}"
+                                          Click="ThemeStylingCheckBox_Click"
                                           Margin="0,0,0,4"/>
                                 <TextBlock Text="{DynamicResource LOCPlayAch_Settings_Style_UseThemeTemplateHint}"
                                            Style="{StaticResource MutedTextStyle}"
