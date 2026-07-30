@@ -69,7 +69,11 @@ namespace PlayniteAchievements.Views.Settings.General
                 ? null
                 : gameProviderKey.Trim();
 
-            _toastTemplateResolver = new AchievementToastTemplateResolver(plugin.PlayniteApi, logger);
+            _toastTemplateResolver = new AchievementToastTemplateResolver(
+                plugin.PlayniteApi,
+                logger,
+                customTemplatesDirectory: AchievementToastTemplateResolver.GetCustomTemplatesDirectory(
+                    plugin.GetPluginUserDataPath()));
 
             // A sample provider so the mock and fire-tests always show a provider icon, even
             // when the global default (no platform selected) is being edited.
@@ -537,6 +541,12 @@ namespace PlayniteAchievements.Views.Settings.General
         /// Rebuilds both inline mockups from the resolved templates and the style being edited
         /// so every toggle, reorder, image, and font change previews live.
         /// </summary>
+        // The custom-template scope for the current selection: a game in game mode, else the
+        // selected provider (null = global). Mirrors how the .pastyle style scope is chosen.
+        private string ScopeProviderKey => IsGameMode ? null : _selectedProviderKey;
+
+        private Guid ScopeGameId => IsGameMode ? _gameId : Guid.Empty;
+
         private void UpdateMockups()
         {
             var persisted = _settings?.Persisted;
@@ -547,7 +557,7 @@ namespace PlayniteAchievements.Views.Settings.General
             }
 
             ToastMockupHost.ContentTemplate =
-                _toastTemplateResolver.ResolveTemplate(_currentToastUseThemeStyling);
+                _toastTemplateResolver.ResolveTemplate(_currentToastUseThemeStyling, ScopeProviderKey, ScopeGameId);
             ToastMockupHost.Content = new AchievementToastViewModel(
                 BuildPreviewArgs("mockup"),
                 persisted,
@@ -557,7 +567,7 @@ namespace PlayniteAchievements.Views.Settings.General
                 frameUseThemeStylingOverride: _currentFrameUseThemeStyling);
 
             FrameMockupHost.ContentTemplate =
-                _toastTemplateResolver.ResolveFrameTemplate(_currentFrameUseThemeStyling);
+                _toastTemplateResolver.ResolveFrameTemplate(_currentFrameUseThemeStyling, ScopeProviderKey, ScopeGameId);
             FrameMockupHost.Content = new AchievementToastViewModel(
                 BuildPreviewArgs("mockup"),
                 persisted,
@@ -616,7 +626,7 @@ namespace PlayniteAchievements.Views.Settings.General
 
             CloseFramePreview();
 
-            var template = _toastTemplateResolver.ResolvePreviewTemplate(source, isFrame: true);
+            var template = _toastTemplateResolver.ResolvePreviewTemplate(source, isFrame: true, ScopeProviderKey, ScopeGameId);
             if (template == null)
             {
                 return;
@@ -790,7 +800,25 @@ namespace PlayniteAchievements.Views.Settings.General
 
                 if (usePackage)
                 {
-                    store.ExportPackage(style, destinationPath);
+                    // A package can also carry the toast and/or frame template as an editable
+                    // starting point; the plain .pastyle is data-only.
+                    string toastTemplateXaml = null;
+                    string frameTemplateXaml = null;
+                    var resolver = _toastTemplateResolver;
+                    if (resolver != null)
+                    {
+                        if (Confirm(L("LOCPlayAch_Settings_Style_ExportIncludeToastTemplate")))
+                        {
+                            toastTemplateXaml = resolver.ReadEffectiveTemplateXaml(isFrame: false, ScopeProviderKey, ScopeGameId);
+                        }
+
+                        if (Confirm(L("LOCPlayAch_Settings_Style_ExportIncludeFrameTemplate")))
+                        {
+                            frameTemplateXaml = resolver.ReadEffectiveTemplateXaml(isFrame: true, ScopeProviderKey, ScopeGameId);
+                        }
+                    }
+
+                    store.ExportPackage(style, destinationPath, toastTemplateXaml, frameTemplateXaml);
                 }
                 else
                 {
@@ -845,71 +873,222 @@ namespace PlayniteAchievements.Views.Settings.General
                     return;
                 }
 
-                var confirm = _plugin.PlayniteApi.Dialogs.ShowMessage(
-                    L("LOCPlayAch_Settings_Style_ImportConfirm"),
-                    L("LOCPlayAch_Title_PluginName"),
-                    MessageBoxButton.YesNo,
-                    MessageBoxImage.Question);
-                if (confirm != MessageBoxResult.Yes)
+                var contents = store.InspectPackage(dialog.FileName);
+                var resolver = _toastTemplateResolver;
+                var offerTemplates = resolver != null &&
+                    (contents.HasToastTemplate || contents.HasFrameTemplate);
+
+                bool applyStyle;
+                var installToast = false;
+                var installFrame = false;
+
+                if (!offerTemplates)
                 {
-                    return;
+                    // Style-only file: single confirmation, apply the style (unchanged behavior).
+                    if (!Confirm(L("LOCPlayAch_Settings_Style_ImportConfirm")))
+                    {
+                        return;
+                    }
+
+                    applyStyle = true;
+                }
+                else
+                {
+                    // The package carries one or both templates: let the user pick any combination
+                    // of the available parts to apply.
+                    applyStyle = contents.HasStyle &&
+                        Confirm(L("LOCPlayAch_Settings_Style_ImportApplyStyle"));
+                    installToast = contents.HasToastTemplate &&
+                        Confirm(L("LOCPlayAch_Settings_Style_ImportInstallToastTemplate"));
+                    installFrame = contents.HasFrameTemplate &&
+                        Confirm(L("LOCPlayAch_Settings_Style_ImportInstallFrameTemplate"));
+                    if (!applyStyle && !installToast && !installFrame)
+                    {
+                        return;
+                    }
                 }
 
                 _toastEditorViewModel?.FlushPendingPersist();
                 _frameEditorViewModel?.FlushPendingPersist();
 
-                var providerKey = _selectedProviderKey;
-                var owner = IsGameMode
-                    ? NotificationImageOwner.ForGame(_gameId)
-                    : NotificationImageOwner.ForProvider(providerKey);
-                var imported = await store.ImportAsync(
-                    dialog.FileName,
-                    owner,
-                    CancellationToken.None);
-                if (imported == null)
+                if (applyStyle)
                 {
-                    throw new InvalidOperationException("Imported notification style was empty.");
+                    var providerKey = _selectedProviderKey;
+                    var owner = IsGameMode
+                        ? NotificationImageOwner.ForGame(_gameId)
+                        : NotificationImageOwner.ForProvider(providerKey);
+                    var imported = await store.ImportAsync(
+                        dialog.FileName,
+                        owner,
+                        CancellationToken.None);
+                    if (imported == null)
+                    {
+                        throw new InvalidOperationException("Imported notification style was empty.");
+                    }
+
+                    ApplyImportedStyle(persisted, providerKey, imported);
+
+                    if (!IsGameMode)
+                    {
+                        _plugin.PersistSettingsForUi();
+                    }
+
+                    // Drop slot files the replaced style no longer references.
+                    _plugin.NotificationImageStore.PruneOrphans(
+                        persisted,
+                        _plugin.GameCustomDataStore?.LoadAll());
                 }
 
-                if (IsGameMode)
+                var templateErrors = new List<string>();
+                if (installToast)
                 {
-                    var customDataStore = _plugin.GameCustomDataStore;
-                    customDataStore.Update(_gameId, data =>
-                    {
-                        var existing = data.NotificationAppearanceOverride;
-                        data.NotificationAppearanceOverride =
-                            new GameNotificationAppearanceOverride
-                            {
-                                Style = imported,
-                                ToastUseThemeStyling =
-                                    existing?.ToastUseThemeStyling ??
-                                    persisted.ToastUseThemeStyling,
-                                FrameUseThemeStyling =
-                                    existing?.FrameUseThemeStyling ??
-                                    persisted.FrameUseThemeStyling
-                            };
-                    });
+                    InstallImportedTemplate(store, resolver, dialog.FileName, isFrame: false, templateErrors);
                 }
-                else if (providerKey == null)
+
+                if (installFrame)
                 {
-                    persisted.NotificationStyle = imported;
+                    InstallImportedTemplate(store, resolver, dialog.FileName, isFrame: true, templateErrors);
+                }
+
+                ApplySelection();
+                UpdateMockups();
+
+                if (templateErrors.Count > 0)
+                {
+                    _plugin.PlayniteApi?.Dialogs?.ShowMessage(
+                        string.Format(L("LOCPlayAch_Status_Failed"), string.Join("\n", templateErrors)),
+                        L("LOCPlayAch_Title_PluginName"),
+                        MessageBoxButton.OK,
+                        MessageBoxImage.Warning);
                 }
                 else
                 {
-                    persisted.SetProviderNotificationStyle(providerKey, imported);
+                    _plugin.PlayniteApi?.Dialogs?.ShowMessage(
+                        L("LOCPlayAch_Status_Succeeded"),
+                        L("LOCPlayAch_Title_PluginName"),
+                        MessageBoxButton.OK,
+                        MessageBoxImage.Information);
                 }
+            }
+            catch (Exception ex)
+            {
+                _logger?.Error(ex, "Failed importing notification style.");
+                _plugin.PlayniteApi?.Dialogs?.ShowMessage(
+                    string.Format(L("LOCPlayAch_Status_Failed"), ex.Message),
+                    L("LOCPlayAch_Title_PluginName"),
+                    MessageBoxButton.OK,
+                    MessageBoxImage.Error);
+            }
+        }
 
-                if (!IsGameMode)
+        private bool Confirm(string message)
+        {
+            return _plugin.PlayniteApi.Dialogs.ShowMessage(
+                message,
+                L("LOCPlayAch_Title_PluginName"),
+                MessageBoxButton.YesNo,
+                MessageBoxImage.Question) == MessageBoxResult.Yes;
+        }
+
+        /// <summary>
+        /// Applies an imported appearance style to the current platform/game target, creating a
+        /// provider whole-style copy or per-game override as needed.
+        /// </summary>
+        private void ApplyImportedStyle(
+            Models.Settings.PersistedSettings persisted,
+            string providerKey,
+            NotificationStyleSettings imported)
+        {
+            if (IsGameMode)
+            {
+                _plugin.GameCustomDataStore.Update(_gameId, data =>
                 {
-                    _plugin.PersistSettingsForUi();
+                    var existing = data.NotificationAppearanceOverride;
+                    data.NotificationAppearanceOverride =
+                        new GameNotificationAppearanceOverride
+                        {
+                            Style = imported,
+                            ToastUseThemeStyling =
+                                existing?.ToastUseThemeStyling ?? persisted.ToastUseThemeStyling,
+                            FrameUseThemeStyling =
+                                existing?.FrameUseThemeStyling ?? persisted.FrameUseThemeStyling
+                        };
+                });
+            }
+            else if (providerKey == null)
+            {
+                persisted.NotificationStyle = imported;
+            }
+            else
+            {
+                persisted.SetProviderNotificationStyle(providerKey, imported);
+            }
+        }
+
+        /// <summary>
+        /// Reads a surface's embedded template from the package and installs it into the plugin-owned
+        /// custom-template tier. Validation lives in the resolver; a failure is collected (not thrown)
+        /// so one bad template does not abort the rest of the import.
+        /// </summary>
+        private void InstallImportedTemplate(
+            NotificationStylePortableStore store,
+            AchievementToastTemplateResolver resolver,
+            string sourcePath,
+            bool isFrame,
+            List<string> errors)
+        {
+            try
+            {
+                var xaml = store.ReadTemplateXaml(sourcePath, isFrame);
+                if (string.IsNullOrWhiteSpace(xaml))
+                {
+                    return;
                 }
 
-                // Drop slot files the replaced style no longer references.
-                _plugin.NotificationImageStore.PruneOrphans(
-                    persisted,
-                    _plugin.GameCustomDataStore?.LoadAll());
+                resolver.SaveCustomTemplate(isFrame, xaml, ScopeProviderKey, ScopeGameId);
+            }
+            catch (Exception ex)
+            {
+                _logger?.Error(ex, $"Failed installing custom {(isFrame ? "frame" : "toast")} template.");
+                errors.Add(ex.Message);
+            }
+        }
 
-                ApplySelection();
+        private void RemoveCustomToastTemplate_Click(object sender, RoutedEventArgs e)
+        {
+            RemoveCustomTemplate(isFrame: false);
+        }
+
+        private void RemoveCustomFrameTemplate_Click(object sender, RoutedEventArgs e)
+        {
+            RemoveCustomTemplate(isFrame: true);
+        }
+
+        /// <summary>
+        /// Removes the installed custom template for the surface, reverting live notifications and
+        /// the mockup to the active theme override (if any) or the bundled default.
+        /// </summary>
+        private void RemoveCustomTemplate(bool isFrame)
+        {
+            var resolver = _toastTemplateResolver;
+            if (resolver == null)
+            {
+                return;
+            }
+
+            try
+            {
+                if (!resolver.HasCustomTemplate(isFrame, ScopeProviderKey, ScopeGameId))
+                {
+                    _plugin.PlayniteApi?.Dialogs?.ShowMessage(
+                        L("LOCPlayAch_Settings_Style_NoCustomTemplate"),
+                        L("LOCPlayAch_Title_PluginName"),
+                        MessageBoxButton.OK,
+                        MessageBoxImage.Information);
+                    return;
+                }
+
+                resolver.DeleteCustomTemplate(isFrame, ScopeProviderKey, ScopeGameId);
                 UpdateMockups();
 
                 _plugin.PlayniteApi?.Dialogs?.ShowMessage(
@@ -920,7 +1099,7 @@ namespace PlayniteAchievements.Views.Settings.General
             }
             catch (Exception ex)
             {
-                _logger?.Error(ex, "Failed importing notification style.");
+                _logger?.Error(ex, "Failed removing custom notification template.");
                 _plugin.PlayniteApi?.Dialogs?.ShowMessage(
                     string.Format(L("LOCPlayAch_Status_Failed"), ex.Message),
                     L("LOCPlayAch_Title_PluginName"),

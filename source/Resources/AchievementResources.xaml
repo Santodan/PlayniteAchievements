@@ -53,6 +53,19 @@
     </Storyboard>
 
     <!--
+        Subtle shadow that lifts text, badges, and logos off the card surface or a user background
+        image so they stay legible. Shared and frozen, so a single tweak here restyles every text
+        line and badge on both the toast and frame surfaces. Applied on the shared line-template
+        roots (below) and on the badge/provider images in each surface template.
+    -->
+    <DropShadowEffect x:Key="PlayAch.Effect.ContentShadow"
+                      BlurRadius="4"
+                      ShadowDepth="1"
+                      Direction="315"
+                      Opacity="0.6"
+                      Color="#FF000000"/>
+
+    <!--
         Shared text-line templates for the toast and frame surfaces. Both templates render an
         ItemsControl over the view model's ToastLines/FrameLines, so the user's line order is
         pure data; WPF picks these implicitly by descriptor type. Surface-specific values
@@ -64,7 +77,8 @@
     -->
     <DataTemplate DataType="{x:Type vm:ToastHeaderLine}">
         <StackPanel Orientation="Horizontal"
-                    VerticalAlignment="Center">
+                    VerticalAlignment="Center"
+                    Effect="{StaticResource PlayAch.Effect.ContentShadow}">
             <Border Width="16"
                     Height="16"
                     CornerRadius="8"
@@ -155,7 +169,8 @@
              notifications force the title, swap it for "Game Complete!", and color it with the
              completed brush. -->
         <DockPanel LastChildFill="True"
-                   Margin="0,1,0,0">
+                   Margin="0,1,0,0"
+                   Effect="{StaticResource PlayAch.Effect.ContentShadow}">
             <Image DockPanel.Dock="Left"
                    helpers:AsyncImage.Uri="{Binding InlineBadgeSource}"
                    helpers:AsyncImage.DecodePixel="64"
@@ -201,6 +216,7 @@
                    TextTrimming="CharacterEllipsis"
                    MaxHeight="{Binding MaxTextHeight}"
                    Margin="0,2,0,0"
+                   Effect="{StaticResource PlayAch.Effect.ContentShadow}"
                    Visibility="{Binding ShowDescription, Converter={StaticResource BooleanToVisibilityConverter}}"/>
     </DataTemplate>
 
@@ -216,6 +232,7 @@
                    TextWrapping="NoWrap"
                    TextTrimming="CharacterEllipsis"
                    Margin="0,2,0,0"
+                   Effect="{StaticResource PlayAch.Effect.ContentShadow}"
                    Visibility="{Binding HasGameCategoryContent, Converter={StaticResource BooleanToVisibilityConverter}}"/>
     </DataTemplate>
 
@@ -226,15 +243,19 @@
                 MinHeight="64"
                 Margin="14"
                 CornerRadius="8"
-                Background="{DynamicResource PlayAch.Brush.PopupSurface}"
                 BorderBrush="{DynamicResource PlayAch.Brush.PopupBorder}"
-                BorderThickness="1"
                 helpers:RarityGlowPulse.Target="Effect">
             <!-- Default is a neutral drop shadow; the border-glow option swaps it for a
                  rarity-colored glow. Effect is set via Style (not a local value) so the
-                 trigger can override it. -->
+                 trigger can override it. Background and BorderThickness also live in the Style
+                 (not as local values) so the HasToastBackground trigger can drop the opaque card
+                 surface: with a user background image the surface goes transparent and the image's
+                 own (possibly rounded/transparent) alpha defines the shape, so the drop shadow /
+                 border glow wraps the image instead of a solid card rectangle. -->
             <Border.Style>
                 <Style TargetType="Border">
+                    <Setter Property="Background" Value="{DynamicResource PlayAch.Brush.PopupSurface}"/>
+                    <Setter Property="BorderThickness" Value="1"/>
                     <Setter Property="Effect">
                         <Setter.Value>
                             <DropShadowEffect BlurRadius="12"
@@ -245,6 +266,12 @@
                         </Setter.Value>
                     </Setter>
                     <Style.Triggers>
+                        <!-- A user background image defines the card shape: drop the opaque
+                             surface + border so the image's alpha shows and the glow wraps it. -->
+                        <DataTrigger Binding="{Binding HasToastBackground}" Value="True">
+                            <Setter Property="Background" Value="Transparent"/>
+                            <Setter Property="BorderThickness" Value="0"/>
+                        </DataTrigger>
                         <DataTrigger Binding="{Binding HasBorderGlow}" Value="True">
                             <Setter Property="Effect" Value="{Binding BorderGlowEffect}"/>
                         </DataTrigger>
@@ -260,10 +287,15 @@
                 </Style>
             </Border.Style>
             <Grid>
-                <!-- Optional user background image behind the whole card. The Border's corner
-                     radius clips the brush; the explicit DecodePixel matters because ImageBrush
-                     is a Freezable with no size AsyncImage could infer. Animated GIF backgrounds
-                     play (GifAnimationHelper animates ImageBrush.ImageSource). -->
+                <!-- Optional user background image behind the whole card. The corner radius is a
+                     max-rounding upper bound: an opaque rectangular image gets the card's rounded
+                     corners, while an image with its own more-rounded/transparent corners passes
+                     through unchanged (its alpha is more restrictive than the clip). With the card
+                     surface transparent (see the outer Border trigger), the outer drop shadow /
+                     glow then renders from this image's alpha, wrapping its real shape. The
+                     explicit DecodePixel matters because ImageBrush is a Freezable with no size
+                     AsyncImage could infer. Animated GIF backgrounds play (GifAnimationHelper
+                     animates ImageBrush.ImageSource). -->
                 <Border CornerRadius="8"
                         Visibility="{Binding HasToastBackground, Converter={StaticResource BooleanToVisibilityConverter}}">
                     <Border.Background>
@@ -299,21 +331,46 @@
                     </Border.Style>
                 </Border>
 
-                <!-- Right-side provider icon, vertically centered (toggleable). -->
-                <Image Grid.Column="2"
-                       Width="24"
-                       Height="24"
-                       Margin="2,0,10,0"
-                       VerticalAlignment="Center"
-                       RenderOptions.BitmapScalingMode="HighQuality"
-                       Visibility="{Binding ShowProviderIcon, Converter={StaticResource BooleanToVisibilityConverter}}">
-                    <Image.Source>
-                        <MultiBinding Converter="{StaticResource ProviderIconConverter}">
-                            <Binding Path="ProviderIconKey"/>
-                            <Binding Path="ProviderColorHex"/>
-                        </MultiBinding>
-                    </Image.Source>
-                </Image>
+                <!-- Right column: the provider icon, or (when the rarity badge is placed on the
+                     right) a larger badge with an optional percent under it that stands in for the
+                     provider icon. The two are mutually exclusive by their visibility gates; the
+                     shared content shadow sits on the container. -->
+                <Grid Grid.Column="2"
+                      Margin="2,0,10,0"
+                      VerticalAlignment="Center"
+                      Effect="{StaticResource PlayAch.Effect.ContentShadow}">
+                    <Image Width="{Binding ToastProviderIconSize}"
+                           Height="{Binding ToastProviderIconSize}"
+                           VerticalAlignment="Center"
+                           RenderOptions.BitmapScalingMode="HighQuality"
+                           Visibility="{Binding ShowProviderIcon, Converter={StaticResource BooleanToVisibilityConverter}}">
+                        <Image.Source>
+                            <MultiBinding Converter="{StaticResource ProviderIconConverter}">
+                                <Binding Path="ProviderIconKey"/>
+                                <Binding Path="ProviderColorHex"/>
+                            </MultiBinding>
+                        </Image.Source>
+                    </Image>
+                    <StackPanel VerticalAlignment="Center"
+                                HorizontalAlignment="Center"
+                                Visibility="{Binding ShowRightBadge, Converter={StaticResource BooleanToVisibilityConverter}}">
+                        <!-- Reuses the shared badge source, so animated GIF badges animate. -->
+                        <Image helpers:AsyncImage.Uri="{Binding ToastBadgeSource}"
+                               helpers:AsyncImage.DecodePixel="96"
+                               Width="{Binding ToastRightBadgeSize}"
+                               Height="{Binding ToastRightBadgeSize}"
+                               HorizontalAlignment="Center"
+                               RenderOptions.BitmapScalingMode="HighQuality"/>
+                        <TextBlock Text="{Binding PercentText}"
+                                   Style="{DynamicResource PlayAch.TextBlock.BaseStyle}"
+                                   Foreground="{DynamicResource PlayAch.Brush.Text.Secondary}"
+                                   FontSize="{Binding ToastHeaderFontSize}"
+                                   FontFamily="{Binding ToastFontFamily}"
+                                   HorizontalAlignment="Center"
+                                   Margin="0,2,0,0"
+                                   Visibility="{Binding ShowRightPercent, Converter={StaticResource BooleanToVisibilityConverter}}"/>
+                    </StackPanel>
+                </Grid>
 
                 <Grid Grid.Column="1" Margin="14,8,8,8">
                     <Grid.RowDefinitions>
@@ -332,8 +389,8 @@
                             VerticalAlignment="Center"
                             HorizontalAlignment="Center"
                             Margin="0,0,13,0">
-                    <Grid Width="55"
-                          Height="55"
+                    <Grid Width="{Binding ToastIconSize}"
+                          Height="{Binding ToastIconSize}"
                           HorizontalAlignment="Center">
                         <!-- Completion notifications swap the achievement icon for the
                              completed-game badge and the completed glow. Glow lives on a cached
@@ -385,7 +442,8 @@
 
                     <StackPanel Orientation="Horizontal"
                                 HorizontalAlignment="Center"
-                                Margin="0,4,0,0">
+                                Margin="0,4,0,0"
+                                Effect="{StaticResource PlayAch.Effect.ContentShadow}">
                         <!-- User badge images replace the drawn badge; a string source keeps
                              animated GIF badges animating. -->
                         <Image helpers:AsyncImage.Uri="{Binding ToastBadgeSource}"
@@ -511,8 +569,8 @@
                     <!-- Icon column: icon with rarity glow, badge + percent centered below -->
                     <StackPanel Grid.Column="0"
                                 VerticalAlignment="Center">
-                        <Grid Width="84"
-                              Height="84"
+                        <Grid Width="{Binding FrameIconSize}"
+                              Height="{Binding FrameIconSize}"
                               HorizontalAlignment="Center">
                             <!-- Completion notifications swap the achievement icon for the
                                  completed-game badge and the completed glow (all sync-loaded, as
@@ -540,7 +598,8 @@
                         </Grid>
                         <StackPanel Orientation="Horizontal"
                                     HorizontalAlignment="Center"
-                                    Margin="0,6,0,0">
+                                    Margin="0,6,0,0"
+                                    Effect="{StaticResource PlayAch.Effect.ContentShadow}">
                             <!-- Sync-loaded custom badge image (offscreen render contract);
                                  animated GIF badges contribute their first frame here. -->
                             <Image Source="{Binding FrameBadgeImage}"
@@ -578,29 +637,51 @@
                         </ItemsControl.ItemContainerStyle>
                     </ItemsControl>
 
-                    <!-- Provider icon, vertically centered (toggleable). The converter yields a
-                         DrawingImage, which renders synchronously offscreen. -->
-                    <Image Grid.Column="2"
-                           Width="40"
-                           Height="40"
-                           Margin="0,0,22,0"
-                           VerticalAlignment="Center"
-                           RenderOptions.BitmapScalingMode="HighQuality"
-                           Visibility="{Binding FrameShowProviderIcon, Converter={StaticResource BooleanToVisibilityConverter}}">
-                        <Image.Source>
-                            <MultiBinding Converter="{StaticResource ProviderIconConverter}">
-                                <Binding Path="ProviderIconKey"/>
-                                <Binding Path="ProviderColorHex"/>
-                            </MultiBinding>
-                        </Image.Source>
-                    </Image>
+                    <!-- Provider icon column, or (when the rarity badge is placed on the right) a
+                         larger badge with an optional percent standing in for the provider icon.
+                         The converter and FrameBadgeImage render synchronously offscreen. -->
+                    <Grid Grid.Column="2"
+                          Margin="0,0,22,0"
+                          VerticalAlignment="Center"
+                          Effect="{StaticResource PlayAch.Effect.ContentShadow}">
+                        <Image Width="{Binding FrameProviderIconSize}"
+                               Height="{Binding FrameProviderIconSize}"
+                               VerticalAlignment="Center"
+                               RenderOptions.BitmapScalingMode="HighQuality"
+                               Visibility="{Binding FrameShowProviderIcon, Converter={StaticResource BooleanToVisibilityConverter}}">
+                            <Image.Source>
+                                <MultiBinding Converter="{StaticResource ProviderIconConverter}">
+                                    <Binding Path="ProviderIconKey"/>
+                                    <Binding Path="ProviderColorHex"/>
+                                </MultiBinding>
+                            </Image.Source>
+                        </Image>
+                        <StackPanel VerticalAlignment="Center"
+                                    HorizontalAlignment="Center"
+                                    Visibility="{Binding FrameShowRightBadge, Converter={StaticResource BooleanToVisibilityConverter}}">
+                            <Image Source="{Binding FrameBadgeImage}"
+                                   Width="{Binding FrameRightBadgeSize}"
+                                   Height="{Binding FrameRightBadgeSize}"
+                                   HorizontalAlignment="Center"
+                                   RenderOptions.BitmapScalingMode="HighQuality"/>
+                            <TextBlock Text="{Binding PercentText}"
+                                       Style="{DynamicResource PlayAch.TextBlock.BaseStyle}"
+                                       Foreground="{DynamicResource PlayAch.Brush.Text.Secondary}"
+                                       FontSize="{Binding FrameHeaderFontSize}"
+                                       FontFamily="{Binding FrameFontFamily}"
+                                       HorizontalAlignment="Center"
+                                       Margin="0,2,0,0"
+                                       Visibility="{Binding FrameShowRightPercent, Converter={StaticResource BooleanToVisibilityConverter}}"/>
+                        </StackPanel>
+                    </Grid>
 
                     <!-- Branding: shared screenshots identify the plugin. Product name stays a
                          literal (not localized). The logo is a DrawingImage (LogoResources.xaml),
                          which loads synchronously as offscreen rendering requires. -->
                     <StackPanel Grid.Column="3"
                                 Orientation="Horizontal"
-                                VerticalAlignment="Center">
+                                VerticalAlignment="Center"
+                                Effect="{StaticResource PlayAch.Effect.ContentShadow}">
                         <Border Width="1"
                                 Margin="0,10,20,10"
                                 Background="{DynamicResource PlayAch.Brush.PopupBorder}"/>

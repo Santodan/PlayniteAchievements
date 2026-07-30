@@ -92,6 +92,56 @@ namespace PlayniteAchievements.Services.Tests
         }
 
         [TestMethod]
+        public void ExportPackage_WithTemplates_InspectAndReadRoundTrip()
+        {
+            var tempDir = CreateTempDirectory();
+            try
+            {
+                var store = CreateStore(tempDir, out _);
+                var style = NotificationStyleSettings.CreateDefault();
+
+                const string toastXaml = "<ResourceDictionary xmlns=\"toast\"><!--toast--></ResourceDictionary>";
+                const string frameXaml = "<ResourceDictionary xmlns=\"frame\"><!--frame--></ResourceDictionary>";
+
+                var withBoth = Path.Combine(tempDir, "both.pastyle.zip");
+                store.ExportPackage(style, withBoth, toastXaml, frameXaml);
+
+                using (var archive = ZipFile.OpenRead(withBoth))
+                {
+                    var names = archive.Entries.Select(entry => entry.FullName).ToList();
+                    CollectionAssert.Contains(names, NotificationStylePortableStore.ToastTemplateEntryName);
+                    CollectionAssert.Contains(names, NotificationStylePortableStore.FrameTemplateEntryName);
+                }
+
+                var contents = store.InspectPackage(withBoth);
+                Assert.IsTrue(contents.HasStyle);
+                Assert.IsTrue(contents.HasToastTemplate);
+                Assert.IsTrue(contents.HasFrameTemplate);
+                Assert.AreEqual(toastXaml, store.ReadTemplateXaml(withBoth, isFrame: false));
+                Assert.AreEqual(frameXaml, store.ReadTemplateXaml(withBoth, isFrame: true));
+
+                // Toast-only package: the frame template is absent.
+                var toastOnly = Path.Combine(tempDir, "toast.pastyle.zip");
+                store.ExportPackage(style, toastOnly, toastTemplateXaml: toastXaml, frameTemplateXaml: null);
+                var toastOnlyContents = store.InspectPackage(toastOnly);
+                Assert.IsTrue(toastOnlyContents.HasToastTemplate);
+                Assert.IsFalse(toastOnlyContents.HasFrameTemplate);
+                Assert.IsNull(store.ReadTemplateXaml(toastOnly, isFrame: true));
+
+                // No templates (existing overload path): both absent.
+                var styleOnly = Path.Combine(tempDir, "styleonly.pastyle.zip");
+                store.ExportPackage(style, styleOnly);
+                var styleOnlyContents = store.InspectPackage(styleOnly);
+                Assert.IsFalse(styleOnlyContents.HasToastTemplate);
+                Assert.IsFalse(styleOnlyContents.HasFrameTemplate);
+            }
+            finally
+            {
+                DeleteDirectory(tempDir);
+            }
+        }
+
+        [TestMethod]
         public async Task ExportPa_AndImport_RoundTripsImageFreeStyle()
         {
             var tempDir = CreateTempDirectory();

@@ -84,6 +84,7 @@
                     <CheckBox Content="{DynamicResource LOCPlayAch_Settings_ToastRarityColoredName}"
                               IsChecked="{Binding Surface.RarityColoredName}"/>
                     <CheckBox Content="{DynamicResource LOCPlayAch_Common_Label_Platform}"
+                              IsEnabled="{Binding IsProviderIconEnabled}"
                               IsChecked="{Binding Surface.ShowProviderIcon}"/>
                 </UniformGrid>
 
@@ -117,7 +118,8 @@
             </StackPanel>
         </Border>
 
-        <!-- Rarity badge/percent and glow layouts, each a single dropdown, on aligned rows. -->
+        <!-- Rarity badge placement, percent placement, and glow layout, each a dropdown on
+             aligned rows. -->
         <Border Style="{StaticResource EditorCardStyle}">
             <Grid HorizontalAlignment="Left">
                 <Grid.ColumnDefinitions>
@@ -127,28 +129,87 @@
                 <Grid.RowDefinitions>
                     <RowDefinition Height="Auto"/>
                     <RowDefinition Height="Auto"/>
+                    <RowDefinition Height="Auto"/>
                 </Grid.RowDefinitions>
 
                 <TextBlock Grid.Row="0" Grid.Column="0"
-                           Text="{DynamicResource LOCPlayAch_Column_Rarity}"
+                           Text="{DynamicResource LOCPlayAch_Settings_Style_Rarity_BadgeLabel}"
                            Style="{StaticResource EditorRowLabelStyle}"
                            Margin="0,0,8,8"/>
                 <ComboBox Grid.Row="0" Grid.Column="1"
-                          ItemsSource="{Binding RarityBadgeDisplayOptions}"
-                          SelectedItem="{Binding SelectedRarityBadgeDisplay, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                          ItemsSource="{Binding BadgePlacementOptions}"
+                          SelectedItem="{Binding SelectedBadgePlacement, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
                           DisplayMemberPath="Display"
                           MinWidth="190"
                           Margin="0,0,0,8"/>
 
                 <TextBlock Grid.Row="1" Grid.Column="0"
+                           Text="{DynamicResource LOCPlayAch_Settings_Style_Rarity_PercentLabel}"
+                           Style="{StaticResource EditorRowLabelStyle}"
+                           Margin="0,0,8,8"/>
+                <ComboBox Grid.Row="1" Grid.Column="1"
+                          ItemsSource="{Binding PercentPlacementOptions}"
+                          SelectedItem="{Binding SelectedPercentPlacement, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                          DisplayMemberPath="Display"
+                          MinWidth="190"
+                          Margin="0,0,0,8"/>
+
+                <TextBlock Grid.Row="2" Grid.Column="0"
                            Text="{DynamicResource LOCPlayAch_Settings_ToastShowRarityGlow}"
                            Style="{StaticResource EditorRowLabelStyle}"/>
-                <ComboBox Grid.Row="1" Grid.Column="1"
+                <ComboBox Grid.Row="2" Grid.Column="1"
                           ItemsSource="{Binding GlowDisplayOptions}"
                           SelectedItem="{Binding SelectedGlowDisplay, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
                           DisplayMemberPath="Display"
                           MinWidth="190"/>
             </Grid>
+        </Border>
+
+        <!-- Element sizes (both surfaces). A blank box uses the surface default. -->
+        <Border Style="{StaticResource EditorCardStyle}">
+            <StackPanel>
+                <TextBlock Text="{DynamicResource LOCPlayAch_Settings_Style_SizeHeader}"
+                           Style="{StaticResource EditorSubGroupHeaderStyle}"/>
+                <Grid HorizontalAlignment="Left">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="Auto" MinWidth="90"/>
+                        <ColumnDefinition Width="Auto"/>
+                    </Grid.ColumnDefinitions>
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="Auto"/>
+                    </Grid.RowDefinitions>
+
+                    <TextBlock Grid.Row="0" Grid.Column="0"
+                               Text="{DynamicResource LOCPlayAch_Column_Icon}"
+                               Style="{StaticResource EditorRowLabelStyle}"
+                               Margin="0,0,8,8"/>
+                    <TextBox Grid.Row="0" Grid.Column="1"
+                             Text="{Binding IconSizeText, Mode=TwoWay, UpdateSourceTrigger=LostFocus}"
+                             Width="70"
+                             TextAlignment="Right"
+                             Margin="0,0,0,8"/>
+
+                    <TextBlock Grid.Row="1" Grid.Column="0"
+                               Text="{DynamicResource LOCPlayAch_Settings_Style_Rarity_BadgeLabel}"
+                               Style="{StaticResource EditorRowLabelStyle}"
+                               Margin="0,0,8,8"/>
+                    <TextBox Grid.Row="1" Grid.Column="1"
+                             Text="{Binding RarityBadgeSizeText, Mode=TwoWay, UpdateSourceTrigger=LostFocus}"
+                             Width="70"
+                             TextAlignment="Right"
+                             Margin="0,0,0,8"/>
+
+                    <TextBlock Grid.Row="2" Grid.Column="0"
+                               Text="{DynamicResource LOCPlayAch_Common_Label_Platform}"
+                               Style="{StaticResource EditorRowLabelStyle}"/>
+                    <TextBox Grid.Row="2" Grid.Column="1"
+                             Text="{Binding ProviderIconSizeText, Mode=TwoWay, UpdateSourceTrigger=LostFocus}"
+                             Width="70"
+                             TextAlignment="Right"/>
+                </Grid>
+            </StackPanel>
         </Border>
 
         <!-- Toast-only chrome and card size: the frame has no accent strip, timer bar, or free

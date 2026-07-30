@@ -113,6 +113,8 @@ namespace PlayniteAchievements.Models.Settings
         private bool _showRarityBadge = true;
         private bool _showRarityPercent = true;
         private bool _inlineRarityBadge;
+        private bool _rightRarityBadge;
+        private bool _rarityPercentUnderBadge;
         private bool _showRarityGlow = true;
         private bool _notificationBorderGlow;
         private bool _rarityColoredName = true;
@@ -128,6 +130,9 @@ namespace PlayniteAchievements.Models.Settings
         private double? _bodyFontSize;
         private double? _cardWidth;
         private double? _cardHeight;
+        private double? _iconSize;
+        private double? _rarityBadgeSize;
+        private double? _providerIconSize;
         private double _titleLineOffset;
 
         [JsonProperty(DefaultValueHandling = DefaultValueHandling.Include)]
@@ -189,6 +194,30 @@ namespace PlayniteAchievements.Models.Settings
         {
             get => _inlineRarityBadge;
             set => SetValue(ref _inlineRarityBadge, value);
+        }
+
+        /// <summary>
+        /// When true, the rarity/trophy badge is drawn larger on the right side of the surface,
+        /// replacing the provider icon (the provider icon is hidden while this is on).
+        /// Mutually exclusive with the footer and inline badge placements in the settings UI.
+        /// </summary>
+        [JsonProperty(DefaultValueHandling = DefaultValueHandling.Include)]
+        public bool RightRarityBadge
+        {
+            get => _rightRarityBadge;
+            set => SetValue(ref _rightRarityBadge, value);
+        }
+
+        /// <summary>
+        /// When true, the rarity percent is placed with the badge rather than in the icon-column
+        /// footer. It renders under the right-side badge when <see cref="RightRarityBadge"/> is on;
+        /// otherwise it stays in the footer alongside the footer badge.
+        /// </summary>
+        [JsonProperty(DefaultValueHandling = DefaultValueHandling.Include)]
+        public bool RarityPercentUnderBadge
+        {
+            get => _rarityPercentUnderBadge;
+            set => SetValue(ref _rarityPercentUnderBadge, value);
         }
 
         [JsonProperty(DefaultValueHandling = DefaultValueHandling.Include)]
@@ -292,6 +321,36 @@ namespace PlayniteAchievements.Models.Settings
         }
 
         /// <summary>
+        /// Achievement icon render size in DIPs, or null for the surface default (55 toast / 84
+        /// frame).
+        /// </summary>
+        public double? IconSize
+        {
+            get => _iconSize;
+            set => SetValue(ref _iconSize, value);
+        }
+
+        /// <summary>
+        /// Rarity/trophy badge render size in DIPs, applied to every badge placement (footer,
+        /// inline, and the large right-side badge), or null for the per-placement defaults.
+        /// </summary>
+        public double? RarityBadgeSize
+        {
+            get => _rarityBadgeSize;
+            set => SetValue(ref _rarityBadgeSize, value);
+        }
+
+        /// <summary>
+        /// Provider (platform) icon render size in DIPs, or null for the surface default (24 toast
+        /// / 40 frame).
+        /// </summary>
+        public double? ProviderIconSize
+        {
+            get => _providerIconSize;
+            set => SetValue(ref _providerIconSize, value);
+        }
+
+        /// <summary>
         /// Horizontal offset in DIPs for the achievement-name (title) line, including its inline
         /// badge, so the user can slide the whole line to align it with the rows below. Zero (the
         /// default) leaves the line at its natural start.
@@ -391,6 +450,8 @@ namespace PlayniteAchievements.Models.Settings
                 ShowRarityBadge = ShowRarityBadge,
                 ShowRarityPercent = ShowRarityPercent,
                 InlineRarityBadge = InlineRarityBadge,
+                RightRarityBadge = RightRarityBadge,
+                RarityPercentUnderBadge = RarityPercentUnderBadge,
                 ShowRarityGlow = ShowRarityGlow,
                 NotificationBorderGlow = NotificationBorderGlow,
                 RarityColoredName = RarityColoredName,
@@ -406,6 +467,9 @@ namespace PlayniteAchievements.Models.Settings
                 BodyFontSize = BodyFontSize,
                 CardWidth = CardWidth,
                 CardHeight = CardHeight,
+                IconSize = IconSize,
+                RarityBadgeSize = RarityBadgeSize,
+                ProviderIconSize = ProviderIconSize,
                 TitleLineOffset = TitleLineOffset
             };
         }

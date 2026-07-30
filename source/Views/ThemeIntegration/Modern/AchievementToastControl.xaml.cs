@@ -11,7 +11,9 @@ namespace PlayniteAchievements.Views.ThemeIntegration.Modern
             InitializeComponent();
             ToastContent.ContentTemplate = new AchievementToastTemplateResolver(
                 PlayniteAchievementsPlugin.Instance?.PlayniteApi,
-                PluginLogger.GetLogger(nameof(AchievementToastControl))).ResolveTemplate();
+                PluginLogger.GetLogger(nameof(AchievementToastControl)),
+                customTemplatesDirectory: AchievementToastTemplateResolver.GetCustomTemplatesDirectory(
+                    PlayniteAchievementsPlugin.Instance?.GetPluginUserDataPath())).ResolveTemplate();
         }
     }
 }

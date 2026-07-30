@@ -24,45 +24,60 @@ namespace PlayniteAchievements.Views.Converters
         {
             if (values.Length >= 2 &&
                 values[0] is string iconKey &&
-                values[1] is string colorHex &&
-                !string.IsNullOrEmpty(iconKey) &&
-                !string.IsNullOrEmpty(colorHex))
+                values[1] is string colorHex)
             {
-                try
+                return BuildIcon(iconKey, colorHex);
+            }
+
+            return null;
+        }
+
+        /// <summary>
+        /// Builds the colored provider (platform) icon as a frozen <see cref="DrawingImage"/> from
+        /// an icon key (e.g. "ProviderIconSteam") and a color hex, or null when either is blank or
+        /// the geometry is not found. Shared by the multi-binding converter and the view model's
+        /// <c>ProviderIcon</c> binding so theme/custom templates can bind <c>Image.Source</c>
+        /// directly without the converter. Results are cached by geometry key + color.
+        /// </summary>
+        public static DrawingImage BuildIcon(string iconKey, string colorHex)
+        {
+            if (string.IsNullOrEmpty(iconKey) || string.IsNullOrEmpty(colorHex))
+            {
+                return null;
+            }
+
+            try
+            {
+                // Try to find a "Geo" + iconName resource (e.g., GeoSteam for ProviderIconSteam)
+                string geoKey = "Geo" + iconKey.Replace("ProviderIcon", "");
+                string cacheKey = geoKey + "|" + colorHex;
+
+                if (IconImageCache.TryGetValue(cacheKey, out var cachedImage))
                 {
-                    // Try to find a "Geo" + iconName resource (e.g., GeoSteam for ProviderIconSteam)
-                    string geoKey = "Geo" + iconKey.Replace("ProviderIcon", "");
-                    string cacheKey = geoKey + "|" + colorHex;
-
-                    if (IconImageCache.TryGetValue(cacheKey, out var cachedImage))
-                    {
-                        return cachedImage;
-                    }
-
-                    var geometry = Application.Current.TryFindResource(geoKey) as Geometry;
-                    if (geometry != null)
-                    {
-                        // Parse the color
-                        if (ColorConverter.ConvertFromString(colorHex) is Color color)
-                        {
-                            // Create a new DrawingImage with the color applied
-                            var drawingImage = new DrawingImage();
-                            drawingImage.Drawing = new GeometryDrawing
-                            {
-                                Geometry = geometry,
-                                Brush = new SolidColorBrush(color)
-                            };
-                            drawingImage.Freeze();
-                            IconImageCache[cacheKey] = drawingImage;
-                            return drawingImage;
-                        }
-                    }
+                    return cachedImage;
                 }
-                catch
+
+                var geometry = Application.Current.TryFindResource(geoKey) as Geometry;
+                if (geometry != null && ColorConverter.ConvertFromString(colorHex) is Color color)
                 {
-                    // Fall through to null
+                    var drawingImage = new DrawingImage
+                    {
+                        Drawing = new GeometryDrawing
+                        {
+                            Geometry = geometry,
+                            Brush = new SolidColorBrush(color)
+                        }
+                    };
+                    drawingImage.Freeze();
+                    IconImageCache[cacheKey] = drawingImage;
+                    return drawingImage;
                 }
             }
+            catch
+            {
+                // Fall through to null
+            }
+
             return null;
         }
 

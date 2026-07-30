@@ -102,6 +102,17 @@
                                    Style="{StaticResource MutedTextStyle}"
                                    TextWrapping="Wrap"
                                    Margin="0,8,0,0"/>
+
+                        <!-- Remove an installed custom template (imported full XAML), reverting to
+                             the active theme override or the bundled default. Global, not
+                             per-platform. -->
+                        <WrapPanel Margin="0,10,0,0">
+                            <Button Click="RemoveCustomToastTemplate_Click"
+                                    Content="{DynamicResource LOCPlayAch_Settings_Style_RemoveToastTemplate}"
+                                    Margin="0,0,8,0"/>
+                            <Button Click="RemoveCustomFrameTemplate_Click"
+                                    Content="{DynamicResource LOCPlayAch_Settings_Style_RemoveFrameTemplate}"/>
+                        </WrapPanel>
                     </StackPanel>
                 </Border>
 
@@ -131,12 +142,12 @@
                                                     ContentTemplate="{DynamicResource PlayAch.Template.AchievementToast}"/>
                                 </Border>
 
-                                <general:NotificationSurfaceStyleEditor x:Name="ToastEditor"/>
-
+                                <!-- Tester sits right under the preview so it is reachable without
+                                     scrolling past the whole editor below. -->
                                 <TextBlock Text="{DynamicResource LOCPlayAch_Settings_ToastPreviewHint}"
                                            Style="{StaticResource MutedTextStyle}"
                                            TextWrapping="Wrap"
-                                           Margin="0,14,0,6"/>
+                                           Margin="0,0,0,6"/>
                                 <StackPanel Orientation="Horizontal" Margin="0,0,0,8">
                                     <TextBlock Text="{DynamicResource LOCPlayAch_Settings_Style_SampleUnlock}"
                                                Foreground="{DynamicResource PlayAch.Brush.Text}"
@@ -154,7 +165,7 @@
                                         <ComboBoxItem Tag="friend" Content="{DynamicResource LOCPlayAch_Settings_ToastPreviewFriend}"/>
                                     </ComboBox>
                                 </StackPanel>
-                                <WrapPanel>
+                                <WrapPanel Margin="0,0,0,14">
                                     <Button Click="FireNotification_Click"
                                             Tag="PluginStyle"
                                             Content="{DynamicResource LOCPlayAch_Settings_Style_FirePluginStyle}"
@@ -165,6 +176,8 @@
                                             Content="{DynamicResource LOCPlayAch_Settings_Style_FireTheme}"
                                             Margin="0,0,8,8"/>
                                 </WrapPanel>
+
+                                <general:NotificationSurfaceStyleEditor x:Name="ToastEditor"/>
                             </StackPanel>
                         </TabItem>
 
@@ -199,12 +212,12 @@
                                     </Viewbox>
                                 </Border>
 
-                                <general:NotificationSurfaceStyleEditor x:Name="FrameEditor"/>
-
+                                <!-- Tester sits right under the preview so it is reachable without
+                                     scrolling past the whole editor below. -->
                                 <TextBlock Text="{DynamicResource LOCPlayAch_Settings_FramePreviewButton}"
                                            Style="{StaticResource MutedTextStyle}"
                                            TextWrapping="Wrap"
-                                           Margin="0,14,0,6"/>
+                                           Margin="0,0,0,6"/>
                                 <StackPanel Orientation="Horizontal" Margin="0,0,0,8">
                                     <TextBlock Text="{DynamicResource LOCPlayAch_Settings_Style_SampleUnlock}"
                                                Foreground="{DynamicResource PlayAch.Brush.Text}"
@@ -221,7 +234,7 @@
                                         <ComboBoxItem Tag="complete" Content="{DynamicResource LOCPlayAch_Toast_GameComplete}"/>
                                     </ComboBox>
                                 </StackPanel>
-                                <WrapPanel>
+                                <WrapPanel Margin="0,0,0,14">
                                     <Button Click="FireFrame_Click"
                                             Tag="PluginStyle"
                                             Content="{DynamicResource LOCPlayAch_Settings_Style_FirePluginStyle}"
@@ -232,6 +245,8 @@
                                             Content="{DynamicResource LOCPlayAch_Settings_Style_FireTheme}"
                                             Margin="0,0,8,8"/>
                                 </WrapPanel>
+
+                                <general:NotificationSurfaceStyleEditor x:Name="FrameEditor"/>
                             </StackPanel>
                         </TabItem>
                     </TabControl>
