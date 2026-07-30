@@ -93,6 +93,12 @@ namespace PlayniteAchievements.Services.Refresh
                 return forcedProvider;
             }
 
+            var preferredProvider = ResolvePreferredProviderForGame(game, providers);
+            if (preferredProvider != null || HasPreferredProviderOverride(game.Id))
+            {
+                return preferredProvider;
+            }
+
             foreach (var provider in OrderProvidersForRefresh(providers))
             {
                 try
@@ -111,6 +117,45 @@ namespace PlayniteAchievements.Services.Refresh
             }
 
             return null;
+        }
+
+        private IDataProvider ResolvePreferredProviderForGame(
+            Game game,
+            IReadOnlyList<IDataProvider> providers)
+        {
+            if (game == null ||
+                providers == null ||
+                !TryGetPreferredProviderKey(game.Id, out var preferredProviderKey))
+            {
+                return null;
+            }
+
+            return providers.FirstOrDefault(provider =>
+                provider != null &&
+                provider.IsAuthenticated &&
+                string.Equals(
+                    provider.ProviderKey,
+                    preferredProviderKey,
+                    StringComparison.OrdinalIgnoreCase));
+        }
+
+        private bool HasPreferredProviderOverride(Guid gameId)
+        {
+            return TryGetPreferredProviderKey(gameId, out _);
+        }
+
+        private bool TryGetPreferredProviderKey(Guid gameId, out string providerKey)
+        {
+            providerKey = null;
+            if (gameId == Guid.Empty ||
+                _settings?.Persisted?.PreferredProviderOverrides == null ||
+                !_settings.Persisted.PreferredProviderOverrides.TryGetValue(gameId, out var configuredKey))
+            {
+                return false;
+            }
+
+            providerKey = configuredKey?.Trim();
+            return !string.IsNullOrWhiteSpace(providerKey);
         }
 
         private bool IsProviderCapable(
@@ -197,6 +242,21 @@ namespace PlayniteAchievements.Services.Refresh
                     if (overrideProvider != null)
                     {
                         markedKeys.Add(overrideProvider.ProviderKey);
+                    }
+
+                    continue;
+                }
+
+                if (TryGetPreferredProviderKey(game.Id, out var preferredProviderKey))
+                {
+                    var preferredProvider = candidates.FirstOrDefault(provider =>
+                        string.Equals(
+                            provider.ProviderKey,
+                            preferredProviderKey,
+                            StringComparison.OrdinalIgnoreCase));
+                    if (preferredProvider != null)
+                    {
+                        markedKeys.Add(preferredProvider.ProviderKey);
                     }
 
                     continue;

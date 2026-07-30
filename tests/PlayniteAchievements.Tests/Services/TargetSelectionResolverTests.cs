@@ -581,6 +581,88 @@ namespace PlayniteAchievements.Services.Tests
         }
 
         [TestMethod]
+        public void ResolveProviderForGame_PreferredSteamOverridesEarlierCapableLocalProvider()
+        {
+            var tempDir = CreateTempDirectory();
+            var gameId = Guid.NewGuid();
+            var previousPlugin = PlayniteAchievementsPlugin.Instance;
+
+            try
+            {
+                PlayniteAchievementsPlugin.Instance = new PlayniteAchievementsPlugin
+                {
+                    GameCustomDataStore = new GameCustomDataStore(tempDir)
+                };
+                var settings = new PlayniteAchievementsSettings();
+                settings.Persisted.PreferredProviderOverrides[gameId] = "Steam";
+                var resolver = new TargetSelectionResolver(
+                    new FakePlayniteApi(),
+                    settings,
+                    new FakeCacheManager(),
+                    logger: null,
+                    refreshOrder: new[] { "Local", "Steam" });
+                var game = new Game { Id = gameId, Name = "Steam Game" };
+                var providers = new List<IDataProvider>
+                {
+                    new FakeProvider("Local", _ => true),
+                    new FakeProvider("Steam", _ => true)
+                };
+
+                var resolved = resolver.ResolveProviderForGame(game, providers);
+
+                Assert.IsNotNull(resolved);
+                Assert.AreEqual("Steam", resolved.ProviderKey);
+            }
+            finally
+            {
+                PlayniteAchievementsPlugin.Instance = previousPlugin;
+                DeleteDirectory(tempDir);
+            }
+        }
+
+        [TestMethod]
+        public void GetProvidersWithCapableGames_PreferredProviderSkipsOtherCapableProviders()
+        {
+            var tempDir = CreateTempDirectory();
+            var gameId = Guid.NewGuid();
+            var previousPlugin = PlayniteAchievementsPlugin.Instance;
+
+            try
+            {
+                PlayniteAchievementsPlugin.Instance = new PlayniteAchievementsPlugin
+                {
+                    GameCustomDataStore = new GameCustomDataStore(tempDir)
+                };
+                var settings = new PlayniteAchievementsSettings();
+                settings.Persisted.PreferredProviderOverrides[gameId] = "Steam";
+                var resolver = new TargetSelectionResolver(
+                    new FakePlayniteApi(),
+                    settings,
+                    new FakeCacheManager(),
+                    logger: null,
+                    refreshOrder: new[] { "Local", "Steam" });
+                var game = new Game { Id = gameId, Name = "Steam Game" };
+                var providers = new List<IDataProvider>
+                {
+                    new FakeProvider("Local", _ => true),
+                    new FakeProvider("Steam", _ => true)
+                };
+
+                var capableProviders = resolver.GetProvidersWithCapableGames(
+                    new[] { game },
+                    providers);
+
+                Assert.AreEqual(1, capableProviders.Count);
+                Assert.AreEqual("Steam", capableProviders[0].ProviderKey);
+            }
+            finally
+            {
+                PlayniteAchievementsPlugin.Instance = previousPlugin;
+                DeleteDirectory(tempDir);
+            }
+        }
+
+        [TestMethod]
         public void ResolveProviderForGame_FfxivBeforeSteam_ClaimsStoreBackedFfxivTitle()
         {
             var tempDir = CreateTempDirectory();
