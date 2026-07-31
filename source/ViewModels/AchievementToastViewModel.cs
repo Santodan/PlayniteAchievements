@@ -620,7 +620,7 @@ namespace PlayniteAchievements.ViewModels
             var titleSize = isFrame ? FrameTitleFontSize : ToastTitleFontSize;
             var bodySize = surface.BodyFontSize ??
                 (isFrame ? FrameBodyFontFallback : ResolveFontSizeResource("PlayAch.FontSize.Caption", 11));
-            var gameCategorySize = surface.HeaderFontSize ??
+            var gameCategorySize = surface.GameCategoryFontSize ??
                 (isFrame ? FrameGameCategoryFontFallback : ResolveFontSizeResource("PlayAch.FontSize.Caption", 11));
 
             var showGameName = isFrame ? FrameShowGameName : ShowGameName;
