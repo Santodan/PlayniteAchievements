@@ -1,4 +1,3 @@
-using PlayniteAchievements.Common;
 using System;
 using System.Collections.Generic;
 
@@ -9,7 +8,7 @@ namespace PlayniteAchievements.Providers.RetroAchievements.EmulatorLog
     /// and lets the user set an override, which is written straight back into the provider settings
     /// override dictionary (reassigned so the three-way settings merge persists the change).
     /// </summary>
-    internal sealed class RaEmulatorLogRowViewModel : ObservableObject
+    internal sealed class RaEmulatorLogRowViewModel : PlayniteAchievements.Common.ObservableObject
     {
         private readonly RetroAchievementsSettings _settings;
         private readonly string _key;
