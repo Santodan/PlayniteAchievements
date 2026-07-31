@@ -118,10 +118,11 @@
                                     BorderThickness="1"
                                     CornerRadius="8"
                                     Padding="10"
-                                    HorizontalAlignment="Left"
+                                    HorizontalAlignment="Stretch"
                                     Margin="0,0,0,10">
+                                <!-- Fill the tab width; the 16:9 canvas scales up uniformly to it. -->
                                 <Viewbox Stretch="Uniform"
-                                         MaxWidth="420">
+                                         HorizontalAlignment="Stretch">
                                     <Grid Width="1920"
                                           Height="1080"
                                           Background="#FF17222D">
