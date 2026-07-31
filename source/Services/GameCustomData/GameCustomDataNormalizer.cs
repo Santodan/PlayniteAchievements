@@ -313,6 +313,7 @@ namespace PlayniteAchievements.Services.GameCustomData
             {
                 case "Steam":
                 case "RetroAchievements":
+                case "GameJolt":
                     return TryNormalizePositiveInteger(value, out var id)
                         ? new ProviderOverrideData
                         {
@@ -548,6 +549,11 @@ namespace PlayniteAchievements.Services.GameCustomData
             if (string.Equals(normalized, "FFXIV", StringComparison.OrdinalIgnoreCase))
             {
                 return "FFXIV";
+            }
+
+            if (string.Equals(normalized, "GameJolt", StringComparison.OrdinalIgnoreCase))
+            {
+                return "GameJolt";
             }
 
             return null;
