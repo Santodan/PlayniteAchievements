@@ -175,6 +175,11 @@ namespace PlayniteAchievements.ViewModels
         private bool HasBadgeData => IsCapstone || HasTrophy || HasRarityData;
         public bool ShowBadge => _style.Toast.ShowRarityBadge && !_style.Toast.RightRarityBadge && HasBadgeData;
 
+        // Whether the icon-column footer (badge and/or percent under the icon) shows anything.
+        // Drives the footer container's visibility so it collapses cleanly and the icon-centering
+        // spacer mirrors zero height when there is no footer.
+        public bool HasIconFooter => ShowBadge || ShowPercent;
+
         // The rarity/trophy badge drawn inline before the achievement name (an alternative to
         // the icon-column footer badge). Shares the same badge image sources.
         public bool ShowInlineBadge => _style.Toast.InlineRarityBadge && HasBadgeData;

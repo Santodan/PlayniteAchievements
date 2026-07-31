@@ -406,12 +406,12 @@
                             VerticalAlignment="Center"
                             HorizontalAlignment="Center"
                             Margin="0,0,14,0">
-                    <!-- Center the icon (not the icon+extras group) on the row: a top spacer equal
-                         to the extras' height PLUS the icon->extras gap (4) balances the badge/
-                         percent hanging below, so the icon itself lands exactly on the row's
-                         vertical center alongside the text. -->
+                    <!-- Centers the icon (not the icon+extras group) on the row: this top spacer
+                         mirrors the extras block's full measured height (badge/percent + their gap,
+                         which lives once as ToastIconExtras' padding), so the icon is symmetrically
+                         padded and lands exactly on the row's vertical center. Collapses to 0 when
+                         there is no footer, so a bare icon still centers. No duplicated constants. -->
                     <Border Height="{Binding ActualHeight, ElementName=ToastIconExtras}"
-                            Margin="0,0,0,4"
                             IsHitTestVisible="False"/>
                     <Grid Width="{Binding ToastIconSize}"
                           Height="{Binding ToastIconSize}"
@@ -470,29 +470,36 @@
                                 Visibility="{Binding IsPreview, Converter={StaticResource BooleanToVisibilityConverter}}"/>
                     </Grid>
 
-                    <StackPanel x:Name="ToastIconExtras"
-                                Orientation="Horizontal"
-                                HorizontalAlignment="Center"
-                                Margin="0,4,0,0"
-                                Effect="{StaticResource PlayAch.Effect.ContentShadow}">
-                        <!-- User badge images replace the drawn badge; a string source keeps
-                             animated GIF badges animating. -->
-                        <Image helpers:AsyncImage.Uri="{Binding ToastBadgeSource}"
-                               helpers:AsyncImage.DecodePixel="64"
-                               Width="{Binding ToastBadgeSize}"
-                               Height="{Binding ToastBadgeSize}"
-                               VerticalAlignment="Center"
-                               RenderOptions.BitmapScalingMode="HighQuality"
-                               Visibility="{Binding ShowBadge, Converter={StaticResource BooleanToVisibilityConverter}}"/>
-                        <TextBlock Text="{Binding PercentText}"
-                                   Style="{DynamicResource PlayAch.TextBlock.BaseStyle}"
-                                   Foreground="{DynamicResource PlayAch.Brush.Text}"
-                                   FontSize="{Binding ToastHeaderFontSize}"
-                                   FontFamily="{Binding ToastFontFamily}"
+                    <!-- The badge/percent footer under the icon. The icon->footer gap lives once
+                         here as this border's top padding, so the spacer above can mirror this
+                         border's full measured height. Collapses entirely when nothing shows, so a
+                         bare icon centers with no phantom gap. -->
+                    <Border x:Name="ToastIconExtras"
+                            Padding="0,4,0,0"
+                            HorizontalAlignment="Center"
+                            Effect="{StaticResource PlayAch.Effect.ContentShadow}"
+                            Visibility="{Binding HasIconFooter, Converter={StaticResource BooleanToVisibilityConverter}}">
+                        <StackPanel Orientation="Horizontal"
+                                    HorizontalAlignment="Center">
+                            <!-- User badge images replace the drawn badge; a string source keeps
+                                 animated GIF badges animating. -->
+                            <Image helpers:AsyncImage.Uri="{Binding ToastBadgeSource}"
+                                   helpers:AsyncImage.DecodePixel="64"
+                                   Width="{Binding ToastBadgeSize}"
+                                   Height="{Binding ToastBadgeSize}"
                                    VerticalAlignment="Center"
-                                   Margin="4,0,0,0"
-                                   Visibility="{Binding ShowPercent, Converter={StaticResource BooleanToVisibilityConverter}}"/>
-                    </StackPanel>
+                                   RenderOptions.BitmapScalingMode="HighQuality"
+                                   Visibility="{Binding ShowBadge, Converter={StaticResource BooleanToVisibilityConverter}}"/>
+                            <TextBlock Text="{Binding PercentText}"
+                                       Style="{DynamicResource PlayAch.TextBlock.BaseStyle}"
+                                       Foreground="{DynamicResource PlayAch.Brush.Text}"
+                                       FontSize="{Binding ToastHeaderFontSize}"
+                                       FontFamily="{Binding ToastFontFamily}"
+                                       VerticalAlignment="Center"
+                                       Margin="4,0,0,0"
+                                       Visibility="{Binding ShowPercent, Converter={StaticResource BooleanToVisibilityConverter}}"/>
+                        </StackPanel>
+                    </Border>
                 </StackPanel>
 
                 <!-- Right: the reorderable text lines (header, name, description,
