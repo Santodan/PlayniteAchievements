@@ -41,6 +41,26 @@ namespace PlayniteAchievements.Providers.GameJolt
     {
         [JsonProperty("trophies")]
         public List<GameJoltTrophyDefinition> Trophies { get; set; }
+
+        // The current user's COMPLETE achieved list for this game (populated when the request carries the
+        // user's session cookies). This is what the website's trophy page uses to mark unlocks, so it is
+        // authoritative and unpaginated - unlike /web/profile/trophies/game which returns only a subset.
+        [JsonProperty("trophiesAchieved")]
+        public List<GameJoltAchievedRecord> TrophiesAchieved { get; set; }
+    }
+
+    internal sealed class GameJoltAchievedRecord
+    {
+        [JsonProperty("game_id")]
+        public long GameId { get; set; }
+
+        // Matches GameJoltTrophyDefinition.Id.
+        [JsonProperty("game_trophy_id")]
+        public long GameTrophyId { get; set; }
+
+        // Unix epoch in MILLISECONDS.
+        [JsonProperty("logged_on")]
+        public long? LoggedOn { get; set; }
     }
 
     internal sealed class GameJoltTrophyDefinition

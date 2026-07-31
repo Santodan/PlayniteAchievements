@@ -207,6 +207,63 @@ namespace PlayniteAchievements.Providers.GameJolt
         }
 
         /// <summary>
+        /// Marks unlocks from the definitions response's <c>payload.trophiesAchieved</c> — the complete,
+        /// unpaginated achieved list the website itself uses to split achieved/unachieved. Returns the
+        /// number of achievements marked unlocked. Trophies absent from the achieved list stay locked.
+        /// </summary>
+        public static int ApplyAchievedRecords(IList<AchievementDetail> achievements, string definitionsJson, string gameId)
+        {
+            if (achievements == null || achievements.Count == 0 || string.IsNullOrWhiteSpace(definitionsJson))
+            {
+                return 0;
+            }
+
+            GameJoltTrophiesResponse response;
+            try
+            {
+                response = JsonConvert.DeserializeObject<GameJoltTrophiesResponse>(definitionsJson);
+            }
+            catch (JsonException)
+            {
+                return 0;
+            }
+
+            var achieved = response?.Payload?.TrophiesAchieved;
+            if (achieved == null || achieved.Count == 0)
+            {
+                return 0;
+            }
+
+            var byApiName = new Dictionary<string, AchievementDetail>(StringComparer.Ordinal);
+            foreach (var achievement in achievements)
+            {
+                if (achievement?.ApiName != null && !byApiName.ContainsKey(achievement.ApiName))
+                {
+                    byApiName[achievement.ApiName] = achievement;
+                }
+            }
+
+            var applied = 0;
+            foreach (var record in achieved)
+            {
+                if (record == null || !MatchesGame(record.GameId, gameId))
+                {
+                    continue;
+                }
+
+                var key = record.GameTrophyId.ToString(CultureInfo.InvariantCulture);
+                if (byApiName.TryGetValue(key, out var achievement))
+                {
+                    achievement.Unlocked = true;
+                    achievement.UnlockTimeUtc = EpochMillisToUtc(record.LoggedOn);
+                    applied++;
+                }
+            }
+
+            return applied;
+        }
+
+        /// <summary>
         /// Reads the global completion percentage from a game-trophy-percentage response, or null when
         /// the payload has no percentage.
         /// </summary>
