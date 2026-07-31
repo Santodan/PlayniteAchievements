@@ -128,6 +128,7 @@ namespace PlayniteAchievements.Models.Settings
         private double? _headerFontSize;
         private double? _titleFontSize;
         private double? _bodyFontSize;
+        private double? _gameCategoryFontSize;
         private double? _cardWidth;
         private double? _cardHeight;
         private double? _iconSize;
@@ -441,6 +442,16 @@ namespace PlayniteAchievements.Models.Settings
         }
 
         /// <summary>
+        /// Font size for the game/category line, or null for the theme-derived size. Independent
+        /// of the header line size.
+        /// </summary>
+        public double? GameCategoryFontSize
+        {
+            get => _gameCategoryFontSize;
+            set => SetValue(ref _gameCategoryFontSize, value);
+        }
+
+        /// <summary>
         /// Returns a complete line order: known tokens from <paramref name="order"/> in their
         /// stored order (case-insensitive, deduplicated), with any missing default lines
         /// appended. Null or empty input yields <see cref="DefaultLineOrder"/>.
@@ -496,6 +507,7 @@ namespace PlayniteAchievements.Models.Settings
                 HeaderFontSize = HeaderFontSize,
                 TitleFontSize = TitleFontSize,
                 BodyFontSize = BodyFontSize,
+                GameCategoryFontSize = GameCategoryFontSize,
                 CardWidth = CardWidth,
                 CardHeight = CardHeight,
                 IconSize = IconSize,
