@@ -49,6 +49,12 @@ namespace PlayniteAchievements.Services.Recording
         private const int PruneIntervalSeconds = 30;
         private const int StopGraceSeconds = 3;
         private const int DrainTimeoutSeconds = 45;
+        // Fallbacks matching the PersistedSettings defaults, used when settings are unavailable.
+        private const int DefaultPollIntervalSeconds = 15;
+        private const int DefaultPreRollSeconds = 15;
+        // Sentinel poll interval handed to SelectPrunable to suspend age-based pruning while clips
+        // are outstanding; large enough that the retention depth keeps every buffered segment.
+        private const int AgePruneSuspendedInterval = 3600;
         private const string UnavailableNotificationId = "PlayAch-RecordingUnavailable";
 
         private readonly IPlayniteAPI _api;
@@ -1329,28 +1335,27 @@ namespace PlayniteAchievements.Services.Recording
                 }
 
                 var persisted = _settings?.Persisted;
-                var pollInterval = Math.Max(10, persisted?.InGamePollIntervalSeconds ?? 15);
+                var pollInterval = Math.Max(10, persisted?.InGamePollIntervalSeconds ?? DefaultPollIntervalSeconds);
+                var preRoll = persisted?.RecordingClipSeconds ?? DefaultPreRollSeconds;
+                // Suspend age-based pruning while clips are outstanding: a clip waiting for a late
+                // toast reaches back to its pre-roll and forward to that toast, so the segments it
+                // needs must survive. The byte cap still applies. Video and audio share the policy.
+                var retentionInterval = clipsOutstanding ? AgePruneSuspendedInterval : pollInterval;
+
                 var segments = SegmentTimeline.ParseSegments(
                     ListBufferFiles(
                         session.BufferDirectory,
                         RecordingCommandBuilder.SegmentFilePrefix,
                         RecordingCommandBuilder.SegmentFileExtension),
                     TimeZoneInfo.Local);
-                // 3600 stands in for "don't age-prune" without overflowing the 3x depth math;
-                // the byte cap below still applies.
-                var prunable = SegmentTimeline.SelectPrunable(
-                    segments,
-                    clipsOutstanding ? 3600 : pollInterval,
-                    persisted?.RecordingClipSeconds ?? 15,
-                    SegmentSeconds,
-                    MaxBufferBytes);
-                foreach (var segment in prunable)
+                foreach (var segment in SegmentTimeline.SelectPrunable(
+                             segments, retentionInterval, preRoll, SegmentSeconds, MaxBufferBytes))
                 {
                     TryDeleteFile(segment.Path);
                 }
 
-                // Audio chunks share the retention policy (their bytes are negligible next to
-                // the video's, so reusing the same cap is safe).
+                // Audio chunks share the retention policy (their bytes are negligible next to the
+                // video's, so reusing the same cap is safe).
                 var audioChunks = SegmentTimeline.ParseSegments(
                     ListBufferFiles(
                         session.BufferDirectory,
@@ -1360,11 +1365,7 @@ namespace PlayniteAchievements.Services.Recording
                     RecordingCommandBuilder.AudioChunkFilePrefix,
                     RecordingCommandBuilder.AudioChunkFileExtension);
                 foreach (var chunk in SegmentTimeline.SelectPrunable(
-                             audioChunks,
-                             pollInterval,
-                             persisted?.RecordingClipSeconds ?? 15,
-                             SegmentSeconds,
-                             MaxBufferBytes))
+                             audioChunks, retentionInterval, preRoll, SegmentSeconds, MaxBufferBytes))
                 {
                     TryDeleteFile(chunk.Path);
                 }
