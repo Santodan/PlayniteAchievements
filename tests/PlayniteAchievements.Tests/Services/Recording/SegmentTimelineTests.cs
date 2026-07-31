@@ -157,7 +157,7 @@ namespace PlayniteAchievements.Services.Tests.Recording
         }
 
         [TestMethod]
-        public void ComputeClipWindow_CoarseUnlock_PreRollBehindWorstCasePollInterval()
+        public void ComputeClipWindow_CoarseUnlock_PreRollBeforeDetection()
         {
             var captureStart = T0;
             var detection = T0.AddSeconds(120);
@@ -167,9 +167,9 @@ namespace PlayniteAchievements.Services.Tests.Recording
                 null, detection, toast, captureStart, null,
                 pollIntervalSeconds: 15, preRollSeconds: 15, toastVisibleSeconds: 6);
 
-            // Unlock is somewhere in [detection - N, detection]; the pre-roll applies behind
-            // the worst case, so the clip still has 15s before the true unlock moment.
-            Assert.AreEqual(detection.AddSeconds(-30), start);
+            // Coarse: pre-roll before detection (the unlock happened within the last poll
+            // interval; the user's pre-roll setting governs the lead).
+            Assert.AreEqual(detection.AddSeconds(-15), start);
             Assert.AreEqual(toast.AddSeconds(7), end);
         }
 
@@ -213,8 +213,8 @@ namespace PlayniteAchievements.Services.Tests.Recording
                 unlock, detection, toast, captureStart, null,
                 pollIntervalSeconds: 15, preRollSeconds: 15, toastVisibleSeconds: 6);
 
-            // Coarse anchor: detection - N - preRoll, not unlock - preRoll.
-            Assert.AreEqual(detection.AddSeconds(-30), start);
+            // Coarse anchor: detection - preRoll, not unlock - preRoll.
+            Assert.AreEqual(detection.AddSeconds(-15), start);
         }
 
         [TestMethod]
@@ -229,7 +229,7 @@ namespace PlayniteAchievements.Services.Tests.Recording
                 unlock, detection, toast, captureStart, null,
                 pollIntervalSeconds: 15, preRollSeconds: 15, toastVisibleSeconds: 6);
 
-            Assert.AreEqual(detection.AddSeconds(-30), start);
+            Assert.AreEqual(detection.AddSeconds(-15), start);
         }
 
         [TestMethod]
@@ -244,7 +244,7 @@ namespace PlayniteAchievements.Services.Tests.Recording
                 unlock, detection, toast, captureStart, null,
                 pollIntervalSeconds: 15, preRollSeconds: 15, toastVisibleSeconds: 6);
 
-            Assert.AreEqual(detection.AddSeconds(-30), start);
+            Assert.AreEqual(detection.AddSeconds(-15), start);
         }
 
         [TestMethod]
@@ -279,20 +279,38 @@ namespace PlayniteAchievements.Services.Tests.Recording
         }
 
         [TestMethod]
-        public void ComputeClipWindow_HardCapsAtBufferDepth_EndAnchorWins()
+        public void ComputeClipWindow_LateToast_FollowsToastWithoutCapping()
         {
             var captureStart = T0;
             var detection = T0.AddSeconds(300);
-            // Pathologically late toast: raw window would be 30 + 90 + 7 = 127s > depth (60s).
+            // A toast queued behind other waves shows 90s after detection; the clip must wait
+            // for it, not cap. The start keeps its pre-roll instead of sliding forward.
             var toast = detection.AddSeconds(90);
 
             var (start, end) = SegmentTimeline.ComputeClipWindow(
                 null, detection, toast, captureStart, null,
                 pollIntervalSeconds: 15, preRollSeconds: 15, toastVisibleSeconds: 6);
 
-            Assert.AreEqual(60, (end - start).TotalSeconds, 0.001);
-            // The toast end anchor is preserved; the start slides forward.
+            Assert.AreEqual(detection.AddSeconds(-15), start);
             Assert.AreEqual(toast.AddSeconds(7), end);
+            Assert.AreEqual(112, (end - start).TotalSeconds, 0.001);
+        }
+
+        [TestMethod]
+        public void ComputeClipWindow_FarBackPreciseUnlock_StartFlooredToPollIntervalPlusPreRoll()
+        {
+            var captureStart = T0;
+            var detection = T0.AddSeconds(300);
+            // A trusted timestamp far earlier in the session would open a huge clip; the floor
+            // pulls the start to one poll interval + pre-roll before detection.
+            var unlock = T0.AddSeconds(60);
+            var toast = detection.AddSeconds(1);
+
+            var (start, _) = SegmentTimeline.ComputeClipWindow(
+                unlock, detection, toast, captureStart, null,
+                pollIntervalSeconds: 15, preRollSeconds: 15, toastVisibleSeconds: 6);
+
+            Assert.AreEqual(detection.AddSeconds(-30), start);
         }
 
         // === Depth math ===
