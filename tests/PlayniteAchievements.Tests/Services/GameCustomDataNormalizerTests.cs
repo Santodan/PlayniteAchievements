@@ -219,6 +219,27 @@ namespace PlayniteAchievements.Services.Tests
         }
 
         [TestMethod]
+        public void NormalizeInternal_GameJoltProviderOverride_SurvivesAsPositiveInteger()
+        {
+            var gameId = Guid.NewGuid();
+            var normalized = GameCustomDataNormalizer.NormalizeInternal(
+                new GameCustomDataFile
+                {
+                    PlayniteGameId = gameId,
+                    ProviderOverride = new ProviderOverrideData
+                    {
+                        ProviderKey = "gamejolt",
+                        Value = " 532194 "
+                    }
+                },
+                gameId);
+
+            // The GameJolt manual game-id override must round-trip through normalization (persist path),
+            // otherwise the per-game override is silently dropped on save.
+            AssertProviderOverride(normalized, "GameJolt", "532194");
+        }
+
+        [TestMethod]
         public void NormalizeInternal_AchievementNotes_NormalizesAndCapsValues()
         {
             var gameId = Guid.NewGuid();
