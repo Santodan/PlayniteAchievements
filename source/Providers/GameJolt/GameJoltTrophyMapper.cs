@@ -142,71 +142,6 @@ namespace PlayniteAchievements.Providers.GameJolt
         }
 
         /// <summary>
-        /// Merges the per-user unlock status from a profile-trophies response into a schema list built
-        /// by <see cref="BuildDefinitions"/>. A trophy present in the response is marked unlocked; its
-        /// <c>logged_on</c> (Unix epoch milliseconds) becomes the unlock time, or null when the server
-        /// reports no date (still unlocked). Trophies absent from the response stay locked.
-        /// </summary>
-        public static void ApplyUnlocks(
-            IList<AchievementDetail> achievements,
-            string profileTrophiesJson,
-            string gameId)
-        {
-            if (achievements == null || achievements.Count == 0 || string.IsNullOrWhiteSpace(profileTrophiesJson))
-            {
-                return;
-            }
-
-            GameJoltProfileTrophiesResponse response;
-            try
-            {
-                response = JsonConvert.DeserializeObject<GameJoltProfileTrophiesResponse>(profileTrophiesJson);
-            }
-            catch (JsonException)
-            {
-                return;
-            }
-
-            var unlocks = response?.Payload?.Trophies;
-            if (unlocks == null)
-            {
-                return;
-            }
-
-            var byApiName = new Dictionary<string, AchievementDetail>(StringComparer.Ordinal);
-            foreach (var achievement in achievements)
-            {
-                if (achievement?.ApiName != null && !byApiName.ContainsKey(achievement.ApiName))
-                {
-                    byApiName[achievement.ApiName] = achievement;
-                }
-            }
-
-            foreach (var unlock in unlocks)
-            {
-                if (unlock == null || !MatchesGame(unlock.GameId, gameId))
-                {
-                    continue;
-                }
-
-                var key = unlock.GameTrophyId.ToString(CultureInfo.InvariantCulture);
-                if (!byApiName.TryGetValue(key, out var achievement))
-                {
-                    continue;
-                }
-
-                achievement.Unlocked = true;
-                achievement.UnlockTimeUtc = EpochMillisToUtc(unlock.LoggedOn);
-
-                var unlockedIcon = NormalizeIconUrl(unlock.GameTrophy?.ImgThumbnail);
-                if (!string.IsNullOrWhiteSpace(unlockedIcon))
-                {
-                    achievement.UnlockedIconPath = unlockedIcon;
-                }
-            }
-        }
-
-        /// <summary>
         /// Marks unlocks from the definitions response's <c>payload.trophiesAchieved</c> — the complete,
         /// unpaginated achieved list the website itself uses to split achieved/unachieved. Returns the
         /// number of achievements marked unlocked. Trophies absent from the achieved list stay locked.
@@ -264,24 +199,36 @@ namespace PlayniteAchievements.Providers.GameJolt
         }
 
         /// <summary>
-        /// Reads the global completion percentage from a game-trophy-percentage response, or null when
-        /// the payload has no percentage.
+        /// Parses the in-page percentage batch result (a JSON array of <c>{ "i": trophyId, "p": percentage }</c>)
+        /// into a trophy-id → percentage map. Returns an empty map on malformed input.
         /// </summary>
-        public static double? ParsePercentage(string percentageJson)
+        public static Dictionary<long, double?> ParsePercentageBatch(string batchJson)
         {
-            if (string.IsNullOrWhiteSpace(percentageJson))
+            var result = new Dictionary<long, double?>();
+            if (string.IsNullOrWhiteSpace(batchJson))
             {
-                return null;
+                return result;
             }
 
+            List<GameJoltPercentageBatchEntry> entries;
             try
             {
-                return JsonConvert.DeserializeObject<GameJoltPercentageResponse>(percentageJson)?.Payload?.Percentage;
+                entries = JsonConvert.DeserializeObject<List<GameJoltPercentageBatchEntry>>(batchJson);
             }
             catch (JsonException)
             {
-                return null;
+                return result;
             }
+
+            foreach (var entry in entries ?? Enumerable.Empty<GameJoltPercentageBatchEntry>())
+            {
+                if (entry != null)
+                {
+                    result[entry.Id] = entry.Percentage;
+                }
+            }
+
+            return result;
         }
 
         /// <summary>

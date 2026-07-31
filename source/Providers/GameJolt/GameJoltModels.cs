@@ -91,47 +91,15 @@ namespace PlayniteAchievements.Providers.GameJolt
         public string ImgThumbnail { get; set; }
     }
 
-    // GET /web/profile/trophies/game-trophy-percentage/{trophyId} -> global "% of players who
-    // achieved this trophy" (the value the website shows when a trophy is opened). Public endpoint.
-    internal sealed class GameJoltPercentageResponse
+    // One entry of the in-page percentage batch result ({ "i": trophyId, "p": percentage }). The batch
+    // reads /web/profile/trophies/game-trophy-percentage/{trophyId} (the value the website shows on
+    // trophy open) for every trophy at once.
+    internal sealed class GameJoltPercentageBatchEntry
     {
-        [JsonProperty("payload")]
-        public GameJoltPercentagePayload Payload { get; set; }
-    }
+        [JsonProperty("i")]
+        public long Id { get; set; }
 
-    internal sealed class GameJoltPercentagePayload
-    {
-        [JsonProperty("percentage")]
+        [JsonProperty("p")]
         public double? Percentage { get; set; }
-    }
-
-    // GET /web/profile/trophies/game/@{username}/{gameId} -> the user's unlock status for the game.
-    internal sealed class GameJoltProfileTrophiesResponse
-    {
-        [JsonProperty("payload")]
-        public GameJoltProfileTrophiesPayload Payload { get; set; }
-    }
-
-    internal sealed class GameJoltProfileTrophiesPayload
-    {
-        [JsonProperty("trophies")]
-        public List<GameJoltProfileTrophy> Trophies { get; set; }
-    }
-
-    internal sealed class GameJoltProfileTrophy
-    {
-        [JsonProperty("game_id")]
-        public long GameId { get; set; }
-
-        // Matches GameJoltTrophyDefinition.Id (the trophy the unlock refers to).
-        [JsonProperty("game_trophy_id")]
-        public long GameTrophyId { get; set; }
-
-        // Unix epoch in MILLISECONDS. Null means unlocked with an unknown date.
-        [JsonProperty("logged_on")]
-        public long? LoggedOn { get; set; }
-
-        [JsonProperty("game_trophy")]
-        public GameJoltTrophyDefinition GameTrophy { get; set; }
     }
 }
