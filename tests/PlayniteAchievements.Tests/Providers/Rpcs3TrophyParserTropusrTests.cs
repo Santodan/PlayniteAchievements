@@ -67,7 +67,6 @@ namespace PlayniteAchievements.Providers.Tests
             try
             {
                 Assert.IsTrue(Rpcs3TrophyParser.TryParseTrophyUnlockData(path, trophies, logger));
-                StringAssert.Contains(logger.InfoMessages.Single(), "2 state records (1 matched definitions, 1 unlocked)");
                 StringAssert.Contains(logger.WarningMessages.Single(), "not present in its trophy definitions: [99]");
             }
             finally

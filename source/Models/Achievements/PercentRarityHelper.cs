@@ -120,11 +120,6 @@ namespace PlayniteAchievements.Models.Achievements
         Common,
         Uncommon,
         Rare,
-        UltraRare,
-
-        // Sentinel above every real tier, used only as a capture "minimum rarity" threshold that
-        // no unlock can meet (capture nothing by rarity). Never assigned as an achievement's own
-        // rarity, so rarity->color/badge/glow mappings never receive it.
-        None
+        UltraRare
     }
 }

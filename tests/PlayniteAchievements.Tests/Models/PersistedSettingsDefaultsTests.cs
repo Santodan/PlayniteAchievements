@@ -13,31 +13,32 @@ namespace PlayniteAchievements.Models.Tests
     public class PersistedSettingsDefaultsTests
     {
         [TestMethod]
-        public void Constructor_DefaultsCaptureRarityFiltersToCurrentBehavior()
+        public void Constructor_DefaultsCaptureRaritiesToAll()
         {
             var settings = new PersistedSettings();
 
-            Assert.AreEqual(RarityTier.Common, settings.UnlockScreenshotCleanMinimumRarity);
+            Assert.AreEqual(RaritySelection.All, settings.UnlockScreenshotCleanRarities);
             Assert.IsTrue(settings.UnlockScreenshotCleanAlwaysCaptureCompletion);
-            Assert.AreEqual(RarityTier.Common, settings.UnlockScreenshotWithToastMinimumRarity);
+            Assert.AreEqual(RaritySelection.All, settings.UnlockScreenshotWithToastRarities);
             Assert.IsTrue(settings.UnlockScreenshotWithToastAlwaysCaptureCompletion);
-            Assert.AreEqual(RarityTier.Common, settings.UnlockScreenshotFramedMinimumRarity);
+            Assert.AreEqual(RaritySelection.All, settings.UnlockScreenshotFramedRarities);
             Assert.IsTrue(settings.UnlockScreenshotFramedAlwaysCaptureCompletion);
-            Assert.AreEqual(RarityTier.Common, settings.UnlockRecordingMinimumRarity);
+            Assert.AreEqual(RaritySelection.All, settings.UnlockRecordingRarities);
             Assert.IsTrue(settings.UnlockRecordingAlwaysCaptureCompletion);
         }
 
         [TestMethod]
-        public void CloneAndCopyFrom_PreservePerVariantCaptureRarityFilters()
+        public void CloneAndCopyFrom_PreservePerSectionCaptureRarities()
         {
             var source = new PersistedSettings
             {
-                UnlockScreenshotCleanMinimumRarity = RarityTier.Uncommon,
+                UnlockScreenshotCleanRarities = RaritySelection.Uncommon | RaritySelection.Rare,
                 UnlockScreenshotCleanAlwaysCaptureCompletion = false,
-                UnlockScreenshotWithToastMinimumRarity = RarityTier.Rare,
+                UnlockScreenshotWithToastRarities = RaritySelection.None,
                 UnlockScreenshotWithToastAlwaysCaptureCompletion = false,
-                UnlockScreenshotFramedMinimumRarity = RarityTier.UltraRare,
-                UnlockScreenshotFramedAlwaysCaptureCompletion = false
+                UnlockScreenshotFramedRarities = RaritySelection.UltraRare,
+                UnlockScreenshotFramedAlwaysCaptureCompletion = false,
+                UnlockRecordingRarities = RaritySelection.Common
             };
 
             var clone = source.Clone();
@@ -46,12 +47,13 @@ namespace PlayniteAchievements.Models.Tests
 
             foreach (var copy in new[] { clone, target })
             {
-                Assert.AreEqual(RarityTier.Uncommon, copy.UnlockScreenshotCleanMinimumRarity);
+                Assert.AreEqual(RaritySelection.Uncommon | RaritySelection.Rare, copy.UnlockScreenshotCleanRarities);
                 Assert.IsFalse(copy.UnlockScreenshotCleanAlwaysCaptureCompletion);
-                Assert.AreEqual(RarityTier.Rare, copy.UnlockScreenshotWithToastMinimumRarity);
+                Assert.AreEqual(RaritySelection.None, copy.UnlockScreenshotWithToastRarities);
                 Assert.IsFalse(copy.UnlockScreenshotWithToastAlwaysCaptureCompletion);
-                Assert.AreEqual(RarityTier.UltraRare, copy.UnlockScreenshotFramedMinimumRarity);
+                Assert.AreEqual(RaritySelection.UltraRare, copy.UnlockScreenshotFramedRarities);
                 Assert.IsFalse(copy.UnlockScreenshotFramedAlwaysCaptureCompletion);
+                Assert.AreEqual(RaritySelection.Common, copy.UnlockRecordingRarities);
             }
         }
 
