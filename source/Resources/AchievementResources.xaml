@@ -394,8 +394,9 @@
                 </Grid>
 
                 <!-- Symmetric top/bottom inset so the icon and text center truly on the row
-                     (an asymmetric inset biased the content downward). -->
-                <Grid Grid.Column="1" Grid.Row="0" Margin="14,8,8,8">
+                     (an asymmetric inset biased the content downward); a bit more top/bottom so
+                     tall/large text is not clipped against the card edges. -->
+                <Grid Grid.Column="1" Grid.Row="0" Margin="14,13,8,13">
                         <Grid.ColumnDefinitions>
                             <ColumnDefinition Width="Auto"/>
                             <ColumnDefinition Width="*"/>
