@@ -824,14 +824,13 @@ namespace PlayniteAchievements.ViewModels.Settings
                     sourcePathOrUrl, _imageOwner, slot, CancellationToken.None);
                 if (resolved != null)
                 {
-                    SetImagePath(slot, resolved);
-
-                    // The managed slot uses a fixed filename, so picking a different source
-                    // file resolves to the same path and would otherwise show the previously
-                    // cached bitmap. The pre-delete above writes a fresh (non-overwriting) file,
-                    // so DiskImageService.ImageFileOverwritten never fires; evict the memory
-                    // cache for this path explicitly (clears every decode-size/prefix variant).
+                    // The managed slot uses a fixed filename, so picking a different source file
+                    // resolves to the same path and would otherwise show the previously cached
+                    // bitmap. Evict BEFORE setting the path: setting it synchronously triggers the
+                    // preview/mockup reload (binding -> AsyncImage -> GetAsync), whose cache lookup
+                    // must see an already-cleared cache to re-read the new file from disk.
                     _plugin.ImageService?.EvictByUriSegment(resolved);
+                    SetImagePath(slot, resolved);
                 }
             }
             catch (Exception ex)
