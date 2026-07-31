@@ -162,8 +162,7 @@ namespace PlayniteAchievements.Providers.GameJolt
                     }
 
                     var achievements = GameJoltTrophyMapper.BuildDefinitions(definitionsJson, trophyId);
-                    _logger?.Info($"[GameJolt] Game {trophyId}: definitions length={definitionsJson?.Length ?? 0}, " +
-                        $"parsed {achievements.Count} trophy definition(s).");
+                    _logger?.Debug($"[GameJolt] Game {trophyId}: parsed {achievements.Count} trophy definition(s).");
                     if (achievements.Count == 0)
                     {
                         return achievements;
@@ -177,7 +176,7 @@ namespace PlayniteAchievements.Providers.GameJolt
                         // definitions response - the same source the website's trophy page uses to split
                         // achieved/unachieved (unpaginated, unlike the per-user trophies endpoint).
                         var achievedCount = GameJoltTrophyMapper.ApplyAchievedRecords(achievements, definitionsJson, trophyId);
-                        _logger?.Info($"[GameJolt] Game {trophyId}: {achievedCount}/{achievements.Count} unlocked (from trophiesAchieved).");
+                        _logger?.Debug($"[GameJolt] Game {trophyId}: {achievedCount}/{achievements.Count} unlocked (from trophiesAchieved).");
                     }
 
                     return achievements;
@@ -236,7 +235,7 @@ namespace PlayniteAchievements.Providers.GameJolt
                 }
             }
 
-            _logger?.Info($"[GameJolt] Applied global unlock percentage to {applied}/{byTrophyId.Count} trophy(ies).");
+            _logger?.Debug($"[GameJolt] Applied global unlock percentage to {applied}/{byTrophyId.Count} trophy(ies).");
         }
 
         /// <summary>
