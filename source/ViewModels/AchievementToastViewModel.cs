@@ -415,6 +415,16 @@ namespace PlayniteAchievements.ViewModels
         // around the whole card.
         private const double BorderGlowBlurRadius = 36;
 
+        // Room reserved around the card for its shadow/glow so nothing clips it, everywhere (live
+        // toast and previews alike): enough for the wide border glow when it is on, otherwise the
+        // neutral drop shadow. Derived from the glow radius, so bumping the glow needs no synced
+        // constant. This margin lives inside the toast window, so the glow stays within the window
+        // (never clipped by it) and the window is placed with a gap from the screen edge, keeping
+        // the whole glow on-screen — the card simply sits a little further in, which is intended.
+        public Thickness ToastGlowMargin =>
+            new Thickness(HasBorderGlow ? BorderGlowBlurRadius + 6 : 16);
+
+
         // Cloned to an unfrozen copy so the card's border-glow pulse can animate its Opacity
         // (the shared GetGlow/GetCompletedGlow instances are frozen and immutable), and so its
         // BlurRadius can be widened to the border-glow radius. Null for Common rarity (no glow).
