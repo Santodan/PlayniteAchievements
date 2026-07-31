@@ -9,8 +9,8 @@ namespace PlayniteAchievements.Services.Recording
     /// <summary>
     /// Pure clip-window and buffer math over the rolling segment recording, all in UTC. The
     /// invariant every window upholds: a clip contains BOTH the unlock moment and the toast
-    /// appearing on screen, targeting the configured clip length but stretching past it when the
-    /// unlock-to-toast gap requires it. No filesystem access — fully unit-testable.
+    /// appearing on screen, extending to the observed toast however late it appears and clamped
+    /// only to recorded data. No filesystem access — fully unit-testable.
     /// </summary>
     internal static class SegmentTimeline
     {
@@ -138,11 +138,13 @@ namespace PlayniteAchievements.Services.Recording
         /// <summary>
         /// Computes the clip window in UTC.
         /// Start anchor: preRollSeconds (the user's setting) before the unlock moment — the
-        /// precise timestamp when trusted, else the worst case within the last poll interval.
-        /// End anchor: guaranteed past the toast's dismissal (shown + display duration + tail);
-        /// when no toast ever shows, detection plus a short fallback tail. Clip length emerges
-        /// from the two anchors (pre-roll + detection gap + toast time), hard-capped at the
-        /// rolling buffer depth and clamped to recorded data.
+        /// precise timestamp when trusted, else pre-roll before detection. A floor keeps the
+        /// start no earlier than one poll interval + pre-roll before detection, so a far-back but
+        /// in-session precise timestamp can't open a runaway clip.
+        /// End anchor: the observed toast's dismissal (shown + display duration + tail), so the
+        /// clip follows the real toast however late it appears (e.g. queued behind other waves);
+        /// when no toast ever shows, detection plus a short fallback tail. Clamped to recorded
+        /// data.
         /// </summary>
         public static (DateTime StartUtc, DateTime EndUtc) ComputeClipWindow(
             DateTime? unlockTimeUtc,
@@ -161,14 +163,16 @@ namespace PlayniteAchievements.Services.Recording
             var preRoll = Math.Max(0, preRollSeconds);
             var start = IsPreciseUnlockTime(unlockTimeUtc, captureStartUtc, detectionUtc)
                 ? unlockTimeUtc.Value.AddSeconds(-preRoll)
-                : detectionUtc.AddSeconds(-(Math.Max(0, pollIntervalSeconds) + preRoll));
+                : detectionUtc.AddSeconds(-preRoll);
 
-            // Hard cap: the rolling buffer can never serve more than its depth. The end anchor
-            // (toast dismissal) wins; the start slides forward.
-            var depth = BufferDepthSeconds(pollIntervalSeconds, preRollSeconds);
-            if ((end - start).TotalSeconds > depth)
+            // Start floor: never open earlier than the oldest moment a promptly-detected unlock
+            // could have occurred (one poll interval back) plus the pre-roll. This bounds only a
+            // pathological far-back precise timestamp; it never slides the start forward for a
+            // late toast, so the clip always keeps its pre-roll and the unlock moment.
+            var earliest = detectionUtc.AddSeconds(-(Math.Max(0, pollIntervalSeconds) + preRoll));
+            if (start < earliest)
             {
-                start = end.AddSeconds(-depth);
+                start = earliest;
             }
 
             // Clamp to data that actually exists.
