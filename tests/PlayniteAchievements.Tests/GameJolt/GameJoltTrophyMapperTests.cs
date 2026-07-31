@@ -130,6 +130,48 @@ namespace PlayniteAchievements.GameJolt.Tests
         }
 
         [TestMethod]
+        public void ApplyAchievedRecords_MarksCompleteAchievedListFromDefinitionsPayload()
+        {
+            var achievements = GameJoltTrophyMapper.BuildDefinitions(DefinitionsJson, "42");
+
+            // The definitions response also carries the user's full achieved list under trophiesAchieved.
+            var definitionsWithAchieved = @"{
+                ""payload"": {
+                    ""trophies"": [
+                        { ""id"": 101, ""game_id"": 42, ""title"": ""First Steps"", ""difficulty"": 1, ""experience"": 20 },
+                        { ""id"": 102, ""game_id"": 42, ""title"": ""Halfway"", ""difficulty"": 3, ""experience"": 100 }
+                    ],
+                    ""trophiesAchieved"": [
+                        { ""game_id"": 42, ""game_trophy_id"": 101, ""logged_on"": 1700000000000 },
+                        { ""game_id"": 42, ""game_trophy_id"": 102, ""logged_on"": null },
+                        { ""game_id"": 7, ""game_trophy_id"": 999, ""logged_on"": 1700000000000 }
+                    ]
+                }
+            }";
+
+            var applied = GameJoltTrophyMapper.ApplyAchievedRecords(achievements, definitionsWithAchieved, "42");
+
+            Assert.AreEqual(2, applied, "Both game-42 achieved records apply; the game-7 record is ignored.");
+
+            var withDate = achievements.Single(a => a.ApiName == "101");
+            Assert.IsTrue(withDate.Unlocked);
+            Assert.AreEqual(new DateTime(2023, 11, 14, 22, 13, 20, DateTimeKind.Utc), withDate.UnlockTimeUtc);
+
+            var withoutDate = achievements.Single(a => a.ApiName == "102");
+            Assert.IsTrue(withoutDate.Unlocked, "Achieved with null logged_on is still unlocked.");
+            Assert.IsNull(withoutDate.UnlockTimeUtc);
+        }
+
+        [TestMethod]
+        public void ApplyAchievedRecords_NoAchievedList_ReturnsZero()
+        {
+            var achievements = GameJoltTrophyMapper.BuildDefinitions(DefinitionsJson, "42");
+            Assert.AreEqual(0, GameJoltTrophyMapper.ApplyAchievedRecords(achievements, @"{ ""payload"": { ""trophies"": [] } }", "42"));
+            Assert.AreEqual(0, GameJoltTrophyMapper.ApplyAchievedRecords(achievements, "garbage", "42"));
+            Assert.IsTrue(achievements.All(a => !a.Unlocked));
+        }
+
+        [TestMethod]
         public void ParsePercentage_ReadsPayloadPercentage()
         {
             Assert.AreEqual(12.5, GameJoltTrophyMapper.ParsePercentage(@"{ ""payload"": { ""percentage"": 12.5 } }"));
