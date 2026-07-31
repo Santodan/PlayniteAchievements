@@ -1015,9 +1015,10 @@ namespace PlayniteAchievements.ViewModels.Settings
             switch (kind)
             {
                 case NotificationSurfaceStyle.LineHeader:
-                case NotificationSurfaceStyle.LineGameCategory:
-                    // The header/caption size drives both the header and game/category lines.
                     surface.HeaderFontSize = size;
+                    break;
+                case NotificationSurfaceStyle.LineGameCategory:
+                    surface.GameCategoryFontSize = size;
                     break;
                 case NotificationSurfaceStyle.LineTitle:
                     surface.TitleFontSize = size;
@@ -1033,8 +1034,9 @@ namespace PlayniteAchievements.ViewModels.Settings
             switch (kind)
             {
                 case NotificationSurfaceStyle.LineHeader:
-                case NotificationSurfaceStyle.LineGameCategory:
                     return surface?.HeaderFontSize;
+                case NotificationSurfaceStyle.LineGameCategory:
+                    return surface?.GameCategoryFontSize;
                 case NotificationSurfaceStyle.LineTitle:
                     return surface?.TitleFontSize;
                 case NotificationSurfaceStyle.LineDescription:
@@ -1252,7 +1254,8 @@ namespace PlayniteAchievements.ViewModels.Settings
             }
             else if (e.PropertyName == nameof(NotificationSurfaceStyle.HeaderFontSize) ||
                      e.PropertyName == nameof(NotificationSurfaceStyle.TitleFontSize) ||
-                     e.PropertyName == nameof(NotificationSurfaceStyle.BodyFontSize))
+                     e.PropertyName == nameof(NotificationSurfaceStyle.BodyFontSize) ||
+                     e.PropertyName == nameof(NotificationSurfaceStyle.GameCategoryFontSize))
             {
                 RefreshLineSizes();
             }
