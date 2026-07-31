@@ -272,37 +272,32 @@ namespace PlayniteAchievements.Services.Recording
                     crop.Value.Width, crop.Value.Height, crop.Value.X, crop.Value.Y)
                 : string.Empty;
 
-            if (string.IsNullOrWhiteSpace(audioConcatListPath))
-            {
-                var codec = crop.HasValue
-                    ? (reencode || string.IsNullOrWhiteSpace(cropEncoderArguments)
-                        ? SoftwareEncode
-                        : cropEncoderArguments + " -pix_fmt yuv420p")
-                    : (reencode ? SoftwareEncode : "-c copy");
-                return Invariant(
-                    "-hide_banner -loglevel warning -y -f concat -safe 0 -ss {0} -i \"{1}\" -t {2} {3}{4} -movflags +faststart \"{5}\"",
-                    Seconds(startOffsetSeconds),
-                    concatListPath,
-                    Seconds(durationSeconds),
-                    cropFilter,
-                    codec,
-                    outputPath);
-            }
+            var hasAudio = !string.IsNullOrWhiteSpace(audioConcatListPath);
 
-            var videoCodec = crop.HasValue
+            // Second concat input, video-stream mapping, and AAC audio codec only appear with an
+            // audio list; the copy codec copies everything when there's no audio (-c copy) but
+            // only the video when audio rides alongside (-c:v copy, audio re-encodes to AAC).
+            var audioInput = hasAudio
+                ? Invariant(" -f concat -safe 0 -ss {0} -i \"{1}\"", Seconds(audioStartOffsetSeconds), audioConcatListPath)
+                : string.Empty;
+            var map = hasAudio ? "-map 0:v -map 1:a? " : string.Empty;
+            var audioCodec = hasAudio ? " -c:a aac -b:a 160k" : string.Empty;
+            var codec = crop.HasValue
                 ? (reencode || string.IsNullOrWhiteSpace(cropEncoderArguments)
                     ? SoftwareEncode
                     : cropEncoderArguments + " -pix_fmt yuv420p")
-                : (reencode ? SoftwareEncode : "-c:v copy");
+                : (reencode ? SoftwareEncode : hasAudio ? "-c:v copy" : "-c copy");
+
             return Invariant(
-                "-hide_banner -loglevel warning -y -f concat -safe 0 -ss {0} -i \"{1}\" -f concat -safe 0 -ss {2} -i \"{3}\" -t {4} -map 0:v -map 1:a? {5}{6} -c:a aac -b:a 160k -movflags +faststart \"{7}\"",
+                "-hide_banner -loglevel warning -y -f concat -safe 0 -ss {0} -i \"{1}\"{2} -t {3} {4}{5}{6}{7} -movflags +faststart \"{8}\"",
                 Seconds(startOffsetSeconds),
                 concatListPath,
-                Seconds(audioStartOffsetSeconds),
-                audioConcatListPath,
+                audioInput,
                 Seconds(durationSeconds),
+                map,
                 cropFilter,
-                videoCodec,
+                codec,
+                audioCodec,
                 outputPath);
         }
 
