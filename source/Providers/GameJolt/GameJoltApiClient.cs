@@ -114,9 +114,14 @@ namespace PlayniteAchievements.Providers.GameJolt
         }
 
         /// <summary>
-        /// Fetches and merges the achievement schema and the user's unlock status for a GameJolt game.
-        /// Returns an empty list when the game has no trophies; unlock status is skipped when no username
-        /// is supplied (the schema still returns as all-locked).
+        /// Fetches and merges the achievement schema, per-trophy global unlock percentages, and the user's
+        /// unlock status for a GameJolt game. Returns an empty list when the game has no trophies; unlock
+        /// status is skipped when no username is supplied (the schema still returns as all-locked).
+        ///
+        /// All reads happen inside a single offscreen-view session with exactly ONE navigation (to establish
+        /// the gamejolt.com origin); definitions, percentages, and unlocks are then read via in-page
+        /// same-origin fetch(). Re-navigating the shared view per read intermittently wedged
+        /// NavigateAndWaitAsync (a 15s timeout that produced zero percentages), so navigation is done once.
         /// </summary>
         public async Task<List<AchievementDetail>> GetAchievementsAsync(string gameId, string username, CancellationToken ct)
         {
@@ -126,93 +131,63 @@ namespace PlayniteAchievements.Providers.GameJolt
             }
 
             var trophyId = gameId.Trim();
-            var definitionsUrl = string.Format(CultureInfo.InvariantCulture, UrlTrophiesGameFormat, trophyId);
-            var definitionsJson = await FetchJsonAsync(definitionsUrl, ct).ConfigureAwait(false);
-
-            var achievements = GameJoltTrophyMapper.BuildDefinitions(definitionsJson, trophyId);
-            _logger?.Info($"[GameJolt] Game {trophyId}: definitions response length={definitionsJson?.Length ?? 0}, " +
-                $"parsed {achievements.Count} trophy definition(s).");
-            if (achievements.Count == 0)
-            {
-                return achievements;
-            }
-
-            await ApplyGlobalPercentagesAsync(achievements, ct).ConfigureAwait(false);
-
-            if (string.IsNullOrWhiteSpace(username))
-            {
-                return achievements;
-            }
-
-            var unlocksUrl = string.Format(
-                CultureInfo.InvariantCulture,
-                UrlProfileTrophiesGameFormat,
-                GameJoltTrophyMapper.FormatUser(username),
-                trophyId);
-            var unlocksJson = await FetchJsonAsync(unlocksUrl, ct).ConfigureAwait(false);
-            GameJoltTrophyMapper.ApplyUnlocks(achievements, unlocksJson, trophyId);
-
-            var unlockedCount = achievements.Count(a => a.Unlocked);
-            _logger?.Info($"[GameJolt] Game {trophyId}: unlocks response length={unlocksJson?.Length ?? 0}, " +
-                $"{unlockedCount}/{achievements.Count} unlocked after merge.");
-
-            return achievements;
-        }
-
-        /// <summary>
-        /// Fetches each trophy's global unlock percentage (the value the website shows on trophy open) and
-        /// applies it, so rarity comes from real community data instead of the difficulty fallback. This is
-        /// one request per trophy; a failure or missing value leaves the difficulty-based rarity in place.
-        /// The endpoint is public, so cookies are not restored.
-        /// </summary>
-        private async Task ApplyGlobalPercentagesAsync(IReadOnlyList<AchievementDetail> achievements, CancellationToken ct)
-        {
-            if (achievements == null || achievements.Count == 0)
-            {
-                return;
-            }
-
-            var targets = new List<KeyValuePair<AchievementDetail, long>>();
-            foreach (var achievement in achievements)
-            {
-                if (achievement?.ApiName != null &&
-                    long.TryParse(achievement.ApiName, NumberStyles.Integer, CultureInfo.InvariantCulture, out var trophyId))
-                {
-                    targets.Add(new KeyValuePair<AchievementDetail, long>(achievement, trophyId));
-                }
-            }
-
-            if (targets.Count == 0)
-            {
-                return;
-            }
+            var (snapshotLoaded, snapshotCookies) = AcquireFetchCookies();
 
             try
             {
-                await _offscreenViews.WithNavigableViewAsync(async view =>
+                return await _offscreenViews.WithNavigableViewAsync(async view =>
                 {
-                    // Establish the gamejolt.com origin once, then read every trophy's percentage via a fast
-                    // in-page same-origin fetch instead of a full navigation per trophy. Public endpoint.
-                    var firstUrl = string.Format(CultureInfo.InvariantCulture, UrlTrophyPercentageFormat, targets[0].Value);
-                    await view.NavigateAndWaitAsync(firstUrl, timeoutMs: 15000).ConfigureAwait(false);
-
-                    var applied = 0;
-                    foreach (var target in targets)
+                    if (snapshotLoaded && snapshotCookies != null && snapshotCookies.Count > 0)
                     {
-                        ct.ThrowIfCancellationRequested();
-
-                        var url = string.Format(CultureInfo.InvariantCulture, UrlTrophyPercentageFormat, target.Value);
-                        var json = await FetchViaPageScriptAsync(view, url, ct).ConfigureAwait(false);
-                        var percentage = GameJoltTrophyMapper.ParsePercentage(json);
-                        if (percentage.HasValue)
-                        {
-                            GameJoltTrophyMapper.ApplyPercentage(target.Key, percentage);
-                            applied++;
-                        }
+                        await RestoreCookiesAsync(view, snapshotCookies, ct).ConfigureAwait(false);
                     }
 
-                    _logger?.Info($"[GameJolt] Applied global unlock percentage to {applied}/{targets.Count} trophy(ies).");
-                    return true;
+                    // The single navigation: the discover/definitions page is public and reliable, and
+                    // establishes the gamejolt.com origin for the in-page fetches that follow.
+                    var definitionsUrl = string.Format(CultureInfo.InvariantCulture, UrlTrophiesGameFormat, trophyId);
+                    string navText = null;
+                    try
+                    {
+                        await view.NavigateAndWaitAsync(definitionsUrl, timeoutMs: 15000).ConfigureAwait(false);
+                        navText = await view.GetPageTextAsync().ConfigureAwait(false);
+                    }
+                    catch (Exception ex)
+                    {
+                        _logger?.Warn(ex, $"[GameJolt] Navigation to definitions failed for game {trophyId}; continuing with in-page fetch.");
+                    }
+
+                    var definitionsJson = await FetchViaPageScriptAsync(view, definitionsUrl, ct).ConfigureAwait(false);
+                    if (!LooksLikeCompleteJson(definitionsJson) && LooksLikeCompleteJson(navText))
+                    {
+                        definitionsJson = navText;
+                    }
+
+                    var achievements = GameJoltTrophyMapper.BuildDefinitions(definitionsJson, trophyId);
+                    _logger?.Info($"[GameJolt] Game {trophyId}: definitions length={definitionsJson?.Length ?? 0}, " +
+                        $"parsed {achievements.Count} trophy definition(s).");
+                    if (achievements.Count == 0)
+                    {
+                        return achievements;
+                    }
+
+                    await ApplyGlobalPercentagesAsync(view, achievements, ct).ConfigureAwait(false);
+
+                    if (!string.IsNullOrWhiteSpace(username))
+                    {
+                        var unlocksUrl = string.Format(
+                            CultureInfo.InvariantCulture,
+                            UrlProfileTrophiesGameFormat,
+                            GameJoltTrophyMapper.FormatUser(username),
+                            trophyId);
+                        var unlocksJson = await FetchViaPageScriptAsync(view, unlocksUrl, ct).ConfigureAwait(false);
+                        GameJoltTrophyMapper.ApplyUnlocks(achievements, unlocksJson, trophyId);
+
+                        var unlockedCount = achievements.Count(a => a.Unlocked);
+                        _logger?.Info($"[GameJolt] Game {trophyId}: unlocks length={unlocksJson?.Length ?? 0}, " +
+                            $"{unlockedCount}/{achievements.Count} unlocked after merge.");
+                    }
+
+                    return achievements;
                 }, ct).ConfigureAwait(false);
             }
             catch (OperationCanceledException)
@@ -221,8 +196,59 @@ namespace PlayniteAchievements.Providers.GameJolt
             }
             catch (Exception ex)
             {
-                _logger?.Warn(ex, "[GameJolt] Failed to fetch trophy percentages.");
+                _logger?.Error(ex, $"[GameJolt] Failed to fetch achievements for game {trophyId}");
+                return new List<AchievementDetail>();
             }
+        }
+
+        /// <summary>
+        /// Applies each trophy's global unlock percentage (the value the website shows on trophy open) so
+        /// rarity comes from real community data instead of the difficulty fallback. Reads run as in-page
+        /// same-origin fetches on the already-navigated <paramref name="view"/> (no further navigation).
+        /// A failure or missing value leaves the difficulty-based rarity in place.
+        /// </summary>
+        private async Task ApplyGlobalPercentagesAsync(IWebView view, IReadOnlyList<AchievementDetail> achievements, CancellationToken ct)
+        {
+            if (achievements == null || achievements.Count == 0)
+            {
+                return;
+            }
+
+            var applied = 0;
+            var attempted = 0;
+            foreach (var achievement in achievements)
+            {
+                ct.ThrowIfCancellationRequested();
+
+                if (achievement?.ApiName == null ||
+                    !long.TryParse(achievement.ApiName, NumberStyles.Integer, CultureInfo.InvariantCulture, out var trophyId))
+                {
+                    continue;
+                }
+
+                attempted++;
+                try
+                {
+                    var url = string.Format(CultureInfo.InvariantCulture, UrlTrophyPercentageFormat, trophyId);
+                    var json = await FetchViaPageScriptAsync(view, url, ct).ConfigureAwait(false);
+                    var percentage = GameJoltTrophyMapper.ParsePercentage(json);
+                    if (percentage.HasValue)
+                    {
+                        GameJoltTrophyMapper.ApplyPercentage(achievement, percentage);
+                        applied++;
+                    }
+                }
+                catch (OperationCanceledException)
+                {
+                    throw;
+                }
+                catch (Exception ex)
+                {
+                    _logger?.Debug(ex, $"[GameJolt] Percentage fetch failed for trophy {trophyId}.");
+                }
+            }
+
+            _logger?.Info($"[GameJolt] Applied global unlock percentage to {applied}/{attempted} trophy(ies).");
         }
 
         /// <summary>
