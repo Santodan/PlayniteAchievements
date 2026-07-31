@@ -58,6 +58,7 @@
                                         <ComboBoxItem Content="{DynamicResource LOCPlayAch_Rarity_Uncommon}" Tag="{x:Static ach:RarityTier.Uncommon}"/>
                                         <ComboBoxItem Content="{DynamicResource LOCPlayAch_Rarity_Rare}" Tag="{x:Static ach:RarityTier.Rare}"/>
                                         <ComboBoxItem Content="{DynamicResource LOCPlayAch_Rarity_UltraRare}" Tag="{x:Static ach:RarityTier.UltraRare}"/>
+                                        <ComboBoxItem Content="{DynamicResource LOCPlayAch_Common_None}" Tag="{x:Static ach:RarityTier.None}"/>
                                     </ComboBox>
                                 </Grid>
                                 <CheckBox Content="{DynamicResource LOCPlayAch_Settings_AlwaysCaptureCompletion}"
@@ -88,6 +89,7 @@
                                         <ComboBoxItem Content="{DynamicResource LOCPlayAch_Rarity_Uncommon}" Tag="{x:Static ach:RarityTier.Uncommon}"/>
                                         <ComboBoxItem Content="{DynamicResource LOCPlayAch_Rarity_Rare}" Tag="{x:Static ach:RarityTier.Rare}"/>
                                         <ComboBoxItem Content="{DynamicResource LOCPlayAch_Rarity_UltraRare}" Tag="{x:Static ach:RarityTier.UltraRare}"/>
+                                        <ComboBoxItem Content="{DynamicResource LOCPlayAch_Common_None}" Tag="{x:Static ach:RarityTier.None}"/>
                                     </ComboBox>
                                 </Grid>
                                 <CheckBox Content="{DynamicResource LOCPlayAch_Settings_AlwaysCaptureCompletion}"
@@ -118,6 +120,7 @@
                                         <ComboBoxItem Content="{DynamicResource LOCPlayAch_Rarity_Uncommon}" Tag="{x:Static ach:RarityTier.Uncommon}"/>
                                         <ComboBoxItem Content="{DynamicResource LOCPlayAch_Rarity_Rare}" Tag="{x:Static ach:RarityTier.Rare}"/>
                                         <ComboBoxItem Content="{DynamicResource LOCPlayAch_Rarity_UltraRare}" Tag="{x:Static ach:RarityTier.UltraRare}"/>
+                                        <ComboBoxItem Content="{DynamicResource LOCPlayAch_Common_None}" Tag="{x:Static ach:RarityTier.None}"/>
                                     </ComboBox>
                                 </Grid>
                                 <CheckBox Content="{DynamicResource LOCPlayAch_Settings_AlwaysCaptureCompletion}"
@@ -357,6 +360,7 @@
                                     <ComboBoxItem Content="{DynamicResource LOCPlayAch_Rarity_Uncommon}" Tag="{x:Static ach:RarityTier.Uncommon}"/>
                                     <ComboBoxItem Content="{DynamicResource LOCPlayAch_Rarity_Rare}" Tag="{x:Static ach:RarityTier.Rare}"/>
                                     <ComboBoxItem Content="{DynamicResource LOCPlayAch_Rarity_UltraRare}" Tag="{x:Static ach:RarityTier.UltraRare}"/>
+                                    <ComboBoxItem Content="{DynamicResource LOCPlayAch_Common_None}" Tag="{x:Static ach:RarityTier.None}"/>
                                 </ComboBox>
                             </Grid>
 
