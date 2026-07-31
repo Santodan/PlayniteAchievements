@@ -648,8 +648,18 @@ namespace PlayniteAchievements.Views.Settings.General
             // style the mockup shows.
             _toastEditorViewModel?.FlushPendingPersist();
             _frameEditorViewModel?.FlushPendingPersist();
-            PlayniteAchievementsPlugin.NotifyAchievementUnlocked(
-                BuildPreviewArgs(kind, source));
+
+            // Tag the sample unlock with the scope being edited so the pipeline resolves the SAME
+            // style the mockup renders (per-provider via ProviderKey, per-game via PlayniteGameId);
+            // otherwise the test falls back to the global style and can differ (e.g. the
+            // description's 1- vs 2-line budget, which depends on the game-name/category toggles).
+            var args = BuildPreviewArgs(kind, providerKey: ScopeProviderKey, previewSource: source);
+            if (IsGameMode)
+            {
+                args.PlayniteGameId = _gameId;
+            }
+
+            PlayniteAchievementsPlugin.NotifyAchievementUnlocked(args);
         }
 
         private static bool TryResolvePreviewSource(object sender, out NotificationTemplatePreviewSource source)
