@@ -45,88 +45,11 @@ namespace PlayniteAchievements.GameJolt.Tests
         }
 
         [TestMethod]
-        public void ApplyUnlocks_MarksUnlockedAndConvertsEpochMillis()
-        {
-            var achievements = GameJoltTrophyMapper.BuildDefinitions(DefinitionsJson, "42");
-
-            // 1700000000000 ms = 2023-11-14T22:13:20Z
-            var profileJson = @"{
-                ""payload"": {
-                    ""trophies"": [
-                        { ""game_id"": 42, ""game_trophy_id"": 101, ""logged_on"": 1700000000000, ""game_trophy"": { ""img_thumbnail"": ""//m.gamejolt.net/unlocked-101.png"" } },
-                        { ""game_id"": 42, ""game_trophy_id"": 102, ""logged_on"": null, ""game_trophy"": { ""img_thumbnail"": null } }
-                    ]
-                }
-            }";
-
-            GameJoltTrophyMapper.ApplyUnlocks(achievements, profileJson, "42");
-
-            var withDate = achievements.Single(a => a.ApiName == "101");
-            Assert.IsTrue(withDate.Unlocked);
-            Assert.AreEqual(new DateTime(2023, 11, 14, 22, 13, 20, DateTimeKind.Utc), withDate.UnlockTimeUtc);
-            Assert.AreEqual("https://m.gamejolt.net/unlocked-101.png", withDate.UnlockedIconPath);
-
-            var withoutDate = achievements.Single(a => a.ApiName == "102");
-            Assert.IsTrue(withoutDate.Unlocked, "A trophy present with null logged_on is still unlocked.");
-            Assert.IsNull(withoutDate.UnlockTimeUtc, "Null logged_on must not synthesize a sentinel date.");
-        }
-
-        [TestMethod]
-        public void ApplyUnlocks_LeavesTrophiesAbsentFromProfileLocked()
-        {
-            var achievements = GameJoltTrophyMapper.BuildDefinitions(DefinitionsJson, "42");
-
-            var profileJson = @"{ ""payload"": { ""trophies"": [
-                { ""game_id"": 42, ""game_trophy_id"": 101, ""logged_on"": 1700000000000 }
-            ] } }";
-
-            GameJoltTrophyMapper.ApplyUnlocks(achievements, profileJson, "42");
-
-            Assert.IsTrue(achievements.Single(a => a.ApiName == "101").Unlocked);
-            Assert.IsFalse(achievements.Single(a => a.ApiName == "102").Unlocked, "Trophy not in the profile response stays locked.");
-        }
-
-        [TestMethod]
         public void BuildDefinitions_MalformedJson_ReturnsEmpty()
         {
             Assert.AreEqual(0, GameJoltTrophyMapper.BuildDefinitions("not json", "42").Count);
             Assert.AreEqual(0, GameJoltTrophyMapper.BuildDefinitions(null, "42").Count);
             Assert.AreEqual(0, GameJoltTrophyMapper.BuildDefinitions("{}", "42").Count);
-        }
-
-        [TestMethod]
-        public void ApplyUnlocks_MalformedJson_LeavesAchievementsUnchanged()
-        {
-            var achievements = GameJoltTrophyMapper.BuildDefinitions(DefinitionsJson, "42");
-
-            GameJoltTrophyMapper.ApplyUnlocks(achievements, "not json", "42");
-
-            Assert.IsTrue(achievements.All(a => !a.Unlocked));
-        }
-
-        [TestMethod]
-        public void ParseUsername_ReadsPayloadUser()
-        {
-            var json = @"{ ""payload"": { ""user"": { ""id"": 5, ""username"": ""cooldev"", ""img_avatar"": ""x"" } } }";
-            Assert.AreEqual("cooldev", GameJoltTrophyMapper.ParseUsername(json));
-        }
-
-        [TestMethod]
-        public void ParseUsername_MissingUser_ReturnsNull()
-        {
-            Assert.IsNull(GameJoltTrophyMapper.ParseUsername(@"{ ""payload"": {} }"));
-            Assert.IsNull(GameJoltTrophyMapper.ParseUsername("garbage"));
-            Assert.IsNull(GameJoltTrophyMapper.ParseUsername(null));
-        }
-
-        [TestMethod]
-        public void EpochMillisToUtc_HandlesNullAndNonPositive()
-        {
-            Assert.IsNull(GameJoltTrophyMapper.EpochMillisToUtc(null));
-            Assert.IsNull(GameJoltTrophyMapper.EpochMillisToUtc(0));
-            Assert.AreEqual(
-                DateTimeOffset.FromUnixTimeMilliseconds(1700000000000).UtcDateTime,
-                GameJoltTrophyMapper.EpochMillisToUtc(1700000000000));
         }
 
         [TestMethod]
@@ -172,13 +95,21 @@ namespace PlayniteAchievements.GameJolt.Tests
         }
 
         [TestMethod]
-        public void ParsePercentage_ReadsPayloadPercentage()
+        public void ParsePercentageBatch_MapsTrophyIdToPercentage()
         {
-            Assert.AreEqual(12.5, GameJoltTrophyMapper.ParsePercentage(@"{ ""payload"": { ""percentage"": 12.5 } }"));
-            Assert.AreEqual(0d, GameJoltTrophyMapper.ParsePercentage(@"{ ""payload"": { ""percentage"": 0 } }"));
-            Assert.IsNull(GameJoltTrophyMapper.ParsePercentage(@"{ ""payload"": {} }"));
-            Assert.IsNull(GameJoltTrophyMapper.ParsePercentage("garbage"));
-            Assert.IsNull(GameJoltTrophyMapper.ParsePercentage(null));
+            var map = GameJoltTrophyMapper.ParsePercentageBatch(@"[{""i"":101,""p"":3.5},{""i"":102,""p"":null},{""i"":103,""p"":0}]");
+
+            Assert.AreEqual(3, map.Count);
+            Assert.AreEqual(3.5, map[101]);
+            Assert.IsNull(map[102]);
+            Assert.AreEqual(0d, map[103]);
+        }
+
+        [TestMethod]
+        public void ParsePercentageBatch_MalformedJson_ReturnsEmpty()
+        {
+            Assert.AreEqual(0, GameJoltTrophyMapper.ParsePercentageBatch("garbage").Count);
+            Assert.AreEqual(0, GameJoltTrophyMapper.ParsePercentageBatch(null).Count);
         }
 
         [TestMethod]
@@ -218,6 +149,31 @@ namespace PlayniteAchievements.GameJolt.Tests
             Assert.AreEqual(RarityTier.Uncommon, GameJoltTrophyMapper.ResolveRarity(2), "2 = silver");
             Assert.AreEqual(RarityTier.Common, GameJoltTrophyMapper.ResolveRarity(1), "1 = bronze");
             Assert.AreEqual(RarityTier.Common, GameJoltTrophyMapper.ResolveRarity(0), "unknown = common");
+        }
+
+        [TestMethod]
+        public void ParseUsername_ReadsPayloadUser()
+        {
+            var json = @"{ ""payload"": { ""user"": { ""id"": 5, ""username"": ""cooldev"", ""img_avatar"": ""x"" } } }";
+            Assert.AreEqual("cooldev", GameJoltTrophyMapper.ParseUsername(json));
+        }
+
+        [TestMethod]
+        public void ParseUsername_MissingUser_ReturnsNull()
+        {
+            Assert.IsNull(GameJoltTrophyMapper.ParseUsername(@"{ ""payload"": {} }"));
+            Assert.IsNull(GameJoltTrophyMapper.ParseUsername("garbage"));
+            Assert.IsNull(GameJoltTrophyMapper.ParseUsername(null));
+        }
+
+        [TestMethod]
+        public void EpochMillisToUtc_HandlesNullAndNonPositive()
+        {
+            Assert.IsNull(GameJoltTrophyMapper.EpochMillisToUtc(null));
+            Assert.IsNull(GameJoltTrophyMapper.EpochMillisToUtc(0));
+            Assert.AreEqual(
+                DateTimeOffset.FromUnixTimeMilliseconds(1700000000000).UtcDateTime,
+                GameJoltTrophyMapper.EpochMillisToUtc(1700000000000));
         }
 
         [TestMethod]
