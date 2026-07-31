@@ -53,25 +53,17 @@
     </Storyboard>
 
     <!--
-        Subtle shadow that lifts text, badges, and logos off the card surface or a user background
-        image so they stay legible. Shared and frozen, so a single tweak here restyles every text
-        line and badge on both the toast and frame surfaces. Applied on the shared line-template
-        roots (below) and on the badge/provider images in each surface template.
+        The single, standardized content shadow that lifts text, badges, and logos off the card
+        surface or a user background image so they stay legible. Shared and frozen, so a single
+        tweak here restyles every text line and badge on both the toast and frame surfaces. Applied
+        on the shared line-template roots (below) and on the badge/provider images in each surface
+        template.
     -->
     <DropShadowEffect x:Key="PlayAch.Effect.ContentShadow"
-                      BlurRadius="4"
+                      BlurRadius="6"
                       ShadowDepth="1"
                       Direction="315"
-                      Opacity="0.6"
-                      Color="#FF000000"/>
-
-    <!-- Stronger variant for the muted secondary-color text lines (header, description,
-         game/category), which are the hardest to read over busy background images. -->
-    <DropShadowEffect x:Key="PlayAch.Effect.ContentShadowStrong"
-                      BlurRadius="5"
-                      ShadowDepth="1"
-                      Direction="315"
-                      Opacity="0.95"
+                      Opacity="1"
                       Color="#FF000000"/>
 
     <!--
@@ -87,7 +79,7 @@
     <DataTemplate DataType="{x:Type vm:ToastHeaderLine}">
         <StackPanel Orientation="Horizontal"
                     VerticalAlignment="Center"
-                    Effect="{StaticResource PlayAch.Effect.ContentShadowStrong}">
+                    Effect="{StaticResource PlayAch.Effect.ContentShadow}">
             <Border Width="16"
                     Height="16"
                     CornerRadius="8"
@@ -99,7 +91,7 @@
                        helpers:AsyncImage.DecodePixel="64"/>
             </Border>
             <TextBlock Text="{Binding Parent.HeaderText}"
-                       Foreground="{DynamicResource PlayAch.Brush.Text.Secondary}"
+                       Foreground="{DynamicResource PlayAch.Brush.Text}"
                        FontSize="{Binding FontSize}"
                        FontFamily="{Binding FontFamily}"
                        TextTrimming="CharacterEllipsis">
@@ -118,7 +110,7 @@
                  completion, "<friend> completed the game!" for a friend's. Both texts honor
                  the user's header edits via the view model. -->
             <TextBlock Text="{Binding Parent.CompletionHeaderText}"
-                       Foreground="{DynamicResource PlayAch.Brush.Text.Secondary}"
+                       Foreground="{DynamicResource PlayAch.Brush.Text}"
                        FontSize="{Binding FontSize}"
                        FontFamily="{Binding FontFamily}"
                        TextTrimming="CharacterEllipsis">
@@ -138,7 +130,7 @@
                 </TextBlock.Style>
             </TextBlock>
             <TextBlock Text="{Binding Parent.FriendCompletionHeaderText}"
-                       Foreground="{DynamicResource PlayAch.Brush.Text.Secondary}"
+                       Foreground="{DynamicResource PlayAch.Brush.Text}"
                        FontSize="{Binding FontSize}"
                        FontFamily="{Binding FontFamily}"
                        TextTrimming="CharacterEllipsis">
@@ -160,13 +152,13 @@
             <!-- Optional unlock datetime -->
             <TextBlock Text="  &#8226;  "
                        Style="{DynamicResource PlayAch.TextBlock.BaseStyle}"
-                       Foreground="{DynamicResource PlayAch.Brush.Text.Secondary}"
+                       Foreground="{DynamicResource PlayAch.Brush.Text}"
                        FontSize="{Binding FontSize}"
                        FontFamily="{Binding FontFamily}"
                        Visibility="{Binding ShowDateSeparator, Converter={StaticResource BooleanToVisibilityConverter}}"/>
             <TextBlock Text="{Binding Parent.UnlockDateTimeText}"
                        Style="{DynamicResource PlayAch.TextBlock.BaseStyle}"
-                       Foreground="{DynamicResource PlayAch.Brush.Text.Secondary}"
+                       Foreground="{DynamicResource PlayAch.Brush.Text}"
                        FontSize="{Binding FontSize}"
                        FontFamily="{Binding FontFamily}"
                        Visibility="{Binding ShowUnlockTime, Converter={StaticResource BooleanToVisibilityConverter}}"/>
@@ -220,14 +212,14 @@
              game/category line follows, one when it does); the trailing ellipsis marks overflow. -->
         <TextBlock Text="{Binding Parent.Description}"
                    Style="{DynamicResource PlayAch.TextBlock.BaseStyle}"
-                   Foreground="{DynamicResource PlayAch.Brush.Text.Secondary}"
+                   Foreground="{DynamicResource PlayAch.Brush.Text}"
                    FontSize="{Binding FontSize}"
                    FontFamily="{Binding FontFamily}"
                    TextWrapping="Wrap"
                    TextTrimming="CharacterEllipsis"
                    MaxHeight="{Binding MaxTextHeight}"
                    Margin="0,2,0,0"
-                   Effect="{StaticResource PlayAch.Effect.ContentShadowStrong}"
+                   Effect="{StaticResource PlayAch.Effect.ContentShadow}"
                    Visibility="{Binding ShowDescription, Converter={StaticResource BooleanToVisibilityConverter}}"/>
     </DataTemplate>
 
@@ -237,13 +229,13 @@
              rather than overflowing into the provider-icon column. -->
         <TextBlock Text="{Binding GameCategoryText}"
                    Style="{DynamicResource PlayAch.TextBlock.BaseStyle}"
-                   Foreground="{DynamicResource PlayAch.Brush.Text.Secondary}"
+                   Foreground="{DynamicResource PlayAch.Brush.Text}"
                    FontSize="{Binding FontSize}"
                    FontFamily="{Binding FontFamily}"
                    TextWrapping="NoWrap"
                    TextTrimming="CharacterEllipsis"
                    Margin="0,2,0,0"
-                   Effect="{StaticResource PlayAch.Effect.ContentShadowStrong}"
+                   Effect="{StaticResource PlayAch.Effect.ContentShadow}"
                    Visibility="{Binding HasGameCategoryContent, Converter={StaticResource BooleanToVisibilityConverter}}"/>
     </DataTemplate>
 
@@ -392,7 +384,7 @@
                         <TextBlock x:Name="ToastRightPercent"
                                    Text="{Binding PercentText}"
                                    Style="{DynamicResource PlayAch.TextBlock.BaseStyle}"
-                                   Foreground="{DynamicResource PlayAch.Brush.Text.Secondary}"
+                                   Foreground="{DynamicResource PlayAch.Brush.Text}"
                                    FontSize="{Binding ToastHeaderFontSize}"
                                    FontFamily="{Binding ToastFontFamily}"
                                    HorizontalAlignment="Center"
@@ -486,7 +478,7 @@
                                Visibility="{Binding ShowBadge, Converter={StaticResource BooleanToVisibilityConverter}}"/>
                         <TextBlock Text="{Binding PercentText}"
                                    Style="{DynamicResource PlayAch.TextBlock.BaseStyle}"
-                                   Foreground="{DynamicResource PlayAch.Brush.Text.Secondary}"
+                                   Foreground="{DynamicResource PlayAch.Brush.Text}"
                                    FontSize="{Binding ToastHeaderFontSize}"
                                    FontFamily="{Binding ToastFontFamily}"
                                    VerticalAlignment="Center"
@@ -645,7 +637,7 @@
                                    Visibility="{Binding FrameShowBadge, Converter={StaticResource BooleanToVisibilityConverter}}"/>
                             <TextBlock Text="{Binding PercentText}"
                                        Style="{DynamicResource PlayAch.TextBlock.BaseStyle}"
-                                       Foreground="{DynamicResource PlayAch.Brush.Text.Secondary}"
+                                       Foreground="{DynamicResource PlayAch.Brush.Text}"
                                        FontSize="{Binding FrameHeaderFontSize}"
                                        FontFamily="{Binding FrameFontFamily}"
                                        VerticalAlignment="Center"
@@ -701,7 +693,7 @@
                                    RenderOptions.BitmapScalingMode="HighQuality"/>
                             <TextBlock Text="{Binding PercentText}"
                                        Style="{DynamicResource PlayAch.TextBlock.BaseStyle}"
-                                       Foreground="{DynamicResource PlayAch.Brush.Text.Secondary}"
+                                       Foreground="{DynamicResource PlayAch.Brush.Text}"
                                        FontSize="{Binding FrameHeaderFontSize}"
                                        FontFamily="{Binding FrameFontFamily}"
                                        HorizontalAlignment="Center"
@@ -730,12 +722,12 @@
                                     Margin="12,0,0,0">
                             <TextBlock Text="Playnite"
                                        Style="{DynamicResource PlayAch.TextBlock.BaseStyle}"
-                                       Foreground="{DynamicResource PlayAch.Brush.Text.Secondary}"
+                                       Foreground="{DynamicResource PlayAch.Brush.Text}"
                                        FontSize="17"
                                        FontWeight="SemiBold"/>
                             <TextBlock Text="Achievements"
                                        Style="{DynamicResource PlayAch.TextBlock.BaseStyle}"
-                                       Foreground="{DynamicResource PlayAch.Brush.Text.Secondary}"
+                                       Foreground="{DynamicResource PlayAch.Brush.Text}"
                                        FontSize="17"
                                        FontWeight="SemiBold"/>
                         </StackPanel>
