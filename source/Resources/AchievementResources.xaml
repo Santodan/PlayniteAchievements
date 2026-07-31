@@ -460,6 +460,12 @@
                                 Background="Transparent"
                                 BorderBrush="{Binding IconBorderBrush}"
                                 Visibility="{Binding ShowShineBorder, Converter={StaticResource BooleanToVisibilityConverter}}"/>
+                        <!-- Preview only: a thin gold outline marks the icon's full boundary so the
+                             icon size and surrounding padding are easy to judge in the mockup. -->
+                        <Border BorderThickness="1"
+                                BorderBrush="#FFD4AF37"
+                                Background="Transparent"
+                                Visibility="{Binding IsPreview, Converter={StaticResource BooleanToVisibilityConverter}}"/>
                     </Grid>
 
                     <StackPanel x:Name="ToastIconExtras"
@@ -622,6 +628,11 @@
                                     Background="Transparent"
                                     BorderBrush="{Binding IconBorderBrush}"
                                     Visibility="{Binding FrameShowShineBorder, Converter={StaticResource BooleanToVisibilityConverter}}"/>
+                            <!-- Preview only: thin gold outline marking the icon's full boundary. -->
+                            <Border BorderThickness="1"
+                                    BorderBrush="#FFD4AF37"
+                                    Background="Transparent"
+                                    Visibility="{Binding IsPreview, Converter={StaticResource BooleanToVisibilityConverter}}"/>
                         </Grid>
                         <StackPanel Orientation="Horizontal"
                                     HorizontalAlignment="Center"
