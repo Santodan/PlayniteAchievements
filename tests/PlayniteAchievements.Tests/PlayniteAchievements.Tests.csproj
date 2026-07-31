@@ -269,6 +269,7 @@
     <Compile Include="..\..\source\ViewModels\ToastLineDescriptor.cs" Link="Source\ViewModels\ToastLineDescriptor.cs" />
     <Compile Include="..\..\source\Views\Converters\PercentToRarityGlowConverter.cs" Link="Source\Views\Converters\PercentToRarityGlowConverter.cs" />
     <Compile Include="..\..\source\Views\Converters\ImageFitDimensionConverter.cs" Link="Source\Views\Converters\ImageFitDimensionConverter.cs" />
+    <Compile Include="..\..\source\Views\Converters\ProviderIconConverter.cs" Link="Source\Views\Converters\ProviderIconConverter.cs" />
     <Compile Include="..\..\source\Models\AuthOutcome.cs" Link="Source\Models\AuthOutcome.cs" />
     <Compile Include="..\..\source\Models\AuthProbeResult.cs" Link="Source\Models\AuthProbeResult.cs" />
     <Compile Include="..\..\source\Models\CacheDeltaEventArgs.cs" Link="Source\Models\CacheDeltaEventArgs.cs" />
