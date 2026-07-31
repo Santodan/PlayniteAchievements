@@ -18,7 +18,12 @@
         <StackPanel Margin="20">
 
             <!-- Provider Header -->
-            <TextBlock Text="{DynamicResource LOCPlayAch_Provider_GameJolt}" Style="{StaticResource ProviderTitleOnlyTextStyle}"/>
+            <StackPanel Style="{StaticResource ProviderHeaderPanelStyle}">
+                <Viewbox Style="{StaticResource ProviderHeaderIconStyle}">
+                    <Path Data="{StaticResource GeoGameJolt}" Fill="{StaticResource PlayAch.Brush.ProviderGameJolt}"/>
+                </Viewbox>
+                <TextBlock Text="{DynamicResource LOCPlayAch_Provider_GameJolt}" Style="{StaticResource ProviderTitleTextStyle}"/>
+            </StackPanel>
 
             <Border Style="{StaticResource ProviderEnableToggleBorderStyle}">
                 <CheckBox Content="{DynamicResource LOCPlayAch_Settings_ProviderEnabled}"
