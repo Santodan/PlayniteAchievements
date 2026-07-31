@@ -405,11 +405,13 @@
                 <StackPanel Grid.Column="0"
                             VerticalAlignment="Center"
                             HorizontalAlignment="Center"
-                            Margin="0,0,13,0">
+                            Margin="0,0,14,0">
                     <!-- Center the icon (not the icon+extras group) on the row: a top spacer equal
-                         to the extras' height balances the badge/percent hanging below, so the icon
-                         itself lands on the row's vertical center alongside the text. -->
+                         to the extras' height PLUS the icon->extras gap (4) balances the badge/
+                         percent hanging below, so the icon itself lands exactly on the row's
+                         vertical center alongside the text. -->
                     <Border Height="{Binding ActualHeight, ElementName=ToastIconExtras}"
+                            Margin="0,0,0,4"
                             IsHitTestVisible="False"/>
                     <Grid Width="{Binding ToastIconSize}"
                           Height="{Binding ToastIconSize}"
