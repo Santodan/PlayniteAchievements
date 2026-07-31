@@ -88,11 +88,11 @@ namespace PlayniteAchievements.Models.Settings
         private string _unlockScreenshotSuffixWithToast = "notification";
         private string _unlockScreenshotSuffixFramed = "framed";
         private string _unlockScreenshotDirectory;
-        private RarityTier _unlockScreenshotCleanMinimumRarity = RarityTier.Common;
+        private RaritySelection _unlockScreenshotCleanRarities = RaritySelection.All;
         private bool _unlockScreenshotCleanAlwaysCaptureCompletion = true;
-        private RarityTier _unlockScreenshotWithToastMinimumRarity = RarityTier.Common;
+        private RaritySelection _unlockScreenshotWithToastRarities = RaritySelection.All;
         private bool _unlockScreenshotWithToastAlwaysCaptureCompletion = true;
-        private RarityTier _unlockScreenshotFramedMinimumRarity = RarityTier.Common;
+        private RaritySelection _unlockScreenshotFramedRarities = RaritySelection.All;
         private bool _unlockScreenshotFramedAlwaysCaptureCompletion = true;
         private bool _enableUnlockRecordings = false;
         private string _ffmpegPath;
@@ -103,7 +103,7 @@ namespace PlayniteAchievements.Models.Settings
         private RecordingEncoder _recordingEncoder = RecordingEncoder.Auto;
         private RecordingCaptureBackend _recordingCaptureBackend = RecordingCaptureBackend.Auto;
         private bool _recordingIncludeAudio = false;
-        private RarityTier _unlockRecordingMinimumRarity = RarityTier.Common;
+        private RaritySelection _unlockRecordingRarities = RaritySelection.All;
         private bool _unlockRecordingAlwaysCaptureCompletion = true;
         private Dictionary<string, ProviderNotificationOverride> _providerNotificationOverrides =
             new Dictionary<string, ProviderNotificationOverride>(StringComparer.OrdinalIgnoreCase);
@@ -1072,12 +1072,12 @@ namespace PlayniteAchievements.Models.Settings
         }
 
         /// <summary>
-        /// The least-rare achievement tier that produces clean-variant unlock screenshots.
+        /// The set of achievement rarity tiers that produce clean-variant unlock screenshots.
         /// </summary>
-        public RarityTier UnlockScreenshotCleanMinimumRarity
+        public RaritySelection UnlockScreenshotCleanRarities
         {
-            get => _unlockScreenshotCleanMinimumRarity;
-            set => SetValue(ref _unlockScreenshotCleanMinimumRarity, value);
+            get => _unlockScreenshotCleanRarities;
+            set => SetValue(ref _unlockScreenshotCleanRarities, value);
         }
 
         /// <summary>
@@ -1091,12 +1091,12 @@ namespace PlayniteAchievements.Models.Settings
         }
 
         /// <summary>
-        /// The least-rare achievement tier that produces with-notification-variant unlock screenshots.
+        /// The set of achievement rarity tiers that produce with-notification-variant unlock screenshots.
         /// </summary>
-        public RarityTier UnlockScreenshotWithToastMinimumRarity
+        public RaritySelection UnlockScreenshotWithToastRarities
         {
-            get => _unlockScreenshotWithToastMinimumRarity;
-            set => SetValue(ref _unlockScreenshotWithToastMinimumRarity, value);
+            get => _unlockScreenshotWithToastRarities;
+            set => SetValue(ref _unlockScreenshotWithToastRarities, value);
         }
 
         /// <summary>
@@ -1110,12 +1110,12 @@ namespace PlayniteAchievements.Models.Settings
         }
 
         /// <summary>
-        /// The least-rare achievement tier that produces framed-variant unlock screenshots.
+        /// The set of achievement rarity tiers that produce framed-variant unlock screenshots.
         /// </summary>
-        public RarityTier UnlockScreenshotFramedMinimumRarity
+        public RaritySelection UnlockScreenshotFramedRarities
         {
-            get => _unlockScreenshotFramedMinimumRarity;
-            set => SetValue(ref _unlockScreenshotFramedMinimumRarity, value);
+            get => _unlockScreenshotFramedRarities;
+            set => SetValue(ref _unlockScreenshotFramedRarities, value);
         }
 
         /// <summary>
@@ -1205,12 +1205,12 @@ namespace PlayniteAchievements.Models.Settings
         }
 
         /// <summary>
-        /// The least-rare achievement tier that produces unlock recording clips.
+        /// The set of achievement rarity tiers that produce unlock recording clips.
         /// </summary>
-        public RarityTier UnlockRecordingMinimumRarity
+        public RaritySelection UnlockRecordingRarities
         {
-            get => _unlockRecordingMinimumRarity;
-            set => SetValue(ref _unlockRecordingMinimumRarity, value);
+            get => _unlockRecordingRarities;
+            set => SetValue(ref _unlockRecordingRarities, value);
         }
 
         /// <summary>
@@ -2462,11 +2462,11 @@ namespace PlayniteAchievements.Models.Settings
                 UnlockScreenshotSuffixWithToast = this.UnlockScreenshotSuffixWithToast,
                 UnlockScreenshotSuffixFramed = this.UnlockScreenshotSuffixFramed,
                 UnlockScreenshotDirectory = this.UnlockScreenshotDirectory,
-                UnlockScreenshotCleanMinimumRarity = this.UnlockScreenshotCleanMinimumRarity,
+                UnlockScreenshotCleanRarities = this.UnlockScreenshotCleanRarities,
                 UnlockScreenshotCleanAlwaysCaptureCompletion = this.UnlockScreenshotCleanAlwaysCaptureCompletion,
-                UnlockScreenshotWithToastMinimumRarity = this.UnlockScreenshotWithToastMinimumRarity,
+                UnlockScreenshotWithToastRarities = this.UnlockScreenshotWithToastRarities,
                 UnlockScreenshotWithToastAlwaysCaptureCompletion = this.UnlockScreenshotWithToastAlwaysCaptureCompletion,
-                UnlockScreenshotFramedMinimumRarity = this.UnlockScreenshotFramedMinimumRarity,
+                UnlockScreenshotFramedRarities = this.UnlockScreenshotFramedRarities,
                 UnlockScreenshotFramedAlwaysCaptureCompletion = this.UnlockScreenshotFramedAlwaysCaptureCompletion,
                 EnableUnlockRecordings = this.EnableUnlockRecordings,
                 FfmpegPath = this.FfmpegPath,
@@ -2477,7 +2477,7 @@ namespace PlayniteAchievements.Models.Settings
                 RecordingEncoder = this.RecordingEncoder,
                 RecordingCaptureBackend = this.RecordingCaptureBackend,
                 RecordingIncludeAudio = this.RecordingIncludeAudio,
-                UnlockRecordingMinimumRarity = this.UnlockRecordingMinimumRarity,
+                UnlockRecordingRarities = this.UnlockRecordingRarities,
                 UnlockRecordingAlwaysCaptureCompletion = this.UnlockRecordingAlwaysCaptureCompletion,
                 ProviderNotificationOverrides = this.ProviderNotificationOverrides != null
                     ? this.ProviderNotificationOverrides.ToDictionary(

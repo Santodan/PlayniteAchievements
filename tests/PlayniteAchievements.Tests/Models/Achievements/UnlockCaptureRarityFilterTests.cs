@@ -7,41 +7,44 @@ namespace PlayniteAchievements.Models.Tests.Achievements
     public class UnlockCaptureRarityFilterTests
     {
         [DataTestMethod]
-        [DataRow(RarityTier.Common, RarityTier.Common, true)]
-        [DataRow(RarityTier.Common, RarityTier.Uncommon, false)]
-        [DataRow(RarityTier.Common, RarityTier.Rare, false)]
-        [DataRow(RarityTier.Common, RarityTier.UltraRare, false)]
-        [DataRow(RarityTier.Uncommon, RarityTier.Common, true)]
-        [DataRow(RarityTier.Uncommon, RarityTier.Uncommon, true)]
-        [DataRow(RarityTier.Uncommon, RarityTier.Rare, false)]
-        [DataRow(RarityTier.Uncommon, RarityTier.UltraRare, false)]
-        [DataRow(RarityTier.Rare, RarityTier.Common, true)]
-        [DataRow(RarityTier.Rare, RarityTier.Uncommon, true)]
-        [DataRow(RarityTier.Rare, RarityTier.Rare, true)]
-        [DataRow(RarityTier.Rare, RarityTier.UltraRare, false)]
-        [DataRow(RarityTier.UltraRare, RarityTier.Common, true)]
-        [DataRow(RarityTier.UltraRare, RarityTier.Uncommon, true)]
-        [DataRow(RarityTier.UltraRare, RarityTier.Rare, true)]
-        [DataRow(RarityTier.UltraRare, RarityTier.UltraRare, true)]
-        public void ShouldCapture_UsesInclusiveMinimumRarity(
+        [DataRow(RarityTier.Common, RaritySelection.Common, true)]
+        [DataRow(RarityTier.Common, RaritySelection.UltraRare, false)]
+        [DataRow(RarityTier.Rare, RaritySelection.Rare | RaritySelection.UltraRare, true)]
+        [DataRow(RarityTier.Uncommon, RaritySelection.Rare | RaritySelection.UltraRare, false)]
+        [DataRow(RarityTier.UltraRare, RaritySelection.All, true)]
+        [DataRow(RarityTier.Common, RaritySelection.None, false)]
+        public void ShouldCapture_UsesSetMembership(
             RarityTier rarity,
-            RarityTier minimumRarity,
+            RaritySelection selectedRarities,
             bool expected)
         {
             var actual = UnlockCaptureRarityFilter.ShouldCapture(
                 rarity,
                 isCompletionUnlock: false,
-                minimumRarity,
+                selectedRarities,
                 alwaysCaptureCompletion: true);
 
             Assert.AreEqual(expected, actual);
+        }
+
+        [TestMethod]
+        public void ShouldCapture_EmptySelectionCapturesNothingByRarity()
+        {
+            foreach (RarityTier tier in System.Enum.GetValues(typeof(RarityTier)))
+            {
+                Assert.IsFalse(UnlockCaptureRarityFilter.ShouldCapture(
+                    tier,
+                    isCompletionUnlock: false,
+                    RaritySelection.None,
+                    alwaysCaptureCompletion: false));
+            }
         }
 
         [DataTestMethod]
         [DataRow(true, false, false)]
         [DataRow(false, true, false)]
         [DataRow(false, false, true)]
-        public void ShouldCapture_CompletionFlagBypassesThresholdWhenEnabled(
+        public void ShouldCapture_CompletionFlagBypassesEmptySetWhenEnabled(
             bool isGameCompleted,
             bool isCompletionAchievement,
             bool isCapstone)
@@ -54,14 +57,15 @@ namespace PlayniteAchievements.Models.Tests.Achievements
                 IsCapstone = isCapstone
             };
 
+            // Even with no rarities selected, a completion unlock is captured when the bypass is on.
             Assert.IsTrue(UnlockCaptureRarityFilter.ShouldCapture(
                 args,
-                RarityTier.UltraRare,
+                RaritySelection.None,
                 alwaysCaptureCompletion: true));
         }
 
         [TestMethod]
-        public void ShouldCapture_CompletionDoesNotBypassThresholdWhenDisabled()
+        public void ShouldCapture_CompletionDoesNotBypassSetWhenDisabled()
         {
             var args = new AchievementUnlockedEventArgs
             {
@@ -71,7 +75,7 @@ namespace PlayniteAchievements.Models.Tests.Achievements
 
             Assert.IsFalse(UnlockCaptureRarityFilter.ShouldCapture(
                 args,
-                RarityTier.UltraRare,
+                RaritySelection.UltraRare,
                 alwaysCaptureCompletion: false));
         }
 
@@ -85,11 +89,11 @@ namespace PlayniteAchievements.Models.Tests.Achievements
 
             Assert.IsTrue(UnlockCaptureRarityFilter.ShouldCapture(
                 args,
-                RarityTier.Common,
+                RaritySelection.Common,
                 alwaysCaptureCompletion: false));
             Assert.IsFalse(UnlockCaptureRarityFilter.ShouldCapture(
                 args,
-                RarityTier.Uncommon,
+                RaritySelection.Uncommon,
                 alwaysCaptureCompletion: false));
         }
 
@@ -98,8 +102,19 @@ namespace PlayniteAchievements.Models.Tests.Achievements
         {
             Assert.IsFalse(UnlockCaptureRarityFilter.ShouldCapture(
                 args: null,
-                RarityTier.Common,
+                RaritySelection.All,
                 alwaysCaptureCompletion: true));
+        }
+
+        [DataTestMethod]
+        [DataRow(RarityTier.Common, RaritySelection.Common)]
+        [DataRow(RarityTier.Uncommon, RaritySelection.Uncommon)]
+        [DataRow(RarityTier.Rare, RaritySelection.Rare)]
+        [DataRow(RarityTier.UltraRare, RaritySelection.UltraRare)]
+        public void ToFlag_MapsEachTierToItsBit(RarityTier tier, RaritySelection expected)
+        {
+            Assert.AreEqual(expected, tier.ToFlag());
+            Assert.IsTrue(expected.Contains(tier));
         }
     }
 }

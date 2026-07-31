@@ -108,11 +108,11 @@ namespace PlayniteAchievements.Models.Settings
             target.UnlockScreenshotSuffixWithToast = source.UnlockScreenshotSuffixWithToast;
             target.UnlockScreenshotSuffixFramed = source.UnlockScreenshotSuffixFramed;
             target.UnlockScreenshotDirectory = source.UnlockScreenshotDirectory;
-            target.UnlockScreenshotCleanMinimumRarity = source.UnlockScreenshotCleanMinimumRarity;
+            target.UnlockScreenshotCleanRarities = source.UnlockScreenshotCleanRarities;
             target.UnlockScreenshotCleanAlwaysCaptureCompletion = source.UnlockScreenshotCleanAlwaysCaptureCompletion;
-            target.UnlockScreenshotWithToastMinimumRarity = source.UnlockScreenshotWithToastMinimumRarity;
+            target.UnlockScreenshotWithToastRarities = source.UnlockScreenshotWithToastRarities;
             target.UnlockScreenshotWithToastAlwaysCaptureCompletion = source.UnlockScreenshotWithToastAlwaysCaptureCompletion;
-            target.UnlockScreenshotFramedMinimumRarity = source.UnlockScreenshotFramedMinimumRarity;
+            target.UnlockScreenshotFramedRarities = source.UnlockScreenshotFramedRarities;
             target.UnlockScreenshotFramedAlwaysCaptureCompletion = source.UnlockScreenshotFramedAlwaysCaptureCompletion;
             target.EnableUnlockRecordings = source.EnableUnlockRecordings;
             target.FfmpegPath = source.FfmpegPath;
@@ -123,7 +123,7 @@ namespace PlayniteAchievements.Models.Settings
             target.RecordingEncoder = source.RecordingEncoder;
             target.RecordingCaptureBackend = source.RecordingCaptureBackend;
             target.RecordingIncludeAudio = source.RecordingIncludeAudio;
-            target.UnlockRecordingMinimumRarity = source.UnlockRecordingMinimumRarity;
+            target.UnlockRecordingRarities = source.UnlockRecordingRarities;
             target.UnlockRecordingAlwaysCaptureCompletion = source.UnlockRecordingAlwaysCaptureCompletion;
             target.ProviderNotificationOverrides = source.ProviderNotificationOverrides != null
                 ? source.ProviderNotificationOverrides.ToDictionary(

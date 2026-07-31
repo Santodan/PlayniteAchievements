@@ -556,7 +556,7 @@
     <sys:String x:Key="LOCPlayAch_Settings_ScreenshotVariantFramed">Framed</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_ScreenshotSuffixes">Filename suffixes</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_ScreenshotSuffixesHint">Appended to screenshot filenames. Leave blank for no suffix.</sys:String>
-    <sys:String x:Key="LOCPlayAch_Settings_CaptureMinimumRarity">Minimum rarity to capture</sys:String>
+    <sys:String x:Key="LOCPlayAch_Settings_CaptureMinimumRarity">Rarities to capture</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_AlwaysCaptureCompletion">Always capture game completion unlocks</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_FrameHeader">Screenshot frame</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_Style_ToastTab">Notification</sys:String>

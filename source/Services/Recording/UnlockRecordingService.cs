@@ -776,7 +776,7 @@ namespace PlayniteAchievements.Services.Recording
             var persisted = _settings.Persisted;
             if (!UnlockCaptureRarityFilter.ShouldCapture(
                     e,
-                    persisted.UnlockRecordingMinimumRarity,
+                    persisted.UnlockRecordingRarities,
                     persisted.UnlockRecordingAlwaysCaptureCompletion))
             {
                 _logger?.Debug(

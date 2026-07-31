@@ -65,6 +65,7 @@ namespace PlayniteAchievements.Views.Settings.Notifications
         {
             _generalSection?.Dispose();
             _appearanceSection?.Dispose();
+            _captureSection?.Dispose();
         }
     }
 }

@@ -173,7 +173,7 @@ namespace PlayniteAchievements.Services.UI
             if (effective.ScreenshotClean && UnlockCaptureRarityFilter.ShouldCapture(
                     rarity,
                     isCompletion,
-                    persisted.UnlockScreenshotCleanMinimumRarity,
+                    persisted.UnlockScreenshotCleanRarities,
                     persisted.UnlockScreenshotCleanAlwaysCaptureCompletion))
             {
                 variants |= ScreenshotVariants.Clean;
@@ -182,7 +182,7 @@ namespace PlayniteAchievements.Services.UI
             if (effective.ScreenshotWithToast && toastWillShow && UnlockCaptureRarityFilter.ShouldCapture(
                     rarity,
                     isCompletion,
-                    persisted.UnlockScreenshotWithToastMinimumRarity,
+                    persisted.UnlockScreenshotWithToastRarities,
                     persisted.UnlockScreenshotWithToastAlwaysCaptureCompletion))
             {
                 variants |= ScreenshotVariants.WithToast;
@@ -191,7 +191,7 @@ namespace PlayniteAchievements.Services.UI
             if (effective.ScreenshotFramed && UnlockCaptureRarityFilter.ShouldCapture(
                     rarity,
                     isCompletion,
-                    persisted.UnlockScreenshotFramedMinimumRarity,
+                    persisted.UnlockScreenshotFramedRarities,
                     persisted.UnlockScreenshotFramedAlwaysCaptureCompletion))
             {
                 variants |= ScreenshotVariants.Framed;
