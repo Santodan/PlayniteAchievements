@@ -42,7 +42,7 @@ namespace PlayniteAchievements.Providers.RetroAchievements
         public new RetroAchievementsSettings Settings => _raSettings;
 
         /// <summary>Per-emulator log-tracking rows shown in the "instant notifications" section.</summary>
-        public IReadOnlyList<RaEmulatorLogRowViewModel> EmulatorLogRows { get; private set; } =
+        public System.Collections.IEnumerable EmulatorLogRows { get; private set; } =
             Array.Empty<RaEmulatorLogRowViewModel>();
 
         public RetroAchievementsSettingsView(string pluginUserDataPath)
