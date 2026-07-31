@@ -1085,44 +1085,50 @@ namespace PlayniteAchievements.Services.Recording
                 // fullscreen game keeps the cheap stream copy.
                 var crop = ResolveCropRectangle(session);
 
-                // Ladder: preferred form first, then degrade — re-encode retry, then uncropped,
-                // then (below) audio-less. A worse clip always beats no clip.
-                var ok = await RunTrimAsync(session, listPath, plan, audioListPath, audioPlan, tempPath, reencode: false, crop)
-                    .ConfigureAwait(false);
-                if (!ok)
+                // Degrade ladder: preferred form first (cropped + audio when available), then drop
+                // the crop, then drop the audio; each state is tried as a stream copy before a
+                // re-encode. A worse clip always beats no clip.
+                var attempts = new List<(System.Drawing.Rectangle? Crop, bool UseAudio)>
                 {
-                    TryDeleteFile(tempPath);
-                    ok = await RunTrimAsync(session, listPath, plan, audioListPath, audioPlan, tempPath, reencode: true, crop)
-                        .ConfigureAwait(false);
+                    (crop, audioPlan != null),
+                };
+                if (crop.HasValue)
+                {
+                    attempts.Add((null, audioPlan != null));
                 }
 
-                if (!ok && crop.HasValue)
+                if (audioPlan != null)
                 {
-                    _logger?.Debug($"[Recording] Cropped export failed for '{request.AchievementName}'; retrying uncropped.");
-                    TryDeleteFile(tempPath);
-                    crop = null;
-                    ok = await RunTrimAsync(session, listPath, plan, audioListPath, audioPlan, tempPath, reencode: false, crop)
-                        .ConfigureAwait(false);
-                    if (!ok)
+                    attempts.Add((null, false));
+                }
+
+                var ok = false;
+                for (var i = 0; i < attempts.Count && !ok; i++)
+                {
+                    var attempt = attempts[i];
+                    if (i > 0)
                     {
-                        TryDeleteFile(tempPath);
-                        ok = await RunTrimAsync(session, listPath, plan, audioListPath, audioPlan, tempPath, reencode: true, crop)
-                            .ConfigureAwait(false);
+                        _logger?.Debug(
+                            $"[Recording] Clip export for '{request.AchievementName}' degrading (crop={attempt.Crop.HasValue}, audio={attempt.UseAudio}).");
                     }
-                }
 
-                if (!ok && audioPlan != null)
-                {
-                    // Audio must never cost the clip: retry the whole ladder without it.
-                    _logger?.Debug($"[Recording] Clip export with audio failed for '{request.AchievementName}'; retrying video-only.");
-                    TryDeleteFile(tempPath);
-                    ok = await RunTrimAsync(session, listPath, plan, null, null, tempPath, reencode: false, crop)
-                        .ConfigureAwait(false);
-                    if (!ok)
+                    foreach (var reencode in new[] { false, true })
                     {
                         TryDeleteFile(tempPath);
-                        ok = await RunTrimAsync(session, listPath, plan, null, null, tempPath, reencode: true, crop)
+                        ok = await RunTrimAsync(
+                                session,
+                                listPath,
+                                plan,
+                                attempt.UseAudio ? audioListPath : null,
+                                attempt.UseAudio ? audioPlan : null,
+                                tempPath,
+                                reencode,
+                                attempt.Crop)
                             .ConfigureAwait(false);
+                        if (ok)
+                        {
+                            break;
+                        }
                     }
                 }
 
