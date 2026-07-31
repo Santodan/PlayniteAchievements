@@ -11,6 +11,7 @@ using PlayniteAchievements.ViewModels.Items;
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Reflection;
 using System.Threading;
 
 namespace PlayniteAchievements.Tests.ViewModels
@@ -435,7 +436,7 @@ namespace PlayniteAchievements.Tests.ViewModels
 
             viewModel.SelectedFriend = data.Friends[0];
             viewModel.SelectedGame = data.Games[0];
-            viewModel.PairAchievementsFetchTask?.GetAwaiter().GetResult();
+            SettlePairFetch(viewModel);
 
             CollectionAssert.AreEquivalent(
                 new[] { "Recent Only", "Alice Locked", "Alice Hidden Locked" },
@@ -689,7 +690,7 @@ namespace PlayniteAchievements.Tests.ViewModels
 
             viewModel.SelectedFriend = data.Friends[0];
             viewModel.SelectedGame = data.Games[0];
-            viewModel.PairAchievementsFetchTask?.GetAwaiter().GetResult();
+            SettlePairFetch(viewModel);
 
             // The displayed grid follows the configured default sort (unlock time descending), but
             // the category-summary source preserves the definition-ordered pair load.
@@ -1114,14 +1115,30 @@ namespace PlayniteAchievements.Tests.ViewModels
         public void FriendProviderFilterMatchesMergedMembership()
         {
             var data = CreateData();
+            // Dana is a genuinely merged friend: two real per-provider accounts (Steam +
+            // RetroAchievements) that the merge pipeline folds into one merged summary carrying both
+            // member providers. This exercises the same path production uses instead of injecting a
+            // synthetic pre-merged row (which the projection re-individualizes when no group exists).
             data.Friends.Add(new FriendSummaryItem
             {
-                ProviderKey = FriendOverviewProjection.MergedProviderKey,
-                ExternalUserId = "dana",
-                DisplayName = "Dana",
-                MemberProviderKeys = new List<string> { "Steam", "RetroAchievements" }
+                ProviderKey = "Steam",
+                ExternalUserId = "dana-steam",
+                DisplayName = "Dana"
             });
-            var viewModel = CreateViewModel(data);
+            data.Friends.Add(new FriendSummaryItem
+            {
+                ProviderKey = "RetroAchievements",
+                ExternalUserId = "dana-ra",
+                DisplayName = "Dana"
+            });
+            var viewModel = CreateViewModel(data, settings =>
+                settings.AddOrUpdateFriendMergeGroup(
+                    new[]
+                    {
+                        FriendAccountRef.From("Steam", "dana-steam"),
+                        FriendAccountRef.From("RetroAchievements", "dana-ra")
+                    },
+                    nickname: "Dana"));
             viewModel.LoadAsync().GetAwaiter().GetResult();
 
             // Options carry the raw service keys, including merged members.
@@ -1421,6 +1438,26 @@ namespace PlayniteAchievements.Tests.ViewModels
             CollectionAssert.AreEqual(
                 new[] { 999 },
                 request.Options.ProviderAppIds.ToList());
+        }
+
+        private static readonly MethodInfo ApplyFiltersMethod =
+            typeof(FriendsOverviewViewModel).GetMethod(
+                "ApplyFilters",
+                BindingFlags.Instance | BindingFlags.NonPublic,
+                null,
+                new[] { typeof(bool) },
+                null);
+
+        // Awaits the on-demand pair fetch, then forces one more filter pass so the loaded rows are
+        // rendered deterministically. The view model applies pair rows through ApplyFilters; without
+        // a WPF dispatcher in the test host the fetch continuation can run inline within an in-flight
+        // ApplyFilters and be dropped by its re-entrancy guard. Under a real Playnite Application the
+        // apply is marshalled as a separate dispatcher operation and renders on its own; this barrier
+        // reaches the same settled state here without depending on thread-pool timing.
+        private static void SettlePairFetch(FriendsOverviewViewModel viewModel)
+        {
+            viewModel.PairAchievementsFetchTask?.GetAwaiter().GetResult();
+            ApplyFiltersMethod.Invoke(viewModel, new object[] { true });
         }
 
         private static FriendsOverviewViewModel CreateViewModel(
