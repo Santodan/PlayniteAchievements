@@ -174,17 +174,29 @@ namespace PlayniteAchievements.Providers.GameJolt
 
                     if (!string.IsNullOrWhiteSpace(username))
                     {
-                        var unlocksUrl = string.Format(
-                            CultureInfo.InvariantCulture,
-                            UrlProfileTrophiesGameFormat,
-                            GameJoltTrophyMapper.FormatUser(username),
-                            trophyId);
-                        var unlocksJson = await FetchViaPageScriptAsync(view, unlocksUrl, ct).ConfigureAwait(false);
-                        GameJoltTrophyMapper.ApplyUnlocks(achievements, unlocksJson, trophyId);
+                        // Primary unlock source: the complete achieved list embedded in the (authenticated)
+                        // definitions response, exactly as the website's trophy page uses it.
+                        var achievedCount = GameJoltTrophyMapper.ApplyAchievedRecords(achievements, definitionsJson, trophyId);
+                        _logger?.Info($"[GameJolt] Game {trophyId}: {achievedCount} achieved record(s) from definitions payload.");
+
+                        if (achievedCount == 0)
+                        {
+                            // Fallback: the definitions response carried no achieved list (e.g. the request
+                            // was not authenticated). Use the per-user endpoint, which at least returns the
+                            // user's most recent unlocks for the game.
+                            var unlocksUrl = string.Format(
+                                CultureInfo.InvariantCulture,
+                                UrlProfileTrophiesGameFormat,
+                                GameJoltTrophyMapper.FormatUser(username),
+                                trophyId);
+                            var unlocksJson = await FetchViaPageScriptAsync(view, unlocksUrl, ct).ConfigureAwait(false);
+                            GameJoltTrophyMapper.ApplyUnlocks(achievements, unlocksJson, trophyId);
+                            _logger?.Info($"[GameJolt] Game {trophyId}: achieved list empty; fell back to per-user endpoint " +
+                                $"(length={unlocksJson?.Length ?? 0}).");
+                        }
 
                         var unlockedCount = achievements.Count(a => a.Unlocked);
-                        _logger?.Info($"[GameJolt] Game {trophyId}: unlocks length={unlocksJson?.Length ?? 0}, " +
-                            $"{unlockedCount}/{achievements.Count} unlocked after merge.");
+                        _logger?.Info($"[GameJolt] Game {trophyId}: {unlockedCount}/{achievements.Count} unlocked after merge.");
                     }
 
                     return achievements;
