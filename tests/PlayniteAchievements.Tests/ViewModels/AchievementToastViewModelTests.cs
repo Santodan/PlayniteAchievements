@@ -3,6 +3,7 @@ using PlayniteAchievements.Models;
 using PlayniteAchievements.Models.Achievements;
 using PlayniteAchievements.Models.Settings;
 using PlayniteAchievements.Services.GameCustomData;
+using PlayniteAchievements.Tests.TestInfrastructure;
 using PlayniteAchievements.ViewModels;
 using System;
 using System.IO;
@@ -70,27 +71,32 @@ namespace PlayniteAchievements.Tests.ViewModels
         [TestMethod]
         public void CompletionPalette_AlwaysAvailableRegardlessOfKind()
         {
-            var viewModel = new AchievementToastViewModel(
-                new AchievementUnlockedEventArgs
-                {
-                    RarityTier = "Rare",
-                    GlobalPercent = 9.3
-                },
-                new PersistedSettings
-                {
-                    NotificationStyle = new NotificationStyleSettings
+            // CompletedBadgeImage builds from pack://.../PlayniteAchievements;component/Resources/
+            // RarityBadges.xaml geometry, which must be materialized on an STA apartment.
+            LocalizationAssemblyInitializer.RunOnSta(() =>
+            {
+                var viewModel = new AchievementToastViewModel(
+                    new AchievementUnlockedEventArgs
                     {
-                        Toast = new NotificationSurfaceStyle { ShowRarityGlow = true },
-                        Frame = new NotificationSurfaceStyle { ShowRarityGlow = true }
-                    }
-                });
+                        RarityTier = "Rare",
+                        GlobalPercent = 9.3
+                    },
+                    new PersistedSettings
+                    {
+                        NotificationStyle = new NotificationStyleSettings
+                        {
+                            Toast = new NotificationSurfaceStyle { ShowRarityGlow = true },
+                            Frame = new NotificationSurfaceStyle { ShowRarityGlow = true }
+                        }
+                    });
 
-            Assert.IsFalse(viewModel.IsGameCompleted);
-            Assert.IsNotNull(viewModel.CompletedBrush);
-            Assert.IsNotNull(viewModel.CompletedGlowEffect);
-            Assert.IsNotNull(viewModel.FrameCompletedGlowEffect);
-            Assert.IsNotNull(viewModel.CompletedBadgeImage);
-            Assert.IsNotNull(viewModel.RarityBrush);
+                Assert.IsFalse(viewModel.IsGameCompleted);
+                Assert.IsNotNull(viewModel.CompletedBrush);
+                Assert.IsNotNull(viewModel.CompletedGlowEffect);
+                Assert.IsNotNull(viewModel.FrameCompletedGlowEffect);
+                Assert.IsNotNull(viewModel.CompletedBadgeImage);
+                Assert.IsNotNull(viewModel.RarityBrush);
+            });
         }
 
         [TestMethod]
