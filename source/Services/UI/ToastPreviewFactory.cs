@@ -1,4 +1,6 @@
 using System;
+using System.Collections.Generic;
+using System.Linq;
 using Playnite.SDK;
 using PlayniteAchievements.Models;
 
@@ -12,6 +14,11 @@ namespace PlayniteAchievements.Services.UI
     /// </summary>
     internal static class ToastPreviewFactory
     {
+        // The plugin branding crest stands in for the achievement icon in previews so the mockup
+        // is recognizable and independent of any game's art.
+        private const string PreviewIcon =
+            "pack://application:,,,/PlayniteAchievements;component/Resources/BrandingIcon.png";
+
         /// <summary>
         /// Returns preview args for the given sample kind: common / uncommon / rare /
         /// ultrarare / capstone / complete / friend / mockup.
@@ -23,8 +30,10 @@ namespace PlayniteAchievements.Services.UI
         {
             var sampleGame = L("LOCPlayAch_Settings_ToastPreviewSampleGame");
             var sampleCategory = L("LOCPlayAch_Settings_ToastPreviewSampleCategory");
-            var sampleTitle = L("LOCPlayAch_Settings_ToastPreviewSampleTitle");
-            var sampleDescription = L("LOCPlayAch_Settings_ToastPreviewSampleDescription");
+            // Repeat the sample name and description so previews always demonstrate the trimming /
+            // cutoff behavior for long text.
+            var sampleTitle = Repeat(L("LOCPlayAch_Settings_ToastPreviewSampleTitle"));
+            var sampleDescription = Repeat(L("LOCPlayAch_Settings_ToastPreviewSampleDescription"));
 
             switch (kind)
             {
@@ -76,6 +85,7 @@ namespace PlayniteAchievements.Services.UI
                     Category = sampleCategory,
                     DisplayName = sampleTitle,
                     Description = sampleDescription,
+                    IconPath = PreviewIcon,
                     RarityTier = rarity,
                     GlobalPercent = percent,
                     IsCapstone = capstone,
@@ -83,6 +93,16 @@ namespace PlayniteAchievements.Services.UI
                     TotalCount = 40,
                     UnlockTimeUtc = DateTime.UtcNow.AddMinutes(-3)
                 };
+            }
+
+            string Repeat(string sample)
+            {
+                if (string.IsNullOrEmpty(sample))
+                {
+                    return sample;
+                }
+
+                return string.Join(" ", Enumerable.Repeat(sample, 100));
             }
         }
 
