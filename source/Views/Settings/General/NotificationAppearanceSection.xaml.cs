@@ -774,11 +774,12 @@ namespace PlayniteAchievements.Views.Settings.General
 
         private AchievementUnlockedEventArgs BuildPreviewArgs(
             string kind,
+            string providerKey = null,
             NotificationTemplatePreviewSource? previewSource = null)
         {
             var args = ToastPreviewFactory.BuildPreviewArgs(
                 kind,
-                EffectiveSampleProviderKey,
+                providerKey ?? EffectiveSampleProviderKey,
                 previewSource);
             if (!IsGameMode)
             {
