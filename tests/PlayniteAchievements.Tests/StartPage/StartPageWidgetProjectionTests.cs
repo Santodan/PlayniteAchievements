@@ -267,6 +267,7 @@ namespace PlayniteAchievements.Tests.StartPage
                 {
                     DisplayName = $"Achievement {index:D2}",
                     GameName = "Game",
+                    Unlocked = true,
                     UnlockTimeUtc = new DateTime(2026, 1, 1).AddMinutes(index),
                     RaritySortValue = index
                 })
@@ -318,6 +319,7 @@ namespace PlayniteAchievements.Tests.StartPage
                 {
                     DisplayName = $"Achievement {index:D2}",
                     GameName = "Game",
+                    Unlocked = true,
                     UnlockTimeUtc = new DateTime(2026, 1, 1).AddMinutes(index)
                 })
                 .ToList();
