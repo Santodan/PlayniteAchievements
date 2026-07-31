@@ -22,6 +22,8 @@ namespace PlayniteAchievements.Providers.RetroAchievements
         private bool _enableRaSubsetScanning = true;
         private bool _enableAutomaticCapstoneAssignment = false;
         private Dictionary<Guid, int> _raGameIdOverrides = new Dictionary<Guid, int>();
+        private Dictionary<string, string> _emulatorLogPathOverrides =
+            new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
 
         /// <inheritdoc />
         public override string ProviderKey => "RetroAchievements";
@@ -157,6 +159,19 @@ namespace PlayniteAchievements.Providers.RetroAchievements
         {
             get => _raGameIdOverrides;
             set => SetValue(ref _raGameIdOverrides, value ?? new Dictionary<Guid, int>());
+        }
+
+        /// <summary>
+        /// Per-emulator log-file path overrides for instant in-game unlock tracking.
+        /// Key is the emulator key from <c>RaEmulatorLogRegistry</c> (for example "retroarch");
+        /// value is the log file path to watch instead of the auto-detected default.
+        /// Empty by default so removed entries fall back to auto-detection.
+        /// </summary>
+        public Dictionary<string, string> EmulatorLogPathOverrides
+        {
+            get => _emulatorLogPathOverrides;
+            set => SetValue(ref _emulatorLogPathOverrides,
+                value ?? new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase));
         }
     }
 }
