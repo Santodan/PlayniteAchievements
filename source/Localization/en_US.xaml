@@ -840,6 +840,8 @@
     <sys:String x:Key="LOCPlayAch_Settings_RaRarityStats_Casual">Casual</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_RaRarityStats_Description">Sets which rarity (hardcore or softcore) is shown for locked achievements. Unlocked achievements always use their own unlock mode. Takes effect after a refresh.</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_RaRarityStats_Hardcore">Hardcore</sys:String>
+    <sys:String x:Key="LOCPlayAch_Settings_RaEmulatorLogTracking">Instant notifications (emulator log)</sys:String>
+    <sys:String x:Key="LOCPlayAch_Settings_RaEmulatorLogTracking_Help">When a game runs through a supported emulator (RetroArch, Dolphin, PCSX2, PPSSPP, or DuckStation) with logging enabled, achievement unlocks are detected instantly from the emulator's log instead of polling the RetroAchievements website. Enable log-to-file in the emulator, then set an override below only if your log file is not at the auto-detected path.</sys:String>
 
     <!-- Provider: Steam -->
     <sys:String x:Key="LOCPlayAch_Settings_SteamHuntersCategories">Use SteamHunters for Categories</sys:String>
