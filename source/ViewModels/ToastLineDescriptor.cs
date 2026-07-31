@@ -190,9 +190,9 @@ namespace PlayniteAchievements.ViewModels
 
         public bool ShowSeparator { get; }
 
-        // The game name (also the completion message's subject) when shown.
-        private string EffectiveGameName =>
-            (ShowGameName || Parent.IsGameCompleted) ? Parent.GameName : null;
+        // The game name, shown when the game-name setting is on. This applies to completion
+        // notifications too (the setting governs whether the completed game's name appears).
+        private string EffectiveGameName => ShowGameName ? Parent.GameName : null;
 
         private string EffectiveCategory => ShowCategory ? Parent.Category : null;
 
