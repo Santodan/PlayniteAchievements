@@ -1160,8 +1160,8 @@ namespace PlayniteAchievements.Models.Settings
         }
 
         /// <summary>
-        /// Seconds recorded before the unlock moment (pre-roll). The clip end is anchored past
-        /// the toast's dismissal, so total length = pre-roll + detection gap + toast time.
+        /// Seconds recorded before the unlock/detection moment (pre-roll). The clip end follows
+        /// the observed toast's dismissal, so total length = pre-roll + the gap until that toast.
         /// </summary>
         public int RecordingClipSeconds
         {
