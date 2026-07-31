@@ -1995,6 +1995,20 @@ namespace PlayniteAchievements.Models
         }
 
         [DontSerialize]
+        public ObservableCollection<GameAchievementSummary> GameJoltGames
+        {
+            get => ModernTheme.GameJoltGames;
+            set => ModernTheme.GameJoltGames = value;
+        }
+
+        [DontSerialize]
+        public ObservableCollection<GameAchievementSummary> FFXIVGames
+        {
+            get => ModernTheme.FFXIVGames;
+            set => ModernTheme.FFXIVGames = value;
+        }
+
+        [DontSerialize]
         public ObservableCollection<GameAchievementSummary> ManualGames
         {
             get => ModernTheme.ManualGames;

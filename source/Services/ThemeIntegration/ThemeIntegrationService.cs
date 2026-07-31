@@ -1656,6 +1656,8 @@ namespace PlayniteAchievements.Services.ThemeIntegration
             _settings.ModernTheme.RPCS3Games = ProjectGameSummaries(library.RPCS3Games);
             _settings.ModernTheme.XeniaGames = ProjectGameSummaries(library.XeniaGames);
             _settings.ModernTheme.ShadPS4Games = ProjectGameSummaries(library.ShadPS4Games);
+            _settings.ModernTheme.GameJoltGames = ProjectGameSummaries(library.GameJoltGames);
+            _settings.ModernTheme.FFXIVGames = ProjectGameSummaries(library.FFXIVGames);
             _settings.ModernTheme.ManualGames = ProjectGameSummaries(library.ManualGames);
             _settings.ModernTheme.MostRecentUnlocksTop3 = library.MostRecentUnlocksTop3;
             _settings.ModernTheme.MostRecentUnlocksTop5 = library.MostRecentUnlocksTop5;
