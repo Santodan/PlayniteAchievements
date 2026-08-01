@@ -978,10 +978,18 @@ namespace PlayniteAchievements.Services
             // (all unlocked, or the capstone unlocked) with at least one new unlock in hand.
             var completesGame = unlocks.Count > 0 && before?.IsCompleted != true && after?.IsCompleted == true;
 
+            // The single unlock that finished the game: the newly-unlocked capstone (a capstone
+            // unlock alone marks completion), otherwise the last achievement to unlock (100%
+            // reached). Null when this batch does not complete the game — so a regular unlock
+            // landing after the game was already complete is never flagged as the completion.
+            var completingApiName = completesGame ? ResolveCompletingApiName(unlocks) : null;
+
             var numberByApiName = BuildAchievementNumberMap(after);
             foreach (var achievement in unlocks)
             {
-                _notifyUnlocked?.Invoke(CreateUserEventArgs(game, after, achievement, ResolveAchievementNumber(numberByApiName, achievement)));
+                var isCompletionAchievement = completingApiName != null &&
+                    string.Equals(achievement?.ApiName, completingApiName, StringComparison.OrdinalIgnoreCase);
+                _notifyUnlocked?.Invoke(CreateUserEventArgs(game, after, achievement, ResolveAchievementNumber(numberByApiName, achievement), isCompletionAchievement));
             }
 
             // The completion time is the triggering achievement's unlock time — the latest in the
@@ -1227,9 +1235,22 @@ namespace PlayniteAchievements.Services
                 rows.Any(row => row?.IsCapstone == true && row.Unlocked && !freshKeys.Contains(row.ApiName ?? string.Empty));
             var completesGame = completeNow && !completeBefore;
 
+            // The single fresh unlock that finished the friend's game: the newly-unlocked capstone,
+            // otherwise the last to unlock by timestamp (falling back to the last item). Null unless
+            // this batch completes the game, so a fresh unlock landing after the friend's game was
+            // already complete is never flagged as the completion.
+            var completingFriendApiName = completesGame
+                ? (fresh.LastOrDefault(row => row?.IsCapstone == true)
+                    ?? fresh
+                        .OrderBy(row => row?.UnlockTimeUtc ?? DateTime.MinValue)
+                        .LastOrDefault())?.ApiName
+                : null;
+
             foreach (var row in fresh)
             {
-                _notifyUnlocked?.Invoke(CreateFriendEventArgs(state.Game, target, rows, row, completeNow));
+                var isCompletionAchievement = completingFriendApiName != null &&
+                    string.Equals(row?.ApiName, completingFriendApiName, StringComparison.OrdinalIgnoreCase);
+                _notifyUnlocked?.Invoke(CreateFriendEventArgs(state.Game, target, rows, row, isCompletionAchievement));
             }
 
             // The completion time is the triggering achievement's unlock time — the latest in the
@@ -1357,11 +1378,32 @@ namespace PlayniteAchievements.Services
             }
         }
 
+        /// <summary>
+        /// The ApiName of the achievement that finished the game within a completing batch: the
+        /// newly-unlocked capstone (an unlocked capstone alone marks completion), otherwise the
+        /// last achievement to unlock by timestamp (falling back to the last item when the
+        /// provider supplies no unlock times). Callers pass only batches that complete the game.
+        /// </summary>
+        private static string ResolveCompletingApiName(IReadOnlyList<AchievementDetail> unlocks)
+        {
+            if (unlocks == null || unlocks.Count == 0)
+            {
+                return null;
+            }
+
+            var completing = unlocks.LastOrDefault(a => a?.IsCapstone == true)
+                ?? unlocks
+                    .OrderBy(a => a?.UnlockTimeUtc ?? DateTime.MinValue)
+                    .LastOrDefault();
+            return completing?.ApiName;
+        }
+
         private AchievementUnlockedEventArgs CreateUserEventArgs(
             Game game,
             GameAchievementData data,
             AchievementDetail achievement,
-            int achievementNumber)
+            int achievementNumber,
+            bool isCompletionAchievement)
         {
             return new AchievementUnlockedEventArgs
             {
@@ -1386,7 +1428,7 @@ namespace PlayniteAchievements.Services
                 UnlockedCount = data?.UnlockedCount ?? 0,
                 TotalCount = data?.AchievementCount ?? 0,
                 AchievementNumber = achievementNumber,
-                IsCompletionAchievement = data?.IsCompleted == true
+                IsCompletionAchievement = isCompletionAchievement
             };
         }
 
