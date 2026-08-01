@@ -175,31 +175,20 @@ namespace PlayniteAchievements.ViewModels
         public int MaxLines { get; }
 
         /// <summary>
-        /// Fixed line-box height (DIPs) for the description, pinned so the wrapped-line clamp is
-        /// exact and window-independent. Paired with LineStackingStrategy="BlockLineHeight" in the
-        /// template, every wrapped line occupies exactly this height, so
-        /// <see cref="MaxTextHeight"/> admits precisely <see cref="MaxLines"/> lines regardless of
-        /// the font's natural metrics or the host window's DPI/layout rounding (otherwise the same
-        /// two-line description could render two lines in the settings mockup but clip to one in
-        /// the floating toast window).
+        /// Fixed line-box height (DIPs) for the description. Paired with
+        /// LineStackingStrategy="BlockLineHeight" in the template, every wrapped line occupies
+        /// exactly this height, so <see cref="MaxTextHeight"/> admits precisely
+        /// <see cref="MaxLines"/> lines. The template also turns off layout rounding on this text so
+        /// the floating toast window cannot round the height below the exact line boxes and clip the
+        /// last line (which the settings mockup, rendering without rounding, never does).
         /// </summary>
         public double LineBoxHeight => FontSize * 1.4;
 
         /// <summary>
-        /// A few DIPs of rounding headroom on the clamp. The floating toast window rounds layout to
-        /// device pixels (UseLayoutRounding) and may apply a fractional fit-scale, either of which
-        /// can leave the available height a fraction below <see cref="MaxLines"/> full line boxes
-        /// and clip the last line to one fewer -- the settings mockup, which does neither, does not.
-        /// The slack is far below one line box, so it never admits an extra line, and it sits within
-        /// each line's blank top-leading, so it reveals no glyph from the next line; it only keeps a
-        /// legitimate line from being shaved off by rounding.
+        /// The clamp height for <see cref="MaxLines"/> pinned line boxes. A sub-pixel epsilon guards
+        /// against floating-point equality shaving the final line box.
         /// </summary>
-        private const double ClampRoundingSlack = 2.0;
-
-        /// <summary>
-        /// The clamp height for <see cref="MaxLines"/> pinned line boxes, plus rounding headroom.
-        /// </summary>
-        public double MaxTextHeight => (LineBoxHeight * MaxLines) + ClampRoundingSlack;
+        public double MaxTextHeight => (LineBoxHeight * MaxLines) + 0.5;
 
         // Collapses when the description is hidden or the achievement has no description text.
         public override Visibility LineVisibility =>
