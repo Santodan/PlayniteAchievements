@@ -1,6 +1,6 @@
 {
     "schemaVersion":  1,
-    "generatedUtc":  "2026-08-01T08:16:47.8090854Z",
+    "generatedUtc":  "2026-08-01T08:28:12.2567127Z",
     "baselineRef":  "upstream/main",
     "baselineCommit":  "21f3b22393c99a80aee0f49b9bdca1aa80686f23",
     "protectedPaths":  [
@@ -9,7 +9,7 @@
                        ],
     "patch":  {
                   "path":  "fork-changes.patch",
-                  "sha256":  "D3A3BF35F1A784B9E38A7C5C8949F4E9CA42BE2367A67E7357895675182DA26D"
+                  "sha256":  "5F604DA54E51B69A1A96C0DCDB629A1C80059D74103E0000F87879F0B37853DB"
               },
     "localizationRecipes":  {
                                 "path":  "localization-recipes.json",
@@ -236,7 +236,7 @@
                          },
                          {
                              "path":  "source/Services/Logging/AchievementNotificationDebugLog.cs",
-                             "sha256":  "FA245EEC61AF808DFDE4D874389ED5902F8AECAB7472F505551A1581AB54DE06"
+                             "sha256":  "87D0D822F999E75FA09090846FC01F860D116FF1EA1D326E4C08876050C0AF68"
                          },
                          {
                              "path":  "source/Services/Refresh/CustomRefreshGameMatcher.cs",
@@ -300,7 +300,7 @@
                          },
                          {
                              "path":  "source/Views/LegacyNotificationSettingsControl.xaml.cs",
-                             "sha256":  "6793A336E28383839DBF8BD93ADE70C6CB8609624CFFF70D134B303D87142D0B"
+                             "sha256":  "05999D506EFCA147413CC479C7DE14B861F48B5F17AFE3369B6657690909885E"
                          },
                          {
                              "path":  "source/Views/LocalAchievementEditorControl.xaml",

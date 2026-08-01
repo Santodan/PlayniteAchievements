@@ -6315,6 +6315,11 @@ namespace PlayniteAchievements.Views
                 Services.Logging.AchievementNotificationDebugLog.SetEnabled(true, recreate);
                 Services.Logging.AchievementNotificationDebugLog.Info(
                     $"Debug logging enabled from settings; fileMode='{(recreate ? "recreated" : "append")}'.");
+                Services.Logging.AchievementNotificationDebugLog.LogSettingsSnapshot(
+                    localSettings,
+                    _settingsViewModel.Settings?.Persisted,
+                    "debug-enabled-from-settings",
+                    force: true);
             }
             catch (Exception ex)
             {

@@ -508,8 +508,13 @@ namespace PlayniteAchievements
                     steamApiTokenService);
                 _providerRegistry.SyncFromSettings(settings.Persisted);
                 AchievementNotificationDebugLog.Initialize(pluginUserDataPath);
-                AchievementNotificationDebugLog.SetEnabled(
-                    ProviderRegistry.Settings<Providers.Local.LocalSettings>()?.EnableOverlayDebugLogging == true);
+                var startupNotificationSettings = ProviderRegistry.Settings<Providers.Local.LocalSettings>();
+                AchievementNotificationDebugLog.SetEnabled(startupNotificationSettings?.EnableOverlayDebugLogging == true);
+                AchievementNotificationDebugLog.LogSettingsSnapshot(
+                    startupNotificationSettings,
+                    settings.Persisted,
+                    "plugin-startup",
+                    force: true);
                 settings.Persisted?.MigrateLegacyProviderFriends();
                 _gameCustomDataStore = _settingsViewModel.GameCustomDataStore;
                 _gameCustomDataStore.AttachRuntimeSettings(settings);

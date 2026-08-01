@@ -104,10 +104,10 @@ index 4bbe03feb756665ed105752ea1f9fa3e7bdd2314..9dce25a1da1a5cae228d23f2d3212262
 +    Image: https://raw.githubusercontent.com/santodan/PlayniteAchievements/main/Images/aniki-remake1.png
 \ No newline at end of file
 diff --git a/README.md b/README.md
-index 39887bdbdaaae092ed292fa99f10d9b84b089fce..ff33f0929d1a401ae18c12fa4056496c1d09f208 100644
+index 39887bdbdaaae092ed292fa99f10d9b84b089fce..ae0ec55a7e651dc42938907787ddd8a37a447a39 100644
 --- a/README.md
 +++ b/README.md
-@@ -1,267 +1,414 @@
+@@ -1,267 +1,415 @@
  <p align="center">
 -  <picture>
 -    <source
@@ -323,6 +323,8 @@ index 39887bdbdaaae092ed292fa99f10d9b84b089fce..ff33f0929d1a401ae18c12fa4056496c
 -**Framed**
 -
 -![Framed unlock screenshot](Images/001_First%20Contact_framed.png)
+-
+-NOTE: Achievement notifications will not show for games that use DirectX 9 and lower in Exclusive Fullscreen mode.
 +> Official documentation for the base project should be taken from the original repository.
 +>
 +> - Original repository: https://github.com/justin-delano/PlayniteAchievements
@@ -336,10 +338,10 @@ index 39887bdbdaaae092ed292fa99f10d9b84b089fce..ff33f0929d1a401ae18c12fa4056496c
 +>
 +> I'm not a developer, I'm a troubleshooting guy, so everything is made with LLM
  
--NOTE: Achievement notifications will not show for games that use DirectX 9 and lower in Exclusive Fullscreen mode.
+-Themes can create custom notification and frame styles, for full consistency. For example, in [Aniki-ReMake](https://github.com/Mike-Aniki/Aniki-ReMake):
 +# What This Fork Focuses On
  
--Themes can create custom notification and frame styles, for full consistency. For example, in [Aniki-ReMake](https://github.com/Mike-Aniki/Aniki-ReMake):
+-**Toast**
 +- Local save support and local achievement
 +- No need for a steam account to gather the achievements schema
 +  - There is the option to select between Steam ( API ), SteamHunters and Completionist.me
@@ -353,52 +355,52 @@ index 39887bdbdaaae092ed292fa99f10d9b84b089fce..ff33f0929d1a401ae18c12fa4056496c
 +- `SuccessStory` Import
 +- Theme and `StartPage` migration
  
--**Toast**
+-![Aniki-ReMake custom toast](Images/PlayniteAchievements%20-%20Mike%20Aniki%20Toast.png)
 +Guides available in [Achievement Notifications Guide](ACHIEVEMENT_NOTIFICATIONS_GUIDE.md) and [Local Provider Troubleshooting](LOCAL_PROVIDER_TROUBLESHOOTING.md)
  
--![Aniki-ReMake custom toast](Images/PlayniteAchievements%20-%20Mike%20Aniki%20Toast.png)
+-**Frame**
 +## Local Provider Folder List And Browse Flow
  
--**Frame**
+-![Aniki-ReMake custom frame](Images/PlayniteAchievements%20-%20Mike%20Aniki%20Frame.png)
 +You can set any custom folder where you have saves located in your system as exception to never detect achievements from it
  
--![Aniki-ReMake custom frame](Images/PlayniteAchievements%20-%20Mike%20Aniki%20Frame.png)
+-Notification and capture settings are described on the [General](https://github.com/justin-delano/PlayniteAchievements/wiki/General) settings page. Theme authors can build custom styles with [Toast and Frame Overrides](https://github.com/justin-delano/PlayniteAchievements/wiki/Toast-And-Frame-Overrides).
 +<img src="Images/LocalAchivementsFolders.png" alt="Sidebar single-game view" width="900">
  
--Notification and capture settings are described on the [General](https://github.com/justin-delano/PlayniteAchievements/wiki/General) settings page. Theme authors can build custom styles with [Toast and Frame Overrides](https://github.com/justin-delano/PlayniteAchievements/wiki/Toast-And-Frame-Overrides).
- 
 -# Integration with Themes
-+## Local Game Options Overrides
  
 -Any desktop theme created with SuccessStory support can migrate the theme to use PlayniteAchievements instead.
-+If you Right-click the game it will show a quicker way to do these changes:
++## Local Game Options Overrides
  
 -Many fullscreen themes can be migrated as well, but these complex themes are more likely to reveal compatibility issues. I recommend using [Aniki-ReMake](https://github.com/Mike-Aniki/Aniki-ReMake) for the most comprehensive integration of PlayniteAchievements features.
-+<img src="Images/LocalAchivementsRightClickOptions.png" alt="Sidebar single-game view" width="900">
++If you Right-click the game it will show a quicker way to do these changes:
  
 -See [Theme Migration](https://github.com/justin-delano/PlayniteAchievements/wiki/Theme-Migration), [Theme Bindings](https://github.com/justin-delano/PlayniteAchievements/wiki/Theme-Bindings), and [Migrating From Legacy](https://github.com/justin-delano/PlayniteAchievements/wiki/Migrating-From-Legacy) on the wiki for more detail.
-+From the PlayniteAchievements menu inside the game
++<img src="Images/LocalAchivementsRightClickOptions.png" alt="Sidebar single-game view" width="900">
  
 -# Integration with other Plugins
-+<img src="Images/LocalAchivementsOverrides.png" alt="Sidebar single-game view" width="900">
++From the PlayniteAchievements menu inside the game
  
 -PlayniteAchievements supports additional features when used with the following extensions:
++<img src="Images/LocalAchivementsOverrides.png" alt="Sidebar single-game view" width="900">
  
 -## UniPlaySong
-+## Local Achievements' Games import and `SuccessStory Import`
  
 -When [UniPlaySong](https://github.com/aHuddini/UniPlaySong) is installed, achievement notifications are accompanied by custom musical jingles. Themes can also take advantage of this to have their own custom consistent jingles.
-+This is a way of adding all of those achievements that are in the folders ina  way that it isn't needed to go through the folders and adding one by one.
++## Local Achievements' Games import and `SuccessStory Import`
  
 -## StartPage
-+There is also the option to import data from `SuccessStory`. This will go through all the JSON files in the selected SuccessStory folder and import the `Local` games and also the achievements for the games that were detected in them.
++This is a way of adding all of those achievements that are in the folders ina  way that it isn't needed to go through the folders and adding one by one.
  
 -PlayniteAchievements tables and visualizations can be added to [StartPage](https://github.com/felixkmh/StartPage-for-Playnite), with their own separate customization, so you can create stunning dashboards like the example below:
-+<img src="Images/LocalAchivementsGamesImport.png" alt="Sidebar single-game view" width="900">
++There is also the option to import data from `SuccessStory`. This will go through all the JSON files in the selected SuccessStory folder and import the `Local` games and also the achievements for the games that were detected in them.
  
 -![StartPage dashboard](Images/PlayniteAchievements%20-%20StartPage.png)
++<img src="Images/LocalAchivementsGamesImport.png" alt="Sidebar single-game view" width="900">
  
 -## Docs
+ 
+-- [Open the wiki](https://github.com/justin-delano/PlayniteAchievements/wiki)
 +## Local Achievement Notification
 +
 +This was a request from a user to have a sound playing when an achievement is unlocked while playing a game.<br>
@@ -406,8 +408,7 @@ index 39887bdbdaaae092ed292fa99f10d9b84b089fce..ff33f0929d1a401ae18c12fa4056496c
 +A notification for when the game that is been played has a new achievement unlocked.<br>
 +You can customize the overlay or use one of the provided themes.<br>
 +You can enable / disable the `Achievement Notification` in the right click  menu for each game.
- 
--- [Open the wiki](https://github.com/justin-delano/PlayniteAchievements/wiki)
++
 +<img src="Images/AchievementNotificationMenu.png" alt="Sidebar single-game view" width="900">
 +
 +<img src="Images/AchievementNotificationTest.png" alt="Sidebar single-game view">
@@ -436,6 +437,7 @@ index 39887bdbdaaae092ed292fa99f10d9b84b089fce..ff33f0929d1a401ae18c12fa4056496c
 +- Added the video settings to the `Achievement Notification` to use the one from the original fork but with these custom settings
 +- Change the `Local save folder override` to mention that it isn't using any local folder if that's the case
 +- Added a refresh icon in the `View Achievements` window to refresh the achievements from that window
++- Added a dedicated file for the `Debug` setting for the `Achievement Notification`. The file is called `AchNotifDebug.log`
 +
 +## 2026-07-27 - v2.5.3.4
 +
@@ -1312,7 +1314,7 @@ index 1289e4dc41a1798bf2f6a851f893051019beabd2..466f834a77b62f7df7ded5c2d9fc83d6
          {
              _resourceService.EnsureAchievementResourcesLoaded(_settingsViewModel.Settings);
 diff --git a/source/PlayniteAchievementsPlugin.cs b/source/PlayniteAchievementsPlugin.cs
-index ffc5cb769181e0f751ee1ef8a2e32c143fff2362..5a19d990ac9e05bfa7beb2cbcbcee908e490e877 100644
+index ffc5cb769181e0f751ee1ef8a2e32c143fff2362..139d93fd98d76c49c95028d969f7fdd0ae7c6441 100644
 --- a/source/PlayniteAchievementsPlugin.cs
 +++ b/source/PlayniteAchievementsPlugin.cs
 @@ -37,6 +37,7 @@
@@ -1492,7 +1494,7 @@ index ffc5cb769181e0f751ee1ef8a2e32c143fff2362..5a19d990ac9e05bfa7beb2cbcbcee908
          }
  
          // Public bridge method for external helpers/themes that used to target SuccessStory via reflection.
-@@ -385,8 +499,17 @@ public PlayniteAchievementsPlugin(IPlayniteAPI api) : base(api)
+@@ -385,8 +499,22 @@ public PlayniteAchievementsPlugin(IPlayniteAPI api) : base(api)
                  _manualSourceRegistry = new ManualSourceRegistry(_logger, settings, PlayniteApi, pluginUserDataPath);
  
                  // Create provider registry
@@ -1506,12 +1508,17 @@ index ffc5cb769181e0f751ee1ef8a2e32c143fff2362..5a19d990ac9e05bfa7beb2cbcbcee908
 +                    steamApiTokenService);
                  _providerRegistry.SyncFromSettings(settings.Persisted);
 +                AchievementNotificationDebugLog.Initialize(pluginUserDataPath);
-+                AchievementNotificationDebugLog.SetEnabled(
-+                    ProviderRegistry.Settings<Providers.Local.LocalSettings>()?.EnableOverlayDebugLogging == true);
++                var startupNotificationSettings = ProviderRegistry.Settings<Providers.Local.LocalSettings>();
++                AchievementNotificationDebugLog.SetEnabled(startupNotificationSettings?.EnableOverlayDebugLogging == true);
++                AchievementNotificationDebugLog.LogSettingsSnapshot(
++                    startupNotificationSettings,
++                    settings.Persisted,
++                    "plugin-startup",
++                    force: true);
                  settings.Persisted?.MigrateLegacyProviderFriends();
                  _gameCustomDataStore = _settingsViewModel.GameCustomDataStore;
                  _gameCustomDataStore.AttachRuntimeSettings(settings);
-@@ -486,6 +609,7 @@ public PlayniteAchievementsPlugin(IPlayniteAPI api) : base(api)
+@@ -486,6 +614,7 @@ public PlayniteAchievementsPlugin(IPlayniteAPI api) : base(api)
                      }
  
                      _notifications = new NotificationPublisher(api, settings, _logger);
@@ -1519,7 +1526,7 @@ index ffc5cb769181e0f751ee1ef8a2e32c143fff2362..5a19d990ac9e05bfa7beb2cbcbcee908
                      _refreshCoordinator = new RefreshEntryPoint(
                          _refreshService,
                          _logger,
-@@ -497,7 +621,8 @@ public PlayniteAchievementsPlugin(IPlayniteAPI api) : base(api)
+@@ -497,7 +626,8 @@ public PlayniteAchievementsPlugin(IPlayniteAPI api) : base(api)
                          _logger,
                          () => _resourceService.EnsureAchievementResourcesLoaded(_settingsViewModel.Settings),
                          GetProcessIdForGame,
@@ -1529,7 +1536,7 @@ index ffc5cb769181e0f751ee1ef8a2e32c143fff2362..5a19d990ac9e05bfa7beb2cbcbcee908
                      _unlockRecordings = new Services.Recording.UnlockRecordingService(
                          PlayniteApi,
                          settings,
-@@ -515,7 +640,7 @@ public PlayniteAchievementsPlugin(IPlayniteAPI api) : base(api)
+@@ -515,7 +645,7 @@ public PlayniteAchievementsPlugin(IPlayniteAPI api) : base(api)
                          _refreshService,
                          providers,
                          (request, policy) => _refreshCoordinator.ExecuteAsync(request, policy),
@@ -1538,7 +1545,7 @@ index ffc5cb769181e0f751ee1ef8a2e32c143fff2362..5a19d990ac9e05bfa7beb2cbcbcee908
                      _backgroundUpdates = new BackgroundUpdater(_refreshCoordinator, _refreshService, _cacheManager, settings, _logger, _notifications, null);
  
                      // Create tag sync service
-@@ -669,7 +794,7 @@ public override IEnumerable<SidebarItem> GetSidebarItems()
+@@ -669,7 +799,7 @@ public override IEnumerable<SidebarItem> GetSidebarItems()
                  Opened = () =>
                  {
                      return new OverviewHostControl(
@@ -1547,7 +1554,7 @@ index ffc5cb769181e0f751ee1ef8a2e32c143fff2362..5a19d990ac9e05bfa7beb2cbcbcee908
                          _logger,
                          PlayniteApi,
                          _refreshService,
-@@ -1189,6 +1314,7 @@ public override void OnApplicationStopped(OnApplicationStoppedEventArgs args)
+@@ -1189,6 +1319,7 @@ public override void OnApplicationStopped(OnApplicationStoppedEventArgs args)
              DisposeStartPageViews();
  
              // Shutdown logging system
@@ -4903,7 +4910,7 @@ index 11ca94e019cfaf99cdc80b4904455f0fc62e802b..4a4abc1ceae8235972f43175044a1825
          {
              token.ThrowIfCancellationRequested();
 diff --git a/source/Services/NotificationPublisher.cs b/source/Services/NotificationPublisher.cs
-index 975e6f2dcd0e0aa299dfb49e9541d5c461bf9e47..97562ab8004c3c96fb2bc97d4bd8e403c547d7f9 100644
+index 975e6f2dcd0e0aa299dfb49e9541d5c461bf9e47..5b496973abb5271152be78f3897cfd0c5033f6e2 100644
 --- a/source/Services/NotificationPublisher.cs
 +++ b/source/Services/NotificationPublisher.cs
 @@ -1,23 +1,82 @@
@@ -4989,7 +4996,7 @@ index 975e6f2dcd0e0aa299dfb49e9541d5c461bf9e47..97562ab8004c3c96fb2bc97d4bd8e403
          }
  
          public void ShowPeriodicStatus(string status)
-@@ -79,6 +138,393 @@ public void ShowThemeAutoMigrated(string themeName)
+@@ -79,6 +138,397 @@ public void ShowThemeAutoMigrated(string themeName)
              }
          }
  
@@ -5117,6 +5124,10 @@ index 975e6f2dcd0e0aa299dfb49e9541d5c461bf9e47..97562ab8004c3c96fb2bc97d4bd8e403
 +            var enableInAppNotification = localSettings?.EnableInAppUnlockNotifications != false;
 +            if (localSettings?.EnableOverlayDebugLogging == true)
 +            {
++                AchievementNotificationDebugLog.LogSettingsSnapshot(
++                    localSettings,
++                    _settings?.Persisted,
++                    "notification-dispatch");
 +                LogAchievementNotificationDebug(
 +                    $"Unlock batch received game='{gameName}', gameId='{game?.Id}', provider='{resolvedProviderKey}', " +
 +                    $"inputCount='{unlockedAchievements?.Count ?? 0}', usableCount='{achievements.Count}', " +
@@ -5383,7 +5394,7 @@ index 975e6f2dcd0e0aa299dfb49e9541d5c461bf9e47..97562ab8004c3c96fb2bc97d4bd8e403
          private static readonly string[] AllKnownProviderKeys = new[]
          {
              "Steam", "Epic", "GOG", "BattleNet", "EA", "PSN", "Xbox",
-@@ -163,5 +609,7244 @@ private void OpenPluginSettingsForProvider(string providerKey)
+@@ -163,5 +613,7244 @@ private void OpenPluginSettingsForProvider(string providerKey)
                  _logger?.Debug(ex, "Failed to open plugin settings from notification click.");
              }
          }
@@ -16086,7 +16097,7 @@ index 8b976e0ba392aa81e047432544f5bb7de9b9ba3e..57eb77fc2c0b26a3b0780acd268f5e70
              _refreshDebounceTimer?.Stop();
              _deltaBatchTimer?.Stop();
 diff --git a/source/ViewModels/SettingsViewModel.cs b/source/ViewModels/SettingsViewModel.cs
-index cfd4831cf5d88853f0a9b8282703a43fdf246bf7..1b3240cf71ef84ebb10f7ec2f5bffcd094464a5d 100644
+index cfd4831cf5d88853f0a9b8282703a43fdf246bf7..598b62d3265d076132c3df5334ed1eb432d53a30 100644
 --- a/source/ViewModels/SettingsViewModel.cs
 +++ b/source/ViewModels/SettingsViewModel.cs
 @@ -153,6 +153,7 @@ public void CancelEdit()
@@ -16105,15 +16116,19 @@ index cfd4831cf5d88853f0a9b8282703a43fdf246bf7..1b3240cf71ef84ebb10f7ec2f5bffcd0
              GameCustomDataStore?.SyncRuntimeCaches();
              ApplyThemeResources();
  
-@@ -187,6 +189,13 @@ public bool VerifySettings(out List<string> errors)
+@@ -187,6 +189,17 @@ public bool VerifySettings(out List<string> errors)
              return errors.Count == 0;
          }
  
 +        private void SyncAchievementNotificationDebugLog()
 +        {
 +            AchievementNotificationDebugLog.Initialize(_plugin.GetPluginUserDataPath());
-+            AchievementNotificationDebugLog.SetEnabled(
-+                Providers.ProviderRegistry.Settings<Providers.Local.LocalSettings>()?.EnableOverlayDebugLogging == true);
++            var localSettings = Providers.ProviderRegistry.Settings<Providers.Local.LocalSettings>();
++            AchievementNotificationDebugLog.SetEnabled(localSettings?.EnableOverlayDebugLogging == true);
++            AchievementNotificationDebugLog.LogSettingsSnapshot(
++                localSettings,
++                Settings?.Persisted,
++                "settings-synchronized");
 +        }
 +
          private static void ValidateAchievementHotkeys(PersistedSettings persisted, List<string> errors)

@@ -262,6 +262,10 @@ namespace PlayniteAchievements.Services
             var enableInAppNotification = localSettings?.EnableInAppUnlockNotifications != false;
             if (localSettings?.EnableOverlayDebugLogging == true)
             {
+                AchievementNotificationDebugLog.LogSettingsSnapshot(
+                    localSettings,
+                    _settings?.Persisted,
+                    "notification-dispatch");
                 LogAchievementNotificationDebug(
                     $"Unlock batch received game='{gameName}', gameId='{game?.Id}', provider='{resolvedProviderKey}', " +
                     $"inputCount='{unlockedAchievements?.Count ?? 0}', usableCount='{achievements.Count}', " +

@@ -192,8 +192,12 @@ namespace PlayniteAchievements.ViewModels
         private void SyncAchievementNotificationDebugLog()
         {
             AchievementNotificationDebugLog.Initialize(_plugin.GetPluginUserDataPath());
-            AchievementNotificationDebugLog.SetEnabled(
-                Providers.ProviderRegistry.Settings<Providers.Local.LocalSettings>()?.EnableOverlayDebugLogging == true);
+            var localSettings = Providers.ProviderRegistry.Settings<Providers.Local.LocalSettings>();
+            AchievementNotificationDebugLog.SetEnabled(localSettings?.EnableOverlayDebugLogging == true);
+            AchievementNotificationDebugLog.LogSettingsSnapshot(
+                localSettings,
+                Settings?.Persisted,
+                "settings-synchronized");
         }
 
         private static void ValidateAchievementHotkeys(PersistedSettings persisted, List<string> errors)

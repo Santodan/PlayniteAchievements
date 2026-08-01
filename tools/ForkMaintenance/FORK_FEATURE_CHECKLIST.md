@@ -35,7 +35,10 @@ must still be verified in Playnite.
   exists, **Yes** recreates it and **No** appends to it. Reopening Playnite with
   Debug already enabled appends without prompting, disabling Debug stops the
   dedicated logger, and detailed notification diagnostics are not duplicated
-  into `playniteachievements.log`.
+  into `playniteachievements.log`. The log includes a structured snapshot of
+  the effective Achievement Notification settings on enable/startup and writes
+  another snapshot only when those settings change; provider credentials and
+  unrelated Local-provider settings are not included.
 
 Primary fork areas:
 
