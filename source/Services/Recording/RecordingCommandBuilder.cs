@@ -438,6 +438,26 @@ namespace PlayniteAchievements.Services.Recording
         }
 
         /// <summary>
+        /// A short synthetic-source encode to the null muxer for the given hardware encoder, using
+        /// the same encoder arguments a capture session would. Source-agnostic: a lavfi color source
+        /// feeds the encoder directly (no gdigrab/ddagrab), so it exercises the encoder and its GPU
+        /// driver independently of screen capture — a driver that rejects the encoder (e.g. an NVENC
+        /// API-version mismatch) fails here, where -encoders text presence alone would pass. Returns
+        /// null for encoders without a hardware codec (libx264, Auto).
+        /// </summary>
+        public static string BuildEncoderProbeArguments(RecordingEncoder encoder)
+        {
+            if (EncoderCodec(encoder) == null)
+            {
+                return null;
+            }
+
+            return Invariant(
+                "-hide_banner -loglevel warning -f lavfi -i color=c=black:s=256x144:r=30 -frames:v 15 {0} -f null -",
+                BuildEncoderArguments(encoder, null));
+        }
+
+        /// <summary>
         /// The GPU-resident bridge a resolved encoder uses: NVENC and AMF take ddagrab's D3D11
         /// frames directly; QSV needs a same-GPU surface map; software (and unresolved Auto) has
         /// no GPU-resident path.
