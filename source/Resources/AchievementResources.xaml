@@ -511,9 +511,12 @@
                               ClipToBounds="True"
                               ItemsSource="{Binding ToastLines}">
                     <ItemsControl.ItemContainerStyle>
-                        <!-- Per-line left indent for the name-line offset (see LeftIndent). -->
+                        <!-- Per-line left indent for the name-line offset (see LeftIndent). The
+                             container itself collapses when the line has no content, so its margin
+                             / line padding never leaves an empty gap. -->
                         <Style TargetType="ContentPresenter">
                             <Setter Property="Margin" Value="{Binding LeftIndentMargin}"/>
+                            <Setter Property="Visibility" Value="{Binding LineVisibility}"/>
                         </Style>
                     </ItemsControl.ItemContainerStyle>
                 </ItemsControl>
@@ -677,9 +680,12 @@
                                   Margin="26,0,22,0"
                                   ItemsSource="{Binding FrameLines}">
                         <ItemsControl.ItemContainerStyle>
-                            <!-- Per-line left indent for the name-line offset (see LeftIndent). -->
+                            <!-- Per-line left indent for the name-line offset (see LeftIndent). The
+                                 container itself collapses when the line has no content, so its
+                                 margin / line padding never leaves an empty gap. -->
                             <Style TargetType="ContentPresenter">
                                 <Setter Property="Margin" Value="{Binding LeftIndentMargin}"/>
+                                <Setter Property="Visibility" Value="{Binding LineVisibility}"/>
                             </Style>
                         </ItemsControl.ItemContainerStyle>
                     </ItemsControl>
