@@ -490,27 +490,16 @@ namespace PlayniteAchievements.Services.UI
                 ResourceProvider.GetString("LOCPlayAch_Title_PluginName"));
             _activeWindow = window;
 
-            var items = new ItemsControl
-            {
-                ItemsSource = toastItems,
-                IsHitTestVisible = false
-            };
-            // Fire-test previews force a specific template source (plugin style, or a theme
-            // mode's override); real unlocks resolve normally against the theme-styling toggle.
-            var previewSource = toastItems
-                .Select(vm => vm.PreviewTemplateSource)
-                .FirstOrDefault(source => source.HasValue);
             // A wave is game-homogeneous, so scope the custom template to this wave's game and
-            // provider (game > provider > global) for real unlocks.
+            // provider (game > provider > global) for real unlocks. The template decision (fire-test
+            // preview source vs normal theme-styling resolve) and the host element are built through
+            // the shared ToastSurfaceFactory so the live toast and the settings inline preview
+            // cannot drift.
             var waveProviderKey = toastItems.FirstOrDefault()?.ProviderKey;
             var waveScopeGameId = _activeWaveGameId ?? Guid.Empty;
-            var template = previewSource.HasValue
-                ? _templateResolver.ResolvePreviewTemplate(previewSource.Value, isFrame: false, waveProviderKey, waveScopeGameId)
-                : _templateResolver.ResolveTemplate(ToastThemeStylingEnabled, waveProviderKey, waveScopeGameId);
-            if (template != null)
-            {
-                items.ItemTemplate = template;
-            }
+            var template = ToastSurfaceFactory.ResolveToastTemplate(
+                _templateResolver, toastItems, ToastThemeStylingEnabled, waveProviderKey, waveScopeGameId);
+            var items = ToastSurfaceFactory.BuildToastSurface(toastItems, template);
 
             LogWaveDiagnostics(toastItems, template);
 
