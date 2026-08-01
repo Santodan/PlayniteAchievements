@@ -175,10 +175,20 @@ namespace PlayniteAchievements.ViewModels
         public int MaxLines { get; }
 
         /// <summary>
-        /// The clamp height for <see cref="MaxLines"/> wrapped lines at the row's font size,
-        /// scaling with larger fonts (replaces the old fixed pixel clamp).
+        /// Fixed line-box height (DIPs) for the description, pinned so the wrapped-line clamp is
+        /// exact and window-independent. Paired with LineStackingStrategy="BlockLineHeight" in the
+        /// template, every wrapped line occupies exactly this height, so
+        /// <see cref="MaxTextHeight"/> admits precisely <see cref="MaxLines"/> lines regardless of
+        /// the font's natural metrics or the host window's DPI/layout rounding (otherwise the same
+        /// two-line description could render two lines in the settings mockup but clip to one in
+        /// the floating toast window).
         /// </summary>
-        public double MaxTextHeight => FontSize * 1.4 * MaxLines;
+        public double LineBoxHeight => FontSize * 1.4;
+
+        /// <summary>
+        /// The clamp height for <see cref="MaxLines"/> pinned line boxes.
+        /// </summary>
+        public double MaxTextHeight => LineBoxHeight * MaxLines;
 
         // Collapses when the description is hidden or the achievement has no description text.
         public override Visibility LineVisibility =>
