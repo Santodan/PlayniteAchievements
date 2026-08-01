@@ -313,12 +313,30 @@ namespace PlayniteAchievements.Views.Settings.General
                 var result = await _ffmpegValidation.ValidateAsync(path, runSmokeTest: true);
                 if (result?.IsValid == true)
                 {
+                    // List the encoders that actually encode, not the ones merely compiled into the
+                    // build: a present-but-driver-broken encoder is excluded here and called out below.
                     FfmpegStatusText.Text = string.Format(
                         ResourceProvider.GetString("LOCPlayAch_Settings_RecordingFfmpegValid"),
                         result.Version,
-                        string.Join(", ", result.AvailableEncoders));
+                        string.Join(", ", result.UsableEncoders));
                     // Back to the muted style's own foreground for the success case.
                     FfmpegStatusText.ClearValue(TextBlock.ForegroundProperty);
+
+                    if (!string.IsNullOrEmpty(result.FailedEncoderCodec))
+                    {
+                        var recommended = result.UsableEncoders.Count > 0
+                            ? result.UsableEncoders[0]
+                            : string.Empty;
+                        FfmpegStatusText.Text = FfmpegStatusText.Text + "\n" + string.Format(
+                            ResourceProvider.GetString("LOCPlayAch_Settings_RecordingEncoderFailed"),
+                            result.FailedEncoderCodec,
+                            recommended,
+                            result.EncoderProbeError);
+                        if (TryFindResource("PlayAch.Brush.ErrorText") is System.Windows.Media.Brush warnBrush)
+                        {
+                            FfmpegStatusText.Foreground = warnBrush;
+                        }
+                    }
                 }
                 else
                 {
