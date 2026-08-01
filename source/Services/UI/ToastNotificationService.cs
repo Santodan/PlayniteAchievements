@@ -5,6 +5,7 @@ using System.Linq;
 using System.Threading.Tasks;
 using System.Windows;
 using System.Windows.Controls;
+using System.Windows.Interop;
 using System.Windows.Media;
 using System.Windows.Media.Animation;
 using System.Windows.Threading;
@@ -512,14 +513,12 @@ namespace PlayniteAchievements.Services.UI
 
             // Bound the toast to a fraction of the available area so it never dominates the screen at
             // high display scales (or with an oversized theme template), while keeping its natural size
-            // when there is room. LayoutTransform (not RenderTransform) so the SizeToContent window
-            // auto-sizes to the scaled content and corner placement stays correct; applied to the
-            // ItemsControl (outside the ItemTemplate) so it governs whatever template the resolver returns.
+            // when there is room. The final content scale (fit shrink times DPI compensation) is applied
+            // as a LayoutTransform (not RenderTransform) inside the per-monitor scope below, so the
+            // SizeToContent window auto-sizes to the scaled content and corner placement stays correct.
+            // Measured pre-Show here (window has no presentation source yet, so ResolveFitScale uses the
+            // main window's DPI transform); DPI compensation is folded in once the HWND exists.
             var fitScale = ResolveFitScale(window, items);
-            if (fitScale < 1.0)
-            {
-                items.LayoutTransform = new ScaleTransform(fitScale, fitScale);
-            }
             window.Opacity = 0;
             // Do not move the window during Loaded: a SizeToContent window moved before it is first
             // presented at DPI > 100% gets an HWND sized from unscaled DIPs, which clips content
@@ -527,12 +526,48 @@ namespace PlayniteAchievements.Services.UI
             // the game's monitor; ContentRendered/shown/snap remain as post-presentation corrections.
             window.ContentRendered += (s, e) => PlaceWindow(window, "rendered");
 
+            // Capture the monitor's DWM bitmap-stretch factor in the process's (system-aware) DPI
+            // context, BEFORE opting the toast HWND into per-monitor awareness below: Screen.Bounds is
+            // reported in the caller's awareness, so this must be read while the thread is still
+            // system-aware or it would report physical bounds and cancel out to 1.0.
+            var monitorStretch = ToastPlacementDiagnostics.ResolveMonitorStretch(ResolveWaveWindowHandle());
+            var systemScale = ToastPlacementDiagnostics.SystemScale();
+
             EventHandler onRendering = null;
             try
             {
-                PlaceWindow(window, "preshow");
-                window.Show();
-                PlaceWindow(window, "shown");
+                // Realize the toast HWND under Per-Monitor-V2 so Windows stops bitmap-stretching (and
+                // therefore blurring) it on a monitor whose effective DPI differs from the process's
+                // stale system DPI -- the case a user hit by opening Playnite on a 1440p monitor and
+                // moving it to a scaled 4K one. A window's DPI awareness is fixed at HWND creation, so
+                // EnsureHandle must run inside this scope; all HWND-affecting window properties were set
+                // in CreateBorderlessTopmostWindow before any handle existed, so no HWND recreation
+                // escapes it. WPF (system-aware, no per-monitor app.config switch) still lays the window
+                // out at the system scale, so ResolveDpiCompensation takes over the missing scale-up.
+                using (Common.DpiAwarenessScope.PerMonitorV2())
+                {
+                    new WindowInteropHelper(window).EnsureHandle();
+                    PlaceWindow(window, "preshow");
+
+                    var renderScale = ResolveWindowScale(window);
+                    var dpiComp = ResolveDpiCompensation(monitorStretch, systemScale, renderScale);
+                    var contentScale = fitScale * dpiComp;
+                    items.LayoutTransform = Math.Abs(contentScale - 1.0) > 0.001
+                        ? new ScaleTransform(contentScale, contentScale)
+                        : null;
+
+                    if (Common.PerfScope.PerfTracingEnabled)
+                    {
+                        _logger?.Info(string.Format(System.Globalization.CultureInfo.InvariantCulture,
+                            "Toast dpi-comp: stretch={0:0.000} sys={1:0.000} render={2:0.000} fit={3:0.000} comp={4:0.000} thread={5}",
+                            monitorStretch, systemScale, renderScale, fitScale, dpiComp,
+                            Common.DpiAwarenessScope.DescribeThreadContext()));
+                    }
+
+                    window.Show();
+                    PlaceWindow(window, "shown");
+                }
+
                 SlideIn(window);
 
                 // Let the toast finish sliding in and paint, then capture (so the toast is in the
@@ -1175,6 +1210,57 @@ namespace PlayniteAchievements.Services.UI
         /// window's DPI transform when the toast window has no presentation source yet, and the content
         /// is measured off-tree (falling back to the default card footprint if the measure throws).
         /// </summary>
+        /// <summary>
+        /// The device scale WPF actually renders the given window at (its own TransformToDevice.M11),
+        /// or 1.0 if it has no presentation source yet. For the per-monitor toast window this reports
+        /// whether WPF laid it out at the monitor DPI or (the usual case for a system-aware process)
+        /// still at the system scale.
+        /// </summary>
+        private static double ResolveWindowScale(Window window)
+        {
+            try
+            {
+                var target = PresentationSource.FromVisual(window)?.CompositionTarget;
+                if (target != null)
+                {
+                    var m11 = target.TransformToDevice.M11;
+                    if (m11 > 0)
+                    {
+                        return m11;
+                    }
+                }
+            }
+            catch
+            {
+                // Fall through to unity.
+            }
+
+            return 1.0;
+        }
+
+        /// <summary>
+        /// Self-correcting DPI compensation for the toast content: <c>stretch * systemScale / renderScale</c>.
+        /// <paramref name="stretch"/> is the DWM bitmap-stretch a system-aware window suffers on the
+        /// toast's monitor, <paramref name="systemScale"/> is the process/system device scale, and
+        /// <paramref name="renderScale"/> is what WPF actually renders the (now per-monitor) toast at.
+        /// When WPF renders at the stale system scale (renderScale == systemScale) this returns
+        /// <paramref name="stretch"/> -- exactly the scale-up the per-monitor window needs so its
+        /// content fills the same physical footprint the blurry toast occupied today, but crisp. If a
+        /// runtime instead scales the per-monitor window to the monitor itself (renderScale ==
+        /// stretch * systemScale) it returns 1.0, so the content is never double-scaled. A value of
+        /// 1.0 (no compensation) results whenever the monitor matches the system DPI.
+        /// </summary>
+        private static double ResolveDpiCompensation(double stretch, double systemScale, double renderScale)
+        {
+            if (stretch <= 0 || systemScale <= 0 || renderScale <= 0)
+            {
+                return 1.0;
+            }
+
+            var comp = stretch * systemScale / renderScale;
+            return comp > 0 ? comp : 1.0;
+        }
+
         private double ResolveFitScale(Window window, FrameworkElement content)
         {
             try

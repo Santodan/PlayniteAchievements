@@ -41,7 +41,7 @@ namespace PlayniteAchievements.Views.Settings.Navigation
         public string Subtitle { get; }
         public bool HasSubtitle => !string.IsNullOrWhiteSpace(Subtitle);
 
-        /// <summary>Segoe MDL2 glyph shown when the item has no provider icon.</summary>
+        /// <summary>IcoFont glyph (PlayAch.FontFamily.Icon) shown when the item has no provider icon.</summary>
         public string IconGlyph { get; }
         public bool HasIconGlyph => !string.IsNullOrWhiteSpace(IconGlyph);
 

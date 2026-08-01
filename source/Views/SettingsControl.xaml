@@ -36,7 +36,7 @@
             <TabItem x:Name="NotificationsTab" AutomationProperties.Name="{DynamicResource LOCPlayAch_Settings_TabNotifications}">
                 <TabItem.Header>
                     <StackPanel Style="{StaticResource TabHeaderWithIconStyle}">
-                        <TextBlock Style="{StaticResource HeaderIconStyle}" Text="&#xEC5F;"/>
+                        <TextBlock Style="{StaticResource HeaderIconStyle}" Text="&#xEFAC;"/>
                         <TextBlock Text="{DynamicResource LOCPlayAch_Settings_TabNotifications}" VerticalAlignment="Center"/>
                     </StackPanel>
                 </TabItem.Header>

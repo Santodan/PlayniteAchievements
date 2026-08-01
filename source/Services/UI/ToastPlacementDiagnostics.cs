@@ -127,10 +127,11 @@ namespace PlayniteAchievements.Services.UI
                 }
 
                 var awareness = DescribeAwareness();
+                var threadCtx = DpiAwarenessScope.DescribeThreadContext();
                 var sysScale = ResolveSystemScale().ToString("0.00", CultureInfo.InvariantCulture);
 
                 var sb = new StringBuilder();
-                sb.Append($"Toast env: mode={mode} awareness={awareness} sysScale={sysScale}");
+                sb.Append($"Toast env: mode={mode} awareness={awareness} threadCtx={threadCtx} sysScale={sysScale}");
 
                 var index = 0;
                 foreach (var screen in Screen.AllScreens)
@@ -249,6 +250,57 @@ namespace PlayniteAchievements.Services.UI
             }
 
             return "unknown";
+        }
+
+        /// <summary>
+        /// The process/system device scale (main window's TransformToDevice.M11), or 1.0 if it cannot
+        /// be resolved. Exposed for the toast DPI-compensation math in <see cref="ToastNotificationService"/>.
+        /// </summary>
+        internal static double SystemScale()
+        {
+            return ResolveSystemScale();
+        }
+
+        /// <summary>
+        /// The DWM bitmap-stretch factor a system-DPI-aware window suffers on the monitor that hosts
+        /// the given window: the monitor's true physical width (EnumDisplaySettings dmPelsWidth) over
+        /// its system-virtualized <see cref="Screen.Bounds"/> width. 1.0 means no stretch (the monitor
+        /// matches the system DPI); &gt;1.0 is the factor by which content is upscaled-and-blurred.
+        /// Falls back to the primary screen when no handle is given and to 1.0 when the physical
+        /// resolution is unavailable.
+        ///
+        /// Must be called from a system-DPI-aware thread context: <see cref="Screen.Bounds"/> is
+        /// reported in the caller's DPI awareness, so calling this under a per-monitor context would
+        /// return physical (unvirtualized) bounds and always yield 1.0.
+        /// </summary>
+        internal static double ResolveMonitorStretch(IntPtr windowHandle)
+        {
+            try
+            {
+                var screen = windowHandle != IntPtr.Zero ? Screen.FromHandle(windowHandle) : Screen.PrimaryScreen;
+                if (screen == null)
+                {
+                    return 1.0;
+                }
+
+                var boundsWidth = screen.Bounds.Width;
+                if (boundsWidth <= 0)
+                {
+                    return 1.0;
+                }
+
+                if (TryGetPhysicalResolution(screen.DeviceName, out var physW, out _) && physW > 0)
+                {
+                    var stretch = (double)physW / boundsWidth;
+                    return stretch > 0 ? stretch : 1.0;
+                }
+            }
+            catch
+            {
+                // Fall through to no-stretch.
+            }
+
+            return 1.0;
         }
 
         private static double ResolveSystemScale()
