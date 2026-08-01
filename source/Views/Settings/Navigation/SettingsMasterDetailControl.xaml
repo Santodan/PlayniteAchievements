@@ -125,7 +125,7 @@
                                 </Image>
 
                                 <TextBlock Text="{Binding IconGlyph}"
-                                           FontFamily="Segoe MDL2 Assets"
+                                           FontFamily="{DynamicResource PlayAch.FontFamily.Icon}"
                                            FontSize="14"
                                            Foreground="{DynamicResource PlayAch.Brush.Text}"
                                            Margin="{StaticResource PlayAch.Thickness.Right.Sm}"
