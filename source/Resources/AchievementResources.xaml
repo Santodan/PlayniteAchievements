@@ -209,7 +209,10 @@
 
     <DataTemplate DataType="{x:Type vm:ToastDescriptionLine}">
         <!-- MaxTextHeight clamps to one or two wrapped lines at the row's font size (two when no
-             game/category line follows, one when it does); the trailing ellipsis marks overflow. -->
+             game/category line follows, one when it does); the trailing ellipsis marks overflow.
+             UseLayoutRounding="False" keeps the floating toast window (which rounds layout to device
+             pixels) from shaving the exact two-line height down and clipping the 2nd line, so the
+             rendered line count matches the settings mockup. -->
         <TextBlock Text="{Binding Parent.Description}"
                    Style="{DynamicResource PlayAch.TextBlock.BaseStyle}"
                    Foreground="{DynamicResource PlayAch.Brush.Text}"
@@ -217,6 +220,7 @@
                    FontFamily="{Binding FontFamily}"
                    TextWrapping="Wrap"
                    TextTrimming="CharacterEllipsis"
+                   UseLayoutRounding="False"
                    LineHeight="{Binding LineBoxHeight}"
                    LineStackingStrategy="BlockLineHeight"
                    MaxHeight="{Binding MaxTextHeight}"
