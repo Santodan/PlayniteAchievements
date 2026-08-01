@@ -615,7 +615,7 @@ namespace PlayniteAchievements.Services.Recording
                 _logger?.Warn(
                     $"[Recording] ffmpeg capture exited {session.RestartCount} times; disabling recording for this session. stderr tail:\n{tail}");
                 session.Stopping = true;
-                NotifyRecordingUnavailableOnce();
+                NotifyRecordingUnavailableOnce(tail);
                 return;
             }
 
@@ -1606,7 +1606,7 @@ namespace PlayniteAchievements.Services.Recording
             }
         }
 
-        private void NotifyRecordingUnavailableOnce()
+        private void NotifyRecordingUnavailableOnce(string stderrTail = null)
         {
             if (_sessionNotified)
             {
@@ -1618,6 +1618,13 @@ namespace PlayniteAchievements.Services.Recording
             {
                 var title = ResourceProvider.GetString("LOCPlayAch_Title_PluginName");
                 var message = ResourceProvider.GetString("LOCPlayAch_Notification_RecordingUnavailable");
+                // Append the ffmpeg stderr tail (the actual driver/encoder error) so the cause is
+                // visible in the notification instead of only in the plugin log.
+                if (!string.IsNullOrWhiteSpace(stderrTail))
+                {
+                    message = $"{message}\n{stderrTail.Trim()}";
+                }
+
                 _api?.Notifications?.Add(new NotificationMessage(
                     UnavailableNotificationId,
                     $"{title}\n{message}",

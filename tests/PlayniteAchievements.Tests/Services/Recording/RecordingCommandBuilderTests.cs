@@ -213,6 +213,29 @@ namespace PlayniteAchievements.Services.Tests.Recording
         }
 
         [TestMethod]
+        public void EncoderProbe_IsSourceAgnosticEncodeToNullMuxer()
+        {
+            var nvenc = RecordingCommandBuilder.BuildEncoderProbeArguments(RecordingEncoder.Nvenc);
+            StringAssert.Contains(nvenc, "-f lavfi -i color=");
+            StringAssert.Contains(nvenc, "-c:v h264_nvenc");
+            StringAssert.Contains(nvenc, "-f null -");
+            // A driver-level encode probe must not depend on screen capture or a GPU-resident bridge.
+            Assert.IsFalse(nvenc.Contains("ddagrab"), nvenc);
+            Assert.IsFalse(nvenc.Contains("gdigrab"), nvenc);
+            Assert.IsFalse(nvenc.Contains("hwmap"), nvenc);
+            Assert.IsFalse(nvenc.Contains("hwdownload"), nvenc);
+
+            StringAssert.Contains(
+                RecordingCommandBuilder.BuildEncoderProbeArguments(RecordingEncoder.Qsv), "-c:v h264_qsv");
+            StringAssert.Contains(
+                RecordingCommandBuilder.BuildEncoderProbeArguments(RecordingEncoder.Amf), "-c:v h264_amf");
+
+            // Software / Auto have no hardware codec to driver-probe.
+            Assert.IsNull(RecordingCommandBuilder.BuildEncoderProbeArguments(RecordingEncoder.X264));
+            Assert.IsNull(RecordingCommandBuilder.BuildEncoderProbeArguments(RecordingEncoder.Auto));
+        }
+
+        [TestMethod]
         public void ResolveBackend_AutoPrefersDdagrabWhenSupported()
         {
             Assert.AreEqual(
