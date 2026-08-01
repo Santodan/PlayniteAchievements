@@ -3,6 +3,11 @@
         "path":  "source/Localization/en_US.xaml",
         "entries":  [
                         {
+                            "key":  "LOCPlayAch_Button_BrowseFile",
+                            "baseXml":  null,
+                            "desiredXml":  "\u003csys:String x:Key=\"LOCPlayAch_Button_BrowseFile\" xmlns:x=\"http://schemas.microsoft.com/winfx/2006/xaml\" xmlns:sys=\"clr-namespace:System;assembly=mscorlib\"\u003eBrowse File\u003c/sys:String\u003e"
+                        },
+                        {
                             "key":  "LOCPlayAch_Button_Reload",
                             "baseXml":  null,
                             "desiredXml":  "\u003csys:String x:Key=\"LOCPlayAch_Button_Reload\" xmlns:x=\"http://schemas.microsoft.com/winfx/2006/xaml\" xmlns:sys=\"clr-namespace:System;assembly=mscorlib\"\u003eReload\u003c/sys:String\u003e"
@@ -681,6 +686,11 @@
                             "key":  "LOCPlayAch_GameOptions_Status_LocalFolderNone",
                             "baseXml":  null,
                             "desiredXml":  "\u003csys:String x:Key=\"LOCPlayAch_GameOptions_Status_LocalFolderNone\" xmlns:x=\"http://schemas.microsoft.com/winfx/2006/xaml\" xmlns:sys=\"clr-namespace:System;assembly=mscorlib\"\u003eNo local folder detected\u003c/sys:String\u003e"
+                        },
+                        {
+                            "key":  "LOCPlayAch_GameOptions_Status_LocalFolderNotInUse",
+                            "baseXml":  null,
+                            "desiredXml":  "\u003csys:String x:Key=\"LOCPlayAch_GameOptions_Status_LocalFolderNotInUse\" xmlns:x=\"http://schemas.microsoft.com/winfx/2006/xaml\" xmlns:sys=\"clr-namespace:System;assembly=mscorlib\"\u003eNot using a local save folder\u003c/sys:String\u003e"
                         },
                         {
                             "key":  "LOCPlayAch_GameOptions_Status_LocalLumaPlayAppIdOverrideNone",

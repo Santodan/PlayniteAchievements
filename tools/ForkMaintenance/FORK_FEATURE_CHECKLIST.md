@@ -30,10 +30,17 @@ must still be verified in Playnite.
   priority when both change, and initial/zero snapshots initialize silently.
 - The obsolete separate Exophase/RetroAchievements API-verification controls
   are not shown.
+- Enabling **Debug achievement notification logging** creates
+  `AchNotifDebug.log` in the extension data directory. If the file already
+  exists, **Yes** recreates it and **No** appends to it. Reopening Playnite with
+  Debug already enabled appends without prompting, disabling Debug stops the
+  dedicated logger, and detailed notification diagnostics are not duplicated
+  into `playniteachievements.log`.
 
 Primary fork areas:
 
 - `source/Services/NotificationPublisher.cs`
+- `source/Services/Logging/AchievementNotificationDebugLog.cs`
 - `source/Services/InGameAchievementPoller.cs`
 - `source/Services/UI/ToastNotificationService.cs`
 - `source/Services/UI/UnlockScreenshotService.cs`

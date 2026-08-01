@@ -629,6 +629,7 @@ namespace PlayniteAchievements.Views
         private bool _isRefreshingNotificationStyleSelection;
         private bool _isRefreshingOverlayPresetControls;
         private bool _isRefreshingCustomStyleSlotSelection;
+        private bool _achievementNotificationDebugSettingReady;
         private ICollectionView _providerNavigationView;
         private bool _providerNavigationBuilt;
         private bool _themeMigrationLoaded;
@@ -1048,6 +1049,7 @@ namespace PlayniteAchievements.Views
                     }
 
                     RefreshAchievementNotificationControls(localSettings);
+                    _achievementNotificationDebugSettingReady = true;
                 }
             }
             catch (Exception ex)
@@ -6281,6 +6283,61 @@ namespace PlayniteAchievements.Views
             {
                 HighlightLatestAchievementForThemeMigration = highlightLatest;
             }
+        }
+
+        private void AchievementNotificationDebugLogging_Checked(object sender, RoutedEventArgs e)
+        {
+            if (!_achievementNotificationDebugSettingReady)
+            {
+                return;
+            }
+
+            var localSettings = _providerRegistry?.GetSettingsForEdit("Local") as Providers.Local.LocalSettings;
+            if (localSettings == null)
+            {
+                return;
+            }
+
+            try
+            {
+                Services.Logging.AchievementNotificationDebugLog.Initialize(_plugin.GetPluginUserDataPath());
+                var recreate = false;
+                if (Services.Logging.AchievementNotificationDebugLog.FileExists())
+                {
+                    var result = _plugin.PlayniteApi.Dialogs.ShowMessage(
+                        "AchNotifDebug.log already exists.\n\nSelect Yes to delete it and create a new log, or No to continue adding to the existing log.",
+                        "Achievement Notification Debug Log",
+                        MessageBoxButton.YesNo,
+                        MessageBoxImage.Question);
+                    recreate = result == MessageBoxResult.Yes;
+                }
+
+                Services.Logging.AchievementNotificationDebugLog.SetEnabled(true, recreate);
+                Services.Logging.AchievementNotificationDebugLog.Info(
+                    $"Debug logging enabled from settings; fileMode='{(recreate ? "recreated" : "append")}'.");
+            }
+            catch (Exception ex)
+            {
+                Services.Logging.AchievementNotificationDebugLog.SetEnabled(false);
+                localSettings.EnableOverlayDebugLogging = false;
+                _logger?.Error(ex, "Failed to enable the Achievement Notification debug log.");
+                _plugin.PlayniteApi.Dialogs.ShowMessage(
+                    $"AchNotifDebug.log could not be created.\n\n{ex.Message}",
+                    "Achievement Notification Debug Log",
+                    MessageBoxButton.OK,
+                    MessageBoxImage.Error);
+            }
+        }
+
+        private void AchievementNotificationDebugLogging_Unchecked(object sender, RoutedEventArgs e)
+        {
+            if (!_achievementNotificationDebugSettingReady)
+            {
+                return;
+            }
+
+            Services.Logging.AchievementNotificationDebugLog.Info("Debug logging disabled from settings.");
+            Services.Logging.AchievementNotificationDebugLog.SetEnabled(false);
         }
 
         private void ThemeMigrationCustomExpander_Expanded(object sender, RoutedEventArgs e)

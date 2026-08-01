@@ -106,6 +106,8 @@ The entries below are fork-side changes, grouped by date. When a date includes a
 - Changed the screenshot in the `Achievement Notification` to use the one from the original fork but with these custom settings
 - Added the video settings to the `Achievement Notification` to use the one from the original fork but with these custom settings
 - Change the `Local save folder override` to mention that it isn't using any local folder if that's the case
+- Added a refresh icon in the `View Achievements` window to refresh the achievements from that window
+- Added a dedicated file for the `Debug` setting for the `Achievement Notification`. The file is called `AchNotifDebug.log`
 
 ## 2026-07-27 - v2.5.3.4
 

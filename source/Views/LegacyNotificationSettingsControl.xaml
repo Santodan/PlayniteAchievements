@@ -2674,10 +2674,12 @@
                                 <TextBox x:Name="ApiVerificationPollingIntervalSecondsTextBox"
                                          Visibility="Collapsed"/>
 
-                                <CheckBox Content="Debug notification overlay logging"
+                                <CheckBox Content="Debug achievement notification logging"
                                           IsChecked="{Binding EnableOverlayDebugLogging, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                          Checked="AchievementNotificationDebugLogging_Checked"
+                                          Unchecked="AchievementNotificationDebugLogging_Unchecked"
                                           Margin="0,0,0,4"/>
-                                <TextBlock Text="Writes detailed monitor, DPI, window-position, animation, topmost, and SAN renderer diagnostics to playniteachievements.log."
+                                <TextBlock Text="Writes notification detection, dispatch, assets, monitor, DPI, window-position, animation, topmost, and SAN renderer diagnostics to AchNotifDebug.log."
                                            Style="{StaticResource MutedTextStyle}"
                                            Margin="18,0,0,12"
                                            TextWrapping="Wrap"/>

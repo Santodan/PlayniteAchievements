@@ -1,6 +1,6 @@
 {
     "schemaVersion":  1,
-    "generatedUtc":  "2026-07-29T08:42:46.1436046Z",
+    "generatedUtc":  "2026-08-01T08:16:47.8090854Z",
     "baselineRef":  "upstream/main",
     "baselineCommit":  "21f3b22393c99a80aee0f49b9bdca1aa80686f23",
     "protectedPaths":  [
@@ -9,13 +9,13 @@
                        ],
     "patch":  {
                   "path":  "fork-changes.patch",
-                  "sha256":  "F66AE7AC777C395B6BB9D2AA1CBAC73621B45F988FA2D9789F3260FD7BD092A2"
+                  "sha256":  "D3A3BF35F1A784B9E38A7C5C8949F4E9CA42BE2367A67E7357895675182DA26D"
               },
     "localizationRecipes":  {
                                 "path":  "localization-recipes.json",
-                                "sha256":  "709FADBFFF92440429AE6A6518F324FAC112309BEC4674D520CB222A33E26A55",
+                                "sha256":  "E7F190EC5399E6279E20A12EF67E85A18058A62EBD4AD9341C142EBDADBCC7E5",
                                 "fileCount":  1,
-                                "entryCount":  363
+                                "entryCount":  365
                             },
     "overlayFiles":  [
                          {
@@ -132,7 +132,7 @@
                          },
                          {
                              "path":  "source/Providers/Local/LocalSavesProvider.cs",
-                             "sha256":  "AE90AB6A25275B7A6F43D207CD6036CECAFA0A691422D248548EEA7374780D44"
+                             "sha256":  "58D9905308D7DD7734A250B97E968502B24DB77F0351102EC6DF2CBC78A9E326"
                          },
                          {
                              "path":  "source/Providers/Local/LocalSettings.cs",
@@ -235,6 +235,10 @@
                              "sha256":  "E9EB6373BFE6E1DDA8A4E2FCF27B9EE2698BAA204C788072DAE6A2D9E896DF11"
                          },
                          {
+                             "path":  "source/Services/Logging/AchievementNotificationDebugLog.cs",
+                             "sha256":  "FA245EEC61AF808DFDE4D874389ED5902F8AECAB7472F505551A1581AB54DE06"
+                         },
+                         {
                              "path":  "source/Services/Refresh/CustomRefreshGameMatcher.cs",
                              "sha256":  "83E25307FB58E1D2D60148233666F2DB03862E284EDE8B61A2E5153A39D14EAE"
                          },
@@ -280,11 +284,11 @@
                          },
                          {
                              "path":  "source/ViewModels/ManageAchievementsViewModel.ForkOverrides.cs",
-                             "sha256":  "6C9A4347D2FFEE851A28D5FCC36D76697F6A6E790DD5A20FE784208D8C284A8C"
+                             "sha256":  "C74ACE6AA443DED67E1385B8693267B012008BB51F407EDB8E21ACFD612F55DE"
                          },
                          {
                              "path":  "source/Views/GameOptionsLocalOverridesSection.xaml",
-                             "sha256":  "18DAEFC00244E8CBE5CB2D6C95FEAEF8212D017D5515E91995A2A153D55F3DD8"
+                             "sha256":  "A2699981C992DA7F785AE27F69FDECEB19F490B1BDDCB92D1E0B05D42254A7DA"
                          },
                          {
                              "path":  "source/Views/GameOptionsLocalOverridesSection.xaml.cs",
@@ -292,11 +296,11 @@
                          },
                          {
                              "path":  "source/Views/LegacyNotificationSettingsControl.xaml",
-                             "sha256":  "B3262B12AC6DE5B091AFA0AB89D9C67676E54A493D56759FB941510810A34279"
+                             "sha256":  "675F306567CE81AE842E2DA31768A8B898D8AF0FBBE51C2B00325241EC4DEB06"
                          },
                          {
                              "path":  "source/Views/LegacyNotificationSettingsControl.xaml.cs",
-                             "sha256":  "18F04701E10BEB2EBDF49F6B076DA5DFB86D005527F66F1B33BDB9A7F2DA0695"
+                             "sha256":  "6793A336E28383839DBF8BD93ADE70C6CB8609624CFFF70D134B303D87142D0B"
                          },
                          {
                              "path":  "source/Views/LocalAchievementEditorControl.xaml",

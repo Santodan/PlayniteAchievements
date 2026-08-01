@@ -29,6 +29,7 @@ using PlayniteAchievements.Models.Achievements;
 using PlayniteAchievements.Models.Achievements.Scoring;
 using PlayniteAchievements.Providers;
 using PlayniteAchievements.Providers.Local;
+using PlayniteAchievements.Services.Logging;
 
 namespace PlayniteAchievements.Services
 {
@@ -71,6 +72,11 @@ namespace PlayniteAchievements.Services
             _settings = settings;
             _logger = logger;
             WarmUpSanWebView2();
+        }
+
+        private void LogAchievementNotificationDebug(string message)
+        {
+            AchievementNotificationDebugLog.Info(message);
         }
 
         public void ShowPeriodicStatus(string status)
@@ -254,6 +260,14 @@ namespace PlayniteAchievements.Services
             var localSettings = overrideLocalSettings ?? ProviderRegistry.Settings<LocalSettings>();
             var resolvedProviderKey = string.IsNullOrWhiteSpace(notificationProviderKey) ? "Local" : notificationProviderKey.Trim();
             var enableInAppNotification = localSettings?.EnableInAppUnlockNotifications != false;
+            if (localSettings?.EnableOverlayDebugLogging == true)
+            {
+                LogAchievementNotificationDebug(
+                    $"Unlock batch received game='{gameName}', gameId='{game?.Id}', provider='{resolvedProviderKey}', " +
+                    $"inputCount='{unlockedAchievements?.Count ?? 0}', usableCount='{achievements.Count}', " +
+                    $"deliveryMode='{localSettings.UnlockNotificationDeliveryMode}', inAppNotification='{enableInAppNotification}', " +
+                    $"soundConfigured='{!string.IsNullOrWhiteSpace(customSoundPath)}', soundLeadMs='{localSettings.UnlockSoundLeadMilliseconds}'.");
+            }
 
             var title = ResourceProvider.GetString("LOCPlayAch_Notification_LocalUnlockTitle");
             if (string.IsNullOrWhiteSpace(title))
@@ -405,11 +419,13 @@ namespace PlayniteAchievements.Services
                 $"transition='{localSettings?.UnlockOverlayTransitionStyle}', sanElement='{localSettings?.OverlayCustomSanElementPresetId ?? string.Empty}'.");
             if (localSettings?.EnableOverlayDebugLogging == true)
             {
-                _logger?.Info(
+                LogAchievementNotificationDebug(
                     $"[LocalOverlayDebug] Settings position='{localSettings.UnlockOverlayPosition}', " +
                     $"followActiveMonitor='{localSettings.ShowOverlayOnActiveGameMonitor}', " +
                     $"customSize='{localSettings.OverlayCustomWidth:0.###}x{localSettings.OverlayCustomHeight:0.###}', " +
-                    $"customOpacity='{localSettings.OverlayCustomOpacity:0.###}'.");
+                    $"customOpacity='{localSettings.OverlayCustomOpacity:0.###}', gameId='{game?.Id}', " +
+                    $"iconPath='{achievementIconPath ?? string.Empty}', iconExists='{(!string.IsNullOrWhiteSpace(achievementIconPath) && File.Exists(achievementIconPath))}', " +
+                    $"descriptionPresent='{!string.IsNullOrWhiteSpace(achievementDescription)}', points='{achievementPoints}', rarity='{achievementRarity}', trophy='{achievementTrophy}'.");
             }
 
             if (mode == LocalUnlockNotificationDeliveryMode.Overlay || mode == LocalUnlockNotificationDeliveryMode.Hybrid)
@@ -628,8 +644,11 @@ namespace PlayniteAchievements.Services
                 if (!File.Exists(soundPath))
                 {
                     _logger?.Warn($"Configured Local unlock sound file was not found: {soundPath}");
+                    AchievementNotificationDebugLog.Warn($"Configured unlock sound was not found: '{soundPath}'.");
                     return;
                 }
+
+                AchievementNotificationDebugLog.Info($"Playing unlock sound from '{soundPath}'.");
 
                 _ = Task.Run(() =>
                 {
@@ -639,16 +658,19 @@ namespace PlayniteAchievements.Services
                         {
                             player.PlaySync();
                         }
+                        AchievementNotificationDebugLog.Info("Unlock sound playback completed.");
                     }
                     catch (Exception ex)
                     {
                         _logger?.Debug(ex, $"Failed to play Local unlock sound: {soundPath}");
+                        AchievementNotificationDebugLog.Error(ex, $"Unlock sound playback failed for '{soundPath}'.");
                     }
                 });
             }
             catch (Exception ex)
             {
                 _logger?.Debug(ex, $"Failed to play Local unlock sound: {soundPath}");
+                AchievementNotificationDebugLog.Error(ex, $"Failed to resolve or start the unlock sound '{soundPath}'.");
             }
         }
 
@@ -666,6 +688,7 @@ namespace PlayniteAchievements.Services
                 if (localSettings?.EnableWindowsToastNotifications != true)
                 {
                     _logger?.Info("[LocalToast] Skipping Windows toast because EnableWindowsToastNotifications is disabled.");
+                    AchievementNotificationDebugLog.Info("Windows toast skipped because EnableWindowsToastNotifications is disabled.");
                     return;
                 }
 
@@ -726,10 +749,13 @@ try {{
                 };
 
                 _logger?.Info($"[LocalToast] Sending Windows toast for game='{safeGameName}', achievement='{safeAchievementName}', provider='{providerKey}', style='{style}'.");
+                AchievementNotificationDebugLog.Info(
+                    $"Starting Windows toast provider='{providerKey}', style='{style}', imageResolved='{!string.IsNullOrWhiteSpace(toastIconSource)}'.");
                 var process = Process.Start(processStartInfo);
                 if (process == null)
                 {
                     _logger?.Warn("[LocalToast] PowerShell process did not start (Process.Start returned null).");
+                    AchievementNotificationDebugLog.Warn("Windows toast PowerShell process did not start (Process.Start returned null).");
                     return;
                 }
 
@@ -740,6 +766,7 @@ try {{
                         if (!process.WaitForExit(5000))
                         {
                             _logger?.Warn($"[LocalToast] PowerShell toast process timed out. Pid={process.Id}");
+                            AchievementNotificationDebugLog.Warn($"Windows toast PowerShell process timed out; pid='{process.Id}'.");
                             try
                             {
                                 process.Kill();
@@ -759,15 +786,20 @@ try {{
                         if (process.ExitCode == 0)
                         {
                             _logger?.Info($"[LocalToast] PowerShell toast command succeeded. ExitCode=0, StdOut={logStdout}, StdErr={logStderr}");
+                            AchievementNotificationDebugLog.Info(
+                                $"Windows toast command completed exitCode='0', stdout='{logStdout}', stderr='{logStderr}'.");
                         }
                         else
                         {
                             _logger?.Warn($"[LocalToast] PowerShell toast command failed. ExitCode={process.ExitCode}, StdOut={logStdout}, StdErr={logStderr}");
+                            AchievementNotificationDebugLog.Warn(
+                                $"Windows toast command failed exitCode='{process.ExitCode}', stdout='{logStdout}', stderr='{logStderr}'.");
                         }
                     }
                     catch (Exception ex)
                     {
                         _logger?.Warn(ex, "[LocalToast] Failed while waiting for PowerShell toast command result.");
+                        AchievementNotificationDebugLog.Error(ex, "Failed while waiting for the Windows toast command result.");
                     }
                     finally
                     {
@@ -781,6 +813,7 @@ try {{
             catch (Exception ex)
             {
                 _logger?.Warn(ex, "[LocalToast] Failed to send Windows toast notification.");
+                AchievementNotificationDebugLog.Error(ex, "Failed to construct or send the Windows toast notification.");
             }
         }
 
@@ -1028,6 +1061,14 @@ steamImage +
                             ? Math.Max(LocalSettings.MinCustomOverlayHeight, localSettings?.OverlayCustomHeight ?? 128)
                             : 110 * overlayScale;
 
+                        if (debugLoggingEnabled)
+                        {
+                            LogAchievementNotificationDebug(
+                                $"Renderer selection style='{style}', custom='{isCustomStyle}', sanSelected='{(localSettings != null && (IsSanTransitionStyle(localSettings.UnlockOverlayTransitionStyle) || !string.IsNullOrWhiteSpace(localSettings.OverlayCustomSanElementPresetId)))}', " +
+                                $"sizeDip='{width:0.###}x{height:0.###}', autoResize='{autoResizeCustom}', opacity='{overlayOpacity:0.###}', " +
+                                $"durationMs='{durationMs}', fadeInMs='{fadeInMs}', fadeOutMs='{fadeOutMs}'.");
+                        }
+
                         if (isCustomStyle &&
                             TryShowSanHtmlOverlayNotification(
                                 safeGameName,
@@ -1096,7 +1137,7 @@ steamImage +
                                 ApplyOverlayEnterAnimation(overlayWindow, overlayOpacity, fadeInMs, transitionStyle, slideDistance);
                                 if (debugLoggingEnabled)
                                 {
-                                    _logger?.Info(
+                                    LogAchievementNotificationDebug(
                                         $"[LocalOverlayDebug] WPF enter animation started targetOpacity='{overlayOpacity:0.###}', " +
                                         $"fadeInMs='{fadeInMs}', transition='{transitionStyle}', slideDistance='{slideDistance}'.");
                                     ScheduleOverlayWindowLifecycleSample(
@@ -1134,6 +1175,7 @@ steamImage +
                             catch (Exception animEx)
                             {
                                 _logger?.Warn(animEx, "[LocalOverlay] Failed in loaded animation pipeline.");
+                                AchievementNotificationDebugLog.Error(animEx, "The WPF overlay loaded-animation pipeline failed.");
                                 try
                                 {
                                     overlayWindow.Close();
@@ -1169,12 +1211,14 @@ steamImage +
                     catch (Exception uiEx)
                     {
                         _logger?.Warn(uiEx, "[LocalOverlay] Failed to render overlay on UI thread.");
+                        AchievementNotificationDebugLog.Error(uiEx, "The WPF overlay failed while rendering on the UI thread.");
                     }
                 });
             }
             catch (Exception ex)
             {
                 _logger?.Debug(ex, "[LocalOverlay] Failed to show overlay notification.");
+                AchievementNotificationDebugLog.Error(ex, "The overlay notification failed before or during UI dispatch.");
             }
         }
 
@@ -1248,7 +1292,7 @@ steamImage +
             if (debugLoggingEnabled)
             {
                 var wpfDpi = VisualTreeHelper.GetDpi(window);
-                _logger?.Info(
+                LogAchievementNotificationDebug(
                     $"[LocalOverlayDebug] Positioned renderer='{ResolveOverlayRendererName(window)}', position='{position}', stackIndex='{stackIndex}', " +
                     $"followActiveMonitor='{followActiveGameMonitor}', foregroundHwnd='{FormatHandle(monitorDiagnostics.ForegroundWindow)}', " +
                     $"monitorHandle='{FormatHandle(monitorDiagnostics.Monitor)}', monitorInfo='{monitorDiagnostics.HasMonitorInfo}', " +
@@ -1506,7 +1550,7 @@ steamImage +
                         {
                             if (debugLoggingEnabled)
                             {
-                                _logger?.Info(
+                                LogAchievementNotificationDebug(
                                     $"[LocalOverlayDebug] SAN navigation completed success='{navigationArgs.IsSuccess}', " +
                                     $"webErrorStatus='{navigationArgs.WebErrorStatus}', source='{webView.Source}'.");
                             }
@@ -1543,7 +1587,7 @@ steamImage +
                         webView.CoreWebView2.Navigate(new Uri(htmlPath).AbsoluteUri);
                         if (debugLoggingEnabled)
                         {
-                            _logger?.Info($"[LocalOverlayDebug] SAN navigation started source='{new Uri(htmlPath).AbsoluteUri}'.");
+                            LogAchievementNotificationDebug($"[LocalOverlayDebug] SAN navigation started source='{new Uri(htmlPath).AbsoluteUri}'.");
                         }
 
                         if (!isSanTransition && !persistentPreviewRequested)
@@ -1561,6 +1605,7 @@ steamImage +
                     catch (Exception ex)
                     {
                         _logger?.Warn(ex, "[LocalOverlay] Failed to initialize SAN WebView2 overlay.");
+                        AchievementNotificationDebugLog.Error(ex, "SAN WebView2 initialization failed.");
                         try
                         {
                             window.Close();
@@ -1624,6 +1669,7 @@ steamImage +
             catch (Exception ex)
             {
                 _logger?.Warn(ex, "[LocalOverlay] Failed to render SAN WebView2 overlay; falling back to WPF renderer.");
+                AchievementNotificationDebugLog.Error(ex, "SAN WebView2 rendering failed; falling back to the WPF renderer.");
                 return false;
             }
         }
@@ -1729,7 +1775,7 @@ steamImage +
                 var source = PresentationSource.FromVisual(window);
                 var transform = source?.CompositionTarget?.TransformToDevice ?? Matrix.Identity;
 
-                _logger?.Info(
+                LogAchievementNotificationDebug(
                     $"[LocalOverlayDebug] Window lifecycle renderer='{renderer}', phase='{phase}', hwnd='{FormatHandle(handle)}', " +
                     $"hasPresentationSource='{source != null}', isLoaded='{window.IsLoaded}', isVisible='{window.IsVisible}', " +
                     $"windowState='{window.WindowState}', topmost='{window.Topmost}', allowsTransparency='{window.AllowsTransparency}', " +
@@ -1899,7 +1945,7 @@ steamImage +
                         if (succeeded && !loggedSuccess && debugLoggingEnabled)
                         {
                             loggedSuccess = true;
-                            _logger?.Info(
+                            LogAchievementNotificationDebug(
                                 $"[LocalOverlayDebug] Topmost guard succeeded renderer='{ResolveOverlayRendererName(window)}', " +
                                 $"hwnd='{FormatHandle(handle)}'.");
                         }

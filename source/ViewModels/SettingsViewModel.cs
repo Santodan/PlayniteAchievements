@@ -153,6 +153,7 @@ namespace PlayniteAchievements.ViewModels
 
             _plugin.ProviderRegistry?.CancelEditSession();
             _plugin.ProviderRegistry?.SyncFromSettings(Settings.Persisted);
+            SyncAchievementNotificationDebugLog();
             GameCustomDataStore?.SyncRuntimeCaches();
             ApplyThemeResources();
         }
@@ -167,6 +168,7 @@ namespace PlayniteAchievements.ViewModels
 
             // Sync provider registry from the updated settings
             _plugin.ProviderRegistry?.SyncFromSettings(Settings.Persisted);
+            SyncAchievementNotificationDebugLog();
             GameCustomDataStore?.SyncRuntimeCaches();
             ApplyThemeResources();
 
@@ -185,6 +187,13 @@ namespace PlayniteAchievements.ViewModels
             }
 
             return errors.Count == 0;
+        }
+
+        private void SyncAchievementNotificationDebugLog()
+        {
+            AchievementNotificationDebugLog.Initialize(_plugin.GetPluginUserDataPath());
+            AchievementNotificationDebugLog.SetEnabled(
+                Providers.ProviderRegistry.Settings<Providers.Local.LocalSettings>()?.EnableOverlayDebugLogging == true);
         }
 
         private static void ValidateAchievementHotkeys(PersistedSettings persisted, List<string> errors)

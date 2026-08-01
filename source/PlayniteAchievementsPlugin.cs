@@ -263,10 +263,14 @@ namespace PlayniteAchievements
                         game: game);
                     _logger?.Info(
                         $"[AchievementNotification] Upstream poll detection routed to custom notification: game={args.GameName}, provider={args.ProviderKey}, achievement={args.DisplayName ?? args.ApiName}.");
+                    AchievementNotificationDebugLog.Info(
+                        $"Detection routed to custom notification: game='{args.GameName}', gameId='{args.PlayniteGameId}', " +
+                        $"provider='{args.ProviderKey}', achievement='{args.DisplayName ?? args.ApiName}', iconPresent='{!string.IsNullOrWhiteSpace(args.IconPath)}'.");
                 }
                 catch (Exception ex)
                 {
                     _logger?.Error(ex, "[AchievementNotification] Failed to render upstream poll detection with the custom notification.");
+                    AchievementNotificationDebugLog.Error(ex, "Failed to route a detected unlock to the custom notification renderer.");
                 }
             }
 
@@ -503,6 +507,9 @@ namespace PlayniteAchievements
                     _manualSourceRegistry,
                     steamApiTokenService);
                 _providerRegistry.SyncFromSettings(settings.Persisted);
+                AchievementNotificationDebugLog.Initialize(pluginUserDataPath);
+                AchievementNotificationDebugLog.SetEnabled(
+                    ProviderRegistry.Settings<Providers.Local.LocalSettings>()?.EnableOverlayDebugLogging == true);
                 settings.Persisted?.MigrateLegacyProviderFriends();
                 _gameCustomDataStore = _settingsViewModel.GameCustomDataStore;
                 _gameCustomDataStore.AttachRuntimeSettings(settings);
@@ -1307,6 +1314,7 @@ namespace PlayniteAchievements
             DisposeStartPageViews();
 
             // Shutdown logging system
+            try { AchievementNotificationDebugLog.Shutdown(); } catch (Exception ex) { System.Diagnostics.Trace.TraceError($"Failed to shutdown achievement notification debug logger: {ex}"); }
             try { PluginLogger.Shutdown(); } catch (Exception ex) { System.Diagnostics.Trace.TraceError($"Failed to shutdown logger: {ex}"); }
         }
 

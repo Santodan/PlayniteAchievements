@@ -1,3 +1,6 @@
+warning: in the working copy of 'source/PlayniteAchievementsPlugin.cs', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'source/Services/NotificationPublisher.cs', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'source/ViewModels/SettingsViewModel.cs', LF will be replaced by CRLF the next time Git touches it
 diff --git a/.gitignore b/.gitignore
 index 5e12022a1ec68295804fa1a6b2b12d0466614631..dd93b805a2211987591bc7b59a92b5c6e77af5c5 100644
 --- a/.gitignore
@@ -101,10 +104,10 @@ index 4bbe03feb756665ed105752ea1f9fa3e7bdd2314..9dce25a1da1a5cae228d23f2d3212262
 +    Image: https://raw.githubusercontent.com/santodan/PlayniteAchievements/main/Images/aniki-remake1.png
 \ No newline at end of file
 diff --git a/README.md b/README.md
-index 39887bdbdaaae092ed292fa99f10d9b84b089fce..fcf58cec1ce4026598efa9909a5c3de38d60bdb9 100644
+index 39887bdbdaaae092ed292fa99f10d9b84b089fce..ff33f0929d1a401ae18c12fa4056496c1d09f208 100644
 --- a/README.md
 +++ b/README.md
-@@ -1,267 +1,412 @@
+@@ -1,267 +1,414 @@
  <p align="center">
 -  <picture>
 -    <source
@@ -318,6 +321,8 @@ index 39887bdbdaaae092ed292fa99f10d9b84b089fce..fcf58cec1ce4026598efa9909a5c3de3
 -![Unlock screenshot with notification](Images/001_First%20Contact_toast.png)
 -
 -**Framed**
+-
+-![Framed unlock screenshot](Images/001_First%20Contact_framed.png)
 +> Official documentation for the base project should be taken from the original repository.
 +>
 +> - Original repository: https://github.com/justin-delano/PlayniteAchievements
@@ -331,10 +336,10 @@ index 39887bdbdaaae092ed292fa99f10d9b84b089fce..fcf58cec1ce4026598efa9909a5c3de3
 +>
 +> I'm not a developer, I'm a troubleshooting guy, so everything is made with LLM
  
--![Framed unlock screenshot](Images/001_First%20Contact_framed.png)
+-NOTE: Achievement notifications will not show for games that use DirectX 9 and lower in Exclusive Fullscreen mode.
 +# What This Fork Focuses On
  
--NOTE: Achievement notifications will not show for games that use DirectX 9 and lower in Exclusive Fullscreen mode.
+-Themes can create custom notification and frame styles, for full consistency. For example, in [Aniki-ReMake](https://github.com/Mike-Aniki/Aniki-ReMake):
 +- Local save support and local achievement
 +- No need for a steam account to gather the achievements schema
 +  - There is the option to select between Steam ( API ), SteamHunters and Completionist.me
@@ -348,52 +353,52 @@ index 39887bdbdaaae092ed292fa99f10d9b84b089fce..fcf58cec1ce4026598efa9909a5c3de3
 +- `SuccessStory` Import
 +- Theme and `StartPage` migration
  
--Themes can create custom notification and frame styles, for full consistency. For example, in [Aniki-ReMake](https://github.com/Mike-Aniki/Aniki-ReMake):
+-**Toast**
 +Guides available in [Achievement Notifications Guide](ACHIEVEMENT_NOTIFICATIONS_GUIDE.md) and [Local Provider Troubleshooting](LOCAL_PROVIDER_TROUBLESHOOTING.md)
  
--**Toast**
+-![Aniki-ReMake custom toast](Images/PlayniteAchievements%20-%20Mike%20Aniki%20Toast.png)
 +## Local Provider Folder List And Browse Flow
  
--![Aniki-ReMake custom toast](Images/PlayniteAchievements%20-%20Mike%20Aniki%20Toast.png)
+-**Frame**
 +You can set any custom folder where you have saves located in your system as exception to never detect achievements from it
  
--**Frame**
+-![Aniki-ReMake custom frame](Images/PlayniteAchievements%20-%20Mike%20Aniki%20Frame.png)
 +<img src="Images/LocalAchivementsFolders.png" alt="Sidebar single-game view" width="900">
  
--![Aniki-ReMake custom frame](Images/PlayniteAchievements%20-%20Mike%20Aniki%20Frame.png)
- 
 -Notification and capture settings are described on the [General](https://github.com/justin-delano/PlayniteAchievements/wiki/General) settings page. Theme authors can build custom styles with [Toast and Frame Overrides](https://github.com/justin-delano/PlayniteAchievements/wiki/Toast-And-Frame-Overrides).
-+## Local Game Options Overrides
  
 -# Integration with Themes
-+If you Right-click the game it will show a quicker way to do these changes:
++## Local Game Options Overrides
  
 -Any desktop theme created with SuccessStory support can migrate the theme to use PlayniteAchievements instead.
-+<img src="Images/LocalAchivementsRightClickOptions.png" alt="Sidebar single-game view" width="900">
++If you Right-click the game it will show a quicker way to do these changes:
  
 -Many fullscreen themes can be migrated as well, but these complex themes are more likely to reveal compatibility issues. I recommend using [Aniki-ReMake](https://github.com/Mike-Aniki/Aniki-ReMake) for the most comprehensive integration of PlayniteAchievements features.
-+From the PlayniteAchievements menu inside the game
++<img src="Images/LocalAchivementsRightClickOptions.png" alt="Sidebar single-game view" width="900">
  
 -See [Theme Migration](https://github.com/justin-delano/PlayniteAchievements/wiki/Theme-Migration), [Theme Bindings](https://github.com/justin-delano/PlayniteAchievements/wiki/Theme-Bindings), and [Migrating From Legacy](https://github.com/justin-delano/PlayniteAchievements/wiki/Migrating-From-Legacy) on the wiki for more detail.
-+<img src="Images/LocalAchivementsOverrides.png" alt="Sidebar single-game view" width="900">
++From the PlayniteAchievements menu inside the game
  
 -# Integration with other Plugins
++<img src="Images/LocalAchivementsOverrides.png" alt="Sidebar single-game view" width="900">
  
 -PlayniteAchievements supports additional features when used with the following extensions:
-+## Local Achievements' Games import and `SuccessStory Import`
  
 -## UniPlaySong
-+This is a way of adding all of those achievements that are in the folders ina  way that it isn't needed to go through the folders and adding one by one.
++## Local Achievements' Games import and `SuccessStory Import`
  
 -When [UniPlaySong](https://github.com/aHuddini/UniPlaySong) is installed, achievement notifications are accompanied by custom musical jingles. Themes can also take advantage of this to have their own custom consistent jingles.
-+There is also the option to import data from `SuccessStory`. This will go through all the JSON files in the selected SuccessStory folder and import the `Local` games and also the achievements for the games that were detected in them.
++This is a way of adding all of those achievements that are in the folders ina  way that it isn't needed to go through the folders and adding one by one.
  
 -## StartPage
-+<img src="Images/LocalAchivementsGamesImport.png" alt="Sidebar single-game view" width="900">
++There is also the option to import data from `SuccessStory`. This will go through all the JSON files in the selected SuccessStory folder and import the `Local` games and also the achievements for the games that were detected in them.
  
 -PlayniteAchievements tables and visualizations can be added to [StartPage](https://github.com/felixkmh/StartPage-for-Playnite), with their own separate customization, so you can create stunning dashboards like the example below:
++<img src="Images/LocalAchivementsGamesImport.png" alt="Sidebar single-game view" width="900">
  
 -![StartPage dashboard](Images/PlayniteAchievements%20-%20StartPage.png)
+ 
+-## Docs
 +## Local Achievement Notification
 +
 +This was a request from a user to have a sound playing when an achievement is unlocked while playing a game.<br>
@@ -402,7 +407,7 @@ index 39887bdbdaaae092ed292fa99f10d9b84b089fce..fcf58cec1ce4026598efa9909a5c3de3
 +You can customize the overlay or use one of the provided themes.<br>
 +You can enable / disable the `Achievement Notification` in the right click  menu for each game.
  
--## Docs
+-- [Open the wiki](https://github.com/justin-delano/PlayniteAchievements/wiki)
 +<img src="Images/AchievementNotificationMenu.png" alt="Sidebar single-game view" width="900">
 +
 +<img src="Images/AchievementNotificationTest.png" alt="Sidebar single-game view">
@@ -411,8 +416,7 @@ index 39887bdbdaaae092ed292fa99f10d9b84b089fce..fcf58cec1ce4026598efa9909a5c3de3
 +## `StartPage` and Themes compatibility
 +
 +In the `Theme Migration` tab you will have the possibility to make theme compatible with this fork, and that's also for theme that already support the original PlayniteAchievements fork, they still need to go through the `Theme Migration` since they are point to the other repo and not this one
- 
--- [Open the wiki](https://github.com/justin-delano/PlayniteAchievements/wiki)
++
 +There is also the `StartPage Compatibility` so the `Local` achievements appear in the `StartPage` extension when `PlayniteAchievements` is selected
 +
 +<img src="Images/ThemeMigration.png" alt="Sidebar single-game view"  width="900">
@@ -430,6 +434,8 @@ index 39887bdbdaaae092ed292fa99f10d9b84b089fce..fcf58cec1ce4026598efa9909a5c3de3
 +- Changed the trigger for the `Achievement Notification` to use the one from the original fork
 +- Changed the screenshot in the `Achievement Notification` to use the one from the original fork but with these custom settings
 +- Added the video settings to the `Achievement Notification` to use the one from the original fork but with these custom settings
++- Change the `Local save folder override` to mention that it isn't using any local folder if that's the case
++- Added a refresh icon in the `View Achievements` window to refresh the achievements from that window
 +
 +## 2026-07-27 - v2.5.3.4
 +
@@ -1306,7 +1312,7 @@ index 1289e4dc41a1798bf2f6a851f893051019beabd2..466f834a77b62f7df7ded5c2d9fc83d6
          {
              _resourceService.EnsureAchievementResourcesLoaded(_settingsViewModel.Settings);
 diff --git a/source/PlayniteAchievementsPlugin.cs b/source/PlayniteAchievementsPlugin.cs
-index ffc5cb769181e0f751ee1ef8a2e32c143fff2362..c13ab15aa64ea449643afb08cfcbb7e364490fa1 100644
+index ffc5cb769181e0f751ee1ef8a2e32c143fff2362..5a19d990ac9e05bfa7beb2cbcbcee908e490e877 100644
 --- a/source/PlayniteAchievementsPlugin.cs
 +++ b/source/PlayniteAchievementsPlugin.cs
 @@ -37,6 +37,7 @@
@@ -1328,7 +1334,7 @@ index ffc5cb769181e0f751ee1ef8a2e32c143fff2362..c13ab15aa64ea449643afb08cfcbb7e3
          private static readonly string[] ProviderRefreshOrder =
          {
 -            "Manual", "FFXIV", "Exophase", "Steam", "Epic", "GOG", "BattleNet", "EA", "Hoyoverse", "RPCS3", "ShadPS4", "PSN", "Xenia", "Xbox", "RetroAchievements"
-+            "Manual", "Local", "FFXIV", "Exophase", "Steam", "Epic", "GOG", "BattleNet", "EA", "Hoyoverse", "RPCS3", "ShadPS4", "PSN", "Xenia", "Xbox", "RetroAchievements"
++            "Manual", "FFXIV", "Exophase", "Steam", "Epic", "GOG", "BattleNet", "EA", "Hoyoverse", "Local", "RPCS3", "ShadPS4", "PSN", "Xenia", "Xbox", "RetroAchievements"
          };
  
          private readonly PlayniteAchievementsSettingsViewModel _settingsViewModel;
@@ -1369,7 +1375,7 @@ index ffc5cb769181e0f751ee1ef8a2e32c143fff2362..c13ab15aa64ea449643afb08cfcbb7e3
          /// <summary>
          /// Raises the SettingsSaved event to notify listeners that settings have changed. Every
          /// subscriber is a UI control, so when this is invoked from a background thread (e.g. a friend
-@@ -197,6 +221,61 @@ public static void NotifyAchievementUnlocked(AchievementUnlockedEventArgs args)
+@@ -197,6 +221,65 @@ public static void NotifyAchievementUnlocked(AchievementUnlockedEventArgs args)
              handler.Invoke(null, args);
          }
  
@@ -1415,10 +1421,14 @@ index ffc5cb769181e0f751ee1ef8a2e32c143fff2362..c13ab15aa64ea449643afb08cfcbb7e3
 +                        game: game);
 +                    _logger?.Info(
 +                        $"[AchievementNotification] Upstream poll detection routed to custom notification: game={args.GameName}, provider={args.ProviderKey}, achievement={args.DisplayName ?? args.ApiName}.");
++                    AchievementNotificationDebugLog.Info(
++                        $"Detection routed to custom notification: game='{args.GameName}', gameId='{args.PlayniteGameId}', " +
++                        $"provider='{args.ProviderKey}', achievement='{args.DisplayName ?? args.ApiName}', iconPresent='{!string.IsNullOrWhiteSpace(args.IconPath)}'.");
 +                }
 +                catch (Exception ex)
 +                {
 +                    _logger?.Error(ex, "[AchievementNotification] Failed to render upstream poll detection with the custom notification.");
++                    AchievementNotificationDebugLog.Error(ex, "Failed to route a detected unlock to the custom notification renderer.");
 +                }
 +            }
 +
@@ -1431,7 +1441,7 @@ index ffc5cb769181e0f751ee1ef8a2e32c143fff2362..c13ab15aa64ea449643afb08cfcbb7e3
          private void TryWarmCustomDataCache()
          {
              if (_gameCustomDataStore == null)
-@@ -239,18 +318,49 @@ private string GetPluginLocalizationDirectory()
+@@ -239,18 +322,49 @@ private string GetPluginLocalizationDirectory()
          }
  
          public void PersistSettingsForUi()
@@ -1482,7 +1492,7 @@ index ffc5cb769181e0f751ee1ef8a2e32c143fff2362..c13ab15aa64ea449643afb08cfcbb7e3
          }
  
          // Public bridge method for external helpers/themes that used to target SuccessStory via reflection.
-@@ -385,7 +495,13 @@ public PlayniteAchievementsPlugin(IPlayniteAPI api) : base(api)
+@@ -385,8 +499,17 @@ public PlayniteAchievementsPlugin(IPlayniteAPI api) : base(api)
                  _manualSourceRegistry = new ManualSourceRegistry(_logger, settings, PlayniteApi, pluginUserDataPath);
  
                  // Create provider registry
@@ -1495,9 +1505,13 @@ index ffc5cb769181e0f751ee1ef8a2e32c143fff2362..c13ab15aa64ea449643afb08cfcbb7e3
 +                    _manualSourceRegistry,
 +                    steamApiTokenService);
                  _providerRegistry.SyncFromSettings(settings.Persisted);
++                AchievementNotificationDebugLog.Initialize(pluginUserDataPath);
++                AchievementNotificationDebugLog.SetEnabled(
++                    ProviderRegistry.Settings<Providers.Local.LocalSettings>()?.EnableOverlayDebugLogging == true);
                  settings.Persisted?.MigrateLegacyProviderFriends();
                  _gameCustomDataStore = _settingsViewModel.GameCustomDataStore;
-@@ -486,6 +602,7 @@ public PlayniteAchievementsPlugin(IPlayniteAPI api) : base(api)
+                 _gameCustomDataStore.AttachRuntimeSettings(settings);
+@@ -486,6 +609,7 @@ public PlayniteAchievementsPlugin(IPlayniteAPI api) : base(api)
                      }
  
                      _notifications = new NotificationPublisher(api, settings, _logger);
@@ -1505,7 +1519,7 @@ index ffc5cb769181e0f751ee1ef8a2e32c143fff2362..c13ab15aa64ea449643afb08cfcbb7e3
                      _refreshCoordinator = new RefreshEntryPoint(
                          _refreshService,
                          _logger,
-@@ -497,7 +614,8 @@ public PlayniteAchievementsPlugin(IPlayniteAPI api) : base(api)
+@@ -497,7 +621,8 @@ public PlayniteAchievementsPlugin(IPlayniteAPI api) : base(api)
                          _logger,
                          () => _resourceService.EnsureAchievementResourcesLoaded(_settingsViewModel.Settings),
                          GetProcessIdForGame,
@@ -1515,7 +1529,7 @@ index ffc5cb769181e0f751ee1ef8a2e32c143fff2362..c13ab15aa64ea449643afb08cfcbb7e3
                      _unlockRecordings = new Services.Recording.UnlockRecordingService(
                          PlayniteApi,
                          settings,
-@@ -515,7 +633,7 @@ public PlayniteAchievementsPlugin(IPlayniteAPI api) : base(api)
+@@ -515,7 +640,7 @@ public PlayniteAchievementsPlugin(IPlayniteAPI api) : base(api)
                          _refreshService,
                          providers,
                          (request, policy) => _refreshCoordinator.ExecuteAsync(request, policy),
@@ -1524,7 +1538,7 @@ index ffc5cb769181e0f751ee1ef8a2e32c143fff2362..c13ab15aa64ea449643afb08cfcbb7e3
                      _backgroundUpdates = new BackgroundUpdater(_refreshCoordinator, _refreshService, _cacheManager, settings, _logger, _notifications, null);
  
                      // Create tag sync service
-@@ -669,7 +787,7 @@ public override IEnumerable<SidebarItem> GetSidebarItems()
+@@ -669,7 +794,7 @@ public override IEnumerable<SidebarItem> GetSidebarItems()
                  Opened = () =>
                  {
                      return new OverviewHostControl(
@@ -1533,6 +1547,14 @@ index ffc5cb769181e0f751ee1ef8a2e32c143fff2362..c13ab15aa64ea449643afb08cfcbb7e3
                          _logger,
                          PlayniteApi,
                          _refreshService,
+@@ -1189,6 +1314,7 @@ public override void OnApplicationStopped(OnApplicationStoppedEventArgs args)
+             DisposeStartPageViews();
+ 
+             // Shutdown logging system
++            try { AchievementNotificationDebugLog.Shutdown(); } catch (Exception ex) { System.Diagnostics.Trace.TraceError($"Failed to shutdown achievement notification debug logger: {ex}"); }
+             try { PluginLogger.Shutdown(); } catch (Exception ex) { System.Diagnostics.Trace.TraceError($"Failed to shutdown logger: {ex}"); }
+         }
+ 
 diff --git a/source/Providers/Exophase/ExophaseSettings.cs b/source/Providers/Exophase/ExophaseSettings.cs
 index 676e7db0542a4279b1b32a8260a2cce95e43b831..fae6009e490eec9a241a4b72ff755dac3560a56b 100644
 --- a/source/Providers/Exophase/ExophaseSettings.cs
@@ -4881,10 +4903,10 @@ index 11ca94e019cfaf99cdc80b4904455f0fc62e802b..4a4abc1ceae8235972f43175044a1825
          {
              token.ThrowIfCancellationRequested();
 diff --git a/source/Services/NotificationPublisher.cs b/source/Services/NotificationPublisher.cs
-index 975e6f2dcd0e0aa299dfb49e9541d5c461bf9e47..a189daa4d62e842b2755d08d4346bffa88f7c80e 100644
+index 975e6f2dcd0e0aa299dfb49e9541d5c461bf9e47..97562ab8004c3c96fb2bc97d4bd8e403c547d7f9 100644
 --- a/source/Services/NotificationPublisher.cs
 +++ b/source/Services/NotificationPublisher.cs
-@@ -1,23 +1,76 @@
+@@ -1,23 +1,82 @@
  using System;
  using System.Collections.Generic;
 +using System.IO;
@@ -4916,6 +4938,7 @@ index 975e6f2dcd0e0aa299dfb49e9541d5c461bf9e47..a189daa4d62e842b2755d08d4346bffa
 +using PlayniteAchievements.Models.Achievements.Scoring;
 +using PlayniteAchievements.Providers;
 +using PlayniteAchievements.Providers.Local;
++using PlayniteAchievements.Services.Logging;
  
  namespace PlayniteAchievements.Services
  {
@@ -4958,10 +4981,15 @@ index 975e6f2dcd0e0aa299dfb49e9541d5c461bf9e47..a189daa4d62e842b2755d08d4346bffa
              _settings = settings;
              _logger = logger;
 +            WarmUpSanWebView2();
++        }
++
++        private void LogAchievementNotificationDebug(string message)
++        {
++            AchievementNotificationDebugLog.Info(message);
          }
  
          public void ShowPeriodicStatus(string status)
-@@ -79,6 +132,383 @@ public void ShowThemeAutoMigrated(string themeName)
+@@ -79,6 +138,393 @@ public void ShowThemeAutoMigrated(string themeName)
              }
          }
  
@@ -5087,6 +5115,14 @@ index 975e6f2dcd0e0aa299dfb49e9541d5c461bf9e47..a189daa4d62e842b2755d08d4346bffa
 +            var localSettings = overrideLocalSettings ?? ProviderRegistry.Settings<LocalSettings>();
 +            var resolvedProviderKey = string.IsNullOrWhiteSpace(notificationProviderKey) ? "Local" : notificationProviderKey.Trim();
 +            var enableInAppNotification = localSettings?.EnableInAppUnlockNotifications != false;
++            if (localSettings?.EnableOverlayDebugLogging == true)
++            {
++                LogAchievementNotificationDebug(
++                    $"Unlock batch received game='{gameName}', gameId='{game?.Id}', provider='{resolvedProviderKey}', " +
++                    $"inputCount='{unlockedAchievements?.Count ?? 0}', usableCount='{achievements.Count}', " +
++                    $"deliveryMode='{localSettings.UnlockNotificationDeliveryMode}', inAppNotification='{enableInAppNotification}', " +
++                    $"soundConfigured='{!string.IsNullOrWhiteSpace(customSoundPath)}', soundLeadMs='{localSettings.UnlockSoundLeadMilliseconds}'.");
++            }
 +
 +            var title = ResourceProvider.GetString("LOCPlayAch_Notification_LocalUnlockTitle");
 +            if (string.IsNullOrWhiteSpace(title))
@@ -5238,11 +5274,13 @@ index 975e6f2dcd0e0aa299dfb49e9541d5c461bf9e47..a189daa4d62e842b2755d08d4346bffa
 +                $"transition='{localSettings?.UnlockOverlayTransitionStyle}', sanElement='{localSettings?.OverlayCustomSanElementPresetId ?? string.Empty}'.");
 +            if (localSettings?.EnableOverlayDebugLogging == true)
 +            {
-+                _logger?.Info(
++                LogAchievementNotificationDebug(
 +                    $"[LocalOverlayDebug] Settings position='{localSettings.UnlockOverlayPosition}', " +
 +                    $"followActiveMonitor='{localSettings.ShowOverlayOnActiveGameMonitor}', " +
 +                    $"customSize='{localSettings.OverlayCustomWidth:0.###}x{localSettings.OverlayCustomHeight:0.###}', " +
-+                    $"customOpacity='{localSettings.OverlayCustomOpacity:0.###}'.");
++                    $"customOpacity='{localSettings.OverlayCustomOpacity:0.###}', gameId='{game?.Id}', " +
++                    $"iconPath='{achievementIconPath ?? string.Empty}', iconExists='{(!string.IsNullOrWhiteSpace(achievementIconPath) && File.Exists(achievementIconPath))}', " +
++                    $"descriptionPresent='{!string.IsNullOrWhiteSpace(achievementDescription)}', points='{achievementPoints}', rarity='{achievementRarity}', trophy='{achievementTrophy}'.");
 +            }
 +
 +            if (mode == LocalUnlockNotificationDeliveryMode.Overlay || mode == LocalUnlockNotificationDeliveryMode.Hybrid)
@@ -5345,7 +5383,7 @@ index 975e6f2dcd0e0aa299dfb49e9541d5c461bf9e47..a189daa4d62e842b2755d08d4346bffa
          private static readonly string[] AllKnownProviderKeys = new[]
          {
              "Steam", "Epic", "GOG", "BattleNet", "EA", "PSN", "Xbox",
-@@ -163,5 +593,7214 @@ private void OpenPluginSettingsForProvider(string providerKey)
+@@ -163,5 +609,7244 @@ private void OpenPluginSettingsForProvider(string providerKey)
                  _logger?.Debug(ex, "Failed to open plugin settings from notification click.");
              }
          }
@@ -5384,8 +5422,11 @@ index 975e6f2dcd0e0aa299dfb49e9541d5c461bf9e47..a189daa4d62e842b2755d08d4346bffa
 +                if (!File.Exists(soundPath))
 +                {
 +                    _logger?.Warn($"Configured Local unlock sound file was not found: {soundPath}");
++                    AchievementNotificationDebugLog.Warn($"Configured unlock sound was not found: '{soundPath}'.");
 +                    return;
 +                }
++
++                AchievementNotificationDebugLog.Info($"Playing unlock sound from '{soundPath}'.");
 +
 +                _ = Task.Run(() =>
 +                {
@@ -5395,16 +5436,19 @@ index 975e6f2dcd0e0aa299dfb49e9541d5c461bf9e47..a189daa4d62e842b2755d08d4346bffa
 +                        {
 +                            player.PlaySync();
 +                        }
++                        AchievementNotificationDebugLog.Info("Unlock sound playback completed.");
 +                    }
 +                    catch (Exception ex)
 +                    {
 +                        _logger?.Debug(ex, $"Failed to play Local unlock sound: {soundPath}");
++                        AchievementNotificationDebugLog.Error(ex, $"Unlock sound playback failed for '{soundPath}'.");
 +                    }
 +                });
 +            }
 +            catch (Exception ex)
 +            {
 +                _logger?.Debug(ex, $"Failed to play Local unlock sound: {soundPath}");
++                AchievementNotificationDebugLog.Error(ex, $"Failed to resolve or start the unlock sound '{soundPath}'.");
 +            }
 +        }
 +
@@ -5422,6 +5466,7 @@ index 975e6f2dcd0e0aa299dfb49e9541d5c461bf9e47..a189daa4d62e842b2755d08d4346bffa
 +                if (localSettings?.EnableWindowsToastNotifications != true)
 +                {
 +                    _logger?.Info("[LocalToast] Skipping Windows toast because EnableWindowsToastNotifications is disabled.");
++                    AchievementNotificationDebugLog.Info("Windows toast skipped because EnableWindowsToastNotifications is disabled.");
 +                    return;
 +                }
 +
@@ -5482,10 +5527,13 @@ index 975e6f2dcd0e0aa299dfb49e9541d5c461bf9e47..a189daa4d62e842b2755d08d4346bffa
 +                };
 +
 +                _logger?.Info($"[LocalToast] Sending Windows toast for game='{safeGameName}', achievement='{safeAchievementName}', provider='{providerKey}', style='{style}'.");
++                AchievementNotificationDebugLog.Info(
++                    $"Starting Windows toast provider='{providerKey}', style='{style}', imageResolved='{!string.IsNullOrWhiteSpace(toastIconSource)}'.");
 +                var process = Process.Start(processStartInfo);
 +                if (process == null)
 +                {
 +                    _logger?.Warn("[LocalToast] PowerShell process did not start (Process.Start returned null).");
++                    AchievementNotificationDebugLog.Warn("Windows toast PowerShell process did not start (Process.Start returned null).");
 +                    return;
 +                }
 +
@@ -5496,6 +5544,7 @@ index 975e6f2dcd0e0aa299dfb49e9541d5c461bf9e47..a189daa4d62e842b2755d08d4346bffa
 +                        if (!process.WaitForExit(5000))
 +                        {
 +                            _logger?.Warn($"[LocalToast] PowerShell toast process timed out. Pid={process.Id}");
++                            AchievementNotificationDebugLog.Warn($"Windows toast PowerShell process timed out; pid='{process.Id}'.");
 +                            try
 +                            {
 +                                process.Kill();
@@ -5515,15 +5564,20 @@ index 975e6f2dcd0e0aa299dfb49e9541d5c461bf9e47..a189daa4d62e842b2755d08d4346bffa
 +                        if (process.ExitCode == 0)
 +                        {
 +                            _logger?.Info($"[LocalToast] PowerShell toast command succeeded. ExitCode=0, StdOut={logStdout}, StdErr={logStderr}");
++                            AchievementNotificationDebugLog.Info(
++                                $"Windows toast command completed exitCode='0', stdout='{logStdout}', stderr='{logStderr}'.");
 +                        }
 +                        else
 +                        {
 +                            _logger?.Warn($"[LocalToast] PowerShell toast command failed. ExitCode={process.ExitCode}, StdOut={logStdout}, StdErr={logStderr}");
++                            AchievementNotificationDebugLog.Warn(
++                                $"Windows toast command failed exitCode='{process.ExitCode}', stdout='{logStdout}', stderr='{logStderr}'.");
 +                        }
 +                    }
 +                    catch (Exception ex)
 +                    {
 +                        _logger?.Warn(ex, "[LocalToast] Failed while waiting for PowerShell toast command result.");
++                        AchievementNotificationDebugLog.Error(ex, "Failed while waiting for the Windows toast command result.");
 +                    }
 +                    finally
 +                    {
@@ -5537,6 +5591,7 @@ index 975e6f2dcd0e0aa299dfb49e9541d5c461bf9e47..a189daa4d62e842b2755d08d4346bffa
 +            catch (Exception ex)
 +            {
 +                _logger?.Warn(ex, "[LocalToast] Failed to send Windows toast notification.");
++                AchievementNotificationDebugLog.Error(ex, "Failed to construct or send the Windows toast notification.");
 +            }
 +        }
 +
@@ -5784,6 +5839,14 @@ index 975e6f2dcd0e0aa299dfb49e9541d5c461bf9e47..a189daa4d62e842b2755d08d4346bffa
 +                            ? Math.Max(LocalSettings.MinCustomOverlayHeight, localSettings?.OverlayCustomHeight ?? 128)
 +                            : 110 * overlayScale;
 +
++                        if (debugLoggingEnabled)
++                        {
++                            LogAchievementNotificationDebug(
++                                $"Renderer selection style='{style}', custom='{isCustomStyle}', sanSelected='{(localSettings != null && (IsSanTransitionStyle(localSettings.UnlockOverlayTransitionStyle) || !string.IsNullOrWhiteSpace(localSettings.OverlayCustomSanElementPresetId)))}', " +
++                                $"sizeDip='{width:0.###}x{height:0.###}', autoResize='{autoResizeCustom}', opacity='{overlayOpacity:0.###}', " +
++                                $"durationMs='{durationMs}', fadeInMs='{fadeInMs}', fadeOutMs='{fadeOutMs}'.");
++                        }
++
 +                        if (isCustomStyle &&
 +                            TryShowSanHtmlOverlayNotification(
 +                                safeGameName,
@@ -5852,7 +5915,7 @@ index 975e6f2dcd0e0aa299dfb49e9541d5c461bf9e47..a189daa4d62e842b2755d08d4346bffa
 +                                ApplyOverlayEnterAnimation(overlayWindow, overlayOpacity, fadeInMs, transitionStyle, slideDistance);
 +                                if (debugLoggingEnabled)
 +                                {
-+                                    _logger?.Info(
++                                    LogAchievementNotificationDebug(
 +                                        $"[LocalOverlayDebug] WPF enter animation started targetOpacity='{overlayOpacity:0.###}', " +
 +                                        $"fadeInMs='{fadeInMs}', transition='{transitionStyle}', slideDistance='{slideDistance}'.");
 +                                    ScheduleOverlayWindowLifecycleSample(
@@ -5890,6 +5953,7 @@ index 975e6f2dcd0e0aa299dfb49e9541d5c461bf9e47..a189daa4d62e842b2755d08d4346bffa
 +                            catch (Exception animEx)
 +                            {
 +                                _logger?.Warn(animEx, "[LocalOverlay] Failed in loaded animation pipeline.");
++                                AchievementNotificationDebugLog.Error(animEx, "The WPF overlay loaded-animation pipeline failed.");
 +                                try
 +                                {
 +                                    overlayWindow.Close();
@@ -5925,12 +5989,14 @@ index 975e6f2dcd0e0aa299dfb49e9541d5c461bf9e47..a189daa4d62e842b2755d08d4346bffa
 +                    catch (Exception uiEx)
 +                    {
 +                        _logger?.Warn(uiEx, "[LocalOverlay] Failed to render overlay on UI thread.");
++                        AchievementNotificationDebugLog.Error(uiEx, "The WPF overlay failed while rendering on the UI thread.");
 +                    }
 +                });
 +            }
 +            catch (Exception ex)
 +            {
 +                _logger?.Debug(ex, "[LocalOverlay] Failed to show overlay notification.");
++                AchievementNotificationDebugLog.Error(ex, "The overlay notification failed before or during UI dispatch.");
 +            }
 +        }
 +
@@ -6004,7 +6070,7 @@ index 975e6f2dcd0e0aa299dfb49e9541d5c461bf9e47..a189daa4d62e842b2755d08d4346bffa
 +            if (debugLoggingEnabled)
 +            {
 +                var wpfDpi = VisualTreeHelper.GetDpi(window);
-+                _logger?.Info(
++                LogAchievementNotificationDebug(
 +                    $"[LocalOverlayDebug] Positioned renderer='{ResolveOverlayRendererName(window)}', position='{position}', stackIndex='{stackIndex}', " +
 +                    $"followActiveMonitor='{followActiveGameMonitor}', foregroundHwnd='{FormatHandle(monitorDiagnostics.ForegroundWindow)}', " +
 +                    $"monitorHandle='{FormatHandle(monitorDiagnostics.Monitor)}', monitorInfo='{monitorDiagnostics.HasMonitorInfo}', " +
@@ -6262,7 +6328,7 @@ index 975e6f2dcd0e0aa299dfb49e9541d5c461bf9e47..a189daa4d62e842b2755d08d4346bffa
 +                        {
 +                            if (debugLoggingEnabled)
 +                            {
-+                                _logger?.Info(
++                                LogAchievementNotificationDebug(
 +                                    $"[LocalOverlayDebug] SAN navigation completed success='{navigationArgs.IsSuccess}', " +
 +                                    $"webErrorStatus='{navigationArgs.WebErrorStatus}', source='{webView.Source}'.");
 +                            }
@@ -6299,7 +6365,7 @@ index 975e6f2dcd0e0aa299dfb49e9541d5c461bf9e47..a189daa4d62e842b2755d08d4346bffa
 +                        webView.CoreWebView2.Navigate(new Uri(htmlPath).AbsoluteUri);
 +                        if (debugLoggingEnabled)
 +                        {
-+                            _logger?.Info($"[LocalOverlayDebug] SAN navigation started source='{new Uri(htmlPath).AbsoluteUri}'.");
++                            LogAchievementNotificationDebug($"[LocalOverlayDebug] SAN navigation started source='{new Uri(htmlPath).AbsoluteUri}'.");
 +                        }
 +
 +                        if (!isSanTransition && !persistentPreviewRequested)
@@ -6317,6 +6383,7 @@ index 975e6f2dcd0e0aa299dfb49e9541d5c461bf9e47..a189daa4d62e842b2755d08d4346bffa
 +                    catch (Exception ex)
 +                    {
 +                        _logger?.Warn(ex, "[LocalOverlay] Failed to initialize SAN WebView2 overlay.");
++                        AchievementNotificationDebugLog.Error(ex, "SAN WebView2 initialization failed.");
 +                        try
 +                        {
 +                            window.Close();
@@ -6380,6 +6447,7 @@ index 975e6f2dcd0e0aa299dfb49e9541d5c461bf9e47..a189daa4d62e842b2755d08d4346bffa
 +            catch (Exception ex)
 +            {
 +                _logger?.Warn(ex, "[LocalOverlay] Failed to render SAN WebView2 overlay; falling back to WPF renderer.");
++                AchievementNotificationDebugLog.Error(ex, "SAN WebView2 rendering failed; falling back to the WPF renderer.");
 +                return false;
 +            }
 +        }
@@ -6485,7 +6553,7 @@ index 975e6f2dcd0e0aa299dfb49e9541d5c461bf9e47..a189daa4d62e842b2755d08d4346bffa
 +                var source = PresentationSource.FromVisual(window);
 +                var transform = source?.CompositionTarget?.TransformToDevice ?? Matrix.Identity;
 +
-+                _logger?.Info(
++                LogAchievementNotificationDebug(
 +                    $"[LocalOverlayDebug] Window lifecycle renderer='{renderer}', phase='{phase}', hwnd='{FormatHandle(handle)}', " +
 +                    $"hasPresentationSource='{source != null}', isLoaded='{window.IsLoaded}', isVisible='{window.IsVisible}', " +
 +                    $"windowState='{window.WindowState}', topmost='{window.Topmost}', allowsTransparency='{window.AllowsTransparency}', " +
@@ -6655,7 +6723,7 @@ index 975e6f2dcd0e0aa299dfb49e9541d5c461bf9e47..a189daa4d62e842b2755d08d4346bffa
 +                        if (succeeded && !loggedSuccess && debugLoggingEnabled)
 +                        {
 +                            loggedSuccess = true;
-+                            _logger?.Info(
++                            LogAchievementNotificationDebug(
 +                                $"[LocalOverlayDebug] Topmost guard succeeded renderer='{ResolveOverlayRendererName(window)}', " +
 +                                $"hwnd='{FormatHandle(handle)}'.");
 +                        }
@@ -12785,6 +12853,91 @@ index 730defe4fa7c8217021ea1ee2a36690ab2095d5c..e8f6bb2b5e704231a08927bc91b6d235
                  var baseDir = ResolveOutputDirectory(persisted);
                  if (string.IsNullOrWhiteSpace(baseDir))
                  {
+diff --git a/source/Services/Refresh/TargetSelectionResolver.cs b/source/Services/Refresh/TargetSelectionResolver.cs
+index b8a4effc88869cdb4d13d67bcc34ca92b5b387a7..4ef5ba0dccf4da97084096fb023af64a27a2f429 100644
+--- a/source/Services/Refresh/TargetSelectionResolver.cs
++++ b/source/Services/Refresh/TargetSelectionResolver.cs
+@@ -93,6 +93,12 @@ public IDataProvider ResolveProviderForGame(
+                 return forcedProvider;
+             }
+ 
++            var preferredProvider = ResolvePreferredProviderForGame(game, providers);
++            if (preferredProvider != null || HasPreferredProviderOverride(game.Id))
++            {
++                return preferredProvider;
++            }
++
+             foreach (var provider in OrderProvidersForRefresh(providers))
+             {
+                 try
+@@ -113,6 +119,45 @@ public IDataProvider ResolveProviderForGame(
+             return null;
+         }
+ 
++        private IDataProvider ResolvePreferredProviderForGame(
++            Game game,
++            IReadOnlyList<IDataProvider> providers)
++        {
++            if (game == null ||
++                providers == null ||
++                !TryGetPreferredProviderKey(game.Id, out var preferredProviderKey))
++            {
++                return null;
++            }
++
++            return providers.FirstOrDefault(provider =>
++                provider != null &&
++                provider.IsAuthenticated &&
++                string.Equals(
++                    provider.ProviderKey,
++                    preferredProviderKey,
++                    StringComparison.OrdinalIgnoreCase));
++        }
++
++        private bool HasPreferredProviderOverride(Guid gameId)
++        {
++            return TryGetPreferredProviderKey(gameId, out _);
++        }
++
++        private bool TryGetPreferredProviderKey(Guid gameId, out string providerKey)
++        {
++            providerKey = null;
++            if (gameId == Guid.Empty ||
++                _settings?.Persisted?.PreferredProviderOverrides == null ||
++                !_settings.Persisted.PreferredProviderOverrides.TryGetValue(gameId, out var configuredKey))
++            {
++                return false;
++            }
++
++            providerKey = configuredKey?.Trim();
++            return !string.IsNullOrWhiteSpace(providerKey);
++        }
++
+         private bool IsProviderCapable(
+             Game game,
+             IDataProvider provider,
+@@ -202,6 +247,21 @@ public IReadOnlyList<IDataProvider> GetProvidersWithCapableGames(
+                     continue;
+                 }
+ 
++                if (TryGetPreferredProviderKey(game.Id, out var preferredProviderKey))
++                {
++                    var preferredProvider = candidates.FirstOrDefault(provider =>
++                        string.Equals(
++                            provider.ProviderKey,
++                            preferredProviderKey,
++                            StringComparison.OrdinalIgnoreCase));
++                    if (preferredProvider != null)
++                    {
++                        markedKeys.Add(preferredProvider.ProviderKey);
++                    }
++
++                    continue;
++                }
++
+                 foreach (var provider in candidates)
+                 {
+                     if (markedKeys.Contains(provider.ProviderKey))
 diff --git a/source/Services/ThemeIntegration/LibraryRuntimeStateBuilder.cs b/source/Services/ThemeIntegration/LibraryRuntimeStateBuilder.cs
 index 18cd63c9f7036a866e1782cca34c2ba8192621f4..1f8ca404df4712c62dc99b4138ff8b3ac03d347b 100644
 --- a/source/Services/ThemeIntegration/LibraryRuntimeStateBuilder.cs
@@ -13928,7 +14081,7 @@ index 3d6443c00ad71f3045beaed435923d89a44ae4e5..4b76693318047fc4b3c06ed3dc247fcd
  
          private static int ReplacePrefixedControlName(ref string content, string prefix, string legacyName, string modernName)
 diff --git a/source/Services/UI/PluginWindowService.cs b/source/Services/UI/PluginWindowService.cs
-index c34d6e525fc997f2cd8c0c675d23653fefd4db50..bde5b5655adee90a4f15cfffabf6b5afc802c035 100644
+index c34d6e525fc997f2cd8c0c675d23653fefd4db50..9a05f427754f2a488947bdcfd443eb55f749e8e4 100644
 --- a/source/Services/UI/PluginWindowService.cs
 +++ b/source/Services/UI/PluginWindowService.cs
 @@ -13,6 +13,7 @@
@@ -13974,7 +14127,15 @@ index c34d6e525fc997f2cd8c0c675d23653fefd4db50..bde5b5655adee90a4f15cfffabf6b5af
                      _achievementOverridesService,
                      _achievementDataService,
                      _libraryProjectionService,
-@@ -1436,15 +1440,36 @@ public void OpenManageAchievementsView(
+@@ -1209,6 +1213,7 @@ private void OpenViewAchievementsWindowCore(Guid gameId, string focusAchievement
+                     {
+                         createdWindow.MinWidth = 450;
+                         createdWindow.MinHeight = 500;
++                        view.AttachTitleBarRefreshButton(createdWindow);
+                     },
+                     closed: view.Cleanup,
+                     fullscreenController: view);
+@@ -1436,15 +1441,36 @@ public void OpenManageAchievementsView(
              }
          }
  
@@ -14013,7 +14174,7 @@ index c34d6e525fc997f2cd8c0c675d23653fefd4db50..bde5b5655adee90a4f15cfffabf6b5af
              {
                  return;
              }
-@@ -1477,6 +1502,7 @@ private void OpenManageAchievementsViewCore(
+@@ -1477,6 +1503,7 @@ private void OpenManageAchievementsViewCore(
                      _settings,
                      _manualSourceRegistry,
                      selectManageCategoriesSubTab);
@@ -14021,7 +14182,7 @@ index c34d6e525fc997f2cd8c0c675d23653fefd4db50..bde5b5655adee90a4f15cfffabf6b5af
  
                  var windowOptions = new WindowOptions
                  {
-@@ -1520,6 +1546,66 @@ public void OpenCapstoneView(Guid gameId)
+@@ -1520,6 +1547,66 @@ public void OpenCapstoneView(Guid gameId)
              OpenManageAchievementsView(gameId, ManageAchievementsTab.Capstones);
          }
  
@@ -14434,7 +14595,7 @@ index b19971f51d76729ef5cbb030ce17bfd806198a29..e22752f40cde0ca123e97dc7ba256c7f
          ManualTracking,
          AchievementOrder,
 diff --git a/source/ViewModels/ManageAchievements/ManageAchievementsViewModel.cs b/source/ViewModels/ManageAchievements/ManageAchievementsViewModel.cs
-index a8989c9707eb78f45e9eb5ecb18b2b6a77d25eb7..05f6341511505e8db0678400357b3147df707ccb 100644
+index a8989c9707eb78f45e9eb5ecb18b2b6a77d25eb7..f86bf0ea17c0ff0e346684a9666eefb893efbca8 100644
 --- a/source/ViewModels/ManageAchievements/ManageAchievementsViewModel.cs
 +++ b/source/ViewModels/ManageAchievements/ManageAchievementsViewModel.cs
 @@ -25,7 +25,7 @@
@@ -14484,7 +14645,7 @@ index a8989c9707eb78f45e9eb5ecb18b2b6a77d25eb7..05f6341511505e8db0678400357b3147
  
                  ManualAchievementLink manualLink;
                  var hasManualLink = ManualAchievementsProvider.TryGetManualLink(_gameId, out manualLink);
-@@ -1583,6 +1591,30 @@ private static string L(string key)
+@@ -1583,6 +1591,32 @@ private static string L(string key)
              return ResourceProvider.GetString(key);
          }
  
@@ -14507,7 +14668,9 @@ index a8989c9707eb78f45e9eb5ecb18b2b6a77d25eb7..05f6341511505e8db0678400357b3147
 +        private static string L(string key, string fallback)
 +        {
 +            var value = ResourceProvider.GetString(key);
-+            return string.IsNullOrWhiteSpace(value) || string.Equals(value, key, StringComparison.Ordinal)
++            return string.IsNullOrWhiteSpace(value) ||
++                   string.Equals(value, key, StringComparison.Ordinal) ||
++                   string.Equals(value, $"<!{key}!>", StringComparison.Ordinal)
 +                ? fallback
 +                : value;
 +        }
@@ -15922,6 +16085,40 @@ index 8b976e0ba392aa81e047432544f5bb7de9b9ba3e..57eb77fc2c0b26a3b0780acd268f5e70
              CancelSelectedGameLoad();
              _refreshDebounceTimer?.Stop();
              _deltaBatchTimer?.Stop();
+diff --git a/source/ViewModels/SettingsViewModel.cs b/source/ViewModels/SettingsViewModel.cs
+index cfd4831cf5d88853f0a9b8282703a43fdf246bf7..1b3240cf71ef84ebb10f7ec2f5bffcd094464a5d 100644
+--- a/source/ViewModels/SettingsViewModel.cs
++++ b/source/ViewModels/SettingsViewModel.cs
+@@ -153,6 +153,7 @@ public void CancelEdit()
+ 
+             _plugin.ProviderRegistry?.CancelEditSession();
+             _plugin.ProviderRegistry?.SyncFromSettings(Settings.Persisted);
++            SyncAchievementNotificationDebugLog();
+             GameCustomDataStore?.SyncRuntimeCaches();
+             ApplyThemeResources();
+         }
+@@ -167,6 +168,7 @@ public void EndEdit()
+ 
+             // Sync provider registry from the updated settings
+             _plugin.ProviderRegistry?.SyncFromSettings(Settings.Persisted);
++            SyncAchievementNotificationDebugLog();
+             GameCustomDataStore?.SyncRuntimeCaches();
+             ApplyThemeResources();
+ 
+@@ -187,6 +189,13 @@ public bool VerifySettings(out List<string> errors)
+             return errors.Count == 0;
+         }
+ 
++        private void SyncAchievementNotificationDebugLog()
++        {
++            AchievementNotificationDebugLog.Initialize(_plugin.GetPluginUserDataPath());
++            AchievementNotificationDebugLog.SetEnabled(
++                Providers.ProviderRegistry.Settings<Providers.Local.LocalSettings>()?.EnableOverlayDebugLogging == true);
++        }
++
+         private static void ValidateAchievementHotkeys(PersistedSettings persisted, List<string> errors)
+         {
+             var viewLabel = L("LOCPlayAch_Menu_ViewAchievements");
 diff --git a/source/ViewModels/ViewAchievementsViewModel.cs b/source/ViewModels/ViewAchievementsViewModel.cs
 index 5984cd0c4a0826f632cab2cdcd0f79e4120c8361..8a9e8a83bc253bbe294f0827b209f59269578e0e 100644
 --- a/source/ViewModels/ViewAchievementsViewModel.cs
@@ -18868,10 +19065,64 @@ index b3e9affa517c40f4cb9f2e6add88ac4866194e72..8a6ecbdd88ea8c8ee46721f0552005a3
          }
      }
 diff --git a/source/Views/ViewAchievementsControl.xaml b/source/Views/ViewAchievementsControl.xaml
-index bfeff1a5ad3012b1f12295705cf77a1e676bbaf5..c30c89704f84cd0c2b350795fa128f9289899b56 100644
+index bfeff1a5ad3012b1f12295705cf77a1e676bbaf5..309047fcfc041d80381644f61aad12a1e0bf7d37 100644
 --- a/source/Views/ViewAchievementsControl.xaml
 +++ b/source/Views/ViewAchievementsControl.xaml
-@@ -94,6 +94,12 @@
+@@ -66,6 +66,53 @@
+                     </Setter.Value>
+                 </Setter>
+             </Style>
++
++            <Style x:Key="ViewAchievementsTitleBarRefreshButtonStyle" TargetType="Button">
++                <Setter Property="Width" Value="30"/>
++                <Setter Property="Height" Value="24"/>
++                <Setter Property="Margin" Value="0,0,4,0"/>
++                <Setter Property="Padding" Value="6"/>
++                <Setter Property="Background" Value="Transparent"/>
++                <Setter Property="BorderThickness" Value="0"/>
++                <Setter Property="Foreground" Value="{DynamicResource GlyphBrush}"/>
++                <Setter Property="Cursor" Value="Hand"/>
++                <Setter Property="Focusable" Value="False"/>
++                <Setter Property="FocusVisualStyle" Value="{x:Null}"/>
++                <Setter Property="Template">
++                    <Setter.Value>
++                        <ControlTemplate TargetType="Button">
++                            <Border x:Name="HoverBackground"
++                                    Background="{TemplateBinding Background}"
++                                    CornerRadius="3">
++                                <Viewbox Margin="{TemplateBinding Padding}">
++                                    <Path Data="M 11,2 A 9,9 0 1 0 19.45,7.9 M 11,2 L 16.5,2 L 16.5,7.5"
++                                          Stroke="{TemplateBinding Foreground}"
++                                          StrokeThickness="2"
++                                          StrokeStartLineCap="Round"
++                                          StrokeEndLineCap="Round"
++                                          StrokeLineJoin="Round"
++                                          Fill="Transparent"
++                                          Stretch="Uniform"/>
++                                </Viewbox>
++                            </Border>
++                            <ControlTemplate.Triggers>
++                                <Trigger Property="IsMouseOver" Value="True">
++                                    <Setter Property="Background"
++                                            Value="{DynamicResource PlayAch.Brush.Button.Background.Hover}"/>
++                                    <Setter Property="Foreground"
++                                            Value="{DynamicResource HighlightGlyphBrush}"/>
++                                </Trigger>
++                                <Trigger Property="IsPressed" Value="True">
++                                    <Setter TargetName="HoverBackground" Property="Opacity" Value="0.65"/>
++                                </Trigger>
++                                <Trigger Property="IsEnabled" Value="False">
++                                    <Setter Property="Opacity" Value="0.4"/>
++                                </Trigger>
++                            </ControlTemplate.Triggers>
++                        </ControlTemplate>
++                    </Setter.Value>
++                </Setter>
++            </Style>
+         </ResourceDictionary>
+     </UserControl.Resources>
+ 
+@@ -94,6 +141,12 @@
                                                 DisableRowSelection="True"
                                                 RowPreviewMouseRightButtonDown="GameSummaryRow_PreviewMouseRightButtonDown"
                                                 RowPreviewMouseRightButtonUp="GameSummaryRow_PreviewMouseRightButtonUp"/>
@@ -18885,10 +19136,93 @@ index bfeff1a5ad3012b1f12295705cf77a1e676bbaf5..c30c89704f84cd0c2b350795fa128f92
              <StackPanel Margin="4,4,0,0"
                          Visibility="{Binding ShowProgress, Converter={StaticResource BoolToVis}}">
 diff --git a/source/Views/ViewAchievementsControl.xaml.cs b/source/Views/ViewAchievementsControl.xaml.cs
-index 7d5a7d5d660665c5a3de47206b028843152bb13d..dddd514c33886e15045c2cfb3a61a8f433280753 100644
+index 7d5a7d5d660665c5a3de47206b028843152bb13d..515ef43d6e6359058a8331a8b3effa46726cfdf5 100644
 --- a/source/Views/ViewAchievementsControl.xaml.cs
 +++ b/source/Views/ViewAchievementsControl.xaml.cs
-@@ -315,6 +315,16 @@ private void GameNameBreadcrumb_Click(object sender, MouseButtonEventArgs e)
+@@ -6,6 +6,9 @@
+ using System.Windows.Controls;
+ using System.Windows.Controls.Primitives;
+ using System.Windows.Input;
++using System.Windows.Media;
++using System.Windows.Shell;
++using System.Windows.Automation;
+ using Playnite.SDK.Events;
+ using PlayniteAchievements.Models;
+ using PlayniteAchievements.Services;
+@@ -80,6 +83,72 @@ public void RefreshView()
+             ViewModel?.RefreshView();
+         }
+ 
++        public void AttachTitleBarRefreshButton(Window window)
++        {
++            if (window == null)
++            {
++                return;
++            }
++
++            void AttachButton()
++            {
++                window.ApplyTemplate();
++
++                var minimizeButton =
++                    window.Template?.FindName("PART_ButtonMinimize", window) as Button ??
++                    VisualTreeHelpers.FindVisualChildren<Button>(window)
++                        .FirstOrDefault(button =>
++                            string.Equals(
++                                button?.Name,
++                                "PART_ButtonMinimize",
++                                StringComparison.Ordinal));
++                var titleBarButtons = minimizeButton != null
++                    ? VisualTreeHelper.GetParent(minimizeButton) as Panel
++                    : null;
++                if (titleBarButtons == null ||
++                    titleBarButtons.Children
++                        .OfType<FrameworkElement>()
++                        .Any(element => string.Equals(
++                            element.Name,
++                            "PlayAch_TitleBarRefreshButton",
++                            StringComparison.Ordinal)))
++                {
++                    return;
++                }
++
++                var refreshButton = new Button
++                {
++                    Name = "PlayAch_TitleBarRefreshButton",
++                    Command = ViewModel?.RefreshGameCommand,
++                    ToolTip = ResourceProvider.GetString("LOCPlayAch_Menu_RefreshGame"),
++                    Style = TryFindResource("ViewAchievementsTitleBarRefreshButtonStyle") as Style
++                };
++                AutomationProperties.SetName(
++                    refreshButton,
++                    ResourceProvider.GetString("LOCPlayAch_Menu_RefreshGame"));
++                WindowChrome.SetIsHitTestVisibleInChrome(refreshButton, true);
++
++                var minimizeIndex = titleBarButtons.Children.IndexOf(minimizeButton);
++                titleBarButtons.Children.Insert(
++                    minimizeIndex >= 0 ? minimizeIndex : 0,
++                    refreshButton);
++            }
++
++            if (window.IsLoaded)
++            {
++                AttachButton();
++                return;
++            }
++
++            RoutedEventHandler loaded = null;
++            loaded = (sender, args) =>
++            {
++                window.Loaded -= loaded;
++                AttachButton();
++            };
++            window.Loaded += loaded;
++        }
++
+         public void Cleanup()
+         {
+             PlayniteAchievementsPlugin.SettingsSaved -= Plugin_SettingsSaved;
+@@ -315,6 +384,16 @@ private void GameNameBreadcrumb_Click(object sender, MouseButtonEventArgs e)
              }
          }
  
@@ -18929,6 +19263,99 @@ index c9e76c04eafee4f4f5574a54b58255e301c10738..94f179810828c6b01e4910e4692c856e
      <Compile Include="..\..\source\Services\Search\SearchQuery.cs" Link="Source\Services\Search\SearchQuery.cs" />
      <Compile Include="..\..\source\Services\Search\SearchTextBuilder.cs" Link="Source\Services\Search\SearchTextBuilder.cs" />
      <Compile Include="..\..\source\Services\Search\SearchTextIndex.cs" Link="Source\Services\Search\SearchTextIndex.cs" />
+diff --git a/tests/PlayniteAchievements.Tests/Services/TargetSelectionResolverTests.cs b/tests/PlayniteAchievements.Tests/Services/TargetSelectionResolverTests.cs
+index 60160aef932e3b17f6cbab12c9f857b7c173c166..2dd8de9ce3e4f4b2b85b7f0e9c2bc2d45b915166 100644
+--- a/tests/PlayniteAchievements.Tests/Services/TargetSelectionResolverTests.cs
++++ b/tests/PlayniteAchievements.Tests/Services/TargetSelectionResolverTests.cs
+@@ -580,6 +580,88 @@ public void ResolveProviderForGame_NoOverride_RespectsProviderOrder()
+             }
+         }
+ 
++        [TestMethod]
++        public void ResolveProviderForGame_PreferredSteamOverridesEarlierCapableLocalProvider()
++        {
++            var tempDir = CreateTempDirectory();
++            var gameId = Guid.NewGuid();
++            var previousPlugin = PlayniteAchievementsPlugin.Instance;
++
++            try
++            {
++                PlayniteAchievementsPlugin.Instance = new PlayniteAchievementsPlugin
++                {
++                    GameCustomDataStore = new GameCustomDataStore(tempDir)
++                };
++                var settings = new PlayniteAchievementsSettings();
++                settings.Persisted.PreferredProviderOverrides[gameId] = "Steam";
++                var resolver = new TargetSelectionResolver(
++                    new FakePlayniteApi(),
++                    settings,
++                    new FakeCacheManager(),
++                    logger: null,
++                    refreshOrder: new[] { "Local", "Steam" });
++                var game = new Game { Id = gameId, Name = "Steam Game" };
++                var providers = new List<IDataProvider>
++                {
++                    new FakeProvider("Local", _ => true),
++                    new FakeProvider("Steam", _ => true)
++                };
++
++                var resolved = resolver.ResolveProviderForGame(game, providers);
++
++                Assert.IsNotNull(resolved);
++                Assert.AreEqual("Steam", resolved.ProviderKey);
++            }
++            finally
++            {
++                PlayniteAchievementsPlugin.Instance = previousPlugin;
++                DeleteDirectory(tempDir);
++            }
++        }
++
++        [TestMethod]
++        public void GetProvidersWithCapableGames_PreferredProviderSkipsOtherCapableProviders()
++        {
++            var tempDir = CreateTempDirectory();
++            var gameId = Guid.NewGuid();
++            var previousPlugin = PlayniteAchievementsPlugin.Instance;
++
++            try
++            {
++                PlayniteAchievementsPlugin.Instance = new PlayniteAchievementsPlugin
++                {
++                    GameCustomDataStore = new GameCustomDataStore(tempDir)
++                };
++                var settings = new PlayniteAchievementsSettings();
++                settings.Persisted.PreferredProviderOverrides[gameId] = "Steam";
++                var resolver = new TargetSelectionResolver(
++                    new FakePlayniteApi(),
++                    settings,
++                    new FakeCacheManager(),
++                    logger: null,
++                    refreshOrder: new[] { "Local", "Steam" });
++                var game = new Game { Id = gameId, Name = "Steam Game" };
++                var providers = new List<IDataProvider>
++                {
++                    new FakeProvider("Local", _ => true),
++                    new FakeProvider("Steam", _ => true)
++                };
++
++                var capableProviders = resolver.GetProvidersWithCapableGames(
++                    new[] { game },
++                    providers);
++
++                Assert.AreEqual(1, capableProviders.Count);
++                Assert.AreEqual("Steam", capableProviders[0].ProviderKey);
++            }
++            finally
++            {
++                PlayniteAchievementsPlugin.Instance = previousPlugin;
++                DeleteDirectory(tempDir);
++            }
++        }
++
+         [TestMethod]
+         public void ResolveProviderForGame_FfxivBeforeSteam_ClaimsStoreBackedFfxivTitle()
+         {
 diff --git a/tests/PlayniteAchievements.Tests/Services/ThemeDiscoveryServiceTests.cs b/tests/PlayniteAchievements.Tests/Services/ThemeDiscoveryServiceTests.cs
 index 6d4695ba4e4ec7df1f79cfa27c7639cba5a30d6b..0b8b3bfbbc36281ae81644b18b1e3038d32941d2 100644
 --- a/tests/PlayniteAchievements.Tests/Services/ThemeDiscoveryServiceTests.cs
