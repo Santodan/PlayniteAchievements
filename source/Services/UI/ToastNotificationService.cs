@@ -225,10 +225,12 @@ namespace PlayniteAchievements.Services.UI
                 return;
             }
 
+            // PreviewStyleOverride is set only by settings fire-tests, so the fired notification
+            // renders the exact style the editor mockup shows; real unlocks resolve normally.
             _queue.Enqueue(new AchievementToastViewModel(
                 args,
                 _settings?.Persisted,
-                styleOverride: null,
+                styleOverride: args.PreviewStyleOverride,
                 gameCustomDataStore: _gameCustomDataStore));
             if (!_processing)
             {
