@@ -262,7 +262,7 @@ namespace PlayniteAchievements.Services.Recording
                     if (!probe.Ok)
                     {
                         SetEncodeSupport(result, encoder, false);
-                        if (string.IsNullOrEmpty(result.EncoderProbeError))
+                        if (result.FailedEncoderCodec == null)
                         {
                             result.FailedEncoderCodec = RecordingCommandBuilder.EncoderCodec(encoder);
                             result.EncoderProbeError = probe.StdErrTail;
