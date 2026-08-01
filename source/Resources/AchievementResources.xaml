@@ -217,6 +217,8 @@
                    FontFamily="{Binding FontFamily}"
                    TextWrapping="Wrap"
                    TextTrimming="CharacterEllipsis"
+                   LineHeight="{Binding LineBoxHeight}"
+                   LineStackingStrategy="BlockLineHeight"
                    MaxHeight="{Binding MaxTextHeight}"
                    Margin="0,2,0,0"
                    Effect="{StaticResource PlayAch.Effect.ContentShadow}"
