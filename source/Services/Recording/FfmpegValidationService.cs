@@ -73,6 +73,24 @@ namespace PlayniteAchievements.Services.Recording
 
             public bool SupportsQsvGpuCapture { get; set; }
 
+            /// <summary>
+            /// Per hardware encoder, true when a source-agnostic test encode actually succeeded (or,
+            /// before the smoke test runs, when the encoder is merely present). A false flag after a
+            /// smoke test means the encoder is compiled into the build but its GPU/driver rejects the
+            /// encode — the case the -encoders text list can't see.
+            /// </summary>
+            public bool SupportsNvencEncode { get; set; }
+
+            public bool SupportsAmfEncode { get; set; }
+
+            public bool SupportsQsvEncode { get; set; }
+
+            /// <summary>The codec of the first encoder whose test encode failed, null when none did.</summary>
+            public string FailedEncoderCodec { get; set; }
+
+            /// <summary>The ffmpeg stderr tail from that first failing test encode (the driver error).</summary>
+            public string EncoderProbeError { get; set; }
+
             /// <summary>GPU-resident capture support for a specific resolved encoder.</summary>
             public bool SupportsGpuCapture(RecordingEncoder encoder)
             {
@@ -86,6 +104,47 @@ namespace PlayniteAchievements.Services.Recording
                         return SupportsQsvGpuCapture;
                     default:
                         return false;
+                }
+            }
+
+            /// <summary>
+            /// Whether the given encoder can actually encode: the smoke-tested per-encoder flag for
+            /// hardware encoders, presence for libx264 (a CPU encoder with no driver dependency), and
+            /// true for Auto (it resolves to whatever is usable).
+            /// </summary>
+            public bool CanEncode(RecordingEncoder encoder)
+            {
+                switch (encoder)
+                {
+                    case RecordingEncoder.Nvenc:
+                        return SupportsNvencEncode;
+                    case RecordingEncoder.Amf:
+                        return SupportsAmfEncode;
+                    case RecordingEncoder.Qsv:
+                        return SupportsQsvEncode;
+                    case RecordingEncoder.X264:
+                        return AvailableEncoders.Contains("libx264");
+                    default:
+                        return true;
+                }
+            }
+
+            /// <summary>The subset of <see cref="AvailableEncoders"/> that actually encode.</summary>
+            public IReadOnlyList<string> UsableEncoders =>
+                AvailableEncoders.Where(IsCodecUsable).ToList();
+
+            private bool IsCodecUsable(string codec)
+            {
+                switch (codec)
+                {
+                    case "h264_nvenc":
+                        return SupportsNvencEncode;
+                    case "h264_amf":
+                        return SupportsAmfEncode;
+                    case "h264_qsv":
+                        return SupportsQsvEncode;
+                    default:
+                        return true;
                 }
             }
 
@@ -147,6 +206,7 @@ namespace PlayniteAchievements.Services.Recording
                 .ConfigureAwait(false);
             result.SupportsDdagrab = ParseDdagrabSupport(filterLines);
             DeriveGpuCaptureSupport(result);
+            DeriveEncodeSupport(result);
 
             if (runSmokeTest)
             {
@@ -179,6 +239,34 @@ namespace PlayniteAchievements.Services.Recording
                             .ConfigureAwait(false))
                     {
                         SetGpuCaptureSupport(result, encoder, false);
+                    }
+                }
+
+                // Confirm each present hardware encoder can actually encode via a source-agnostic
+                // test encode. This is what catches a driver that rejects the encoder (e.g. an NVENC
+                // API-version mismatch) — the -encoders text list alone reports it as present.
+                foreach (var encoder in GpuCaptureEncoders)
+                {
+                    if (!result.CanEncode(encoder))
+                    {
+                        continue;
+                    }
+
+                    var probeArgs = RecordingCommandBuilder.BuildEncoderProbeArguments(encoder);
+                    if (probeArgs == null)
+                    {
+                        continue;
+                    }
+
+                    var probe = await RunEncodeProbeAsync(path, probeArgs).ConfigureAwait(false);
+                    if (!probe.Ok)
+                    {
+                        SetEncodeSupport(result, encoder, false);
+                        if (string.IsNullOrEmpty(result.EncoderProbeError))
+                        {
+                            result.FailedEncoderCodec = RecordingCommandBuilder.EncoderCodec(encoder);
+                            result.EncoderProbeError = probe.StdErrTail;
+                        }
                     }
                 }
             }
@@ -222,6 +310,31 @@ namespace PlayniteAchievements.Services.Recording
                 }
 
                 return true;
+            }
+        }
+
+        /// <summary>
+        /// Runs one encoder test encode and returns whether it succeeded along with the ffmpeg stderr
+        /// tail on failure (the driver error), so the caller can surface it instead of only logging.
+        /// </summary>
+        private async Task<(bool Ok, string StdErrTail)> RunEncodeProbeAsync(string path, string arguments)
+        {
+            using (var host = new FfmpegProcessHost(path, arguments, _logger))
+            {
+                if (!host.Start())
+                {
+                    return (false, null);
+                }
+
+                var exitCode = await host.WaitForExitAsync(ProbeTimeout).ConfigureAwait(false);
+                if (exitCode != 0)
+                {
+                    var tail = host.StdErrTail;
+                    _logger?.Debug($"ffmpeg encoder probe failed (exit={exitCode}): {tail}");
+                    return (false, tail);
+                }
+
+                return (true, null);
             }
         }
 
@@ -284,6 +397,35 @@ namespace PlayniteAchievements.Services.Recording
                     break;
                 case RecordingEncoder.Qsv:
                     result.SupportsQsvGpuCapture = value;
+                    break;
+            }
+        }
+
+        /// <summary>
+        /// Seeds per-encoder encode support from presence; the smoke-test pass then clears a flag
+        /// when its test encode fails. Before the smoke test runs, presence is the best signal
+        /// available (matching the pre-existing -encoders-only behavior).
+        /// </summary>
+        private static void DeriveEncodeSupport(FfmpegValidationResult result)
+        {
+            result.SupportsNvencEncode = result.AvailableEncoders.Contains("h264_nvenc");
+            result.SupportsAmfEncode = result.AvailableEncoders.Contains("h264_amf");
+            result.SupportsQsvEncode = result.AvailableEncoders.Contains("h264_qsv");
+        }
+
+        private static void SetEncodeSupport(
+            FfmpegValidationResult result, RecordingEncoder encoder, bool value)
+        {
+            switch (encoder)
+            {
+                case RecordingEncoder.Nvenc:
+                    result.SupportsNvencEncode = value;
+                    break;
+                case RecordingEncoder.Amf:
+                    result.SupportsAmfEncode = value;
+                    break;
+                case RecordingEncoder.Qsv:
+                    result.SupportsQsvEncode = value;
                     break;
             }
         }
