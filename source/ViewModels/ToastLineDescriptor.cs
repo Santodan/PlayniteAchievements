@@ -186,9 +186,20 @@ namespace PlayniteAchievements.ViewModels
         public double LineBoxHeight => FontSize * 1.4;
 
         /// <summary>
-        /// The clamp height for <see cref="MaxLines"/> pinned line boxes.
+        /// A few DIPs of rounding headroom on the clamp. The floating toast window rounds layout to
+        /// device pixels (UseLayoutRounding) and may apply a fractional fit-scale, either of which
+        /// can leave the available height a fraction below <see cref="MaxLines"/> full line boxes
+        /// and clip the last line to one fewer -- the settings mockup, which does neither, does not.
+        /// The slack is far below one line box, so it never admits an extra line, and it sits within
+        /// each line's blank top-leading, so it reveals no glyph from the next line; it only keeps a
+        /// legitimate line from being shaved off by rounding.
         /// </summary>
-        public double MaxTextHeight => LineBoxHeight * MaxLines;
+        private const double ClampRoundingSlack = 2.0;
+
+        /// <summary>
+        /// The clamp height for <see cref="MaxLines"/> pinned line boxes, plus rounding headroom.
+        /// </summary>
+        public double MaxTextHeight => (LineBoxHeight * MaxLines) + ClampRoundingSlack;
 
         // Collapses when the description is hidden or the achievement has no description text.
         public override Visibility LineVisibility =>
