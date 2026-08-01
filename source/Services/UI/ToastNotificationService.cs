@@ -497,6 +497,11 @@ namespace PlayniteAchievements.Services.UI
             // cannot drift.
             var waveProviderKey = toastItems.FirstOrDefault()?.ProviderKey;
             var waveScopeGameId = _activeWaveGameId ?? Guid.Empty;
+            // A fire-test carries a forced preview source; captured here for the render-failure
+            // handler below (the template decision itself lives in ToastSurfaceFactory).
+            var previewSource = toastItems
+                .Select(vm => vm.PreviewTemplateSource)
+                .FirstOrDefault(source => source.HasValue);
             var template = ToastSurfaceFactory.ResolveToastTemplate(
                 _templateResolver, toastItems, ToastThemeStylingEnabled, waveProviderKey, waveScopeGameId);
             var items = ToastSurfaceFactory.BuildToastSurface(toastItems, template);
