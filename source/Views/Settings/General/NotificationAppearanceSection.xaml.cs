@@ -614,25 +614,46 @@ namespace PlayniteAchievements.Views.Settings.General
                 return;
             }
 
-            ToastMockupHost.ContentTemplate =
-                _toastTemplateResolver.ResolveTemplate(_currentToastUseThemeStyling, ScopeProviderKey, ScopeGameId);
-            ToastMockupHost.Content = new AchievementToastViewModel(
-                BuildPreviewArgs("mockup"),
-                persisted,
-                _currentStyle,
-                gameCustomDataStore: null,
-                toastUseThemeStylingOverride: _currentToastUseThemeStyling,
-                frameUseThemeStylingOverride: _currentFrameUseThemeStyling);
+            // The toast mockup is built through the same ToastSurfaceFactory the live toast wave
+            // uses (single-item list), so the inline preview and the fired notification cannot
+            // drift. The sample kind mirrors the fire-test dropdown so the preview shows whatever
+            // firing would produce; a null preview source keeps ResolveTemplate parity with a real
+            // unlock.
+            var toastKind = NotificationSampleSelector?.SelectedValue as string ?? "rare";
+            var toastItems = new[]
+            {
+                new AchievementToastViewModel(
+                    BuildPreviewArgs(toastKind),
+                    persisted,
+                    _currentStyle,
+                    gameCustomDataStore: null,
+                    toastUseThemeStylingOverride: _currentToastUseThemeStyling,
+                    frameUseThemeStylingOverride: _currentFrameUseThemeStyling),
+            };
+            var toastTemplate = ToastSurfaceFactory.ResolveToastTemplate(
+                _toastTemplateResolver, toastItems, _currentToastUseThemeStyling, ScopeProviderKey, ScopeGameId);
+            ToastMockupHost.ContentTemplate = null;
+            ToastMockupHost.Content = ToastSurfaceFactory.BuildToastSurface(toastItems, toastTemplate);
 
+            // The frame surface already shares one ContentControl path with its offscreen capture
+            // pipeline, so it stays a single-VM host; only the sample kind is mirrored here.
+            var frameKind = FrameSampleSelector?.SelectedValue as string ?? "rare";
             FrameMockupHost.ContentTemplate =
                 _toastTemplateResolver.ResolveFrameTemplate(_currentFrameUseThemeStyling, ScopeProviderKey, ScopeGameId);
             FrameMockupHost.Content = new AchievementToastViewModel(
-                BuildPreviewArgs("mockup"),
+                BuildPreviewArgs(frameKind),
                 persisted,
                 _currentStyle,
                 gameCustomDataStore: null,
                 toastUseThemeStylingOverride: _currentToastUseThemeStyling,
                 frameUseThemeStylingOverride: _currentFrameUseThemeStyling);
+        }
+
+        // Both sample-kind dropdowns refresh the inline mockups through one handler so the preview
+        // mirrors whatever a fire-test would show.
+        private void SampleSelector_SelectionChanged(object sender, SelectionChangedEventArgs e)
+        {
+            UpdateMockups();
         }
 
         private void FireNotification_Click(object sender, RoutedEventArgs e)
