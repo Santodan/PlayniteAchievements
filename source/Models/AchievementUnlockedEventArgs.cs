@@ -70,5 +70,14 @@ namespace PlayniteAchievements.Models
         /// which resolve the template normally.
         /// </summary>
         public Services.UI.NotificationTemplatePreviewSource? PreviewTemplateSource { get; set; }
+
+        /// <summary>
+        /// For fire-test previews only: the exact style the settings editor is showing. When set,
+        /// the notification renders this style verbatim instead of re-resolving from
+        /// <see cref="ProviderKey"/> / <see cref="PlayniteGameId"/>, so a fired test matches the
+        /// inline mockup exactly (re-resolution could otherwise pick up a different scope's
+        /// override — e.g. the sample provider's per-provider style). Null for real unlocks.
+        /// </summary>
+        public Settings.NotificationStyleSettings PreviewStyleOverride { get; set; }
     }
 }
