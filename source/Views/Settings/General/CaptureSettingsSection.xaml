@@ -181,11 +181,6 @@
                                          Width="160"
                                          Margin="0,0,0,8"/>
                             </Grid>
-                            <TextBlock Text="{DynamicResource LOCPlayAch_Settings_ScreenshotSuffixesHint}"
-                                       Style="{StaticResource MutedTextStyle}"
-                                       TextWrapping="Wrap"
-                                       Margin="0,0,0,10"/>
-
                             <TextBlock Text="{DynamicResource LOCPlayAch_Settings_ScreenshotDirectory}"
                                        Foreground="{DynamicResource PlayAch.Brush.Text}"
                                        Margin="0,0,0,4"/>
@@ -202,10 +197,6 @@
                                         Click="ScreenshotDirectory_Browse_Click"
                                         Margin="8,0,0,0"/>
                             </Grid>
-                            <TextBlock Text="{DynamicResource LOCPlayAch_Settings_ScreenshotDirectoryHint}"
-                                       Style="{StaticResource MutedTextStyle}"
-                                       TextWrapping="Wrap"
-                                       Margin="0,6,0,0"/>
                         </StackPanel>
                     </StackPanel>
                 </Border>
@@ -383,15 +374,6 @@
                             <CheckBox Content="{DynamicResource LOCPlayAch_Settings_RecordingIncludeAudio}"
                                       IsChecked="{Binding Persisted.RecordingIncludeAudio}"
                                       Margin="0,10,0,0"/>
-                            <TextBlock Text="{DynamicResource LOCPlayAch_Settings_RecordingIncludeAudioHint}"
-                                       Style="{StaticResource MutedTextStyle}"
-                                       TextWrapping="Wrap"
-                                       Margin="0,4,0,0"/>
-
-                            <TextBlock Text="{DynamicResource LOCPlayAch_Settings_RecordingHint}"
-                                       Style="{StaticResource MutedTextStyle}"
-                                       TextWrapping="Wrap"
-                                       Margin="0,6,0,0"/>
                         </StackPanel>
                     </StackPanel>
                 </Border>

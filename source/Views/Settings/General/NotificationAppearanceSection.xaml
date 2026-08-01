@@ -57,10 +57,6 @@
                             </Border>
 
                             <!-- Tester. -->
-                            <TextBlock Text="{DynamicResource LOCPlayAch_Settings_ToastPreviewHint}"
-                                       Style="{StaticResource MutedTextStyle}"
-                                       TextWrapping="Wrap"
-                                       Margin="0,0,0,6"/>
                             <StackPanel Orientation="Horizontal" Margin="0,0,0,8">
                                 <TextBlock Text="{DynamicResource LOCPlayAch_Settings_Style_SampleUnlock}"
                                            Foreground="{DynamicResource PlayAch.Brush.Text}"

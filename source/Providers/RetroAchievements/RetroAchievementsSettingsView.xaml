@@ -86,10 +86,6 @@
                                                    Margin="{StaticResource PlayAch.Thickness.Bottom.Sm}"/>
                                         <TextBox Text="{Binding Settings.RaUsername, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
                                                  Padding="4"/>
-                                        <TextBlock Text="{DynamicResource LOCPlayAch_Settings_RaUsername_Help}"
-                                                   Style="{StaticResource MutedTextStyle}"
-                                                   Margin="{StaticResource PlayAch.Thickness.Top.Sm}"
-                                                   TextWrapping="Wrap"/>
 
                                         <TextBlock Text="{DynamicResource LOCPlayAch_Settings_RaWebApiKey}"
                                                    Margin="0,12,0,8"/>
