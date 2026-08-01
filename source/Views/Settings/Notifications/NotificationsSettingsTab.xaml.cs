@@ -40,19 +40,19 @@ namespace PlayniteAchievements.Views.Settings.Notifications
                 new SettingsNavigationItem(
                     "General",
                     ResourceProvider.GetString("LOCPlayAch_Common_General"),
-                    iconGlyph: "", // IcoFont settings (gear)
+                    iconGlyph: "",
                     viewFactory: () => _generalSection =
                         new NotificationsSection(settings, plugin, logger)),
                 new SettingsNavigationItem(
                     "Appearance",
                     ResourceProvider.GetString("LOCPlayAch_Settings_Appearance"),
-                    iconGlyph: "", // IcoFont paint-brush
+                    iconGlyph: "",
                     viewFactory: () => _appearanceSection =
                         new NotificationAppearanceSection(settings, plugin, logger)),
                 new SettingsNavigationItem(
                     "Capture",
                     ResourceProvider.GetString("LOCPlayAch_Section_Capture"),
-                    iconGlyph: "", // IcoFont camera
+                    iconGlyph: "",
                     viewFactory: () => _captureSection =
                         new CaptureSettingsSection(settings, plugin, logger))
             };
