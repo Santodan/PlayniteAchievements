@@ -47,6 +47,12 @@ namespace PlayniteAchievements.ViewModels
         /// <see cref="VerticalPadding"/> on top and bottom.
         /// </summary>
         public Thickness LeftIndentMargin => new Thickness(LeftIndent, VerticalPadding, 0, VerticalPadding);
+
+        /// <summary>
+        /// Whether this line renders at all. Bound on the item container so an empty line collapses
+        /// completely (its container margin / line padding leaves no blank gap).
+        /// </summary>
+        public virtual Visibility LineVisibility => Visibility.Visible;
     }
 
     /// <summary>
@@ -78,6 +84,13 @@ namespace PlayniteAchievements.ViewModels
         public bool ShowDateSeparator { get; }
 
         public bool ShowFriendAvatar { get; }
+
+        // The header row still occupies space when it carries the unlock header text, the unlock
+        // datetime, or the completion header; otherwise it collapses.
+        public override Visibility LineVisibility =>
+            (ShowHeader || ShowUnlockTime || Parent.IsGameCompleted)
+                ? Visibility.Visible
+                : Visibility.Collapsed;
     }
 
     /// <summary>
@@ -131,6 +144,9 @@ namespace PlayniteAchievements.ViewModels
         /// </summary>
         public double InlineBadgeSize => FontSize * AchievementToastViewModel.BadgeToTitleRatio;
 
+        // The title row shows for the achievement name, and always for the "Game Complete!" banner.
+        public override Visibility LineVisibility =>
+            (ShowName || Parent.IsGameCompleted) ? Visibility.Visible : Visibility.Collapsed;
     }
 
     /// <summary>
@@ -163,6 +179,12 @@ namespace PlayniteAchievements.ViewModels
         /// scaling with larger fonts (replaces the old fixed pixel clamp).
         /// </summary>
         public double MaxTextHeight => FontSize * 1.4 * MaxLines;
+
+        // Collapses when the description is hidden or the achievement has no description text.
+        public override Visibility LineVisibility =>
+            (ShowDescription && !string.IsNullOrWhiteSpace(Parent.Description))
+                ? Visibility.Visible
+                : Visibility.Collapsed;
     }
 
     /// <summary>
@@ -222,5 +244,8 @@ namespace PlayniteAchievements.ViewModels
 
         /// <summary>Collapses the row when neither the game name nor the category is shown.</summary>
         public bool HasGameCategoryContent => !string.IsNullOrEmpty(GameCategoryText);
+
+        public override Visibility LineVisibility =>
+            HasGameCategoryContent ? Visibility.Visible : Visibility.Collapsed;
     }
 }
