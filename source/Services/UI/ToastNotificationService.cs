@@ -674,8 +674,27 @@ namespace PlayniteAchievements.Services.UI
 
                 PlaceWindow(window, "preshow");
                 window.Show();
-                // Now the window is on the target monitor, correct the DPI compensation using the scale
-                // WPF actually renders it at (still Opacity=0, so any resize is invisible).
+
+                // Moving the per-monitor window onto the target monitor raises WM_DPICHANGED
+                // asynchronously; WPF then resizes/repositions the window. Wait for that to settle (the
+                // window's render scale reaches the target monitor's scale) while it is still invisible
+                // (Opacity=0), so the reveal below does not flicker across the monitor boundary. Bounded
+                // so it never hangs; already-settled cases (e.g. the system monitor) exit immediately.
+                for (var settle = 0;
+                    settle < MaxDpiSettleFrames && !_disposed &&
+                        Math.Abs(ToastWindowPlacer.RenderScale(window) - _activeMonitorScale) >= DpiSettleTolerance;
+                    settle++)
+                {
+                    await Task.Delay(DpiSettleFrameMs).ConfigureAwait(true);
+                }
+
+                if (_disposed)
+                {
+                    return;
+                }
+
+                // Now on the target monitor with the DPI settled: correct the compensation from the
+                // actual render scale, snap to the corner, and reveal.
                 ApplyDpiCompensation(window, items, fitScale);
                 PlaceWindow(window, "shown");
                 SlideInPhysical(window);
@@ -1408,6 +1427,13 @@ namespace PlayniteAchievements.Services.UI
         private const int SlideSettleBufferMs = 10;
         // Below this, the content scale is treated as 1.0 and no LayoutTransform is applied.
         private const double ContentScaleEpsilon = 0.001;
+        // Post-Show wait for the per-monitor DPI change to settle before revealing the toast: poll the
+        // window's render scale up to MaxDpiSettleFrames times, DpiSettleFrameMs apart, until it reaches
+        // the target monitor's scale (within DpiSettleTolerance). Bounds a worst case at ~1-2 frames for
+        // the common case and never hangs.
+        private const int DpiSettleFrameMs = 16;
+        private const int MaxDpiSettleFrames = 8;
+        private const double DpiSettleTolerance = 0.01;
 
         private static readonly IEasingFunction DefaultSlideInEase =
             new BackEase { EasingMode = EasingMode.EaseOut, Amplitude = SlideOvershootAmplitude };
