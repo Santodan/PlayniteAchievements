@@ -62,6 +62,8 @@ namespace PlayniteAchievements.Services.UI
         private const uint SWP_NOACTIVATE = 0x0010;
         private const uint MONITOR_DEFAULTTONEAREST = 2;
         private const int MDT_EFFECTIVE_DPI = 0;
+        // Windows' baseline DPI: a monitor reporting this is at 100% scale.
+        private const double StandardDpi = 96.0;
 
         /// <summary>Default toast card size (DIP) used when the real content size isn't measurable yet.</summary>
         public const double DefaultCardWidthDip = 438d;
@@ -111,7 +113,7 @@ namespace PlayniteAchievements.Services.UI
                     var monitor = MonitorFromWindow(windowHandle, MONITOR_DEFAULTTONEAREST);
                     if (monitor != IntPtr.Zero && GetDpiForMonitor(monitor, MDT_EFFECTIVE_DPI, out var dpiX, out _) == 0 && dpiX > 0)
                     {
-                        return dpiX / 96.0;
+                        return dpiX / StandardDpi;
                     }
                 }
             }
