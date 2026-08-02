@@ -1,6 +1,0 @@
-# Build outputs
-bin/
-obj/
-
-# Capture test artifacts (screenshots of the live desktop — never commit)
-*.png
