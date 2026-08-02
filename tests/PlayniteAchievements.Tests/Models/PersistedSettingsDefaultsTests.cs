@@ -72,7 +72,10 @@ namespace PlayniteAchievements.Models.Tests
         {
             var settings = new PersistedSettings();
 
-            Assert.IsTrue(settings.ProgressColumnAlignmentDefaulted);
+            // The parameterless ctor is the deserialization target: it must leave the seed flag
+            // false so an upgrading config stays eligible for the seeding migration. The Right
+            // alignment itself comes from the grid-options defaults, independent of the flag.
+            Assert.IsFalse(settings.ProgressColumnAlignmentDefaulted);
             Assert.AreEqual(
                 GridAlignment.Right,
                 settings.OverviewGameSummariesColumnAlignments[PersistedSettings.ProgressColumnKey]);

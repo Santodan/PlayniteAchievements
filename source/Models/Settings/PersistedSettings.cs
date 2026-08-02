@@ -161,7 +161,7 @@ namespace PlayniteAchievements.Models.Settings
         private bool _showTopMenuBarButton = true;
         private bool _showCompletedProgressColoring = true;
         private bool _showCompactListRarityBar = true;
-        private bool _progressColumnAlignmentDefaulted = true;
+        private bool _progressColumnAlignmentDefaulted = false;
         private bool _inlineSurfaceTransparencySeeded = true;
 
         private GridAlignment _gridColumnHeaderAlignment = GridAlignment.Center;
@@ -1791,9 +1791,11 @@ namespace PlayniteAchievements.Models.Settings
 
         /// <summary>
         /// One-time bookkeeping flag: true once the Progress summary column has been seeded to Right
-        /// alignment. Migration forces Right for existing configs where this is absent/false (so an
-        /// updating user keeps the legacy footer layout) and then sets it true, after which a user's
-        /// own alignment choice is respected. Defaults to true for fresh installs (seeded in the ctor).
+        /// alignment. Defaults to false everywhere (like <see cref="FirstTimeSetupCompleted"/>) with
+        /// no fresh-install special-casing: the seeding migration is the sole thing that flips it
+        /// true, after forcing Right for a config where it is absent/false. A false or absent value
+        /// therefore always means "not yet seeded", so a config loaded without the migration ever
+        /// running stays eligible for seeding instead of permanently blocking it.
         /// </summary>
         public bool ProgressColumnAlignmentDefaulted
         {
