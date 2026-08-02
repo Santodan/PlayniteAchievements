@@ -35,6 +35,11 @@ namespace PlayniteAchievements.Services.UI
         private readonly GameCustomDataStore _gameCustomDataStore;
         private readonly Queue<AchievementToastViewModel> _queue = new Queue<AchievementToastViewModel>();
         private bool _processing;
+        // Gap (DIP) from the screen/game-window corner to the toast window edge. The card's own
+        // ToastGlowMargin sits inside the window, so the visible card body is this plus that glow
+        // room from the corner. Tunable: lower toward 0 to sit closer (glow stays on-screen).
+        private const double CornerGapDip = 8d;
+
         private bool _disposed;
         private Window _activeWindow;
         // The corner the current wave uses, resolved once per wave (theme override or plugin
@@ -1071,7 +1076,7 @@ namespace PlayniteAchievements.Services.UI
                 return;
             }
 
-            var margin = 24d;
+            var margin = CornerGapDip;
             var width = window.ActualWidth > 0 ? window.ActualWidth : window.Width;
             var height = window.ActualHeight > 0 ? window.ActualHeight : window.Height;
             if (double.IsNaN(width) || width <= 0 || double.IsNaN(height) || height <= 0)
