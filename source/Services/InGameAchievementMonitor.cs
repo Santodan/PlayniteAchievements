@@ -1370,13 +1370,13 @@ namespace PlayniteAchievements.Services
                     var recent = (_cacheManager as ICacheReadOptimizations)?
                         .LoadCachedSummaryDataFast(1)?.RecentUnlocks;
                     var mostRecent = recent != null && recent.Count > 0 ? recent[0] : null;
-                    if (mostRecent == null)
+                    if (mostRecent?.PlayniteGameId == null || mostRecent.PlayniteGameId == Guid.Empty)
                     {
                         _logger?.Debug("[InGameMonitor] Test notification skipped: no recent unlock in the library.");
                         return;
                     }
 
-                    gameId = mostRecent.PlayniteGameId;
+                    gameId = mostRecent.PlayniteGameId.Value;
                     preferredApiName = mostRecent.ApiName;
                 }
 
