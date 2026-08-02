@@ -46,6 +46,16 @@ namespace PlayniteAchievements.Services.Recording
         private const int ToastWaitPollSeconds = 5;
         private const int MaxCaptureRestarts = 3;
         private const int RestartBackoffSeconds = 5;
+        // Freeze recovery (distinct from crash restarts): a frozen-but-alive capture is detected by
+        // the health watchdog / clip freeze probe, which kill the capture to route it through the
+        // restart path. The fast (GPU-resident) path is retried in place first so a transient device
+        // hiccup costs nothing; only after ResidentFreezeRetryMax does it drop to the copy-through
+        // path. FreezeRestartCount is budgeted separately from crash restarts so spaced-out freezes
+        // never disable recording, and both freeze counters reset after HealthyResetMinutes of health.
+        private const int ResidentFreezeRetryMax = 2;
+        private const int MaxFreezeRestarts = 6;
+        private const int FreezeRecoveryCooldownSeconds = 20;
+        private const int HealthyResetMinutes = 5;
         private const int PruneIntervalSeconds = 30;
         private const int StopGraceSeconds = 3;
         private const int DrainTimeoutSeconds = 45;
@@ -152,6 +162,15 @@ namespace PlayniteAchievements.Services.Recording
             public string LastSegmentPath;
             public DateTime LastSegmentAdvanceUtc;
             public long MaxSegmentBytes;
+            // Freeze-recovery state: PendingFreezeRestart flags a kill issued by the freeze
+            // detectors so OnCaptureExited runs freeze recovery instead of the crash ladder;
+            // ResidentFreezeRetries counts fast-path restarts before dropping the bridge;
+            // FreezeRestartCount is the freeze budget (separate from the crash RestartCount);
+            // LastFreezeRecoveryUtc debounces recoveries and anchors the healthy-run reset.
+            public volatile bool PendingFreezeRestart;
+            public int ResidentFreezeRetries;
+            public int FreezeRestartCount;
+            public DateTime LastFreezeRecoveryUtc;
         }
 
         private sealed class ClipRequest
@@ -614,6 +633,14 @@ namespace PlayniteAchievements.Services.Recording
                 return;
             }
 
+            var freezeKill = session.PendingFreezeRestart;
+            session.PendingFreezeRestart = false;
+            if (freezeKill)
+            {
+                HandleFreezeRestart(session, host);
+                return;
+            }
+
             var tail = host.StdErrTail;
             session.RestartCount++;
             if (session.RestartCount > MaxCaptureRestarts)
@@ -654,6 +681,96 @@ namespace PlayniteAchievements.Services.Recording
 
             _logger?.Warn(
                 $"[Recording] ffmpeg capture exited unexpectedly (exit={host.ExitCode}); restart {session.RestartCount}/{MaxCaptureRestarts} in {RestartBackoffSeconds}s. stderr tail:\n{tail}");
+            ScheduleRespawn(session, host);
+        }
+
+        /// <summary>
+        /// Frozen-but-alive capture recovery, routed here when a freeze detector killed the host
+        /// (PendingFreezeRestart). Unlike the crash ladder it retries the fast GPU-resident path in
+        /// place first — a transient device hiccup clears on a fresh grab at no performance cost —
+        /// and only after <see cref="ResidentFreezeRetryMax"/> drops to the copy-through path.
+        /// Budgeted separately from crash restarts so spaced-out freezes never disable recording;
+        /// deliberately never escalates to gdigrab (CPU-heavy and equally blind to the failure).
+        /// </summary>
+        private void HandleFreezeRestart(CaptureSession session, FfmpegProcessHost host)
+        {
+            session.FreezeRestartCount++;
+            if (session.FreezeRestartCount > MaxFreezeRestarts)
+            {
+                _logger?.Warn(
+                    $"[Recording] Capture froze {session.FreezeRestartCount} times this session; leaving it stopped.");
+                session.Stopping = true;
+                return;
+            }
+
+            var persisted = _settings?.Persisted;
+            if (session.GpuBridge != RecordingCommandBuilder.GpuCaptureBridge.None &&
+                session.ResidentFreezeRetries < ResidentFreezeRetryMax)
+            {
+                session.ResidentFreezeRetries++;
+                _logger?.Warn(
+                    $"[Recording] GPU-resident capture froze; restarting on the fast path (fresh device), " +
+                    $"attempt {session.ResidentFreezeRetries}/{ResidentFreezeRetryMax}.");
+            }
+            else if (session.GpuBridge != RecordingCommandBuilder.GpuCaptureBridge.None && persisted != null)
+            {
+                session.GpuBridge = RecordingCommandBuilder.GpuCaptureBridge.None;
+                session.CaptureArguments = BuildCaptureArgumentsFor(session, persisted, session.MonitorBounds);
+                _logger?.Warn(
+                    "[Recording] GPU-resident capture kept freezing; switching to the copy-through path for this session.");
+            }
+            else
+            {
+                _logger?.Warn(
+                    "[Recording] Capture froze on the copy-through path; restarting it (a fresh grab may clear a transient stall).");
+            }
+
+            ScheduleRespawn(session, host);
+        }
+
+        /// <summary>
+        /// Issued by the freeze detectors (stall watchdog, clip freeze probe): flags the kill as a
+        /// freeze restart and kills the live capture so <see cref="OnCaptureExited"/> runs freeze
+        /// recovery. Guards against re-entry while a restart is already pending or within the
+        /// cooldown, and resets the stall tracking so the fresh capture isn't immediately re-flagged.
+        /// </summary>
+        private void RecoverFromFreeze(CaptureSession session, string reason)
+        {
+            if (_disposed || session == null || session.Stopping)
+            {
+                return;
+            }
+
+            var host = session.CaptureHost;
+            if (host == null || host.HasExited || session.PendingFreezeRestart)
+            {
+                return;
+            }
+
+            var now = DateTime.UtcNow;
+            if (session.LastFreezeRecoveryUtc != default &&
+                (now - session.LastFreezeRecoveryUtc).TotalSeconds < FreezeRecoveryCooldownSeconds)
+            {
+                return;
+            }
+
+            session.PendingFreezeRestart = true;
+            session.LastFreezeRecoveryUtc = now;
+            // The fresh capture writes into the same buffer; clear the stall anchor so it is not
+            // judged frozen before it has had a chance to open a new segment.
+            session.LastSegmentPath = null;
+            session.LastSegmentAdvanceUtc = now;
+            _logger?.Warn($"[Recording] Capture freeze detected ({reason}); killing and restarting the capture.");
+            host.Kill();
+        }
+
+        /// <summary>
+        /// Shared restart tail for the crash and freeze paths: after <see cref="RestartBackoffSeconds"/>
+        /// disposes the dead host and spawns a fresh capture with the session's current (possibly
+        /// downgraded) arguments, unless the session was disposed or stopped meanwhile.
+        /// </summary>
+        private void ScheduleRespawn(CaptureSession session, FfmpegProcessHost host)
+        {
             _ = Task.Run(async () =>
             {
                 try
@@ -1462,10 +1579,21 @@ namespace PlayniteAchievements.Services.Recording
                 {
                     _logger?.Warn(
                         $"{line} -- STALLED: no new segment for {sinceNewSegment:F0}s " +
-                        "(capture frozen; process alive so no crash/fallback fired).");
+                        "(capture frozen; process alive so no crash fired); recovering.");
+                    RecoverFromFreeze(session, "stall");
                 }
                 else
                 {
+                    // A sustained healthy run clears the freeze budgets so spaced-out freezes over a
+                    // long session never exhaust them.
+                    if (session.LastFreezeRecoveryUtc != default &&
+                        (now - session.LastFreezeRecoveryUtc).TotalMinutes >= HealthyResetMinutes)
+                    {
+                        session.FreezeRestartCount = 0;
+                        session.ResidentFreezeRetries = 0;
+                        session.LastFreezeRecoveryUtc = default;
+                    }
+
                     _logger?.Debug(line);
                 }
             }
@@ -1507,9 +1635,9 @@ namespace PlayniteAchievements.Services.Recording
                         {
                             _logger?.Warn(
                                 $"[RecordingHealth] Saved clip for '{achievementName}' is frozen " +
-                                "(freezedetect fired for >=60% of the clip) -- the capture was producing static " +
-                                "frames. Suspect the ddagrab GPU-resident path; try Gdigrab or a non-Native " +
-                                $"recording resolution. Clip: {clipPath}");
+                                "(freezedetect fired for >=60% of the clip); the capture was producing static " +
+                                $"frames. Recovering the capture. Clip: {clipPath}");
+                            RecoverFromFreeze(session, "frozen-clip");
                         }
                         else
                         {
