@@ -20,6 +20,13 @@ namespace PlayniteAchievements.Services.UI
     /// </summary>
     internal sealed class UnlockScreenshotService
     {
+        /// <summary>
+        /// Subfolder under the configured screenshot/recording root that receives captures from the
+        /// manual test-notification fire, keeping them apart from genuine per-game unlock captures.
+        /// Shared by the screenshot planner and the clip output-path builder.
+        /// </summary>
+        public const string TestFolderName = "Test";
+
         private readonly ILogger _logger;
 
         public UnlockScreenshotService(ILogger logger)

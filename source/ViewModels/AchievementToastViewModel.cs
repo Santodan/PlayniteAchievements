@@ -80,6 +80,10 @@ namespace PlayniteAchievements.ViewModels
         // Raw fields consumed by the unlock-screenshot feature (not shown in the toast UI).
         public bool IsPreview => _args.IsPreview;
 
+        // Real manual fire from the test-notification hotkey: capture still runs, but is routed
+        // to a separate "Test" folder. Read by the notification service's screenshot planner.
+        public bool IsTestFire => _args.IsTestFire;
+
         // Fire-test preview only: forces the template source for this notification. Null for
         // real unlocks. Read by the notification service when resolving the wave's template.
         internal Services.UI.NotificationTemplatePreviewSource? PreviewTemplateSource => _args.PreviewTemplateSource;

@@ -933,6 +933,13 @@ namespace PlayniteAchievements.Services.UI
                 return null;
             }
 
+            // A manual test fire lands in a separate "Test" subfolder so it never mixes with a
+            // game's genuine unlock captures.
+            if (first.IsTestFire)
+            {
+                baseDir = System.IO.Path.Combine(baseDir, UnlockScreenshotService.TestFolderName);
+            }
+
             var plan = new WaveScreenshotPlan
             {
                 BaseDirectory = baseDir,

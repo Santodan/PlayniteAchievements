@@ -183,6 +183,7 @@ namespace PlayniteAchievements.Services.Recording
             public int TotalCount;
             public DateTime? UnlockTimeUtc;
             public DateTime DetectionUtc;
+            public bool IsTestFire;
         }
 
         // === Session lifecycle ===
@@ -938,7 +939,8 @@ namespace PlayniteAchievements.Services.Recording
                 AchievementNumber = e.AchievementNumber,
                 TotalCount = e.TotalCount,
                 UnlockTimeUtc = e.UnlockTimeUtc,
-                DetectionUtc = DateTime.UtcNow
+                DetectionUtc = DateTime.UtcNow,
+                IsTestFire = e.IsTestFire
             };
 
             lock (_gate)
@@ -1418,6 +1420,13 @@ namespace PlayniteAchievements.Services.Recording
                 if (string.IsNullOrWhiteSpace(baseDir))
                 {
                     return null;
+                }
+
+                // A manual test fire lands in a separate "Test" subfolder, matching the screenshot
+                // planner, so test clips never mix with a game's genuine unlock captures.
+                if (request.IsTestFire)
+                {
+                    baseDir = Path.Combine(baseDir, UnlockScreenshotService.TestFolderName);
                 }
 
                 var relative = UnlockScreenshotService.BuildRelativePath(
