@@ -361,15 +361,10 @@ namespace PlayniteAchievements.Services.UI
                 return Task.Run(() => _screenshotService.CaptureMonitor(appHwnd));
             }
 
-            // The clean/framed shot is the game window only (WGC per-window). The with-notification
-            // shot captures the game's whole monitor so the toast — a separate window z-ordered over
-            // the game — appears in it (a per-window game capture would not include it).
-            if (includeToast)
-            {
-                var toastHwnd = _screenshotService.ResolveGameWindowHandle(waveHwnd, processId);
-                return Task.Run(() => _screenshotService.CaptureMonitor(toastHwnd));
-            }
-
+            // All running-game shots capture the game window (WGC per-window, HDR-correct, client
+            // area). The with-notification overlay is composited on separately (the toast is a
+            // separate window; a monitor capture would grab whatever is actually on top, not the
+            // game). includeToast is reserved for that composite path.
             return Task.Run(() => _screenshotService.CaptureGameWindow(waveHwnd, processId));
         }
 
@@ -645,16 +640,15 @@ namespace PlayniteAchievements.Services.UI
 
             _activeMonitorScale = ToastWindowPlacer.ResolveMonitorScale(_activeReferenceHwnd);
 
-            // When anchored to a running game, own the toast to the game window and drop topmost so
-            // it interleaves in the z-order: above the game, behind any window covering the game, and
-            // hidden by the OS when the game is minimized — the toast tracks the game's visibility
-            // instead of floating over everything. Out-of-game / preview keeps the topmost float over
-            // Playnite. Placement (SetWindowPos with SWP_NOZORDER) never touches z-order, so ownership
-            // is the sole z-order authority. Set before Show so it applies at HWND creation.
+            // When anchored to a running game, drop topmost so the toast can be occluded. It is NOT
+            // owned by the game window — ownership raises the owner (game), pushing overlapping
+            // windows behind it. Instead the toast is inserted directly above the game in the z-order
+            // each frame (see the follow below), which leaves the game and every other window in
+            // place: the toast just sits over the game and is naturally occluded by anything above it.
+            // Out-of-game / preview keeps the topmost float over Playnite.
             if (_activeIsGame && _activeReferenceHwnd != IntPtr.Zero)
             {
                 window.Topmost = false;
-                new WindowInteropHelper(window).Owner = _activeReferenceHwnd;
             }
 
             // Bound the toast to a fraction of the available area (fitScale) and fold in the DPI
@@ -1265,8 +1259,19 @@ namespace PlayniteAchievements.Services.UI
             }
 
             var renderScale = ToastWindowPlacer.RenderScale(window);
-            return ToastWindowPlacer.PositionPhysical(
+            var placed = ToastWindowPlacer.PositionPhysical(
                 window, anchorPhys, renderScale, _activeMonitorScale, AlignRight(), AlignBottom(), EffectiveGapDip(), out x, out y);
+
+            // Keep the toast directly above the game window in the z-order (not owned, so the game is
+            // never raised). Re-asserted every placement/follow frame so it stays interleaved as the
+            // user moves between windows. Only for a running-game anchor; the Playnite/preview case
+            // keeps its topmost float.
+            if (_activeIsGame && _activeReferenceHwnd != IntPtr.Zero)
+            {
+                ToastWindowPlacer.SetZOrderAbove(window, _activeReferenceHwnd);
+            }
+
+            return placed;
         }
 
         private bool TryComputeRestingCorner(Window window, out int x, out int y)

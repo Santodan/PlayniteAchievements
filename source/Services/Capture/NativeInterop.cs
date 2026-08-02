@@ -71,6 +71,28 @@ namespace PlayniteAchievements.Services.Capture
 
         [DllImport("user32.dll")]
         [return: MarshalAs(UnmanagedType.Bool)]
+        internal static extern bool GetClientRect(IntPtr hWnd, out RECT lpRect);
+
+        [DllImport("user32.dll")]
+        [return: MarshalAs(UnmanagedType.Bool)]
+        internal static extern bool ClientToScreen(IntPtr hWnd, ref POINT lpPoint);
+
+        // Visible window bounds excluding the invisible resize border/shadow — this matches the
+        // region WGC CreateForWindow captures, so client-area cropping measures against it.
+        [DllImport("dwmapi.dll")]
+        internal static extern int DwmGetWindowAttribute(IntPtr hwnd, int dwAttribute, out RECT pvAttribute, int cbAttribute);
+
+        internal const int DWMWA_EXTENDED_FRAME_BOUNDS = 9;
+
+        [StructLayout(LayoutKind.Sequential)]
+        internal struct POINT
+        {
+            public int X;
+            public int Y;
+        }
+
+        [DllImport("user32.dll")]
+        [return: MarshalAs(UnmanagedType.Bool)]
         internal static extern bool IsIconic(IntPtr hWnd);
 
         [DllImport("user32.dll", CharSet = CharSet.Unicode, SetLastError = true)]

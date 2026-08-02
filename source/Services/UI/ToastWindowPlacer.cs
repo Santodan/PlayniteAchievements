@@ -58,6 +58,7 @@ namespace PlayniteAchievements.Services.UI
         }
 
         private const uint SWP_NOSIZE = 0x0001;
+        private const uint SWP_NOMOVE = 0x0002;
         private const uint SWP_NOZORDER = 0x0004;
         private const uint SWP_NOACTIVATE = 0x0010;
         private const uint MONITOR_DEFAULTTONEAREST = 2;
@@ -273,6 +274,30 @@ namespace PlayniteAchievements.Services.UI
                 {
                     return SetWindowPos(hwnd, IntPtr.Zero, x, y, 0, 0, SWP_NOSIZE | SWP_NOZORDER | SWP_NOACTIVATE);
                 }
+            }
+            catch
+            {
+                return false;
+            }
+        }
+
+        /// <summary>
+        /// Inserts the toast directly above <paramref name="insertAfterHwnd"/> (the game window) in
+        /// the z-order, without moving, resizing, or activating anything. The game is never raised,
+        /// so an overlapping window keeps its place — the toast simply sits just above the game and
+        /// is naturally occluded by anything above the game. No DPI scope needed (no coordinates).
+        /// </summary>
+        public static bool SetZOrderAbove(Window window, IntPtr insertAfterHwnd)
+        {
+            var hwnd = Handle(window);
+            if (hwnd == IntPtr.Zero || insertAfterHwnd == IntPtr.Zero)
+            {
+                return false;
+            }
+
+            try
+            {
+                return SetWindowPos(hwnd, insertAfterHwnd, 0, 0, 0, 0, SWP_NOMOVE | SWP_NOSIZE | SWP_NOACTIVATE);
             }
             catch
             {

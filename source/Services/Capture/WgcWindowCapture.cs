@@ -53,11 +53,76 @@ namespace PlayniteAchievements.Services.Capture
                 EnsureDevice();
                 var hdr = HdrDisplayDetector.IsHdrActive(hwnd);
                 var refWhite = hdr ? HdrDisplayDetector.GetSdrWhiteScRgb(hwnd) : 1.0f;
-                return CaptureFromItem(CreateItemForWindow(hwnd), hdr, refWhite, warmupMs);
+                var result = CaptureFromItem(CreateItemForWindow(hwnd), hdr, refWhite, warmupMs);
+                if (result?.Bitmap == null)
+                {
+                    return result;
+                }
+
+                // WGC captures the whole window; crop to the client area so window chrome (title bar,
+                // borders) is excluded — matching the old GDI client-rect capture. Borderless/
+                // fullscreen games (client == window) are returned unchanged.
+                var cropped = CropToClient(result.Bitmap, hwnd);
+                return ReferenceEquals(cropped, result.Bitmap)
+                    ? result
+                    : new CaptureResult(cropped, result.Hdr, cropped.Width, cropped.Height);
             }
             catch
             {
                 return null;
+            }
+        }
+
+        /// <summary>
+        /// Crops a full-window capture down to the client area. Measures the client rect against the
+        /// DWM extended frame bounds (the region WGC captures) and scales into the captured bitmap's
+        /// pixel space, so it stays correct under per-monitor DPI. Returns the input unchanged when
+        /// the client already fills the frame or anything can't be resolved.
+        /// </summary>
+        private static Bitmap CropToClient(Bitmap full, IntPtr hwnd)
+        {
+            try
+            {
+                if (DwmGetWindowAttribute(hwnd, DWMWA_EXTENDED_FRAME_BOUNDS, out var frame, Marshal.SizeOf(typeof(RECT))) != 0)
+                {
+                    return full;
+                }
+
+                var fw = frame.Right - frame.Left;
+                var fh = frame.Bottom - frame.Top;
+                if (fw <= 0 || fh <= 0 || !GetClientRect(hwnd, out var client))
+                {
+                    return full;
+                }
+
+                var cw = client.Right - client.Left;
+                var ch = client.Bottom - client.Top;
+                var origin = new POINT { X = 0, Y = 0 };
+                if (cw <= 0 || ch <= 0 || !ClientToScreen(hwnd, ref origin))
+                {
+                    return full;
+                }
+
+                var sx = (double)full.Width / fw;
+                var sy = (double)full.Height / fh;
+                var x = Math.Max(0, Math.Min((int)Math.Round((origin.X - frame.Left) * sx), full.Width - 1));
+                var y = Math.Max(0, Math.Min((int)Math.Round((origin.Y - frame.Top) * sy), full.Height - 1));
+                var w = Math.Max(1, Math.Min((int)Math.Round(cw * sx), full.Width - x));
+                var h = Math.Max(1, Math.Min((int)Math.Round(ch * sy), full.Height - y));
+
+                // Borderless / fullscreen: the client already fills the frame — nothing to crop.
+                if (x == 0 && y == 0 && w == full.Width && h == full.Height)
+                {
+                    return full;
+                }
+
+                var cropped = full.Clone(new Rectangle(x, y, w, h), full.PixelFormat);
+                full.Dispose();
+                return cropped;
+            }
+            catch
+            {
+                return full;
             }
         }
 
