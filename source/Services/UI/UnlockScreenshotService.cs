@@ -8,6 +8,7 @@ using System.Runtime.InteropServices;
 using System.Text;
 using System.Windows.Forms;
 using Playnite.SDK;
+using PlayniteAchievements.Services.Capture;
 using PlayniteAchievements.Services.Images;
 
 namespace PlayniteAchievements.Services.UI
@@ -170,9 +171,25 @@ namespace PlayniteAchievements.Services.UI
         {
             try
             {
-                var bounds = TryResolveGameWindowBounds(knownHwnd, startedProcessId, out var rect, out var hwnd)
-                    ? rect
-                    : ResolveMonitorBounds(hwnd);
+                var resolved = TryResolveGameWindowBounds(knownHwnd, startedProcessId, out var rect, out var hwnd);
+
+                // WGC per-window capture: HDR-correct (tone-maps an HDR desktop to SDR) and captures
+                // the game window even when it is unfocused or occluded. Falls back to the GDI region
+                // copy below when WGC can't deliver (minimized, no window, pre-1903 Windows, or a
+                // transient device failure) — that path is SDR-only and blows out on HDR.
+                if (resolved && hwnd != IntPtr.Zero && WgcWindowCapture.IsSupported)
+                {
+                    using (var wgc = new WgcWindowCapture())
+                    {
+                        var captured = wgc.CaptureWindow(hwnd);
+                        if (captured?.Bitmap != null)
+                        {
+                            return captured.Bitmap;
+                        }
+                    }
+                }
+
+                var bounds = resolved ? rect : ResolveMonitorBounds(hwnd);
                 if (bounds.Width <= 0 || bounds.Height <= 0)
                 {
                     return null;
@@ -206,6 +223,21 @@ namespace PlayniteAchievements.Services.UI
         {
             try
             {
+                // WGC monitor capture (HDR-correct) so the with-notification shot includes the toast
+                // — a separate window z-ordered over the game — and the out-of-game test fire tone-
+                // maps the whole screen. GDI fallback below is SDR-only.
+                if (windowOnMonitor != IntPtr.Zero && WgcWindowCapture.IsSupported)
+                {
+                    using (var wgc = new WgcWindowCapture())
+                    {
+                        var captured = wgc.CaptureMonitorForWindow(windowOnMonitor);
+                        if (captured?.Bitmap != null)
+                        {
+                            return captured.Bitmap;
+                        }
+                    }
+                }
+
                 var bounds = ResolveMonitorBounds(windowOnMonitor);
                 if (bounds.Width <= 0 || bounds.Height <= 0)
                 {

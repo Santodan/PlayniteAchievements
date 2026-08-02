@@ -350,7 +350,7 @@ namespace PlayniteAchievements.Services.UI
         /// notification is placed there and there is no game screen to show. Window handles are
         /// resolved here on the UI thread; the blit runs on the pool.
         /// </summary>
-        private Task<System.Drawing.Bitmap> StartWaveSurfaceCapture(bool isTestFire)
+        private Task<System.Drawing.Bitmap> StartWaveSurfaceCapture(bool isTestFire, bool includeToast = false)
         {
             var waveHwnd = ResolveWaveWindowHandle();
             var processId = _getGameProcessId?.Invoke(_activeWaveGameId);
@@ -359,6 +359,15 @@ namespace PlayniteAchievements.Services.UI
             {
                 var appHwnd = ResolveAppWindowHandle();
                 return Task.Run(() => _screenshotService.CaptureMonitor(appHwnd));
+            }
+
+            // The clean/framed shot is the game window only (WGC per-window). The with-notification
+            // shot captures the game's whole monitor so the toast — a separate window z-ordered over
+            // the game — appears in it (a per-window game capture would not include it).
+            if (includeToast)
+            {
+                var toastHwnd = _screenshotService.ResolveGameWindowHandle(waveHwnd, processId);
+                return Task.Run(() => _screenshotService.CaptureMonitor(toastHwnd));
             }
 
             return Task.Run(() => _screenshotService.CaptureGameWindow(waveHwnd, processId));
@@ -723,7 +732,7 @@ namespace PlayniteAchievements.Services.UI
                 System.Drawing.Bitmap toastBitmap = null;
                 if (plan != null && plan.NeedsToastCapture)
                 {
-                    toastBitmap = await StartWaveSurfaceCapture(waveIsTestFire).ConfigureAwait(true);
+                    toastBitmap = await StartWaveSurfaceCapture(waveIsTestFire, includeToast: true).ConfigureAwait(true);
                 }
 
                 if (plan != null)

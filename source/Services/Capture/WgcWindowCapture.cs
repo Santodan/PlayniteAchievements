@@ -50,8 +50,10 @@ namespace PlayniteAchievements.Services.Capture
 
             try
             {
+                EnsureDevice();
                 var hdr = HdrDisplayDetector.IsHdrActive(hwnd);
-                return CaptureCore(hwnd, hdr, warmupMs);
+                var refWhite = hdr ? HdrDisplayDetector.GetSdrWhiteScRgb(hwnd) : 1.0f;
+                return CaptureFromItem(CreateItemForWindow(hwnd), hdr, refWhite, warmupMs);
             }
             catch
             {
@@ -59,11 +61,40 @@ namespace PlayniteAchievements.Services.Capture
             }
         }
 
-        private CaptureResult CaptureCore(IntPtr hwnd, bool hdr, int warmupMs)
+        /// <summary>
+        /// Captures the whole monitor that <paramref name="hwndOnMonitor"/> sits on (via WGC
+        /// CreateForMonitor) — used for the with-notification shot (the toast is a separate window
+        /// z-ordered over the game, so a per-window game capture would not include it) and the
+        /// out-of-game test fire. Same HDR tone-map path. Returns null (never throws) on failure.
+        /// </summary>
+        public CaptureResult CaptureMonitorForWindow(IntPtr hwndOnMonitor, int warmupMs = 150)
         {
-            EnsureDevice();
+            if (_disposed)
+            {
+                return null;
+            }
 
-            var item = CreateItemForWindow(hwnd);
+            try
+            {
+                var hMonitor = MonitorFromWindow(hwndOnMonitor, MONITOR_DEFAULTTONEAREST);
+                if (hMonitor == IntPtr.Zero)
+                {
+                    return null;
+                }
+
+                EnsureDevice();
+                var hdr = HdrDisplayDetector.IsHdrActive(hwndOnMonitor);
+                var refWhite = hdr ? HdrDisplayDetector.GetSdrWhiteScRgb(hwndOnMonitor) : 1.0f;
+                return CaptureFromItem(CreateItemForMonitor(hMonitor), hdr, refWhite, warmupMs);
+            }
+            catch
+            {
+                return null;
+            }
+        }
+
+        private CaptureResult CaptureFromItem(GraphicsCaptureItem item, bool hdr, float refWhite, int warmupMs)
+        {
             if (item == null || item.Size.Width <= 0 || item.Size.Height <= 0)
             {
                 return null;
@@ -121,7 +152,6 @@ namespace PlayniteAchievements.Services.Capture
 
                 using (captured)
                 {
-                    var refWhite = hdr ? HdrDisplayDetector.GetSdrWhiteScRgb(hwnd) : 1.0f;
                     var bitmap = ReadBack(captured, hdr, refWhite);
                     return bitmap == null
                         ? null
@@ -176,6 +206,23 @@ namespace PlayniteAchievements.Services.Capture
             var interop = (IGraphicsCaptureItemInterop)factory;
             var iid = IID_IGraphicsCaptureItem;
             var itemPtr = interop.CreateForWindow(hwnd, ref iid);
+            try
+            {
+                return (GraphicsCaptureItem)Marshal.GetObjectForIUnknown(itemPtr);
+            }
+            finally
+            {
+                Marshal.Release(itemPtr);
+            }
+        }
+
+        private static GraphicsCaptureItem CreateItemForMonitor(IntPtr hMonitor)
+        {
+            var factory = System.Runtime.InteropServices.WindowsRuntime.WindowsRuntimeMarshal
+                .GetActivationFactory(typeof(GraphicsCaptureItem));
+            var interop = (IGraphicsCaptureItemInterop)factory;
+            var iid = IID_IGraphicsCaptureItem;
+            var itemPtr = interop.CreateForMonitor(hMonitor, ref iid);
             try
             {
                 return (GraphicsCaptureItem)Marshal.GetObjectForIUnknown(itemPtr);
