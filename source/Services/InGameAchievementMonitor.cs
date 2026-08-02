@@ -1350,18 +1350,34 @@ namespace PlayniteAchievements.Services
         }
 
         /// <summary>
-        /// Fires the full notification flow (notification, screenshot, recording) for the given
-        /// game's most-recently-earned achievement, exactly as a live unlock would. Backs the
-        /// test-notification hotkey. Writes nothing to the cache and bypasses the per-session
-        /// dedupe, so it can be re-fired for an already-earned achievement.
+        /// Fires the full notification flow (notification, screenshot, recording) for a
+        /// most-recently-earned achievement, exactly as a live unlock would. Backs the
+        /// test-notification hotkey. When a game is running its id is passed and that game's most
+        /// recent unlock is used; otherwise (<see cref="Guid.Empty"/>) the library-wide most recent
+        /// unlock is used, matching the Overview "recent achievements" ordering. Writes nothing to
+        /// the cache and bypasses the per-session dedupe, so it can be re-fired for an already-earned
+        /// achievement; output is routed to a separate "Test" capture folder via
+        /// <see cref="AchievementUnlockedEventArgs.IsTestFire"/>.
         /// </summary>
-        public void FireLastUnlockNotification(Guid gameId)
+        public void FireTestNotification(Guid runningGameId)
         {
             try
             {
+                var gameId = runningGameId;
+                string preferredApiName = null;
                 if (gameId == Guid.Empty)
                 {
-                    return;
+                    var recent = (_cacheManager as ICacheReadOptimizations)?
+                        .LoadCachedSummaryDataFast(1)?.RecentUnlocks;
+                    var mostRecent = recent != null && recent.Count > 0 ? recent[0] : null;
+                    if (mostRecent == null)
+                    {
+                        _logger?.Debug("[InGameMonitor] Test notification skipped: no recent unlock in the library.");
+                        return;
+                    }
+
+                    gameId = mostRecent.PlayniteGameId;
+                    preferredApiName = mostRecent.ApiName;
                 }
 
                 var data = _cacheManager?.LoadGameData(gameId.ToString());
@@ -1373,7 +1389,7 @@ namespace PlayniteAchievements.Services
 
                 HydrateForToast(data);
 
-                var achievement = SelectLastUnlocked(data);
+                var achievement = ResolvePreferredAchievement(data, preferredApiName) ?? SelectLastUnlocked(data);
                 if (achievement == null)
                 {
                     _logger?.Debug($"[InGameMonitor] Test notification skipped: no unlocked achievement for game {gameId}.");
@@ -1388,6 +1404,7 @@ namespace PlayniteAchievements.Services
                     achievement,
                     ResolveAchievementNumber(numberByApiName, achievement),
                     isCompletionAchievement: false);
+                args.IsTestFire = true;
 
                 _logger?.Debug(
                     $"[InGameMonitor] Firing test notification for game={game?.Name ?? data.GameName}, achievement={achievement.ApiName}.");
@@ -1397,6 +1414,23 @@ namespace PlayniteAchievements.Services
             {
                 _logger?.Debug(ex, "[InGameMonitor] Failed to fire test notification.");
             }
+        }
+
+        /// <summary>
+        /// The unlocked, non-filtered achievement matching <paramref name="apiName"/> in the loaded
+        /// data (used to resolve the library-wide most-recent unlock the recent-unlocks query
+        /// identified). Null when the name is blank or absent.
+        /// </summary>
+        private static AchievementDetail ResolvePreferredAchievement(GameAchievementData data, string apiName)
+        {
+            if (string.IsNullOrWhiteSpace(apiName) || data?.Achievements == null)
+            {
+                return null;
+            }
+
+            return data.Achievements.FirstOrDefault(a =>
+                a?.Unlocked == true &&
+                string.Equals(a.ApiName, apiName, StringComparison.OrdinalIgnoreCase));
         }
 
         /// <summary>

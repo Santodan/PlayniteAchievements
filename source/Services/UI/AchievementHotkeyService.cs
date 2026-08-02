@@ -356,6 +356,16 @@ namespace PlayniteAchievements.Services.UI
                 return;
             }
 
+            if (action == AchievementHotkeyAction.FireTestUnlock)
+            {
+                // Only a genuinely running game scopes the fire to that game; with none running we
+                // pass Guid.Empty so the monitor uses the library-wide most recent unlock (not the
+                // merely-selected game). No "no target" prompt: the library-wide path resolves it.
+                var running = _targetResolver.ResolveRunningGame();
+                _fireTestUnlock?.Invoke(running?.HasTarget == true ? running.GameId : Guid.Empty);
+                return;
+            }
+
             var target = _targetResolver.Resolve();
             if (target?.HasTarget != true)
             {
@@ -369,10 +379,6 @@ namespace PlayniteAchievements.Services.UI
             if (action == AchievementHotkeyAction.ViewAchievements)
             {
                 _toggleViewAchievementsWindow(target.GameId);
-            }
-            else if (action == AchievementHotkeyAction.FireTestUnlock)
-            {
-                _fireTestUnlock?.Invoke(target.GameId);
             }
             else
             {

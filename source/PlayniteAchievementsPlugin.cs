@@ -594,7 +594,7 @@ namespace PlayniteAchievements
                         () => OpenSettingsView(),
                         TryFlipCategoryModeInActiveView,
                         TryRefreshActivePluginView,
-                        gameId => _inGameMonitor?.FireLastUnlockNotification(gameId));
+                        runningGameId => _inGameMonitor?.FireTestNotification(runningGameId));
 
                     _themeAutoMigrationService = new ThemeAutoMigrationService(
                         _logger,

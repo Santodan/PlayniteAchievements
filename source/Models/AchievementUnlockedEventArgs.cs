@@ -65,6 +65,14 @@ namespace PlayniteAchievements.Models
         public bool IsPreview { get; set; }
 
         /// <summary>
+        /// Set for the real-but-manual fire behind the test-notification hotkey. Unlike
+        /// <see cref="IsPreview"/> the full flow still runs (screenshot and recording included), but
+        /// the captured screenshot and clip are routed to a separate "Test" capture subfolder so
+        /// they do not mix with a game's genuine unlock captures.
+        /// </summary>
+        public bool IsTestFire { get; set; }
+
+        /// <summary>
         /// For fire-test previews only: forces which template renders this notification (the
         /// plugin's own template, or a specific theme mode's override). Null for real unlocks,
         /// which resolve the template normally.
