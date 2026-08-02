@@ -247,64 +247,66 @@
 
     <DataTemplate x:Key="PlayAch.Template.AchievementToast"
                   DataType="{x:Type vm:AchievementToastViewModel}">
-        <Border Width="{Binding ToastCardWidth}"
-                Height="{Binding ToastCardHeight}"
-                MinHeight="64"
-                Margin="{Binding ToastGlowMargin}"
-                CornerRadius="8"
-                BorderBrush="{DynamicResource PlayAch.Brush.PopupBorder}"
-                helpers:RarityGlowPulse.Target="Effect">
-            <!-- Default is a neutral drop shadow; the border-glow option swaps it for a
-                 rarity-colored glow. Effect is set via Style (not a local value) so the
-                 trigger can override it. Background and BorderThickness also live in the Style
-                 (not as local values) so the HasToastBackground trigger can drop the opaque card
-                 surface: with a user background image the surface goes transparent and the image's
-                 own (possibly rounded/transparent) alpha defines the shape, so the drop shadow /
-                 border glow wraps the image instead of a solid card rectangle. -->
-            <Border.Style>
-                <Style TargetType="Border">
-                    <Setter Property="Background" Value="{DynamicResource PlayAch.Brush.PopupSurface}"/>
-                    <Setter Property="BorderThickness" Value="1"/>
-                    <Setter Property="Effect">
-                        <Setter.Value>
-                            <DropShadowEffect BlurRadius="12"
-                                              ShadowDepth="3"
-                                              Direction="300"
-                                              Opacity="0.5"
-                                              Color="#000000"/>
-                        </Setter.Value>
-                    </Setter>
-                    <Style.Triggers>
-                        <!-- A user background image defines the card shape: drop the opaque
-                             surface + border so the image's alpha shows and the glow wraps it. -->
-                        <DataTrigger Binding="{Binding HasToastBackground}" Value="True">
-                            <Setter Property="Background" Value="Transparent"/>
-                            <Setter Property="BorderThickness" Value="0"/>
-                        </DataTrigger>
-                        <DataTrigger Binding="{Binding HasBorderGlow}" Value="True">
-                            <Setter Property="Effect" Value="{Binding BorderGlowEffect}"/>
-                        </DataTrigger>
-                        <!-- Fade the outer border glow in and out when AnimateRarityGlows is on. -->
-                        <MultiDataTrigger>
-                            <MultiDataTrigger.Conditions>
-                                <Condition Binding="{Binding HasBorderGlow}" Value="True"/>
-                                <Condition Binding="{Binding AnimateRarityGlows}" Value="True"/>
-                            </MultiDataTrigger.Conditions>
-                            <Setter Property="helpers:RarityGlowPulse.IsActive" Value="True"/>
-                        </MultiDataTrigger>
-                    </Style.Triggers>
-                </Style>
-            </Border.Style>
-            <Grid>
-                <!-- Optional user background image behind the whole card. The corner radius is a
-                     max-rounding upper bound: an opaque rectangular image gets the card's rounded
-                     corners, while an image with its own more-rounded/transparent corners passes
-                     through unchanged (its alpha is more restrictive than the clip). With the card
-                     surface transparent (see the outer Border trigger), the outer drop shadow /
-                     glow then renders from this image's alpha, wrapping its real shape. The
-                     explicit DecodePixel matters because ImageBrush is a Freezable with no size
-                     AsyncImage could infer. Animated GIF backgrounds play (GifAnimationHelper
-                     animates ImageBrush.ImageSource). -->
+        <Grid Width="{Binding ToastCardWidth}"
+              Height="{Binding ToastCardHeight}"
+              MinHeight="64"
+              Margin="{Binding ToastGlowMargin}">
+            <!-- Shadow / glow layer: a content-free shape carries the card's drop shadow (or the
+                 rarity border glow). Because the effect lives off the content layer, the text and
+                 icons are never rasterized through WPF's 96-DPI effect intermediate and stay crisp
+                 at any display scale; only this shape is rasterized, where the softness is exactly
+                 the shadow. Mirrors the achievement icon below (blurred backing layer + crisp
+                 front copy). -->
+            <Grid helpers:RarityGlowPulse.Target="Effect">
+                <Grid.Style>
+                    <Style TargetType="Grid">
+                        <Setter Property="Effect">
+                            <Setter.Value>
+                                <DropShadowEffect BlurRadius="12"
+                                                  ShadowDepth="3"
+                                                  Direction="300"
+                                                  Opacity="0.5"
+                                                  Color="#000000"/>
+                            </Setter.Value>
+                        </Setter>
+                        <Style.Triggers>
+                            <DataTrigger Binding="{Binding HasBorderGlow}" Value="True">
+                                <Setter Property="Effect" Value="{Binding BorderGlowEffect}"/>
+                            </DataTrigger>
+                            <!-- Fade the outer border glow in and out when AnimateRarityGlows is on. -->
+                            <MultiDataTrigger>
+                                <MultiDataTrigger.Conditions>
+                                    <Condition Binding="{Binding HasBorderGlow}" Value="True"/>
+                                    <Condition Binding="{Binding AnimateRarityGlows}" Value="True"/>
+                                </MultiDataTrigger.Conditions>
+                                <Setter Property="helpers:RarityGlowPulse.IsActive" Value="True"/>
+                            </MultiDataTrigger>
+                        </Style.Triggers>
+                    </Style>
+                </Grid.Style>
+                <!-- Opaque card surface: the shadow caster for a normal card. Goes transparent when
+                     a user background image defines the card shape, so the drop shadow / glow then
+                     wraps the image's own (possibly rounded/transparent) alpha via the blurred
+                     backing image below, instead of a solid rectangle. -->
+                <Border CornerRadius="8"
+                        BorderBrush="{DynamicResource PlayAch.Brush.PopupBorder}">
+                    <Border.Style>
+                        <Style TargetType="Border">
+                            <Setter Property="Background" Value="{DynamicResource PlayAch.Brush.PopupSurface}"/>
+                            <Setter Property="BorderThickness" Value="1"/>
+                            <Style.Triggers>
+                                <DataTrigger Binding="{Binding HasToastBackground}" Value="True">
+                                    <Setter Property="Background" Value="Transparent"/>
+                                    <Setter Property="BorderThickness" Value="0"/>
+                                </DataTrigger>
+                            </Style.Triggers>
+                        </Style>
+                    </Border.Style>
+                </Border>
+                <!-- Blurred backing copy of the user background image, present only so the shadow /
+                     glow wraps the image's real shape. The crisp copy the user sees sits directly on
+                     top of this in the content layer below. DecodePixel is explicit because
+                     ImageBrush is a Freezable with no size AsyncImage could infer. -->
                 <Border CornerRadius="8"
                         Visibility="{Binding HasToastBackground, Converter={StaticResource BooleanToVisibilityConverter}}">
                     <Border.Background>
@@ -313,10 +315,28 @@
                                     helpers:AsyncImage.DecodePixel="512"/>
                     </Border.Background>
                 </Border>
+            </Grid>
 
-                <!-- User left/right card padding insets the content; the background image above
-                     stays full-bleed (it is a sibling outside this Border). -->
-                <Border Padding="{Binding ToastContentPadding}">
+            <!-- Content layer: no effect, so every text line and icon renders as a crisp vector.
+                 Clipped to the card's rounded shape. -->
+            <Border CornerRadius="8"
+                    ClipToBounds="True">
+                <Grid>
+                    <!-- Crisp user background image (what is actually seen), full-bleed behind the
+                         content and matching the blurred shadow-caster copy above. Animated GIF
+                         backgrounds play (GifAnimationHelper animates ImageBrush.ImageSource). -->
+                    <Border CornerRadius="8"
+                            Visibility="{Binding HasToastBackground, Converter={StaticResource BooleanToVisibilityConverter}}">
+                        <Border.Background>
+                            <ImageBrush Stretch="UniformToFill"
+                                        helpers:AsyncImage.Uri="{Binding ToastBackgroundImagePath}"
+                                        helpers:AsyncImage.DecodePixel="512"/>
+                        </Border.Background>
+                    </Border>
+
+                    <!-- User left/right card padding insets the content; the background image above
+                         stays full-bleed (it is a sibling outside this Border). -->
+                    <Border Padding="{Binding ToastContentPadding}">
                 <Grid>
                 <Grid.ColumnDefinitions>
                     <ColumnDefinition Width="Auto"/>
@@ -553,7 +573,8 @@
                 </Grid>
                 </Border>
             </Grid>
-        </Border>
+            </Border>
+        </Grid>
     </DataTemplate>
 
     <!--
