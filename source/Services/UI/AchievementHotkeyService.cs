@@ -192,46 +192,58 @@ namespace PlayniteAchievements.Services.UI
                 return;
             }
 
-            // Fixed F5 -> refresh, scoped to the plugin's own views via focus. Handled here
-            // (before the routed KeyDown) so it preempts Playnite's F5 InputBinding. Independent
-            // of the configurable achievement-hotkey feature and active even in a focused search box.
-            if (GetEffectiveKey(keyArgs) == Key.F5 &&
-                Keyboard.Modifiers == ModifierKeys.None &&
-                _tryRefreshFocusedView?.Invoke() == true)
+            // This handler runs synchronously inside WPF's input pipeline. It must never let an
+            // exception escape: the work below walks the live window/visual tree (focus scope,
+            // active-view refresh, category-mode flip), which can throw while the tree is only
+            // partially built during startup. An unhandled throw here corrupts the input pipeline
+            // and permanently disables hotkeys for the rest of the session, so swallow and log.
+            try
             {
-                keyArgs.Handled = true;
-                return;
-            }
-
-            if (_settings?.Persisted?.EnableAchievementHotkeys != true ||
-                KeyboardFocusScope.IsTextInputFocused())
-            {
-                return;
-            }
-
-            var key = GetEffectiveKey(keyArgs);
-            if (!AchievementHotkeyGesture.TryCreate(key, Keyboard.Modifiers, out var gesture))
-            {
-                return;
-            }
-
-            if (!TryResolveAction(gesture, out var action))
-            {
-                // The category-mode gesture is scoped, not app-wide: it is handled synchronously
-                // so the key passes through untouched whenever the active window hosts no
-                // achievement grid whose category toggle is currently available.
-                if (!_categoryModeGesture.IsEmpty &&
-                    gesture.Equals(_categoryModeGesture) &&
-                    _tryFlipCategoryMode?.Invoke() == true)
+                // Fixed F5 -> refresh, scoped to the plugin's own views via focus. Handled here
+                // (before the routed KeyDown) so it preempts Playnite's F5 InputBinding. Independent
+                // of the configurable achievement-hotkey feature and active even in a focused search box.
+                if (GetEffectiveKey(keyArgs) == Key.F5 &&
+                    Keyboard.Modifiers == ModifierKeys.None &&
+                    _tryRefreshFocusedView?.Invoke() == true)
                 {
                     keyArgs.Handled = true;
+                    return;
                 }
 
-                return;
-            }
+                if (_settings?.Persisted?.EnableAchievementHotkeys != true ||
+                    KeyboardFocusScope.IsTextInputFocused())
+                {
+                    return;
+                }
 
-            keyArgs.Handled = true;
-            DispatchAction(action);
+                var key = GetEffectiveKey(keyArgs);
+                if (!AchievementHotkeyGesture.TryCreate(key, Keyboard.Modifiers, out var gesture))
+                {
+                    return;
+                }
+
+                if (!TryResolveAction(gesture, out var action))
+                {
+                    // The category-mode gesture is scoped, not app-wide: it is handled synchronously
+                    // so the key passes through untouched whenever the active window hosts no
+                    // achievement grid whose category toggle is currently available.
+                    if (!_categoryModeGesture.IsEmpty &&
+                        gesture.Equals(_categoryModeGesture) &&
+                        _tryFlipCategoryMode?.Invoke() == true)
+                    {
+                        keyArgs.Handled = true;
+                    }
+
+                    return;
+                }
+
+                keyArgs.Handled = true;
+                DispatchAction(action);
+            }
+            catch (Exception ex)
+            {
+                _logger?.Debug(ex, "Failed to process achievement hotkey input; passing the key through.");
+            }
         }
 
         private static Key GetEffectiveKey(KeyEventArgs keyArgs)
