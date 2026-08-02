@@ -634,13 +634,13 @@ namespace PlayniteAchievements.Services.UI
 
             _activeMonitorScale = ToastWindowPlacer.ResolveMonitorScale(_activeReferenceHwnd);
 
-            // Bound the toast to a fraction of the available area so it never dominates the screen at
-            // high display scales (or with an oversized theme template), while keeping its natural size
-            // when there is room. The content scale folds the fit shrink together with the DPI
-            // compensation (comp = anchor-monitor scale / system scale): the per-monitor toast, which WPF
-            // still lays out at the system scale, then ends up at the monitor's true physical size and
-            // crisp. On the system monitor comp is 1. LayoutTransform (not RenderTransform) so the
-            // SizeToContent window auto-sizes to the scaled content.
+            // Bound the toast to a fraction of the available area (fitScale) and fold in the DPI
+            // compensation so the per-monitor toast ends at the monitor's true physical size. The real
+            // compensation is monitorScale / renderScale (the scale WPF actually renders the window at):
+            // ~1 when WPF already lays the per-monitor window out at the monitor DPI, or the missing
+            // factor when it lays it out at the system scale. renderScale can only be read once the
+            // window is shown on the target monitor, so this pre-show pass uses the system scale as the
+            // estimate and ApplyDpiCompensation() corrects it right after Show (while still invisible).
             var fitScale = ResolveFitScale(items);
             var systemScale = ToastWindowPlacer.SystemScale();
             var dpiComp = systemScale > 0 ? _activeMonitorScale / systemScale : 1.0;
@@ -674,6 +674,9 @@ namespace PlayniteAchievements.Services.UI
 
                 PlaceWindow(window, "preshow");
                 window.Show();
+                // Now the window is on the target monitor, correct the DPI compensation using the scale
+                // WPF actually renders it at (still Opacity=0, so any resize is invisible).
+                ApplyDpiCompensation(window, items, fitScale);
                 PlaceWindow(window, "shown");
                 SlideInPhysical(window);
 
@@ -1352,6 +1355,43 @@ namespace PlayniteAchievements.Services.UI
             catch
             {
                 return 1.0;
+            }
+        }
+
+        /// <summary>
+        /// Re-applies the content DPI compensation using the scale WPF actually renders the (now shown,
+        /// on-target-monitor) per-monitor window at, which can only be read post-Show:
+        /// comp = monitorScale / renderScale. That is ~1 when WPF already scales the per-monitor window
+        /// to the monitor, or the missing factor when it renders at the system scale, so the card lands
+        /// at the monitor's true physical size either way. Forces layout so the following placement uses
+        /// the corrected size; the window is still Opacity=0, so any resize is invisible.
+        /// </summary>
+        private void ApplyDpiCompensation(Window window, FrameworkElement content, double fitScale)
+        {
+            var renderScale = ToastWindowPlacer.RenderScale(window);
+            if (renderScale <= 0)
+            {
+                return;
+            }
+
+            var comp = _activeMonitorScale / renderScale;
+            if (comp <= 0)
+            {
+                comp = 1.0;
+            }
+
+            var scale = fitScale * comp;
+            content.LayoutTransform = Math.Abs(scale - 1.0) > ContentScaleEpsilon
+                ? new ScaleTransform(scale, scale)
+                : null;
+
+            try
+            {
+                window.UpdateLayout();
+            }
+            catch
+            {
+                // Best-effort; the later placement passes still correct the size if layout defers.
             }
         }
 
