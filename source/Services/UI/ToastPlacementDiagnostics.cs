@@ -228,6 +228,61 @@ namespace PlayniteAchievements.Services.UI
             }
         }
 
+        /// <summary>
+        /// One line per physical-placement pass (the in-game per-monitor path): the game monitor's
+        /// true scale, the system scale, the derived DPI compensation, the toast's actual WPF render
+        /// scale and thread awareness, the physical target corner, and the toast HWND's real pixel
+        /// rect. The cross-check the log enables: the HWND pixel size should equal
+        /// round(ActualWidth * render) and sit at the target corner; comp should equal
+        /// monitorScale / systemScale; thread should read PerMonitorAwareV2 during show.
+        /// </summary>
+        internal static string DescribePhysicalPlacement(
+            string stage,
+            Window toast,
+            IntPtr gameHwnd,
+            double monitorScale,
+            int targetX,
+            int targetY)
+        {
+            try
+            {
+                if (toast == null)
+                {
+                    return $"Toast phys[{stage}]: diag-failed: null window";
+                }
+
+                var renderScale = ResolveTransformM11(toast, out _);
+                var systemScale = ResolveSystemScale();
+                var comp = systemScale > 0 ? monitorScale / systemScale : 1.0;
+
+                var toastHwnd = HandleFor(toast);
+                var hwndText = "no-hwnd";
+                if (toastHwnd != IntPtr.Zero && GetWindowRect(toastHwnd, out var wr))
+                {
+                    hwndText = $"({wr.Left},{wr.Top} {wr.Right - wr.Left}x{wr.Bottom - wr.Top})";
+                }
+
+                return string.Format(CultureInfo.InvariantCulture,
+                    "Toast phys[{0}]: monScale={1:0.000} sysScale={2:0.000} comp={3:0.000} render={4:0.000} thread={5} target=({6},{7}) actual={8:0.0}x{9:0.0} hwndPx={10} gameMon={11}",
+                    stage,
+                    monitorScale,
+                    systemScale,
+                    comp,
+                    renderScale,
+                    DpiAwarenessScope.DescribeThreadContext(),
+                    targetX,
+                    targetY,
+                    toast.ActualWidth,
+                    toast.ActualHeight,
+                    hwndText,
+                    gameHwnd != IntPtr.Zero ? MonitorNameFor(gameHwnd) : "none");
+            }
+            catch (Exception ex)
+            {
+                return $"Toast phys[{stage}]: diag-failed: " + ex.Message;
+            }
+        }
+
         private static string DescribeAwareness()
         {
             try
