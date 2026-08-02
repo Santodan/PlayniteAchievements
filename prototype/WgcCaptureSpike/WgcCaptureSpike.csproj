@@ -25,14 +25,14 @@
   <ItemGroup>
     <!-- WinRT projections (Windows.Graphics.Capture / DirectX). Version = a Windows 10 SDK you have. -->
     <PackageReference Include="Microsoft.Windows.SDK.Contracts" Version="10.0.19041.0" />
-    <!-- D3D11 device + texture read-back. netstandard2.0 target loads on net462. Adjust version to taste. -->
-    <PackageReference Include="Vortice.Direct3D11" Version="3.6.2" />
+    <!-- D3D11 device + texture read-back. SharpDX ships net45 libs (loads on net462); modern
+         Vortice dropped netstandard2.0 so it can't target net462. -->
+    <PackageReference Include="SharpDX.Direct3D11" Version="4.2.0" />
+    <PackageReference Include="SharpDX.DXGI" Version="4.2.0" />
   </ItemGroup>
 
   <ItemGroup>
     <Reference Include="System.Drawing" />
-    <!-- Framework WinRT interop support (WindowsRuntimeMarshal, AsTask). -->
-    <Reference Include="System.Runtime.WindowsRuntime" />
   </ItemGroup>
 
 </Project>

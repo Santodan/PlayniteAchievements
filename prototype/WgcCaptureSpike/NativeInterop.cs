@@ -136,11 +136,15 @@ namespace WgcCaptureSpike
         [DllImport("user32.dll")]
         internal static extern int DisplayConfigGetDeviceInfo(ref DISPLAYCONFIG_GET_ADVANCED_COLOR_INFO requestPacket);
 
+        [DllImport("user32.dll")]
+        internal static extern int DisplayConfigGetDeviceInfo(ref DISPLAYCONFIG_SDR_WHITE_LEVEL requestPacket);
+
         internal const uint QDC_ONLY_ACTIVE_PATHS = 0x00000002;
 
         // DISPLAYCONFIG_DEVICE_INFO_TYPE values.
         internal const int DISPLAYCONFIG_DEVICE_INFO_GET_SOURCE_NAME = 1;
         internal const int DISPLAYCONFIG_DEVICE_INFO_GET_ADVANCED_COLOR_INFO = 9;
+        internal const int DISPLAYCONFIG_DEVICE_INFO_GET_SDR_WHITE_LEVEL = 11;
 
         [StructLayout(LayoutKind.Sequential)]
         internal struct LUID
@@ -241,6 +245,16 @@ namespace WgcCaptureSpike
             public bool AdvancedColorSupported => (value & 0x1) != 0;
 
             public bool AdvancedColorEnabled => (value & 0x2) != 0;
+        }
+
+        [StructLayout(LayoutKind.Sequential)]
+        internal struct DISPLAYCONFIG_SDR_WHITE_LEVEL
+        {
+            public DISPLAYCONFIG_DEVICE_INFO_HEADER header;
+
+            // SDR white level: nits = SDRWhiteLevel / 1000 * 80, so the scRGB reference white
+            // (1.0 = 80 nits) is simply SDRWhiteLevel / 1000.
+            public uint SDRWhiteLevel;
         }
     }
 }

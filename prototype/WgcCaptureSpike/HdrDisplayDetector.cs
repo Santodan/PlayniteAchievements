@@ -49,6 +49,36 @@ namespace WgcCaptureSpike
             }
         }
 
+        /// <summary>
+        /// The monitor's SDR white level as an scRGB reference (1.0 = 80 nits). On an HDR desktop
+        /// Windows renders SDR content at this elevated white, so dividing the captured scRGB by it
+        /// maps SDR content back to 1.0 (correct exposure) and leaves only real HDR highlights above
+        /// 1.0. Returns 1.0 when unavailable (SDR display / query failure).
+        /// </summary>
+        public static float GetSdrWhiteScRgb(IntPtr hwnd)
+        {
+            try
+            {
+                var monitor = MonitorFromWindow(hwnd, MONITOR_DEFAULTTONEAREST);
+                if (monitor == IntPtr.Zero)
+                {
+                    return 1.0f;
+                }
+
+                var info = new MONITORINFOEX { cbSize = Marshal.SizeOf(typeof(MONITORINFOEX)) };
+                if (!GetMonitorInfoW(monitor, ref info) || string.IsNullOrEmpty(info.szDevice))
+                {
+                    return 1.0f;
+                }
+
+                return QuerySdrWhiteForDevice(info.szDevice);
+            }
+            catch
+            {
+                return 1.0f;
+            }
+        }
+
         private static bool IsHdrActiveForMonitor(IntPtr monitor)
         {
             if (monitor == IntPtr.Zero)
@@ -137,6 +167,64 @@ namespace WgcCaptureSpike
             }
 
             return false;
+        }
+
+        private static float QuerySdrWhiteForDevice(string gdiDeviceName)
+        {
+            if (GetDisplayConfigBufferSizes(QDC_ONLY_ACTIVE_PATHS, out var pathCount, out var modeCount) != 0)
+            {
+                return 1.0f;
+            }
+
+            var paths = new DISPLAYCONFIG_PATH_INFO[pathCount];
+            var modes = new DISPLAYCONFIG_MODE_INFO[modeCount];
+            if (QueryDisplayConfig(QDC_ONLY_ACTIVE_PATHS, ref pathCount, paths, ref modeCount, modes, IntPtr.Zero) != 0)
+            {
+                return 1.0f;
+            }
+
+            for (var i = 0; i < pathCount; i++)
+            {
+                var path = paths[i];
+
+                var sourceName = new DISPLAYCONFIG_SOURCE_DEVICE_NAME
+                {
+                    header = new DISPLAYCONFIG_DEVICE_INFO_HEADER
+                    {
+                        type = DISPLAYCONFIG_DEVICE_INFO_GET_SOURCE_NAME,
+                        size = Marshal.SizeOf(typeof(DISPLAYCONFIG_SOURCE_DEVICE_NAME)),
+                        adapterId = path.sourceInfo.adapterId,
+                        id = path.sourceInfo.id
+                    }
+                };
+
+                if (DisplayConfigGetDeviceInfo(ref sourceName) != 0 ||
+                    !string.Equals(sourceName.viewGdiDeviceName, gdiDeviceName, StringComparison.OrdinalIgnoreCase))
+                {
+                    continue;
+                }
+
+                var whiteLevel = new DISPLAYCONFIG_SDR_WHITE_LEVEL
+                {
+                    header = new DISPLAYCONFIG_DEVICE_INFO_HEADER
+                    {
+                        type = DISPLAYCONFIG_DEVICE_INFO_GET_SDR_WHITE_LEVEL,
+                        size = Marshal.SizeOf(typeof(DISPLAYCONFIG_SDR_WHITE_LEVEL)),
+                        adapterId = path.targetInfo.adapterId,
+                        id = path.targetInfo.id
+                    }
+                };
+
+                if (DisplayConfigGetDeviceInfo(ref whiteLevel) != 0 || whiteLevel.SDRWhiteLevel == 0)
+                {
+                    return 1.0f;
+                }
+
+                // scRGB reference white = SDRWhiteLevel / 1000 (1.0 = 80 nits). Floor at 1.0.
+                return Math.Max(1.0f, whiteLevel.SDRWhiteLevel / 1000f);
+            }
+
+            return 1.0f;
         }
     }
 }

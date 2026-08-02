@@ -57,7 +57,7 @@ namespace WgcCaptureSpike
                 Log($"HDR (mode={opts.HdrMode}) resolved to: {hdr} (GATE 5)");
 
                 var capture = new WgcCapture();
-                var result = capture.Capture(hwnd, hdr, opts.ManualWhite, Log);
+                var result = capture.Capture(hwnd, hdr, opts.ManualWhite, opts.WarmupMs, Log);
 
                 var outPath = Path.GetFullPath(opts.OutPath);
                 result.Bitmap.Save(outPath, ImageFormat.Png);
@@ -103,6 +103,17 @@ namespace WgcCaptureSpike
                 foreach (var m in matches)
                 {
                     Log($"  hwnd=0x{m.Item1.ToInt64():X}  '{m.Item2}'");
+                }
+
+                // Prefer an exact (case-insensitive) title match over a substring hit, so --title
+                // "Steam" targets the Steam window and not "spike-steam2.png ... - VS Code".
+                foreach (var m in matches)
+                {
+                    if (string.Equals(m.Item2, opts.Title, StringComparison.OrdinalIgnoreCase))
+                    {
+                        Log($"  -> exact-title match: 0x{m.Item1.ToInt64():X}");
+                        return m.Item1;
+                    }
                 }
 
                 return matches[0].Item1;
@@ -193,6 +204,7 @@ namespace WgcCaptureSpike
             public int DelaySeconds = 5;
             public string HdrMode = "auto";
             public float ManualWhite;
+            public int WarmupMs = 350;
             public string OutPath = "wgc-capture.png";
 
             public static Options Parse(string[] args)
@@ -216,6 +228,9 @@ namespace WgcCaptureSpike
                             break;
                         case "--white":
                             o.ManualWhite = float.Parse(Next(args, ref i), CultureInfo.InvariantCulture);
+                            break;
+                        case "--warmup":
+                            o.WarmupMs = int.Parse(Next(args, ref i), CultureInfo.InvariantCulture);
                             break;
                         case "--out":
                             o.OutPath = Next(args, ref i);
