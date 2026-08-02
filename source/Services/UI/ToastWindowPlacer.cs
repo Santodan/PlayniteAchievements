@@ -29,6 +29,10 @@ namespace PlayniteAchievements.Services.UI
         private static extern bool SetWindowPos(
             IntPtr hWnd, IntPtr hWndInsertAfter, int X, int Y, int cx, int cy, uint uFlags);
 
+        [DllImport("user32.dll", SetLastError = true)]
+        [return: MarshalAs(UnmanagedType.Bool)]
+        private static extern bool GetWindowRect(IntPtr hWnd, out RECT lpRect);
+
         [DllImport("user32.dll")]
         private static extern IntPtr MonitorFromWindow(IntPtr hwnd, uint dwFlags);
 
@@ -287,6 +291,40 @@ namespace PlayniteAchievements.Services.UI
         /// so an overlapping window keeps its place — the toast simply sits just above the game and
         /// is naturally occluded by anything above the game. No DPI scope needed (no coordinates).
         /// </summary>
+        /// <summary>
+        /// The toast window's on-screen rectangle in true physical (device) pixels — read inside a
+        /// Per-Monitor-V2 scope so a system-DPI-aware process doesn't return system-virtualized
+        /// coordinates on a differently-scaled monitor. Used to position the composited toast overlay
+        /// against the (also physical-pixel) client-rect anchor.
+        /// </summary>
+        public static bool TryGetPhysicalRect(Window window, out Rectangle rect)
+        {
+            rect = Rectangle.Empty;
+            var hwnd = Handle(window);
+            if (hwnd == IntPtr.Zero)
+            {
+                return false;
+            }
+
+            try
+            {
+                using (DpiAwarenessScope.PerMonitorV2())
+                {
+                    if (GetWindowRect(hwnd, out var r))
+                    {
+                        rect = Rectangle.FromLTRB(r.Left, r.Top, r.Right, r.Bottom);
+                        return rect.Width > 0 && rect.Height > 0;
+                    }
+                }
+            }
+            catch
+            {
+                // fall through
+            }
+
+            return false;
+        }
+
         public static bool SetZOrderAbove(Window window, IntPtr insertAfterHwnd)
         {
             var hwnd = Handle(window);

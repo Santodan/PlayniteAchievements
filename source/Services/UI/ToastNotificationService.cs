@@ -350,7 +350,7 @@ namespace PlayniteAchievements.Services.UI
         /// notification is placed there and there is no game screen to show. Window handles are
         /// resolved here on the UI thread; the blit runs on the pool.
         /// </summary>
-        private Task<System.Drawing.Bitmap> StartWaveSurfaceCapture(bool isTestFire, bool includeToast = false)
+        private Task<System.Drawing.Bitmap> StartWaveSurfaceCapture(bool isTestFire)
         {
             var waveHwnd = ResolveWaveWindowHandle();
             var processId = _getGameProcessId?.Invoke(_activeWaveGameId);
@@ -362,10 +362,142 @@ namespace PlayniteAchievements.Services.UI
             }
 
             // All running-game shots capture the game window (WGC per-window, HDR-correct, client
-            // area). The with-notification overlay is composited on separately (the toast is a
-            // separate window; a monitor capture would grab whatever is actually on top, not the
-            // game). includeToast is reserved for that composite path.
+            // area). The with-notification overlay is composited on separately (see
+            // CaptureWaveWithToastAsync) — the toast is a separate window; a monitor capture would
+            // grab whatever is actually on top, not the game.
             return Task.Run(() => _screenshotService.CaptureGameWindow(waveHwnd, processId));
+        }
+
+        /// <summary>
+        /// The with-notification screenshot: the game window (WGC per-window, HDR, client area) with
+        /// the toast composited on top at its on-screen position. Test fires (no game) fall back to a
+        /// monitor capture (the toast is on the Playnite monitor). Any failure to build the overlay
+        /// degrades to the plain game capture rather than showing the wrong content or nothing.
+        /// </summary>
+        private async Task<System.Drawing.Bitmap> CaptureWaveWithToastAsync(Window window, bool isTestFire)
+        {
+            var waveHwnd = ResolveWaveWindowHandle();
+            var processId = _getGameProcessId?.Invoke(_activeWaveGameId);
+            var gameRunning = waveHwnd != IntPtr.Zero || (processId.HasValue && processId.Value > 0);
+            if (!gameRunning && isTestFire)
+            {
+                var appHwnd = ResolveAppWindowHandle();
+                return await Task.Run(() => _screenshotService.CaptureMonitor(appHwnd)).ConfigureAwait(true);
+            }
+
+            // Kick off the game-window capture on the pool; render the toast overlay on the UI thread
+            // (where the live window lives) meanwhile.
+            var gameTask = Task.Run(() => _screenshotService.CaptureGameWindow(waveHwnd, processId));
+            var overlay = TryRenderToastOverlay(window, out var toastPhys, out var clientPhys);
+
+            var game = await gameTask.ConfigureAwait(true);
+            if (game == null || overlay == null || clientPhys.Width <= 0 || clientPhys.Height <= 0)
+            {
+                overlay?.Dispose();
+                return game;
+            }
+
+            return await Task.Run(() =>
+            {
+                try
+                {
+                    CompositeToastOverlay(game, overlay, toastPhys, clientPhys);
+                }
+                catch (Exception ex)
+                {
+                    _logger?.Debug(ex, "Toast overlay composite failed; with-notification shot omits the toast.");
+                }
+                finally
+                {
+                    overlay.Dispose();
+                }
+
+                return game;
+            }).ConfigureAwait(true);
+        }
+
+        /// <summary>
+        /// Renders the live toast window to a premultiplied-alpha bitmap at its physical pixel size,
+        /// and reports its physical rect plus the game client-rect anchor (both physical pixels) so
+        /// the caller can place it into the game capture. Returns null (and the shot omits the toast)
+        /// when this isn't a game anchor or a rect can't be resolved.
+        /// </summary>
+        private System.Drawing.Bitmap TryRenderToastOverlay(
+            Window window, out System.Drawing.Rectangle toastPhys, out System.Drawing.Rectangle clientPhys)
+        {
+            toastPhys = System.Drawing.Rectangle.Empty;
+            clientPhys = System.Drawing.Rectangle.Empty;
+            try
+            {
+                if (window == null || !_activeIsGame ||
+                    window.ActualWidth <= 0 || window.ActualHeight <= 0 ||
+                    !TryResolveAnchor(out clientPhys) ||
+                    !ToastWindowPlacer.TryGetPhysicalRect(window, out toastPhys))
+                {
+                    return null;
+                }
+
+                var pw = Math.Max(1, toastPhys.Width);
+                var ph = Math.Max(1, toastPhys.Height);
+                var rtb = new System.Windows.Media.Imaging.RenderTargetBitmap(
+                    pw, ph, 96.0 * pw / window.ActualWidth, 96.0 * ph / window.ActualHeight,
+                    System.Windows.Media.PixelFormats.Pbgra32);
+                rtb.Render(window);
+                rtb.Freeze();
+
+                var stride = pw * 4;
+                var pixels = new byte[stride * ph];
+                rtb.CopyPixels(pixels, stride, 0);
+
+                var bitmap = new System.Drawing.Bitmap(pw, ph, System.Drawing.Imaging.PixelFormat.Format32bppPArgb);
+                var data = bitmap.LockBits(
+                    new System.Drawing.Rectangle(0, 0, pw, ph),
+                    System.Drawing.Imaging.ImageLockMode.WriteOnly,
+                    System.Drawing.Imaging.PixelFormat.Format32bppPArgb);
+                try
+                {
+                    System.Runtime.InteropServices.Marshal.Copy(pixels, 0, data.Scan0, pixels.Length);
+                }
+                finally
+                {
+                    bitmap.UnlockBits(data);
+                }
+
+                return bitmap;
+            }
+            catch (Exception ex)
+            {
+                _logger?.Debug(ex, "Toast overlay render failed; with-notification shot omits the toast.");
+                return null;
+            }
+        }
+
+        /// <summary>
+        /// Draws the toast overlay onto the game client capture at the toast's position relative to
+        /// the client rect. Physical-pixel coordinates map 1:1 into the capture when it equals the
+        /// client rect; the width/height ratio absorbs any rounding or DPI difference. Mutates
+        /// <paramref name="game"/> in place.
+        /// </summary>
+        private static void CompositeToastOverlay(
+            System.Drawing.Bitmap game,
+            System.Drawing.Bitmap overlay,
+            System.Drawing.Rectangle toastPhys,
+            System.Drawing.Rectangle clientPhys)
+        {
+            var sx = (double)game.Width / clientPhys.Width;
+            var sy = (double)game.Height / clientPhys.Height;
+            var x = (int)Math.Round((toastPhys.X - clientPhys.X) * sx);
+            var y = (int)Math.Round((toastPhys.Y - clientPhys.Y) * sy);
+            var w = Math.Max(1, (int)Math.Round(overlay.Width * sx));
+            var h = Math.Max(1, (int)Math.Round(overlay.Height * sy));
+
+            using (var g = System.Drawing.Graphics.FromImage(game))
+            {
+                g.CompositingMode = System.Drawing.Drawing2D.CompositingMode.SourceOver;
+                g.InterpolationMode = System.Drawing.Drawing2D.InterpolationMode.HighQualityBicubic;
+                g.PixelOffsetMode = System.Drawing.Drawing2D.PixelOffsetMode.Half;
+                g.DrawImage(overlay, new System.Drawing.Rectangle(x, y, w, h));
+            }
         }
 
         /// <summary>
@@ -740,7 +872,7 @@ namespace PlayniteAchievements.Services.UI
                 System.Drawing.Bitmap toastBitmap = null;
                 if (plan != null && plan.NeedsToastCapture)
                 {
-                    toastBitmap = await StartWaveSurfaceCapture(waveIsTestFire, includeToast: true).ConfigureAwait(true);
+                    toastBitmap = await CaptureWaveWithToastAsync(window, waveIsTestFire).ConfigureAwait(true);
                 }
 
                 if (plan != null)
