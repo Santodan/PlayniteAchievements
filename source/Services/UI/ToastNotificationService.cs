@@ -1229,9 +1229,19 @@ namespace PlayniteAchievements.Services.UI
                 return false;
             }
 
-            return _activeIsGame
-                ? _screenshotService.TryGetClientBounds(_activeReferenceHwnd, out anchorPhys)
-                : ToastWindowPlacer.TryGetMonitorWorkAreaPhysical(_activeReferenceHwnd, out anchorPhys);
+            if (!_activeIsGame)
+            {
+                return ToastWindowPlacer.TryGetMonitorWorkAreaPhysical(_activeReferenceHwnd, out anchorPhys);
+            }
+
+            // Read the game client rect as true device pixels (Per-Monitor-V2 scope), matching the
+            // physical SetWindowPos and the monitor-work-area anchor. In a system-aware context these
+            // client-rect APIs return system-virtualized coordinates, which would place the toast wrong
+            // on a monitor whose scale differs from the system DPI.
+            using (Common.DpiAwarenessScope.PerMonitorV2())
+            {
+                return _screenshotService.TryGetClientBounds(_activeReferenceHwnd, out anchorPhys);
+            }
         }
 
         /// <summary>

@@ -251,7 +251,14 @@ namespace PlayniteAchievements.Services.UI
             return true;
         }
 
-        /// <summary>Moves the window's HWND to a physical desktop position without resizing it.</summary>
+        /// <summary>
+        /// Moves the window's HWND to a physical desktop position without resizing it. The
+        /// <c>SetWindowPos</c> call runs inside a Per-Monitor-V2 thread scope so the coordinates are
+        /// interpreted as true device pixels; on a system-aware thread they would be virtualized to the
+        /// system DPI and land wrong on a differently-scaled monitor. All anchor rects and the position
+        /// math (<see cref="TryComputeCorner"/>) are in physical pixels, so this keeps one consistent
+        /// coordinate space end to end.
+        /// </summary>
         public static bool MovePhysical(Window window, int x, int y)
         {
             var hwnd = Handle(window);
@@ -262,7 +269,10 @@ namespace PlayniteAchievements.Services.UI
 
             try
             {
-                return SetWindowPos(hwnd, IntPtr.Zero, x, y, 0, 0, SWP_NOSIZE | SWP_NOZORDER | SWP_NOACTIVATE);
+                using (DpiAwarenessScope.PerMonitorV2())
+                {
+                    return SetWindowPos(hwnd, IntPtr.Zero, x, y, 0, 0, SWP_NOSIZE | SWP_NOZORDER | SWP_NOACTIVATE);
+                }
             }
             catch
             {
