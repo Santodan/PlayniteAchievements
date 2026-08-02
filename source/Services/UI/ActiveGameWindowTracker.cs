@@ -111,6 +111,49 @@ namespace PlayniteAchievements.Services.UI
             return QueryForegroundGame() == gameId;
         }
 
+        /// <summary>
+        /// Diagnostic only: a compact description of the current foreground window — its owning
+        /// process image name, pid, window title, and whether that process classifies as a tracked
+        /// game. Logged when a notification wave is held for focus so the window actually holding
+        /// it (another app, an overlay, or the game itself misclassified) is identifiable after the
+        /// fact. Classification runs through the same cached path as <see cref="IsGameForeground"/>;
+        /// never throws.
+        /// </summary>
+        public string DescribeForegroundWindow()
+        {
+            try
+            {
+                var hwnd = GetForegroundWindow();
+                if (hwnd == IntPtr.Zero)
+                {
+                    return "foreground=none (hwnd=0)";
+                }
+
+                GetWindowThreadProcessId(hwnd, out var pid);
+                var title = TryGetWindowTitle(hwnd);
+                var exe = pid != 0 ? TryGetProcessImagePath((int)pid) : null;
+                var exeName = string.IsNullOrEmpty(exe) ? "?" : Path.GetFileName(exe);
+
+                string classified;
+                lock (_sync)
+                {
+                    var gameId = pid != 0 && !_disposed && _tracked.Count > 0
+                        ? ClassifyProcessLocked((int)pid)
+                        : null;
+                    classified = gameId.HasValue && _tracked.TryGetValue(gameId.Value, out var tracked)
+                        ? $"trackedGame='{tracked.Game?.Name}'"
+                        : "notTrackedGame";
+                }
+
+                return $"foreground=exe:{exeName} pid:{pid} title:'{title}' {classified}";
+            }
+            catch (Exception ex)
+            {
+                _logger?.Debug(ex, "[WindowTracker] Foreground description failed.");
+                return "foreground=unavailable";
+            }
+        }
+
         public void OnGameStarted(Game game, int? startedProcessId)
         {
             if (_disposed || game == null || game.Id == Guid.Empty)
@@ -467,6 +510,26 @@ namespace PlayniteAchievements.Services.UI
             return null;
         }
 
+        private static string TryGetWindowTitle(IntPtr hwnd)
+        {
+            try
+            {
+                var length = GetWindowTextLength(hwnd);
+                if (length <= 0)
+                {
+                    return string.Empty;
+                }
+
+                var builder = new StringBuilder(length + 1);
+                GetWindowText(hwnd, builder, builder.Capacity);
+                return builder.ToString();
+            }
+            catch
+            {
+                return string.Empty;
+            }
+        }
+
         private static string TryGetProcessImagePath(int pid)
         {
             var handle = OpenProcess(PROCESS_QUERY_LIMITED_INFORMATION, false, pid);
@@ -577,6 +640,12 @@ namespace PlayniteAchievements.Services.UI
 
         [DllImport("user32.dll")]
         private static extern uint GetWindowThreadProcessId(IntPtr hWnd, out uint lpdwProcessId);
+
+        [DllImport("user32.dll", CharSet = CharSet.Auto, SetLastError = true)]
+        private static extern int GetWindowText(IntPtr hWnd, StringBuilder lpString, int nMaxCount);
+
+        [DllImport("user32.dll", SetLastError = true)]
+        private static extern int GetWindowTextLength(IntPtr hWnd);
 
         [DllImport("user32.dll")]
         private static extern bool IsWindow(IntPtr hWnd);
