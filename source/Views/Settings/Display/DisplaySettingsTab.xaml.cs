@@ -160,13 +160,7 @@ namespace PlayniteAchievements.Views.Settings.Display
                     ResourceProvider.GetString("LOCPlayAch_ThemeMigration_Title"),
                     groupName: themeMigrationGroup,
                     iconGlyph: "",
-                    viewFactory: () => new MigrationThemePage(_themeMigrationController)),
-                new SettingsNavigationItem(
-                    "Revert",
-                    ResourceProvider.GetString("LOCPlayAch_ThemeMigration_Revert"),
-                    groupName: themeMigrationGroup,
-                    iconGlyph: "",
-                    viewFactory: () => new RevertThemePage(_themeMigrationController))
+                    viewFactory: () => new MigrationThemePage(_themeMigrationController))
             };
 
             if (settings.Persisted.EnableFriendsFeatures)
