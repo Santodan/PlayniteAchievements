@@ -170,7 +170,6 @@
              notifications force the title, swap it for "Game Complete!", and color it with the
              completed brush. -->
         <DockPanel LastChildFill="True"
-                   Margin="0,1,0,0"
                    Effect="{StaticResource PlayAch.Effect.ContentShadow}">
             <Image DockPanel.Dock="Left"
                    helpers:AsyncImage.Uri="{Binding InlineBadgeSource}"
@@ -224,7 +223,6 @@
                    LineHeight="{Binding LineBoxHeight}"
                    LineStackingStrategy="BlockLineHeight"
                    MaxHeight="{Binding MaxTextHeight}"
-                   Margin="0,2,0,0"
                    Effect="{StaticResource PlayAch.Effect.ContentShadow}"
                    Visibility="{Binding ShowDescription, Converter={StaticResource BooleanToVisibilityConverter}}"/>
     </DataTemplate>
@@ -240,7 +238,6 @@
                    FontFamily="{Binding FontFamily}"
                    TextWrapping="NoWrap"
                    TextTrimming="CharacterEllipsis"
-                   Margin="0,2,0,0"
                    Effect="{StaticResource PlayAch.Effect.ContentShadow}"
                    Visibility="{Binding HasGameCategoryContent, Converter={StaticResource BooleanToVisibilityConverter}}"/>
     </DataTemplate>
@@ -599,7 +596,8 @@
                  and no banner card. Relative radial gradients stretch to the bounds, so the radii
                  undo the 16:9 aspect (radius = half-diagonal: 0.57 of width, 1.02 of height) and
                  the fade stays a circle through the corners instead of an edge-hugging ellipse. -->
-            <Rectangle IsHitTestVisible="False">
+            <Rectangle IsHitTestVisible="False"
+                       Visibility="{Binding FrameShowRadialVignette, Converter={StaticResource BooleanToVisibilityConverter}}">
                 <Rectangle.Fill>
                     <RadialGradientBrush Center="0.5,0.5"
                                          GradientOrigin="0.5,0.5"
@@ -617,7 +615,8 @@
                  circular vignette is lightest at the bottom-center, so this carries the text. -->
             <Rectangle VerticalAlignment="Bottom"
                        Height="280"
-                       IsHitTestVisible="False">
+                       IsHitTestVisible="False"
+                       Visibility="{Binding FrameShowBottomWash, Converter={StaticResource BooleanToVisibilityConverter}}">
                 <Rectangle.Fill>
                     <LinearGradientBrush StartPoint="0,0" EndPoint="0,1">
                         <GradientStop Color="#00000000" Offset="0"/>

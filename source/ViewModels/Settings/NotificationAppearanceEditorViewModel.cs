@@ -349,6 +349,48 @@ namespace PlayniteAchievements.ViewModels.Settings
 
         #endregion
 
+        #region Frame vignette (frame surface only)
+
+        private static IReadOnlyList<FrameVignetteOption> _frameVignetteOptions;
+
+        /// <summary>
+        /// Vignette choices for the screenshot frame: Full (radial edge vignette plus the bottom
+        /// contrast wash), Bottom (bottom wash only), or None. Frame surface only; the toast has
+        /// its own card chrome, so the dropdown is hidden there.
+        /// </summary>
+        public IReadOnlyList<FrameVignetteOption> FrameVignetteOptions =>
+            _frameVignetteOptions ?? (_frameVignetteOptions = new[]
+            {
+                new FrameVignetteOption(FrameVignetteStyle.Full, L("LOCPlayAch_Settings_Style_VignetteFull")),
+                new FrameVignetteOption(FrameVignetteStyle.Bottom, L("LOCPlayAch_Settings_Style_VignetteBottom")),
+                new FrameVignetteOption(FrameVignetteStyle.None, L("LOCPlayAch_Common_None"))
+            });
+
+        /// <summary>
+        /// The frame vignette style, read from and written back to the surface.
+        /// </summary>
+        public FrameVignetteOption SelectedFrameVignette
+        {
+            get
+            {
+                var value = Surface?.FrameVignette ?? FrameVignetteStyle.Full;
+                return FrameVignetteOptions.FirstOrDefault(option => option.Value == value)
+                       ?? FrameVignetteOptions[0];
+            }
+            set
+            {
+                var surface = Surface;
+                if (surface == null || value == null)
+                {
+                    return;
+                }
+
+                surface.FrameVignette = value.Value;
+            }
+        }
+
+        #endregion
+
         #region Card dimensions (toast surface only; blank = template default)
 
         /// <summary>
@@ -1161,6 +1203,7 @@ namespace PlayniteAchievements.ViewModels.Settings
             OnPropertyChanged(nameof(SelectedPercentPlacement));
             OnPropertyChanged(nameof(IsProviderIconEnabled));
             OnPropertyChanged(nameof(SelectedGlowDisplay));
+            OnPropertyChanged(nameof(SelectedFrameVignette));
             OnPropertyChanged(nameof(CountdownBarColorText));
             OnPropertyChanged(nameof(CountdownBarSwatch));
             OnPropertyChanged(nameof(HasBackgroundImage));
@@ -1291,6 +1334,10 @@ namespace PlayniteAchievements.ViewModels.Settings
             {
                 OnPropertyChanged(nameof(SelectedGlowDisplay));
             }
+            else if (e.PropertyName == nameof(NotificationSurfaceStyle.FrameVignette))
+            {
+                OnPropertyChanged(nameof(SelectedFrameVignette));
+            }
 
             NotifyStyleEdited();
         }
@@ -1418,6 +1465,22 @@ namespace PlayniteAchievements.ViewModels.Settings
         }
 
         public GlowDisplay Value { get; }
+
+        public string Display { get; }
+    }
+
+    /// <summary>
+    /// One entry of the frame vignette dropdown: the value and its localized label.
+    /// </summary>
+    internal sealed class FrameVignetteOption
+    {
+        public FrameVignetteOption(FrameVignetteStyle value, string display)
+        {
+            Value = value;
+            Display = display;
+        }
+
+        public FrameVignetteStyle Value { get; }
 
         public string Display { get; }
     }

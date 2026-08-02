@@ -248,6 +248,11 @@ namespace PlayniteAchievements.ViewModels
         public bool FrameShowGameCategorySeparator => FrameShowGameName && FrameShowCategory;
         public bool FrameShowShineBorder => _style.Frame.ShowRarityGlow && IsHardcore;
 
+        // Frame vignette chrome: the radial edge vignette shows only for Full; the bottom contrast
+        // wash shows for Full and Bottom. None removes both, leaving the raw screenshot.
+        public bool FrameShowRadialVignette => _style.Frame.FrameVignette == FrameVignetteStyle.Full;
+        public bool FrameShowBottomWash => _style.Frame.FrameVignette != FrameVignetteStyle.None;
+
         // Mirrors TitleBrush but honors the frame's own rarity-colored-name toggle.
         public Brush FrameTitleBrush => _style.Frame.RarityColoredName
             ? AccentBrush
