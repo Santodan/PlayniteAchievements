@@ -168,67 +168,6 @@ namespace PlayniteAchievements.Services.UI
         }
 
         /// <summary>
-        /// One line per placement pass: where the toast was moved to and the coordinate spaces that
-        /// drove it. The key cross-check the log enables is whether the toast's own HWND pixel width
-        /// equals round(ActualWidth * M11); a mismatch is the SizeToContent + DPI&gt;100% clip bug.
-        /// </summary>
-        internal static string DescribePlacement(
-            string stage,
-            Window toast,
-            IntPtr gameHwnd,
-            Rectangle? gamePxRect,
-            Rect area,
-            string areaSource,
-            string transformSource)
-        {
-            try
-            {
-                if (toast == null)
-                {
-                    return $"Toast place[{stage}]: diag-failed: null window";
-                }
-
-                var m11 = ResolveTransformM11(toast, out var resolvedSource);
-                var effectiveTransformSource = string.IsNullOrEmpty(transformSource) ? resolvedSource : transformSource;
-
-                var content = toast.Content as FrameworkElement;
-                var desired = content?.DesiredSize ?? new System.Windows.Size(double.NaN, double.NaN);
-
-                var toastHwnd = HandleFor(toast);
-                var hwndText = "no-hwnd";
-                var winMon = "?";
-                if (toastHwnd != IntPtr.Zero && GetWindowRect(toastHwnd, out var wr))
-                {
-                    hwndText = $"({wr.Left},{wr.Top} {wr.Right - wr.Left}x{wr.Bottom - wr.Top})";
-                    winMon = MonitorNameFor(toastHwnd);
-                }
-
-                var gamePxText = gamePxRect.HasValue
-                    ? $"({gamePxRect.Value.Left},{gamePxRect.Value.Top} {gamePxRect.Value.Width}x{gamePxRect.Value.Height})"
-                    : "none";
-                var gameMon = gameHwnd != IntPtr.Zero ? MonitorNameFor(gameHwnd) : "none";
-
-                return string.Format(CultureInfo.InvariantCulture,
-                    "Toast place[{0}]: area={1} gamePx={2} dip=({3:0.0},{4:0.0} {5:0.0}x{6:0.0}) M11={7:0.0000} src={8} -> L={9:0.0} T={10:0.0} actual={11:0.0}x{12:0.0} desired={13:0.0}x{14:0.0} sizeToContent={15} hwndPx={16} winMon={17} gameMon={18}",
-                    stage,
-                    areaSource ?? "?",
-                    gamePxText,
-                    area.Left, area.Top, area.Width, area.Height,
-                    m11,
-                    effectiveTransformSource,
-                    toast.Left, toast.Top,
-                    toast.ActualWidth, toast.ActualHeight,
-                    desired.Width, desired.Height,
-                    toast.SizeToContent,
-                    hwndText, winMon, gameMon);
-            }
-            catch (Exception ex)
-            {
-                return $"Toast place[{stage}]: diag-failed: " + ex.Message;
-            }
-        }
-
-        /// <summary>
         /// One line per physical-placement pass (the in-game per-monitor path): the game monitor's
         /// true scale, the system scale, the derived DPI compensation, the toast's actual WPF render
         /// scale and thread awareness, the physical target corner, and the toast HWND's real pixel
