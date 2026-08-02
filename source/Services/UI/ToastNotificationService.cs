@@ -431,9 +431,10 @@ namespace PlayniteAchievements.Services.UI
                     var wave = DequeueNextReadyWave();
                     if (wave.Count == 0)
                     {
-                        // Every queued wave belongs to a running game that isn't focused right now
-                        // (another window or an overlay is on top). Hold and re-check; a game's
-                        // pending toasts are dropped by ClearPending when it stops.
+                        // Every queued wave belongs to a running game whose window is minimized right
+                        // now (unfocused/occluded games are ready — the toast interleaves with them).
+                        // Hold and re-check; a game's pending toasts are dropped by ClearPending when
+                        // it stops.
                         LogWaveHeld();
                         await Task.Delay(1000).ConfigureAwait(true);
                         continue;
@@ -460,11 +461,11 @@ namespace PlayniteAchievements.Services.UI
         }
 
         /// <summary>
-        /// Dequeues the next wave whose game is ready to receive it (focused, or not a running
-        /// game at all). Waves batch by friend/own and by game: a cross-game wave would share one
-        /// screenshot window and one placement anchor between two different game windows. A held
-        /// wave (its game running but not focused) is skipped over so it never blocks another
-        /// game's ready toasts; per-game ordering is preserved.
+        /// Dequeues the next wave whose game is ready to receive it (window visible — focused,
+        /// unfocused, or occluded — or not a running game at all). Waves batch by friend/own and by
+        /// game: a cross-game wave would share one screenshot window and one placement anchor between
+        /// two different game windows. A held wave (its game minimized) is skipped over so it never
+        /// blocks another game's ready toasts; per-game ordering is preserved.
         /// </summary>
         private List<AchievementToastViewModel> DequeueNextReadyWave()
         {
@@ -509,10 +510,12 @@ namespace PlayniteAchievements.Services.UI
         }
 
         /// <summary>
-        /// A wave may show when its game's window is focused. Previews, unlocks without a game
-        /// id, and games that aren't running (e.g. friend unlocks for unowned titles) are always
-        /// ready; a running game that is backgrounded — or covered by an overlay, which
-        /// classifies as no-game-foreground — holds its toasts until it has focus again.
+        /// A wave may show whenever its game's window is visible — focused, unfocused, or covered by
+        /// another window all count. Previews, unlocks without a game id, and games that aren't
+        /// running (e.g. friend unlocks for unowned titles) are always ready. The only thing that
+        /// holds a running game's wave is a minimized window: there is then no surface to place the
+        /// notification over (the toast z-orders above the game) or to capture. The toast is owned by
+        /// the game window, so an unfocused/occluded game still gets a correctly-interleaved toast.
         /// </summary>
         private bool IsWaveGameReady(AchievementToastViewModel vm)
         {
@@ -526,10 +529,9 @@ namespace PlayniteAchievements.Services.UI
                 return true;
             }
 
-            // Live check rather than the last hook event: out-of-context WinEvents can be dropped
-            // while the UI thread is busy (typical during game launch), and a stale foreground
-            // state would hold toasts until the user happens to alt-tab.
-            return _windowTracker.IsGameForeground(vm.PlayniteGameId);
+            // Hold only while minimized; a live check (rather than the last hook event) avoids a
+            // stale state holding the wave when the window is actually on screen.
+            return _windowTracker.IsGameWindowVisible(vm.PlayniteGameId);
         }
 
         private async Task ShowWaveAsync(IReadOnlyList<AchievementToastViewModel> wave)
@@ -642,6 +644,18 @@ namespace PlayniteAchievements.Services.UI
             }
 
             _activeMonitorScale = ToastWindowPlacer.ResolveMonitorScale(_activeReferenceHwnd);
+
+            // When anchored to a running game, own the toast to the game window and drop topmost so
+            // it interleaves in the z-order: above the game, behind any window covering the game, and
+            // hidden by the OS when the game is minimized — the toast tracks the game's visibility
+            // instead of floating over everything. Out-of-game / preview keeps the topmost float over
+            // Playnite. Placement (SetWindowPos with SWP_NOZORDER) never touches z-order, so ownership
+            // is the sole z-order authority. Set before Show so it applies at HWND creation.
+            if (_activeIsGame && _activeReferenceHwnd != IntPtr.Zero)
+            {
+                window.Topmost = false;
+                new WindowInteropHelper(window).Owner = _activeReferenceHwnd;
+            }
 
             // Bound the toast to a fraction of the available area (fitScale) and fold in the DPI
             // compensation so the per-monitor toast ends at the monitor's true physical size. The real
@@ -771,7 +785,7 @@ namespace PlayniteAchievements.Services.UI
                     _logger?.Debug(ex, "Toast countdown animation failed.");
                 }
 
-                var endedHidden = await HoldWaveWithFocusHidingAsync(window, remainingMs).ConfigureAwait(true);
+                var endedHidden = await HoldWaveAsync(remainingMs).ConfigureAwait(true);
 
                 if (onRendering != null)
                 {
@@ -826,14 +840,6 @@ namespace PlayniteAchievements.Services.UI
         }
 
         /// <summary>
-        /// The on-screen hold: instead of one blind delay, the remaining display time keeps
-        /// decaying while the toast hides whenever its game loses focus (alt-tab, another window
-        /// on top) and reappears if the game regains focus before the time runs out. The
-        /// countdown-bar animation runs on wall-clock time, so it stays consistent across
-        /// hide/show. Returns true when the wave expired while hidden (the caller then skips the
-        /// slide-out of an invisible window).
-        /// </summary>
-        /// <summary>
         /// Tells the user why a theme fire-test preview showed nothing: the theme's template
         /// depends on resources only present while that theme is the running theme, so it cannot
         /// render from the settings window. Preview-only, so a plain message is fine.
@@ -857,49 +863,18 @@ namespace PlayniteAchievements.Services.UI
             }
         }
 
-        private async Task<bool> HoldWaveWithFocusHidingAsync(Window window, int remainingMs)
+        /// <summary>
+        /// Holds the wave on screen for its remaining display time. The toast is owned by / z-ordered
+        /// above the game window (see <see cref="ShowWaveAsync"/>), so the OS occludes and hides it in
+        /// lockstep with the game — covered when the game is covered, hidden when the game is
+        /// minimized — with no manual focus-based hide/show. The countdown-bar animation runs on
+        /// wall-clock time. Returns false (the toast is never hidden by us) so the caller always runs
+        /// the normal slide-out.
+        /// </summary>
+        private async Task<bool> HoldWaveAsync(int remainingMs)
         {
-            // No game to key focus off (previews, non-running games) -> plain hold.
-            var gameId = _activeWaveGameId ?? Guid.Empty;
-            if (gameId == Guid.Empty || _windowTracker == null || !_windowTracker.IsTracked(gameId))
-            {
-                await Task.Delay(remainingMs).ConfigureAwait(true);
-                return false;
-            }
-
-            const int pollMs = 250;
-            var hidden = false;
-            var watch = Stopwatch.StartNew();
-            while (!_disposed && watch.ElapsedMilliseconds < remainingMs)
-            {
-                var focused = _windowTracker.IsGameForeground(gameId);
-                if (focused == hidden)
-                {
-                    try
-                    {
-                        if (focused)
-                        {
-                            window.Show();
-                            PlaceWindow(window, "refocus");
-                        }
-                        else
-                        {
-                            window.Hide();
-                        }
-
-                        hidden = !focused;
-                    }
-                    catch (Exception ex)
-                    {
-                        _logger?.Debug(ex, "Toast focus hide/show failed.");
-                    }
-                }
-
-                var left = remainingMs - (int)watch.ElapsedMilliseconds;
-                await Task.Delay(Math.Max(1, Math.Min(pollMs, left))).ConfigureAwait(true);
-            }
-
-            return hidden;
+            await Task.Delay(Math.Max(0, remainingMs)).ConfigureAwait(true);
+            return false;
         }
 
         /// <summary>

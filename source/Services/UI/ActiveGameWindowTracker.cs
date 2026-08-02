@@ -112,6 +112,18 @@ namespace PlayniteAchievements.Services.UI
         }
 
         /// <summary>
+        /// True when the game has a resolvable window that is not minimized — i.e. there is a
+        /// visible game surface to place a notification over and to capture. Focus and occlusion do
+        /// NOT matter (WGC captures the window, and the toast is z-ordered above it, regardless);
+        /// only a minimized window has no surface, so that is the sole condition that holds a wave.
+        /// </summary>
+        public bool IsGameWindowVisible(Guid gameId)
+        {
+            var hwnd = TryGetWindowHandle(gameId);
+            return hwnd != IntPtr.Zero && IsWindow(hwnd) && !IsIconic(hwnd);
+        }
+
+        /// <summary>
         /// Diagnostic only: a compact description of the current foreground window — its owning
         /// process image name, pid, window title, and whether that process classifies as a tracked
         /// game. Logged when a notification wave is held for focus so the window actually holding
@@ -649,6 +661,10 @@ namespace PlayniteAchievements.Services.UI
 
         [DllImport("user32.dll")]
         private static extern bool IsWindow(IntPtr hWnd);
+
+        [DllImport("user32.dll")]
+        [return: MarshalAs(UnmanagedType.Bool)]
+        private static extern bool IsIconic(IntPtr hWnd);
 
         [DllImport("kernel32.dll", SetLastError = true)]
         private static extern IntPtr OpenProcess(uint processAccess, bool bInheritHandle, int processId);
