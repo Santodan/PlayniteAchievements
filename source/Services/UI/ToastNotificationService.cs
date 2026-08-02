@@ -343,6 +343,28 @@ namespace PlayniteAchievements.Services.UI
         }
 
         /// <summary>
+        /// Starts the screen capture for the current wave. The running game's window is captured
+        /// when one is resolvable. Out of game a real unlock keeps the foreground-window fallback
+        /// (inside <see cref="UnlockScreenshotService.CaptureGameWindow(IntPtr, int?)"/>), but a
+        /// manual test fire captures the whole monitor the Playnite window sits on, since the
+        /// notification is placed there and there is no game screen to show. Window handles are
+        /// resolved here on the UI thread; the blit runs on the pool.
+        /// </summary>
+        private Task<System.Drawing.Bitmap> StartWaveSurfaceCapture(bool isTestFire)
+        {
+            var waveHwnd = ResolveWaveWindowHandle();
+            var processId = _getGameProcessId?.Invoke(_activeWaveGameId);
+            var gameRunning = waveHwnd != IntPtr.Zero || (processId.HasValue && processId.Value > 0);
+            if (!gameRunning && isTestFire)
+            {
+                var appHwnd = ResolveAppWindowHandle();
+                return Task.Run(() => _screenshotService.CaptureMonitor(appHwnd));
+            }
+
+            return Task.Run(() => _screenshotService.CaptureGameWindow(waveHwnd, processId));
+        }
+
+        /// <summary>
         /// Diagnostic only: records that the queue is holding waves because no queued game is
         /// foreground, logging the foreground window responsible once when the hold starts and at
         /// most every <see cref="HoldLogIntervalSeconds"/> while it persists — enough to identify
@@ -510,6 +532,7 @@ namespace PlayniteAchievements.Services.UI
 
             _ensureResourcesLoaded?.Invoke();
 
+            var waveIsTestFire = wave[0].IsTestFire;
             _activeToastThemeStylingEnabled = wave[0].ToastUseThemeStyling;
             // Resolve the corner once for this wave: a theme override wins, otherwise the plugin
             // setting. Positioning (including the per-frame game-window follow) and slide direction
@@ -532,9 +555,7 @@ namespace PlayniteAchievements.Services.UI
             Task<System.Drawing.Bitmap> cleanCaptureTask = null;
             if (plan != null && plan.NeedsCleanCapture)
             {
-                var waveHwnd = ResolveWaveWindowHandle();
-                var processId = _getGameProcessId?.Invoke(_activeWaveGameId);
-                cleanCaptureTask = Task.Run(() => _screenshotService.CaptureGameWindow(waveHwnd, processId));
+                cleanCaptureTask = StartWaveSurfaceCapture(waveIsTestFire);
             }
 
             // Screenshot-only wave: no sound, no window, no delays — capture and save. Running
@@ -680,10 +701,7 @@ namespace PlayniteAchievements.Services.UI
                 System.Drawing.Bitmap toastBitmap = null;
                 if (plan != null && plan.NeedsToastCapture)
                 {
-                    var waveHwnd = ResolveWaveWindowHandle();
-                    var processId = _getGameProcessId?.Invoke(_activeWaveGameId);
-                    toastBitmap = await Task.Run(() => _screenshotService.CaptureGameWindow(waveHwnd, processId))
-                        .ConfigureAwait(true);
+                    toastBitmap = await StartWaveSurfaceCapture(waveIsTestFire).ConfigureAwait(true);
                 }
 
                 if (plan != null)

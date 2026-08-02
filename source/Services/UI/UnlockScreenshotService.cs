@@ -197,6 +197,37 @@ namespace PlayniteAchievements.Services.UI
         }
 
         /// <summary>
+        /// Captures the entire monitor that <paramref name="windowOnMonitor"/> sits on (the
+        /// Playnite window when no game is running), so a notification fired out of game captures
+        /// the whole screen where it appears rather than just the Playnite window. Falls back to the
+        /// primary monitor when the handle is zero. Returns null on failure.
+        /// </summary>
+        public Bitmap CaptureMonitor(IntPtr windowOnMonitor)
+        {
+            try
+            {
+                var bounds = ResolveMonitorBounds(windowOnMonitor);
+                if (bounds.Width <= 0 || bounds.Height <= 0)
+                {
+                    return null;
+                }
+
+                var bitmap = new Bitmap(bounds.Width, bounds.Height, PixelFormat.Format32bppRgb);
+                using (var graphics = Graphics.FromImage(bitmap))
+                {
+                    graphics.CopyFromScreen(bounds.Location, Point.Empty, bounds.Size);
+                }
+
+                return bitmap;
+            }
+            catch (Exception ex)
+            {
+                _logger?.Debug(ex, "Unlock monitor capture failed.");
+                return null;
+            }
+        }
+
+        /// <summary>
         /// Saves an already-captured bitmap to
         /// &lt;baseDir&gt;\Game\NNN_AchievementName_&lt;variant&gt;.png. Creates directories as
         /// needed and avoids clobbering an existing file by appending " (2)", " (3)"...
