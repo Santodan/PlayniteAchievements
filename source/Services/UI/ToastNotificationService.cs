@@ -36,6 +36,13 @@ namespace PlayniteAchievements.Services.UI
         private readonly GameCustomDataStore _gameCustomDataStore;
         private readonly Queue<AchievementToastViewModel> _queue = new Queue<AchievementToastViewModel>();
         private bool _processing;
+        // Diagnostic hold-logging (no behavior change): when the queue is holding waves because no
+        // queued game is foreground, the UTC time the current hold began and the last time it was
+        // logged, so a hold is reported once at start, at most every HoldLogIntervalSeconds while it
+        // persists, and on release — each line naming the foreground window responsible.
+        private DateTime? _holdStartedUtc;
+        private DateTime _lastHoldLogUtc;
+        private const int HoldLogIntervalSeconds = 15;
         // Target gap (DIP) from the screen/game-window corner to the visible card body, held
         // constant regardless of the card's ToastGlowMargin: the window margin is derived as
         // CornerGapDip - glow so the body sits here whether or not the border glow is on (with the
@@ -335,6 +342,54 @@ namespace PlayniteAchievements.Services.UI
                 : IntPtr.Zero;
         }
 
+        /// <summary>
+        /// Diagnostic only: records that the queue is holding waves because no queued game is
+        /// foreground, logging the foreground window responsible once when the hold starts and at
+        /// most every <see cref="HoldLogIntervalSeconds"/> while it persists — enough to identify
+        /// the culprit window without spamming the 1s hold loop.
+        /// </summary>
+        private void LogWaveHeld()
+        {
+            var now = DateTime.UtcNow;
+            if (_holdStartedUtc == null)
+            {
+                _holdStartedUtc = now;
+                _lastHoldLogUtc = now;
+                _logger?.Debug(
+                    $"[Toast] Holding {_queue.Count} queued notification(s); no queued game is foreground. {DescribeForeground()}");
+                return;
+            }
+
+            if ((now - _lastHoldLogUtc).TotalSeconds >= HoldLogIntervalSeconds)
+            {
+                _lastHoldLogUtc = now;
+                _logger?.Debug(
+                    $"[Toast] Still holding {_queue.Count} notification(s) after {(now - _holdStartedUtc.Value).TotalSeconds:F0}s. {DescribeForeground()}");
+            }
+        }
+
+        /// <summary>
+        /// Diagnostic only: closes out a hold that a now-ready wave ends, reporting how long the
+        /// wave waited for the game to regain focus. No-op when nothing was being held.
+        /// </summary>
+        private void LogWaveReleased(int waveCount)
+        {
+            if (_holdStartedUtc == null)
+            {
+                return;
+            }
+
+            _logger?.Debug(
+                $"[Toast] Releasing hold after {(DateTime.UtcNow - _holdStartedUtc.Value).TotalSeconds:F1}s; displaying {waveCount} notification(s).");
+            _holdStartedUtc = null;
+        }
+
+        private string DescribeForeground()
+        {
+            var description = _windowTracker?.DescribeForegroundWindow();
+            return string.IsNullOrEmpty(description) ? "foreground=unknown (no tracker)" : description;
+        }
+
         private async Task ProcessQueueAsync()
         {
             try
@@ -348,10 +403,12 @@ namespace PlayniteAchievements.Services.UI
                         // Every queued wave belongs to a running game that isn't focused right now
                         // (another window or an overlay is on top). Hold and re-check; a game's
                         // pending toasts are dropped by ClearPending when it stops.
+                        LogWaveHeld();
                         await Task.Delay(1000).ConfigureAwait(true);
                         continue;
                     }
 
+                    LogWaveReleased(wave.Count);
                     await ShowWaveAsync(wave).ConfigureAwait(true);
                     await Task.Delay(250).ConfigureAwait(true);
                 }
