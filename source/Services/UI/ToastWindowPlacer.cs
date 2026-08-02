@@ -35,11 +35,37 @@ namespace PlayniteAchievements.Services.UI
         [DllImport("shcore.dll")]
         private static extern int GetDpiForMonitor(IntPtr hmonitor, int dpiType, out uint dpiX, out uint dpiY);
 
+        [DllImport("user32.dll")]
+        [return: MarshalAs(UnmanagedType.Bool)]
+        private static extern bool GetMonitorInfo(IntPtr hMonitor, ref MONITORINFO lpmi);
+
+        [StructLayout(LayoutKind.Sequential)]
+        private struct RECT
+        {
+            public int Left;
+            public int Top;
+            public int Right;
+            public int Bottom;
+        }
+
+        [StructLayout(LayoutKind.Sequential)]
+        private struct MONITORINFO
+        {
+            public int cbSize;
+            public RECT rcMonitor;
+            public RECT rcWork;
+            public uint dwFlags;
+        }
+
         private const uint SWP_NOSIZE = 0x0001;
         private const uint SWP_NOZORDER = 0x0004;
         private const uint SWP_NOACTIVATE = 0x0010;
         private const uint MONITOR_DEFAULTTONEAREST = 2;
         private const int MDT_EFFECTIVE_DPI = 0;
+
+        /// <summary>Default toast card size (DIP) used when the real content size isn't measurable yet.</summary>
+        public const double DefaultCardWidthDip = 438d;
+        public const double DefaultCardHeightDip = 138d;
 
         /// <summary>The process/system device scale (main window's TransformToDevice.M11), or 1.0.</summary>
         public static double SystemScale()
@@ -95,6 +121,47 @@ namespace PlayniteAchievements.Services.UI
             }
 
             return 1.0;
+        }
+
+        /// <summary>
+        /// The physical work area (excluding the taskbar) of the monitor the given window is on. Read
+        /// inside a Per-Monitor-V2 thread scope so the rect comes back in true device pixels; in a
+        /// system-aware context it would be virtualized. Used as the toast anchor when no game window
+        /// is running, so a toast fired while Playnite sits on a secondary monitor lands there.
+        /// </summary>
+        public static bool TryGetMonitorWorkAreaPhysical(IntPtr windowHandle, out Rectangle workArea)
+        {
+            workArea = Rectangle.Empty;
+            if (windowHandle == IntPtr.Zero)
+            {
+                return false;
+            }
+
+            try
+            {
+                using (DpiAwarenessScope.PerMonitorV2())
+                {
+                    var monitor = MonitorFromWindow(windowHandle, MONITOR_DEFAULTTONEAREST);
+                    if (monitor == IntPtr.Zero)
+                    {
+                        return false;
+                    }
+
+                    var info = new MONITORINFO { cbSize = Marshal.SizeOf(typeof(MONITORINFO)) };
+                    if (GetMonitorInfo(monitor, ref info))
+                    {
+                        workArea = Rectangle.FromLTRB(
+                            info.rcWork.Left, info.rcWork.Top, info.rcWork.Right, info.rcWork.Bottom);
+                        return workArea.Width > 0 && workArea.Height > 0;
+                    }
+                }
+            }
+            catch
+            {
+                // Fall through to failure.
+            }
+
+            return false;
         }
 
         /// <summary>The HWND backing a window, or IntPtr.Zero if it has none yet.</summary>
@@ -161,16 +228,16 @@ namespace PlayniteAchievements.Services.UI
                 return false;
             }
 
-            var widthDip = window.ActualWidth > 0 ? window.ActualWidth : (window.Width > 0 ? window.Width : 438);
-            var heightDip = window.ActualHeight > 0 ? window.ActualHeight : (window.Height > 0 ? window.Height : 138);
+            var widthDip = window.ActualWidth > 0 ? window.ActualWidth : (window.Width > 0 ? window.Width : DefaultCardWidthDip);
+            var heightDip = window.ActualHeight > 0 ? window.ActualHeight : (window.Height > 0 ? window.Height : DefaultCardHeightDip);
             if (double.IsNaN(widthDip) || widthDip <= 0)
             {
-                widthDip = 438;
+                widthDip = DefaultCardWidthDip;
             }
 
             if (double.IsNaN(heightDip) || heightDip <= 0)
             {
-                heightDip = 138;
+                heightDip = DefaultCardHeightDip;
             }
 
             var physW = (int)Math.Ceiling(widthDip * renderScale);
