@@ -169,7 +169,7 @@ namespace PlayniteAchievements.Providers.Xenia
             {
                 ProviderKey = ProviderKey,
                 WatchTargets = new[] { progressPath },
-                PollInterval = TimeSpan.FromSeconds(60),
+                PollInterval = InGameProgressRegistration.FileWatchSafetyPollInterval,
                 State = progressPath
             };
         }
