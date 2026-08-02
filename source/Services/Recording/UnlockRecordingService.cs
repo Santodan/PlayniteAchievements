@@ -1116,8 +1116,11 @@ namespace PlayniteAchievements.Services.Recording
                     var producedPath = await producer.ConfigureAwait(false);
                     if (producedPath != null && SafeFileExists(producedPath))
                     {
-                        File.Copy(producedPath, outputPath);
-                        _logger?.Info($"[Recording] Saved unlock clip (shared window copy): {outputPath}");
+                        var copied = SaveClipToUniquePath(producedPath, outputPath, copy: true);
+                        if (copied != null)
+                        {
+                            _logger?.Info($"[Recording] Saved unlock clip (shared window copy): {copied}");
+                        }
                     }
 
                     return;
@@ -1138,6 +1141,41 @@ namespace PlayniteAchievements.Services.Recording
             {
                 _logger?.Debug(ex, $"[Recording] Clip production failed for '{request?.AchievementName}'.");
             }
+        }
+
+        /// <summary>
+        /// Moves (or copies) the produced clip to a unique path under <paramref name="desiredPath"/>,
+        /// re-resolving uniqueness immediately before each attempt and retrying on a collision.
+        /// <see cref="BuildOutputPath"/> resolves a unique name when the clip is requested, but the
+        /// write happens much later — concurrent productions (e.g. a rapid test-fire burst) can each
+        /// resolve the same free name before either writes it, so File.Move/Copy would throw
+        /// "file already exists". Returns the final path, or null if it can't be placed.
+        /// </summary>
+        private static string SaveClipToUniquePath(string sourcePath, string desiredPath, bool copy)
+        {
+            for (var attempt = 0; attempt < 8; attempt++)
+            {
+                var candidate = UnlockScreenshotService.EnsureUniquePath(desiredPath);
+                try
+                {
+                    if (copy)
+                    {
+                        File.Copy(sourcePath, candidate);
+                    }
+                    else
+                    {
+                        File.Move(sourcePath, candidate);
+                    }
+
+                    return candidate;
+                }
+                catch (IOException) when (File.Exists(candidate))
+                {
+                    // Another clip production won the race for this name; resolve a fresh one.
+                }
+            }
+
+            return null;
         }
 
         private async Task<string> EncodeClipAsync(
@@ -1263,10 +1301,16 @@ namespace PlayniteAchievements.Services.Recording
                     return null;
                 }
 
-                File.Move(tempPath, outputPath);
-                _logger?.Info($"[Recording] Saved unlock clip: {outputPath}");
-                VerifyClipNotFrozen(session, outputPath, request.AchievementName, plan.DurationSeconds);
-                return outputPath;
+                var savedPath = SaveClipToUniquePath(tempPath, outputPath, copy: false);
+                if (savedPath == null)
+                {
+                    _logger?.Warn($"[Recording] Could not place unlock clip for '{request.AchievementName}' (destination in use).");
+                    return null;
+                }
+
+                _logger?.Info($"[Recording] Saved unlock clip: {savedPath}");
+                VerifyClipNotFrozen(session, savedPath, request.AchievementName, plan.DurationSeconds);
+                return savedPath;
             }
             finally
             {
