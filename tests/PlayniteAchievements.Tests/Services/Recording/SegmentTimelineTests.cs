@@ -150,10 +150,10 @@ namespace PlayniteAchievements.Services.Tests.Recording
                 pollIntervalSeconds: 15, preRollSeconds: 15, toastVisibleSeconds: 6);
 
             Assert.AreEqual(unlock.AddSeconds(-15), start);
-            // End is guaranteed past the toast's dismissal: shown + 6s display + 1s tail.
-            Assert.AreEqual(toast.AddSeconds(7), end);
-            // Length emerges from the anchors: 15 pre-roll + 11 gap + 7 toast = 33s.
-            Assert.AreEqual(33, (end - start).TotalSeconds, 0.001);
+            // End lands at the toast's dismissal: shown + 6s display, no trailing tail.
+            Assert.AreEqual(toast.AddSeconds(6), end);
+            // Length emerges from the anchors: 15 pre-roll + 11 gap + 6 toast = 32s.
+            Assert.AreEqual(32, (end - start).TotalSeconds, 0.001);
         }
 
         [TestMethod]
@@ -170,7 +170,7 @@ namespace PlayniteAchievements.Services.Tests.Recording
             // Coarse: pre-roll before detection (the unlock happened within the last poll
             // interval; the user's pre-roll setting governs the lead).
             Assert.AreEqual(detection.AddSeconds(-15), start);
-            Assert.AreEqual(toast.AddSeconds(7), end);
+            Assert.AreEqual(toast.AddSeconds(6), end);
         }
 
         [TestMethod]
@@ -186,7 +186,7 @@ namespace PlayniteAchievements.Services.Tests.Recording
                 pollIntervalSeconds: 15, preRollSeconds: 15, toastVisibleSeconds: 10);
 
             Assert.AreEqual(unlock.AddSeconds(-15), start);
-            Assert.AreEqual(toast.AddSeconds(11), end);
+            Assert.AreEqual(toast.AddSeconds(10), end);
         }
 
         [TestMethod]
@@ -292,8 +292,8 @@ namespace PlayniteAchievements.Services.Tests.Recording
                 pollIntervalSeconds: 15, preRollSeconds: 15, toastVisibleSeconds: 6);
 
             Assert.AreEqual(detection.AddSeconds(-15), start);
-            Assert.AreEqual(toast.AddSeconds(7), end);
-            Assert.AreEqual(112, (end - start).TotalSeconds, 0.001);
+            Assert.AreEqual(toast.AddSeconds(6), end);
+            Assert.AreEqual(111, (end - start).TotalSeconds, 0.001);
         }
 
         [TestMethod]

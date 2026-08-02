@@ -17,8 +17,11 @@ namespace PlayniteAchievements.Services.Recording
         /// <summary>Tolerance (seconds past detection) a trusted unlock timestamp may carry.</summary>
         public const int PreciseLeadSeconds = 5;
 
-        /// <summary>Seconds kept after the toast is expected to have fully dismissed.</summary>
-        public const int ToastDismissTailSeconds = 1;
+        /// <summary>
+        /// Seconds kept after the toast's display duration elapses. Zero ends the clip as the toast
+        /// finishes rather than lingering on post-toast footage.
+        /// </summary>
+        public const int ToastDismissTailSeconds = 0;
 
         /// <summary>End-anchor fallback (seconds after detection) when no toast ever shows.</summary>
         public const int NoToastEndFallbackSeconds = 5;
