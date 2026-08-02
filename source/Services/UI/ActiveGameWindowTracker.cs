@@ -119,6 +119,15 @@ namespace PlayniteAchievements.Services.UI
         /// </summary>
         public bool IsGameWindowVisible(Guid gameId)
         {
+            // Foreground is the common case (the player is in the game) and, crucially, learns the
+            // window handle as a side effect — which the not-foreground branch and capture rely on.
+            // Without this, a foreground game whose handle was never learned would be treated as not
+            // visible and its wave held forever.
+            if (IsGameForeground(gameId))
+            {
+                return true;
+            }
+
             var hwnd = TryGetWindowHandle(gameId);
             return hwnd != IntPtr.Zero && IsWindow(hwnd) && !IsIconic(hwnd);
         }

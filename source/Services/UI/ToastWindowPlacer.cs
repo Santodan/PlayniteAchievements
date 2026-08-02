@@ -34,6 +34,12 @@ namespace PlayniteAchievements.Services.UI
         private static extern bool GetWindowRect(IntPtr hWnd, out RECT lpRect);
 
         [DllImport("user32.dll")]
+        private static extern IntPtr GetWindow(IntPtr hWnd, uint uCmd);
+
+        [DllImport("user32.dll", SetLastError = true)]
+        private static extern IntPtr GetWindowLongPtr(IntPtr hWnd, int nIndex);
+
+        [DllImport("user32.dll")]
         private static extern IntPtr MonitorFromWindow(IntPtr hwnd, uint dwFlags);
 
         [DllImport("shcore.dll")]
@@ -65,6 +71,11 @@ namespace PlayniteAchievements.Services.UI
         private const uint SWP_NOMOVE = 0x0002;
         private const uint SWP_NOZORDER = 0x0004;
         private const uint SWP_NOACTIVATE = 0x0010;
+        private const uint GW_HWNDPREV = 3;
+        private const int GWL_EXSTYLE = -20;
+        private const long WS_EX_TOPMOST = 0x00000008;
+        private static readonly IntPtr HWND_TOP = IntPtr.Zero;
+        private static readonly IntPtr HWND_TOPMOST = new IntPtr(-1);
         private const uint MONITOR_DEFAULTTONEAREST = 2;
         private const int MDT_EFFECTIVE_DPI = 0;
         // Windows' baseline DPI: a monitor reporting this is at 100% scale.
@@ -325,17 +336,47 @@ namespace PlayniteAchievements.Services.UI
             return false;
         }
 
-        public static bool SetZOrderAbove(Window window, IntPtr insertAfterHwnd)
+        /// <summary>
+        /// Places the toast directly above <paramref name="gameHwnd"/> in the z-order without moving,
+        /// resizing, or activating anything — the game is never raised, overlapping windows keep their
+        /// place, and the toast is occluded by anything above the game. SetWindowPos positions a
+        /// window *after* (below) hWndInsertAfter, so to land the toast just ABOVE the game we insert
+        /// it after the window currently above the game (skipping the toast itself). When nothing is
+        /// above the game it goes to the top of the game's band — matching the game's topmost-ness,
+        /// since a non-topmost window can never sit above a topmost (e.g. fullscreen) game window.
+        /// </summary>
+        public static bool SetZOrderAbove(Window window, IntPtr gameHwnd)
         {
-            var hwnd = Handle(window);
-            if (hwnd == IntPtr.Zero || insertAfterHwnd == IntPtr.Zero)
+            var toast = Handle(window);
+            if (toast == IntPtr.Zero || gameHwnd == IntPtr.Zero)
             {
                 return false;
             }
 
             try
             {
-                return SetWindowPos(hwnd, insertAfterHwnd, 0, 0, 0, 0, SWP_NOMOVE | SWP_NOSIZE | SWP_NOACTIVATE);
+                var above = GetWindow(gameHwnd, GW_HWNDPREV);
+                while (above == toast && above != IntPtr.Zero)
+                {
+                    above = GetWindow(above, GW_HWNDPREV);
+                }
+
+                var insertAfter = above != IntPtr.Zero
+                    ? above
+                    : (IsTopmost(gameHwnd) ? HWND_TOPMOST : HWND_TOP);
+                return SetWindowPos(toast, insertAfter, 0, 0, 0, 0, SWP_NOMOVE | SWP_NOSIZE | SWP_NOACTIVATE);
+            }
+            catch
+            {
+                return false;
+            }
+        }
+
+        private static bool IsTopmost(IntPtr hwnd)
+        {
+            try
+            {
+                return (GetWindowLongPtr(hwnd, GWL_EXSTYLE).ToInt64() & WS_EX_TOPMOST) != 0;
             }
             catch
             {
