@@ -411,11 +411,18 @@ namespace PlayniteAchievements.Models.Tests
 
             Assert.IsTrue(settings.EnableAchievementHotkeys);
             Assert.IsFalse(settings.EnableGlobalAchievementHotkeys);
+            Assert.IsTrue(settings.EnableViewAchievementsHotkey);
+            Assert.IsTrue(settings.EnableManageAchievementsHotkey);
+            Assert.IsTrue(settings.EnableOverviewHotkey);
+            Assert.IsTrue(settings.EnableOpenSettingsHotkey);
+            Assert.IsTrue(settings.EnableCategoryModeHotkey);
+            Assert.IsTrue(settings.EnableTestUnlockHotkey);
             Assert.AreEqual(PersistedSettings.DefaultViewAchievementsHotkey, settings.ViewAchievementsHotkey);
             Assert.AreEqual(PersistedSettings.DefaultManageAchievementsHotkey, settings.ManageAchievementsHotkey);
             Assert.AreEqual(PersistedSettings.DefaultOverviewHotkey, settings.OverviewHotkey);
             Assert.AreEqual(PersistedSettings.DefaultOpenSettingsHotkey, settings.OpenSettingsHotkey);
             Assert.AreEqual(PersistedSettings.DefaultCategoryModeHotkey, settings.CategoryModeHotkey);
+            Assert.AreEqual(PersistedSettings.DefaultTestUnlockHotkey, settings.TestUnlockHotkey);
         }
 
         [TestMethod]
@@ -815,11 +822,18 @@ namespace PlayniteAchievements.Models.Tests
             {
                 EnableAchievementHotkeys = false,
                 EnableGlobalAchievementHotkeys = true,
+                EnableViewAchievementsHotkey = false,
+                EnableManageAchievementsHotkey = false,
+                EnableOverviewHotkey = false,
+                EnableOpenSettingsHotkey = false,
+                EnableCategoryModeHotkey = false,
+                EnableTestUnlockHotkey = false,
                 ViewAchievementsHotkey = "F8",
                 ManageAchievementsHotkey = "Shift+F9",
                 OverviewHotkey = "F10",
                 OpenSettingsHotkey = "F11",
-                CategoryModeHotkey = "Shift+G"
+                CategoryModeHotkey = "Shift+G",
+                TestUnlockHotkey = "Ctrl+Alt+K"
             };
 
             var clone = source.Clone();
@@ -828,19 +842,33 @@ namespace PlayniteAchievements.Models.Tests
 
             Assert.IsFalse(clone.EnableAchievementHotkeys);
             Assert.IsTrue(clone.EnableGlobalAchievementHotkeys);
+            Assert.IsFalse(clone.EnableViewAchievementsHotkey);
+            Assert.IsFalse(clone.EnableManageAchievementsHotkey);
+            Assert.IsFalse(clone.EnableOverviewHotkey);
+            Assert.IsFalse(clone.EnableOpenSettingsHotkey);
+            Assert.IsFalse(clone.EnableCategoryModeHotkey);
+            Assert.IsFalse(clone.EnableTestUnlockHotkey);
             Assert.AreEqual("F8", clone.ViewAchievementsHotkey);
             Assert.AreEqual("Shift+F9", clone.ManageAchievementsHotkey);
             Assert.AreEqual("F10", clone.OverviewHotkey);
             Assert.AreEqual("F11", clone.OpenSettingsHotkey);
             Assert.AreEqual("Shift+G", clone.CategoryModeHotkey);
+            Assert.AreEqual("Ctrl+Alt+K", clone.TestUnlockHotkey);
 
             Assert.IsFalse(target.EnableAchievementHotkeys);
             Assert.IsTrue(target.EnableGlobalAchievementHotkeys);
+            Assert.IsFalse(target.EnableViewAchievementsHotkey);
+            Assert.IsFalse(target.EnableManageAchievementsHotkey);
+            Assert.IsFalse(target.EnableOverviewHotkey);
+            Assert.IsFalse(target.EnableOpenSettingsHotkey);
+            Assert.IsFalse(target.EnableCategoryModeHotkey);
+            Assert.IsFalse(target.EnableTestUnlockHotkey);
             Assert.AreEqual("F8", target.ViewAchievementsHotkey);
             Assert.AreEqual("Shift+F9", target.ManageAchievementsHotkey);
             Assert.AreEqual("F10", target.OverviewHotkey);
             Assert.AreEqual("F11", target.OpenSettingsHotkey);
             Assert.AreEqual("Shift+G", target.CategoryModeHotkey);
+            Assert.AreEqual("Ctrl+Alt+K", target.TestUnlockHotkey);
         }
 
         [TestMethod]
