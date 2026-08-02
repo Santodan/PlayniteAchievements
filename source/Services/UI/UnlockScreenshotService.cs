@@ -171,7 +171,10 @@ namespace PlayniteAchievements.Services.UI
                     return null;
                 }
 
-                var bitmap = new Bitmap(bounds.Width, bounds.Height, PixelFormat.Format32bppArgb);
+                // Rgb (not Argb): CopyFromScreen writes RGB only and never sets alpha, so an Argb
+                // buffer would carry alpha=0 and save transparent PNGs. On an Rgb bitmap the alpha
+                // is treated as opaque, so every saved variant is fully opaque.
+                var bitmap = new Bitmap(bounds.Width, bounds.Height, PixelFormat.Format32bppRgb);
                 using (var graphics = Graphics.FromImage(bitmap))
                 {
                     graphics.CopyFromScreen(bounds.Location, Point.Empty, bounds.Size);
