@@ -593,7 +593,8 @@ namespace PlayniteAchievements
                         ToggleOverviewWindowFromHotkey,
                         () => OpenSettingsView(),
                         TryFlipCategoryModeInActiveView,
-                        TryRefreshActivePluginView);
+                        TryRefreshActivePluginView,
+                        gameId => _inGameMonitor?.FireLastUnlockNotification(gameId));
 
                     _themeAutoMigrationService = new ThemeAutoMigrationService(
                         _logger,
