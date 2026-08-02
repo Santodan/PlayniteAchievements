@@ -99,6 +99,15 @@
       <HintPath>packages\SharpDX.DXGI.4.2.0\lib\net45\SharpDX.DXGI.dll</HintPath>
       <Private>True</Private>
     </Reference>
+    <!-- Media Foundation H.264 encode (GPU-resident) for WGC unlock video. -->
+    <Reference Include="SharpDX.Mathematics">
+      <HintPath>packages\SharpDX.Mathematics.4.2.0\lib\net45\SharpDX.Mathematics.dll</HintPath>
+      <Private>True</Private>
+    </Reference>
+    <Reference Include="SharpDX.MediaFoundation">
+      <HintPath>packages\SharpDX.MediaFoundation.4.2.0\lib\net45\SharpDX.MediaFoundation.dll</HintPath>
+      <Private>True</Private>
+    </Reference>
     <!-- WinRT projections for Windows.Graphics.Capture (WGC). The winmds are compile-time metadata
          (Private=False: the OS provides the types at runtime); System.Runtime.WindowsRuntime carries
          the projection glue (IAsyncOperation/AsTask, WinRT events). Requires TargetPlatformVersion. -->
