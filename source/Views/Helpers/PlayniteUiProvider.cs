@@ -262,12 +262,6 @@ namespace PlayniteAchievements.Views.Helpers
             }
         }
 
-        // Ordering contract: every HWND-affecting property below (AllowsTransparency, WindowStyle,
-        // ResizeMode, WindowChrome, ShowInTaskbar, Topmost) must be set here, before the window has a
-        // handle. ToastNotificationService realizes the HWND later, inside a Per-Monitor-V2 DPI scope,
-        // to make the toast per-monitor aware (crisp on scaled monitors). WPF recreates the HWND if any
-        // of these properties change after the handle exists, and that recreation would happen outside
-        // the DPI scope and silently drop per-monitor awareness. Do not defer these to post-handle code.
         public static Window CreateBorderlessTopmostWindow(IPlayniteAPI api, string title)
         {
             api = api ?? API.Instance;
