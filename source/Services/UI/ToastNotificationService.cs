@@ -5,7 +5,6 @@ using System.Linq;
 using System.Threading.Tasks;
 using System.Windows;
 using System.Windows.Controls;
-using System.Windows.Interop;
 using System.Windows.Media;
 using System.Windows.Media.Animation;
 using System.Windows.Threading;
@@ -313,33 +312,6 @@ namespace PlayniteAchievements.Services.UI
             return _activeWaveGameId.HasValue && _windowTracker != null
                 ? _windowTracker.TryGetWindowHandle(_activeWaveGameId.Value)
                 : IntPtr.Zero;
-        }
-
-        /// <summary>
-        /// The window whose monitor the toast should appear on: the running game's window when a wave
-        /// is tied to one, otherwise the current Playnite window (which is also where an open settings
-        /// popup lives). Used to pick both the placement monitor and the monitor whose DPI stretch is
-        /// compensated, so a toast fired with no game -- e.g. a settings fire-test preview -- lands on
-        /// the monitor Playnite is on rather than the primary monitor.
-        /// </summary>
-        private IntPtr ResolveToastReferenceHandle()
-        {
-            var gameHwnd = ResolveWaveWindowHandle();
-            if (gameHwnd != IntPtr.Zero)
-            {
-                return gameHwnd;
-            }
-
-            try
-            {
-                var appWindow = _api?.Dialogs?.GetCurrentAppWindow()
-                    ?? System.Windows.Application.Current?.MainWindow;
-                return appWindow != null ? new WindowInteropHelper(appWindow).Handle : IntPtr.Zero;
-            }
-            catch
-            {
-                return IntPtr.Zero;
-            }
         }
 
         private async Task ProcessQueueAsync()
@@ -1178,32 +1150,6 @@ namespace PlayniteAchievements.Services.UI
                     areaSource = "game";
                     return dip;
                 }
-            }
-
-            // No usable game window (e.g. a settings fire-test preview): place on the monitor the
-            // Playnite window -- and any open settings popup, which sits on the same monitor -- is on,
-            // not the primary. SystemParameters.WorkArea is always the primary monitor, so a toast
-            // fired while Playnite is on a secondary monitor would otherwise appear on the wrong screen.
-            try
-            {
-                var referenceHandle = ResolveToastReferenceHandle();
-                if (referenceHandle != IntPtr.Zero)
-                {
-                    var work = System.Windows.Forms.Screen.FromHandle(referenceHandle)?.WorkingArea;
-                    if (work.HasValue && work.Value.Width > 0 && work.Value.Height > 0)
-                    {
-                        var dipWork = ConvertPhysicalToDip(window, work.Value, out transformSource);
-                        if (dipWork.Width > 0 && dipWork.Height > 0)
-                        {
-                            areaSource = "appwindow";
-                            return dipWork;
-                        }
-                    }
-                }
-            }
-            catch
-            {
-                // Fall through to the primary work area.
             }
 
             areaSource = "workarea";
