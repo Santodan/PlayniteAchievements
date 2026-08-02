@@ -288,39 +288,50 @@ namespace PlayniteAchievements
         // F5 library update.
         private bool TryRefreshActivePluginView()
         {
-            var window = Application.Current?.Windows
-                .OfType<Window>()
-                .FirstOrDefault(w => w.IsActive)
-                ?? Application.Current?.MainWindow;
-            if (window == null)
+            // Invoked synchronously from the hotkey input filter, which must never see a throw.
+            // The window/visual-tree walk below can fault while the tree is partially built during
+            // startup; fail closed (key not handled) and log rather than escaping into the pipeline.
+            try
             {
+                var window = Application.Current?.Windows
+                    .OfType<Window>()
+                    .FirstOrDefault(w => w.IsActive)
+                    ?? Application.Current?.MainWindow;
+                if (window == null)
+                {
+                    return false;
+                }
+
+                // View Achievements is always its own window; the Overview is either its own window
+                // or hosted inside Playnite's main window as the sidebar view.
+                var singleGame = VisualTreeHelpers.FindVisualChild<ViewAchievementsControl>(window);
+                if (singleGame != null && singleGame.IsVisible)
+                {
+                    singleGame.TriggerHotkeyRefresh();
+                    return true;
+                }
+
+                var friendsSingleGame = VisualTreeHelpers.FindVisualChild<ViewFriendsAchievementsControl>(window);
+                if (friendsSingleGame != null && friendsSingleGame.IsVisible)
+                {
+                    friendsSingleGame.TriggerHotkeyRefresh();
+                    return true;
+                }
+
+                var overview = VisualTreeHelpers.FindVisualChild<OverviewControl>(window);
+                if (overview != null && overview.IsVisible)
+                {
+                    overview.TriggerHotkeyRefresh();
+                    return true;
+                }
+
                 return false;
             }
-
-            // View Achievements is always its own window; the Overview is either its own window
-            // or hosted inside Playnite's main window as the sidebar view.
-            var singleGame = VisualTreeHelpers.FindVisualChild<ViewAchievementsControl>(window);
-            if (singleGame != null && singleGame.IsVisible)
+            catch (Exception ex)
             {
-                singleGame.TriggerHotkeyRefresh();
-                return true;
+                _logger?.Debug(ex, "Failed to refresh active plugin view from hotkey.");
+                return false;
             }
-
-            var friendsSingleGame = VisualTreeHelpers.FindVisualChild<ViewFriendsAchievementsControl>(window);
-            if (friendsSingleGame != null && friendsSingleGame.IsVisible)
-            {
-                friendsSingleGame.TriggerHotkeyRefresh();
-                return true;
-            }
-
-            var overview = VisualTreeHelpers.FindVisualChild<OverviewControl>(window);
-            if (overview != null && overview.IsVisible)
-            {
-                overview.TriggerHotkeyRefresh();
-                return true;
-            }
-
-            return false;
         }
 
         // Invoked by AchievementHotkeyService on the category-mode hotkey. Flips category mode on
@@ -332,26 +343,37 @@ namespace PlayniteAchievements
         // the key passes through.
         private bool TryFlipCategoryModeInActiveView()
         {
-            var window = Application.Current?.Windows
-                .OfType<Window>()
-                .FirstOrDefault(w => w.IsActive)
-                ?? Application.Current?.MainWindow;
-            if (window == null)
+            // Invoked synchronously from the hotkey input filter, which must never see a throw.
+            // The window/visual-tree walk below can fault while the tree is partially built during
+            // startup; fail closed (key not handled) and log rather than escaping into the pipeline.
+            try
             {
+                var window = Application.Current?.Windows
+                    .OfType<Window>()
+                    .FirstOrDefault(w => w.IsActive)
+                    ?? Application.Current?.MainWindow;
+                if (window == null)
+                {
+                    return false;
+                }
+
+                var grids = VisualTreeHelpers.FindVisualChildren<Views.Controls.AchievementDataGridControl>(window)
+                    .OrderByDescending(grid => grid.IsKeyboardFocusWithin);
+                foreach (var grid in grids)
+                {
+                    if (grid.TryFlipCategoryModeFromHotkey())
+                    {
+                        return true;
+                    }
+                }
+
                 return false;
             }
-
-            var grids = VisualTreeHelpers.FindVisualChildren<Views.Controls.AchievementDataGridControl>(window)
-                .OrderByDescending(grid => grid.IsKeyboardFocusWithin);
-            foreach (var grid in grids)
+            catch (Exception ex)
             {
-                if (grid.TryFlipCategoryModeFromHotkey())
-                {
-                    return true;
-                }
+                _logger?.Debug(ex, "Failed to flip category mode from hotkey.");
+                return false;
             }
-
-            return false;
         }
 
         public PlayniteAchievementsPlugin(IPlayniteAPI api) : base(api)
