@@ -322,16 +322,29 @@ namespace PlayniteAchievements.Views.Settings.General
                     // Back to the muted style's own foreground for the success case.
                     FfmpegStatusText.ClearValue(TextBlock.ForegroundProperty);
 
-                    if (!string.IsNullOrEmpty(result.FailedEncoderCodec))
+                    // Report an encoder failure only when it affects the encoder that will actually
+                    // be used: the explicit choice, or (for Auto) whichever the runtime resolves to
+                    // from the driver-validated set. A failed encoder the user isn't using (e.g.
+                    // h264_amf on an NVIDIA-only box) is already excluded from UsableEncoders above
+                    // and otherwise stays silent.
+                    var selected = _settings?.Persisted?.RecordingEncoder ?? RecordingEncoder.Auto;
+                    var effective = selected == RecordingEncoder.Auto
+                        ? Services.Recording.RecordingCommandBuilder.DetectEncoderFamily(
+                            Services.Recording.RecordingCommandBuilder.BuildEncoderArguments(
+                                RecordingEncoder.Auto, result.UsableEncoders))
+                        : selected;
+                    var effectiveCodec = Services.Recording.RecordingCommandBuilder.EncoderCodec(effective);
+
+                    if (effectiveCodec != null && !result.CanEncode(effective))
                     {
                         var recommended = result.UsableEncoders.Count > 0
                             ? result.UsableEncoders[0]
-                            : string.Empty;
+                            : "libx264";
                         FfmpegStatusText.Text = FfmpegStatusText.Text + "\n" + string.Format(
                             ResourceProvider.GetString("LOCPlayAch_Settings_RecordingEncoderFailed"),
-                            result.FailedEncoderCodec,
+                            effectiveCodec,
                             recommended,
-                            result.EncoderProbeError);
+                            result.EncodeError(effective));
                         if (TryFindResource("PlayAch.Brush.ErrorText") is System.Windows.Media.Brush warnBrush)
                         {
                             FfmpegStatusText.Foreground = warnBrush;

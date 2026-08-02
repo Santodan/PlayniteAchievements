@@ -561,7 +561,7 @@ namespace PlayniteAchievements.Services
                     return;
                 }
 
-                emitUnlocks = state.Schedule.ShouldEmitUnlocks(state.Registration?.IsRemote == true);
+                emitUnlocks = state.Schedule.ShouldEmitUnlocks();
                 state.Schedule.Succeeded(
                     DateTime.UtcNow,
                     state.Registration?.PollInterval ?? TimeSpan.FromSeconds(60));
@@ -1347,6 +1347,78 @@ namespace PlayniteAchievements.Services
             {
                 _logger?.Debug(ex, "[InGameMonitor] Failed to hydrate game data for unlock toast.");
             }
+        }
+
+        /// <summary>
+        /// Fires the full notification flow (notification, screenshot, recording) for the given
+        /// game's most-recently-earned achievement, exactly as a live unlock would. Backs the
+        /// test-notification hotkey. Writes nothing to the cache and bypasses the per-session
+        /// dedupe, so it can be re-fired for an already-earned achievement.
+        /// </summary>
+        public void FireLastUnlockNotification(Guid gameId)
+        {
+            try
+            {
+                if (gameId == Guid.Empty)
+                {
+                    return;
+                }
+
+                var data = _cacheManager?.LoadGameData(gameId.ToString());
+                if (data?.Achievements == null || data.Achievements.Count == 0)
+                {
+                    _logger?.Debug($"[InGameMonitor] Test notification skipped: no cached achievements for game {gameId}.");
+                    return;
+                }
+
+                HydrateForToast(data);
+
+                var achievement = SelectLastUnlocked(data);
+                if (achievement == null)
+                {
+                    _logger?.Debug($"[InGameMonitor] Test notification skipped: no unlocked achievement for game {gameId}.");
+                    return;
+                }
+
+                var game = _api?.Database?.Games?.Get(gameId);
+                var numberByApiName = BuildAchievementNumberMap(data);
+                var args = CreateUserEventArgs(
+                    game,
+                    data,
+                    achievement,
+                    ResolveAchievementNumber(numberByApiName, achievement),
+                    isCompletionAchievement: false);
+
+                _logger?.Debug(
+                    $"[InGameMonitor] Firing test notification for game={game?.Name ?? data.GameName}, achievement={achievement.ApiName}.");
+                _notifyUnlocked?.Invoke(args);
+            }
+            catch (Exception ex)
+            {
+                _logger?.Debug(ex, "[InGameMonitor] Failed to fire test notification.");
+            }
+        }
+
+        /// <summary>
+        /// The game's most-recently-earned, non-filtered achievement: newest by unlock time when
+        /// timestamps are present, otherwise the last unlocked in sort order (some providers supply
+        /// no unlock times). Null when nothing is unlocked.
+        /// </summary>
+        private static AchievementDetail SelectLastUnlocked(GameAchievementData data)
+        {
+            var unlocked = (data?.Achievements ?? new List<AchievementDetail>())
+                .Where(a => a?.Unlocked == true && a.IsFiltered != true)
+                .ToList();
+            if (unlocked.Count == 0)
+            {
+                return null;
+            }
+
+            var newestByTime = unlocked
+                .Where(a => a.UnlockTimeUtc.HasValue)
+                .OrderByDescending(a => a.UnlockTimeUtc.Value)
+                .FirstOrDefault();
+            return newestByTime ?? unlocked.LastOrDefault();
         }
 
         private static bool IsHardcoreCategory(string categoryType)

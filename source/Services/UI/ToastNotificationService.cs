@@ -5,6 +5,7 @@ using System.Linq;
 using System.Threading.Tasks;
 using System.Windows;
 using System.Windows.Controls;
+using System.Windows.Interop;
 using System.Windows.Media;
 using System.Windows.Media.Animation;
 using System.Windows.Threading;
@@ -35,6 +36,13 @@ namespace PlayniteAchievements.Services.UI
         private readonly GameCustomDataStore _gameCustomDataStore;
         private readonly Queue<AchievementToastViewModel> _queue = new Queue<AchievementToastViewModel>();
         private bool _processing;
+        // Diagnostic hold-logging (no behavior change): when the queue is holding waves because no
+        // queued game is foreground, the UTC time the current hold began and the last time it was
+        // logged, so a hold is reported once at start, at most every HoldLogIntervalSeconds while it
+        // persists, and on release — each line naming the foreground window responsible.
+        private DateTime? _holdStartedUtc;
+        private DateTime _lastHoldLogUtc;
+        private const int HoldLogIntervalSeconds = 15;
         // Target gap (DIP) from the screen/game-window corner to the visible card body, held
         // constant regardless of the card's ToastGlowMargin: the window margin is derived as
         // CornerGapDip - glow so the body sits here whether or not the border glow is on (with the
@@ -54,6 +62,17 @@ namespace PlayniteAchievements.Services.UI
         // toast placement key window resolution off this game so a wave from one running game
         // never anchors to another running game's window.
         private Guid? _activeWaveGameId;
+        // The anchor the toast is placed against, resolved once per wave: the running game's window
+        // when a game is running, otherwise the current Playnite window. The toast is always realized
+        // Per-Monitor-V2 aware and positioned in physical pixels (ToastWindowPlacer) relative to this
+        // anchor, so it renders crisply on whatever monitor the anchor is on. _activeIsGame selects the
+        // anchor rect (game -> client rect; else -> the anchor monitor's work area); _activeMonitorScale
+        // is that monitor's true effective scale (1.0 = 100%).
+        private IntPtr _activeReferenceHwnd;
+        private bool _activeIsGame;
+        private double _activeMonitorScale = 1.0;
+        // The running physical slide's per-frame tick handler (CompositionTarget.Rendering), or null.
+        private EventHandler _activeSlideTick;
 
         public ToastNotificationService(
             IPlayniteAPI api,
@@ -323,6 +342,54 @@ namespace PlayniteAchievements.Services.UI
                 : IntPtr.Zero;
         }
 
+        /// <summary>
+        /// Diagnostic only: records that the queue is holding waves because no queued game is
+        /// foreground, logging the foreground window responsible once when the hold starts and at
+        /// most every <see cref="HoldLogIntervalSeconds"/> while it persists — enough to identify
+        /// the culprit window without spamming the 1s hold loop.
+        /// </summary>
+        private void LogWaveHeld()
+        {
+            var now = DateTime.UtcNow;
+            if (_holdStartedUtc == null)
+            {
+                _holdStartedUtc = now;
+                _lastHoldLogUtc = now;
+                _logger?.Debug(
+                    $"[Toast] Holding {_queue.Count} queued notification(s); no queued game is foreground. {DescribeForeground()}");
+                return;
+            }
+
+            if ((now - _lastHoldLogUtc).TotalSeconds >= HoldLogIntervalSeconds)
+            {
+                _lastHoldLogUtc = now;
+                _logger?.Debug(
+                    $"[Toast] Still holding {_queue.Count} notification(s) after {(now - _holdStartedUtc.Value).TotalSeconds:F0}s. {DescribeForeground()}");
+            }
+        }
+
+        /// <summary>
+        /// Diagnostic only: closes out a hold that a now-ready wave ends, reporting how long the
+        /// wave waited for the game to regain focus. No-op when nothing was being held.
+        /// </summary>
+        private void LogWaveReleased(int waveCount)
+        {
+            if (_holdStartedUtc == null)
+            {
+                return;
+            }
+
+            _logger?.Debug(
+                $"[Toast] Releasing hold after {(DateTime.UtcNow - _holdStartedUtc.Value).TotalSeconds:F1}s; displaying {waveCount} notification(s).");
+            _holdStartedUtc = null;
+        }
+
+        private string DescribeForeground()
+        {
+            var description = _windowTracker?.DescribeForegroundWindow();
+            return string.IsNullOrEmpty(description) ? "foreground=unknown (no tracker)" : description;
+        }
+
         private async Task ProcessQueueAsync()
         {
             try
@@ -336,10 +403,12 @@ namespace PlayniteAchievements.Services.UI
                         // Every queued wave belongs to a running game that isn't focused right now
                         // (another window or an overlay is on top). Hold and re-check; a game's
                         // pending toasts are dropped by ClearPending when it stops.
+                        LogWaveHeld();
                         await Task.Delay(1000).ConfigureAwait(true);
                         continue;
                     }
 
+                    LogWaveReleased(wave.Count);
                     await ShowWaveAsync(wave).ConfigureAwait(true);
                     await Task.Delay(250).ConfigureAwait(true);
                 }
@@ -520,30 +589,72 @@ namespace PlayniteAchievements.Services.UI
 
             window.Content = items;
 
+            // Resolve the anchor the toast follows. The toast is realized Per-Monitor-V2 and positioned
+            // in physical pixels relative to that anchor, so it renders crisply on whatever monitor the
+            // anchor is on. A real unlock anchors to the running game's window (its client rect, so the
+            // toast sits over the game and inside the screenshot); a fire-test preview, or an unlock
+            // with no resolvable game, anchors to the current Playnite window's monitor work area (a
+            // screen corner where Playnite is). _activeMonitorScale (the anchor monitor's true scale)
+            // drives both the content DPI compensation and the physical placement.
+            _activeReferenceHwnd = IntPtr.Zero;
+            _activeIsGame = false;
+            if (!previewSource.HasValue)
+            {
+                _activeReferenceHwnd = _screenshotService.ResolveGameWindowHandle(
+                    ResolveWaveWindowHandle(),
+                    _getGameProcessId?.Invoke(_activeWaveGameId));
+                _activeIsGame = _activeReferenceHwnd != IntPtr.Zero;
+            }
+
+            if (_activeReferenceHwnd == IntPtr.Zero)
+            {
+                _activeReferenceHwnd = ResolveAppWindowHandle();
+            }
+
+            _activeMonitorScale = ToastWindowPlacer.ResolveMonitorScale(_activeReferenceHwnd);
+
             // Bound the toast to a fraction of the available area so it never dominates the screen at
             // high display scales (or with an oversized theme template), while keeping its natural size
-            // when there is room. LayoutTransform (not RenderTransform) so the SizeToContent window
-            // auto-sizes to the scaled content and corner placement stays correct; applied to the
-            // ItemsControl (outside the ItemTemplate) so it governs whatever template the resolver returns.
-            var fitScale = ResolveFitScale(window, items);
-            if (fitScale < 1.0)
+            // when there is room. The content scale folds the fit shrink together with the DPI
+            // compensation (comp = anchor-monitor scale / system scale): the per-monitor toast, which WPF
+            // still lays out at the system scale, then ends up at the monitor's true physical size and
+            // crisp. On the system monitor comp is 1. LayoutTransform (not RenderTransform) so the
+            // SizeToContent window auto-sizes to the scaled content.
+            var fitScale = ResolveFitScale(items);
+            var systemScale = ToastWindowPlacer.SystemScale();
+            var dpiComp = systemScale > 0 ? _activeMonitorScale / systemScale : 1.0;
+            if (dpiComp <= 0)
             {
-                items.LayoutTransform = new ScaleTransform(fitScale, fitScale);
+                dpiComp = 1.0;
             }
+
+            var contentScale = fitScale * dpiComp;
+            items.LayoutTransform = Math.Abs(contentScale - 1.0) > ContentScaleEpsilon
+                ? new ScaleTransform(contentScale, contentScale)
+                : null;
             window.Opacity = 0;
             // Do not move the window during Loaded: a SizeToContent window moved before it is first
             // presented at DPI > 100% gets an HWND sized from unscaled DIPs, which clips content
             // inside the card. Pre-place before Show() so the HWND is created at its final rect on
-            // the game's monitor; ContentRendered/shown/snap remain as post-presentation corrections.
+            // the anchor monitor; ContentRendered/shown/snap remain as post-presentation corrections.
             window.ContentRendered += (s, e) => PlaceWindow(window, "rendered");
 
             EventHandler onRendering = null;
             try
             {
+                // Realize the toast HWND under Per-Monitor-V2 so Windows does not bitmap-rescale it on
+                // a monitor whose scale differs from the process's system DPI. A window's DPI awareness
+                // is fixed at HWND creation; all HWND-affecting props were set in
+                // CreateBorderlessTopmostWindow before any handle existed, so no recreation escapes this.
+                using (Common.DpiAwarenessScope.PerMonitorV2())
+                {
+                    new WindowInteropHelper(window).EnsureHandle();
+                }
+
                 PlaceWindow(window, "preshow");
                 window.Show();
                 PlaceWindow(window, "shown");
-                SlideIn(window);
+                SlideInPhysical(window);
 
                 // Let the toast finish sliding in and paint, then capture (so the toast is in the
                 // frame), then hold for the remaining display time.
@@ -554,9 +665,9 @@ namespace PlayniteAchievements.Services.UI
                     return;
                 }
 
-                // Release the slide-in animation so placement can move Top directly, and snap to
-                // the game window corner now that the toast is fully laid out.
-                window.BeginAnimation(Window.TopProperty, null);
+                // Stop the slide so placement can move the window directly, and snap to the anchor
+                // corner now that the toast is fully laid out.
+                StopActiveSlide();
                 PlaceWindow(window, "snap");
 
                 // The wave is now fully visible: signal the recording service so it can anchor
@@ -581,19 +692,16 @@ namespace PlayniteAchievements.Services.UI
                     cleanCaptureTask = null;
                 }
 
-                // Follow the game window every rendered frame (smooth while dragging). The handle
-                // is resolved once — for launcher games that's the foreground game window at show
-                // time, which stays valid even if focus later changes.
-                var gameHwnd = _screenshotService.ResolveGameWindowHandle(
-                    ResolveWaveWindowHandle(),
-                    _getGameProcessId?.Invoke(_activeWaveGameId));
-                if (gameHwnd != IntPtr.Zero)
+                // Follow the anchor window every rendered frame (smooth while dragging). The anchor
+                // handle was resolved once at wave start (game window, else the Playnite window) and
+                // stays valid even if focus later changes.
+                if (_activeReferenceHwnd != IntPtr.Zero)
                 {
                     onRendering = (s, e) =>
                     {
                         try
                         {
-                            PlaceWindowToHandle(window, gameHwnd);
+                            PlaceWindowToHandle(window);
                         }
                         catch
                         {
@@ -624,8 +732,8 @@ namespace PlayniteAchievements.Services.UI
 
                 if (!endedHidden)
                 {
-                    SlideOut(window);
-                    await Task.Delay(210).ConfigureAwait(true);
+                    var slideOutMs = SlideOutPhysical(window);
+                    await Task.Delay((int)Math.Round(slideOutMs) + SlideSettleBufferMs).ConfigureAwait(true);
                 }
             }
             catch (Exception ex) when (previewSource.HasValue)
@@ -647,6 +755,11 @@ namespace PlayniteAchievements.Services.UI
                 {
                     CompositionTarget.Rendering -= onRendering;
                 }
+
+                StopActiveSlide();
+                _activeReferenceHwnd = IntPtr.Zero;
+                _activeIsGame = false;
+                _activeMonitorScale = 1.0;
 
                 try
                 {
@@ -1038,166 +1151,143 @@ namespace PlayniteAchievements.Services.UI
                 return;
             }
 
-            var trace = stage != null && Common.PerfScope.PerfTracingEnabled;
-            if (!trace)
+            // Position the per-monitor toast in physical pixels relative to the anchor.
+            if (TryPlacePhysical(window, out var px, out var py) &&
+                stage != null && Common.PerfScope.PerfTracingEnabled)
             {
-                PositionInArea(window, ResolvePlacementArea(window));
-                return;
+                _logger?.Info(ToastPlacementDiagnostics.DescribePhysicalPlacement(
+                    stage, window, _activeReferenceHwnd, _activeMonitorScale, px, py));
             }
-
-            var area = ResolvePlacementArea(window, out var gamePx, out var areaSource, out var transformSource);
-            PositionInArea(window, area);
-
-            var gameHwnd = ResolveWaveWindowHandle();
-            _logger?.Info(ToastPlacementDiagnostics.DescribePlacement(
-                stage, window, gameHwnd, gamePx, area, areaSource, transformSource));
         }
 
         /// <summary>
-        /// Repositions the toast within a known game window handle (cheap per-frame path used while
-        /// following the game window). Leaves the toast where it is if the handle can't be measured.
+        /// Repositions the toast against the anchor (cheap per-frame path used while following it).
+        /// Leaves the toast where it is if the anchor can't be measured.
         /// </summary>
-        private void PlaceWindowToHandle(Window window, IntPtr gameHwnd)
-        {
-            if (window == null || gameHwnd == IntPtr.Zero)
-            {
-                return;
-            }
-
-            if (_screenshotService.TryGetClientBounds(gameHwnd, out var pixelBounds))
-            {
-                var dip = ConvertPhysicalToDip(window, pixelBounds, out _);
-                if (dip.Width > 0 && dip.Height > 0)
-                {
-                    PositionInArea(window, dip);
-                }
-            }
-        }
-
-        private void PositionInArea(Window window, Rect area)
+        private void PlaceWindowToHandle(Window window)
         {
             if (window == null)
             {
                 return;
             }
 
-            var margin = CornerGapDip - _activeCardGlow;
-            var width = window.ActualWidth > 0 ? window.ActualWidth : window.Width;
-            var height = window.ActualHeight > 0 ? window.ActualHeight : window.Height;
-            if (double.IsNaN(width) || width <= 0 || double.IsNaN(height) || height <= 0)
-            {
-                // Before the window is laid out, measure the content so theme-supplied templates of
-                // any size are placed correctly instead of assuming the default card's dimensions.
-                // Measuring an unshown window can throw, so fall back to the default card size.
-                var desired = new Size(double.NaN, double.NaN);
-                try
-                {
-                    window.Measure(new Size(double.PositiveInfinity, double.PositiveInfinity));
-                    desired = window.DesiredSize;
-                }
-                catch (Exception ex)
-                {
-                    _logger?.Debug(ex, "Toast pre-layout measure failed; using default card size.");
-                }
+            TryPlacePhysical(window, out _, out _);
+        }
 
-                if (double.IsNaN(width) || width <= 0)
-                {
-                    width = desired.Width > 0 ? desired.Width : 438;
-                }
+        private bool AlignRight()
+        {
+            return _activePosition == ToastScreenCorner.TopRight || _activePosition == ToastScreenCorner.BottomRight;
+        }
 
-                if (double.IsNaN(height) || height <= 0)
-                {
-                    height = desired.Height > 0 ? desired.Height : 138;
-                }
-            }
+        private bool AlignBottom()
+        {
+            return _activePosition == ToastScreenCorner.BottomLeft || _activePosition == ToastScreenCorner.BottomRight;
+        }
 
-            switch (_activePosition)
-            {
-                case ToastScreenCorner.TopLeft:
-                    window.Left = area.Left + margin;
-                    window.Top = area.Top + margin;
-                    break;
-                case ToastScreenCorner.TopRight:
-                    window.Left = area.Right - width - margin;
-                    window.Top = area.Top + margin;
-                    break;
-                case ToastScreenCorner.BottomLeft:
-                    window.Left = area.Left + margin;
-                    window.Top = area.Bottom - height - margin;
-                    break;
-                case ToastScreenCorner.BottomRight:
-                default:
-                    window.Left = area.Right - width - margin;
-                    window.Top = area.Bottom - height - margin;
-                    break;
-            }
+        // The window-edge gap in DIPs: the visible-body gap (CornerGapDip) less the card's own glow
+        // margin, so the body sits a constant distance from the corner whether or not the glow is on.
+        private double EffectiveGapDip()
+        {
+            return CornerGapDip - _activeCardGlow;
         }
 
         /// <summary>
-        /// The rectangle (in WPF device-independent units) the toast is positioned within: the
-        /// running game's window when one is resolvable, otherwise the primary work area. Clamping
-        /// to the game window keeps the toast over the game and inside the game-window screenshot.
+        /// The physical-pixel anchor rect the toast is placed against: the game's client rect when a
+        /// game is running (so the toast sits over the game and inside the screenshot), otherwise the
+        /// Playnite window's monitor work area. False when the anchor can't be measured.
         /// </summary>
-        private Rect ResolvePlacementArea(Window window)
+        private bool TryResolveAnchor(out System.Drawing.Rectangle anchorPhys)
         {
-            return ResolvePlacementArea(window, out _, out _, out _);
-        }
-
-        private Rect ResolvePlacementArea(
-            Window window,
-            out System.Drawing.Rectangle? gamePx,
-            out string areaSource,
-            out string transformSource)
-        {
-            gamePx = _screenshotService?.TryGetGameWindowBounds(
-                ResolveWaveWindowHandle(),
-                _getGameProcessId?.Invoke(_activeWaveGameId));
-            if (gamePx.HasValue)
+            anchorPhys = System.Drawing.Rectangle.Empty;
+            if (_activeReferenceHwnd == IntPtr.Zero)
             {
-                var dip = ConvertPhysicalToDip(window, gamePx.Value, out transformSource);
-                if (dip.Width > 0 && dip.Height > 0)
-                {
-                    areaSource = "game";
-                    return dip;
-                }
+                return false;
             }
 
-            areaSource = "workarea";
-            transformSource = "n/a";
-            return SystemParameters.WorkArea;
+            return _activeIsGame
+                ? _screenshotService.TryGetClientBounds(_activeReferenceHwnd, out anchorPhys)
+                : ToastWindowPlacer.TryGetMonitorWorkAreaPhysical(_activeReferenceHwnd, out anchorPhys);
         }
 
         /// <summary>
-        /// Largest fraction of the placement area's width / height the toast card is allowed to occupy.
-        /// Sizing by proportion instead of a fixed DIP size keeps the toast modest across every
-        /// resolution and display-scale combination: at high scale on a small panel the natural card is
-        /// a large fraction of the (small) DIP area and gets shrunk to fit, while on a roomy display it
-        /// stays at its natural, readable size because it already fits.
+        /// Positions the toast at the anchor corner in physical pixels via
+        /// <see cref="ToastWindowPlacer"/>. Returns false (doing nothing) when the anchor can't be
+        /// measured.
+        /// </summary>
+        private bool TryPlacePhysical(Window window, out int x, out int y)
+        {
+            x = 0;
+            y = 0;
+            if (!TryResolveAnchor(out var anchorPhys))
+            {
+                return false;
+            }
+
+            var renderScale = ToastWindowPlacer.RenderScale(window);
+            return ToastWindowPlacer.PositionPhysical(
+                window, anchorPhys, renderScale, _activeMonitorScale, AlignRight(), AlignBottom(), EffectiveGapDip(), out x, out y);
+        }
+
+        private bool TryComputeRestingCorner(Window window, out int x, out int y)
+        {
+            x = 0;
+            y = 0;
+            if (!TryResolveAnchor(out var anchorPhys))
+            {
+                return false;
+            }
+
+            var renderScale = ToastWindowPlacer.RenderScale(window);
+            return ToastWindowPlacer.TryComputeCorner(
+                window, anchorPhys, renderScale, _activeMonitorScale, AlignRight(), AlignBottom(), EffectiveGapDip(), out x, out y);
+        }
+
+        /// <summary>
+        /// The HWND of the current Playnite window (an open settings popup sits on the same monitor),
+        /// used as the toast anchor when no game window is running so the toast lands on the monitor
+        /// Playnite is on. IntPtr.Zero if none can be resolved.
+        /// </summary>
+        private IntPtr ResolveAppWindowHandle()
+        {
+            try
+            {
+                var appWindow = _api?.Dialogs?.GetCurrentAppWindow() ?? Application.Current?.MainWindow;
+                return appWindow != null ? new WindowInteropHelper(appWindow).Handle : IntPtr.Zero;
+            }
+            catch
+            {
+                return IntPtr.Zero;
+            }
+        }
+
+        /// <summary>
+        /// Largest fraction of the anchor's width / height the toast card is allowed to occupy. Sizing
+        /// by proportion instead of a fixed size keeps the toast modest across every resolution and
+        /// display-scale combination: on a small panel the natural card is a large fraction of the area
+        /// and gets shrunk to fit; on a roomy display it stays at its natural, readable size.
         /// </summary>
         private const double MaxToastWidthFraction = 0.40;
         private const double MaxToastHeightFraction = 0.25;
 
         /// <summary>
-        /// The scale to apply to the toast content so it fits within the per-axis width/height fractions
-        /// of the placement area. Returns 1.0 (no scaling) when the content already fits or when the
-        /// area/natural size cannot be resolved; only ever shrinks, never enlarges past the template's
-        /// natural size. Works pre-Show: <see cref="ResolvePlacementArea(Window)"/> uses the main
-        /// window's DPI transform when the toast window has no presentation source yet, and the content
-        /// is measured off-tree (falling back to the default card footprint if the measure throws).
+        /// The scale applied to the toast content so it fits within the per-axis width/height fractions
+        /// of the anchor. Returns 1.0 (no scaling) when the content already fits or the anchor/natural
+        /// size cannot be resolved; only ever shrinks. The anchor is in physical pixels and the natural
+        /// card is in DIPs, so the comparison is made in physical pixels (natural * monitorScale, the
+        /// size the DPI-compensated card will actually render at).
         /// </summary>
-        private double ResolveFitScale(Window window, FrameworkElement content)
+        private double ResolveFitScale(FrameworkElement content)
         {
             try
             {
-                var area = ResolvePlacementArea(window);
-                if (area.Width <= 0 || area.Height <= 0)
+                if (!TryResolveAnchor(out var anchorPhys) || anchorPhys.Width <= 0 || anchorPhys.Height <= 0)
                 {
                     return 1.0;
                 }
 
-                // Natural (unscaled) size the content wants. Measuring an unshown element can throw, so
-                // fall back to the default card footprint (matches the PositionInArea fallback).
-                var natural = new Size(438, 138);
+                // Natural (unscaled) DIP size the content wants. Measuring an unshown element can throw,
+                // so fall back to the default card footprint.
+                var natural = new Size(ToastWindowPlacer.DefaultCardWidthDip, ToastWindowPlacer.DefaultCardHeightDip);
                 try
                 {
                     content.Measure(new Size(double.PositiveInfinity, double.PositiveInfinity));
@@ -1211,15 +1301,15 @@ namespace PlayniteAchievements.Services.UI
                     _logger?.Debug(ex, "Toast fit measure failed; using default card size.");
                 }
 
-                var widthScale = (MaxToastWidthFraction * area.Width) / natural.Width;
+                var scaleToPhys = _activeMonitorScale > 0 ? _activeMonitorScale : 1.0;
+                var widthScale = (MaxToastWidthFraction * anchorPhys.Width) / (natural.Width * scaleToPhys);
 
                 // Cap height per individual card, not for the whole stack: a wave of several toasts
-                // stacks vertically, and the stack should be allowed to grow tall rather than shrinking
-                // every card to keep the whole column within the height fraction. Only a single card
-                // that is itself taller than the fraction gets scaled down.
+                // stacks vertically, and should grow tall rather than shrinking every card. Only a
+                // single card that is itself taller than the fraction gets scaled down.
                 var itemCount = (content as ItemsControl)?.Items.Count ?? 1;
-                var perItemHeight = natural.Height / Math.Max(1, itemCount);
-                var heightScale = (MaxToastHeightFraction * area.Height) / perItemHeight;
+                var perItemHeight = (natural.Height / Math.Max(1, itemCount)) * scaleToPhys;
+                var heightScale = (MaxToastHeightFraction * anchorPhys.Height) / perItemHeight;
                 var scale = Math.Min(widthScale, heightScale);
 
                 return scale < 1.0 ? scale : 1.0;
@@ -1230,96 +1320,142 @@ namespace PlayniteAchievements.Services.UI
             }
         }
 
-        private static Rect ConvertPhysicalToDip(Window window, System.Drawing.Rectangle rect)
-        {
-            return ConvertPhysicalToDip(window, rect, out _);
-        }
+        // Physical-pixel slide for the in-game path: the window is positioned by SetWindowPos, so the
+        // WPF Window.Top animation can't be used. The physical Y is interpolated using the easing and
+        // duration authored in the themeable slide storyboards (SlideIn/SlideOutStoryboardKey); these
+        // are only the fallbacks used when a theme defines no slide storyboard.
+        private const double SlideOvershootAmplitude = 0.35;
+        private const int SlideInDurationMs = 240;
+        private const int SlideOutDurationMs = 200;
+        // Extra travel beyond the card height so the card fully clears the screen edge in and out.
+        private const double SlideTravelPaddingDip = 40d;
+        // Small pause after a slide-out finishes before the window is torn down.
+        private const int SlideSettleBufferMs = 10;
+        // Below this, the content scale is treated as 1.0 and no LayoutTransform is applied.
+        private const double ContentScaleEpsilon = 0.001;
 
-        /// <summary>
-        /// Converts a physical-pixel rectangle to WPF device-independent units. Because the Playnite
-        /// process is system-DPI-aware, TransformFromDevice is a single global matrix, so when the
-        /// toast window has no presentation source yet (pre-Show placement) the main window's
-        /// transform is exactly right. Only when neither has a source does it fall back to treating
-        /// pixels as DIPs (1:1), which is reported via <paramref name="transformSource"/> so the
-        /// diagnostics log can flag that degraded case rather than hiding it.
-        /// </summary>
-        private static Rect ConvertPhysicalToDip(Window window, System.Drawing.Rectangle rect, out string transformSource)
-        {
-            try
-            {
-                var target = PresentationSource.FromVisual(window)?.CompositionTarget;
-                if (target != null)
-                {
-                    transformSource = "window";
-                    return TransformRect(target.TransformFromDevice, rect);
-                }
+        private static readonly IEasingFunction DefaultSlideInEase =
+            new BackEase { EasingMode = EasingMode.EaseOut, Amplitude = SlideOvershootAmplitude };
+        private static readonly IEasingFunction DefaultSlideOutEase =
+            new CubicEase { EasingMode = EasingMode.EaseIn };
 
-                var main = Application.Current?.MainWindow;
-                var mainTarget = main != null ? PresentationSource.FromVisual(main)?.CompositionTarget : null;
-                if (mainTarget != null)
-                {
-                    transformSource = "mainwindow";
-                    return TransformRect(mainTarget.TransformFromDevice, rect);
-                }
-            }
-            catch
-            {
-                // Fall through to raw (assume 1:1 device scale).
-            }
-
-            transformSource = "identity";
-            return new Rect(rect.Left, rect.Top, rect.Width, rect.Height);
-        }
-
-        private static Rect TransformRect(Matrix transform, System.Drawing.Rectangle rect)
-        {
-            var topLeft = transform.Transform(new Point(rect.Left, rect.Top));
-            var bottomRight = transform.Transform(new Point(rect.Right, rect.Bottom));
-            return new Rect(topLeft, bottomRight);
-        }
-
-        private void SlideIn(Window window)
+        private void SlideInPhysical(Window window)
         {
             if (window == null)
             {
                 return;
             }
-
-            var resting = window.Top;
-            var distance = SlideDistance(window);
-            var start = SlideFromBottom() ? resting + distance : resting - distance;
 
             window.Opacity = 1;
-            // Slight overshoot so the toast pops past its resting point and settles. The easing and
-            // duration come from the themeable PlayAch.Storyboard.ToastSlideIn storyboard; the fallback
-            // keeps the original feel if a theme override is absent or malformed.
-            RunTopSlide(
-                window,
-                AchievementToastTemplateResolver.SlideInStoryboardKey,
-                start,
-                resting,
-                new BackEase { EasingMode = EasingMode.EaseOut, Amplitude = 0.35 },
-                240);
-        }
-
-        private void SlideOut(Window window)
-        {
-            if (window == null)
+            if (!TryComputeRestingCorner(window, out var rx, out var ry))
             {
                 return;
             }
 
-            var resting = window.Top;
-            var distance = SlideDistance(window);
-            var end = SlideFromBottom() ? resting + distance : resting - distance;
+            ResolveSlideTiming(
+                AchievementToastTemplateResolver.SlideInStoryboardKey, DefaultSlideInEase, SlideInDurationMs,
+                out var ease, out var durationMs);
+            var distance = SlideDistancePhysical(window);
+            var startY = SlideFromBottom() ? ry + distance : ry - distance;
+            RunPhysicalSlide(window, rx, startY, ry, ease, durationMs);
+        }
 
-            RunTopSlide(
-                window,
-                AchievementToastTemplateResolver.SlideOutStoryboardKey,
-                resting,
-                end,
-                new CubicEase { EasingMode = EasingMode.EaseIn },
-                200);
+        // Returns the slide-out duration (ms) so the caller waits exactly that long; 0 if it didn't run.
+        private double SlideOutPhysical(Window window)
+        {
+            if (window == null)
+            {
+                return 0;
+            }
+
+            if (!TryComputeRestingCorner(window, out var rx, out var ry))
+            {
+                return 0;
+            }
+
+            ResolveSlideTiming(
+                AchievementToastTemplateResolver.SlideOutStoryboardKey, DefaultSlideOutEase, SlideOutDurationMs,
+                out var ease, out var durationMs);
+            var distance = SlideDistancePhysical(window);
+            var endY = SlideFromBottom() ? ry + distance : ry - distance;
+            RunPhysicalSlide(window, rx, ry, endY, ease, durationMs);
+            return durationMs;
+        }
+
+        // Easing + duration for a physical slide, taken from the themeable storyboard when it defines
+        // them, else the supplied fallbacks. Reuses ResolveAnimation, which clones the storyboard's
+        // first DoubleAnimation (the same resource the countdown bar reads).
+        private void ResolveSlideTiming(
+            string storyboardKey, IEasingFunction fallbackEase, double fallbackMs,
+            out IEasingFunction ease, out double durationMs)
+        {
+            ease = fallbackEase;
+            durationMs = fallbackMs;
+
+            var animation = ResolveAnimation(storyboardKey);
+            if (animation == null)
+            {
+                return;
+            }
+
+            if (animation.EasingFunction != null)
+            {
+                ease = animation.EasingFunction;
+            }
+
+            if (animation.Duration.HasTimeSpan)
+            {
+                durationMs = animation.Duration.TimeSpan.TotalMilliseconds;
+            }
+        }
+
+        private int SlideDistancePhysical(Window window)
+        {
+            return (int)Math.Round(SlideDistance(window) * ToastWindowPlacer.RenderScale(window));
+        }
+
+        // Animates the toast's physical Y from fromY to toY over durationMs, eased per `ease`, moving
+        // the HWND each frame. Any prior slide is stopped first. Replaces the WPF Window.Top slide for
+        // the physical (in-game) path.
+        private void RunPhysicalSlide(Window window, int x, int fromY, int toY, IEasingFunction ease, double durationMs)
+        {
+            StopActiveSlide();
+            if (durationMs <= 0)
+            {
+                ToastWindowPlacer.MovePhysical(window, x, toY);
+                return;
+            }
+
+            var stopwatch = System.Diagnostics.Stopwatch.StartNew();
+            EventHandler tick = null;
+            tick = (s, e) =>
+            {
+                var t = Math.Min(1.0, stopwatch.Elapsed.TotalMilliseconds / durationMs);
+                var k = ease != null ? ease.Ease(t) : t;
+                var y = (int)Math.Round(fromY + ((toY - fromY) * k));
+                ToastWindowPlacer.MovePhysical(window, x, y);
+                if (t >= 1.0)
+                {
+                    CompositionTarget.Rendering -= tick;
+                    if (ReferenceEquals(_activeSlideTick, tick))
+                    {
+                        _activeSlideTick = null;
+                    }
+                }
+            };
+
+            _activeSlideTick = tick;
+            ToastWindowPlacer.MovePhysical(window, x, fromY);
+            CompositionTarget.Rendering += tick;
+        }
+
+        private void StopActiveSlide()
+        {
+            if (_activeSlideTick != null)
+            {
+                CompositionTarget.Rendering -= _activeSlideTick;
+                _activeSlideTick = null;
+            }
         }
 
         private static double SlideDistance(Window window)
@@ -1327,10 +1463,10 @@ namespace PlayniteAchievements.Services.UI
             var height = window.ActualHeight > 0 ? window.ActualHeight : window.Height;
             if (double.IsNaN(height) || height <= 0)
             {
-                height = 138;
+                height = ToastWindowPlacer.DefaultCardHeightDip;
             }
 
-            return height + 40;
+            return height + SlideTravelPaddingDip;
         }
 
         private bool SlideFromBottom()
@@ -1464,39 +1600,6 @@ namespace PlayniteAchievements.Services.UI
             }
 
             return results;
-        }
-
-        /// <summary>
-        /// Slides the window's Top between two positions using the animation authored in the given
-        /// themeable storyboard (easing and duration), patching only the runtime start/end positions.
-        /// Falls back to a code-built animation with the supplied easing/duration when no storyboard
-        /// resource resolves, so a missing or malformed theme override never breaks the toast. Applied
-        /// via BeginAnimation (not Storyboard.Begin) so the existing release step
-        /// (window.BeginAnimation(Window.TopProperty, null)) and per-frame repositioning are unchanged.
-        /// </summary>
-        private void RunTopSlide(
-            Window window,
-            string storyboardKey,
-            double from,
-            double to,
-            IEasingFunction fallbackEasing,
-            int fallbackMilliseconds)
-        {
-            if (window == null)
-            {
-                return;
-            }
-
-            var animation = ResolveAnimation(storyboardKey) ?? new DoubleAnimation
-            {
-                Duration = TimeSpan.FromMilliseconds(fallbackMilliseconds),
-                FillBehavior = FillBehavior.HoldEnd,
-                EasingFunction = fallbackEasing
-            };
-
-            animation.From = from;
-            animation.To = to;
-            window.BeginAnimation(Window.TopProperty, animation);
         }
 
         /// <summary>

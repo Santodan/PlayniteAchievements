@@ -23,14 +23,14 @@ namespace PlayniteAchievements.Tests.Services
                 equivalent: false);
 
             Assert.AreEqual(DateTime.MaxValue, schedule.NextDueUtc);
-            Assert.IsFalse(schedule.ShouldEmitUnlocks(isRemote: false));
+            Assert.IsFalse(schedule.ShouldEmitUnlocks());
 
             schedule.SourceAttached(Start.AddMilliseconds(10));
 
             Assert.AreEqual(Start.AddMilliseconds(10), schedule.NextDueUtc);
             schedule.BeginRead();
             schedule.Succeeded(Start.AddMilliseconds(20), TimeSpan.FromSeconds(60));
-            Assert.IsTrue(schedule.ShouldEmitUnlocks(isRemote: false));
+            Assert.IsTrue(schedule.ShouldEmitUnlocks());
             Assert.AreEqual(Start.AddMilliseconds(20).AddSeconds(60), schedule.NextDueUtc);
         }
 
@@ -99,7 +99,7 @@ namespace PlayniteAchievements.Tests.Services
         }
 
         [TestMethod]
-        public void RemoteSource_IsImmediatelyToastEligible_WhileFallbackKeepsStartupGrace()
+        public void RemoteSource_PrimesSilently_WhileFallbackKeepsStartupGrace()
         {
             var remote = new InGameReadSchedule();
             remote.Configure(
@@ -109,8 +109,13 @@ namespace PlayniteAchievements.Tests.Services
                 isRemote: true,
                 equivalent: false);
 
+            // A remote source is scheduled to read immediately, but like every other source it
+            // establishes its baseline silently on that first read and only emits thereafter.
             Assert.AreEqual(Start, remote.NextDueUtc);
-            Assert.IsTrue(remote.ShouldEmitUnlocks(isRemote: true));
+            Assert.IsFalse(remote.ShouldEmitUnlocks());
+            remote.BeginRead();
+            remote.Succeeded(Start.AddSeconds(1), TimeSpan.FromSeconds(15));
+            Assert.IsTrue(remote.ShouldEmitUnlocks());
 
             var fallback = new InGameReadSchedule();
             fallback.Configure(
