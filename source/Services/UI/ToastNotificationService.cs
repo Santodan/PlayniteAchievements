@@ -35,16 +35,20 @@ namespace PlayniteAchievements.Services.UI
         private readonly GameCustomDataStore _gameCustomDataStore;
         private readonly Queue<AchievementToastViewModel> _queue = new Queue<AchievementToastViewModel>();
         private bool _processing;
-        // Gap (DIP) from the screen/game-window corner to the toast window edge. The card's own
-        // ToastGlowMargin sits inside the window, so the visible card body is this plus that glow
-        // room from the corner. Tunable: lower toward 0 to sit closer (glow stays on-screen).
-        private const double CornerGapDip = 8d;
+        // Target gap (DIP) from the screen/game-window corner to the visible card body, held
+        // constant regardless of the card's ToastGlowMargin: the window margin is derived as
+        // CornerGapDip - glow so the body sits here whether or not the border glow is on (with the
+        // glow on, the glow itself may reach the screen edge). Tunable.
+        private const double CornerGapDip = 24d;
 
         private bool _disposed;
         private Window _activeWindow;
         // The corner the current wave uses, resolved once per wave (theme override or plugin
         // setting). Read by the per-frame positioning path so it isn't re-resolved every frame.
         private ToastScreenCorner _activePosition = ToastScreenCorner.BottomRight;
+        // The wave cards' uniform ToastGlowMargin, resolved once per wave. Positioning subtracts it
+        // from CornerGapDip so the visible card body sits a constant distance from the corner.
+        private double _activeCardGlow;
         private bool _activeToastThemeStylingEnabled = true;
         // The game the current wave belongs to, resolved once per wave. Screenshot capture and
         // toast placement key window resolution off this game so a wave from one running game
@@ -442,6 +446,7 @@ namespace PlayniteAchievements.Services.UI
             // setting. Positioning (including the per-frame game-window follow) and slide direction
             // both read the resolved value.
             _activePosition = EffectivePosition();
+            _activeCardGlow = wave[0].ToastGlowMargin.Top;
             var waveGameId = wave[0].PlayniteGameId;
             _activeWaveGameId = waveGameId != Guid.Empty ? waveGameId : (Guid?)null;
 
@@ -1076,7 +1081,7 @@ namespace PlayniteAchievements.Services.UI
                 return;
             }
 
-            var margin = CornerGapDip;
+            var margin = CornerGapDip - _activeCardGlow;
             var width = window.ActualWidth > 0 ? window.ActualWidth : window.Width;
             var height = window.ActualHeight > 0 ? window.ActualHeight : window.Height;
             if (double.IsNaN(width) || width <= 0 || double.IsNaN(height) || height <= 0)
