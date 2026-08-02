@@ -146,6 +146,12 @@ namespace PlayniteAchievements.Services.Recording
             public Timer PruneTimer;
             public int RestartCount;
             public volatile bool Stopping;
+            // Capture-health watchdog state (diagnostic): the newest segment file seen and when it
+            // last advanced (to detect a frozen-but-alive capture that stops opening segments), plus
+            // the largest closed segment seen this session as a healthy-size reference in the log.
+            public string LastSegmentPath;
+            public DateTime LastSegmentAdvanceUtc;
+            public long MaxSegmentBytes;
         }
 
         private sealed class ClipRequest
@@ -1140,6 +1146,7 @@ namespace PlayniteAchievements.Services.Recording
 
                 File.Move(tempPath, outputPath);
                 _logger?.Info($"[Recording] Saved unlock clip: {outputPath}");
+                VerifyClipNotFrozen(session, outputPath, request.AchievementName, plan.DurationSeconds);
                 return outputPath;
             }
             finally
@@ -1354,6 +1361,7 @@ namespace PlayniteAchievements.Services.Recording
                         RecordingCommandBuilder.SegmentFilePrefix,
                         RecordingCommandBuilder.SegmentFileExtension),
                     TimeZoneInfo.Local);
+                LogCaptureHealth(session, segments);
                 foreach (var segment in SegmentTimeline.SelectPrunable(
                              segments, retentionInterval, preRoll, SegmentSeconds, MaxBufferBytes))
                 {
@@ -1394,6 +1402,127 @@ namespace PlayniteAchievements.Services.Recording
             {
                 _logger?.Debug(ex, "[Recording] Prune tick failed.");
             }
+        }
+
+        /// <summary>
+        /// Diagnostic only: a per-prune-tick capture-health line. Warns when the muxer has stopped
+        /// opening new segments — a capture frozen while its process stays alive, so nothing crashes
+        /// and the exit-driven fallback never fires. That is the failure that leaves an unlock with
+        /// no footage ("no buffered segments overlap the clip window"). Frozen-content where
+        /// segments still advance but every frame is identical is caught separately, at clip time,
+        /// by <see cref="VerifyClipNotFrozen"/>. Never throws.
+        /// </summary>
+        private void LogCaptureHealth(CaptureSession session, IReadOnlyList<SegmentTimeline.SegmentInfo> segments)
+        {
+            try
+            {
+                if (session == null || session.Stopping ||
+                    session.CaptureHost == null || session.CaptureHost.HasExited)
+                {
+                    return;
+                }
+
+                var now = DateTime.UtcNow;
+                if (segments == null || segments.Count == 0)
+                {
+                    if ((now - session.CaptureStartUtc).TotalSeconds > SegmentSeconds * 3)
+                    {
+                        _logger?.Warn(
+                            $"[RecordingHealth] '{session.GameName}': capture alive but no segments on disk " +
+                            $"{(now - session.CaptureStartUtc).TotalSeconds:F0}s after start.");
+                    }
+
+                    return;
+                }
+
+                var newest = segments[segments.Count - 1];
+                if (!string.Equals(newest.Path, session.LastSegmentPath, StringComparison.OrdinalIgnoreCase))
+                {
+                    session.LastSegmentPath = newest.Path;
+                    session.LastSegmentAdvanceUtc = now;
+                }
+
+                var sinceNewSegment = (now - session.LastSegmentAdvanceUtc).TotalSeconds;
+                // The still-open newest segment grows as it records; the one before it is the most
+                // recent closed segment and the fair size sample.
+                var lastClosed = segments.Count >= 2 ? segments[segments.Count - 2] : null;
+                if (lastClosed != null && lastClosed.SizeBytes > session.MaxSegmentBytes)
+                {
+                    session.MaxSegmentBytes = lastClosed.SizeBytes;
+                }
+
+                var line =
+                    $"[RecordingHealth] '{session.GameName}': segments={segments.Count} " +
+                    $"newestAge={(now - newest.StartUtc).TotalSeconds:F0}s sinceNewSegment={sinceNewSegment:F0}s " +
+                    $"lastClosed={(lastClosed?.SizeBytes ?? 0) / 1024}KB peak={session.MaxSegmentBytes / 1024}KB";
+
+                // A new segment should open every SegmentSeconds; several periods without one means
+                // the capture has stalled while the process is still alive.
+                if (sinceNewSegment > SegmentSeconds * 3 + 2)
+                {
+                    _logger?.Warn(
+                        $"{line} -- STALLED: no new segment for {sinceNewSegment:F0}s " +
+                        "(capture frozen; process alive so no crash/fallback fired).");
+                }
+                else
+                {
+                    _logger?.Debug(line);
+                }
+            }
+            catch (Exception ex)
+            {
+                _logger?.Debug(ex, "[RecordingHealth] Health check failed.");
+            }
+        }
+
+        /// <summary>
+        /// Diagnostic only: after a clip is saved, decode it through ffmpeg's freezedetect filter
+        /// and warn when the clip is frozen for most of its length — the fingerprint of a capture
+        /// that kept muxing the same frame (observed on the ddagrab GPU-resident path), which
+        /// produces a valid, full-size file the encode pipeline can't distinguish from real footage.
+        /// The freeze duration is set to 60% of the clip so a brief static moment (a menu, a load
+        /// screen) never trips it. Fire-and-forget, job-object owned; never throws.
+        /// </summary>
+        private void VerifyClipNotFrozen(CaptureSession session, string clipPath, string achievementName, double clipSeconds)
+        {
+            var freezeSeconds = Math.Max(3, clipSeconds * 0.6);
+            _ = Task.Run(async () =>
+            {
+                try
+                {
+                    var args =
+                        $"-hide_banner -nostats -i \"{clipPath}\" -map 0:v:0 " +
+                        $"-vf freezedetect=n=-60dB:d={freezeSeconds.ToString("F1", CultureInfo.InvariantCulture)} " +
+                        "-an -f null -";
+                    using (var host = new FfmpegProcessHost(session.FfmpegPath, args, _logger))
+                    {
+                        if (!host.Start(EnsureJobObject()))
+                        {
+                            return;
+                        }
+
+                        await host.WaitForExitAsync(TimeSpan.FromSeconds(60)).ConfigureAwait(false);
+                        var stderr = host.StdErrTail ?? string.Empty;
+                        if (stderr.IndexOf("freeze_start", StringComparison.OrdinalIgnoreCase) >= 0)
+                        {
+                            _logger?.Warn(
+                                $"[RecordingHealth] Saved clip for '{achievementName}' is frozen " +
+                                "(freezedetect fired for >=60% of the clip) -- the capture was producing static " +
+                                "frames. Suspect the ddagrab GPU-resident path; try Gdigrab or a non-Native " +
+                                $"recording resolution. Clip: {clipPath}");
+                        }
+                        else
+                        {
+                            _logger?.Debug(
+                                $"[RecordingHealth] Clip for '{achievementName}' passed the freeze check.");
+                        }
+                    }
+                }
+                catch (Exception ex)
+                {
+                    _logger?.Debug(ex, "[RecordingHealth] Clip freeze check failed.");
+                }
+            });
         }
 
         private static IEnumerable<(string Path, long SizeBytes)> ListBufferFiles(
