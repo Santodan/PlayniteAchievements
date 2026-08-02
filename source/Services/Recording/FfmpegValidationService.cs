@@ -85,11 +85,17 @@ namespace PlayniteAchievements.Services.Recording
 
             public bool SupportsQsvEncode { get; set; }
 
-            /// <summary>The codec of the first encoder whose test encode failed, null when none did.</summary>
-            public string FailedEncoderCodec { get; set; }
+            /// <summary>
+            /// Per hardware encoder, the ffmpeg stderr tail from its failing test encode (the driver
+            /// error), null when that encoder's probe passed or did not run. Stored per encoder so the
+            /// Test can surface the error for the encoder the user actually relies on, not just the
+            /// first one that happened to fail.
+            /// </summary>
+            public string NvencEncodeError { get; set; }
 
-            /// <summary>The ffmpeg stderr tail from that first failing test encode (the driver error).</summary>
-            public string EncoderProbeError { get; set; }
+            public string AmfEncodeError { get; set; }
+
+            public string QsvEncodeError { get; set; }
 
             /// <summary>GPU-resident capture support for a specific resolved encoder.</summary>
             public bool SupportsGpuCapture(RecordingEncoder encoder)
@@ -126,6 +132,22 @@ namespace PlayniteAchievements.Services.Recording
                         return AvailableEncoders.Contains("libx264");
                     default:
                         return true;
+                }
+            }
+
+            /// <summary>The stderr tail from the given encoder's failing test encode, null when none.</summary>
+            public string EncodeError(RecordingEncoder encoder)
+            {
+                switch (encoder)
+                {
+                    case RecordingEncoder.Nvenc:
+                        return NvencEncodeError;
+                    case RecordingEncoder.Amf:
+                        return AmfEncodeError;
+                    case RecordingEncoder.Qsv:
+                        return QsvEncodeError;
+                    default:
+                        return null;
                 }
             }
 
@@ -262,11 +284,7 @@ namespace PlayniteAchievements.Services.Recording
                     if (!probe.Ok)
                     {
                         SetEncodeSupport(result, encoder, false);
-                        if (result.FailedEncoderCodec == null)
-                        {
-                            result.FailedEncoderCodec = RecordingCommandBuilder.EncoderCodec(encoder);
-                            result.EncoderProbeError = probe.StdErrTail;
-                        }
+                        SetEncodeError(result, encoder, probe.StdErrTail);
                     }
                 }
             }
@@ -426,6 +444,23 @@ namespace PlayniteAchievements.Services.Recording
                     break;
                 case RecordingEncoder.Qsv:
                     result.SupportsQsvEncode = value;
+                    break;
+            }
+        }
+
+        private static void SetEncodeError(
+            FfmpegValidationResult result, RecordingEncoder encoder, string stdErrTail)
+        {
+            switch (encoder)
+            {
+                case RecordingEncoder.Nvenc:
+                    result.NvencEncodeError = stdErrTail;
+                    break;
+                case RecordingEncoder.Amf:
+                    result.AmfEncodeError = stdErrTail;
+                    break;
+                case RecordingEncoder.Qsv:
+                    result.QsvEncodeError = stdErrTail;
                     break;
             }
         }

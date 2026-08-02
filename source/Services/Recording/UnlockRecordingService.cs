@@ -1604,7 +1604,12 @@ namespace PlayniteAchievements.Services.Recording
             try
             {
                 var result = await _validation.ValidateAsync(ffmpegPath).ConfigureAwait(false);
-                return RecordingCommandBuilder.BuildEncoderArguments(RecordingEncoder.Auto, result?.AvailableEncoders);
+                // Prefer driver-validated encoders. Without a smoke test UsableEncoders equals
+                // AvailableEncoders (support is seeded from presence), so this matches the prior
+                // presence-only behavior unless a smoke-tested result is already cached — in which
+                // case Auto correctly skips a present-but-driver-broken encoder instead of picking
+                // it and crashing at record time.
+                return RecordingCommandBuilder.BuildEncoderArguments(RecordingEncoder.Auto, result?.UsableEncoders);
             }
             catch (Exception ex)
             {
