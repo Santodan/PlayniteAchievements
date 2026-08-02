@@ -22,9 +22,12 @@ namespace PlayniteAchievements.Services.InGameMonitoring
 
         public int RetryAttempt { get; private set; }
 
-        public bool ShouldEmitUnlocks(bool isRemote)
+        public bool ShouldEmitUnlocks()
         {
-            return Primed || isRemote;
+            // The first successful read of any source establishes the baseline silently; only
+            // subsequent reads emit. Remote sources are no longer exempted, so a freshly cleared
+            // or never-refreshed game can never surface its earned backlog on the first grab.
+            return Primed;
         }
 
         public void Configure(
@@ -50,7 +53,7 @@ namespace PlayniteAchievements.Services.InGameMonitoring
                 return;
             }
 
-            Primed = isRemote;
+            Primed = false;
             LastFileEventUtc = default;
             NextDueUtc = hasProgressSource
                 ? isRemote ? nowUtc : DateTime.MaxValue

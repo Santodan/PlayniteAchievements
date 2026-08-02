@@ -561,7 +561,7 @@ namespace PlayniteAchievements.Services
                     return;
                 }
 
-                emitUnlocks = state.Schedule.ShouldEmitUnlocks(state.Registration?.IsRemote == true);
+                emitUnlocks = state.Schedule.ShouldEmitUnlocks();
                 state.Schedule.Succeeded(
                     DateTime.UtcNow,
                     state.Registration?.PollInterval ?? TimeSpan.FromSeconds(60));
