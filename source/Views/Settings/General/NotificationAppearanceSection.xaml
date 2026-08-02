@@ -49,7 +49,7 @@
                                     BorderBrush="{DynamicResource PlayAch.Brush.Border}"
                                     BorderThickness="1"
                                     CornerRadius="8"
-                                    Padding="18"
+                                    Padding="0"
                                     HorizontalAlignment="Left"
                                     Margin="0,0,0,10">
                                 <ContentControl x:Name="ToastMockupHost"
