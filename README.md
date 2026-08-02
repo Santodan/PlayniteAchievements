@@ -99,6 +99,9 @@ The entries below are fork-side changes, grouped by date. When a date includes a
 
 ## Next release - TBD
 
+
+## 2026-08-02 - v3.0.0.1
+
 - v3.0.0 merge
 - `Start-page` migration fixed to not show the friend's achievements
 - Added the option for the highlighted achievement in the `Theme Migration`
@@ -146,6 +149,9 @@ The entries below are fork-side changes, grouped by date. When a date includes a
 - Fixed the notification not showing the achievement's icon when offline
 - Guides added to the github
 
+## Old Changelogs
+<details>
+
 ## 2026-07-09 - v2.5.3.2
 - Fixed the multiple folders detection showing the list index instead of the folder path
 - Fixed missing `Prestige Score` and `Collection Score` when using `SteamHunters` to fetch the schema
@@ -163,9 +169,6 @@ The entries below are fork-side changes, grouped by date. When a date includes a
  - It might trigger some rate-limit since it is through API
 - `Achievement notification` reimagined (`SAN-Integration` branch merged)
   - You can see the changelog in https://github.com/Santodan/PlayniteAchievements/issues/5#issuecomment-4877909986
-
-## Old Changelogs
-<details>
 
 ## 2026-06-22 - v2.5.3.1
 - v2.5.2 + v2.5.3 merge
