@@ -572,7 +572,7 @@ namespace PlayniteAchievements.Services.UI
             }
 
             var contentScale = fitScale * dpiComp;
-            items.LayoutTransform = Math.Abs(contentScale - 1.0) > 0.001
+            items.LayoutTransform = Math.Abs(contentScale - 1.0) > ContentScaleEpsilon
                 ? new ScaleTransform(contentScale, contentScale)
                 : null;
             window.Opacity = 0;
@@ -675,8 +675,8 @@ namespace PlayniteAchievements.Services.UI
 
                 if (!endedHidden)
                 {
-                    SlideOutPhysical(window);
-                    await Task.Delay(210).ConfigureAwait(true);
+                    var slideOutMs = SlideOutPhysical(window);
+                    await Task.Delay((int)Math.Round(slideOutMs) + SlideSettleBufferMs).ConfigureAwait(true);
                 }
             }
             catch (Exception ex) when (previewSource.HasValue)
@@ -1263,9 +1263,25 @@ namespace PlayniteAchievements.Services.UI
             }
         }
 
-        // Physical-pixel slide-in for the in-game path: the window is positioned by SetWindowPos, so
-        // the WPF Window.Top animation cannot be used. Interpolates the physical Y from off-corner to
-        // the resting corner with the same BackEase feel, driven by a self-removing per-frame handler.
+        // Physical-pixel slide for the in-game path: the window is positioned by SetWindowPos, so the
+        // WPF Window.Top animation can't be used. The physical Y is interpolated using the easing and
+        // duration authored in the themeable slide storyboards (SlideIn/SlideOutStoryboardKey); these
+        // are only the fallbacks used when a theme defines no slide storyboard.
+        private const double SlideOvershootAmplitude = 0.35;
+        private const int SlideInDurationMs = 240;
+        private const int SlideOutDurationMs = 200;
+        // Extra travel beyond the card height so the card fully clears the screen edge in and out.
+        private const double SlideTravelPaddingDip = 40d;
+        // Small pause after a slide-out finishes before the window is torn down.
+        private const int SlideSettleBufferMs = 10;
+        // Below this, the content scale is treated as 1.0 and no LayoutTransform is applied.
+        private const double ContentScaleEpsilon = 0.001;
+
+        private static readonly IEasingFunction DefaultSlideInEase =
+            new BackEase { EasingMode = EasingMode.EaseOut, Amplitude = SlideOvershootAmplitude };
+        private static readonly IEasingFunction DefaultSlideOutEase =
+            new CubicEase { EasingMode = EasingMode.EaseIn };
+
         private void SlideInPhysical(Window window)
         {
             if (window == null)
@@ -1279,26 +1295,61 @@ namespace PlayniteAchievements.Services.UI
                 return;
             }
 
+            ResolveSlideTiming(
+                AchievementToastTemplateResolver.SlideInStoryboardKey, DefaultSlideInEase, SlideInDurationMs,
+                out var ease, out var durationMs);
             var distance = SlideDistancePhysical(window);
             var startY = SlideFromBottom() ? ry + distance : ry - distance;
-            RunPhysicalSlide(window, rx, startY, ry, new BackEase { EasingMode = EasingMode.EaseOut, Amplitude = 0.35 }, 240);
+            RunPhysicalSlide(window, rx, startY, ry, ease, durationMs);
         }
 
-        private void SlideOutPhysical(Window window)
+        // Returns the slide-out duration (ms) so the caller waits exactly that long; 0 if it didn't run.
+        private double SlideOutPhysical(Window window)
         {
             if (window == null)
             {
-                return;
+                return 0;
             }
 
             if (!TryComputeRestingCorner(window, out var rx, out var ry))
             {
+                return 0;
+            }
+
+            ResolveSlideTiming(
+                AchievementToastTemplateResolver.SlideOutStoryboardKey, DefaultSlideOutEase, SlideOutDurationMs,
+                out var ease, out var durationMs);
+            var distance = SlideDistancePhysical(window);
+            var endY = SlideFromBottom() ? ry + distance : ry - distance;
+            RunPhysicalSlide(window, rx, ry, endY, ease, durationMs);
+            return durationMs;
+        }
+
+        // Easing + duration for a physical slide, taken from the themeable storyboard when it defines
+        // them, else the supplied fallbacks. Reuses ResolveAnimation, which clones the storyboard's
+        // first DoubleAnimation (the same resource the countdown bar reads).
+        private void ResolveSlideTiming(
+            string storyboardKey, IEasingFunction fallbackEase, double fallbackMs,
+            out IEasingFunction ease, out double durationMs)
+        {
+            ease = fallbackEase;
+            durationMs = fallbackMs;
+
+            var animation = ResolveAnimation(storyboardKey);
+            if (animation == null)
+            {
                 return;
             }
 
-            var distance = SlideDistancePhysical(window);
-            var endY = SlideFromBottom() ? ry + distance : ry - distance;
-            RunPhysicalSlide(window, rx, ry, endY, new CubicEase { EasingMode = EasingMode.EaseIn }, 200);
+            if (animation.EasingFunction != null)
+            {
+                ease = animation.EasingFunction;
+            }
+
+            if (animation.Duration.HasTimeSpan)
+            {
+                durationMs = animation.Duration.TimeSpan.TotalMilliseconds;
+            }
         }
 
         private int SlideDistancePhysical(Window window)
@@ -1355,10 +1406,10 @@ namespace PlayniteAchievements.Services.UI
             var height = window.ActualHeight > 0 ? window.ActualHeight : window.Height;
             if (double.IsNaN(height) || height <= 0)
             {
-                height = 138;
+                height = ToastWindowPlacer.DefaultCardHeightDip;
             }
 
-            return height + 40;
+            return height + SlideTravelPaddingDip;
         }
 
         private bool SlideFromBottom()
