@@ -77,6 +77,11 @@ namespace PlayniteAchievements.Services.UI
                     PixelFormats.Pbgra32);
 
                 var background = new DrawingVisual();
+                // NearestNeighbor keeps the screenshot layer a 1:1 copy: ComputeCanvas sizes the
+                // render target so the screenshot's source-to-device scale is exactly 1.0, so this
+                // samples each device pixel from its source pixel with no interpolation (crisp at
+                // any resolution). The frame host below keeps default high-quality rendering.
+                RenderOptions.SetBitmapScalingMode(background, BitmapScalingMode.NearestNeighbor);
                 using (var context = background.RenderOpen())
                 {
                     context.DrawImage(screenshot, new Rect(0, 0, canvasWidth, canvasHeight));
