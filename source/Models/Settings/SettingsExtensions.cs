@@ -76,11 +76,18 @@ namespace PlayniteAchievements.Models.Settings
             // Hotkey Settings
             target.EnableAchievementHotkeys = source.EnableAchievementHotkeys;
             target.EnableGlobalAchievementHotkeys = source.EnableGlobalAchievementHotkeys;
+            target.EnableViewAchievementsHotkey = source.EnableViewAchievementsHotkey;
+            target.EnableManageAchievementsHotkey = source.EnableManageAchievementsHotkey;
+            target.EnableOverviewHotkey = source.EnableOverviewHotkey;
+            target.EnableOpenSettingsHotkey = source.EnableOpenSettingsHotkey;
+            target.EnableCategoryModeHotkey = source.EnableCategoryModeHotkey;
+            target.EnableTestUnlockHotkey = source.EnableTestUnlockHotkey;
             target.ViewAchievementsHotkey = source.ViewAchievementsHotkey;
             target.ManageAchievementsHotkey = source.ManageAchievementsHotkey;
             target.OverviewHotkey = source.OverviewHotkey;
             target.OpenSettingsHotkey = source.OpenSettingsHotkey;
             target.CategoryModeHotkey = source.CategoryModeHotkey;
+            target.TestUnlockHotkey = source.TestUnlockHotkey;
 
             // Notification Settings
             target.EnableNotifications = source.EnableNotifications;

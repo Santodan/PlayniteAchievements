@@ -43,6 +43,7 @@ namespace PlayniteAchievements.Models.Settings
         public const string DefaultOverviewHotkey = "Ctrl+Alt+O";
         public const string DefaultOpenSettingsHotkey = "Ctrl+Alt+P";
         public const string DefaultCategoryModeHotkey = "C";
+        public const string DefaultTestUnlockHotkey = "Ctrl+Alt+T";
 
         /// <summary>
         /// Column key of the Progress column in game-summaries grids (matches the XAML ColumnKey and
@@ -112,11 +113,18 @@ namespace PlayniteAchievements.Models.Settings
         private RefreshModeType _defaultOverviewRefreshMode = RefreshModeType.Installed;
         private bool _enableAchievementHotkeys = true;
         private bool _enableGlobalAchievementHotkeys = false;
+        private bool _enableViewAchievementsHotkey = true;
+        private bool _enableManageAchievementsHotkey = true;
+        private bool _enableOverviewHotkey = true;
+        private bool _enableOpenSettingsHotkey = true;
+        private bool _enableCategoryModeHotkey = true;
+        private bool _enableTestUnlockHotkey = true;
         private string _viewAchievementsHotkey = DefaultViewAchievementsHotkey;
         private string _manageAchievementsHotkey = DefaultManageAchievementsHotkey;
         private string _overviewHotkey = DefaultOverviewHotkey;
         private string _openSettingsHotkey = DefaultOpenSettingsHotkey;
         private string _categoryModeHotkey = DefaultCategoryModeHotkey;
+        private string _testUnlockHotkey = DefaultTestUnlockHotkey;
         private bool _showHiddenIcon = false;
         private bool _showHiddenTitle = false;
         private bool _showHiddenDescription = false;
@@ -857,6 +865,61 @@ namespace PlayniteAchievements.Models.Settings
         }
 
         /// <summary>
+        /// Enables the View Achievements shortcut individually. Gated by <see cref="EnableAchievementHotkeys"/>.
+        /// </summary>
+        public bool EnableViewAchievementsHotkey
+        {
+            get => _enableViewAchievementsHotkey;
+            set => SetValue(ref _enableViewAchievementsHotkey, value);
+        }
+
+        /// <summary>
+        /// Enables the Manage Achievements shortcut individually. Gated by <see cref="EnableAchievementHotkeys"/>.
+        /// </summary>
+        public bool EnableManageAchievementsHotkey
+        {
+            get => _enableManageAchievementsHotkey;
+            set => SetValue(ref _enableManageAchievementsHotkey, value);
+        }
+
+        /// <summary>
+        /// Enables the Achievements Overview shortcut individually. Gated by <see cref="EnableAchievementHotkeys"/>.
+        /// </summary>
+        public bool EnableOverviewHotkey
+        {
+            get => _enableOverviewHotkey;
+            set => SetValue(ref _enableOverviewHotkey, value);
+        }
+
+        /// <summary>
+        /// Enables the Open Settings shortcut individually. Gated by <see cref="EnableAchievementHotkeys"/>.
+        /// </summary>
+        public bool EnableOpenSettingsHotkey
+        {
+            get => _enableOpenSettingsHotkey;
+            set => SetValue(ref _enableOpenSettingsHotkey, value);
+        }
+
+        /// <summary>
+        /// Enables the category-mode shortcut individually. Gated by <see cref="EnableAchievementHotkeys"/>.
+        /// </summary>
+        public bool EnableCategoryModeHotkey
+        {
+            get => _enableCategoryModeHotkey;
+            set => SetValue(ref _enableCategoryModeHotkey, value);
+        }
+
+        /// <summary>
+        /// Enables the shortcut that fires a notification for the running game's last-earned
+        /// achievement. Gated by <see cref="EnableAchievementHotkeys"/>.
+        /// </summary>
+        public bool EnableTestUnlockHotkey
+        {
+            get => _enableTestUnlockHotkey;
+            set => SetValue(ref _enableTestUnlockHotkey, value);
+        }
+
+        /// <summary>
         /// Shortcut that opens, focuses, or toggles the View Achievements window.
         /// </summary>
         public string ViewAchievementsHotkey
@@ -900,6 +963,16 @@ namespace PlayniteAchievements.Models.Settings
         {
             get => _categoryModeHotkey;
             set => SetValue(ref _categoryModeHotkey, NormalizeHotkeyText(value));
+        }
+
+        /// <summary>
+        /// Shortcut that fires the full notification flow (notification, screenshot, recording)
+        /// for the running game's last-earned achievement.
+        /// </summary>
+        public string TestUnlockHotkey
+        {
+            get => _testUnlockHotkey;
+            set => SetValue(ref _testUnlockHotkey, NormalizeHotkeyText(value));
         }
 
         #endregion
@@ -2430,11 +2503,18 @@ namespace PlayniteAchievements.Models.Settings
                 // Hotkey Settings
                 EnableAchievementHotkeys = this.EnableAchievementHotkeys,
                 EnableGlobalAchievementHotkeys = this.EnableGlobalAchievementHotkeys,
+                EnableViewAchievementsHotkey = this.EnableViewAchievementsHotkey,
+                EnableManageAchievementsHotkey = this.EnableManageAchievementsHotkey,
+                EnableOverviewHotkey = this.EnableOverviewHotkey,
+                EnableOpenSettingsHotkey = this.EnableOpenSettingsHotkey,
+                EnableCategoryModeHotkey = this.EnableCategoryModeHotkey,
+                EnableTestUnlockHotkey = this.EnableTestUnlockHotkey,
                 ViewAchievementsHotkey = this.ViewAchievementsHotkey,
                 ManageAchievementsHotkey = this.ManageAchievementsHotkey,
                 OverviewHotkey = this.OverviewHotkey,
                 OpenSettingsHotkey = this.OpenSettingsHotkey,
                 CategoryModeHotkey = this.CategoryModeHotkey,
+                TestUnlockHotkey = this.TestUnlockHotkey,
 
                 // Notification Settings
                 EnableNotifications = this.EnableNotifications,
