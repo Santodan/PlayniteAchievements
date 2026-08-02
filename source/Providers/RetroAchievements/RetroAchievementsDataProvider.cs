@@ -304,7 +304,11 @@ namespace PlayniteAchievements.Providers.RetroAchievements
             {
                 ProviderKey = ProviderKey,
                 WatchTargets = new[] { logPath },
-                PollInterval = TimeSpan.FromSeconds(60),
+                // Short safety re-read: the FileSystemWatcher is the primary signal, but on synced folders
+                // (e.g. OneDrive) change events are delayed or coalesced, so bound worst-case detection to
+                // ~1s rather than leaving it to a minute-long fallback. The incremental offset tail keeps
+                // each re-read cheap.
+                PollInterval = TimeSpan.FromSeconds(1),
                 State = new RaEmulatorLogSession(logPath, entry.Profile, achievementIds)
             };
         }

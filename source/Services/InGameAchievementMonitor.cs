@@ -25,7 +25,7 @@ namespace PlayniteAchievements.Services
     {
         private const int StartupDelaySeconds = 20;
         private static readonly TimeSpan SchedulerResolution = TimeSpan.FromMilliseconds(100);
-        private static readonly TimeSpan FileDebounce = TimeSpan.FromMilliseconds(500);
+        private static readonly TimeSpan FileDebounce = TimeSpan.FromMilliseconds(150);
         private static readonly int[] StableReadRetryMilliseconds = { 100, 250, 500, 1000 };
 
         private sealed class FriendPollTarget
