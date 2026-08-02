@@ -11,6 +11,8 @@
     <RootNamespace>PlayniteAchievements</RootNamespace>
     <AssemblyName>PlayniteAchievements</AssemblyName>
     <TargetFrameworkVersion>v4.6.2</TargetFrameworkVersion>
+    <!-- Enables consuming the WinRT winmd references (Windows.Graphics.Capture) at net462. -->
+    <TargetPlatformVersion>10.0.19041.0</TargetPlatformVersion>
     <FileAlignment>512</FileAlignment>
     <Deterministic>true</Deterministic>
     <PathMap>$(MSBuildProjectDirectory)=/PlayniteAchievements/source</PathMap>
@@ -84,6 +86,33 @@
       <HintPath>packages\SharpCompress.0.26.0\lib\net46\SharpCompress.dll</HintPath>
       <Private>True</Private>
     </Reference>
+    <!-- D3D11 device + texture read-back for WGC HDR capture (Services\Capture). -->
+    <Reference Include="SharpDX">
+      <HintPath>packages\SharpDX.4.2.0\lib\net45\SharpDX.dll</HintPath>
+      <Private>True</Private>
+    </Reference>
+    <Reference Include="SharpDX.Direct3D11">
+      <HintPath>packages\SharpDX.Direct3D11.4.2.0\lib\net45\SharpDX.Direct3D11.dll</HintPath>
+      <Private>True</Private>
+    </Reference>
+    <Reference Include="SharpDX.DXGI">
+      <HintPath>packages\SharpDX.DXGI.4.2.0\lib\net45\SharpDX.DXGI.dll</HintPath>
+      <Private>True</Private>
+    </Reference>
+    <!-- WinRT projections for Windows.Graphics.Capture (WGC). The winmds are compile-time metadata
+         (Private=False: the OS provides the types at runtime); System.Runtime.WindowsRuntime carries
+         the projection glue (IAsyncOperation/AsTask, WinRT events). Requires TargetPlatformVersion. -->
+    <Reference Include="Windows.Foundation.FoundationContract">
+      <HintPath>packages\Microsoft.Windows.SDK.Contracts.10.0.19041.1\ref\netstandard2.0\Windows.Foundation.FoundationContract.winmd</HintPath>
+      <IsWinMDFile>true</IsWinMDFile>
+      <Private>False</Private>
+    </Reference>
+    <Reference Include="Windows.Foundation.UniversalApiContract">
+      <HintPath>packages\Microsoft.Windows.SDK.Contracts.10.0.19041.1\ref\netstandard2.0\Windows.Foundation.UniversalApiContract.winmd</HintPath>
+      <IsWinMDFile>true</IsWinMDFile>
+      <Private>False</Private>
+    </Reference>
+    <Reference Include="System.Runtime.WindowsRuntime" />
     <Reference Include="System.Numerics" />
     <Reference Include="System.ValueTuple">
       <HintPath>packages\System.ValueTuple.4.5.0\lib\net461\System.ValueTuple.dll</HintPath>
