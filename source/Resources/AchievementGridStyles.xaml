@@ -564,6 +564,20 @@
            BasedOn="{StaticResource WrappedDataGridTextStyle}">
     </Style>
 
+    <!-- Wrap then ellipsis-trim the last visible line instead of hard-clipping.
+         The MaxHeight bound is what lets CharacterEllipsis fire inside fixed-height rows. -->
+    <Style x:Key="EllipsisWrappedDataGridTextStyle"
+           TargetType="TextBlock"
+           BasedOn="{StaticResource WrappedDataGridTextStyle}">
+        <Setter Property="TextTrimming" Value="CharacterEllipsis"/>
+        <Setter Property="MaxHeight" Value="{StaticResource PlayAch.Size.Text.DataGridCellMaxHeight}"/>
+    </Style>
+
+    <Style x:Key="EllipsisWrappedCenteredDataGridTextStyle"
+           TargetType="TextBlock"
+           BasedOn="{StaticResource EllipsisWrappedDataGridTextStyle}">
+    </Style>
+
     <!-- Shared selector button + menu item styles (overview/view-achievements/manage-achievements) -->
     <Style x:Key="AchievementSelectorButtonStyle"
            TargetType="Button"
