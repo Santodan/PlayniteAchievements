@@ -53,6 +53,7 @@ namespace PlayniteAchievements.Services.Capture
         private D3D11.Texture2D _latest; // owned, BGRA, the most recent (tone-mapped) frame
         private MediaFoundationH264Encoder _encoder;
         private long _segmentFrameIndex;
+        private int _segmentCount;
         private DateTime _segmentStartUtc;
         private readonly long _frameDuration100ns;
 
@@ -137,26 +138,31 @@ namespace PlayniteAchievements.Services.Capture
             var next = DateTime.UtcNow;
             try
             {
-                RotateSegment();
                 while (_running)
                 {
                     PullLatestFrame();
 
-                    if (_latest != null && _encoder != null)
+                    if (_latest != null)
                     {
-                        try
-                        {
-                            _encoder.WriteFrame(_latest, _segmentFrameIndex * _frameDuration100ns, _frameDuration100ns);
-                            _segmentFrameIndex++;
-                        }
-                        catch (Exception ex)
-                        {
-                            _logger?.Debug(ex, "[Recording] WGC-MF frame encode failed.");
-                        }
-
-                        if ((DateTime.UtcNow - _segmentStartUtc).TotalSeconds >= _segmentSeconds)
+                        // Create the first segment once we have a frame (its size), and roll over on
+                        // schedule. The encoder can't be built before the first frame, so this — not
+                        // a one-time call before the loop — is what starts encoding.
+                        if (_encoder == null || (DateTime.UtcNow - _segmentStartUtc).TotalSeconds >= _segmentSeconds)
                         {
                             RotateSegment();
+                        }
+
+                        if (_encoder != null)
+                        {
+                            try
+                            {
+                                _encoder.WriteFrame(_latest, _segmentFrameIndex * _frameDuration100ns, _frameDuration100ns);
+                                _segmentFrameIndex++;
+                            }
+                            catch (Exception ex)
+                            {
+                                _logger?.Debug(ex, "[Recording] WGC-MF frame encode failed.");
+                            }
                         }
                     }
 
@@ -241,6 +247,11 @@ namespace PlayniteAchievements.Services.Capture
             _encoder = new MediaFoundationH264Encoder(_device, path, _latest.Description.Width, _latest.Description.Height, _fps, _bitrate);
             _segmentFrameIndex = 0;
             _segmentStartUtc = DateTime.UtcNow;
+            _segmentCount++;
+            if (_segmentCount <= 2 || _segmentCount % 12 == 0)
+            {
+                _logger?.Debug($"[Recording] WGC-MF segment #{_segmentCount} started ({Path.GetFileName(path)}, {_latest.Description.Width}x{_latest.Description.Height}).");
+            }
         }
 
         private void FinalizeSegment()
