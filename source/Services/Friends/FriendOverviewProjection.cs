@@ -409,7 +409,8 @@ namespace PlayniteAchievements.Services.Friends
 
             data.Friends = mergedFriends
                 .Concat(unmergedFriends)
-                .OrderByDescending(friend => friend.LastUnlockUtc ?? DateTime.MinValue)
+                .OrderByDescending(friend => friend.IsFavorite)
+                .ThenByDescending(friend => friend.LastUnlockUtc ?? DateTime.MinValue)
                 .ThenBy(friend => friend.DisplayName, StringComparer.CurrentCultureIgnoreCase)
                 .ToList();
             return data;
@@ -448,10 +449,14 @@ namespace PlayniteAchievements.Services.Friends
             var accountKey = FriendAccountRef.BuildKey(friend.ProviderKey, friend.ExternalUserId);
             if (!string.IsNullOrWhiteSpace(accountKey) &&
                 settingsByAccount != null &&
-                settingsByAccount.TryGetValue(accountKey, out var setting) &&
-                !string.IsNullOrWhiteSpace(setting.Nickname))
+                settingsByAccount.TryGetValue(accountKey, out var setting))
             {
-                friend.DisplayName = setting.Nickname;
+                if (!string.IsNullOrWhiteSpace(setting.Nickname))
+                {
+                    friend.DisplayName = setting.Nickname;
+                }
+
+                friend.IsFavorite = setting.IsFavorite;
             }
 
             friend.MemberAccounts = new List<FriendAccountRef>
@@ -502,6 +507,11 @@ namespace PlayniteAchievements.Services.Friends
                 LastUnlockUtc = members.Select(member => member.LastUnlockUtc).Where(value => value.HasValue).DefaultIfEmpty().Max(),
                 LastRefreshedUtc = members.Select(member => member.LastRefreshedUtc).Where(value => value.HasValue).DefaultIfEmpty().Max(),
                 TotalPlaytimeMinutes = members.Sum(member => Math.Max(0, member.TotalPlaytimeMinutes)),
+                IsFavorite = (group.Members ?? new List<FriendAccountRef>())
+                    .Any(member => member != null &&
+                                   settingsByAccount != null &&
+                                   settingsByAccount.TryGetValue(member.Key, out var favoriteEntry) &&
+                                   favoriteEntry.IsFavorite),
                 MemberAccounts = (group.Members ?? new List<FriendAccountRef>()).Select(member => member.Clone().Normalize()).ToList(),
                 MemberProviderKeys = (group.Members ?? new List<FriendAccountRef>())
                     .Select(member => member.ProviderKey)
