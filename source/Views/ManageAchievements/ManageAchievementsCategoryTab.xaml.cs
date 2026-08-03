@@ -11,7 +11,9 @@ using System.Windows.Controls.Primitives;
 using System.Windows.Data;
 using System.Windows.Input;
 using System.Windows.Media.Imaging;
-using Microsoft.Win32;
+// WinForms dialog: the WPF Microsoft.Win32 picker renders legacy-style on .NET Framework.
+using DialogResult = System.Windows.Forms.DialogResult;
+using OpenFileDialog = System.Windows.Forms.OpenFileDialog;
 using Playnite.SDK;
 using Playnite.SDK.Events;
 using PlayniteAchievements.Services;
@@ -230,7 +232,7 @@ namespace PlayniteAchievements.Views.ManageAchievements
                 Multiselect = false
             };
 
-            if (dialog.ShowDialog() == true)
+            if (dialog.ShowDialog() == DialogResult.OK)
             {
                 await ViewModel.ApplyCategoryLocalFileOverrideAsync(row, dialog.FileName);
             }

@@ -7,7 +7,12 @@ using System.Threading;
 using System.Threading.Tasks;
 using System.Windows;
 using System.Windows.Controls;
-using Microsoft.Win32;
+// WinForms file dialogs: on .NET Framework the WPF Microsoft.Win32 dialogs render the legacy
+// pre-Vista picker (their hook blocks the common-item-dialog upgrade); the WinForms ones
+// auto-upgrade to the modern Explorer-style dialog.
+using DialogResult = System.Windows.Forms.DialogResult;
+using OpenFileDialog = System.Windows.Forms.OpenFileDialog;
+using SaveFileDialog = System.Windows.Forms.SaveFileDialog;
 using Playnite.SDK;
 using PlayniteAchievements.Models;
 using PlayniteAchievements.Models.Settings;
@@ -886,7 +891,7 @@ namespace PlayniteAchievements.Views.Settings.General
                     FileName = BuildDefaultStyleFileName()
                 };
 
-                if (dialog.ShowDialog() != true)
+                if (dialog.ShowDialog() != DialogResult.OK)
                 {
                     return;
                 }
@@ -957,7 +962,7 @@ namespace PlayniteAchievements.Views.Settings.General
                     FileName = BuildDefaultStyleFileName()
                 };
 
-                if (dialog.ShowDialog() != true)
+                if (dialog.ShowDialog() != DialogResult.OK)
                 {
                     return;
                 }
@@ -1040,7 +1045,7 @@ namespace PlayniteAchievements.Views.Settings.General
                     Multiselect = false
                 };
 
-                if (dialog.ShowDialog() != true)
+                if (dialog.ShowDialog() != DialogResult.OK)
                 {
                     return;
                 }
@@ -1652,7 +1657,7 @@ namespace PlayniteAchievements.Views.Settings.General
                         : AchievementToastTemplateResolver.CustomToastTemplateFileName
                 };
 
-                if (dialog.ShowDialog() != true)
+                if (dialog.ShowDialog() != DialogResult.OK)
                 {
                     return;
                 }

@@ -6,7 +6,10 @@ using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using System.Windows;
-using Microsoft.Win32;
+// WinForms dialogs: the WPF Microsoft.Win32 pickers render legacy-style on .NET Framework.
+using DialogResult = System.Windows.Forms.DialogResult;
+using OpenFileDialog = System.Windows.Forms.OpenFileDialog;
+using SaveFileDialog = System.Windows.Forms.SaveFileDialog;
 using Playnite.SDK;
 using PlayniteAchievements.Common;
 using PlayniteAchievements.Models;
@@ -861,7 +864,7 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
                     FileName = BuildDefaultPortableFileBaseName()
                 };
 
-                if (dialog.ShowDialog() != true)
+                if (dialog.ShowDialog() != DialogResult.OK)
                 {
                     return;
                 }
@@ -905,7 +908,7 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
                     Multiselect = false
                 };
 
-                if (dialog.ShowDialog() != true)
+                if (dialog.ShowDialog() != DialogResult.OK)
                 {
                     return;
                 }

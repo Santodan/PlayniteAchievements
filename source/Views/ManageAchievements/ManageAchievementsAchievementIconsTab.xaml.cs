@@ -1,4 +1,6 @@
-using Microsoft.Win32;
+// WinForms dialog: the WPF Microsoft.Win32 picker renders legacy-style on .NET Framework.
+using DialogResult = System.Windows.Forms.DialogResult;
+using OpenFileDialog = System.Windows.Forms.OpenFileDialog;
 using PlayniteAchievements.Services.Images;
 using PlayniteAchievements.ViewModels;
 using System;
@@ -67,7 +69,7 @@ namespace PlayniteAchievements.Views.ManageAchievements
                 Multiselect = false
             };
 
-            if (dialog.ShowDialog() != true)
+            if (dialog.ShowDialog() != DialogResult.OK)
             {
                 return;
             }
