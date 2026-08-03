@@ -217,8 +217,6 @@
     <sys:String x:Key="LOCPlayAch_Menu_OpenGameInLibrary">Open Game in Library</sys:String>
     <sys:String x:Key="LOCPlayAch_Menu_OpenOverview">Achievements Overview</sys:String>
     <sys:String x:Key="LOCPlayAch_Menu_OpenGameInOverview">Open Game in Overview</sys:String>
-    <sys:String x:Key="LOCPlayAch_Menu_AddFriendToFavorites">Add to Favorites</sys:String>
-    <sys:String x:Key="LOCPlayAch_Menu_RemoveFriendFromFavorites">Remove from Favorites</sys:String>
     <sys:String x:Key="LOCPlayAch_Menu_IgnoreFriend">Ignore Friend</sys:String>
     <sys:String x:Key="LOCPlayAch_Menu_UnignoreFriend">Unignore Friend</sys:String>
     <sys:String x:Key="LOCPlayAch_Menu_IgnoreFriend_Confirm">Ignore {0}?&#10;&#10;Their cached achievement data is deleted and they are skipped during friend refreshes.</sys:String>
