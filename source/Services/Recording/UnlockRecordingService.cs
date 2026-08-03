@@ -1266,6 +1266,9 @@ namespace PlayniteAchievements.Services.Recording
                 File.Move(tempPath, outputPath);
                 _logger?.Info($"[Recording] Saved unlock clip: {outputPath}");
                 VerifyClipNotFrozen(session, outputPath, request.AchievementName, plan.DurationSeconds);
+                // Drop the cached capture scan for this game so an already-open grid picks up the
+                // new clip on its next rebuild.
+                PlayniteAchievementsPlugin.Instance?.CaptureLibraryService?.Invalidate(request.GameName);
                 return outputPath;
             }
             finally

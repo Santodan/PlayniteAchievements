@@ -342,7 +342,7 @@ namespace PlayniteAchievements.Services.UI
             return (game, $"{prefix}_{name}{suffix}{extension}");
         }
 
-        private static string SanitizeCaptureGameName(string gameName)
+        internal static string SanitizeCaptureGameName(string gameName)
         {
             var invalidChars = Path.GetInvalidFileNameChars();
             var builder = new StringBuilder(gameName?.Length ?? 0);

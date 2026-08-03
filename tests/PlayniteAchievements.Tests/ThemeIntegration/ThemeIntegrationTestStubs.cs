@@ -295,6 +295,8 @@ namespace PlayniteAchievements.ViewModels
 
         public string FriendName { get; set; }
 
+        public bool FriendIsFavorite { get; set; }
+
         public string FriendExternalUserId { get; set; }
 
         public string FriendAvatarPath { get; set; }

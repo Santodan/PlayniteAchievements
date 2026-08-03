@@ -32,7 +32,8 @@ namespace PlayniteAchievements.Views.Helpers
             IPlayniteAPI playniteApi,
             AchievementOverridesService overridesService,
             ICacheManager cacheManager,
-            ILogger logger)
+            ILogger logger,
+            bool includeViewCaptures = false)
         {
             var menu = new ContextMenu();
             var hasPlayniteGameId = TryGetGameId(data, out _);
@@ -55,32 +56,50 @@ namespace PlayniteAchievements.Views.Helpers
                     }));
                 }
 
+                // User-earned scopes only (opted in by the caller); disabled when the game has no
+                // saved captures. Friend game rows never opt in.
+                if (includeViewCaptures && data is GameSummaryItem gameSummary && !(data is FriendGameSummaryItem))
+                {
+                    var captureItem = CreateMenuItem(resourceOwner, "LOCPlayAch_Menu_ViewCaptures",
+                        () => PlayniteAchievementsPlugin.Instance?.OpenCapturesViewer(gameSummary));
+                    captureItem.IsEnabled = gameSummary.HasCaptures;
+                    menu.Items.Add(captureItem);
+                }
+
                 menu.Items.Add(new Separator());
-                menu.Items.Add(CreateMenuItem(resourceOwner, "LOCPlayAch_Menu_ClearData",
-                    () => ClearGameData(data, playniteApi, overridesService, cacheManager, logger)));
 
                 TryGetGameId(data, out var menuGameId);
                 var excludedFromSummaries = overridesService?.IsExcludedFromSummaries(menuGameId) == true;
                 var excludedFromRefreshes = overridesService?.IsExcludedFromRefreshes(menuGameId) == true;
 
-                menu.Items.Add(CreateMenuItem(resourceOwner,
+                // Group the destructive / rarely-used data actions under a Maintenance submenu.
+                var maintenance = new MenuItem
+                {
+                    Header = resourceOwner?.TryFindResource("LOCPlayAch_Settings_Maintenance_Title") as string
+                        ?? ResourceProvider.GetString("LOCPlayAch_Settings_Maintenance_Title")
+                        ?? "LOCPlayAch_Settings_Maintenance_Title"
+                };
+                maintenance.Items.Add(CreateMenuItem(resourceOwner, "LOCPlayAch_Menu_ClearData",
+                    () => ClearGameData(data, playniteApi, overridesService, cacheManager, logger)));
+                maintenance.Items.Add(CreateMenuItem(resourceOwner,
                     excludedFromSummaries
                         ? "LOCPlayAch_Common_Action_IncludeInSummaries"
                         : "LOCPlayAch_Common_Action_ExcludeFromSummaries",
                     () => SetExcludedFromSummaries(data, overridesService, excluded: !excludedFromSummaries)));
-                menu.Items.Add(CreateMenuItem(resourceOwner,
+                maintenance.Items.Add(CreateMenuItem(resourceOwner,
                     excludedFromRefreshes
                         ? "LOCPlayAch_Menu_IncludeInRefreshes"
                         : "LOCPlayAch_Menu_ExcludeFromRefreshes",
                     () => SetExcludedFromRefreshes(data, playniteApi, overridesService,
                         excluded: !excludedFromRefreshes, clearDataWhenExcluding: false, refreshGameCommand: null)));
-                menu.Items.Add(CreateMenuItem(resourceOwner,
+                maintenance.Items.Add(CreateMenuItem(resourceOwner,
                     excludedFromRefreshes
                         ? "LOCPlayAch_Menu_IncludeInRefreshesAndRefresh"
                         : "LOCPlayAch_Menu_ExcludeFromRefreshesAndClearData",
                     () => SetExcludedFromRefreshes(data, playniteApi, overridesService,
                         excluded: !excludedFromRefreshes, clearDataWhenExcluding: true,
                         refreshGameCommand: refreshGameCommand)));
+                menu.Items.Add(maintenance);
             }
 
             return menu;

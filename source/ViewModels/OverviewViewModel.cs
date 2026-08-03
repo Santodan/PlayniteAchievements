@@ -1778,6 +1778,8 @@ namespace PlayniteAchievements.ViewModels
             CollectionHelper.Replace(AllAchievements, _allAchievements);
 
             _allGameSummaries = snapshot.GameSummaries ?? new List<GameSummaryItem>();
+            Services.Captures.CapturePresenceMarker.MarkSummaries(
+                _allGameSummaries, PlayniteAchievementsPlugin.Instance?.CaptureLibraryService);
             if (gameSummarySearchEntries != null)
             {
                 _gameSummarySearchIndex.LoadEntries(gameSummarySearchEntries);
@@ -1829,6 +1831,8 @@ namespace PlayniteAchievements.ViewModels
             Dictionary<AchievementDisplayItem, string> recentSearchEntries = null)
         {
             _allRecentAchievements = recentAchievements ?? new List<AchievementDisplayItem>();
+            Services.Captures.CapturePresenceMarker.MarkAchievements(
+                _allRecentAchievements, PlayniteAchievementsPlugin.Instance?.CaptureLibraryService);
             _filteredRecentAchievements = new List<AchievementDisplayItem>(_allRecentAchievements);
             if (recentSearchEntries != null)
             {
@@ -3770,6 +3774,8 @@ namespace PlayniteAchievements.ViewModels
                 SelectedGameHasCustomAchievementOrder = hasCustomOrder;
 
                 _allSelectedGameAchievements = items;
+                Services.Captures.CapturePresenceMarker.MarkAchievements(
+                    items, PlayniteAchievementsPlugin.Instance?.CaptureLibraryService);
                 _selectedGameDefaultOrderedAchievements = new List<AchievementDisplayItem>(items);
                 FriendCompare?.SetTargetItems(items);
                 UpdateSelectedGameAchievementFilterOptions(_allSelectedGameAchievements);

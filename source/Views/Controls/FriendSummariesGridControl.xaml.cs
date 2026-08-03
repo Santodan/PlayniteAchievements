@@ -1,6 +1,8 @@
 using System;
 using System.Collections.Generic;
+using System.Collections.Specialized;
 using System.ComponentModel;
+using System.Linq;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Controls.Primitives;
@@ -41,12 +43,56 @@ namespace PlayniteAchievements.Views.Controls
                 nameof(ItemsSource),
                 typeof(IEnumerable<FriendSummaryItem>),
                 typeof(FriendSummariesGridControl),
-                new PropertyMetadata(null));
+                new PropertyMetadata(null, OnItemsSourceChanged));
 
         public IEnumerable<FriendSummaryItem> ItemsSource
         {
             get => (IEnumerable<FriendSummaryItem>)GetValue(ItemsSourceProperty);
             set => SetValue(ItemsSourceProperty, value);
+        }
+
+        private static readonly DependencyPropertyKey HasAnyFavoritesPropertyKey =
+            DependencyProperty.RegisterReadOnly(
+                nameof(HasAnyFavorites),
+                typeof(bool),
+                typeof(FriendSummariesGridControl),
+                new PropertyMetadata(false));
+
+        // True when at least one friend in ItemsSource is favorited. The star gutter in the friend
+        // name column collapses entirely when this is false, so a list with no favorites shows no gutter.
+        public static readonly DependencyProperty HasAnyFavoritesProperty = HasAnyFavoritesPropertyKey.DependencyProperty;
+
+        public bool HasAnyFavorites => (bool)GetValue(HasAnyFavoritesProperty);
+
+        private static void OnItemsSourceChanged(DependencyObject d, DependencyPropertyChangedEventArgs e)
+        {
+            if (!(d is FriendSummariesGridControl control))
+            {
+                return;
+            }
+
+            if (e.OldValue is INotifyCollectionChanged oldCollection)
+            {
+                oldCollection.CollectionChanged -= control.OnItemsCollectionChanged;
+            }
+
+            if (e.NewValue is INotifyCollectionChanged newCollection)
+            {
+                newCollection.CollectionChanged += control.OnItemsCollectionChanged;
+            }
+
+            control.RecomputeHasAnyFavorites();
+        }
+
+        private void OnItemsCollectionChanged(object sender, NotifyCollectionChangedEventArgs e)
+        {
+            RecomputeHasAnyFavorites();
+        }
+
+        private void RecomputeHasAnyFavorites()
+        {
+            var hasAny = ItemsSource?.Any(friend => friend?.IsFavorite == true) ?? false;
+            SetValue(HasAnyFavoritesPropertyKey, hasAny);
         }
 
         public static readonly DependencyProperty SelectedItemProperty =

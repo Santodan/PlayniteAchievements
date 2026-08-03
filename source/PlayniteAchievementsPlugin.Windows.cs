@@ -32,6 +32,21 @@ namespace PlayniteAchievements
             _windowService.OpenViewAchievementsWindow(gameId, focusAchievementId);
         }
 
+        public void OpenCapturesViewer(ViewModels.Items.GameSummaryItem game)
+        {
+            _windowService.OpenCapturesViewer(game);
+        }
+
+        public void OpenCapturesViewer(ViewModels.Items.AchievementDisplayItem achievement)
+        {
+            _windowService.OpenCapturesViewer(achievement);
+        }
+
+        public void OpenCapturesViewerForGame(string gameName)
+        {
+            _windowService.OpenCapturesViewerForGame(gameName);
+        }
+
         public void OpenViewFriendsAchievementsWindow(Guid gameId)
         {
             _windowService.OpenViewFriendsAchievementsWindow(gameId);

@@ -31,6 +31,13 @@ namespace PlayniteAchievements.ViewModels.Items
         private string _gameName;
         public string GameName { get => _gameName; set => SetValue(ref _gameName, value); }
 
+        // Session-only: true when this game has any saved unlock captures on disk. Set by the
+        // capture presence marker after the summaries are built; gates the Captures column button.
+        private bool _hasCaptures;
+        [DontSerialize]
+        [IgnoreDataMember]
+        public bool HasCaptures { get => _hasCaptures; set => SetValue(ref _hasCaptures, value); }
+
         private string _sortingName;
         public string SortingName { get => _sortingName; set => SetValue(ref _sortingName, value); }
 
