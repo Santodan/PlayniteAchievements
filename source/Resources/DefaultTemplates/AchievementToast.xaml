@@ -185,25 +185,6 @@
                     <Grid Width="{Binding ToastIconSize}"
                           Height="{Binding ToastIconSize}"
                           HorizontalAlignment="Center">
-                        <!-- Preview only: a square glow "plate" the size of the icon box, behind the
-                             icon so the crisp icon covers it and only its rarity glow rings out around
-                             the square boundary. A thin outline alone casts almost no glow, so this
-                             gives the example a clearly visible square glow; the live toast glows the
-                             icon shape instead. -->
-                        <Border Visibility="{Binding IsPreview, Converter={StaticResource BooleanToVisibilityConverter}}">
-                            <Border.Style>
-                                <Style TargetType="Border">
-                                    <Setter Property="Background" Value="{Binding AccentBrush}"/>
-                                    <Setter Property="Effect" Value="{Binding RarityGlowEffect}"/>
-                                    <Style.Triggers>
-                                        <DataTrigger Binding="{Binding IsGameCompleted}" Value="True">
-                                            <Setter Property="Background" Value="{Binding CompletedBrush}"/>
-                                            <Setter Property="Effect" Value="{Binding CompletedGlowEffect}"/>
-                                        </DataTrigger>
-                                    </Style.Triggers>
-                                </Style>
-                            </Border.Style>
-                        </Border>
                         <!-- Completion notifications swap the achievement icon for the
                              completed-game badge and the completed glow. The glow lives on this
                              backing layer (a crisp front copy sits on top); it renders un-cached so
@@ -225,12 +206,6 @@
                                         <!-- Fade in/out pulse when AnimateRarityGlows is on. -->
                                         <DataTrigger Binding="{Binding AnimateRarityGlows}" Value="True">
                                             <Setter Property="helpers:RarityGlowPulse.IsActive" Value="True"/>
-                                        </DataTrigger>
-                                        <!-- In the settings example the glow is shown on the square
-                                             boundary outline below instead of the icon, so suppress
-                                             the icon-shape glow here (last, to win over completion). -->
-                                        <DataTrigger Binding="{Binding IsPreview}" Value="True">
-                                            <Setter Property="Effect" Value="{x:Null}"/>
                                         </DataTrigger>
                                     </Style.Triggers>
                                 </Style>
@@ -258,8 +233,9 @@
                                 BorderBrush="{Binding IconBorderBrush}"
                                 Visibility="{Binding ShowShineBorder, Converter={StaticResource BooleanToVisibilityConverter}}"/>
                         <!-- Preview only: a thin gold outline marks the icon's full boundary so the
-                             icon size and surrounding padding are easy to judge in the mockup. The
-                             rarity glow is cast by the square plate behind the icon (above). -->
+                             icon size and surrounding padding are easy to judge in the mockup. -->
+                        <!-- The preview glows the icon shape, same as the live toast (see the
+                             backing image's RarityGlowEffect above); no separate example-only glow. -->
                         <Border BorderThickness="1"
                                 BorderBrush="#FFD4AF37"
                                 Background="Transparent"
