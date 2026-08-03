@@ -573,6 +573,11 @@
     <sys:String x:Key="LOCPlayAch_Settings_Style_ImportApplyStyle">Apply the appearance style from this file to the selected platform?</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_Style_ImportInstallToastTemplate">This file includes a custom notification template. Install it for the current selection? It replaces any custom notification template already set for that scope.</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_Style_ImportInstallFrameTemplate">This file includes a custom frame template. Install it for the current selection? It replaces any custom frame template already set for that scope.</sys:String>
+    <sys:String x:Key="LOCPlayAch_Settings_Style_Presets_SaveButton">Save preset</sys:String>
+    <sys:String x:Key="LOCPlayAch_Settings_Style_Presets_NameDialogTitle">Save Notification Appearance Preset</sys:String>
+    <sys:String x:Key="LOCPlayAch_Settings_Style_Presets_Hint">Presets save the appearance of the tab shown above, including its images and any custom template. Applying one replaces that part of the current selection.</sys:String>
+    <sys:String x:Key="LOCPlayAch_Settings_Style_Presets_ApplyConfirmToast">Apply preset &quot;{0}&quot;? This replaces the notification appearance for the current selection, including any custom notification template.</sys:String>
+    <sys:String x:Key="LOCPlayAch_Settings_Style_Presets_ApplyConfirmFrame">Apply preset &quot;{0}&quot;? This replaces the screenshot frame appearance for the current selection, including any custom frame template.</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_Style_ResetToDefault">Reset to default</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_Style_ResetConfirm">Reset this surface to the default appearance? This clears your style changes and removes any custom template for it.</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_Style_ExportDefaultTemplate">Export default template (.xaml)</sys:String>
