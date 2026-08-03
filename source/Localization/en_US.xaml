@@ -626,8 +626,7 @@
     <sys:String x:Key="LOCPlayAch_Settings_Style_BackgroundImage">Background image</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_Style_BackgroundImageHint">PNG, JPG, or GIF shown behind the notification. Frames have no background.</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_Style_BadgeImages">Badge images</sys:String>
-    <sys:String x:Key="LOCPlayAch_Settings_Style_BadgeImagesHint">Replace the rarity and completion badges on notifications and frames.</sys:String>
-    <sys:String x:Key="LOCPlayAch_Settings_Style_SharedAcrossSurfacesHint">Applies to both the notification and the screenshot frame.</sys:String>
+    <sys:String x:Key="LOCPlayAch_Settings_Style_BadgeImagesHint">Replace the rarity and completion badges.</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_RecordingsHeader">Unlock recordings</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_EnableUnlockRecordings">Save a clip on each unlock</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_RecordingDirectory">Recording folder</sys:String>
