@@ -135,6 +135,8 @@ namespace PlayniteAchievements.Views.ThemeIntegration.Modern
                 ? new List<GameSummaryItem> { item }
                 : new List<GameSummaryItem>();
             CollectionHelper.SynchronizeCollection(SummaryItems, desired);
+            Services.Captures.CapturePresenceMarker.MarkSummaries(
+                desired, PlayniteAchievementsPlugin.Instance?.CaptureLibraryService);
             SetValue(HasSummaryItemPropertyKey, item != null);
         }
 
@@ -311,6 +313,8 @@ namespace PlayniteAchievements.Views.ThemeIntegration.Modern
             var revealedKeys = GetRevealedKeys(DisplayItems);
             var clonedItems = sourceItems.Select(item => item.Clone()).ToList();
             RestoreRevealedState(clonedItems, revealedKeys);
+            Services.Captures.CapturePresenceMarker.MarkAchievements(
+                clonedItems, PlayniteAchievementsPlugin.Instance?.CaptureLibraryService);
 
             // Category rollups and dropdown options use the canonical definition order,
             // independent of the configured theme sort or a user-applied column sort.
@@ -463,6 +467,70 @@ namespace PlayniteAchievements.Views.ThemeIntegration.Modern
                 _pendingRightClickRow = null;
                 OpenContextMenuForRow(targetRow);
             }
+        }
+
+        private void SummaryGrid_RowPreviewMouseRightButtonDown(object sender, MouseButtonEventArgs e)
+        {
+            if (TryResolveContextMenuRow(sender, e, out var row))
+            {
+                e.Handled = true;
+                _pendingRightClickRow = row;
+            }
+        }
+
+        private void SummaryGrid_RowPreviewMouseRightButtonUp(object sender, MouseButtonEventArgs e)
+        {
+            if (TryResolveContextMenuRow(sender, e, out var row))
+            {
+                e.Handled = true;
+                var targetRow = _pendingRightClickRow ?? row;
+                _pendingRightClickRow = null;
+                OpenGameContextMenuForRow(targetRow);
+            }
+        }
+
+        private bool OpenGameContextMenuForRow(DataGridRow row)
+        {
+            if (row == null || !row.IsLoaded || !(row.DataContext is GameSummaryItem))
+            {
+                return false;
+            }
+
+            var plugin = PlayniteAchievementsPlugin.Instance;
+            var menu = GameRowContextMenuBuilder.BuildGameMenu(
+                row.DataContext,
+                this,
+                new Common.RelayCommand(d =>
+                {
+                    if (GameRowContextMenuBuilder.TryGetGameId(d, out var id))
+                    {
+                        _ = plugin?.RequestSingleGameRefreshAsync(id);
+                    }
+                }),
+                new Common.RelayCommand(d =>
+                {
+                    if (GameRowContextMenuBuilder.TryGetGameId(d, out var id))
+                    {
+                        PlayniteUiProvider.RestoreMainView();
+                        API.Instance?.MainView?.SelectGame(id);
+                    }
+                }),
+                gameId => plugin?.OpenManageAchievementsView(gameId),
+                API.Instance,
+                plugin?.AchievementOverridesService,
+                plugin?.CacheManager,
+                LogManager.GetLogger(),
+                includeViewCaptures: true);
+            if (menu == null || menu.Items.Count == 0)
+            {
+                return false;
+            }
+
+            ContextMenuStyleHelper.ApplyAchievementContextMenuStyle(this, menu);
+            row.ContextMenu = menu;
+            menu.PlacementTarget = row;
+            menu.IsOpen = true;
+            return true;
         }
 
         private static bool TryResolveContextMenuRow(object sender, MouseButtonEventArgs e, out DataGridRow row)
