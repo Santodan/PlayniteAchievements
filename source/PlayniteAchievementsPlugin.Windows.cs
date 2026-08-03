@@ -162,6 +162,28 @@ namespace PlayniteAchievements
             _windowService.ToggleOverviewWindowFromHotkey();
         }
 
+        /// <summary>
+        /// Opens Playnite's plugin-settings dialog for hotkey invocations. A modal dialog
+        /// (including an already-open settings dialog) disables the main window while it is
+        /// shown; opening a second settings view on top would stack BeginEdit sessions, so
+        /// the hotkey is ignored while any modal or the settings popout is open.
+        /// </summary>
+        private void OpenSettingsViewFromHotkey()
+        {
+            if (_settingsPopoutOpen)
+            {
+                return;
+            }
+
+            var mainWindow = System.Windows.Application.Current?.MainWindow;
+            if (mainWindow != null && !mainWindow.IsEnabled)
+            {
+                return;
+            }
+
+            OpenSettingsView();
+        }
+
         private enum ParityTestMode
         {
             Modern,
