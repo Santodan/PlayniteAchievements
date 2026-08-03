@@ -865,6 +865,7 @@ namespace PlayniteAchievements.Services.UI
             window.ContentRendered += (s, e) => PlaceWindow(window, "rendered");
 
             EventHandler onRendering = null;
+            EventHandler onOverlayPublish = null;
             try
             {
                 // Realize the toast HWND under Per-Monitor-V2 so Windows does not bitmap-rescale it on
@@ -903,6 +904,33 @@ namespace PlayniteAchievements.Services.UI
                 PlaceWindow(window, "shown");
                 SlideInPhysical(window);
 
+                // Start compositing the toast into the recorded video now, at the reveal, so the
+                // slide-in animation is captured in the clip (not just the settled toast). This reads
+                // the toast's live physical position each frame, so it follows the slide and, later,
+                // the anchor. Independent of the placement hooks below (it only publishes, never
+                // moves the window). Game anchor only — a test fire out of game has no video.
+                if (_activeIsGame && _activeReferenceHwnd != IntPtr.Zero)
+                {
+                    _lastOverlayPublishTick = 0;
+                    PublishVideoOverlay(window);
+                    onOverlayPublish = (s, e) =>
+                    {
+                        try
+                        {
+                            if (unchecked(Environment.TickCount - _lastOverlayPublishTick) >= OverlayPublishIntervalMs)
+                            {
+                                _lastOverlayPublishTick = Environment.TickCount;
+                                PublishVideoOverlay(window);
+                            }
+                        }
+                        catch
+                        {
+                            // Ignore transient render/placement failures (e.g. window closing).
+                        }
+                    };
+                    CompositionTarget.Rendering += onOverlayPublish;
+                }
+
                 // Let the toast finish sliding in and paint, then capture (so the toast is in the
                 // frame), then hold for the remaining display time.
                 const int captureDelayMs = 300;
@@ -938,28 +966,15 @@ namespace PlayniteAchievements.Services.UI
 
                 // Follow the anchor window every rendered frame (smooth while dragging). The anchor
                 // handle was resolved once at wave start (game window, else the Playnite window) and
-                // stays valid even if focus later changes.
+                // stays valid even if focus later changes. The video overlay is published separately
+                // by onOverlayPublish (started at the reveal so the slide-in is captured too).
                 if (_activeReferenceHwnd != IntPtr.Zero)
                 {
-                    // Seed the video overlay immediately so the toast appears from the first recorded
-                    // frame of the hold, then refresh it (throttled) as the toast follows the window.
-                    _lastOverlayPublishTick = 0;
-                    if (_activeIsGame)
-                    {
-                        PublishVideoOverlay(window);
-                    }
-
                     onRendering = (s, e) =>
                     {
                         try
                         {
                             PlaceWindowToHandle(window);
-                            if (_activeIsGame &&
-                                unchecked(Environment.TickCount - _lastOverlayPublishTick) >= OverlayPublishIntervalMs)
-                            {
-                                _lastOverlayPublishTick = Environment.TickCount;
-                                PublishVideoOverlay(window);
-                            }
                         }
                         catch
                         {
@@ -988,6 +1003,14 @@ namespace PlayniteAchievements.Services.UI
                     onRendering = null;
                 }
 
+                // Stop publishing before the slide-out so the clip ends on the settled toast, not a
+                // slide-out (the clip end is anchored at toast dismissal anyway).
+                if (onOverlayPublish != null)
+                {
+                    CompositionTarget.Rendering -= onOverlayPublish;
+                    onOverlayPublish = null;
+                }
+
                 if (!endedHidden)
                 {
                     var slideOutMs = SlideOutPhysical(window);
@@ -1012,6 +1035,11 @@ namespace PlayniteAchievements.Services.UI
                 if (onRendering != null)
                 {
                     CompositionTarget.Rendering -= onRendering;
+                }
+
+                if (onOverlayPublish != null)
+                {
+                    CompositionTarget.Rendering -= onOverlayPublish;
                 }
 
                 // Stop compositing the toast into recorded frames; the clip past this point is the
