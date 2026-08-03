@@ -331,6 +331,21 @@ namespace PlayniteAchievements.Views
                     }
                 }));
 
+            var favoriteItem = CreateMenuItem(
+                friend.IsFavorite
+                    ? "LOCPlayAch_Menu_RemoveFriendFromFavorites"
+                    : "LOCPlayAch_Menu_AddFriendToFavorites",
+                friend.IsFavorite ? "Remove from Favorites" : "Add to Favorites",
+                () =>
+                {
+                    if (FriendFavoriteToggleHelper.ToggleFavorite(friend, _logger))
+                    {
+                        _ = ViewModel?.LoadAsync();
+                    }
+                });
+            favoriteItem.IsEnabled = FriendFavoriteToggleHelper.HasConfigurableAccounts(friend);
+            menu.Items.Add(favoriteItem);
+
             menu.Items.Add(CreateMenuItem(
                 "LOCPlayAch_Menu_OpenGameInLibrary",
                 "Open Game in Library",
