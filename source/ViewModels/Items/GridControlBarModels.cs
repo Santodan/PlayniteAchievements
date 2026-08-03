@@ -220,6 +220,7 @@ namespace PlayniteAchievements.ViewModels.Items
         private readonly Action<string, bool> _setSelection;
         private readonly Func<string, string> _getDisplayLabel;
         private readonly Func<bool> _hasAvailableAction;
+        private readonly Func<string, bool> _isMarked;
 
         public GridMultiSelectFilter(
             INotifyPropertyChanged source,
@@ -229,7 +230,8 @@ namespace PlayniteAchievements.ViewModels.Items
             Func<string, bool> isSelected,
             Action<string, bool> setSelection,
             Func<string, string> getDisplayLabel = null,
-            Func<bool> hasAvailableAction = null)
+            Func<bool> hasAvailableAction = null,
+            Func<string, bool> isMarked = null)
         {
             _getDisplayText = getDisplayText;
             _options = options;
@@ -237,6 +239,7 @@ namespace PlayniteAchievements.ViewModels.Items
             _setSelection = setSelection;
             _getDisplayLabel = getDisplayLabel;
             _hasAvailableAction = hasAvailableAction;
+            _isMarked = isMarked;
             Subscribe(source, sourcePropertyName);
         }
 
@@ -248,7 +251,8 @@ namespace PlayniteAchievements.ViewModels.Items
             Func<string, bool> isSelected,
             Action<string, bool> setSelection,
             Func<string, string> getDisplayLabel = null,
-            Func<bool> hasAvailableAction = null)
+            Func<bool> hasAvailableAction = null,
+            Func<string, bool> isMarked = null)
         {
             _getDisplayText = getDisplayText;
             _getOptions = getOptions;
@@ -256,6 +260,7 @@ namespace PlayniteAchievements.ViewModels.Items
             _setSelection = setSelection;
             _getDisplayLabel = getDisplayLabel;
             _hasAvailableAction = hasAvailableAction;
+            _isMarked = isMarked;
             Subscribe(source, sourcePropertyName);
         }
 
@@ -294,6 +299,16 @@ namespace PlayniteAchievements.ViewModels.Items
         {
             var label = _getDisplayLabel?.Invoke(option);
             return string.IsNullOrWhiteSpace(label) ? option : label;
+        }
+
+        // When true, options render with a leading marker gutter (e.g. a favorite star) so a
+        // per-option flag can be shown while keeping labels aligned. Filters without a marker
+        // predicate render plain string labels unchanged.
+        public bool HasMarker => _isMarked != null;
+
+        public bool IsMarked(string option)
+        {
+            return _isMarked?.Invoke(option) == true;
         }
 
         public override void Refresh()
