@@ -98,7 +98,7 @@
                        helpers:AsyncImage.Uri="{Binding Parent.FriendAvatar}"
                        helpers:AsyncImage.DecodePixel="64"/>
             </Border>
-            <TextBlock Text="{Binding Parent.HeaderText}"
+            <TextBlock Text="{Binding HeaderText}"
                        Foreground="{DynamicResource PlayAch.Brush.Text}"
                        FontSize="{Binding FontSize}"
                        FontFamily="{Binding FontFamily}"
@@ -116,8 +116,8 @@
             </TextBlock>
             <!-- Completion headers replace the unlock header: "Congratulations!" for your own
                  completion, "<friend> completed the game!" for a friend's. Both texts honor
-                 the user's header edits via the view model. -->
-            <TextBlock Text="{Binding Parent.CompletionHeaderText}"
+                 the surface's header edits, resolved onto the descriptor. -->
+            <TextBlock Text="{Binding CompletionHeaderText}"
                        Foreground="{DynamicResource PlayAch.Brush.Text}"
                        FontSize="{Binding FontSize}"
                        FontFamily="{Binding FontFamily}"
@@ -137,7 +137,7 @@
                     </Style>
                 </TextBlock.Style>
             </TextBlock>
-            <TextBlock Text="{Binding Parent.FriendCompletionHeaderText}"
+            <TextBlock Text="{Binding FriendCompletionHeaderText}"
                        Foreground="{DynamicResource PlayAch.Brush.Text}"
                        FontSize="{Binding FontSize}"
                        FontFamily="{Binding FontFamily}"
