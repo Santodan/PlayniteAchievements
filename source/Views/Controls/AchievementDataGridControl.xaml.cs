@@ -78,12 +78,12 @@ namespace PlayniteAchievements.Views.Controls
         private static readonly IReadOnlyDictionary<string, IReadOnlyDictionary<string, bool>> DefaultVisibilityByColumnSettingsKey =
             new Dictionary<string, IReadOnlyDictionary<string, bool>>(StringComparer.OrdinalIgnoreCase)
             {
-                ["Default"] = CreateAchievementVisibility(),
-                ["SingleGame"] = CreateAchievementVisibility(),
+                ["Default"] = CreateAchievementVisibility(captures: true),
+                ["SingleGame"] = CreateAchievementVisibility(captures: true),
                 ["DesktopTheme"] = CreateAchievementVisibility(),
-                ["OverviewSelectedGameAchievements"] = CreateAchievementVisibility(),
-                ["OverviewGame"] = CreateAchievementVisibility(),
-                ["OverviewRecentAchievements"] = CreateAchievementVisibility(status: false, game: true),
+                ["OverviewSelectedGameAchievements"] = CreateAchievementVisibility(captures: true),
+                ["OverviewGame"] = CreateAchievementVisibility(captures: true),
+                ["OverviewRecentAchievements"] = CreateAchievementVisibility(status: false, game: true, captures: true),
                 ["FriendsOverviewRecentAchievements"] = CreateAchievementVisibility(
                     status: false,
                     game: true,
@@ -120,7 +120,7 @@ namespace PlayniteAchievements.Views.Controls
                     friendAvatar: false,
                     friend: false,
                     unlockDate: true),
-                ["Overview"] = CreateAchievementVisibility(status: false, game: true),
+                ["Overview"] = CreateAchievementVisibility(status: false, game: true, captures: true),
                 ["StartPageAchievements"] = CreateAchievementVisibility(
                     status: false,
                     game: false,
@@ -160,7 +160,8 @@ namespace PlayniteAchievements.Views.Controls
             bool rarityPercent = false,
             bool collectionScore = false,
             bool prestigeScore = false,
-            bool points = false)
+            bool points = false,
+            bool captures = false)
         {
             return new Dictionary<string, bool>(StringComparer.OrdinalIgnoreCase)
             {
@@ -182,7 +183,8 @@ namespace PlayniteAchievements.Views.Controls
                 ["RarityPercent"] = rarityPercent,
                 ["CollectionScore"] = collectionScore,
                 ["PrestigeScore"] = prestigeScore,
-                ["Points"] = points
+                ["Points"] = points,
+                ["Captures"] = captures
             };
         }
 
@@ -2667,6 +2669,13 @@ namespace PlayniteAchievements.Views.Controls
                 return;
             }
 
+            // A click on an in-cell button (e.g. the Captures button) must not also toggle the row's
+            // reveal/selection.
+            if (IsButtonClick(e?.OriginalSource))
+            {
+                return;
+            }
+
             if (ForwardRowMouseEvent(e, RowPreviewMouseLeftButtonDownEvent, sender))
             {
                 return;
@@ -2685,6 +2694,22 @@ namespace PlayniteAchievements.Views.Controls
         {
             return source is DependencyObject dependencyObject &&
                    VisualTreeHelpers.FindVisualParent<Hyperlink>(dependencyObject) != null;
+        }
+
+        private static bool IsButtonClick(object source)
+        {
+            return source is DependencyObject dependencyObject &&
+                   VisualTreeHelpers.FindVisualParent<ButtonBase>(dependencyObject) != null;
+        }
+
+        private void CapturesButton_Click(object sender, RoutedEventArgs e)
+        {
+            if ((sender as FrameworkElement)?.DataContext is AchievementDisplayItem item)
+            {
+                PlayniteAchievementsPlugin.Instance?.OpenCapturesViewer(item);
+            }
+
+            e.Handled = true;
         }
 
         private bool TryActivateAchievementItem(AchievementDisplayItem item, bool consumeWhenNoAction)
