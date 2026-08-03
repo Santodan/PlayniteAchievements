@@ -302,7 +302,8 @@ namespace PlayniteAchievements.Views
                 _playniteApi,
                 _achievementOverridesService,
                 _cacheManager,
-                _logger);
+                _logger,
+                includeViewCaptures: true);
             if (menu == null || menu.Items.Count == 0)
             {
                 return;
@@ -374,7 +375,8 @@ namespace PlayniteAchievements.Views
                 menu,
                 row.DataContext,
                 this,
-                RefreshAfterRowOptionsChanged);
+                RefreshAfterRowOptionsChanged,
+                includeViewCaptures: true);
             if (menu.Items.Count == 0)
             {
                 return false;
