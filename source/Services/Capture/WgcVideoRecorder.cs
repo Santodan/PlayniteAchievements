@@ -59,6 +59,7 @@ namespace PlayniteAchievements.Services.Capture
         private D3D11.Texture2D _latest; // owned, BGRA, the most recent (tone-mapped) frame
         private MediaFoundationH264Encoder _encoder;
         private long _segmentFrameIndex;
+        private long _lastSegmentPts100ns; // last PTS written in the current segment (strictly increasing)
         private int _segmentCount;
         private DateTime _segmentStartUtc;
         private readonly long _frameDuration100ns;
@@ -246,10 +247,17 @@ namespace PlayniteAchievements.Services.Capture
             {
                 while (_running)
                 {
-                    // Follow the game window: (re)target when the resolved handle changes (throttled).
-                    // Idle while the game window isn't known yet rather than capturing a foreground
-                    // window that isn't the game.
-                    if ((DateTime.UtcNow - lastResolveUtc).TotalSeconds >= 1)
+                    // Follow the game window: (re)target when the resolved handle changes. Normally
+                    // throttled to once a second, but if the window we're capturing has been destroyed
+                    // (common when a game recreates its window during a loading screen) re-resolve every
+                    // tick so we latch onto the replacement the instant it exists — otherwise the last
+                    // frame is held for up to a full second, lengthening the loading freeze. The held
+                    // frame keeps the timeline real-time (better a brief freeze than a concat skip), so
+                    // we never tear down while waiting; we just retarget as soon as the new window
+                    // appears. Idle while the game window isn't known yet rather than capturing a
+                    // foreground window that isn't the game.
+                    var activeDead = _activeHwnd != IntPtr.Zero && !IsWindow(_activeHwnd);
+                    if (activeDead || (DateTime.UtcNow - lastResolveUtc).TotalSeconds >= 1)
                     {
                         lastResolveUtc = DateTime.UtcNow;
                         var hwnd = _resolveHwnd?.Invoke() ?? IntPtr.Zero;
@@ -278,7 +286,18 @@ namespace PlayniteAchievements.Services.Capture
                         {
                             try
                             {
-                                _encoder.WriteFrame(_latest, _segmentFrameIndex * _frameDuration100ns, _frameDuration100ns);
+                                // Stamp frames by real elapsed time since the segment started, not by
+                                // frame index. A pump stall (e.g. the game recreating its window during
+                                // a loading screen tears down and rebuilds capture) then shows as the
+                                // last frame held for its real duration, instead of the timeline
+                                // collapsing that gap into a skip — which would also drift audio sync.
+                                var pts = (DateTime.UtcNow - _segmentStartUtc).Ticks;
+                                if (pts <= _lastSegmentPts100ns)
+                                {
+                                    pts = _lastSegmentPts100ns + 1;
+                                }
+                                _lastSegmentPts100ns = pts;
+                                _encoder.WriteFrame(_latest, pts, _frameDuration100ns);
                                 _segmentFrameIndex++;
                             }
                             catch (Exception ex)
@@ -416,6 +435,7 @@ namespace PlayniteAchievements.Services.Capture
                 _device, path, _latest.Description.Width, _latest.Description.Height, _fps,
                 ComputeBitrate(_latest.Description.Width, _latest.Description.Height));
             _segmentFrameIndex = 0;
+            _lastSegmentPts100ns = 0;
             _segmentStartUtc = DateTime.UtcNow;
             _segmentCount++;
             if (_segmentCount <= 2 || _segmentCount % 12 == 0)
