@@ -981,8 +981,8 @@ namespace PlayniteAchievements.Views
             var favoriteItem = new MenuItem
             {
                 Header = friend.IsFavorite
-                    ? GetText("LOCPlayAch_Menu_RemoveFriendFromFavorites", "Remove from Favorites")
-                    : GetText("LOCPlayAch_Menu_AddFriendToFavorites", "Add to Favorites"),
+                    ? GetText("LOCRemoveFavoriteGame", "Remove from Favorites")
+                    : GetText("LOCFavoriteGame", "Add to Favorites"),
                 IsEnabled = IsConfigurableFriend(friend)
             };
             favoriteItem.Click += (_, __) =>
