@@ -520,6 +520,22 @@
 
             <DataGridTemplateColumn Width="*" MinWidth="22" CanUserResize="True" Header="{DynamicResource LOCPlayAch_Column_Points}" SortMemberPath="Points" helpers:ColumnVisibilityHelper.ColumnKey="Points"
                                     CellTemplate="{StaticResource AchievementPointsTemplate}"/>
+            <DataGridTemplateColumn Width="Auto" MinWidth="56" CanUserResize="True" CanUserSort="False"
+                                    Header="{DynamicResource LOCPlayAch_Column_Captures}"
+                                    helpers:ColumnVisibilityHelper.ColumnKey="Captures">
+                <DataGridTemplateColumn.CellTemplate>
+                    <DataTemplate>
+                        <Button Content="{DynamicResource LOCPlayAch_Common_View}"
+                                Style="{StaticResource PlayAch.Button.BaseStyle}"
+                                Padding="9,3"
+                                HorizontalAlignment="Center"
+                                VerticalAlignment="Center"
+                                ToolTip="{DynamicResource LOCPlayAch_Column_Captures}"
+                                Visibility="{Binding HasCaptures, Converter={StaticResource BooleanToVisibilityConverter}}"
+                                Click="CapturesButton_Click"/>
+                    </DataTemplate>
+                </DataGridTemplateColumn.CellTemplate>
+            </DataGridTemplateColumn>
         </DataGrid.Columns>
     </DataGrid>
         </Grid>
