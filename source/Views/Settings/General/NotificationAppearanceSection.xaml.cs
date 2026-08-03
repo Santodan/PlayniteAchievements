@@ -853,11 +853,89 @@ namespace PlayniteAchievements.Views.Settings.General
         }
 
         /// <summary>
-        /// Exports the style for the current platform selection to a shareable .pastyle (JSON) or
-        /// .pastyle.zip (JSON + bundled images) file. Debounced edits are flushed first so the file
-        /// matches what the editors show.
+        /// Exports the active tab's surface for the current platform selection to a shareable
+        /// .panotif (notification) or .paframe (screenshot frame) package, bundling the surface's
+        /// images and optionally its authored custom template. Debounced edits are flushed first
+        /// so the file matches what the editors show.
         /// </summary>
         private void ExportStyle_Click(object sender, RoutedEventArgs e)
+        {
+            var style = _currentStyle;
+            var store = _plugin?.NotificationStylePortableStore;
+            if (style == null || store == null)
+            {
+                return;
+            }
+
+            try
+            {
+                _toastEditorViewModel?.FlushPendingPersist();
+                _frameEditorViewModel?.FlushPendingPersist();
+
+                var isFrame = FrameTabItem?.IsSelected == true;
+                var extension = isFrame
+                    ? NotificationStylePortableStore.FramePackageFileExtension
+                    : NotificationStylePortableStore.ToastPackageFileExtension;
+                var dialog = new SaveFileDialog
+                {
+                    Filter = isFrame
+                        ? "Playnite Achievements Frame Style (*.paframe)|*.paframe"
+                        : "Playnite Achievements Notification Style (*.panotif)|*.panotif",
+                    AddExtension = true,
+                    DefaultExt = extension,
+                    FileName = BuildDefaultStyleFileName()
+                };
+
+                if (dialog.ShowDialog() != true)
+                {
+                    return;
+                }
+
+                var destinationPath = NotificationStylePortableStore.NormalizeExportPath(
+                    dialog.FileName, extension);
+
+                // Bundle only a template the user actually authored for this scope: portable
+                // loose XAML that passed validation on install. The active theme's override is
+                // never bundled (it is theme-coupled and would import broken).
+                string templateXaml = null;
+                var resolver = _toastTemplateResolver;
+                if (resolver != null)
+                {
+                    var custom = resolver.ReadCustomTemplateXaml(isFrame, ScopeProviderKey, ScopeGameId);
+                    if (custom != null &&
+                        Confirm(L(isFrame
+                            ? "LOCPlayAch_Settings_Style_ExportIncludeFrameTemplate"
+                            : "LOCPlayAch_Settings_Style_ExportIncludeToastTemplate")))
+                    {
+                        templateXaml = custom;
+                    }
+                }
+
+                store.ExportSurfacePackage(isFrame, style, destinationPath, templateXaml);
+
+                _plugin.PlayniteApi?.Dialogs?.ShowMessage(
+                    L("LOCPlayAch_Status_Succeeded") + "\n" + destinationPath,
+                    L("LOCPlayAch_Title_PluginName"),
+                    MessageBoxButton.OK,
+                    MessageBoxImage.Information);
+            }
+            catch (Exception ex)
+            {
+                _logger?.Error(ex, "Failed exporting notification surface style.");
+                _plugin.PlayniteApi?.Dialogs?.ShowMessage(
+                    string.Format(L("LOCPlayAch_Status_Failed"), ex.Message),
+                    L("LOCPlayAch_Title_PluginName"),
+                    MessageBoxButton.OK,
+                    MessageBoxImage.Error);
+            }
+        }
+
+        /// <summary>
+        /// Exports the full style (both surfaces) for the current platform selection to a
+        /// shareable .pastyle (JSON) or .pastyle.zip (JSON + bundled images) file. Debounced
+        /// edits are flushed first so the file matches what the editors show.
+        /// </summary>
+        private void ExportBothStyles_Click(object sender, RoutedEventArgs e)
         {
             var style = _currentStyle;
             var store = _plugin?.NotificationStylePortableStore;
@@ -947,9 +1025,12 @@ namespace PlayniteAchievements.Views.Settings.General
         }
 
         /// <summary>
-        /// Imports a .pastyle/.pastyle.zip onto the current platform selection, replacing the
-        /// selected style (creating the provider's whole-style copy if it was following the
-        /// default). Bundled images are re-materialized into managed storage.
+        /// Imports a style file onto the current platform selection, replacing the surfaces the
+        /// file carries (a .panotif replaces the notification, a .paframe the frame, a
+        /// .pastyle/.pastyle.zip both) and creating the provider's whole-style copy if it was
+        /// following the default. Any file type imports from either tab; a file that does not
+        /// cover the active tab's surface warns first. Bundled images are re-materialized into
+        /// managed storage.
         /// </summary>
         private async void ImportStyle_Click(object sender, RoutedEventArgs e)
         {
@@ -965,7 +1046,9 @@ namespace PlayniteAchievements.Views.Settings.General
                 var dialog = new OpenFileDialog
                 {
                     Filter =
-                        "Playnite Achievements Style Files (*.pastyle;*.pastyle.zip)|*.pastyle;*.pastyle.zip|" +
+                        "Playnite Achievements Style Files (*.panotif;*.paframe;*.pastyle;*.pastyle.zip)|*.panotif;*.paframe;*.pastyle;*.pastyle.zip|" +
+                        "Playnite Achievements Notification Style (*.panotif)|*.panotif|" +
+                        "Playnite Achievements Frame Style (*.paframe)|*.paframe|" +
                         "Playnite Achievements Style Package (*.pastyle.zip)|*.pastyle.zip|" +
                         "Playnite Achievements Style (*.pastyle)|*.pastyle",
                     CheckFileExists = true,
@@ -978,6 +1061,30 @@ namespace PlayniteAchievements.Views.Settings.General
                 }
 
                 var contents = store.InspectPackage(dialog.FileName);
+
+                // Importing is allowed from either tab, but a file that does not cover the
+                // active tab's surface is easy to pick by accident, so it warns first. The
+                // mismatch prompt doubles as the import confirmation.
+                var activeIsFrame = FrameTabItem?.IsSelected == true;
+                var coversActiveSurface = activeIsFrame ? contents.HasFrameStyle : contents.HasToastStyle;
+                var mismatchConfirmed = false;
+                if (contents.HasStyle && !coversActiveSurface)
+                {
+                    var carried = L(contents.HasFrameStyle
+                        ? "LOCPlayAch_Settings_FrameHeader"
+                        : "LOCPlayAch_Settings_Style_ToastTab");
+                    var active = L(activeIsFrame
+                        ? "LOCPlayAch_Settings_FrameHeader"
+                        : "LOCPlayAch_Settings_Style_ToastTab");
+                    if (!Confirm(string.Format(
+                            L("LOCPlayAch_Settings_Style_ImportSurfaceMismatch"), carried, active)))
+                    {
+                        return;
+                    }
+
+                    mismatchConfirmed = true;
+                }
+
                 var resolver = _toastTemplateResolver;
                 var offerTemplates = resolver != null &&
                     (contents.HasToastTemplate || contents.HasFrameTemplate);
@@ -989,7 +1096,7 @@ namespace PlayniteAchievements.Views.Settings.General
                 if (!offerTemplates)
                 {
                     // Style-only file: single confirmation, apply the style (unchanged behavior).
-                    if (!Confirm(L("LOCPlayAch_Settings_Style_ImportConfirm")))
+                    if (!mismatchConfirmed && !Confirm(L("LOCPlayAch_Settings_Style_ImportConfirm")))
                     {
                         return;
                     }
@@ -1030,7 +1137,35 @@ namespace PlayniteAchievements.Views.Settings.General
                         throw new InvalidOperationException("Imported notification style was empty.");
                     }
 
-                    ApplyImportedStyle(persisted, providerKey, imported);
+                    // Merge only the surfaces the file carries onto the current scope's style.
+                    // When the target scope still follows an inherited style, snapshot the
+                    // inherited images into the scope first so an untouched surface never
+                    // references another owner's slot files.
+                    var merged = (_currentStyle ?? NotificationStyleSettings.CreateDefault()).Clone();
+                    if (!IsGameMode && providerKey != null &&
+                        persisted.GetProviderNotificationStyle(providerKey) == null)
+                    {
+                        await _plugin.NotificationImageStore.CopyImagesForProviderAsync(
+                            merged, providerKey, CancellationToken.None);
+                    }
+                    else if (IsGameMode && CustomizeGameCheckBox?.IsChecked != true)
+                    {
+                        await _plugin.NotificationImageStore.CopyImagesForGameAsync(
+                            merged, _gameId, CancellationToken.None);
+                    }
+
+                    if (contents.HasToastStyle)
+                    {
+                        merged.Toast = imported.Toast;
+                        merged.ToastBackgroundImagePath = imported.ToastBackgroundImagePath;
+                    }
+
+                    if (contents.HasFrameStyle)
+                    {
+                        merged.Frame = imported.Frame;
+                    }
+
+                    ApplyImportedStyle(persisted, providerKey, merged);
 
                     if (!IsGameMode)
                     {
@@ -1395,6 +1530,8 @@ namespace PlayniteAchievements.Views.Settings.General
                     throw new InvalidOperationException("Preset notification style was empty.");
                 }
 
+                // The preset's surface replaces the target surface wholesale, badge images and
+                // header texts included; a toast preset also carries the toast-only background.
                 if (isFrame)
                 {
                     merged.Frame = imported.Frame;
@@ -1403,8 +1540,6 @@ namespace PlayniteAchievements.Views.Settings.General
                 {
                     merged.Toast = imported.Toast;
                     merged.ToastBackgroundImagePath = imported.ToastBackgroundImagePath;
-                    merged.BadgeImages = imported.BadgeImages;
-                    merged.HeaderTexts = imported.HeaderTexts;
                 }
 
                 ApplyImportedStyle(persisted, providerKey, merged);

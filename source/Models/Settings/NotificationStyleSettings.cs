@@ -19,8 +19,6 @@ namespace PlayniteAchievements.Models.Settings
         private NotificationSurfaceStyle _toast;
         private NotificationSurfaceStyle _frame;
         private string _toastBackgroundImagePath;
-        private NotificationBadgeImageSet _badgeImages;
-        private NotificationHeaderTextSettings _headerTexts;
 
         /// <summary>
         /// Style for the on-screen toast surface. Lazily initialized; never null.
@@ -50,34 +48,13 @@ namespace PlayniteAchievements.Models.Settings
             set => SetValue(ref _toastBackgroundImagePath, value);
         }
 
-        /// <summary>
-        /// User-supplied badge replacement images shared by both surfaces. Lazily initialized;
-        /// never null.
-        /// </summary>
-        public NotificationBadgeImageSet BadgeImages
-        {
-            get => _badgeImages ?? (_badgeImages = new NotificationBadgeImageSet());
-            set => SetValue(ref _badgeImages, value);
-        }
-
-        /// <summary>
-        /// User-edited header strings shared by both surfaces. Lazily initialized; never null.
-        /// </summary>
-        public NotificationHeaderTextSettings HeaderTexts
-        {
-            get => _headerTexts ?? (_headerTexts = new NotificationHeaderTextSettings());
-            set => SetValue(ref _headerTexts, value);
-        }
-
         public NotificationStyleSettings Clone()
         {
             return new NotificationStyleSettings
             {
                 Toast = Toast.Clone(),
                 Frame = Frame.Clone(),
-                ToastBackgroundImagePath = ToastBackgroundImagePath,
-                BadgeImages = BadgeImages.Clone(),
-                HeaderTexts = HeaderTexts.Clone()
+                ToastBackgroundImagePath = ToastBackgroundImagePath
             };
         }
 
@@ -89,8 +66,9 @@ namespace PlayniteAchievements.Models.Settings
 
     /// <summary>
     /// Per-surface (toast or frame) appearance style: field visibility, text line order,
-    /// fonts, and the provider icon toggle. Null line order and null font values mean the
-    /// built-in defaults (theme-derived fonts, default line order).
+    /// fonts, the provider icon toggle, and the surface's own badge images and header texts.
+    /// Null line order and null font values mean the built-in defaults (theme-derived fonts,
+    /// default line order).
     /// </summary>
     public sealed class NotificationSurfaceStyle : ObservableObject
     {
@@ -140,6 +118,8 @@ namespace PlayniteAchievements.Models.Settings
         private double? _cardPaddingRight;
         private double? _linePadding;
         private double _titleLineOffset;
+        private NotificationBadgeImageSet _badgeImages;
+        private NotificationHeaderTextSettings _headerTexts;
 
         [JsonProperty(DefaultValueHandling = DefaultValueHandling.Include)]
         public bool ShowHeader
@@ -477,6 +457,25 @@ namespace PlayniteAchievements.Models.Settings
         }
 
         /// <summary>
+        /// User-supplied badge replacement images for this surface. Lazily initialized;
+        /// never null.
+        /// </summary>
+        public NotificationBadgeImageSet BadgeImages
+        {
+            get => _badgeImages ?? (_badgeImages = new NotificationBadgeImageSet());
+            set => SetValue(ref _badgeImages, value);
+        }
+
+        /// <summary>
+        /// User-edited header strings for this surface. Lazily initialized; never null.
+        /// </summary>
+        public NotificationHeaderTextSettings HeaderTexts
+        {
+            get => _headerTexts ?? (_headerTexts = new NotificationHeaderTextSettings());
+            set => SetValue(ref _headerTexts, value);
+        }
+
+        /// <summary>
         /// Returns a complete line order: known tokens from <paramref name="order"/> in their
         /// stored order (case-insensitive, deduplicated), with any missing default lines
         /// appended. Null or empty input yields <see cref="DefaultLineOrder"/>.
@@ -543,7 +542,9 @@ namespace PlayniteAchievements.Models.Settings
                 CardPaddingLeft = CardPaddingLeft,
                 CardPaddingRight = CardPaddingRight,
                 LinePadding = LinePadding,
-                TitleLineOffset = TitleLineOffset
+                TitleLineOffset = TitleLineOffset,
+                BadgeImages = BadgeImages.Clone(),
+                HeaderTexts = HeaderTexts.Clone()
             };
         }
 

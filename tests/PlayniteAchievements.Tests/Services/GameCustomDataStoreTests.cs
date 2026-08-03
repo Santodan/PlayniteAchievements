@@ -620,11 +620,11 @@ namespace PlayniteAchievements.Services.Tests
                 var style = NotificationStyleSettings.CreateDefault();
                 style.Toast.ShowDescription = false;
                 style.ToastBackgroundImagePath = sourcePaths[0];
-                style.BadgeImages.CommonPath = sourcePaths[1];
-                style.BadgeImages.UncommonPath = sourcePaths[2];
-                style.BadgeImages.RarePath = sourcePaths[3];
-                style.BadgeImages.UltraRarePath = sourcePaths[4];
-                style.BadgeImages.CompletionPath = sourcePaths[5];
+                style.Toast.BadgeImages.CommonPath = sourcePaths[1];
+                style.Toast.BadgeImages.UncommonPath = sourcePaths[2];
+                style.Toast.BadgeImages.RarePath = sourcePaths[3];
+                style.Toast.BadgeImages.UltraRarePath = sourcePaths[4];
+                style.Toast.BadgeImages.CompletionPath = sourcePaths[5];
                 store.Save(gameId, new GameCustomDataFile
                 {
                     PlayniteGameId = gameId,
@@ -660,11 +660,11 @@ namespace PlayniteAchievements.Services.Tests
                 var importedPaths = new[]
                 {
                     importedStyle.ToastBackgroundImagePath,
-                    importedStyle.BadgeImages.CommonPath,
-                    importedStyle.BadgeImages.UncommonPath,
-                    importedStyle.BadgeImages.RarePath,
-                    importedStyle.BadgeImages.UltraRarePath,
-                    importedStyle.BadgeImages.CompletionPath
+                    importedStyle.Toast.BadgeImages.CommonPath,
+                    importedStyle.Toast.BadgeImages.UncommonPath,
+                    importedStyle.Toast.BadgeImages.RarePath,
+                    importedStyle.Toast.BadgeImages.UltraRarePath,
+                    importedStyle.Toast.BadgeImages.CompletionPath
                 };
                 var expectedDirectorySuffix = Path.Combine(
                     "notification_images",
@@ -682,9 +682,9 @@ namespace PlayniteAchievements.Services.Tests
                 Assert.IsTrue(imported.NotificationAppearanceOverride.FrameUseThemeStyling);
                 Assert.IsFalse(importedStyle.Toast.ShowDescription);
 
-                var staleBadgePath = importedStyle.BadgeImages.CommonPath;
+                var staleBadgePath = importedStyle.Toast.BadgeImages.CommonPath;
                 store.Update(importedGameId, data =>
-                    data.NotificationAppearanceOverride.Style.BadgeImages.CommonPath = null);
+                    data.NotificationAppearanceOverride.Style.Toast.BadgeImages.CommonPath = null);
                 Assert.IsFalse(File.Exists(staleBadgePath));
 
                 var gameImageDirectory = Path.GetDirectoryName(importedStyle.ToastBackgroundImagePath);

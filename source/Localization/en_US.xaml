@@ -567,8 +567,10 @@
     <sys:String x:Key="LOCPlayAch_Settings_Style_FollowDefaultHint">This platform follows the default appearance until customized.</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_Style_RevertConfirm">Revert this platform to the default notification appearance? Its custom images will be deleted.</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_Style_ExportButton">Export Style</sys:String>
+    <sys:String x:Key="LOCPlayAch_Settings_Style_ExportBothButton">Export Both</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_Style_ImportButton">Import Style</sys:String>
-    <sys:String x:Key="LOCPlayAch_Settings_Style_ShareHint">Export or import the selected style as a .pastyle.zip file, which can also bundle custom images and templates.</sys:String>
+    <sys:String x:Key="LOCPlayAch_Settings_Style_ShareHint">Export the current tab's style as a .panotif or .paframe file, or both surfaces as a .pastyle.zip. Files can also bundle custom images and templates, and import from either tab.</sys:String>
+    <sys:String x:Key="LOCPlayAch_Settings_Style_ImportSurfaceMismatch">This file contains the {0} appearance, but {1} is currently selected. Import it anyway?</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_Style_ImportConfirm">Import this notification style and replace the currently displayed appearance?</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_Style_ExportIncludeToastTemplate">Include your custom notification template in the package?</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_Style_ExportIncludeFrameTemplate">Include your custom frame template in the package?</sys:String>
@@ -626,8 +628,7 @@
     <sys:String x:Key="LOCPlayAch_Settings_Style_BackgroundImage">Background image</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_Style_BackgroundImageHint">PNG, JPG, or GIF shown behind the notification. Frames have no background.</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_Style_BadgeImages">Badge images</sys:String>
-    <sys:String x:Key="LOCPlayAch_Settings_Style_BadgeImagesHint">Replace the rarity and completion badges on notifications and frames.</sys:String>
-    <sys:String x:Key="LOCPlayAch_Settings_Style_SharedAcrossSurfacesHint">Applies to both the notification and the screenshot frame.</sys:String>
+    <sys:String x:Key="LOCPlayAch_Settings_Style_BadgeImagesHint">Replace the rarity and completion badges.</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_RecordingsHeader">Unlock recordings</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_EnableUnlockRecordings">Save a clip on each unlock</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_RecordingDirectory">Recording folder</sys:String>

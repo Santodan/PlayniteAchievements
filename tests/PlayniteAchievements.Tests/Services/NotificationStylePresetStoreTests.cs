@@ -31,7 +31,8 @@ namespace PlayniteAchievements.Services.Tests
                 style.Toast.CardWidth = 480;
                 style.Frame.ShowUnlockTime = false;
                 style.ToastBackgroundImagePath = backgroundSource;
-                style.HeaderTexts.UnlockHeader = "Preset Unlock!";
+                style.Toast.HeaderTexts.UnlockHeader = "Preset Unlock!";
+                style.Frame.HeaderTexts.UnlockHeader = "Frame header";
 
                 store.SavePreset(isFrame: false, "My Toast", style, templateXamlOrNull: null);
 
@@ -42,10 +43,11 @@ namespace PlayniteAchievements.Services.Tests
                 var manifest = ReadManifest(preset.FilePath);
                 Assert.IsFalse(manifest.Style.Toast.ShowHeader);
                 Assert.AreEqual(480d, manifest.Style.Toast.CardWidth);
-                Assert.AreEqual("Preset Unlock!", manifest.Style.HeaderTexts.UnlockHeader);
+                Assert.AreEqual("Preset Unlock!", manifest.Style.Toast.HeaderTexts.UnlockHeader);
                 Assert.AreEqual("images/background.png", manifest.Style.ToastBackgroundImagePath);
-                // The frame surface must not travel with a toast preset.
+                // The frame surface (including its header texts) must not travel with a toast preset.
                 Assert.IsTrue(manifest.Style.Frame.ShowUnlockTime);
+                Assert.IsNull(manifest.Style.Frame.HeaderTexts?.UnlockHeader);
             }
             finally
             {
@@ -54,7 +56,7 @@ namespace PlayniteAchievements.Services.Tests
         }
 
         [TestMethod]
-        public void SaveFramePreset_CarriesFrameSurfaceOnly_NoImages()
+        public void SaveFramePreset_CarriesFrameSurfaceOnly_ToastDataDoesNotTravel()
         {
             var tempDir = CreateTempDirectory();
             try
@@ -66,9 +68,10 @@ namespace PlayniteAchievements.Services.Tests
                 var style = NotificationStyleSettings.CreateDefault();
                 style.Frame.ShowUnlockTime = false;
                 style.Frame.TitleFontSize = 30;
+                style.Frame.HeaderTexts.UnlockHeader = "Frame header";
                 style.Toast.ShowHeader = false;
                 style.ToastBackgroundImagePath = backgroundSource;
-                style.HeaderTexts.UnlockHeader = "Should not travel";
+                style.Toast.HeaderTexts.UnlockHeader = "Should not travel";
 
                 store.SavePreset(isFrame: true, "My Frame", style, templateXamlOrNull: null);
 
@@ -77,18 +80,22 @@ namespace PlayniteAchievements.Services.Tests
 
                 using (var archive = ZipFile.OpenRead(preset.FilePath))
                 {
+                    // No frame badge images are set, so the package bundles no image entries
+                    // (the toast-only background never travels with a frame preset).
                     Assert.IsFalse(
                         archive.Entries.Any(entry => entry.FullName.StartsWith("images/", StringComparison.OrdinalIgnoreCase)),
-                        "A frame preset must bundle no images.");
+                        "A frame preset without frame badge images must bundle no images.");
                 }
 
                 var manifest = ReadManifest(preset.FilePath);
                 Assert.IsFalse(manifest.Style.Frame.ShowUnlockTime);
                 Assert.AreEqual(30d, manifest.Style.Frame.TitleFontSize);
-                // Toast surface, images, and header texts must not travel with a frame preset.
+                // The frame's own header texts travel with the frame preset.
+                Assert.AreEqual("Frame header", manifest.Style.Frame.HeaderTexts.UnlockHeader);
+                // The toast surface, its header texts, and the background must not travel.
                 Assert.IsTrue(manifest.Style.Toast.ShowHeader);
                 Assert.IsNull(manifest.Style.ToastBackgroundImagePath);
-                Assert.IsNull(manifest.Style.HeaderTexts?.UnlockHeader);
+                Assert.IsNull(manifest.Style.Toast.HeaderTexts?.UnlockHeader);
             }
             finally
             {
@@ -277,7 +284,8 @@ namespace PlayniteAchievements.Services.Tests
 
                 Assert.IsFalse(loaded.Frame.ShowUnlockTime);
                 Assert.IsNull(loaded.ToastBackgroundImagePath);
-                Assert.IsNull(loaded.BadgeImages.CommonPath);
+                Assert.IsNull(loaded.Toast.BadgeImages.CommonPath);
+                Assert.IsNull(loaded.Frame.BadgeImages.CommonPath);
             }
             finally
             {

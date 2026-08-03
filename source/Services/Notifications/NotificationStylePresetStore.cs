@@ -115,10 +115,10 @@ namespace PlayniteAchievements.Services.Notifications
 
         /// <summary>
         /// Saves the given surface of <paramref name="currentStyle"/> as a named preset,
-        /// overwriting any preset with the same name. Only the saved surface travels: a toast
-        /// preset carries the toast style plus background/badge images and header texts; a
-        /// frame preset carries the frame style only, so its package bundles no images. The
-        /// other surface is left at factory defaults in the package and is ignored on apply.
+        /// overwriting any preset with the same name. Only the saved surface travels, with its
+        /// own badge images and header texts riding along inside the surface style; a toast
+        /// preset additionally carries the toast-only background image. The other surface is
+        /// left at factory defaults in the package and is ignored on apply.
         /// </summary>
         public void SavePreset(
             bool isFrame,
@@ -137,24 +137,11 @@ namespace PlayniteAchievements.Services.Notifications
                 throw new ArgumentException("Preset name is invalid.", nameof(name));
             }
 
-            var pruned = new NotificationStyleSettings();
-            if (isFrame)
-            {
-                pruned.Frame = currentStyle.Frame.Clone();
-            }
-            else
-            {
-                pruned.Toast = currentStyle.Toast.Clone();
-                pruned.ToastBackgroundImagePath = currentStyle.ToastBackgroundImagePath;
-                pruned.BadgeImages = currentStyle.BadgeImages.Clone();
-                pruned.HeaderTexts = currentStyle.HeaderTexts.Clone();
-            }
-
-            _portableStore.ExportPackage(
-                pruned,
+            _portableStore.ExportSurfacePackage(
+                isFrame,
+                currentStyle,
                 GetPresetPath(isFrame, sanitized),
-                toastTemplateXaml: isFrame ? null : templateXamlOrNull,
-                frameTemplateXaml: isFrame ? templateXamlOrNull : null);
+                templateXamlOrNull);
         }
 
         /// <summary>

@@ -262,48 +262,52 @@ namespace PlayniteAchievements.ViewModels
             ? RarityAppearanceHelper.GetGlow(_rarity, 20, _settings)
             : null;
 
-        // Header texts honor the style's user edits with the localized strings as fallback.
+        // Header texts honor the surface's user edits with the localized strings as fallback.
         // Stored friend formats that lost their {0} placeholder fall back to the localized
-        // default rather than crashing the toast.
-        public string HeaderText
-        {
-            get
-            {
-                if (IsFriendUnlock)
-                {
-                    var format = NotificationHeaderTextService.IsValidHeaderFormat(_style.HeaderTexts.FriendUnlockHeaderFormat)
-                        ? _style.HeaderTexts.FriendUnlockHeaderFormat
-                        : ResourceProvider.GetString("LOCPlayAch_Toast_FriendUnlocked");
-                    return string.Format(format, FriendDisplayName);
-                }
-
-                return !string.IsNullOrWhiteSpace(_style.HeaderTexts.UnlockHeader)
-                    ? _style.HeaderTexts.UnlockHeader
-                    : ResourceProvider.GetString("LOCPlayAch_Toast_AchievementUnlocked");
-            }
-        }
+        // default rather than crashing the toast. These Parent-level properties resolve from
+        // the toast surface for custom/theme templates that bind Parent.HeaderText; the
+        // bundled line templates bind the per-surface strings resolved onto the header line
+        // descriptor instead.
+        public string HeaderText => ResolveHeaderText(_style.Toast.HeaderTexts);
 
         /// <summary>
         /// Header text of the standalone game-completion notification ("Congratulations!" by
-        /// default), honoring the style's user edit.
+        /// default), honoring the toast surface's user edit.
         /// </summary>
-        public string CompletionHeaderText => !string.IsNullOrWhiteSpace(_style.HeaderTexts.CompletionHeader)
-            ? _style.HeaderTexts.CompletionHeader
-            : ResourceProvider.GetString("LOCPlayAch_Toast_Congratulations");
+        public string CompletionHeaderText => ResolveCompletionHeaderText(_style.Toast.HeaderTexts);
 
         /// <summary>
         /// Header text of a friend's game-completion notification ("{friend} completed the
-        /// game!" by default), honoring the style's user edit.
+        /// game!" by default), honoring the toast surface's user edit.
         /// </summary>
-        public string FriendCompletionHeaderText
+        public string FriendCompletionHeaderText => ResolveFriendCompletionHeaderText(_style.Toast.HeaderTexts);
+
+        private string ResolveHeaderText(NotificationHeaderTextSettings texts)
         {
-            get
+            if (IsFriendUnlock)
             {
-                var format = NotificationHeaderTextService.IsValidHeaderFormat(_style.HeaderTexts.FriendCompletionHeaderFormat)
-                    ? _style.HeaderTexts.FriendCompletionHeaderFormat
-                    : "{0} " + ResourceProvider.GetString("LOCPlayAch_Toast_CompletedTheGame");
+                var format = NotificationHeaderTextService.IsValidHeaderFormat(texts.FriendUnlockHeaderFormat)
+                    ? texts.FriendUnlockHeaderFormat
+                    : ResourceProvider.GetString("LOCPlayAch_Toast_FriendUnlocked");
                 return string.Format(format, FriendDisplayName);
             }
+
+            return !string.IsNullOrWhiteSpace(texts.UnlockHeader)
+                ? texts.UnlockHeader
+                : ResourceProvider.GetString("LOCPlayAch_Toast_AchievementUnlocked");
+        }
+
+        private static string ResolveCompletionHeaderText(NotificationHeaderTextSettings texts) =>
+            !string.IsNullOrWhiteSpace(texts.CompletionHeader)
+                ? texts.CompletionHeader
+                : ResourceProvider.GetString("LOCPlayAch_Toast_Congratulations");
+
+        private string ResolveFriendCompletionHeaderText(NotificationHeaderTextSettings texts)
+        {
+            var format = NotificationHeaderTextService.IsValidHeaderFormat(texts.FriendCompletionHeaderFormat)
+                ? texts.FriendCompletionHeaderFormat
+                : "{0} " + ResourceProvider.GetString("LOCPlayAch_Toast_CompletedTheGame");
+            return string.Format(format, FriendDisplayName);
         }
 
         public string TitleText => string.IsNullOrWhiteSpace(_args.DisplayName)
@@ -480,55 +484,56 @@ namespace PlayniteAchievements.ViewModels
         }
 
         /// <summary>
-        /// User badge image for this unlock's badge slot, or null for the drawn badge.
-        /// Capstones use the completion slot; otherwise a set rarity image wins over the
-        /// trophy badge (trophy-typed unlocks carry rarity data too), which is the documented
-        /// custom-rarity-beats-trophy rule.
+        /// User badge image for this unlock's badge slot in the given surface's set, or null
+        /// for the drawn badge. Capstones use the completion slot; otherwise a set rarity
+        /// image wins over the trophy badge (trophy-typed unlocks carry rarity data too),
+        /// which is the documented custom-rarity-beats-trophy rule.
         /// </summary>
-        private string CustomBadgeImagePath
+        private string ResolveCustomBadgePath(NotificationBadgeImageSet badges)
         {
-            get
+            if (IsCapstone)
             {
-                var badges = _style.BadgeImages;
-                if (IsCapstone)
-                {
-                    return NullIfBlank(badges.CompletionPath);
-                }
+                return NullIfBlank(badges.CompletionPath);
+            }
 
-                if (!HasRarityData)
-                {
-                    return null;
-                }
+            if (!HasRarityData)
+            {
+                return null;
+            }
 
-                switch (_rarity)
-                {
-                    case RarityTier.UltraRare:
-                        return NullIfBlank(badges.UltraRarePath);
-                    case RarityTier.Rare:
-                        return NullIfBlank(badges.RarePath);
-                    case RarityTier.Uncommon:
-                        return NullIfBlank(badges.UncommonPath);
-                    default:
-                        return NullIfBlank(badges.CommonPath);
-                }
+            switch (_rarity)
+            {
+                case RarityTier.UltraRare:
+                    return NullIfBlank(badges.UltraRarePath);
+                case RarityTier.Rare:
+                    return NullIfBlank(badges.RarePath);
+                case RarityTier.Uncommon:
+                    return NullIfBlank(badges.UncommonPath);
+                default:
+                    return NullIfBlank(badges.CommonPath);
             }
         }
 
-        // Badge source for the toast template's AsyncImage binding: the custom image path
-        // when one is set (a string, so animated GIF badges animate), otherwise the drawn
-        // badge ImageSource.
-        public object ToastBadgeSource => (object)CustomBadgeImagePath ?? BadgeImage;
+        // Badge source for the toast template's AsyncImage binding: the toast surface's custom
+        // image path when one is set (a string, so animated GIF badges animate), otherwise the
+        // drawn badge ImageSource. Cache-busted (write-time + size token, stripped before
+        // decoding) so an overwritten badge file at the same managed slot path never shows a
+        // stale cached bitmap.
+        public object ToastBadgeSource =>
+            (object)AchievementIconResolver.ApplyCacheBust(ResolveCustomBadgePath(_style.Toast.BadgeImages)) ?? BadgeImage;
 
         // Toast icon-swap source for the completion trigger, mirroring CompletedBadgeImage.
         public object ToastCompletedBadgeSource =>
-            (object)NullIfBlank(_style.BadgeImages.CompletionPath) ?? CompletedBadgeImage;
+            (object)AchievementIconResolver.ApplyCacheBust(NullIfBlank(_style.Toast.BadgeImages.CompletionPath)) ?? CompletedBadgeImage;
 
-        // Frame equivalents: the frame is rendered offscreen, so images must be synchronously
-        // decoded (an async load renders blank); animated GIFs contribute their first frame.
-        public ImageSource FrameBadgeImage => LoadSyncImage(CustomBadgeImagePath) ?? BadgeImage;
+        // Frame equivalents read the frame surface's own badge set. The frame is rendered
+        // offscreen, so images must be synchronously decoded (an async load renders blank);
+        // animated GIFs contribute their first frame.
+        public ImageSource FrameBadgeImage =>
+            LoadSyncImage(ResolveCustomBadgePath(_style.Frame.BadgeImages)) ?? BadgeImage;
 
         public ImageSource FrameCompletedBadgeImage =>
-            LoadSyncImage(NullIfBlank(_style.BadgeImages.CompletionPath)) ?? CompletedBadgeImage;
+            LoadSyncImage(NullIfBlank(_style.Frame.BadgeImages.CompletionPath)) ?? CompletedBadgeImage;
 
         /// <summary>
         /// Provider icon geometry key for the toast/frame provider icon (rendered via
@@ -685,7 +690,10 @@ namespace PlayniteAchievements.ViewModels
                             isFrame ? FrameShowHeader : ShowHeader,
                             isFrame ? FrameShowUnlockTime : ShowUnlockTime,
                             isFrame ? FrameShowHeaderDateSeparator : ShowHeaderDateSeparator,
-                            !isFrame && ShowFriendAvatar));
+                            !isFrame && ShowFriendAvatar,
+                            ResolveHeaderText(surface.HeaderTexts),
+                            ResolveCompletionHeaderText(surface.HeaderTexts),
+                            ResolveFriendCompletionHeaderText(surface.HeaderTexts)));
                         break;
                     case NotificationSurfaceStyle.LineTitle:
                         lines.Add(new ToastTitleLine(
@@ -772,6 +780,9 @@ namespace PlayniteAchievements.ViewModels
                 var image = new BitmapImage();
                 image.BeginInit();
                 image.CacheOption = BitmapCacheOption.OnLoad;
+                // Bypass WPF's process-wide bitmap cache: the managed slots reuse fixed file
+                // names, so an overwritten file at the same path must decode fresh bytes.
+                image.CreateOptions = BitmapCreateOptions.IgnoreImageCache;
                 image.UriSource = new Uri(path, UriKind.Absolute);
                 image.EndInit();
                 image.Freeze();

@@ -71,28 +71,53 @@ namespace PlayniteAchievements.Services.GameCustomData
                 new NotificationPackageImageBinding(
                     NotificationImageSlot.BadgeCommon,
                     "notification_badge_common",
-                    style => style.BadgeImages.CommonPath,
-                    (style, path) => style.BadgeImages.CommonPath = path),
+                    style => style.Toast.BadgeImages.CommonPath,
+                    (style, path) => style.Toast.BadgeImages.CommonPath = path),
                 new NotificationPackageImageBinding(
                     NotificationImageSlot.BadgeUncommon,
                     "notification_badge_uncommon",
-                    style => style.BadgeImages.UncommonPath,
-                    (style, path) => style.BadgeImages.UncommonPath = path),
+                    style => style.Toast.BadgeImages.UncommonPath,
+                    (style, path) => style.Toast.BadgeImages.UncommonPath = path),
                 new NotificationPackageImageBinding(
                     NotificationImageSlot.BadgeRare,
                     "notification_badge_rare",
-                    style => style.BadgeImages.RarePath,
-                    (style, path) => style.BadgeImages.RarePath = path),
+                    style => style.Toast.BadgeImages.RarePath,
+                    (style, path) => style.Toast.BadgeImages.RarePath = path),
                 new NotificationPackageImageBinding(
                     NotificationImageSlot.BadgeUltraRare,
                     "notification_badge_ultrarare",
-                    style => style.BadgeImages.UltraRarePath,
-                    (style, path) => style.BadgeImages.UltraRarePath = path),
+                    style => style.Toast.BadgeImages.UltraRarePath,
+                    (style, path) => style.Toast.BadgeImages.UltraRarePath = path),
                 new NotificationPackageImageBinding(
                     NotificationImageSlot.BadgeCompletion,
                     "notification_badge_completion",
-                    style => style.BadgeImages.CompletionPath,
-                    (style, path) => style.BadgeImages.CompletionPath = path)
+                    style => style.Toast.BadgeImages.CompletionPath,
+                    (style, path) => style.Toast.BadgeImages.CompletionPath = path),
+                new NotificationPackageImageBinding(
+                    NotificationImageSlot.FrameBadgeCommon,
+                    "notification_frame_badge_common",
+                    style => style.Frame.BadgeImages.CommonPath,
+                    (style, path) => style.Frame.BadgeImages.CommonPath = path),
+                new NotificationPackageImageBinding(
+                    NotificationImageSlot.FrameBadgeUncommon,
+                    "notification_frame_badge_uncommon",
+                    style => style.Frame.BadgeImages.UncommonPath,
+                    (style, path) => style.Frame.BadgeImages.UncommonPath = path),
+                new NotificationPackageImageBinding(
+                    NotificationImageSlot.FrameBadgeRare,
+                    "notification_frame_badge_rare",
+                    style => style.Frame.BadgeImages.RarePath,
+                    (style, path) => style.Frame.BadgeImages.RarePath = path),
+                new NotificationPackageImageBinding(
+                    NotificationImageSlot.FrameBadgeUltraRare,
+                    "notification_frame_badge_ultrarare",
+                    style => style.Frame.BadgeImages.UltraRarePath,
+                    (style, path) => style.Frame.BadgeImages.UltraRarePath = path),
+                new NotificationPackageImageBinding(
+                    NotificationImageSlot.FrameBadgeCompletion,
+                    "notification_frame_badge_completion",
+                    style => style.Frame.BadgeImages.CompletionPath,
+                    (style, path) => style.Frame.BadgeImages.CompletionPath = path)
             };
 
         private readonly ILogger _logger;

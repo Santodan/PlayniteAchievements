@@ -27,8 +27,8 @@ namespace PlayniteAchievements.Tests.Models.Settings
             Assert.IsNull(style.Toast.FontFamily);
             Assert.IsNull(style.Toast.HeaderFontSize);
             Assert.IsNull(style.ToastBackgroundImagePath);
-            Assert.IsNull(style.BadgeImages.CommonPath);
-            Assert.IsNull(style.HeaderTexts.UnlockHeader);
+            Assert.IsNull(style.Toast.BadgeImages.CommonPath);
+            Assert.IsNull(style.Toast.HeaderTexts.UnlockHeader);
 
             var settings = new PersistedSettings();
             Assert.IsTrue(settings.ToastUseThemeStyling);
@@ -77,7 +77,7 @@ namespace PlayniteAchievements.Tests.Models.Settings
             var settings = new PersistedSettings();
             var style = NotificationStyleSettings.CreateDefault();
             style.Toast.ShowDescription = false;
-            style.BadgeImages.RarePath = @"c:\images\rare.gif";
+            style.Toast.BadgeImages.RarePath = @"c:\images\rare.gif";
 
             settings.SetProviderNotificationStyle("Steam", style);
 
@@ -85,7 +85,7 @@ namespace PlayniteAchievements.Tests.Models.Settings
             Assert.IsNotNull(stored);
             Assert.AreNotSame(style, stored);
             Assert.IsFalse(stored.Toast.ShowDescription);
-            Assert.AreEqual(@"c:\images\rare.gif", stored.BadgeImages.RarePath);
+            Assert.AreEqual(@"c:\images\rare.gif", stored.Toast.BadgeImages.RarePath);
 
             // Mutating the instance passed to the setter must not affect the stored clone.
             style.Toast.ShowDescription = true;
@@ -147,7 +147,7 @@ namespace PlayniteAchievements.Tests.Models.Settings
                 NotificationSurfaceStyle.LineTitle,
                 NotificationSurfaceStyle.LineHeader
             };
-            source.NotificationStyle.HeaderTexts.UnlockHeader = "Ding!";
+            source.NotificationStyle.Toast.HeaderTexts.UnlockHeader = "Ding!";
             var providerStyle = NotificationStyleSettings.CreateDefault();
             providerStyle.Toast.FontFamily = "Consolas";
             source.SetProviderNotificationStyle("Steam", providerStyle);
@@ -161,7 +161,7 @@ namespace PlayniteAchievements.Tests.Models.Settings
                 Assert.IsFalse(copy.ToastUseThemeStyling);
                 Assert.IsFalse(copy.FrameUseThemeStyling);
                 Assert.AreNotSame(source.NotificationStyle, copy.NotificationStyle);
-                Assert.AreEqual("Ding!", copy.NotificationStyle.HeaderTexts.UnlockHeader);
+                Assert.AreEqual("Ding!", copy.NotificationStyle.Toast.HeaderTexts.UnlockHeader);
                 CollectionAssert.AreEqual(
                     source.NotificationStyle.Toast.LineOrder,
                     copy.NotificationStyle.Toast.LineOrder);
@@ -169,9 +169,9 @@ namespace PlayniteAchievements.Tests.Models.Settings
             }
 
             // Mutating the source after copying must not leak into the copies.
-            source.NotificationStyle.HeaderTexts.UnlockHeader = "Changed";
+            source.NotificationStyle.Toast.HeaderTexts.UnlockHeader = "Changed";
             source.GetProviderNotificationStyle("Steam").Toast.FontFamily = "Arial";
-            Assert.AreEqual("Ding!", clone.NotificationStyle.HeaderTexts.UnlockHeader);
+            Assert.AreEqual("Ding!", clone.NotificationStyle.Toast.HeaderTexts.UnlockHeader);
             Assert.AreEqual("Consolas", target.GetProviderNotificationStyle("Steam").Toast.FontFamily);
         }
 

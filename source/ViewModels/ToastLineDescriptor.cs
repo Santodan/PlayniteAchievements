@@ -68,13 +68,19 @@ namespace PlayniteAchievements.ViewModels
             bool showHeader,
             bool showUnlockTime,
             bool showDateSeparator,
-            bool showFriendAvatar)
+            bool showFriendAvatar,
+            string headerText,
+            string completionHeaderText,
+            string friendCompletionHeaderText)
             : base(parent, fontSize, fontFamily)
         {
             ShowHeader = showHeader;
             ShowUnlockTime = showUnlockTime;
             ShowDateSeparator = showDateSeparator;
             ShowFriendAvatar = showFriendAvatar;
+            HeaderText = headerText;
+            CompletionHeaderText = completionHeaderText;
+            FriendCompletionHeaderText = friendCompletionHeaderText;
         }
 
         public bool ShowHeader { get; }
@@ -84,6 +90,18 @@ namespace PlayniteAchievements.ViewModels
         public bool ShowDateSeparator { get; }
 
         public bool ShowFriendAvatar { get; }
+
+        /// <summary>
+        /// The resolved unlock header text for this line's surface (the surface's user edit,
+        /// falling back to the localized default; friend unlocks resolve their format here).
+        /// </summary>
+        public string HeaderText { get; }
+
+        /// <summary>The resolved game-completion header text for this line's surface.</summary>
+        public string CompletionHeaderText { get; }
+
+        /// <summary>The resolved friend game-completion header text for this line's surface.</summary>
+        public string FriendCompletionHeaderText { get; }
 
         // The header row still occupies space when it carries the unlock header text, the unlock
         // datetime, or the completion header; otherwise it collapses.

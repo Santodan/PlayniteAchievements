@@ -27,16 +27,29 @@ namespace PlayniteAchievements.Services.Notifications
 
         public int Version { get; set; }
 
+        /// <summary>
+        /// Which surfaces the embedded style actually carries. Both default true so full-style
+        /// files (and manifests written before the flags existed) import both surfaces; a
+        /// surface package flags only its own surface.
+        /// </summary>
+        public bool HasToast { get; set; } = true;
+
+        public bool HasFrame { get; set; } = true;
+
         public NotificationStyleSettings Style { get; set; }
     }
 
     /// <summary>
     /// Which optional parts a portable style file carries, so the import UI can offer only what is
-    /// actually present (data style, toast template, frame template).
+    /// actually present (per-surface data style, toast template, frame template).
     /// </summary>
     public sealed class NotificationStylePackageContents
     {
         public bool HasStyle { get; set; }
+
+        public bool HasToastStyle { get; set; }
+
+        public bool HasFrameStyle { get; set; }
 
         public bool HasToastTemplate { get; set; }
 
@@ -44,16 +57,20 @@ namespace PlayniteAchievements.Services.Notifications
     }
 
     /// <summary>
-    /// Exports and imports a single notification appearance style to a shareable file. Plain
-    /// <c>.pastyle</c> is JSON only and cannot carry local images; <c>.pastyle.zip</c> bundles the
-    /// style's background and badge images under an <c>images/</c> folder so the look transfers
-    /// intact. Import re-materializes bundled images into managed storage via
+    /// Exports and imports notification appearance styles to shareable files. Plain
+    /// <c>.pastyle</c> is JSON only and cannot carry local images; the zip package formats
+    /// bundle the style's background and badge images under an <c>images/</c> folder so the
+    /// look transfers intact: <c>.pastyle.zip</c> carries both surfaces, while <c>.panotif</c>
+    /// and <c>.paframe</c> carry a single surface (flagged in the manifest). Import
+    /// re-materializes bundled images into managed storage via
     /// <see cref="NotificationImageStore"/> so paths are always rewritten to the local machine.
     /// </summary>
     public sealed class NotificationStylePortableStore
     {
         public const string FileExtension = ".pastyle";
         public const string PackageFileExtension = ".pastyle.zip";
+        public const string ToastPackageFileExtension = ".panotif";
+        public const string FramePackageFileExtension = ".paframe";
         public const string ManifestEntryName = "notification-style.pastyle";
 
         // Optional full-template XAML entries a package may carry, independently, alongside the
@@ -61,9 +78,11 @@ namespace PlayniteAchievements.Services.Notifications
         public const string ToastTemplateEntryName = "template-toast.xaml";
         public const string FrameTemplateEntryName = "template-frame.xaml";
 
-        // v2 added the optional template-toast.xaml / template-frame.xaml entries. The Kind
-        // discriminator is unchanged, so older readers still validate and simply ignore templates.
-        public const int CurrentVersion = 2;
+        // v2 added the optional template-toast.xaml / template-frame.xaml entries. v3 made badge
+        // images and header texts per-surface (toast keeps the legacy entry stems, the frame gets
+        // frame_badge_* entries) with no backwards compatibility for the old shared shape. The
+        // Kind discriminator is unchanged.
+        public const int CurrentVersion = 3;
 
         private const string ImagesFolderName = "images";
 
@@ -82,28 +101,53 @@ namespace PlayniteAchievements.Services.Notifications
             new ImageSlotBinding(
                 NotificationImageSlot.BadgeCommon,
                 "badge_common",
-                style => style.BadgeImages.CommonPath,
-                (style, path) => style.BadgeImages.CommonPath = path),
+                style => style.Toast.BadgeImages.CommonPath,
+                (style, path) => style.Toast.BadgeImages.CommonPath = path),
             new ImageSlotBinding(
                 NotificationImageSlot.BadgeUncommon,
                 "badge_uncommon",
-                style => style.BadgeImages.UncommonPath,
-                (style, path) => style.BadgeImages.UncommonPath = path),
+                style => style.Toast.BadgeImages.UncommonPath,
+                (style, path) => style.Toast.BadgeImages.UncommonPath = path),
             new ImageSlotBinding(
                 NotificationImageSlot.BadgeRare,
                 "badge_rare",
-                style => style.BadgeImages.RarePath,
-                (style, path) => style.BadgeImages.RarePath = path),
+                style => style.Toast.BadgeImages.RarePath,
+                (style, path) => style.Toast.BadgeImages.RarePath = path),
             new ImageSlotBinding(
                 NotificationImageSlot.BadgeUltraRare,
                 "badge_ultrarare",
-                style => style.BadgeImages.UltraRarePath,
-                (style, path) => style.BadgeImages.UltraRarePath = path),
+                style => style.Toast.BadgeImages.UltraRarePath,
+                (style, path) => style.Toast.BadgeImages.UltraRarePath = path),
             new ImageSlotBinding(
                 NotificationImageSlot.BadgeCompletion,
                 "badge_completion",
-                style => style.BadgeImages.CompletionPath,
-                (style, path) => style.BadgeImages.CompletionPath = path),
+                style => style.Toast.BadgeImages.CompletionPath,
+                (style, path) => style.Toast.BadgeImages.CompletionPath = path),
+            new ImageSlotBinding(
+                NotificationImageSlot.FrameBadgeCommon,
+                "frame_badge_common",
+                style => style.Frame.BadgeImages.CommonPath,
+                (style, path) => style.Frame.BadgeImages.CommonPath = path),
+            new ImageSlotBinding(
+                NotificationImageSlot.FrameBadgeUncommon,
+                "frame_badge_uncommon",
+                style => style.Frame.BadgeImages.UncommonPath,
+                (style, path) => style.Frame.BadgeImages.UncommonPath = path),
+            new ImageSlotBinding(
+                NotificationImageSlot.FrameBadgeRare,
+                "frame_badge_rare",
+                style => style.Frame.BadgeImages.RarePath,
+                (style, path) => style.Frame.BadgeImages.RarePath = path),
+            new ImageSlotBinding(
+                NotificationImageSlot.FrameBadgeUltraRare,
+                "frame_badge_ultrarare",
+                style => style.Frame.BadgeImages.UltraRarePath,
+                (style, path) => style.Frame.BadgeImages.UltraRarePath = path),
+            new ImageSlotBinding(
+                NotificationImageSlot.FrameBadgeCompletion,
+                "frame_badge_completion",
+                style => style.Frame.BadgeImages.CompletionPath,
+                (style, path) => style.Frame.BadgeImages.CompletionPath = path),
         };
 
         private readonly NotificationImageStore _imageStore;
@@ -155,16 +199,66 @@ namespace PlayniteAchievements.Services.Notifications
         }
 
         /// <summary>
-        /// Writes the style to a <c>.pastyle.zip</c> package, bundling every referenced image under
-        /// <c>images/</c> and rewriting the manifest's paths to those relative entry names.
-        /// Optionally embeds full-template XAML for the toast and/or frame surfaces (independently)
-        /// so a single package can carry the data style, either template, both, or neither template.
+        /// Writes the full style (both surfaces) to a <c>.pastyle.zip</c> package, bundling every
+        /// referenced image under <c>images/</c> and rewriting the manifest's paths to those
+        /// relative entry names. Optionally embeds full-template XAML for the toast and/or frame
+        /// surfaces (independently) so a single package can carry the data style, either template,
+        /// both, or neither template.
         /// </summary>
         public void ExportPackage(
             NotificationStyleSettings style,
             string destinationPath,
             string toastTemplateXaml = null,
             string frameTemplateXaml = null)
+        {
+            ExportPackageCore(style, destinationPath, toastTemplateXaml, frameTemplateXaml,
+                hasToast: true, hasFrame: true);
+        }
+
+        /// <summary>
+        /// Writes only the given surface of the style (plus the toast-only background image for
+        /// the toast surface) to a surface package (<c>.panotif</c>/<c>.paframe</c>, or a preset's
+        /// <c>.pastyle.zip</c>). The other surface is left at factory defaults and flagged absent
+        /// in the manifest, so import replaces only the carried surface.
+        /// </summary>
+        public void ExportSurfacePackage(
+            bool isFrame,
+            NotificationStyleSettings style,
+            string destinationPath,
+            string templateXamlOrNull = null)
+        {
+            if (style == null)
+            {
+                throw new ArgumentNullException(nameof(style));
+            }
+
+            var pruned = new NotificationStyleSettings();
+            if (isFrame)
+            {
+                pruned.Frame = style.Frame.Clone();
+            }
+            else
+            {
+                pruned.Toast = style.Toast.Clone();
+                pruned.ToastBackgroundImagePath = style.ToastBackgroundImagePath;
+            }
+
+            ExportPackageCore(
+                pruned,
+                destinationPath,
+                toastTemplateXaml: isFrame ? null : templateXamlOrNull,
+                frameTemplateXaml: isFrame ? templateXamlOrNull : null,
+                hasToast: !isFrame,
+                hasFrame: isFrame);
+        }
+
+        private void ExportPackageCore(
+            NotificationStyleSettings style,
+            string destinationPath,
+            string toastTemplateXaml,
+            string frameTemplateXaml,
+            bool hasToast,
+            bool hasFrame)
         {
             if (style == null)
             {
@@ -201,7 +295,8 @@ namespace PlayniteAchievements.Services.Notifications
                 var manifestEntry = archive.CreateEntry(ManifestEntryName, CompressionLevel.Optimal);
                 using (var writer = new StreamWriter(manifestEntry.Open()))
                 {
-                    writer.Write(JsonConvert.SerializeObject(BuildPortable(copy), _writeSettings));
+                    writer.Write(JsonConvert.SerializeObject(
+                        BuildPortable(copy, hasToast, hasFrame), _writeSettings));
                 }
 
                 foreach (var pair in imageSources.OrderBy(a => a.Key, StringComparer.OrdinalIgnoreCase))
@@ -250,7 +345,12 @@ namespace PlayniteAchievements.Services.Notifications
                 // A plain .pastyle is JSON only; validate the Kind so foreign files are rejected here too.
                 var portable = JsonConvert.DeserializeObject<NotificationStylePortableFile>(File.ReadAllText(sourcePath));
                 ExtractStyleOrThrow(portable);
-                return new NotificationStylePackageContents { HasStyle = true };
+                return new NotificationStylePackageContents
+                {
+                    HasStyle = true,
+                    HasToastStyle = portable.HasToast,
+                    HasFrameStyle = portable.HasFrame
+                };
             }
 
             using (var archive = ZipFile.OpenRead(sourcePath))
@@ -260,17 +360,28 @@ namespace PlayniteAchievements.Services.Notifications
                     .Where(name => !string.IsNullOrWhiteSpace(name))
                     .ToList();
 
-                var hasManifest = names.Any(name =>
-                    string.Equals(name, ManifestEntryName, StringComparison.OrdinalIgnoreCase));
-                if (!hasManifest)
+                var manifestEntry = archive.Entries.FirstOrDefault(entry =>
+                    string.Equals(NormalizeArchiveEntryName(entry.FullName), ManifestEntryName, StringComparison.OrdinalIgnoreCase));
+                if (manifestEntry == null)
                 {
                     throw new InvalidOperationException(
-                        "The .PASTYLE.ZIP does not contain a notification style manifest.");
+                        "The package does not contain a notification style manifest.");
                 }
+
+                // Read the manifest for the surface flags (and to validate the Kind up front).
+                NotificationStylePortableFile portable;
+                using (var reader = new StreamReader(manifestEntry.Open()))
+                {
+                    portable = JsonConvert.DeserializeObject<NotificationStylePortableFile>(reader.ReadToEnd());
+                }
+
+                ExtractStyleOrThrow(portable);
 
                 return new NotificationStylePackageContents
                 {
                     HasStyle = true,
+                    HasToastStyle = portable.HasToast,
+                    HasFrameStyle = portable.HasFrame,
                     HasToastTemplate = names.Any(name =>
                         string.Equals(name, ToastTemplateEntryName, StringComparison.OrdinalIgnoreCase)),
                     HasFrameTemplate = names.Any(name =>
@@ -369,7 +480,9 @@ namespace PlayniteAchievements.Services.Notifications
         public static bool IsPackagePath(string path)
         {
             return !string.IsNullOrWhiteSpace(path) &&
-                   path.EndsWith(PackageFileExtension, StringComparison.OrdinalIgnoreCase);
+                   (path.EndsWith(PackageFileExtension, StringComparison.OrdinalIgnoreCase) ||
+                    path.EndsWith(ToastPackageFileExtension, StringComparison.OrdinalIgnoreCase) ||
+                    path.EndsWith(FramePackageFileExtension, StringComparison.OrdinalIgnoreCase));
         }
 
         /// <summary>
@@ -385,7 +498,15 @@ namespace PlayniteAchievements.Services.Notifications
             }
 
             var trimmed = path.Trim();
-            foreach (var suffix in new[] { PackageFileExtension, FileExtension, ".zip", ".json" })
+            foreach (var suffix in new[]
+                     {
+                         PackageFileExtension,
+                         ToastPackageFileExtension,
+                         FramePackageFileExtension,
+                         FileExtension,
+                         ".zip",
+                         ".json"
+                     })
             {
                 if (trimmed.EndsWith(suffix, StringComparison.OrdinalIgnoreCase))
                 {
@@ -511,12 +632,17 @@ namespace PlayniteAchievements.Services.Notifications
             return (portable.Style ?? new NotificationStyleSettings()).Clone();
         }
 
-        private static NotificationStylePortableFile BuildPortable(NotificationStyleSettings style)
+        private static NotificationStylePortableFile BuildPortable(
+            NotificationStyleSettings style,
+            bool hasToast = true,
+            bool hasFrame = true)
         {
             return new NotificationStylePortableFile
             {
                 Kind = NotificationStylePortableFile.NotificationStyleKind,
                 Version = CurrentVersion,
+                HasToast = hasToast,
+                HasFrame = hasFrame,
                 Style = style
             };
         }
@@ -533,7 +659,8 @@ namespace PlayniteAchievements.Services.Notifications
         {
             if (!IsPackagePath(path))
             {
-                throw new InvalidOperationException("Destination path must end with .pastyle.zip.");
+                throw new InvalidOperationException(
+                    "Destination path must end with .pastyle.zip, .panotif, or .paframe.");
             }
         }
 

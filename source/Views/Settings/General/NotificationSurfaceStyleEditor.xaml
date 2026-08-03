@@ -495,7 +495,7 @@
             </StackPanel>
         </Border>
 
-        <!-- Badge images: custom rarity badge art, shared between both surfaces. -->
+        <!-- Badge images: this surface's own custom rarity badge art. -->
         <Border Style="{StaticResource EditorCardStyle}">
             <StackPanel>
                 <TextBlock Text="{DynamicResource LOCPlayAch_Settings_Style_BadgeImages}"
@@ -532,14 +532,14 @@
                             BorderBrush="{DynamicResource PlayAch.Brush.Border}"
                             BorderThickness="1"
                             Margin="0,0,8,6">
-                        <Image helpers:AsyncImage.Uri="{Binding Style.BadgeImages.CommonPath}"
+                        <Image helpers:AsyncImage.Uri="{Binding BadgeCommonThumbnailUri}"
                                helpers:AsyncImage.DecodePixel="48"
                                Stretch="Uniform"
                                RenderOptions.BitmapScalingMode="HighQuality"/>
                     </Border>
                     <TextBox Grid.Row="0" Grid.Column="2"
                              Tag="BadgeCommon"
-                             Text="{Binding Style.BadgeImages.CommonPath, Mode=OneWay}"
+                             Text="{Binding Surface.BadgeImages.CommonPath, Mode=OneWay}"
                              IsReadOnly="True"
                              VerticalAlignment="Center"
                              Margin="0,0,0,6"
@@ -571,14 +571,14 @@
                             BorderBrush="{DynamicResource PlayAch.Brush.Border}"
                             BorderThickness="1"
                             Margin="0,0,8,6">
-                        <Image helpers:AsyncImage.Uri="{Binding Style.BadgeImages.UncommonPath}"
+                        <Image helpers:AsyncImage.Uri="{Binding BadgeUncommonThumbnailUri}"
                                helpers:AsyncImage.DecodePixel="48"
                                Stretch="Uniform"
                                RenderOptions.BitmapScalingMode="HighQuality"/>
                     </Border>
                     <TextBox Grid.Row="1" Grid.Column="2"
                              Tag="BadgeUncommon"
-                             Text="{Binding Style.BadgeImages.UncommonPath, Mode=OneWay}"
+                             Text="{Binding Surface.BadgeImages.UncommonPath, Mode=OneWay}"
                              IsReadOnly="True"
                              VerticalAlignment="Center"
                              Margin="0,0,0,6"
@@ -610,14 +610,14 @@
                             BorderBrush="{DynamicResource PlayAch.Brush.Border}"
                             BorderThickness="1"
                             Margin="0,0,8,6">
-                        <Image helpers:AsyncImage.Uri="{Binding Style.BadgeImages.RarePath}"
+                        <Image helpers:AsyncImage.Uri="{Binding BadgeRareThumbnailUri}"
                                helpers:AsyncImage.DecodePixel="48"
                                Stretch="Uniform"
                                RenderOptions.BitmapScalingMode="HighQuality"/>
                     </Border>
                     <TextBox Grid.Row="2" Grid.Column="2"
                              Tag="BadgeRare"
-                             Text="{Binding Style.BadgeImages.RarePath, Mode=OneWay}"
+                             Text="{Binding Surface.BadgeImages.RarePath, Mode=OneWay}"
                              IsReadOnly="True"
                              VerticalAlignment="Center"
                              Margin="0,0,0,6"
@@ -649,14 +649,14 @@
                             BorderBrush="{DynamicResource PlayAch.Brush.Border}"
                             BorderThickness="1"
                             Margin="0,0,8,6">
-                        <Image helpers:AsyncImage.Uri="{Binding Style.BadgeImages.UltraRarePath}"
+                        <Image helpers:AsyncImage.Uri="{Binding BadgeUltraRareThumbnailUri}"
                                helpers:AsyncImage.DecodePixel="48"
                                Stretch="Uniform"
                                RenderOptions.BitmapScalingMode="HighQuality"/>
                     </Border>
                     <TextBox Grid.Row="3" Grid.Column="2"
                              Tag="BadgeUltraRare"
-                             Text="{Binding Style.BadgeImages.UltraRarePath, Mode=OneWay}"
+                             Text="{Binding Surface.BadgeImages.UltraRarePath, Mode=OneWay}"
                              IsReadOnly="True"
                              VerticalAlignment="Center"
                              Margin="0,0,0,6"
@@ -688,14 +688,14 @@
                             BorderBrush="{DynamicResource PlayAch.Brush.Border}"
                             BorderThickness="1"
                             Margin="0,0,8,0">
-                        <Image helpers:AsyncImage.Uri="{Binding Style.BadgeImages.CompletionPath}"
+                        <Image helpers:AsyncImage.Uri="{Binding BadgeCompletionThumbnailUri}"
                                helpers:AsyncImage.DecodePixel="48"
                                Stretch="Uniform"
                                RenderOptions.BitmapScalingMode="HighQuality"/>
                     </Border>
                     <TextBox Grid.Row="4" Grid.Column="2"
                              Tag="BadgeCompletion"
-                             Text="{Binding Style.BadgeImages.CompletionPath, Mode=OneWay}"
+                             Text="{Binding Surface.BadgeImages.CompletionPath, Mode=OneWay}"
                              IsReadOnly="True"
                              VerticalAlignment="Center"
                              AllowDrop="True"
@@ -714,10 +714,6 @@
                             Margin="8,0,0,0"
                             VerticalAlignment="Center"/>
                 </Grid>
-                <TextBlock Text="{DynamicResource LOCPlayAch_Settings_Style_SharedAcrossSurfacesHint}"
-                           Style="{StaticResource MutedTextStyle}"
-                           TextWrapping="Wrap"
-                           Margin="0,6,0,0"/>
             </StackPanel>
         </Border>
 
@@ -791,8 +787,8 @@
             </StackPanel>
         </Border>
 
-        <!-- Header texts (shared across both surfaces; the friend formats are toast-only since
-             friend unlocks never produce screenshots). Explicit commit + Apply so format strings
+        <!-- Header texts for this surface (the friend formats are toast-only since friend
+             unlocks never produce screenshots). Explicit commit + Apply so format strings
              never persist per keystroke. -->
         <Border Style="{StaticResource EditorCardStyle}">
             <StackPanel>
@@ -800,11 +796,8 @@
                            Style="{StaticResource EditorGroupHeaderStyle}"/>
                 <TextBlock Text="{DynamicResource LOCPlayAch_Settings_Style_HeaderTextsHint}"
                            Style="{StaticResource MutedTextStyle}"
-                           TextWrapping="Wrap"/>
-                <TextBlock Text="{DynamicResource LOCPlayAch_Settings_Style_SharedAcrossSurfacesHint}"
-                           Style="{StaticResource MutedTextStyle}"
                            TextWrapping="Wrap"
-                           Margin="0,2,0,6"/>
+                           Margin="0,0,0,6"/>
                 <Grid>
                     <Grid.ColumnDefinitions>
                         <ColumnDefinition Width="Auto" MinWidth="160"/>

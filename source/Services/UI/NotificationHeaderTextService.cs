@@ -124,7 +124,16 @@ namespace PlayniteAchievements.Services.UI
 
         private bool RelocalizeStyle(NotificationStyleSettings style)
         {
-            var texts = style?.HeaderTexts;
+            if (style == null)
+            {
+                return false;
+            }
+
+            return RelocalizeTexts(style.Toast.HeaderTexts) | RelocalizeTexts(style.Frame.HeaderTexts);
+        }
+
+        private bool RelocalizeTexts(NotificationHeaderTextSettings texts)
+        {
             if (texts == null)
             {
                 return false;
