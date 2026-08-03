@@ -68,7 +68,7 @@
                            Foreground="{DynamicResource PlayAch.Brush.Text}"/>
 
                 <StackPanel Grid.Column="1" Orientation="Horizontal">
-                    <Button Content="{DynamicResource LOCPlayAch_Captures_VariantClean}"
+                    <Button Content="{DynamicResource LOCPlayAch_Settings_ScreenshotVariantClean}"
                             IsEnabled="{Binding HasClean}"
                             Command="{Binding SelectVariantCommand}"
                             CommandParameter="{x:Static captures:CaptureVariant.Clean}">
@@ -84,7 +84,7 @@
                             </Style>
                         </Button.Style>
                     </Button>
-                    <Button Content="{DynamicResource LOCPlayAch_Captures_VariantNotification}"
+                    <Button Content="{DynamicResource LOCPlayAch_Settings_Style_ToastTab}"
                             IsEnabled="{Binding HasNotification}"
                             Command="{Binding SelectVariantCommand}"
                             CommandParameter="{x:Static captures:CaptureVariant.Notification}">
@@ -100,7 +100,7 @@
                             </Style>
                         </Button.Style>
                     </Button>
-                    <Button Content="{DynamicResource LOCPlayAch_Captures_VariantFramed}"
+                    <Button Content="{DynamicResource LOCPlayAch_Settings_ScreenshotVariantFramed}"
                             IsEnabled="{Binding HasFramed}"
                             Command="{Binding SelectVariantCommand}"
                             CommandParameter="{x:Static captures:CaptureVariant.Framed}">
