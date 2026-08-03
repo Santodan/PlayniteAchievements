@@ -1219,52 +1219,56 @@ namespace PlayniteAchievements.Views.Settings.General
             }
         }
 
-        private void RemoveCustomToastTemplate_Click(object sender, RoutedEventArgs e)
+        private void ResetToastStyle_Click(object sender, RoutedEventArgs e)
         {
-            RemoveCustomTemplate(isFrame: false);
+            ResetStyle(isFrame: false);
         }
 
-        private void RemoveCustomFrameTemplate_Click(object sender, RoutedEventArgs e)
+        private void ResetFrameStyle_Click(object sender, RoutedEventArgs e)
         {
-            RemoveCustomTemplate(isFrame: true);
+            ResetStyle(isFrame: true);
         }
 
         /// <summary>
-        /// Removes the installed custom template for the surface, reverting live notifications and
-        /// the mockup to the active theme override (if any) or the bundled default.
+        /// Resets the surface to its built-in default: clears the editable style fields and
+        /// removes any installed custom template, reverting live notifications and the mockup.
+        /// Confirmed first, since it discards the user's edits for the surface. A no-op when the
+        /// current selection is read-only (a platform without a custom style).
         /// </summary>
-        private void RemoveCustomTemplate(bool isFrame)
+        private void ResetStyle(bool isFrame)
         {
-            var resolver = _toastTemplateResolver;
-            if (resolver == null)
+            var editor = isFrame ? _frameEditorViewModel : _toastEditorViewModel;
+            if (editor == null || !editor.IsEditable)
+            {
+                return;
+            }
+
+            var confirm = _plugin.PlayniteApi.Dialogs.ShowMessage(
+                L("LOCPlayAch_Settings_Style_ResetConfirm"),
+                L("LOCPlayAch_Title_PluginName"),
+                MessageBoxButton.YesNo,
+                MessageBoxImage.Question);
+            if (confirm != MessageBoxResult.Yes)
             {
                 return;
             }
 
             try
             {
-                if (!resolver.HasCustomTemplate(isFrame, ScopeProviderKey, ScopeGameId))
+                editor.ResetSurfaceToDefault();
+
+                var resolver = _toastTemplateResolver;
+                if (resolver != null &&
+                    resolver.HasCustomTemplate(isFrame, ScopeProviderKey, ScopeGameId))
                 {
-                    _plugin.PlayniteApi?.Dialogs?.ShowMessage(
-                        L("LOCPlayAch_Settings_Style_NoCustomTemplate"),
-                        L("LOCPlayAch_Title_PluginName"),
-                        MessageBoxButton.OK,
-                        MessageBoxImage.Information);
-                    return;
+                    resolver.DeleteCustomTemplate(isFrame, ScopeProviderKey, ScopeGameId);
                 }
 
-                resolver.DeleteCustomTemplate(isFrame, ScopeProviderKey, ScopeGameId);
                 UpdateMockups();
-
-                _plugin.PlayniteApi?.Dialogs?.ShowMessage(
-                    L("LOCPlayAch_Status_Succeeded"),
-                    L("LOCPlayAch_Title_PluginName"),
-                    MessageBoxButton.OK,
-                    MessageBoxImage.Information);
             }
             catch (Exception ex)
             {
-                _logger?.Error(ex, "Failed removing custom notification template.");
+                _logger?.Error(ex, "Failed resetting notification appearance to default.");
                 _plugin.PlayniteApi?.Dialogs?.ShowMessage(
                     string.Format(L("LOCPlayAch_Status_Failed"), ex.Message),
                     L("LOCPlayAch_Title_PluginName"),
