@@ -485,7 +485,8 @@ namespace PlayniteAchievements.Views.ThemeIntegration.Modern
                 menu,
                 row.DataContext,
                 this,
-                RefreshAfterRowOptionsChanged);
+                RefreshAfterRowOptionsChanged,
+                includeViewCaptures: true);
             if (menu.Items.Count == 0)
             {
                 return false;
