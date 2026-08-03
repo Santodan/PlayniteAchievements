@@ -80,7 +80,7 @@ namespace PlayniteAchievements.Views.Controls
             {
                 ["Default"] = CreateAchievementVisibility(captures: true),
                 ["SingleGame"] = CreateAchievementVisibility(captures: true),
-                ["DesktopTheme"] = CreateAchievementVisibility(),
+                ["DesktopTheme"] = CreateAchievementVisibility(captures: true),
                 ["OverviewSelectedGameAchievements"] = CreateAchievementVisibility(captures: true),
                 ["OverviewGame"] = CreateAchievementVisibility(captures: true),
                 ["OverviewRecentAchievements"] = CreateAchievementVisibility(status: false, game: true, captures: true),
