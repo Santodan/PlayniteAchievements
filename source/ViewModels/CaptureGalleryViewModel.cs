@@ -31,6 +31,8 @@ namespace PlayniteAchievements.ViewModels
         private List<CaptureItem> _navItems = new List<CaptureItem>();
         private int _index;
         private CaptureVariant _selectedVariant;
+        private readonly RelayCommand _nextCommand;
+        private readonly RelayCommand _previousCommand;
 
         private CaptureGalleryViewModel(GameCaptureSet set, GalleryMode mode, string headerTitle)
         {
@@ -40,8 +42,8 @@ namespace PlayniteAchievements.ViewModels
             _availableVariants = _set.AvailableVariants.ToList();
             _selectedVariant = _availableVariants.Count > 0 ? _availableVariants[0] : CaptureVariant.Clean;
 
-            NextCommand = new RelayCommand(_ => MoveNext(), _ => _index < _navItems.Count - 1);
-            PreviousCommand = new RelayCommand(_ => MovePrevious(), _ => _index > 0);
+            _nextCommand = new RelayCommand(_ => MoveNext(), _ => _index < _navItems.Count - 1);
+            _previousCommand = new RelayCommand(_ => MovePrevious(), _ => _index > 0);
             SelectVariantCommand = new RelayCommand(p =>
             {
                 if (p is CaptureVariant variant)
@@ -113,9 +115,9 @@ namespace PlayniteAchievements.ViewModels
 
         public bool IsVideoSelected => _selectedVariant == CaptureVariant.Video;
 
-        public ICommand NextCommand { get; }
+        public ICommand NextCommand => _nextCommand;
 
-        public ICommand PreviousCommand { get; }
+        public ICommand PreviousCommand => _previousCommand;
 
         public ICommand SelectVariantCommand { get; }
 
@@ -208,11 +210,51 @@ namespace PlayniteAchievements.ViewModels
 
         private void RebuildNavItems()
         {
+            // Remember where we were so switching variant keeps you on the same achievement
+            // (or the nearest one that has the newly-selected variant) rather than snapping to 0.
+            var previousStem = Current?.AchievementStem;
+            var previousNumber = Current?.Number;
+
             _navItems = _set.Groups
                 .SelectMany(g => g.ForVariant(_selectedVariant))
                 .ToList();
-            _index = 0;
+            _index = ResolvePreservedIndex(previousStem, previousNumber);
             RaiseCurrentChanged();
+        }
+
+        private int ResolvePreservedIndex(string previousStem, int? previousNumber)
+        {
+            if (_navItems.Count == 0 || previousStem == null)
+            {
+                return 0;
+            }
+
+            for (var i = 0; i < _navItems.Count; i++)
+            {
+                if (string.Equals(_navItems[i].AchievementStem, previousStem, StringComparison.OrdinalIgnoreCase))
+                {
+                    return i;
+                }
+            }
+
+            if (!previousNumber.HasValue)
+            {
+                return 0;
+            }
+
+            var best = 0;
+            var bestDelta = int.MaxValue;
+            for (var i = 0; i < _navItems.Count; i++)
+            {
+                var delta = Math.Abs(_navItems[i].Number - previousNumber.Value);
+                if (delta < bestDelta)
+                {
+                    bestDelta = delta;
+                    best = i;
+                }
+            }
+
+            return best;
         }
 
         private void RaiseVariantSelectionFlags()
@@ -237,7 +279,8 @@ namespace PlayniteAchievements.ViewModels
             OnPropertyChanged(nameof(PositionText));
             OnPropertyChanged(nameof(CurrentAchievementLabel));
             OnPropertyChanged(nameof(CanNavigate));
-            CommandManager.InvalidateRequerySuggested();
+            _nextCommand?.RaiseCanExecuteChanged();
+            _previousCommand?.RaiseCanExecuteChanged();
         }
     }
 }
