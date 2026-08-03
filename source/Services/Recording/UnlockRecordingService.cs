@@ -968,10 +968,13 @@ namespace PlayniteAchievements.Services.Recording
                 session = _session;
             }
 
-            if (session == null || session.Stopping || session.CaptureHost == null || session.CaptureHost.HasExited)
+            // Active means either the WGC-MF recorder is running or a live ffmpeg capture process.
+            var captureActive = session != null && !session.Stopping &&
+                (session.WgcRecorder != null || (session.CaptureHost != null && !session.CaptureHost.HasExited));
+            if (!captureActive)
             {
                 _logger?.Debug(
-                    $"[Recording] Unlock '{e.DisplayName}' ignored; capture is not active (session={(session == null ? "none" : session.Stopping ? "stopping" : "no capture process")}).");
+                    $"[Recording] Unlock '{e.DisplayName}' ignored; capture is not active (session={(session == null ? "none" : session.Stopping ? "stopping" : "no capture")}).");
                 return;
             }
 
