@@ -106,7 +106,8 @@ namespace PlayniteAchievements.ViewModels
             Brush titleBrush,
             Brush completedTitleBrush,
             bool showInlineBadge,
-            object inlineBadgeSource)
+            object inlineBadgeSource,
+            double inlineBadgeSize)
             : base(parent, fontSize, fontFamily)
         {
             ShowName = showName;
@@ -114,6 +115,7 @@ namespace PlayniteAchievements.ViewModels
             CompletedTitleBrush = completedTitleBrush;
             ShowInlineBadge = showInlineBadge;
             InlineBadgeSource = inlineBadgeSource;
+            InlineBadgeSize = inlineBadgeSize;
         }
 
         public bool ShowName { get; }
@@ -138,11 +140,11 @@ namespace PlayniteAchievements.ViewModels
         public object InlineBadgeSource { get; }
 
         /// <summary>
-        /// Inline badge render size, slightly larger than the title text. Uses the same
-        /// title-relative ratio as the footer badge so the badge is one consistent size across
-        /// every rarity display mode.
+        /// Inline badge render size, resolved by the owning view model from the surface's
+        /// badge-size setting (falling back to a title-relative ratio) so the badge is one
+        /// consistent size across every rarity display mode.
         /// </summary>
-        public double InlineBadgeSize => FontSize * AchievementToastViewModel.BadgeToTitleRatio;
+        public double InlineBadgeSize { get; }
 
         // The title row shows for the achievement name, and always for the "Game Complete!" banner.
         public override Visibility LineVisibility =>
