@@ -48,7 +48,9 @@
                                            ShowColumnHeaders="{Binding DataContext.Persisted.ShowDesktopThemeGameSummariesGridColumnHeaders, RelativeSource={RelativeSource AncestorType=base:ThemeControlBase}}"
                                            FixedRowHeight="{Binding DataContext.Persisted.DesktopThemeGameSummariesGridRowHeight, RelativeSource={RelativeSource AncestorType=base:ThemeControlBase}}"
                                            DelayInitialRenderUntilNormalized="True"
-                                           DisableRowSelection="True">
+                                           DisableRowSelection="True"
+                                           RowPreviewMouseRightButtonDown="SummaryGrid_RowPreviewMouseRightButtonDown"
+                                           RowPreviewMouseRightButtonUp="SummaryGrid_RowPreviewMouseRightButtonUp">
             <controls:GameSummariesGridControl.Style>
                 <Style TargetType="controls:GameSummariesGridControl">
                     <Setter Property="Margin" Value="0,0,0,8"/>
