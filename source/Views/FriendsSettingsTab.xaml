@@ -214,7 +214,8 @@
                               ScrollViewer.HorizontalScrollBarVisibility="Auto">
                         <DataGrid.Columns>
                             <DataGridTemplateColumn Width="Auto"
-                                                    MinWidth="36">
+                                                    MinWidth="36"
+                                                    IsReadOnly="True">
                                 <DataGridTemplateColumn.HeaderTemplate>
                                     <DataTemplate>
                                         <CheckBox IsChecked="{Binding DataContext.AreAllVisibleFriendsSelected, RelativeSource={RelativeSource AncestorType=DataGrid}, Mode=TwoWay}"
@@ -235,7 +236,8 @@
 
                             <DataGridTemplateColumn Header="{DynamicResource LOCPlayAch_Column_Favorite}"
                                                     Width="Auto"
-                                                    MinWidth="64">
+                                                    MinWidth="64"
+                                                    IsReadOnly="True">
                                 <DataGridTemplateColumn.CellTemplate>
                                     <DataTemplate>
                                         <CheckBox IsChecked="{Binding IsFavorite, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
