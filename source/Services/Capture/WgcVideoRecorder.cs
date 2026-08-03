@@ -193,7 +193,7 @@ namespace PlayniteAchievements.Services.Capture
             _item = item;
             _framePool = Direct3D11CaptureFramePool.CreateFreeThreaded(_winrtDevice, pixelFormat, 2, item.Size);
             _session = _framePool.CreateCaptureSession(_item);
-            WgcCaptureBorder.Suppress(_session);
+            WgcCaptureBorder.Suppress(_session, _logger);
             _session.StartCapture();
             _activeHwnd = hwnd;
             _logger?.Info($"[Recording] WGC-MF capturing game window 0x{hwnd.ToInt64():X} (hdr={_hdr}, {item.Size.Width}x{item.Size.Height}@{_fps}).");

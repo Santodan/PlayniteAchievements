@@ -116,12 +116,12 @@
          (Private=False: the OS provides the types at runtime); System.Runtime.WindowsRuntime carries
          the projection glue (IAsyncOperation/AsTask, WinRT events). Requires TargetPlatformVersion. -->
     <Reference Include="Windows.Foundation.FoundationContract">
-      <HintPath>packages\Microsoft.Windows.SDK.Contracts.10.0.19041.1\ref\netstandard2.0\Windows.Foundation.FoundationContract.winmd</HintPath>
+      <HintPath>packages\Microsoft.Windows.SDK.Contracts.10.0.22621.755\ref\netstandard2.0\Windows.Foundation.FoundationContract.winmd</HintPath>
       <IsWinMDFile>true</IsWinMDFile>
       <Private>False</Private>
     </Reference>
     <Reference Include="Windows.Foundation.UniversalApiContract">
-      <HintPath>packages\Microsoft.Windows.SDK.Contracts.10.0.19041.1\ref\netstandard2.0\Windows.Foundation.UniversalApiContract.winmd</HintPath>
+      <HintPath>packages\Microsoft.Windows.SDK.Contracts.10.0.22621.755\ref\netstandard2.0\Windows.Foundation.UniversalApiContract.winmd</HintPath>
       <IsWinMDFile>true</IsWinMDFile>
       <Private>False</Private>
     </Reference>

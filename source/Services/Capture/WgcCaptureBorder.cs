@@ -1,7 +1,9 @@
 using System;
 using System.Threading;
+using Playnite.SDK;
 using Windows.Foundation;
 using Windows.Graphics.Capture;
+using Windows.Security.Authorization.AppCapabilityAccess;
 
 namespace PlayniteAchievements.Services.Capture
 {
@@ -9,91 +11,71 @@ namespace PlayniteAchievements.Services.Capture
     /// Removes the Windows.Graphics.Capture on-screen border (the colored capture indicator Windows
     /// draws around a captured window) for both the video recorder and the screenshot capture.
     ///
-    /// Setting <c>GraphicsCaptureSession.IsBorderRequired = false</c> only takes effect once the app
+    /// Clearing <see cref="GraphicsCaptureSession.IsBorderRequired"/> only takes effect once the app
     /// has been granted "Borderless" capture access via
-    /// <c>GraphicsCaptureAccess.RequestAccessAsync(GraphicsCaptureAccessKind.Borderless)</c>; without
-    /// that grant the setter is rejected and the border stays. Both APIs are newer than the pinned
-    /// WinRT contracts (Windows 11 22H2 / contract 22621), so the access request is made by reflection
-    /// against the OS metadata and <c>IsBorderRequired</c> is set the same way. The border is never in
-    /// the captured pixels — this only clears the live on-screen indicator — so any failure (older
-    /// build, access denied) is swallowed and the border simply remains.
+    /// <see cref="GraphicsCaptureAccess.RequestAccessAsync"/>; without that grant the setter is
+    /// rejected and the border stays. The request is made once per process (the grant persists for
+    /// later sessions) on the calling capture/pump thread — never the UI thread. The border is never
+    /// in the captured pixels, so any failure (older Windows, access denied) is swallowed and the
+    /// border simply remains on screen.
     /// </summary>
     internal static class WgcCaptureBorder
     {
         // Guards the one-time, process-wide Borderless access request.
         private static int _accessRequested;
 
-        public static void Suppress(GraphicsCaptureSession session)
+        public static void Suppress(GraphicsCaptureSession session, ILogger logger = null)
         {
             if (session == null)
             {
                 return;
             }
 
-            EnsureBorderlessAccess();
+            EnsureBorderlessAccess(logger);
 
             try
             {
-                var prop = session.GetType().GetProperty("IsBorderRequired");
-                if (prop != null && prop.CanWrite)
-                {
-                    prop.SetValue(session, false);
-                }
+                session.IsBorderRequired = false;
             }
-            catch
+            catch (Exception ex)
             {
-                // Older build or access denied; the border isn't in the captured pixels anyway.
+                logger?.Debug(ex, "[Recording] Could not clear the capture border (access denied); it stays on screen.");
             }
         }
 
-        private static void EnsureBorderlessAccess()
+        private static void EnsureBorderlessAccess(ILogger logger)
         {
             if (Interlocked.Exchange(ref _accessRequested, 1) != 0)
             {
-                return; // Requested once per process; the grant persists for later sessions.
+                return;
             }
 
             try
             {
-                var accessType = ResolveWinRtType("Windows.Graphics.Capture.GraphicsCaptureAccess");
-                var kindType = ResolveWinRtType("Windows.Graphics.Capture.GraphicsCaptureAccessKind");
-                if (accessType == null || kindType == null)
+                // Wait on the IAsyncOperation directly (via IAsyncInfo, in the referenced contract)
+                // rather than AsTask(), whose overloads drag in the union "Windows" facade metadata.
+                var op = GraphicsCaptureAccess.RequestAccessAsync(GraphicsCaptureAccessKind.Borderless);
+                var info = (IAsyncInfo)op;
+                var spins = 0;
+                while (info.Status == AsyncStatus.Started && spins++ < 500)
                 {
-                    return; // Pre-22H2: the border cannot be removed.
+                    Thread.Sleep(10);
                 }
 
-                var method = accessType.GetMethod("RequestAccessAsync", new[] { kindType });
-                if (method == null)
+                if (info.Status == AsyncStatus.Completed)
                 {
-                    return;
+                    AppCapabilityAccessStatus status = op.GetResults();
+                    logger?.Info($"[Recording] Borderless capture access request returned: {status}.");
                 }
-
-                var borderless = Enum.Parse(kindType, "Borderless");
-                var asyncOp = method.Invoke(null, new[] { borderless });
-
-                // Block until the request resolves (Allowed/Denied) so IsBorderRequired is only set
-                // after the grant is in place. Runs on the capture/pump thread, never the UI thread.
-                if (asyncOp is IAsyncInfo info)
+                else
                 {
-                    var spins = 0;
-                    while (info.Status == AsyncStatus.Started && spins++ < 200)
-                    {
-                        Thread.Sleep(10);
-                    }
+                    logger?.Debug($"[Recording] Borderless capture access request did not complete (status={info.Status}); the border may stay.");
                 }
             }
-            catch
+            catch (Exception ex)
             {
-                // Best effort: if the request can't be made or is denied, the border stays.
+                logger?.Debug(ex, "[Recording] Borderless capture access request failed; the border may stay.");
             }
-        }
-
-        // Resolves a WinRT type from the OS metadata by its runtime-class name, tolerant of the
-        // contract-assembly qualifier the running Windows build uses.
-        private static Type ResolveWinRtType(string runtimeClassName)
-        {
-            return Type.GetType(runtimeClassName + ", Windows.Foundation.UniversalApiContract, ContentType=WindowsRuntime")
-                ?? Type.GetType(runtimeClassName + ", Windows, ContentType=WindowsRuntime");
         }
     }
 }
