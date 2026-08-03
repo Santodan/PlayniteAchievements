@@ -15,7 +15,6 @@ using System.ComponentModel;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
-using System.Windows;
 using System.Windows.Data;
 using System.Windows.Input;
 using System.Windows.Threading;
@@ -42,6 +41,7 @@ namespace PlayniteAchievements.ViewModels
         private string _statusText;
         private bool _isBusy;
         private bool _hasPendingPersist;
+        private bool _suppressSelectAllSync;
         private string _pendingPersistProviderKey;
 
         public FriendsSettingsViewModel(
@@ -70,7 +70,7 @@ namespace PlayniteAchievements.ViewModels
             // the button would stay disabled. Both execute methods guard their parameter internally.
             UnmergeFriendCommand = new RelayCommand(UnmergeFriend);
             RemoveFriendCommand = new RelayCommand(RemoveFriend);
-            IgnoreAllCommand = new RelayCommand(_ => IgnoreAllVisibleFriends());
+            IgnoreSelectedCommand = new RelayCommand(_ => IgnoreSelectedFriends(), _ => CanIgnoreSelected());
 
             _persistDebounceTimer = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(500) };
             _persistDebounceTimer.Tick += OnPersistDebounceTimerTick;
@@ -97,7 +97,7 @@ namespace PlayniteAchievements.ViewModels
 
         public ICommand RemoveFriendCommand { get; }
 
-        public ICommand IgnoreAllCommand { get; }
+        public ICommand IgnoreSelectedCommand { get; }
 
         public string FriendSearchText
         {
@@ -107,9 +107,43 @@ namespace PlayniteAchievements.ViewModels
                 if (SetValueAndReturn(ref _friendSearchText, value))
                 {
                     FriendsView?.Refresh();
+                    OnPropertyChanged(nameof(AreAllVisibleFriendsSelected));
+                    OnPropertyChanged(nameof(IgnoreSelectedLabel));
+                    (IgnoreSelectedCommand as RelayCommand)?.RaiseCanExecuteChanged();
                 }
             }
         }
+
+        // Header "select all" checkbox for the grid. Reflects/sets IsSelected on the currently
+        // visible (search-filtered) rows.
+        public bool AreAllVisibleFriendsSelected
+        {
+            get
+            {
+                var visible = GetVisibleRows();
+                return visible.Count > 0 && visible.All(row => row.IsSelected);
+            }
+            set
+            {
+                _suppressSelectAllSync = true;
+                foreach (var row in GetVisibleRows())
+                {
+                    row.IsSelected = value;
+                }
+
+                _suppressSelectAllSync = false;
+                OnPropertyChanged();
+                OnPropertyChanged(nameof(IgnoreSelectedLabel));
+                (IgnoreSelectedCommand as RelayCommand)?.RaiseCanExecuteChanged();
+                (MergeSelectedCommand as RelayCommand)?.RaiseCanExecuteChanged();
+            }
+        }
+
+        // Label for the single ignore/un-ignore button. Flips to un-ignore when the majority of the
+        // selected rows are already ignored, so the button reverses whichever state dominates.
+        public string IgnoreSelectedLabel => ShouldUnignoreSelected()
+            ? ResourceProvider.GetString("LOCPlayAch_FriendsSettings_UnignoreSelected")
+            : ResourceProvider.GetString("LOCPlayAch_FriendsSettings_IgnoreSelected");
 
         public bool UseExophaseForSteamFriendOwnership
         {
@@ -185,6 +219,7 @@ namespace PlayniteAchievements.ViewModels
                     (RefreshAutoDiscoverCommand as AsyncCommand)?.RaiseCanExecuteChanged();
                     (AddManualFriendCommand as AsyncCommand)?.RaiseCanExecuteChanged();
                     (MergeSelectedCommand as RelayCommand)?.RaiseCanExecuteChanged();
+                    (IgnoreSelectedCommand as RelayCommand)?.RaiseCanExecuteChanged();
                 }
             }
         }
@@ -339,6 +374,9 @@ namespace PlayniteAchievements.ViewModels
             (MergeSelectedCommand as RelayCommand)?.RaiseCanExecuteChanged();
             (UnmergeFriendCommand as RelayCommand)?.RaiseCanExecuteChanged();
             (RemoveFriendCommand as RelayCommand)?.RaiseCanExecuteChanged();
+            (IgnoreSelectedCommand as RelayCommand)?.RaiseCanExecuteChanged();
+            OnPropertyChanged(nameof(AreAllVisibleFriendsSelected));
+            OnPropertyChanged(nameof(IgnoreSelectedLabel));
         }
 
         private void OnAutoDiscoverProviderChanged(FriendAutoDiscoverProviderItem item)
@@ -355,6 +393,12 @@ namespace PlayniteAchievements.ViewModels
         private void OnPersonSelectionChanged(FriendSettingsPersonRowItem row)
         {
             (MergeSelectedCommand as RelayCommand)?.RaiseCanExecuteChanged();
+            (IgnoreSelectedCommand as RelayCommand)?.RaiseCanExecuteChanged();
+            OnPropertyChanged(nameof(IgnoreSelectedLabel));
+            if (!_suppressSelectAllSync)
+            {
+                OnPropertyChanged(nameof(AreAllVisibleFriendsSelected));
+            }
         }
 
         private void OnPersonRowChanged(FriendSettingsPersonRowItem row)
@@ -419,9 +463,29 @@ namespace PlayniteAchievements.ViewModels
             !string.IsNullOrEmpty(value) &&
             value.IndexOf(query, StringComparison.CurrentCultureIgnoreCase) >= 0;
 
-        // Ignores every account of the currently-visible (search-filtered) rows after a confirmation,
-        // mirroring the per-account ignore side effects (cache delete) then persisting once.
-        private void IgnoreAllVisibleFriends()
+        private List<FriendSettingsPersonRowItem> GetVisibleRows() =>
+            FriendsView?.Cast<FriendSettingsPersonRowItem>().ToList()
+            ?? new List<FriendSettingsPersonRowItem>();
+
+        private bool CanIgnoreSelected() => !IsBusy && Friends.Any(row => row.IsSelected);
+
+        // True when the majority of selected rows are already ignored, so the single button reverses
+        // the dominant state (un-ignore) instead of ignoring.
+        private bool ShouldUnignoreSelected()
+        {
+            var selected = Friends.Where(row => row.IsSelected).ToList();
+            if (selected.Count == 0)
+            {
+                return false;
+            }
+
+            var ignored = selected.Count(row => row.IsIgnored);
+            return ignored > selected.Count - ignored;
+        }
+
+        // Ignores (or un-ignores, per the majority) every account of the selected rows, mirroring the
+        // per-account ignore side effects (cache delete on ignore) then persisting once.
+        private void IgnoreSelectedFriends()
         {
             var persisted = _settings?.Persisted;
             if (persisted == null)
@@ -429,34 +493,24 @@ namespace PlayniteAchievements.ViewModels
                 return;
             }
 
-            var rows = FriendsView?.Cast<FriendSettingsPersonRowItem>().ToList()
-                ?? new List<FriendSettingsPersonRowItem>();
-            var accounts = rows
+            var ignore = !ShouldUnignoreSelected();
+            var accounts = Friends
+                .Where(row => row.IsSelected)
                 .SelectMany(row => row.Accounts)
-                .Where(account => account?.Entry != null && !account.Entry.IsIgnored)
+                .Where(account => account?.Entry != null && account.Entry.IsIgnored != ignore)
                 .ToList();
             if (accounts.Count == 0)
             {
                 return;
             }
 
-            var confirmText = string.Format(
-                ResourceProvider.GetString("LOCPlayAch_FriendsSettings_IgnoreAllConfirmFormat"),
-                rows.Count);
-            var result = _plugin?.PlayniteApi?.Dialogs?.ShowMessage(
-                confirmText,
-                ResourceProvider.GetString("LOCPlayAch_Title_PluginName"),
-                MessageBoxButton.YesNo,
-                MessageBoxImage.Warning) ?? MessageBoxResult.None;
-            if (result != MessageBoxResult.Yes)
-            {
-                return;
-            }
-
             foreach (var account in accounts)
             {
-                account.Entry.IsIgnored = true;
-                QueueFriendCacheDelete(account.ProviderKey, account.ExternalUserId);
+                account.Entry.IsIgnored = ignore;
+                if (ignore)
+                {
+                    QueueFriendCacheDelete(account.ProviderKey, account.ExternalUserId);
+                }
             }
 
             persisted.Friends = persisted.Friends;
