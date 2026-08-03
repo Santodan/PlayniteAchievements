@@ -22,7 +22,8 @@ namespace PlayniteAchievements.Views.Helpers
             ContextMenu menu,
             object data,
             FrameworkElement resourceOwner,
-            Action onChanged)
+            Action onChanged,
+            bool includeViewCaptures = false)
         {
             if (menu == null || !AchievementRowContext.TryCreate(data, out var context))
             {
@@ -32,6 +33,19 @@ namespace PlayniteAchievements.Views.Helpers
             if (menu.Items.Count > 0)
             {
                 menu.Items.Add(new Separator());
+            }
+
+            // User-earned achievements only (opted in by the caller); disabled when the achievement
+            // has no saved captures. Friend achievement rows never opt in.
+            if (includeViewCaptures && data is AchievementDisplayItem achItem && !(data is FriendAchievementDisplayItem))
+            {
+                var captureItem = new MenuItem
+                {
+                    Header = L(resourceOwner, "LOCPlayAch_Menu_ViewCaptures"),
+                    IsEnabled = achItem.HasCaptures
+                };
+                captureItem.Click += (_, __) => PlayniteAchievementsPlugin.Instance?.OpenCapturesViewer(achItem);
+                menu.Items.Add(captureItem);
             }
 
             menu.Items.Add(CreateSetCapstoneItem(context, resourceOwner, onChanged));
