@@ -127,9 +127,14 @@
                                 <TextBlock Text="{Binding IconGlyph}"
                                            FontFamily="{DynamicResource PlayAch.FontFamily.Icon}"
                                            FontSize="16"
+                                           FontWeight="Normal"
                                            Foreground="{DynamicResource PlayAch.Brush.Text}"
                                            Margin="{StaticResource PlayAch.Thickness.Right.Sm}"
                                            VerticalAlignment="Center"
+                                           UseLayoutRounding="True"
+                                           SnapsToDevicePixels="True"
+                                           TextOptions.TextFormattingMode="Display"
+                                           TextOptions.TextRenderingMode="Grayscale"
                                            Visibility="{Binding HasIconGlyph, Converter={StaticResource BoolToVis}}"/>
 
                                 <StackPanel Grid.Column="1"
