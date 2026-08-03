@@ -507,7 +507,7 @@
                             BorderBrush="{DynamicResource PlayAch.Brush.Border}"
                             BorderThickness="1"
                             Margin="0,0,8,0">
-                        <Image helpers:AsyncImage.Uri="{Binding Style.ToastBackgroundImagePath}"
+                        <Image helpers:AsyncImage.Uri="{Binding BackgroundThumbnailUri}"
                                helpers:AsyncImage.DecodePixel="48"
                                Stretch="Uniform"
                                RenderOptions.BitmapScalingMode="HighQuality"/>

@@ -112,8 +112,43 @@ namespace PlayniteAchievements.ViewModels.Settings
 
         public ObservableCollection<NotificationLineRowItem> LineRows { get; }
 
-        public IReadOnlyList<FontFamilyOption> FontFamilyOptions =>
-            _fontFamilyOptions ?? (_fontFamilyOptions = BuildFontFamilyOptions());
+        private static readonly object _fontFamilyOptionsGate = new object();
+
+        public IReadOnlyList<FontFamilyOption> FontFamilyOptions => EnsureFontFamilyOptions();
+
+        /// <summary>
+        /// Builds (once, process-wide) the system font-family list. Enumerating
+        /// <see cref="Fonts.SystemFontFamilies"/> and culture-sorting it is slow, so it is cached and
+        /// guarded so a background pre-warm and the first UI access never build it twice.
+        /// </summary>
+        private static IReadOnlyList<FontFamilyOption> EnsureFontFamilyOptions()
+        {
+            if (_fontFamilyOptions != null)
+            {
+                return _fontFamilyOptions;
+            }
+
+            lock (_fontFamilyOptionsGate)
+            {
+                return _fontFamilyOptions ?? (_fontFamilyOptions = BuildFontFamilyOptions());
+            }
+        }
+
+        /// <summary>
+        /// Pre-builds the font-family list off the UI thread so the first open of the notification
+        /// appearance tab doesn't block on the enumeration. Safe to call repeatedly; best-effort.
+        /// </summary>
+        public static void PrewarmFontOptions()
+        {
+            try
+            {
+                EnsureFontFamilyOptions();
+            }
+            catch
+            {
+                // Falls back to the lazy UI-thread build on first access.
+            }
+        }
 
         public FontFamilyOption SelectedFontFamilyOption
         {
@@ -636,6 +671,14 @@ namespace PlayniteAchievements.ViewModels.Settings
         /// </summary>
         public bool HasBackgroundImage =>
             !IsFrameSurface && !string.IsNullOrWhiteSpace(_style?.ToastBackgroundImagePath);
+
+        /// <summary>
+        /// Cache-busted source for the editor's background thumbnail. The managed slot reuses a
+        /// fixed filename, so picking a different image resolves to the same path; the write-time +
+        /// size token makes the thumbnail re-decode the new file instead of showing the cached one.
+        /// </summary>
+        public string BackgroundThumbnailUri =>
+            Models.Achievements.AchievementIconResolver.ApplyCacheBust(_style?.ToastBackgroundImagePath);
 
         /// <summary>
         /// The background image's pixel dimensions as "W × H" (empty when none is set), so the
@@ -1208,6 +1251,7 @@ namespace PlayniteAchievements.ViewModels.Settings
             OnPropertyChanged(nameof(CountdownBarSwatch));
             OnPropertyChanged(nameof(HasBackgroundImage));
             OnPropertyChanged(nameof(BackgroundImageDimensionsText));
+            OnPropertyChanged(nameof(BackgroundThumbnailUri));
             OnPropertyChanged(nameof(TitleLineOffsetText));
         }
 
@@ -1283,6 +1327,7 @@ namespace PlayniteAchievements.ViewModels.Settings
                 OnPropertyChanged(nameof(Style));
                 OnPropertyChanged(nameof(HasBackgroundImage));
                 OnPropertyChanged(nameof(BackgroundImageDimensionsText));
+                OnPropertyChanged(nameof(BackgroundThumbnailUri));
             }
 
             NotifyStyleEdited();
