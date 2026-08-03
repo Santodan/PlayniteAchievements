@@ -646,14 +646,14 @@ namespace PlayniteAchievements.ViewModels
         public double ToastProviderIconSize => _style.Toast.ProviderIconSize is double s && s > 0 ? s : DefaultToastProviderIconSize;
         public double FrameProviderIconSize => _style.Frame.ProviderIconSize is double s && s > 0 ? s : DefaultFrameProviderIconSize;
 
-        // The built-in content shadow parameters (matching PlayAch.Effect.ContentShadow). The
-        // strength setting maps 25% to exactly this look; blur and depth scale linearly with
-        // strength (up to four times the default at 100%) while opacity saturates at the
-        // default, so values above 25% read as a heavier, wider shadow.
-        private const double ContentShadowDefaultBlur = 6;
-        private const double ContentShadowDefaultDepth = 1;
+        // The content shadow is an omnidirectional halo (zero-depth drop shadow), not a
+        // directional shadow: light text over a multicolored background needs dark contrast on
+        // every glyph edge, which an offset shadow cannot provide. The halo hugs the glyphs at
+        // the minimum and widens with strength into a localized darkening around the text.
+        private const double ContentShadowMinBlur = 3;
+        private const double ContentShadowBlurPerStrength = 2.5;
 
-        // The percent value that maps to the built-in shadow; shared with the settings editor.
+        // The percent value that maps to the built-in halo; shared with the settings editor.
         public const double DefaultTextShadowStrength = 25;
 
         /// <summary>
@@ -673,20 +673,14 @@ namespace PlayniteAchievements.ViewModels
                 return null;
             }
 
-            // Above the built-in strength, blur grows gently and caps at twice the default: a
-            // wide gaussian of a whole text line smears into a solid band that reads as a
-            // rectangle. Depth carries the extra strength instead (up to 6x the default), so
-            // the maximum reads as a dark, clearly offset shadow that still follows the glyphs.
-            var blur = strength <= 1.0
-                ? ContentShadowDefaultBlur * strength
-                : ContentShadowDefaultBlur * (1.0 + (strength - 1.0) / 3.0);
-            var depth = strength <= 1.0
-                ? ContentShadowDefaultDepth * strength
-                : ContentShadowDefaultDepth * (1.0 + (strength - 1.0) * (5.0 / 3.0));
+            // Zero depth turns the drop shadow into an even halo around every glyph edge. The
+            // halo's darkness saturates at the built-in strength; above it, the halo widens,
+            // which reads as a stronger, scrim-like darkening behind the text without ever
+            // smearing into an offset band.
             var effect = new DropShadowEffect
             {
-                BlurRadius = blur,
-                ShadowDepth = depth,
+                BlurRadius = ContentShadowMinBlur + (ContentShadowBlurPerStrength * strength),
+                ShadowDepth = 0,
                 Direction = 315,
                 Color = Colors.Black,
                 Opacity = Math.Min(1.0, strength)
