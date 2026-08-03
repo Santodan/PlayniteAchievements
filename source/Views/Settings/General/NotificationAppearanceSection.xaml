@@ -33,7 +33,8 @@
                     Margin="0,0,0,10">
                 <TabControl x:Name="SurfaceTabs"
                             Background="Transparent"
-                            BorderThickness="0">
+                            BorderThickness="0"
+                            SelectionChanged="SurfaceTabs_SelectionChanged">
                     <TabItem x:Name="ToastTabItem"
                              Header="{DynamicResource LOCPlayAch_Settings_Style_ToastTab}">
                         <StackPanel Margin="0,12,0,0">
@@ -261,27 +262,57 @@
                                        TextWrapping="Wrap"
                                        Margin="0,8,0,0"/>
 
-                            <!-- Export the default template as a loose .xaml starting point to edit
-                                 and re-import. Standalone and theme-independent, so it always
-                                 renders; kept separate from Export Style, which only bundles a
-                                 template the user already authored. -->
-                            <WrapPanel Margin="0,10,0,0">
+                            <!-- Named presets for the tab selected above: save the active surface's
+                                 appearance (including images and any custom template) under a name,
+                                 or apply a saved preset to the current platform/game selection. The
+                                 dropdown lists only presets for the active surface. -->
+                            <TextBlock Text="{DynamicResource LOCPlayAch_Presets_Header}"
+                                       Style="{StaticResource SectionHeaderStyle}"
+                                       Margin="0,14,0,0"/>
+                            <WrapPanel Margin="0,8,0,0">
+                                <ComboBox x:Name="PresetSelector"
+                                          MinWidth="220"
+                                          VerticalAlignment="Center"
+                                          Margin="0,0,8,0"
+                                          SelectionChanged="PresetSelector_SelectionChanged"/>
+                                <Button x:Name="ApplyPresetButton"
+                                        Click="ApplyPreset_Click"
+                                        Content="{DynamicResource LOCPlayAch_Button_Apply}"
+                                        IsEnabled="False"
+                                        Margin="0,0,8,0"/>
+                                <Button x:Name="SavePresetButton"
+                                        Click="SavePreset_Click"
+                                        Content="{DynamicResource LOCPlayAch_Presets_Save}"
+                                        Margin="0,0,8,0"/>
+                                <Button x:Name="DeletePresetButton"
+                                        Click="DeletePreset_Click"
+                                        Content="{DynamicResource LOCPlayAch_Button_Delete}"
+                                        IsEnabled="False"/>
+                            </WrapPanel>
+                            <TextBlock Text="{DynamicResource LOCPlayAch_Settings_Style_Presets_Hint}"
+                                       Style="{StaticResource MutedTextStyle}"
+                                       TextWrapping="Wrap"
+                                       Margin="0,8,0,0"/>
+
+                            <!-- Per-surface actions for the tab selected above: reset the surface to
+                                 its built-in default (clears style edits and any custom template),
+                                 or export the default template as a loose .xaml starting point to
+                                 edit and re-import. Only the active tab's row is shown. -->
+                            <WrapPanel Margin="0,10,0,0"
+                                       Visibility="{Binding IsSelected, ElementName=ToastTabItem, Converter={StaticResource BoolToVis}}">
+                                <Button Click="ResetToastStyle_Click"
+                                        Content="{DynamicResource LOCPlayAch_Settings_Style_ResetToDefault}"
+                                        Margin="0,0,8,0"/>
                                 <Button Click="ExportDefaultToastTemplate_Click"
-                                        Content="{DynamicResource LOCPlayAch_Settings_Style_ExportDefaultToastTemplate}"
+                                        Content="{DynamicResource LOCPlayAch_Settings_Style_ExportDefaultTemplate}"/>
+                            </WrapPanel>
+                            <WrapPanel Margin="0,10,0,0"
+                                       Visibility="{Binding IsSelected, ElementName=FrameTabItem, Converter={StaticResource BoolToVis}}">
+                                <Button Click="ResetFrameStyle_Click"
+                                        Content="{DynamicResource LOCPlayAch_Settings_Style_ResetToDefault}"
                                         Margin="0,0,8,0"/>
                                 <Button Click="ExportDefaultFrameTemplate_Click"
-                                        Content="{DynamicResource LOCPlayAch_Settings_Style_ExportDefaultFrameTemplate}"/>
-                            </WrapPanel>
-
-                            <!-- Remove an installed custom template (imported full XAML), reverting
-                                 to the active theme override or the bundled default. Acts on the
-                                 current scope selection. -->
-                            <WrapPanel Margin="0,10,0,0">
-                                <Button Click="RemoveCustomToastTemplate_Click"
-                                        Content="{DynamicResource LOCPlayAch_Settings_Style_RemoveToastTemplate}"
-                                        Margin="0,0,8,0"/>
-                                <Button Click="RemoveCustomFrameTemplate_Click"
-                                        Content="{DynamicResource LOCPlayAch_Settings_Style_RemoveFrameTemplate}"/>
+                                        Content="{DynamicResource LOCPlayAch_Settings_Style_ExportDefaultTemplate}"/>
                             </WrapPanel>
                         </StackPanel>
                     </Border>

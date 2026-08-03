@@ -1,0 +1,231 @@
+<ResourceDictionary xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+                    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+                    xmlns:vm="clr-namespace:PlayniteAchievements.ViewModels;assembly=PlayniteAchievements">
+    <!--
+        Default screenshot frame template. Single source of truth: this same file is what the
+        plugin composites onto framed unlock screenshots when no theme override or custom template
+        applies, and what the "Export default template (.xaml)" button writes out. Edit here to
+        change the built-in default.
+
+        Merges NotificationResources.xaml (below) for the shared brushes, converters, content
+        shadow, badges, logo, and the reorderable text-line templates the frame binds to. Keep the
+        x:Key and DataType exactly as below; see the wiki "Toast and Frame overrides" page for
+        every available binding.
+    -->
+    <ResourceDictionary.MergedDictionaries>
+        <ResourceDictionary Source="pack://application:,,,/PlayniteAchievements;component/Resources/NotificationResources.xaml"/>
+    </ResourceDictionary.MergedDictionaries>
+    <!--
+        Default screenshot frame. Composited onto framed unlock screenshots by
+        ScreenshotFrameCompositor; never shown on screen. Themes override this by defining
+        PlayAch.Template.ScreenshotFrame in a merged dictionary or in
+        PlayniteAchievements/ScreenshotFrame.xaml inside the theme directory.
+
+        Sizing contract: the template is laid out on a virtual canvas 1080 DIPs tall (width =
+        1080 x screenshot aspect ratio) and rendered at the screenshot's exact pixel size, so
+        fixed margins/font sizes look identical at 1080p and 4K.
+
+        Images must load synchronously: use plain Image Source bindings, NOT
+        helpers:AsyncImage.Uri (async-loaded images render blank in the offscreen
+        RenderTargetBitmap pass). Text is drawn over a fixed dark bar, so light literal
+        foregrounds are used deliberately instead of theme text brushes.
+    -->
+    <DataTemplate x:Key="PlayAch.Template.ScreenshotFrame"
+                  DataType="{x:Type vm:AchievementToastViewModel}">
+        <Grid>
+            <!-- Frame chrome: a circular black vignette around the whole shot; no border lines
+                 and no banner card. Relative radial gradients stretch to the bounds, so the radii
+                 undo the 16:9 aspect (radius = half-diagonal: 0.57 of width, 1.02 of height) and
+                 the fade stays a circle through the corners instead of an edge-hugging ellipse. -->
+            <Rectangle IsHitTestVisible="False"
+                       Visibility="{Binding FrameShowRadialVignette, Converter={StaticResource BooleanToVisibilityConverter}}">
+                <Rectangle.Fill>
+                    <RadialGradientBrush Center="0.5,0.5"
+                                         GradientOrigin="0.5,0.5"
+                                         RadiusX="0.57"
+                                         RadiusY="1.02">
+                        <GradientStop Color="#00000000" Offset="0"/>
+                        <GradientStop Color="#00000000" Offset="0.38"/>
+                        <GradientStop Color="#73000000" Offset="0.72"/>
+                        <GradientStop Color="#F2000000" Offset="1"/>
+                    </RadialGradientBrush>
+                </Rectangle.Fill>
+            </Rectangle>
+
+            <!-- Bottom contrast wash so the floating content reads over any game footage; the
+                 circular vignette is lightest at the bottom-center, so this carries the text. -->
+            <Rectangle VerticalAlignment="Bottom"
+                       Height="280"
+                       IsHitTestVisible="False"
+                       Visibility="{Binding FrameShowBottomWash, Converter={StaticResource BooleanToVisibilityConverter}}">
+                <Rectangle.Fill>
+                    <LinearGradientBrush StartPoint="0,0" EndPoint="0,1">
+                        <GradientStop Color="#00000000" Offset="0"/>
+                        <GradientStop Color="#D0000000" Offset="1"/>
+                    </LinearGradientBrush>
+                </Rectangle.Fill>
+            </Rectangle>
+
+            <!-- Bottom content floats directly over the vignette; the wash above supplies the
+                 contrast behind it. Binds the FrameShow*/Frame* properties (its own settings),
+                 not the toast's Show* toggles. -->
+            <Grid VerticalAlignment="Bottom"
+                  Margin="36,0,36,26">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="Auto"/>
+                        <ColumnDefinition Width="*"/>
+                        <ColumnDefinition Width="Auto"/>
+                        <ColumnDefinition Width="Auto"/>
+                    </Grid.ColumnDefinitions>
+
+                    <!-- Icon column: icon with rarity glow, badge + percent centered below -->
+                    <StackPanel Grid.Column="0"
+                                VerticalAlignment="Center">
+                        <Grid Width="{Binding FrameIconSize}"
+                              Height="{Binding FrameIconSize}"
+                              HorizontalAlignment="Center">
+                            <!-- Completion notifications swap the achievement icon for the
+                                 completed-game badge and the completed glow (all sync-loaded, as
+                                 offscreen rendering requires). -->
+                            <Image Stretch="Uniform"
+                                   RenderOptions.BitmapScalingMode="HighQuality">
+                                <Image.Style>
+                                    <Style TargetType="Image">
+                                        <Setter Property="Source" Value="{Binding IconPath}"/>
+                                        <Setter Property="Effect" Value="{Binding FrameRarityGlowEffect}"/>
+                                        <Style.Triggers>
+                                            <DataTrigger Binding="{Binding IsGameCompleted}" Value="True">
+                                                <Setter Property="Source" Value="{Binding FrameCompletedBadgeImage}"/>
+                                                <Setter Property="Effect" Value="{Binding FrameCompletedGlowEffect}"/>
+                                            </DataTrigger>
+                                        </Style.Triggers>
+                                    </Style>
+                                </Image.Style>
+                            </Image>
+                            <Border Margin="-3"
+                                    BorderThickness="3"
+                                    Background="Transparent"
+                                    BorderBrush="{Binding IconBorderBrush}"
+                                    Visibility="{Binding FrameShowShineBorder, Converter={StaticResource BooleanToVisibilityConverter}}"/>
+                            <!-- Preview only: thin gold outline marking the icon's full boundary. -->
+                            <Border BorderThickness="1"
+                                    BorderBrush="#FFD4AF37"
+                                    Background="Transparent"
+                                    Visibility="{Binding IsPreview, Converter={StaticResource BooleanToVisibilityConverter}}"/>
+                        </Grid>
+                        <StackPanel Orientation="Horizontal"
+                                    HorizontalAlignment="Center"
+                                    Margin="0,6,0,0"
+                                    Effect="{StaticResource PlayAch.Effect.ContentShadow}">
+                            <!-- Sync-loaded custom badge image (offscreen render contract);
+                                 animated GIF badges contribute their first frame here. -->
+                            <Image Source="{Binding FrameBadgeImage}"
+                                   Width="{Binding FrameBadgeSize}"
+                                   Height="{Binding FrameBadgeSize}"
+                                   VerticalAlignment="Center"
+                                   RenderOptions.BitmapScalingMode="HighQuality"
+                                   Visibility="{Binding FrameShowBadge, Converter={StaticResource BooleanToVisibilityConverter}}"/>
+                            <TextBlock Text="{Binding PercentText}"
+                                       Style="{DynamicResource PlayAch.TextBlock.BaseStyle}"
+                                       Foreground="{DynamicResource PlayAch.Brush.Text}"
+                                       FontSize="{Binding FrameRarityFontSize}"
+                                       FontFamily="{Binding FrameFontFamily}"
+                                       VerticalAlignment="Center"
+                                       Margin="6,0,0,0"
+                                       Visibility="{Binding FrameShowPercent, Converter={StaticResource BooleanToVisibilityConverter}}"/>
+                        </StackPanel>
+                    </StackPanel>
+
+                    <!-- Text column: the reorderable text lines (header, name, description,
+                         game/category), rendered via the shared line templates in the user's
+                         order. Frame line descriptors are avatar-free and their images
+                         sync-load, honoring the offscreen render contract. -->
+                    <ItemsControl Grid.Column="1"
+                                  VerticalAlignment="Center"
+                                  IsTabStop="False"
+                                  ClipToBounds="True"
+                                  Margin="26,0,22,0"
+                                  ItemsSource="{Binding FrameLines}">
+                        <ItemsControl.ItemContainerStyle>
+                            <!-- Per-line left indent for the name-line offset (see LeftIndent). The
+                                 container itself collapses when the line has no content, so its
+                                 margin / line padding never leaves an empty gap. -->
+                            <Style TargetType="ContentPresenter">
+                                <Setter Property="Margin" Value="{Binding LeftIndentMargin}"/>
+                                <Setter Property="Visibility" Value="{Binding LineVisibility}"/>
+                            </Style>
+                        </ItemsControl.ItemContainerStyle>
+                    </ItemsControl>
+
+                    <!-- Provider icon column, or (when the rarity badge is placed on the right) a
+                         larger badge with an optional percent standing in for the provider icon.
+                         The converter and FrameBadgeImage render synchronously offscreen. -->
+                    <Grid Grid.Column="2"
+                          Margin="0,0,22,0"
+                          VerticalAlignment="Center"
+                          Effect="{StaticResource PlayAch.Effect.ContentShadow}">
+                        <Image Width="{Binding FrameProviderIconSize}"
+                               Height="{Binding FrameProviderIconSize}"
+                               VerticalAlignment="Center"
+                               RenderOptions.BitmapScalingMode="HighQuality"
+                               Visibility="{Binding FrameShowProviderIcon, Converter={StaticResource BooleanToVisibilityConverter}}">
+                            <Image.Source>
+                                <MultiBinding Converter="{StaticResource ProviderIconConverter}">
+                                    <Binding Path="ProviderIconKey"/>
+                                    <Binding Path="ProviderColorHex"/>
+                                </MultiBinding>
+                            </Image.Source>
+                        </Image>
+                        <StackPanel VerticalAlignment="Center"
+                                    HorizontalAlignment="Center"
+                                    Visibility="{Binding FrameShowRightBadge, Converter={StaticResource BooleanToVisibilityConverter}}">
+                            <Image Source="{Binding FrameBadgeImage}"
+                                   Width="{Binding FrameRightBadgeSize}"
+                                   Height="{Binding FrameRightBadgeSize}"
+                                   HorizontalAlignment="Center"
+                                   RenderOptions.BitmapScalingMode="HighQuality"/>
+                            <TextBlock Text="{Binding PercentText}"
+                                       Style="{DynamicResource PlayAch.TextBlock.BaseStyle}"
+                                       Foreground="{DynamicResource PlayAch.Brush.Text}"
+                                       FontSize="{Binding FrameRarityFontSize}"
+                                       FontFamily="{Binding FrameFontFamily}"
+                                       HorizontalAlignment="Center"
+                                       Margin="0,2,0,0"
+                                       Visibility="{Binding FrameShowRightPercent, Converter={StaticResource BooleanToVisibilityConverter}}"/>
+                        </StackPanel>
+                    </Grid>
+
+                    <!-- Branding: shared screenshots identify the plugin. Product name stays a
+                         literal (not localized). The logo is a DrawingImage (LogoResources.xaml),
+                         which loads synchronously as offscreen rendering requires. -->
+                    <StackPanel Grid.Column="3"
+                                Orientation="Horizontal"
+                                VerticalAlignment="Center"
+                                Effect="{StaticResource PlayAch.Effect.ContentShadow}">
+                        <Border Width="1"
+                                Margin="0,10,20,10"
+                                Background="{DynamicResource PlayAch.Brush.PopupBorder}"/>
+                        <Image Source="{StaticResource PlayAch.Image.Logo}"
+                               Width="65"
+                               Height="65"
+                               VerticalAlignment="Center"
+                               RenderOptions.BitmapScalingMode="HighQuality"
+                               Opacity="0.95"/>
+                        <StackPanel VerticalAlignment="Center"
+                                    Margin="12,0,0,0">
+                            <TextBlock Text="Playnite"
+                                       Style="{DynamicResource PlayAch.TextBlock.BaseStyle}"
+                                       Foreground="{DynamicResource PlayAch.Brush.Text}"
+                                       FontSize="17"
+                                       FontWeight="SemiBold"/>
+                            <TextBlock Text="Achievements"
+                                       Style="{DynamicResource PlayAch.TextBlock.BaseStyle}"
+                                       Foreground="{DynamicResource PlayAch.Brush.Text}"
+                                       FontSize="17"
+                                       FontWeight="SemiBold"/>
+                        </StackPanel>
+                    </StackPanel>
+            </Grid>
+        </Grid>
+    </DataTemplate>
+</ResourceDictionary>

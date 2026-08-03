@@ -84,6 +84,7 @@ namespace PlayniteAchievements
         private readonly ManagedCustomIconService _managedCustomIconService;
         private readonly NotificationImageStore _notificationImageStore;
         private NotificationStylePortableStore _notificationStylePortableStore;
+        private NotificationStylePresetStore _notificationStylePresetStore;
         private readonly NotificationPublisher _notifications;
         private readonly ProviderRegistry _providerRegistry;
         private readonly GameCustomDataStore _gameCustomDataStore;
@@ -147,6 +148,9 @@ namespace PlayniteAchievements
         public NotificationStylePortableStore NotificationStylePortableStore =>
             _notificationStylePortableStore ?? (_notificationStylePortableStore =
                 new NotificationStylePortableStore(_notificationImageStore, _logger));
+        public NotificationStylePresetStore NotificationStylePresetStore =>
+            _notificationStylePresetStore ?? (_notificationStylePresetStore =
+                new NotificationStylePresetStore(NotificationStylePortableStore, GetPluginUserDataPath()));
         public ThemeIntegrationService ThemeIntegrationService => _themeIntegrationService;
         public ThemeIntegrationService ThemeUpdateService => _themeIntegrationService;
         public TagSyncService TagSyncService => _tagSyncService;

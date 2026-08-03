@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Collections.ObjectModel;
 using System.IO;
 using System.Linq;
+using System.Reflection;
 using System.Text;
 using System.Windows;
 using System.Windows.Controls;
@@ -43,11 +44,28 @@ namespace PlayniteAchievements.Services.UI
         public const string CustomToastTemplateFileName = "AchievementToast.xaml";
         public const string CustomFrameTemplateFileName = "ScreenshotFrame.xaml";
 
-        private const string PluginDefaultDictionaryUri =
-            "pack://application:,,,/PlayniteAchievements;component/Resources/AchievementResources.xaml";
+        // The bundled default source for the notification storyboards and content shadow. The two
+        // surface DataTemplates are NOT here; they load from their own single-source files below.
+        private const string NotificationResourcesUri =
+            "pack://application:,,,/PlayniteAchievements;component/Resources/NotificationResources.xaml";
+
+        // Single source of truth for each surface's built-in default template: the same embedded
+        // loose-XAML file is parsed for live rendering (LoadDefaultTemplateDictionary) and returned
+        // verbatim by the "Export default template" action (ReadDefaultTemplateXaml), so the export
+        // always equals the live default. Manifest names follow the folder path under the assembly.
+        private const string ToastDefaultTemplateResourceName =
+            "PlayniteAchievements.Resources.DefaultTemplates.AchievementToast.xaml";
+        private const string FrameDefaultTemplateResourceName =
+            "PlayniteAchievements.Resources.DefaultTemplates.ScreenshotFrame.xaml";
+        private const string DefaultTemplatePackBaseUri = "pack://application:,,,/";
 
         private static readonly Dictionary<string, CachedThemeDictionary> ThemeDictionaryCache =
             new Dictionary<string, CachedThemeDictionary>(StringComparer.OrdinalIgnoreCase);
+
+        // Parsed bundled default templates, keyed by manifest resource name. The embedded XAML is
+        // immutable, so a successful parse is cached process-wide.
+        private static readonly Dictionary<string, ResourceDictionary> PluginDefaultTemplateCache =
+            new Dictionary<string, ResourceDictionary>(StringComparer.Ordinal);
 
         private readonly IPlayniteAPI _api;
         private readonly ILogger _logger;
@@ -625,17 +643,85 @@ namespace PlayniteAchievements.Services.UI
 
             try
             {
-                var dictionary = new ResourceDictionary
+                // Surface templates come from their single-source files (shared with export); the
+                // storyboards and content shadow come from NotificationResources.xaml.
+                ResourceDictionary dictionary;
+                if (key == TemplateKey)
                 {
-                    Source = new Uri(PluginDefaultDictionaryUri, UriKind.Absolute)
-                };
+                    dictionary = LoadDefaultTemplateDictionary(isFrame: false);
+                }
+                else if (key == FrameTemplateKey)
+                {
+                    dictionary = LoadDefaultTemplateDictionary(isFrame: true);
+                }
+                else
+                {
+                    dictionary = new ResourceDictionary
+                    {
+                        Source = new Uri(NotificationResourcesUri, UriKind.Absolute)
+                    };
+                }
 
-                return TryGetDirectResource(dictionary, key, out T resource) ? resource : null;
+                return dictionary != null && TryGetDirectResource(dictionary, key, out T resource)
+                    ? resource
+                    : null;
             }
             catch (Exception ex)
             {
                 _logger?.Debug(ex, $"Failed to load default achievement toast resource '{key}'.");
                 return null;
+            }
+        }
+
+        /// <summary>
+        /// Loads (and caches process-wide) the bundled default template dictionary for the surface
+        /// from its embedded single-source loose-XAML file. The same file's text is returned
+        /// verbatim by <see cref="ReadDefaultTemplateXaml"/>, so the live default and the exported
+        /// default never diverge. The file merges NotificationResources.xaml for its dependencies.
+        /// </summary>
+        private ResourceDictionary LoadDefaultTemplateDictionary(bool isFrame)
+        {
+            var resourceName = isFrame ? FrameDefaultTemplateResourceName : ToastDefaultTemplateResourceName;
+            if (PluginDefaultTemplateCache.TryGetValue(resourceName, out var cached))
+            {
+                return cached;
+            }
+
+            ResourceDictionary dictionary = null;
+            try
+            {
+                var xaml = ReadEmbeddedResourceText(resourceName);
+                dictionary = LoadResourceDictionaryFromText(
+                    xaml,
+                    new ParserContext { BaseUri = new Uri(DefaultTemplatePackBaseUri, UriKind.Absolute) });
+            }
+            catch (Exception ex)
+            {
+                _logger?.Warn(ex, $"Failed to load bundled default notification template: {resourceName}");
+                dictionary = null;
+            }
+
+            PluginDefaultTemplateCache[resourceName] = dictionary;
+            return dictionary;
+        }
+
+        private static string ReadEmbeddedResourceText(string resourceName)
+        {
+            var assembly = Assembly.GetExecutingAssembly();
+            using (var stream = assembly.GetManifestResourceStream(resourceName))
+            {
+                if (stream == null)
+                {
+                    throw new InvalidOperationException(
+                        $"Embedded default template resource not found: {resourceName}");
+                }
+
+                using (var reader = new StreamReader(
+                           stream,
+                           new UTF8Encoding(encoderShouldEmitUTF8Identifier: false)))
+                {
+                    return reader.ReadToEnd();
+                }
             }
         }
 
@@ -817,85 +903,17 @@ namespace PlayniteAchievements.Services.UI
         }
 
         /// <summary>
-        /// Returns the default template as loose, standalone XAML: a minimal, known-good starting
-        /// point that follows the override contract (assembly-qualified namespaces, merged plugin
-        /// dictionary, the template key) and references only the plugin's own dictionary, so it
-        /// renders on any machine and theme. Exported by the "export default template" action as a
-        /// working scaffold to edit and re-import. Never returns the compiled bundled template (its
-        /// source is not shippable as loose XAML) or a theme override.
+        /// Returns the surface's built-in default template as loose, standalone XAML, read verbatim
+        /// from the same embedded file the plugin renders at runtime (see
+        /// <see cref="LoadDefaultTemplateDictionary"/>), so the "Export default template" output is
+        /// always exactly the live default. The file follows the override contract
+        /// (assembly-qualified namespaces, merged NotificationResources.xaml, the template key), so
+        /// it renders on any machine and theme when edited and re-imported.
         /// </summary>
         public string ReadDefaultTemplateXaml(bool isFrame)
         {
-            return BuildStarterTemplateXaml(isFrame);
-        }
-
-        // A minimal, loose-XAML-correct starting point: assembly-qualified namespaces so
-        // XamlReader/Source can resolve the view model, the plugin dictionary merged for brushes
-        // and helpers, and the exact template key the resolver looks up. Kept intentionally small;
-        // the wiki documents every binding for users who want the full layout.
-        private static string BuildStarterTemplateXaml(bool isFrame)
-        {
-            if (isFrame)
-            {
-                return
-@"<ResourceDictionary xmlns=""http://schemas.microsoft.com/winfx/2006/xaml/presentation""
-                    xmlns:x=""http://schemas.microsoft.com/winfx/2006/xaml""
-                    xmlns:vm=""clr-namespace:PlayniteAchievements.ViewModels;assembly=PlayniteAchievements"">
-    <ResourceDictionary.MergedDictionaries>
-        <!-- Gives the template PlayAch brushes, converters, badges, and helpers. -->
-        <ResourceDictionary Source=""pack://application:,,,/PlayniteAchievements;component/Resources/AchievementResources.xaml""/>
-    </ResourceDictionary.MergedDictionaries>
-
-    <!-- Custom screenshot-frame template. Composited onto the saved screenshot; bind images
-         synchronously (Source=, not AsyncImage). See the wiki 'Toast and Frame overrides' page
-         for every available binding. Keep the x:Key and DataType exactly as below. -->
-    <DataTemplate x:Key=""PlayAch.Template.ScreenshotFrame""
-                  DataType=""{x:Type vm:AchievementToastViewModel}"">
-        <Grid>
-            <StackPanel VerticalAlignment=""Bottom"" Margin=""36,0,36,26"">
-                <TextBlock Text=""{Binding HeaderText}"" Foreground=""White"" FontSize=""17""/>
-                <TextBlock Text=""{Binding TitleText}"" Foreground=""{Binding FrameTitleBrush}""
-                           FontWeight=""SemiBold"" FontSize=""28""/>
-                <TextBlock Text=""{Binding Description}"" Foreground=""White"" TextWrapping=""Wrap""/>
-            </StackPanel>
-        </Grid>
-    </DataTemplate>
-</ResourceDictionary>
-";
-            }
-
-            return
-@"<ResourceDictionary xmlns=""http://schemas.microsoft.com/winfx/2006/xaml/presentation""
-                    xmlns:x=""http://schemas.microsoft.com/winfx/2006/xaml""
-                    xmlns:vm=""clr-namespace:PlayniteAchievements.ViewModels;assembly=PlayniteAchievements"">
-    <ResourceDictionary.MergedDictionaries>
-        <!-- Gives the template PlayAch brushes, converters, badges, and helpers. -->
-        <ResourceDictionary Source=""pack://application:,,,/PlayniteAchievements;component/Resources/AchievementResources.xaml""/>
-    </ResourceDictionary.MergedDictionaries>
-
-    <!-- Custom notification toast template. Edit freely; see the wiki 'Toast and Frame overrides'
-         page for every available binding. Keep the x:Key and DataType exactly as below. -->
-    <DataTemplate x:Key=""PlayAch.Template.AchievementToast""
-                  DataType=""{x:Type vm:AchievementToastViewModel}"">
-        <Border Background=""{DynamicResource PlayAch.Brush.PopupSurface}""
-                BorderBrush=""{DynamicResource PlayAch.Brush.PopupBorder}""
-                BorderThickness=""1""
-                CornerRadius=""8""
-                Padding=""12"">
-            <StackPanel>
-                <TextBlock Text=""{Binding HeaderText}""
-                           Foreground=""{DynamicResource PlayAch.Brush.Text.Secondary}""/>
-                <TextBlock Text=""{Binding TitleText}""
-                           Foreground=""{Binding TitleBrush}""
-                           FontWeight=""SemiBold""/>
-                <TextBlock Text=""{Binding Description}""
-                           Foreground=""{DynamicResource PlayAch.Brush.Text.Secondary}""
-                           TextWrapping=""Wrap""/>
-            </StackPanel>
-        </Border>
-    </DataTemplate>
-</ResourceDictionary>
-";
+            return ReadEmbeddedResourceText(
+                isFrame ? FrameDefaultTemplateResourceName : ToastDefaultTemplateResourceName);
         }
 
         private string GetThemeModeName()

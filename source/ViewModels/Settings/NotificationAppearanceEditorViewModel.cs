@@ -1207,6 +1207,65 @@ namespace PlayniteAchievements.ViewModels.Settings
         #endregion
 
         /// <summary>
+        /// Resets the edited surface (toast or frame) to its built-in factory default,
+        /// discarding the user's style edits for that surface only. Replacing the surface object
+        /// triggers the resubscribe, debounced persist, and mockup refresh through
+        /// <see cref="OnStyleObjectPropertyChanged"/>; the surface-bound editor fields are
+        /// refreshed here so the controls show the default values. On the toast surface (which
+        /// hosts the shared background and badge image groups) the user-supplied images are also
+        /// cleared and their files deleted, so a reset restores the true default look. No-op when
+        /// nothing is loaded or the current selection is read-only.
+        /// </summary>
+        public void ResetSurfaceToDefault()
+        {
+            if (_style == null || !_isEditable)
+            {
+                return;
+            }
+
+            if (IsFrameSurface)
+            {
+                _style.Frame = NotificationSurfaceStyle.CreateFrameDefault();
+            }
+            else
+            {
+                _style.Toast = NotificationSurfaceStyle.CreateToastDefault();
+
+                // The background and badge images are shared style-level groups hosted by the
+                // toast editor; clearing them deletes the managed files and resets the paths.
+                ClearImage(NotificationImageSlot.Background);
+                ClearImage(NotificationImageSlot.BadgeCommon);
+                ClearImage(NotificationImageSlot.BadgeUncommon);
+                ClearImage(NotificationImageSlot.BadgeRare);
+                ClearImage(NotificationImageSlot.BadgeUltraRare);
+                ClearImage(NotificationImageSlot.BadgeCompletion);
+
+                // All custom notification strings (unlock header, completion header, and both
+                // friend format strings) are shared and edited on the toast tab; a fresh set
+                // restores the built-in localized defaults for every one (empty store = default).
+                _style.HeaderTexts = new NotificationHeaderTextSettings();
+                HasHeaderFormatError = false;
+                RefreshHeaderTexts();
+            }
+
+            SyncLineRows();
+            RefreshCardDimensions();
+            OnPropertyChanged(nameof(Surface));
+            OnPropertyChanged(nameof(SelectedFontFamilyOption));
+            OnPropertyChanged(nameof(SelectedBadgePlacement));
+            OnPropertyChanged(nameof(SelectedPercentPlacement));
+            OnPropertyChanged(nameof(IsProviderIconEnabled));
+            OnPropertyChanged(nameof(SelectedGlowDisplay));
+            OnPropertyChanged(nameof(SelectedFrameVignette));
+            OnPropertyChanged(nameof(CountdownBarColorText));
+            OnPropertyChanged(nameof(CountdownBarSwatch));
+            OnPropertyChanged(nameof(TitleLineOffsetText));
+            OnPropertyChanged(nameof(HasBackgroundImage));
+            OnPropertyChanged(nameof(BackgroundImageDimensionsText));
+            OnPropertyChanged(nameof(BackgroundThumbnailUri));
+        }
+
+        /// <summary>
         /// Points the editor at a new style object (global default or a provider copy).
         /// Pending edits against the previous style are flushed first.
         /// </summary>
