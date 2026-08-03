@@ -201,13 +201,14 @@
                           Height="{Binding ToastIconSize}"
                           HorizontalAlignment="Center">
                         <!-- Completion notifications swap the achievement icon for the
-                             completed-game badge and the completed glow. Glow lives on a cached
-                             backing layer so the front icon stays sharp and only the glow pulses. -->
+                             completed-game badge and the completed glow. The glow lives on this
+                             backing layer (a crisp front copy sits on top); it renders un-cached so
+                             the halo always appears once the async icon loads, and the pulse fades
+                             this layer's opacity. -->
                         <Image Stretch="Uniform"
                                RenderOptions.BitmapScalingMode="HighQuality"
                                helpers:AsyncImage.DecodePixel="160"
-                               IsHitTestVisible="False"
-                               CacheMode="BitmapCache">
+                               IsHitTestVisible="False">
                             <Image.Style>
                                 <Style TargetType="Image">
                                     <Setter Property="helpers:AsyncImage.Uri" Value="{Binding IconPath}"/>
