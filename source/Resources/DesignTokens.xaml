@@ -159,6 +159,7 @@
     <sys:Double x:Key="PlayAch.Size.ProviderPageWidth">700</sys:Double>
     <sys:Double x:Key="PlayAch.Size.ProviderPageHeight">600</sys:Double>
     <sys:Double x:Key="PlayAch.Size.Text.DescriptionPreviewMaxHeight">44</sys:Double>
+    <sys:Double x:Key="PlayAch.Size.Text.DataGridCellMaxHeight">72</sys:Double>
 
     <CornerRadius x:Key="PlayAch.Radius.Tiny">2</CornerRadius>
     <CornerRadius x:Key="PlayAch.Radius.Small">4</CornerRadius>
