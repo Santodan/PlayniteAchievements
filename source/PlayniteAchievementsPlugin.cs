@@ -95,6 +95,7 @@ namespace PlayniteAchievements
         private readonly ActiveGameWindowTracker _windowTracker;
         private readonly ToastNotificationService _toastNotifications;
         private readonly Services.Recording.UnlockRecordingService _unlockRecordings;
+        private readonly Services.Captures.CaptureLibraryService _captureLibraryService;
 
         /// <summary>
         /// Started process ids of currently running games (from OnGameStarted), used to identify
@@ -139,6 +140,7 @@ namespace PlayniteAchievements
         public AchievementDataService AchievementDataService => _achievementDataService;
         public MemoryImageService ImageService => _imageService;
         public DiskImageService DiskImageService => _diskImageService;
+        public Services.Captures.CaptureLibraryService CaptureLibraryService => _captureLibraryService;
         public ManagedCustomIconService ManagedCustomIconService => _managedCustomIconService;
         public ICacheManager CacheManager => _cacheManager;
         public NotificationImageStore NotificationImageStore => _notificationImageStore;
@@ -542,6 +544,9 @@ namespace PlayniteAchievements
                         _toastNotifications,
                         key => Services.UI.ProviderNotificationPolicy.Resolve(settings?.Persisted, key).Recordings,
                         _windowTracker);
+                    _captureLibraryService = new Services.Captures.CaptureLibraryService(
+                        () => _settingsViewModel?.Settings?.Persisted,
+                        _logger);
                     _inGameMonitor = new InGameAchievementMonitor(
                         PlayniteApi,
                         settings,
