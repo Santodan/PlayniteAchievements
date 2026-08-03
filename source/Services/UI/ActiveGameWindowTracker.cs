@@ -256,6 +256,17 @@ namespace PlayniteAchievements.Services.UI
                 pid = tracked.LearnedProcessId ?? tracked.StartedProcessId;
             }
 
+            // Proactively find the game's window by classifying each visible top-level window's
+            // owning process, so a backgrounded game's window is resolvable before it has ever been
+            // foreground — the first hotkey no longer needs the game focused first, and the video
+            // recorder finds the window immediately. The result is learned, so this runs only until
+            // the handle is known.
+            var discovered = DiscoverGameWindow(gameId);
+            if (discovered != IntPtr.Zero)
+            {
+                return discovered;
+            }
+
             if (!pid.HasValue || pid.Value <= 0)
             {
                 return IntPtr.Zero;
@@ -272,6 +283,57 @@ namespace PlayniteAchievements.Services.UI
             {
                 return IntPtr.Zero;
             }
+        }
+
+        /// <summary>
+        /// Enumerates visible top-level windows and returns the first whose owning process classifies
+        /// as <paramref name="gameId"/> (executable under the install dir, or the started/parent pid),
+        /// learning it. IntPtr.Zero when none is found. Classification is pid-cached, so this is cheap
+        /// after the first pass.
+        /// </summary>
+        private IntPtr DiscoverGameWindow(Guid gameId)
+        {
+            var found = IntPtr.Zero;
+            try
+            {
+                EnumWindows((hwnd, _) =>
+                {
+                    if (!IsWindowVisible(hwnd))
+                    {
+                        return true;
+                    }
+
+                    GetWindowThreadProcessId(hwnd, out var pid);
+                    if (pid == 0)
+                    {
+                        return true;
+                    }
+
+                    lock (_sync)
+                    {
+                        if (_disposed || _tracked.Count == 0)
+                        {
+                            return false;
+                        }
+
+                        if (ClassifyProcessLocked((int)pid) == gameId && _tracked.TryGetValue(gameId, out var tracked))
+                        {
+                            tracked.LearnedHwnd = hwnd;
+                            tracked.LearnedProcessId = (int)pid;
+                            found = hwnd;
+                            return false;
+                        }
+                    }
+
+                    return true;
+                }, IntPtr.Zero);
+            }
+            catch (Exception ex)
+            {
+                _logger?.Debug(ex, "[WindowTracker] Game window discovery failed.");
+            }
+
+            return found;
         }
 
         /// <summary>
@@ -674,6 +736,16 @@ namespace PlayniteAchievements.Services.UI
         [DllImport("user32.dll")]
         [return: MarshalAs(UnmanagedType.Bool)]
         private static extern bool IsIconic(IntPtr hWnd);
+
+        private delegate bool EnumWindowsProc(IntPtr hWnd, IntPtr lParam);
+
+        [DllImport("user32.dll")]
+        [return: MarshalAs(UnmanagedType.Bool)]
+        private static extern bool EnumWindows(EnumWindowsProc lpEnumFunc, IntPtr lParam);
+
+        [DllImport("user32.dll")]
+        [return: MarshalAs(UnmanagedType.Bool)]
+        private static extern bool IsWindowVisible(IntPtr hWnd);
 
         [DllImport("kernel32.dll", SetLastError = true)]
         private static extern IntPtr OpenProcess(uint processAccess, bool bInheritHandle, int processId);

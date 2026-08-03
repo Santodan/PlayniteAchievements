@@ -39,6 +39,8 @@ namespace PlayniteAchievements.Services.Capture
         // whatever is foreground at start.
         private readonly Func<IntPtr> _resolveHwnd;
         private IntPtr _activeHwnd;
+        // Client-area crop box within the captured window texture (excludes chrome); set per window.
+        private int _cropX, _cropY, _cropW, _cropH;
         private readonly string _bufferDirectory;
         private readonly int _fps;
         private readonly int _segmentSeconds;
@@ -157,6 +159,8 @@ namespace PlayniteAchievements.Services.Capture
                 _toneMapper = new GpuHdrToneMapper(_device);
             }
 
+            ComputeClientCrop(hwnd, item.Size.Width, item.Size.Height, out _cropX, out _cropY, out _cropW, out _cropH);
+
             var pixelFormat = _hdr
                 ? DirectXPixelFormat.R16G16B16A16Float
                 : DirectXPixelFormat.B8G8R8A8UIntNormalized;
@@ -176,6 +180,60 @@ namespace PlayniteAchievements.Services.Capture
             _session = null;
             _framePool = null;
             _item = null;
+        }
+
+        /// <summary>
+        /// The client-area sub-region within the captured window texture (excludes chrome), in
+        /// captured pixels — measured against the DWM extended frame bounds (what WGC captures) and
+        /// scaled into the texture, with even dimensions for H.264. Falls back to the full frame.
+        /// </summary>
+        private static void ComputeClientCrop(IntPtr hwnd, int capturedW, int capturedH, out int x, out int y, out int w, out int h)
+        {
+            x = 0;
+            y = 0;
+            w = capturedW;
+            h = capturedH;
+            try
+            {
+                if (DwmGetWindowAttribute(hwnd, DWMWA_EXTENDED_FRAME_BOUNDS, out var frame, Marshal.SizeOf(typeof(RECT))) != 0)
+                {
+                    return;
+                }
+
+                var fw = frame.Right - frame.Left;
+                var fh = frame.Bottom - frame.Top;
+                if (fw <= 0 || fh <= 0 || !GetClientRect(hwnd, out var client))
+                {
+                    return;
+                }
+
+                var cw = client.Right - client.Left;
+                var ch = client.Bottom - client.Top;
+                var origin = new POINT { X = 0, Y = 0 };
+                if (cw <= 0 || ch <= 0 || !ClientToScreen(hwnd, ref origin))
+                {
+                    return;
+                }
+
+                var sx = (double)capturedW / fw;
+                var sy = (double)capturedH / fh;
+                var cx = Math.Max(0, Math.Min((int)Math.Round((origin.X - frame.Left) * sx), capturedW - 2));
+                var cy = Math.Max(0, Math.Min((int)Math.Round((origin.Y - frame.Top) * sy), capturedH - 2));
+                var cwp = Math.Max(2, Math.Min((int)Math.Round(cw * sx), capturedW - cx)) & ~1;
+                var chp = Math.Max(2, Math.Min((int)Math.Round(ch * sy), capturedH - cy)) & ~1;
+
+                x = cx;
+                y = cy;
+                w = cwp;
+                h = chp;
+            }
+            catch
+            {
+                x = 0;
+                y = 0;
+                w = capturedW & ~1;
+                h = capturedH & ~1;
+            }
         }
 
         private void PumpLoop()
@@ -268,8 +326,13 @@ namespace PlayniteAchievements.Services.Capture
                 using (var frameTexture = new D3D11.Texture2D(texPtr))
                 {
                     var bgra = _hdr ? _toneMapper.ToneMap(frameTexture, _refWhite) : frameTexture;
-                    EnsureLatest(bgra.Description.Width, bgra.Description.Height);
-                    _device.ImmediateContext.CopyResource(bgra, _latest);
+
+                    // Crop to the client area (exclude window chrome) with a GPU sub-region copy.
+                    var w = _cropW > 0 ? _cropW : bgra.Description.Width;
+                    var h = _cropH > 0 ? _cropH : bgra.Description.Height;
+                    EnsureLatest(w, h);
+                    var region = new D3D11.ResourceRegion(_cropX, _cropY, 0, _cropX + w, _cropY + h, 1);
+                    _device.ImmediateContext.CopySubresourceRegion(bgra, 0, region, _latest, 0, 0, 0, 0);
                 }
             }
         }
