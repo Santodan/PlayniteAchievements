@@ -673,10 +673,13 @@ namespace PlayniteAchievements.ViewModels
                 return null;
             }
 
+            // Blur widens linearly, but depth grows quadratically: under a widening blur a
+            // linear offset reads soft, so the top end needs the shadow to visibly detach
+            // (default 1px at the built-in strength, 4px at 2x, 16px at the maximum).
             var effect = new DropShadowEffect
             {
                 BlurRadius = ContentShadowDefaultBlur * strength,
-                ShadowDepth = ContentShadowDefaultDepth * strength,
+                ShadowDepth = ContentShadowDefaultDepth * strength * strength,
                 Direction = 315,
                 Color = Colors.Black,
                 Opacity = Math.Min(1.0, strength)
