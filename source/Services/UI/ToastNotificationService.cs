@@ -872,7 +872,25 @@ namespace PlayniteAchievements.Services.UI
                 // a monitor whose scale differs from the process's system DPI. A window's DPI awareness
                 // is fixed at HWND creation; all HWND-affecting props were set in
                 // CreateBorderlessTopmostWindow before any handle existed, so no recreation escapes this.
-                using (Common.DpiAwarenessScope.PerMonitorV2())
+                // Only when the anchor monitor's scale actually differs from the system scale: on a
+                // same-DPI monitor Windows never virtualizes the window, so a plain system-aware HWND
+                // is already pixel-perfect — and skipping the per-monitor window avoids routing
+                // WM_DPICHANGED through WPF's shared DPI state in this system-aware host process,
+                // which has been observed to rescale sibling windows and hard-crash the process on
+                // single-monitor high-DPI setups.
+                var needsPerMonitorWindow = systemScale > 0 &&
+                    Math.Abs(_activeMonitorScale - systemScale) >= DpiSettleTolerance;
+                _logger?.Info(
+                    $"[Toast] Fire: monitorScale={_activeMonitorScale:0.###}, systemScale={systemScale:0.###}, " +
+                    $"perMonitorWindow={needsPerMonitorWindow}, isGame={_activeIsGame}");
+                if (needsPerMonitorWindow)
+                {
+                    using (Common.DpiAwarenessScope.PerMonitorV2())
+                    {
+                        new WindowInteropHelper(window).EnsureHandle();
+                    }
+                }
+                else
                 {
                     new WindowInteropHelper(window).EnsureHandle();
                 }
