@@ -1619,9 +1619,10 @@ namespace PlayniteAchievements.Services.UI
         private const double SlideTravelPaddingDip = 40d;
         // Small pause after a slide-out finishes before the window is torn down.
         private const int SlideSettleBufferMs = 10;
-        // Minimum spacing between toast overlay republishes to the video recorder (~15 fps): the toast
-        // barely changes frame to frame, so re-rendering it every composed frame is wasteful.
-        private const int OverlayPublishIntervalMs = 66;
+        // Minimum spacing between toast overlay republishes to the video recorder (~30 fps): fast
+        // enough that the animating countdown bar reads as smooth in the clip, without paying a full
+        // toast re-render on every 60 fps composition tick.
+        private const int OverlayPublishIntervalMs = 33;
         // Below this, the content scale is treated as 1.0 and no LayoutTransform is applied.
         private const double ContentScaleEpsilon = 0.001;
         // Post-Show wait for the per-monitor DPI change to settle before revealing the toast: poll the
