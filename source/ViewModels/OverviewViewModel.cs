@@ -4038,6 +4038,38 @@ namespace PlayniteAchievements.ViewModels
             {
                 _deltaBatchTimer.Tick -= OnDeltaBatchTimerTick;
             }
+
+            ReleaseRetainedData();
+        }
+
+        // Eagerly drop the large per-open data set instead of waiting for GC. Playnite is a 32-bit
+        // process, so under rapid open/close of the overview several full VM graphs (thousands of
+        // GameSummaryItem/AchievementDisplayItem plus the search indexes) could coexist awaiting
+        // collection and exhaust the address space. Releasing here bounds the retained set to one
+        // live overview. Runs after _disposed and CancelPendingRefresh, so no in-flight apply can
+        // repopulate these (ApplySnapshot early-returns on _disposed).
+        private void ReleaseRetainedData()
+        {
+            AllAchievements.Clear();
+            GameSummaries.Clear();
+            RecentAchievements.Clear();
+            SelectedGameAchievements.Clear();
+            SelectedGameAllAchievements.Clear();
+
+            _allAchievements = new List<AchievementDisplayItem>();
+            _allGameSummaries = new List<GameSummaryItem>();
+            _allRecentAchievements = new List<AchievementDisplayItem>();
+            _allSelectedGameAchievements = new List<AchievementDisplayItem>();
+            _filteredGameSummaries = new List<GameSummaryItem>();
+            _filteredRecentAchievements = new List<AchievementDisplayItem>();
+            _filteredSelectedGameAchievements = new List<AchievementDisplayItem>();
+            _selectedGameDefaultOrderedAchievements = new List<AchievementDisplayItem>();
+
+            _latestSnapshot = null;
+
+            _globalAchievementSearchIndex.Clear();
+            _gameSummarySearchIndex.Clear();
+            _recentAchievementSearchIndex.Clear();
         }
     }
 }
