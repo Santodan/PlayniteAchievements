@@ -47,64 +47,24 @@ namespace PlayniteAchievements.Services.GameCustomData
         public const string PortablePackageManifestEntryName = "custom-data.pa";
         private const string PortablePackageImagesFolderName = "images";
 
-        private static readonly IReadOnlyList<NotificationPackageImageBinding> NotificationImageBindings =
-            new[]
+        /// <summary>
+        /// The .pa package entry stem for each notification image slot (path accessors come
+        /// from <see cref="NotificationImageSlotMap"/>).
+        /// </summary>
+        private static readonly IReadOnlyDictionary<NotificationImageSlot, string> NotificationImageEntryStems =
+            new Dictionary<NotificationImageSlot, string>
             {
-                new NotificationPackageImageBinding(
-                    NotificationImageSlot.Background,
-                    "notification_background",
-                    style => style.ToastBackgroundImagePath,
-                    (style, path) => style.ToastBackgroundImagePath = path),
-                new NotificationPackageImageBinding(
-                    NotificationImageSlot.BadgeCommon,
-                    "notification_badge_common",
-                    style => style.Toast.BadgeImages.CommonPath,
-                    (style, path) => style.Toast.BadgeImages.CommonPath = path),
-                new NotificationPackageImageBinding(
-                    NotificationImageSlot.BadgeUncommon,
-                    "notification_badge_uncommon",
-                    style => style.Toast.BadgeImages.UncommonPath,
-                    (style, path) => style.Toast.BadgeImages.UncommonPath = path),
-                new NotificationPackageImageBinding(
-                    NotificationImageSlot.BadgeRare,
-                    "notification_badge_rare",
-                    style => style.Toast.BadgeImages.RarePath,
-                    (style, path) => style.Toast.BadgeImages.RarePath = path),
-                new NotificationPackageImageBinding(
-                    NotificationImageSlot.BadgeUltraRare,
-                    "notification_badge_ultrarare",
-                    style => style.Toast.BadgeImages.UltraRarePath,
-                    (style, path) => style.Toast.BadgeImages.UltraRarePath = path),
-                new NotificationPackageImageBinding(
-                    NotificationImageSlot.BadgeCompletion,
-                    "notification_badge_completion",
-                    style => style.Toast.BadgeImages.CompletionPath,
-                    (style, path) => style.Toast.BadgeImages.CompletionPath = path),
-                new NotificationPackageImageBinding(
-                    NotificationImageSlot.FrameBadgeCommon,
-                    "notification_frame_badge_common",
-                    style => style.Frame.BadgeImages.CommonPath,
-                    (style, path) => style.Frame.BadgeImages.CommonPath = path),
-                new NotificationPackageImageBinding(
-                    NotificationImageSlot.FrameBadgeUncommon,
-                    "notification_frame_badge_uncommon",
-                    style => style.Frame.BadgeImages.UncommonPath,
-                    (style, path) => style.Frame.BadgeImages.UncommonPath = path),
-                new NotificationPackageImageBinding(
-                    NotificationImageSlot.FrameBadgeRare,
-                    "notification_frame_badge_rare",
-                    style => style.Frame.BadgeImages.RarePath,
-                    (style, path) => style.Frame.BadgeImages.RarePath = path),
-                new NotificationPackageImageBinding(
-                    NotificationImageSlot.FrameBadgeUltraRare,
-                    "notification_frame_badge_ultrarare",
-                    style => style.Frame.BadgeImages.UltraRarePath,
-                    (style, path) => style.Frame.BadgeImages.UltraRarePath = path),
-                new NotificationPackageImageBinding(
-                    NotificationImageSlot.FrameBadgeCompletion,
-                    "notification_frame_badge_completion",
-                    style => style.Frame.BadgeImages.CompletionPath,
-                    (style, path) => style.Frame.BadgeImages.CompletionPath = path)
+                [NotificationImageSlot.Background] = "notification_background",
+                [NotificationImageSlot.BadgeCommon] = "notification_badge_common",
+                [NotificationImageSlot.BadgeUncommon] = "notification_badge_uncommon",
+                [NotificationImageSlot.BadgeRare] = "notification_badge_rare",
+                [NotificationImageSlot.BadgeUltraRare] = "notification_badge_ultrarare",
+                [NotificationImageSlot.BadgeCompletion] = "notification_badge_completion",
+                [NotificationImageSlot.FrameBadgeCommon] = "notification_frame_badge_common",
+                [NotificationImageSlot.FrameBadgeUncommon] = "notification_frame_badge_uncommon",
+                [NotificationImageSlot.FrameBadgeRare] = "notification_frame_badge_rare",
+                [NotificationImageSlot.FrameBadgeUltraRare] = "notification_frame_badge_ultrarare",
+                [NotificationImageSlot.FrameBadgeCompletion] = "notification_frame_badge_completion"
             };
 
         private readonly ILogger _logger;
@@ -955,12 +915,12 @@ namespace PlayniteAchievements.Services.GameCustomData
                 return;
             }
 
-            foreach (var binding in NotificationImageBindings)
+            foreach (var slot in NotificationImageSlotMap.Slots)
             {
-                var sourceValue = NormalizeText(binding.GetPath(style));
+                var sourceValue = NormalizeText(NotificationImageSlotMap.GetPath(style, slot));
                 if (string.IsNullOrWhiteSpace(sourceValue))
                 {
-                    binding.SetPath(style, null);
+                    NotificationImageSlotMap.SetPath(style, slot, null);
                     continue;
                 }
 
@@ -976,7 +936,7 @@ namespace PlayniteAchievements.Services.GameCustomData
                         .MaterializeAsync(
                             sourceValue,
                             NotificationImageOwner.ForGame(playniteGameId),
-                            binding.Slot,
+                            slot,
                             CancellationToken.None)
                         .GetAwaiter()
                         .GetResult();
@@ -984,7 +944,7 @@ namespace PlayniteAchievements.Services.GameCustomData
 
                 if (string.IsNullOrWhiteSpace(sourcePath) || !File.Exists(sourcePath))
                 {
-                    binding.SetPath(style, null);
+                    NotificationImageSlotMap.SetPath(style, slot, null);
                     continue;
                 }
 
@@ -995,8 +955,8 @@ namespace PlayniteAchievements.Services.GameCustomData
                 }
 
                 var entryName = PortablePackageImagesFolderName + "/" +
-                    binding.EntryStem + extension.ToLowerInvariant();
-                binding.SetPath(style, entryName);
+                    NotificationImageEntryStems[slot] + extension.ToLowerInvariant();
+                NotificationImageSlotMap.SetPath(style, slot, entryName);
                 imageSources[entryName] = sourcePath;
             }
         }
@@ -1011,16 +971,16 @@ namespace PlayniteAchievements.Services.GameCustomData
                 return;
             }
 
-            foreach (var binding in NotificationImageBindings)
+            foreach (var slot in NotificationImageSlotMap.Slots)
             {
-                var prefix = PortablePackageImagesFolderName + "/" + binding.EntryStem + ".";
+                var prefix = PortablePackageImagesFolderName + "/" + NotificationImageEntryStems[slot] + ".";
                 var entryPair = entriesByName.FirstOrDefault(pair =>
                     pair.Key.StartsWith(prefix, StringComparison.OrdinalIgnoreCase) &&
                     IsSupportedPackageImageExtension(Path.GetExtension(pair.Key)));
                 if (string.IsNullOrWhiteSpace(entryPair.Key) || entryPair.Value == null)
                 {
                     // The package entries are authoritative; never retain a manifest path.
-                    binding.SetPath(style, null);
+                    NotificationImageSlotMap.SetPath(style, slot, null);
                     continue;
                 }
 
@@ -1062,7 +1022,7 @@ namespace PlayniteAchievements.Services.GameCustomData
                         .MaterializeAsync(
                             tempPath,
                             NotificationImageOwner.ForGame(playniteGameId),
-                            binding.Slot,
+                            slot,
                             CancellationToken.None)
                         .GetAwaiter()
                         .GetResult();
@@ -1072,7 +1032,7 @@ namespace PlayniteAchievements.Services.GameCustomData
                             $"Failed to import packaged notification image '{entry.FullName}'.");
                     }
 
-                    binding.SetPath(style, managedPath);
+                    NotificationImageSlotMap.SetPath(style, slot, managedPath);
                 }
                 finally
                 {
@@ -1797,29 +1757,6 @@ namespace PlayniteAchievements.Services.GameCustomData
             }
 
             CustomDataChanged?.Invoke(this, new GameCustomDataChangedEventArgs(playniteGameId));
-        }
-
-        private sealed class NotificationPackageImageBinding
-        {
-            public NotificationPackageImageBinding(
-                NotificationImageSlot slot,
-                string entryStem,
-                Func<NotificationStyleSettings, string> getPath,
-                Action<NotificationStyleSettings, string> setPath)
-            {
-                Slot = slot;
-                EntryStem = entryStem;
-                GetPath = getPath;
-                SetPath = setPath;
-            }
-
-            public NotificationImageSlot Slot { get; }
-
-            public string EntryStem { get; }
-
-            public Func<NotificationStyleSettings, string> GetPath { get; }
-
-            public Action<NotificationStyleSettings, string> SetPath { get; }
         }
 
     }

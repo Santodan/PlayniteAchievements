@@ -1025,76 +1025,11 @@ namespace PlayniteAchievements.ViewModels.Settings
             }
         }
 
-        private string GetImagePath(NotificationImageSlot slot)
-        {
-            switch (slot)
-            {
-                case NotificationImageSlot.Background:
-                    return _style?.ToastBackgroundImagePath;
-                case NotificationImageSlot.BadgeCommon:
-                    return _style?.Toast?.BadgeImages?.CommonPath;
-                case NotificationImageSlot.BadgeUncommon:
-                    return _style?.Toast?.BadgeImages?.UncommonPath;
-                case NotificationImageSlot.BadgeRare:
-                    return _style?.Toast?.BadgeImages?.RarePath;
-                case NotificationImageSlot.BadgeUltraRare:
-                    return _style?.Toast?.BadgeImages?.UltraRarePath;
-                case NotificationImageSlot.BadgeCompletion:
-                    return _style?.Toast?.BadgeImages?.CompletionPath;
-                case NotificationImageSlot.FrameBadgeCommon:
-                    return _style?.Frame?.BadgeImages?.CommonPath;
-                case NotificationImageSlot.FrameBadgeUncommon:
-                    return _style?.Frame?.BadgeImages?.UncommonPath;
-                case NotificationImageSlot.FrameBadgeRare:
-                    return _style?.Frame?.BadgeImages?.RarePath;
-                case NotificationImageSlot.FrameBadgeUltraRare:
-                    return _style?.Frame?.BadgeImages?.UltraRarePath;
-                case NotificationImageSlot.FrameBadgeCompletion:
-                    return _style?.Frame?.BadgeImages?.CompletionPath;
-                default:
-                    return null;
-            }
-        }
+        private string GetImagePath(NotificationImageSlot slot) =>
+            NotificationImageSlotMap.GetPath(_style, slot);
 
-        private void SetImagePath(NotificationImageSlot slot, string path)
-        {
-            switch (slot)
-            {
-                case NotificationImageSlot.Background:
-                    _style.ToastBackgroundImagePath = path;
-                    break;
-                case NotificationImageSlot.BadgeCommon:
-                    _style.Toast.BadgeImages.CommonPath = path;
-                    break;
-                case NotificationImageSlot.BadgeUncommon:
-                    _style.Toast.BadgeImages.UncommonPath = path;
-                    break;
-                case NotificationImageSlot.BadgeRare:
-                    _style.Toast.BadgeImages.RarePath = path;
-                    break;
-                case NotificationImageSlot.BadgeUltraRare:
-                    _style.Toast.BadgeImages.UltraRarePath = path;
-                    break;
-                case NotificationImageSlot.BadgeCompletion:
-                    _style.Toast.BadgeImages.CompletionPath = path;
-                    break;
-                case NotificationImageSlot.FrameBadgeCommon:
-                    _style.Frame.BadgeImages.CommonPath = path;
-                    break;
-                case NotificationImageSlot.FrameBadgeUncommon:
-                    _style.Frame.BadgeImages.UncommonPath = path;
-                    break;
-                case NotificationImageSlot.FrameBadgeRare:
-                    _style.Frame.BadgeImages.RarePath = path;
-                    break;
-                case NotificationImageSlot.FrameBadgeUltraRare:
-                    _style.Frame.BadgeImages.UltraRarePath = path;
-                    break;
-                case NotificationImageSlot.FrameBadgeCompletion:
-                    _style.Frame.BadgeImages.CompletionPath = path;
-                    break;
-            }
-        }
+        private void SetImagePath(NotificationImageSlot slot, string path) =>
+            NotificationImageSlotMap.SetPath(_style, slot, path);
 
         #endregion
 

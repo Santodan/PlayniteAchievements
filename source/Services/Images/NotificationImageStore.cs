@@ -331,33 +331,12 @@ namespace PlayniteAchievements.Services.Images
             }
 
             owner = owner ?? NotificationImageOwner.Global;
-            styleCopy.ToastBackgroundImagePath = await MaterializeAsync(
-                styleCopy.ToastBackgroundImagePath, owner, NotificationImageSlot.Background, cancel)
-                .ConfigureAwait(false);
-
-            var toastBadges = styleCopy.Toast.BadgeImages;
-            toastBadges.CommonPath = await MaterializeAsync(
-                toastBadges.CommonPath, owner, NotificationImageSlot.BadgeCommon, cancel).ConfigureAwait(false);
-            toastBadges.UncommonPath = await MaterializeAsync(
-                toastBadges.UncommonPath, owner, NotificationImageSlot.BadgeUncommon, cancel).ConfigureAwait(false);
-            toastBadges.RarePath = await MaterializeAsync(
-                toastBadges.RarePath, owner, NotificationImageSlot.BadgeRare, cancel).ConfigureAwait(false);
-            toastBadges.UltraRarePath = await MaterializeAsync(
-                toastBadges.UltraRarePath, owner, NotificationImageSlot.BadgeUltraRare, cancel).ConfigureAwait(false);
-            toastBadges.CompletionPath = await MaterializeAsync(
-                toastBadges.CompletionPath, owner, NotificationImageSlot.BadgeCompletion, cancel).ConfigureAwait(false);
-
-            var frameBadges = styleCopy.Frame.BadgeImages;
-            frameBadges.CommonPath = await MaterializeAsync(
-                frameBadges.CommonPath, owner, NotificationImageSlot.FrameBadgeCommon, cancel).ConfigureAwait(false);
-            frameBadges.UncommonPath = await MaterializeAsync(
-                frameBadges.UncommonPath, owner, NotificationImageSlot.FrameBadgeUncommon, cancel).ConfigureAwait(false);
-            frameBadges.RarePath = await MaterializeAsync(
-                frameBadges.RarePath, owner, NotificationImageSlot.FrameBadgeRare, cancel).ConfigureAwait(false);
-            frameBadges.UltraRarePath = await MaterializeAsync(
-                frameBadges.UltraRarePath, owner, NotificationImageSlot.FrameBadgeUltraRare, cancel).ConfigureAwait(false);
-            frameBadges.CompletionPath = await MaterializeAsync(
-                frameBadges.CompletionPath, owner, NotificationImageSlot.FrameBadgeCompletion, cancel).ConfigureAwait(false);
+            foreach (var slot in NotificationImageSlotMap.Slots)
+            {
+                NotificationImageSlotMap.SetPath(styleCopy, slot, await MaterializeAsync(
+                    NotificationImageSlotMap.GetPath(styleCopy, slot), owner, slot, cancel)
+                    .ConfigureAwait(false));
+            }
         }
 
         /// <summary>
@@ -557,17 +536,10 @@ namespace PlayniteAchievements.Services.Images
                 yield break;
             }
 
-            yield return style.ToastBackgroundImagePath;
-            yield return style.Toast.BadgeImages.CommonPath;
-            yield return style.Toast.BadgeImages.UncommonPath;
-            yield return style.Toast.BadgeImages.RarePath;
-            yield return style.Toast.BadgeImages.UltraRarePath;
-            yield return style.Toast.BadgeImages.CompletionPath;
-            yield return style.Frame.BadgeImages.CommonPath;
-            yield return style.Frame.BadgeImages.UncommonPath;
-            yield return style.Frame.BadgeImages.RarePath;
-            yield return style.Frame.BadgeImages.UltraRarePath;
-            yield return style.Frame.BadgeImages.CompletionPath;
+            foreach (var slot in NotificationImageSlotMap.Slots)
+            {
+                yield return NotificationImageSlotMap.GetPath(style, slot);
+            }
         }
 
         private static string SanitizeProviderFolderName(string providerKey)

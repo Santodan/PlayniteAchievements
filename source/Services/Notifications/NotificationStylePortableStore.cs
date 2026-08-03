@@ -85,68 +85,25 @@ namespace PlayniteAchievements.Services.Notifications
         private const string ImagesFolderName = "images";
 
         /// <summary>
-        /// The fixed set of image slots a style can carry, each paired with the accessors used to
-        /// read/write its path on a <see cref="NotificationStyleSettings"/> and the package entry
-        /// stem it is bundled under. This is the single source of truth for export and import.
+        /// The package entry stem each slot is bundled under (path accessors come from
+        /// <see cref="NotificationImageSlotMap"/>). Toast badges keep the legacy unprefixed
+        /// stems; frame badges use frame_badge_*.
         /// </summary>
-        private static readonly IReadOnlyList<ImageSlotBinding> SlotBindings = new[]
-        {
-            new ImageSlotBinding(
-                NotificationImageSlot.Background,
-                "background",
-                style => style.ToastBackgroundImagePath,
-                (style, path) => style.ToastBackgroundImagePath = path),
-            new ImageSlotBinding(
-                NotificationImageSlot.BadgeCommon,
-                "badge_common",
-                style => style.Toast.BadgeImages.CommonPath,
-                (style, path) => style.Toast.BadgeImages.CommonPath = path),
-            new ImageSlotBinding(
-                NotificationImageSlot.BadgeUncommon,
-                "badge_uncommon",
-                style => style.Toast.BadgeImages.UncommonPath,
-                (style, path) => style.Toast.BadgeImages.UncommonPath = path),
-            new ImageSlotBinding(
-                NotificationImageSlot.BadgeRare,
-                "badge_rare",
-                style => style.Toast.BadgeImages.RarePath,
-                (style, path) => style.Toast.BadgeImages.RarePath = path),
-            new ImageSlotBinding(
-                NotificationImageSlot.BadgeUltraRare,
-                "badge_ultrarare",
-                style => style.Toast.BadgeImages.UltraRarePath,
-                (style, path) => style.Toast.BadgeImages.UltraRarePath = path),
-            new ImageSlotBinding(
-                NotificationImageSlot.BadgeCompletion,
-                "badge_completion",
-                style => style.Toast.BadgeImages.CompletionPath,
-                (style, path) => style.Toast.BadgeImages.CompletionPath = path),
-            new ImageSlotBinding(
-                NotificationImageSlot.FrameBadgeCommon,
-                "frame_badge_common",
-                style => style.Frame.BadgeImages.CommonPath,
-                (style, path) => style.Frame.BadgeImages.CommonPath = path),
-            new ImageSlotBinding(
-                NotificationImageSlot.FrameBadgeUncommon,
-                "frame_badge_uncommon",
-                style => style.Frame.BadgeImages.UncommonPath,
-                (style, path) => style.Frame.BadgeImages.UncommonPath = path),
-            new ImageSlotBinding(
-                NotificationImageSlot.FrameBadgeRare,
-                "frame_badge_rare",
-                style => style.Frame.BadgeImages.RarePath,
-                (style, path) => style.Frame.BadgeImages.RarePath = path),
-            new ImageSlotBinding(
-                NotificationImageSlot.FrameBadgeUltraRare,
-                "frame_badge_ultrarare",
-                style => style.Frame.BadgeImages.UltraRarePath,
-                (style, path) => style.Frame.BadgeImages.UltraRarePath = path),
-            new ImageSlotBinding(
-                NotificationImageSlot.FrameBadgeCompletion,
-                "frame_badge_completion",
-                style => style.Frame.BadgeImages.CompletionPath,
-                (style, path) => style.Frame.BadgeImages.CompletionPath = path),
-        };
+        private static readonly IReadOnlyDictionary<NotificationImageSlot, string> EntryStems =
+            new Dictionary<NotificationImageSlot, string>
+            {
+                [NotificationImageSlot.Background] = "background",
+                [NotificationImageSlot.BadgeCommon] = "badge_common",
+                [NotificationImageSlot.BadgeUncommon] = "badge_uncommon",
+                [NotificationImageSlot.BadgeRare] = "badge_rare",
+                [NotificationImageSlot.BadgeUltraRare] = "badge_ultrarare",
+                [NotificationImageSlot.BadgeCompletion] = "badge_completion",
+                [NotificationImageSlot.FrameBadgeCommon] = "frame_badge_common",
+                [NotificationImageSlot.FrameBadgeUncommon] = "frame_badge_uncommon",
+                [NotificationImageSlot.FrameBadgeRare] = "frame_badge_rare",
+                [NotificationImageSlot.FrameBadgeUltraRare] = "frame_badge_ultrarare",
+                [NotificationImageSlot.FrameBadgeCompletion] = "frame_badge_completion"
+            };
 
         private readonly NotificationImageStore _imageStore;
         private readonly ILogger _logger;
@@ -235,19 +192,19 @@ namespace PlayniteAchievements.Services.Notifications
 
             var copy = style.Clone();
             var imageSources = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
-            foreach (var binding in SlotBindings)
+            foreach (var slot in NotificationImageSlotMap.Slots)
             {
-                var path = NormalizeText(binding.GetPath(copy));
+                var path = NormalizeText(NotificationImageSlotMap.GetPath(copy, slot));
                 if (path == null || !File.Exists(path))
                 {
-                    binding.SetPath(copy, null);
+                    NotificationImageSlotMap.SetPath(copy, slot, null);
                     continue;
                 }
 
                 var extension = NormalizeImageExtension(Path.GetExtension(path));
-                var entryName = ImagesFolderName + "/" + binding.EntryStem + extension;
+                var entryName = ImagesFolderName + "/" + EntryStems[slot] + extension;
                 imageSources[entryName] = path;
-                binding.SetPath(copy, entryName);
+                NotificationImageSlotMap.SetPath(copy, slot, entryName);
             }
 
             EnsureDestinationDirectory(destinationPath);
@@ -505,10 +462,10 @@ namespace PlayniteAchievements.Services.Notifications
                 Directory.CreateDirectory(tempRoot);
                 try
                 {
-                    foreach (var binding in SlotBindings)
+                    foreach (var slot in NotificationImageSlotMap.Slots)
                     {
-                        binding.SetPath(style, await MaterializeBundledSlotAsync(
-                            entriesByName, binding, targetOwner, tempRoot, cancel).ConfigureAwait(false));
+                        NotificationImageSlotMap.SetPath(style, slot, await MaterializeBundledSlotAsync(
+                            entriesByName, slot, targetOwner, tempRoot, cancel).ConfigureAwait(false));
                     }
                 }
                 finally
@@ -522,12 +479,12 @@ namespace PlayniteAchievements.Services.Notifications
 
         private async Task<string> MaterializeBundledSlotAsync(
             IReadOnlyDictionary<string, ZipArchiveEntry> entriesByName,
-            ImageSlotBinding binding,
+            NotificationImageSlot slot,
             NotificationImageOwner targetOwner,
             string tempRoot,
             CancellationToken cancel)
         {
-            var entry = FindSlotEntry(entriesByName, binding.EntryStem);
+            var entry = FindSlotEntry(entriesByName, EntryStems[slot]);
             if (entry == null)
             {
                 return null;
@@ -543,7 +500,7 @@ namespace PlayniteAchievements.Services.Notifications
             try
             {
                 return await _imageStore
-                    .MaterializeAsync(tempPath, targetOwner, binding.Slot, cancel)
+                    .MaterializeAsync(tempPath, targetOwner, slot, cancel)
                     .ConfigureAwait(false);
             }
             finally
@@ -701,27 +658,5 @@ namespace PlayniteAchievements.Services.Notifications
             }
         }
 
-        private sealed class ImageSlotBinding
-        {
-            public ImageSlotBinding(
-                NotificationImageSlot slot,
-                string entryStem,
-                Func<NotificationStyleSettings, string> getPath,
-                Action<NotificationStyleSettings, string> setPath)
-            {
-                Slot = slot;
-                EntryStem = entryStem;
-                GetPath = getPath;
-                SetPath = setPath;
-            }
-
-            public NotificationImageSlot Slot { get; }
-
-            public string EntryStem { get; }
-
-            public Func<NotificationStyleSettings, string> GetPath { get; }
-
-            public Action<NotificationStyleSettings, string> SetPath { get; }
-        }
     }
 }
