@@ -1362,18 +1362,9 @@ namespace PlayniteAchievements.Views.Controls
 
         private static bool IsFromButton(object originalSource)
         {
-            var node = originalSource as DependencyObject;
-            while (node != null)
-            {
-                if (node is ButtonBase)
-                {
-                    return true;
-                }
-
-                node = System.Windows.Media.VisualTreeHelper.GetParent(node);
-            }
-
-            return false;
+            // Use the shared traversal: the click can originate on a non-visual element (e.g. a Run
+            // inside a TextBlock), which VisualTreeHelper.GetParent cannot handle and would throw on.
+            return VisualTreeHelpers.FindVisualParent<ButtonBase>(originalSource as DependencyObject) != null;
         }
 
         private void CapturesButton_Click(object sender, RoutedEventArgs e)
