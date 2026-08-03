@@ -217,15 +217,19 @@ namespace PlayniteAchievements.Services.Notifications
 
         /// <summary>
         /// Writes only the given surface of the style (plus the toast-only background image for
-        /// the toast surface) to a surface package (<c>.panotif</c>/<c>.paframe</c>, or a preset's
+        /// the toast surface) to a surface file (<c>.panotif</c>/<c>.paframe</c>, or a preset's
         /// <c>.pastyle.zip</c>). The other surface is left at factory defaults and flagged absent
-        /// in the manifest, so import replaces only the carried surface.
+        /// in the manifest, so import replaces only the carried surface. With
+        /// <paramref name="allowPlainJson"/>, a surface with no bundleable images and no template
+        /// is written as plain JSON under the same extension (import detects the container by
+        /// content, not extension); presets keep the zip container unconditionally.
         /// </summary>
         public void ExportSurfacePackage(
             bool isFrame,
             NotificationStyleSettings style,
             string destinationPath,
-            string templateXamlOrNull = null)
+            string templateXamlOrNull = null,
+            bool allowPlainJson = false)
         {
             if (style == null)
             {
@@ -241,6 +245,28 @@ namespace PlayniteAchievements.Services.Notifications
             {
                 pruned.Toast = style.Toast.Clone();
                 pruned.ToastBackgroundImagePath = style.ToastBackgroundImagePath;
+            }
+
+            if (allowPlainJson &&
+                string.IsNullOrWhiteSpace(templateXamlOrNull) &&
+                !SlotBindings.Any(binding =>
+                {
+                    var path = NormalizeText(binding.GetPath(pruned));
+                    return path != null && File.Exists(path);
+                }))
+            {
+                // Nothing needs the zip container; drop any stray unresolvable paths and write
+                // the manifest JSON directly.
+                foreach (var binding in SlotBindings)
+                {
+                    binding.SetPath(pruned, null);
+                }
+
+                EnsurePackageExtension(destinationPath);
+                EnsureDestinationDirectory(destinationPath);
+                File.WriteAllText(destinationPath, JsonConvert.SerializeObject(
+                    BuildPortable(pruned, hasToast: !isFrame, hasFrame: isFrame), _writeSettings));
+                return;
             }
 
             ExportPackageCore(
@@ -340,9 +366,9 @@ namespace PlayniteAchievements.Services.Notifications
                 throw new FileNotFoundException("File not found.", sourcePath);
             }
 
-            if (!IsPackagePath(sourcePath))
+            if (!IsZipContent(sourcePath))
             {
-                // A plain .pastyle is JSON only; validate the Kind so foreign files are rejected here too.
+                // A plain file is JSON only; validate the Kind so foreign files are rejected here too.
                 var portable = JsonConvert.DeserializeObject<NotificationStylePortableFile>(File.ReadAllText(sourcePath));
                 ExtractStyleOrThrow(portable);
                 return new NotificationStylePackageContents
@@ -396,7 +422,7 @@ namespace PlayniteAchievements.Services.Notifications
         /// </summary>
         public string ReadTemplateXaml(string sourcePath, bool isFrame)
         {
-            if (!IsPackagePath(sourcePath) || !File.Exists(sourcePath))
+            if (string.IsNullOrWhiteSpace(sourcePath) || !File.Exists(sourcePath) || !IsZipContent(sourcePath))
             {
                 return null;
             }
@@ -445,17 +471,25 @@ namespace PlayniteAchievements.Services.Notifications
                 throw new ArgumentException("Source path is required.", nameof(sourcePath));
             }
 
-            if (IsPackagePath(sourcePath))
+            if (!IsFilePath(sourcePath) && !IsPackagePath(sourcePath))
+            {
+                throw new InvalidOperationException(
+                    "Only .PANOTIF, .PAFRAME, .PASTYLE, and .PASTYLE.ZIP files are supported.");
+            }
+
+            if (!File.Exists(sourcePath))
+            {
+                throw new FileNotFoundException("File not found.", sourcePath);
+            }
+
+            // The surface extensions serve both containers, so the content decides: a zip
+            // package starts with the "PK" magic, anything else is the plain JSON manifest.
+            if (IsZipContent(sourcePath))
             {
                 return await ImportPackageAsync(
                     sourcePath,
                     targetOwner ?? NotificationImageOwner.Global,
                     cancel).ConfigureAwait(false);
-            }
-
-            if (!IsFilePath(sourcePath))
-            {
-                throw new InvalidOperationException("Only .PASTYLE and .PASTYLE.ZIP files are supported.");
             }
 
             var portable = JsonConvert.DeserializeObject<NotificationStylePortableFile>(File.ReadAllText(sourcePath));
@@ -475,6 +509,25 @@ namespace PlayniteAchievements.Services.Notifications
             return !string.IsNullOrWhiteSpace(path) &&
                    path.EndsWith(FileExtension, StringComparison.OrdinalIgnoreCase) &&
                    !path.EndsWith(PackageFileExtension, StringComparison.OrdinalIgnoreCase);
+        }
+
+        /// <summary>
+        /// True when the file starts with the zip magic ("PK"). The surface extensions serve
+        /// both plain-JSON and zip files, so container detection is content-based.
+        /// </summary>
+        private static bool IsZipContent(string path)
+        {
+            try
+            {
+                using (var stream = File.OpenRead(path))
+                {
+                    return stream.ReadByte() == 0x50 && stream.ReadByte() == 0x4B;
+                }
+            }
+            catch (Exception)
+            {
+                return false;
+            }
         }
 
         public static bool IsPackagePath(string path)

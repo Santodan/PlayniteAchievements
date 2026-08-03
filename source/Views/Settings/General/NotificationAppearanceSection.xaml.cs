@@ -911,7 +911,7 @@ namespace PlayniteAchievements.Views.Settings.General
                     }
                 }
 
-                store.ExportSurfacePackage(isFrame, style, destinationPath, templateXaml);
+                store.ExportSurfacePackage(isFrame, style, destinationPath, templateXaml, allowPlainJson: true);
 
                 _plugin.PlayniteApi?.Dialogs?.ShowMessage(
                     L("LOCPlayAch_Status_Succeeded") + "\n" + destinationPath,

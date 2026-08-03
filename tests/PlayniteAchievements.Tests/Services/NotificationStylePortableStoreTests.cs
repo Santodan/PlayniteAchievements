@@ -151,6 +151,40 @@ namespace PlayniteAchievements.Services.Tests
         }
 
         [TestMethod]
+        public async Task ExportSurfacePackage_NoImagesWithPlainAllowed_WritesJsonAndRoundTrips()
+        {
+            var tempDir = CreateTempDirectory();
+            try
+            {
+                var store = CreateStore(tempDir, out _);
+
+                var style = NotificationStyleSettings.CreateDefault();
+                style.Toast.ShowHeader = false;
+                style.Toast.HeaderTexts.UnlockHeader = "Plain Unlock!";
+
+                var filePath = Path.Combine(tempDir, "share.panotif");
+                store.ExportSurfacePackage(isFrame: false, style, filePath, templateXamlOrNull: null, allowPlainJson: true);
+
+                // No images and no template: the file is the manifest JSON itself, not a zip.
+                var text = File.ReadAllText(filePath);
+                Assert.IsTrue(text.TrimStart().StartsWith("{"), "Expected a plain JSON manifest.");
+
+                var contents = store.InspectPackage(filePath);
+                Assert.IsTrue(contents.HasStyle);
+                Assert.IsTrue(contents.HasToastStyle);
+                Assert.IsFalse(contents.HasFrameStyle);
+
+                var imported = await store.ImportAsync(filePath, targetProviderKeyOrNull: null, CancellationToken.None);
+                Assert.IsFalse(imported.Toast.ShowHeader);
+                Assert.AreEqual("Plain Unlock!", imported.Toast.HeaderTexts.UnlockHeader);
+            }
+            finally
+            {
+                DeleteDirectory(tempDir);
+            }
+        }
+
+        [TestMethod]
         public void ExportPackage_WithTemplates_InspectAndReadRoundTrip()
         {
             var tempDir = CreateTempDirectory();
