@@ -109,17 +109,24 @@
                                     BorderThickness="1"
                                     CornerRadius="8"
                                     Padding="10"
-                                    HorizontalAlignment="Left"
+                                    HorizontalAlignment="Stretch"
                                     Margin="0,0,0,10">
-                                <!-- Fit the tab width, capped so the pinned band never dominates the
-                                     tab; the 16:9 canvas scales uniformly within both limits. -->
+                                <!-- Show only the bottom half of the canvas (the frame's content is
+                                     bottom-anchored), so fitting the tab width costs half the height.
+                                     MaxHeight backstops very wide windows. -->
                                 <Viewbox Stretch="Uniform"
+                                         HorizontalAlignment="Stretch"
                                          MaxHeight="320">
-                                    <Grid Width="1920"
-                                          Height="1080"
-                                          Background="#FF17222D">
-                                        <ContentControl x:Name="FrameMockupHost"/>
-                                    </Grid>
+                                    <Border Width="1920"
+                                            Height="540"
+                                            ClipToBounds="True">
+                                        <Grid Width="1920"
+                                              Height="1080"
+                                              VerticalAlignment="Bottom"
+                                              Background="#FF17222D">
+                                            <ContentControl x:Name="FrameMockupHost"/>
+                                        </Grid>
+                                    </Border>
                                 </Viewbox>
                             </Border>
 
