@@ -52,6 +52,7 @@ namespace PlayniteAchievements.Services.Capture
         private Direct3D11CaptureFramePool _framePool;
         private GraphicsCaptureSession _session;
         private GpuHdrToneMapper _toneMapper;
+        private OverlayBlitter _overlayBlitter;
         private bool _hdr;
         private float _refWhite = 1.0f;
 
@@ -333,8 +334,48 @@ namespace PlayniteAchievements.Services.Capture
                     EnsureLatest(w, h);
                     var region = new D3D11.ResourceRegion(_cropX, _cropY, 0, _cropX + w, _cropY + h, 1);
                     _device.ImmediateContext.CopySubresourceRegion(bgra, 0, region, _latest, 0, 0, 0, 0);
+
+                    // Composite the notification toast (a separate window WGC can't see) if one is
+                    // currently on screen over the game.
+                    BlendOverlay(_latest);
                 }
             }
+        }
+
+        private void BlendOverlay(D3D11.Texture2D target)
+        {
+            if (target == null)
+            {
+                return;
+            }
+
+            if (!VideoOverlaySink.TryGet(
+                    out var overlayBgra, out var ow, out var oh,
+                    out var clientX, out var clientY, out var clientW, out var clientH, out _))
+            {
+                return;
+            }
+
+            if (overlayBgra == null || ow <= 0 || oh <= 0 || clientW <= 0 || clientH <= 0)
+            {
+                return;
+            }
+
+            // The overlay position is expressed in the game's client-pixel space; the target is the
+            // (possibly differently-sized) captured client area. Scale into target pixels.
+            var scaleX = target.Description.Width / clientW;
+            var scaleY = target.Description.Height / clientH;
+            var destX = (int)Math.Round(clientX * scaleX);
+            var destY = (int)Math.Round(clientY * scaleY);
+            var destW = (int)Math.Round(ow * scaleX);
+            var destH = (int)Math.Round(oh * scaleY);
+
+            if (_overlayBlitter == null)
+            {
+                _overlayBlitter = new OverlayBlitter(_device);
+            }
+
+            _overlayBlitter.Blit(target, overlayBgra, ow, oh, destX, destY, destW, destH);
         }
 
         private void EnsureLatest(int width, int height)
@@ -471,6 +512,7 @@ namespace PlayniteAchievements.Services.Capture
             Stop();
             FinalizeSegment();
             _latest?.Dispose();
+            _overlayBlitter?.Dispose();
             _toneMapper?.Dispose();
             _session?.Dispose();
             _framePool?.Dispose();

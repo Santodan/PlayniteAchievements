@@ -13,6 +13,7 @@ using Playnite.SDK;
 using PlayniteAchievements.Models;
 using PlayniteAchievements.Models.Achievements;
 using PlayniteAchievements.Models.Settings;
+using PlayniteAchievements.Services.Capture;
 using PlayniteAchievements.Services.GameCustomData;
 using PlayniteAchievements.ViewModels;
 using PlayniteAchievements.Views.Helpers;
@@ -73,6 +74,8 @@ namespace PlayniteAchievements.Services.UI
         private double _activeMonitorScale = 1.0;
         // The running physical slide's per-frame tick handler (CompositionTarget.Rendering), or null.
         private EventHandler _activeSlideTick;
+        // Throttle (Environment.TickCount) for republishing the toast overlay to the video recorder.
+        private int _lastOverlayPublishTick;
 
         public ToastNotificationService(
             IPlayniteAPI api,
@@ -425,30 +428,13 @@ namespace PlayniteAchievements.Services.UI
         private System.Drawing.Bitmap TryRenderToastOverlay(
             Window window, out System.Drawing.Rectangle toastPhys, out System.Drawing.Rectangle clientPhys)
         {
-            toastPhys = System.Drawing.Rectangle.Empty;
-            clientPhys = System.Drawing.Rectangle.Empty;
+            if (!TryRenderToastBytes(window, out var pixels, out var pw, out var ph, out toastPhys, out clientPhys))
+            {
+                return null;
+            }
+
             try
             {
-                if (window == null || !_activeIsGame ||
-                    window.ActualWidth <= 0 || window.ActualHeight <= 0 ||
-                    !TryResolveAnchor(out clientPhys) ||
-                    !ToastWindowPlacer.TryGetPhysicalRect(window, out toastPhys))
-                {
-                    return null;
-                }
-
-                var pw = Math.Max(1, toastPhys.Width);
-                var ph = Math.Max(1, toastPhys.Height);
-                var rtb = new System.Windows.Media.Imaging.RenderTargetBitmap(
-                    pw, ph, 96.0 * pw / window.ActualWidth, 96.0 * ph / window.ActualHeight,
-                    System.Windows.Media.PixelFormats.Pbgra32);
-                rtb.Render(window);
-                rtb.Freeze();
-
-                var stride = pw * 4;
-                var pixels = new byte[stride * ph];
-                rtb.CopyPixels(pixels, stride, 0);
-
                 var bitmap = new System.Drawing.Bitmap(pw, ph, System.Drawing.Imaging.PixelFormat.Format32bppPArgb);
                 var data = bitmap.LockBits(
                     new System.Drawing.Rectangle(0, 0, pw, ph),
@@ -470,6 +456,75 @@ namespace PlayniteAchievements.Services.UI
                 _logger?.Debug(ex, "Toast overlay render failed; with-notification shot omits the toast.");
                 return null;
             }
+        }
+
+        /// <summary>
+        /// Renders the live toast window to a tightly-packed premultiplied-BGRA byte buffer at its
+        /// physical pixel size, and reports its physical rect plus the game client-rect anchor (both
+        /// physical pixels). Shared by the with-notification screenshot composite and the video
+        /// overlay publish. Returns false (no toast) when this isn't a game anchor or a rect can't be
+        /// resolved. Must be called on the UI thread (renders the live window).
+        /// </summary>
+        private bool TryRenderToastBytes(
+            Window window, out byte[] pixels, out int width, out int height,
+            out System.Drawing.Rectangle toastPhys, out System.Drawing.Rectangle clientPhys)
+        {
+            pixels = null;
+            width = 0;
+            height = 0;
+            toastPhys = System.Drawing.Rectangle.Empty;
+            clientPhys = System.Drawing.Rectangle.Empty;
+            try
+            {
+                if (window == null || !_activeIsGame ||
+                    window.ActualWidth <= 0 || window.ActualHeight <= 0 ||
+                    !TryResolveAnchor(out clientPhys) ||
+                    !ToastWindowPlacer.TryGetPhysicalRect(window, out toastPhys))
+                {
+                    return false;
+                }
+
+                var pw = Math.Max(1, toastPhys.Width);
+                var ph = Math.Max(1, toastPhys.Height);
+                var rtb = new System.Windows.Media.Imaging.RenderTargetBitmap(
+                    pw, ph, 96.0 * pw / window.ActualWidth, 96.0 * ph / window.ActualHeight,
+                    System.Windows.Media.PixelFormats.Pbgra32);
+                rtb.Render(window);
+                rtb.Freeze();
+
+                var stride = pw * 4;
+                var buffer = new byte[stride * ph];
+                rtb.CopyPixels(buffer, stride, 0);
+
+                pixels = buffer;
+                width = pw;
+                height = ph;
+                return true;
+            }
+            catch (Exception ex)
+            {
+                _logger?.Debug(ex, "Toast overlay render failed.");
+                return false;
+            }
+        }
+
+        /// <summary>
+        /// Renders the current toast and publishes it to <see cref="VideoOverlaySink"/> so the WGC
+        /// video recorder can composite it into the clip (WGC's per-window capture can't see the
+        /// separate toast window). Throttled by the caller; a no-op when not a game anchor.
+        /// </summary>
+        private void PublishVideoOverlay(Window window)
+        {
+            if (!TryRenderToastBytes(window, out var pixels, out var w, out var h, out var toastPhys, out var clientPhys) ||
+                clientPhys.Width <= 0 || clientPhys.Height <= 0)
+            {
+                return;
+            }
+
+            VideoOverlaySink.Publish(
+                pixels, w, h,
+                toastPhys.X - clientPhys.X, toastPhys.Y - clientPhys.Y,
+                clientPhys.Width, clientPhys.Height);
         }
 
         /// <summary>
@@ -886,11 +941,25 @@ namespace PlayniteAchievements.Services.UI
                 // stays valid even if focus later changes.
                 if (_activeReferenceHwnd != IntPtr.Zero)
                 {
+                    // Seed the video overlay immediately so the toast appears from the first recorded
+                    // frame of the hold, then refresh it (throttled) as the toast follows the window.
+                    _lastOverlayPublishTick = 0;
+                    if (_activeIsGame)
+                    {
+                        PublishVideoOverlay(window);
+                    }
+
                     onRendering = (s, e) =>
                     {
                         try
                         {
                             PlaceWindowToHandle(window);
+                            if (_activeIsGame &&
+                                unchecked(Environment.TickCount - _lastOverlayPublishTick) >= OverlayPublishIntervalMs)
+                            {
+                                _lastOverlayPublishTick = Environment.TickCount;
+                                PublishVideoOverlay(window);
+                            }
                         }
                         catch
                         {
@@ -944,6 +1013,10 @@ namespace PlayniteAchievements.Services.UI
                 {
                     CompositionTarget.Rendering -= onRendering;
                 }
+
+                // Stop compositing the toast into recorded frames; the clip past this point is the
+                // bare game again.
+                VideoOverlaySink.Clear();
 
                 StopActiveSlide();
                 _activeReferenceHwnd = IntPtr.Zero;
@@ -1546,6 +1619,9 @@ namespace PlayniteAchievements.Services.UI
         private const double SlideTravelPaddingDip = 40d;
         // Small pause after a slide-out finishes before the window is torn down.
         private const int SlideSettleBufferMs = 10;
+        // Minimum spacing between toast overlay republishes to the video recorder (~15 fps): the toast
+        // barely changes frame to frame, so re-rendering it every composed frame is wasteful.
+        private const int OverlayPublishIntervalMs = 66;
         // Below this, the content scale is treated as 1.0 and no LayoutTransform is applied.
         private const double ContentScaleEpsilon = 0.001;
         // Post-Show wait for the per-monitor DPI change to settle before revealing the toast: poll the
