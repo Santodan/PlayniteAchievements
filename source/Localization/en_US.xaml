@@ -312,7 +312,7 @@
     <sys:String x:Key="LOCPlayAch_ManageAchievements_Overrides_ClearCustomDataButton">Clear Custom Data</sys:String>
     <sys:String x:Key="LOCPlayAch_ManageAchievements_Overrides_ClearCustomDataConfirm">Clear all custom data for &quot;{0}&quot;?&#10;&#10;This deletes this game's manual links, capstones, custom icons, notification appearance, ordering, categories, exclusions, and platform overrides. Cached achievement data is kept.</sys:String>
     <sys:String x:Key="LOCPlayAch_ManageAchievements_Overrides_CustomDataHeader">Custom Data</sys:String>
-    <sys:String x:Key="LOCPlayAch_ManageAchievements_Overrides_CustomDataHint">Export or import this game's custom data as .PA files (.PA.ZIP includes images), or clear it. Refresh and summary exclusions are not included.</sys:String>
+    <sys:String x:Key="LOCPlayAch_ManageAchievements_Overrides_CustomDataHint">Export or import this game's custom data as a .PA file, including custom images, or clear it. Refresh and summary exclusions are not included.</sys:String>
     <sys:String x:Key="LOCPlayAch_ManageAchievements_Overrides_ExclusionHeader">Game Exclusion</sys:String>
     <sys:String x:Key="LOCPlayAch_ManageAchievements_Overrides_ExclusionHint">Exclude this game from tracking or include it again.</sys:String>
     <sys:String x:Key="LOCPlayAch_ManageAchievements_Overrides_ExportButton">Export</sys:String>
