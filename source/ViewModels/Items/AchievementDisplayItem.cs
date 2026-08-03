@@ -94,6 +94,13 @@ namespace PlayniteAchievements.ViewModels.Items
             set => SetValue(ref _friendName, value);
         }
 
+        // Session-only: true when this achievement has any saved unlock captures on disk. Set by the
+        // capture presence marker after the grid is built; gates the Captures column button.
+        private bool _hasCaptures;
+        [DontSerialize]
+        [IgnoreDataMember]
+        public bool HasCaptures { get => _hasCaptures; set => SetValue(ref _hasCaptures, value); }
+
         public string FriendExternalUserId
         {
             get => _friendExternalUserId;
