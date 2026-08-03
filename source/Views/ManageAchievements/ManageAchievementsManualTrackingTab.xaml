@@ -173,8 +173,9 @@
                                                 Binding="{Binding Name}"
                                                 Width="*">
                                 <DataGridTextColumn.ElementStyle>
-                                    <Style TargetType="TextBlock" BasedOn="{StaticResource WrappedDataGridTextStyle}">
+                                    <Style TargetType="TextBlock" BasedOn="{StaticResource EllipsisWrappedDataGridTextStyle}">
                                         <Setter Property="Foreground" Value="{DynamicResource PlayAch.Brush.Text}"/>
+                                        <Setter Property="ToolTip" Value="{Binding Name}"/>
                                     </Style>
                                 </DataGridTextColumn.ElementStyle>
                             </DataGridTextColumn>
@@ -184,8 +185,9 @@
                                                 Width="120"
                                                 Visibility="{Binding DataContext.ShowPlatformColumn, RelativeSource={RelativeSource AncestorType=UserControl}, Converter={StaticResource BooleanToVisibilityConverter}}">
                                 <DataGridTextColumn.ElementStyle>
-                                    <Style TargetType="TextBlock" BasedOn="{StaticResource WrappedDataGridTextStyle}">
+                                    <Style TargetType="TextBlock" BasedOn="{StaticResource EllipsisWrappedDataGridTextStyle}">
                                         <Setter Property="Foreground" Value="{DynamicResource PlayAch.Brush.Text}"/>
+                                        <Setter Property="ToolTip" Value="{Binding Platforms}"/>
                                     </Style>
                                 </DataGridTextColumn.ElementStyle>
                             </DataGridTextColumn>
@@ -194,8 +196,9 @@
                                                 Binding="{Binding SourceGameId}"
                                                 Width="*">
                                 <DataGridTextColumn.ElementStyle>
-                                    <Style TargetType="TextBlock" BasedOn="{StaticResource WrappedDataGridTextStyle}">
+                                    <Style TargetType="TextBlock" BasedOn="{StaticResource EllipsisWrappedDataGridTextStyle}">
                                         <Setter Property="Foreground" Value="{DynamicResource PlayAch.Brush.Text}"/>
+                                        <Setter Property="ToolTip" Value="{Binding SourceGameId}"/>
                                     </Style>
                                 </DataGridTextColumn.ElementStyle>
                             </DataGridTextColumn>
