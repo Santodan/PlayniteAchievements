@@ -57,18 +57,16 @@ namespace PlayniteAchievements.Services.Notifications
     }
 
     /// <summary>
-    /// Exports and imports notification appearance styles to shareable files. Plain
-    /// <c>.pastyle</c> is JSON only and cannot carry local images; the zip package formats
+    /// Exports and imports notification appearance styles as shareable zip packages that
     /// bundle the style's background and badge images under an <c>images/</c> folder so the
-    /// look transfers intact: <c>.pastyle.zip</c> carries both surfaces, while <c>.panotif</c>
+    /// look transfers intact: <c>.pastyle</c> carries both surfaces, while <c>.panotif</c>
     /// and <c>.paframe</c> carry a single surface (flagged in the manifest). Import
     /// re-materializes bundled images into managed storage via
     /// <see cref="NotificationImageStore"/> so paths are always rewritten to the local machine.
     /// </summary>
     public sealed class NotificationStylePortableStore
     {
-        public const string FileExtension = ".pastyle";
-        public const string PackageFileExtension = ".pastyle.zip";
+        public const string PackageFileExtension = ".pastyle";
         public const string ToastPackageFileExtension = ".panotif";
         public const string FramePackageFileExtension = ".paframe";
         public const string ManifestEntryName = "notification-style.pastyle";
@@ -168,38 +166,7 @@ namespace PlayniteAchievements.Services.Notifications
         }
 
         /// <summary>
-        /// Writes the style to a plain <c>.pastyle</c> JSON file. Styles that reference local
-        /// images cannot be represented this way; the caller is directed to use
-        /// <see cref="ExportPackage"/> instead.
-        /// </summary>
-        public void ExportPa(NotificationStyleSettings style, string destinationPath)
-        {
-            if (style == null)
-            {
-                throw new ArgumentNullException(nameof(style));
-            }
-
-            EnsureFileExtension(destinationPath);
-
-            var copy = style.Clone();
-            if (SlotBindings.Any(binding => IsLocalImagePath(binding.GetPath(copy))))
-            {
-                throw new InvalidOperationException(
-                    "This style uses local images, which a plain .PASTYLE cannot store. Use .PASTYLE.ZIP to bundle images.");
-            }
-
-            // Any residual image paths are non-local (blank/missing); drop them so the file is clean.
-            foreach (var binding in SlotBindings)
-            {
-                binding.SetPath(copy, null);
-            }
-
-            EnsureDestinationDirectory(destinationPath);
-            File.WriteAllText(destinationPath, JsonConvert.SerializeObject(BuildPortable(copy), _writeSettings));
-        }
-
-        /// <summary>
-        /// Writes the full style (both surfaces) to a <c>.pastyle.zip</c> package, bundling every
+        /// Writes the full style (both surfaces) to a <c>.pastyle</c> package, bundling every
         /// referenced image under <c>images/</c> and rewriting the manifest's paths to those
         /// relative entry names. Optionally embeds full-template XAML for the toast and/or frame
         /// surfaces (independently) so a single package can carry the data style, either template,
@@ -217,19 +184,14 @@ namespace PlayniteAchievements.Services.Notifications
 
         /// <summary>
         /// Writes only the given surface of the style (plus the toast-only background image for
-        /// the toast surface) to a surface file (<c>.panotif</c>/<c>.paframe</c>, or a preset's
-        /// <c>.pastyle.zip</c>). The other surface is left at factory defaults and flagged absent
-        /// in the manifest, so import replaces only the carried surface. With
-        /// <paramref name="allowPlainJson"/>, a surface with no bundleable images and no template
-        /// is written as plain JSON under the same extension (import detects the container by
-        /// content, not extension); presets keep the zip container unconditionally.
+        /// the toast surface) to a surface package (<c>.panotif</c>/<c>.paframe</c>, or a preset file). The other surface is left at factory defaults and flagged absent
+        /// in the manifest, so import replaces only the carried surface.
         /// </summary>
         public void ExportSurfacePackage(
             bool isFrame,
             NotificationStyleSettings style,
             string destinationPath,
-            string templateXamlOrNull = null,
-            bool allowPlainJson = false)
+            string templateXamlOrNull = null)
         {
             if (style == null)
             {
@@ -245,28 +207,6 @@ namespace PlayniteAchievements.Services.Notifications
             {
                 pruned.Toast = style.Toast.Clone();
                 pruned.ToastBackgroundImagePath = style.ToastBackgroundImagePath;
-            }
-
-            if (allowPlainJson &&
-                string.IsNullOrWhiteSpace(templateXamlOrNull) &&
-                !SlotBindings.Any(binding =>
-                {
-                    var path = NormalizeText(binding.GetPath(pruned));
-                    return path != null && File.Exists(path);
-                }))
-            {
-                // Nothing needs the zip container; drop any stray unresolvable paths and write
-                // the manifest JSON directly.
-                foreach (var binding in SlotBindings)
-                {
-                    binding.SetPath(pruned, null);
-                }
-
-                EnsurePackageExtension(destinationPath);
-                EnsureDestinationDirectory(destinationPath);
-                File.WriteAllText(destinationPath, JsonConvert.SerializeObject(
-                    BuildPortable(pruned, hasToast: !isFrame, hasFrame: isFrame), _writeSettings));
-                return;
             }
 
             ExportPackageCore(
@@ -355,9 +295,8 @@ namespace PlayniteAchievements.Services.Notifications
         }
 
         /// <summary>
-        /// Reports which optional parts a <c>.pastyle</c>/<c>.pastyle.zip</c> carries so the import
-        /// UI can offer only the parts actually present. A plain <c>.pastyle</c> is always
-        /// style-only.
+        /// Reports which optional parts a style package carries so the import UI can offer only
+        /// the parts actually present.
         /// </summary>
         public NotificationStylePackageContents InspectPackage(string sourcePath)
         {
@@ -366,17 +305,10 @@ namespace PlayniteAchievements.Services.Notifications
                 throw new FileNotFoundException("File not found.", sourcePath);
             }
 
-            if (!IsZipContent(sourcePath))
+            if (!IsPackagePath(sourcePath))
             {
-                // A plain file is JSON only; validate the Kind so foreign files are rejected here too.
-                var portable = JsonConvert.DeserializeObject<NotificationStylePortableFile>(File.ReadAllText(sourcePath));
-                ExtractStyleOrThrow(portable);
-                return new NotificationStylePackageContents
-                {
-                    HasStyle = true,
-                    HasToastStyle = portable.HasToast,
-                    HasFrameStyle = portable.HasFrame
-                };
+                throw new InvalidOperationException(
+                    "Only .PASTYLE, .PANOTIF, and .PAFRAME files are supported.");
             }
 
             using (var archive = ZipFile.OpenRead(sourcePath))
@@ -422,7 +354,7 @@ namespace PlayniteAchievements.Services.Notifications
         /// </summary>
         public string ReadTemplateXaml(string sourcePath, bool isFrame)
         {
-            if (string.IsNullOrWhiteSpace(sourcePath) || !File.Exists(sourcePath) || !IsZipContent(sourcePath))
+            if (!IsPackagePath(sourcePath) || !File.Exists(sourcePath))
             {
                 return null;
             }
@@ -445,7 +377,7 @@ namespace PlayniteAchievements.Services.Notifications
         }
 
         /// <summary>
-        /// Reads a <c>.pastyle</c> or <c>.pastyle.zip</c> and returns a ready-to-apply style whose
+        /// Reads a style package and returns a ready-to-apply style whose
         /// image paths point into managed storage for the requested global/provider target.
         /// Bundled images are re-materialized; the manifest's image paths are ignored so
         /// machine-specific paths never leak in.
@@ -471,63 +403,16 @@ namespace PlayniteAchievements.Services.Notifications
                 throw new ArgumentException("Source path is required.", nameof(sourcePath));
             }
 
-            if (!IsFilePath(sourcePath) && !IsPackagePath(sourcePath))
+            if (!IsPackagePath(sourcePath))
             {
                 throw new InvalidOperationException(
-                    "Only .PANOTIF, .PAFRAME, .PASTYLE, and .PASTYLE.ZIP files are supported.");
+                    "Only .PASTYLE, .PANOTIF, and .PAFRAME files are supported.");
             }
 
-            if (!File.Exists(sourcePath))
-            {
-                throw new FileNotFoundException("File not found.", sourcePath);
-            }
-
-            // The surface extensions serve both containers, so the content decides: a zip
-            // package starts with the "PK" magic, anything else is the plain JSON manifest.
-            if (IsZipContent(sourcePath))
-            {
-                return await ImportPackageAsync(
-                    sourcePath,
-                    targetOwner ?? NotificationImageOwner.Global,
-                    cancel).ConfigureAwait(false);
-            }
-
-            var portable = JsonConvert.DeserializeObject<NotificationStylePortableFile>(File.ReadAllText(sourcePath));
-            var style = ExtractStyleOrThrow(portable);
-
-            // A plain file cannot carry images; clear any stray paths from a hand-edited file.
-            foreach (var binding in SlotBindings)
-            {
-                binding.SetPath(style, null);
-            }
-
-            return style;
-        }
-
-        public static bool IsFilePath(string path)
-        {
-            return !string.IsNullOrWhiteSpace(path) &&
-                   path.EndsWith(FileExtension, StringComparison.OrdinalIgnoreCase) &&
-                   !path.EndsWith(PackageFileExtension, StringComparison.OrdinalIgnoreCase);
-        }
-
-        /// <summary>
-        /// True when the file starts with the zip magic ("PK"). The surface extensions serve
-        /// both plain-JSON and zip files, so container detection is content-based.
-        /// </summary>
-        private static bool IsZipContent(string path)
-        {
-            try
-            {
-                using (var stream = File.OpenRead(path))
-                {
-                    return stream.ReadByte() == 0x50 && stream.ReadByte() == 0x4B;
-                }
-            }
-            catch (Exception)
-            {
-                return false;
-            }
+            return await ImportPackageAsync(
+                sourcePath,
+                targetOwner ?? NotificationImageOwner.Global,
+                cancel).ConfigureAwait(false);
         }
 
         public static bool IsPackagePath(string path)
@@ -537,11 +422,13 @@ namespace PlayniteAchievements.Services.Notifications
                 return false;
             }
 
-            // The surface packages are canonically bare (.panotif/.paframe, zip inside like
-            // Playnite's .pext), but a ".zip"-suffixed rename still imports.
+            // All style files are canonically bare zip packages (.pastyle/.panotif/.paframe,
+            // zip inside like Playnite's .pext); a ".zip"-suffixed rename (or a legacy
+            // .pastyle.zip export) still imports.
             return path.EndsWith(PackageFileExtension, StringComparison.OrdinalIgnoreCase) ||
                    path.EndsWith(ToastPackageFileExtension, StringComparison.OrdinalIgnoreCase) ||
                    path.EndsWith(FramePackageFileExtension, StringComparison.OrdinalIgnoreCase) ||
+                   path.EndsWith(PackageFileExtension + ".zip", StringComparison.OrdinalIgnoreCase) ||
                    path.EndsWith(ToastPackageFileExtension + ".zip", StringComparison.OrdinalIgnoreCase) ||
                    path.EndsWith(FramePackageFileExtension + ".zip", StringComparison.OrdinalIgnoreCase);
         }
@@ -561,12 +448,12 @@ namespace PlayniteAchievements.Services.Notifications
             var trimmed = path.Trim();
             foreach (var suffix in new[]
                      {
-                         PackageFileExtension,
+                         PackageFileExtension + ".zip",
                          ToastPackageFileExtension + ".zip",
                          FramePackageFileExtension + ".zip",
+                         PackageFileExtension,
                          ToastPackageFileExtension,
                          FramePackageFileExtension,
-                         FileExtension,
                          ".zip",
                          ".json"
                      })
@@ -603,7 +490,7 @@ namespace PlayniteAchievements.Services.Notifications
                 if (!entriesByName.TryGetValue(ManifestEntryName, out var manifestEntry))
                 {
                     throw new InvalidOperationException(
-                        "The .PASTYLE.ZIP does not contain a notification style manifest.");
+                        "The package does not contain a notification style manifest.");
                 }
 
                 NotificationStylePortableFile portable;
@@ -710,20 +597,12 @@ namespace PlayniteAchievements.Services.Notifications
             };
         }
 
-        private static void EnsureFileExtension(string path)
-        {
-            if (!IsFilePath(path))
-            {
-                throw new InvalidOperationException("Destination path must end with .pastyle.");
-            }
-        }
-
         private static void EnsurePackageExtension(string path)
         {
             if (!IsPackagePath(path))
             {
                 throw new InvalidOperationException(
-                    "Destination path must end with .pastyle.zip, .panotif, or .paframe.");
+                    "Destination path must end with .pastyle, .panotif, or .paframe.");
             }
         }
 
@@ -734,14 +613,6 @@ namespace PlayniteAchievements.Services.Notifications
             {
                 Directory.CreateDirectory(directory);
             }
-        }
-
-        private static bool IsLocalImagePath(string path)
-        {
-            var normalized = NormalizeText(path);
-            return normalized != null &&
-                   !normalized.StartsWith("http://", StringComparison.OrdinalIgnoreCase) &&
-                   !normalized.StartsWith("https://", StringComparison.OrdinalIgnoreCase);
         }
 
         private static string NormalizeImageExtension(string extension)

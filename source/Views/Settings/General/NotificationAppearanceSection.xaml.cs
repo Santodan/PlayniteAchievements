@@ -911,7 +911,7 @@ namespace PlayniteAchievements.Views.Settings.General
                     }
                 }
 
-                store.ExportSurfacePackage(isFrame, style, destinationPath, templateXaml, allowPlainJson: true);
+                store.ExportSurfacePackage(isFrame, style, destinationPath, templateXaml);
 
                 _plugin.PlayniteApi?.Dialogs?.ShowMessage(
                     L("LOCPlayAch_Status_Succeeded") + "\n" + destinationPath,
@@ -932,8 +932,8 @@ namespace PlayniteAchievements.Views.Settings.General
 
         /// <summary>
         /// Exports the full style (both surfaces) for the current platform selection to a
-        /// shareable .pastyle (JSON) or .pastyle.zip (JSON + bundled images) file. Debounced
-        /// edits are flushed first so the file matches what the editors show.
+        /// shareable .pastyle package. Debounced edits are flushed first so the file matches
+        /// what the editors show.
         /// </summary>
         private void ExportBothStyles_Click(object sender, RoutedEventArgs e)
         {
@@ -951,11 +951,9 @@ namespace PlayniteAchievements.Views.Settings.General
 
                 var dialog = new SaveFileDialog
                 {
-                    Filter =
-                        "Playnite Achievements Style Package (*.pastyle.zip)|*.pastyle.zip|" +
-                        "Playnite Achievements Style (*.pastyle)|*.pastyle",
+                    Filter = "Playnite Achievements Style (*.pastyle)|*.pastyle",
                     AddExtension = true,
-                    DefaultExt = ".zip",
+                    DefaultExt = NotificationStylePortableStore.PackageFileExtension,
                     FileName = BuildDefaultStyleFileName()
                 };
 
@@ -964,48 +962,36 @@ namespace PlayniteAchievements.Views.Settings.General
                     return;
                 }
 
-                // FilterIndex is 1-based: 1 = package (images), 2 = plain JSON.
-                var usePackage = dialog.FilterIndex != 2;
-                var extension = usePackage
-                    ? NotificationStylePortableStore.PackageFileExtension
-                    : NotificationStylePortableStore.FileExtension;
                 var destinationPath = NotificationStylePortableStore.NormalizeExportPath(
-                    dialog.FileName, extension);
+                    dialog.FileName, NotificationStylePortableStore.PackageFileExtension);
 
-                if (usePackage)
+                // A package can also carry the toast and/or frame template, but only a template
+                // the user actually authored for this scope: that is portable loose XAML that
+                // passed validation on install. The active theme's override is never bundled
+                // (it is theme-coupled and would import broken), so when nothing is authored the
+                // prompt is skipped and the package is data-only. Users who want a working
+                // template to start from use the separate "export default template" action.
+                string toastTemplateXaml = null;
+                string frameTemplateXaml = null;
+                var resolver = _toastTemplateResolver;
+                if (resolver != null)
                 {
-                    // A package can also carry the toast and/or frame template, but only a template
-                    // the user actually authored for this scope: that is portable loose XAML that
-                    // passed validation on install. The active theme's override is never bundled
-                    // (it is theme-coupled and would import broken), so when nothing is authored the
-                    // prompt is skipped and the package is data-only. Users who want a working
-                    // template to start from use the separate "export default template" action.
-                    string toastTemplateXaml = null;
-                    string frameTemplateXaml = null;
-                    var resolver = _toastTemplateResolver;
-                    if (resolver != null)
+                    var customToast = resolver.ReadCustomTemplateXaml(isFrame: false, ScopeProviderKey, ScopeGameId);
+                    if (customToast != null &&
+                        Confirm(L("LOCPlayAch_Settings_Style_ExportIncludeToastTemplate")))
                     {
-                        var customToast = resolver.ReadCustomTemplateXaml(isFrame: false, ScopeProviderKey, ScopeGameId);
-                        if (customToast != null &&
-                            Confirm(L("LOCPlayAch_Settings_Style_ExportIncludeToastTemplate")))
-                        {
-                            toastTemplateXaml = customToast;
-                        }
-
-                        var customFrame = resolver.ReadCustomTemplateXaml(isFrame: true, ScopeProviderKey, ScopeGameId);
-                        if (customFrame != null &&
-                            Confirm(L("LOCPlayAch_Settings_Style_ExportIncludeFrameTemplate")))
-                        {
-                            frameTemplateXaml = customFrame;
-                        }
+                        toastTemplateXaml = customToast;
                     }
 
-                    store.ExportPackage(style, destinationPath, toastTemplateXaml, frameTemplateXaml);
+                    var customFrame = resolver.ReadCustomTemplateXaml(isFrame: true, ScopeProviderKey, ScopeGameId);
+                    if (customFrame != null &&
+                        Confirm(L("LOCPlayAch_Settings_Style_ExportIncludeFrameTemplate")))
+                    {
+                        frameTemplateXaml = customFrame;
+                    }
                 }
-                else
-                {
-                    store.ExportPa(style, destinationPath);
-                }
+
+                store.ExportPackage(style, destinationPath, toastTemplateXaml, frameTemplateXaml);
 
                 _plugin.PlayniteApi?.Dialogs?.ShowMessage(
                     L("LOCPlayAch_Status_Succeeded") + "\n" + destinationPath,
@@ -1027,7 +1013,7 @@ namespace PlayniteAchievements.Views.Settings.General
         /// <summary>
         /// Imports a style file onto the current platform selection, replacing the surfaces the
         /// file carries (a .panotif replaces the notification, a .paframe the frame, a
-        /// .pastyle/.pastyle.zip both) and creating the provider's whole-style copy if it was
+        /// .pastyle both) and creating the provider's whole-style copy if it was
         /// following the default. Any file type imports from either tab; a file that does not
         /// cover the active tab's surface warns first. Bundled images are re-materialized into
         /// managed storage.
@@ -1046,11 +1032,10 @@ namespace PlayniteAchievements.Views.Settings.General
                 var dialog = new OpenFileDialog
                 {
                     Filter =
-                        "Playnite Achievements Style Files (*.panotif;*.paframe;*.pastyle;*.pastyle.zip)|*.panotif;*.paframe;*.panotif.zip;*.paframe.zip;*.pastyle;*.pastyle.zip|" +
+                        "Playnite Achievements Style Files (*.panotif;*.paframe;*.pastyle)|*.panotif;*.paframe;*.pastyle;*.panotif.zip;*.paframe.zip;*.pastyle.zip|" +
                         "Playnite Achievements Notification Style (*.panotif)|*.panotif;*.panotif.zip|" +
                         "Playnite Achievements Frame Style (*.paframe)|*.paframe;*.paframe.zip|" +
-                        "Playnite Achievements Style Package (*.pastyle.zip)|*.pastyle.zip|" +
-                        "Playnite Achievements Style (*.pastyle)|*.pastyle",
+                        "Playnite Achievements Style (*.pastyle)|*.pastyle;*.pastyle.zip",
                     CheckFileExists = true,
                     Multiselect = false
                 };

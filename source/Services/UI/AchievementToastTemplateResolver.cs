@@ -37,7 +37,7 @@ namespace PlayniteAchievements.Services.UI
         public const string ThemeOverrideRelativePath = "PlayniteAchievements\\AchievementToast.xaml";
         public const string FrameThemeOverrideRelativePath = "PlayniteAchievements\\ScreenshotFrame.xaml";
 
-        // Plugin-owned custom template files, installed via the .pastyle.zip import into
+        // Plugin-owned custom template files, installed via the style package import into
         // <PluginUserData>\custom_templates and consulted below (after theme overrides, before the
         // bundled default). Same authoring contract as a theme override file.
         public const string CustomTemplatesDirectoryName = "custom_templates";

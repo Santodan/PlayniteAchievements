@@ -151,7 +151,7 @@ namespace PlayniteAchievements.Services.Tests
         }
 
         [TestMethod]
-        public async Task ExportSurfacePackage_NoImagesWithPlainAllowed_WritesJsonAndRoundTrips()
+        public async Task ExportSurfacePackage_NoImages_StillWritesPackageAndRoundTrips()
         {
             var tempDir = CreateTempDirectory();
             try
@@ -160,14 +160,10 @@ namespace PlayniteAchievements.Services.Tests
 
                 var style = NotificationStyleSettings.CreateDefault();
                 style.Toast.ShowHeader = false;
-                style.Toast.HeaderTexts.UnlockHeader = "Plain Unlock!";
+                style.Toast.HeaderTexts.UnlockHeader = "Zip Unlock!";
 
                 var filePath = Path.Combine(tempDir, "share.panotif");
-                store.ExportSurfacePackage(isFrame: false, style, filePath, templateXamlOrNull: null, allowPlainJson: true);
-
-                // No images and no template: the file is the manifest JSON itself, not a zip.
-                var text = File.ReadAllText(filePath);
-                Assert.IsTrue(text.TrimStart().StartsWith("{"), "Expected a plain JSON manifest.");
+                store.ExportSurfacePackage(isFrame: false, style, filePath);
 
                 var contents = store.InspectPackage(filePath);
                 Assert.IsTrue(contents.HasStyle);
@@ -176,7 +172,7 @@ namespace PlayniteAchievements.Services.Tests
 
                 var imported = await store.ImportAsync(filePath, targetProviderKeyOrNull: null, CancellationToken.None);
                 Assert.IsFalse(imported.Toast.ShowHeader);
-                Assert.AreEqual("Plain Unlock!", imported.Toast.HeaderTexts.UnlockHeader);
+                Assert.AreEqual("Zip Unlock!", imported.Toast.HeaderTexts.UnlockHeader);
             }
             finally
             {
@@ -235,7 +231,7 @@ namespace PlayniteAchievements.Services.Tests
         }
 
         [TestMethod]
-        public async Task ExportPa_AndImport_RoundTripsImageFreeStyle()
+        public async Task ExportPackage_ToBarePastylePath_RoundTripsImageFreeStyle()
         {
             var tempDir = CreateTempDirectory();
             try
@@ -248,7 +244,7 @@ namespace PlayniteAchievements.Services.Tests
                 style.Toast.HeaderTexts.CompletionHeader = "Done!";
 
                 var filePath = Path.Combine(tempDir, "share.pastyle");
-                store.ExportPa(style, filePath);
+                store.ExportPackage(style, filePath);
 
                 var imported = await store.ImportAsync(filePath, targetProviderKeyOrNull: null, CancellationToken.None);
 
@@ -351,31 +347,6 @@ namespace PlayniteAchievements.Services.Tests
         }
 
         [TestMethod]
-        public void ExportPa_WithLocalImages_Throws()
-        {
-            var tempDir = CreateTempDirectory();
-            try
-            {
-                var store = CreateStore(tempDir, out _);
-
-                var sourceDir = Path.Combine(tempDir, "src");
-                Directory.CreateDirectory(sourceDir);
-                var backgroundSource = Path.Combine(sourceDir, "bg.png");
-                WritePlaceholderFile(backgroundSource, "background-bytes");
-
-                var style = NotificationStyleSettings.CreateDefault();
-                style.ToastBackgroundImagePath = backgroundSource;
-
-                Assert.ThrowsException<InvalidOperationException>(() =>
-                    store.ExportPa(style, Path.Combine(tempDir, "share.pastyle")));
-            }
-            finally
-            {
-                DeleteDirectory(tempDir);
-            }
-        }
-
-        [TestMethod]
         public async Task ImportAsync_ForeignKind_Throws()
         {
             var tempDir = CreateTempDirectory();
@@ -384,7 +355,14 @@ namespace PlayniteAchievements.Services.Tests
                 var store = CreateStore(tempDir, out _);
 
                 var filePath = Path.Combine(tempDir, "foreign.pastyle");
-                File.WriteAllText(filePath, "{\"Kind\":\"PlayniteAchievements.CustomData\",\"Version\":1,\"Style\":{}}");
+                using (var archive = ZipFile.Open(filePath, ZipArchiveMode.Create))
+                {
+                    var manifest = archive.CreateEntry(NotificationStylePortableStore.ManifestEntryName);
+                    using (var writer = new StreamWriter(manifest.Open()))
+                    {
+                        writer.Write("{\"Kind\":\"PlayniteAchievements.CustomData\",\"Version\":1,\"Style\":{}}");
+                    }
+                }
 
                 await Assert.ThrowsExceptionAsync<InvalidOperationException>(() =>
                     store.ImportAsync(filePath, targetProviderKeyOrNull: null, CancellationToken.None));

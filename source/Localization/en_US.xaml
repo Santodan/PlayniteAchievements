@@ -569,7 +569,7 @@
     <sys:String x:Key="LOCPlayAch_Settings_Style_ExportButton">Export Style</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_Style_ExportBothButton">Export Both</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_Style_ImportButton">Import Style</sys:String>
-    <sys:String x:Key="LOCPlayAch_Settings_Style_ShareHint">Export the current tab's style as a .panotif or .paframe file, or both surfaces as a .pastyle.zip. Files can also bundle custom images and templates, and import from either tab.</sys:String>
+    <sys:String x:Key="LOCPlayAch_Settings_Style_ShareHint">Export the current tab's style as a .panotif or .paframe file, or both surfaces as a .pastyle. Files can also bundle custom images and templates, and import from either tab.</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_Style_ImportSurfaceMismatch">This file contains the {0} appearance, but {1} is currently selected. Import it anyway?</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_Style_ImportConfirm">Import this notification style and replace the currently displayed appearance?</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_Style_ExportIncludeToastTemplate">Include your custom notification template in the package?</sys:String>

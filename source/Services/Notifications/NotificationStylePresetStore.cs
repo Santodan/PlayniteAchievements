@@ -11,7 +11,7 @@ namespace PlayniteAchievements.Services.Notifications
 {
     /// <summary>
     /// A named notification appearance preset on disk. The file is a standard
-    /// <c>.pastyle.zip</c> package; the surface it captures is encoded by the folder it lives
+    /// <c>.pastyle</c> package; the surface it captures is encoded by the folder it lives
     /// in and the display name is the file name minus the package extension.
     /// </summary>
     public sealed class NotificationStylePresetInfo
@@ -33,7 +33,7 @@ namespace PlayniteAchievements.Services.Notifications
     }
 
     /// <summary>
-    /// Stores named per-surface appearance presets as self-contained <c>.pastyle.zip</c>
+    /// Stores named per-surface appearance presets as self-contained <c>.pastyle</c>
     /// packages under <c>notification_style_presets\toast</c> and <c>...\frame</c> in the
     /// plugin's user data folder. Each preset carries one surface's style plus its bundled
     /// images and optional custom template; packaging and image re-materialization are
