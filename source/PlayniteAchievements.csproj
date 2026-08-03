@@ -127,7 +127,7 @@
     <Compile Include="**\*.cs" Exclude="bin\**;obj\**;**\*.g.cs;**\*.g.i.cs" />
   </ItemGroup>
   <ItemGroup>
-    <Page Include="**\*.xaml" Exclude="bin\**;obj\**;Localization\**\*.xaml">
+    <Page Include="**\*.xaml" Exclude="bin\**;obj\**;Localization\**\*.xaml;Resources\DefaultTemplates\**\*.xaml">
       <Generator>MSBuild:Compile</Generator>
       <SubType>Designer</SubType>
     </Page>
@@ -164,6 +164,15 @@
     <EmbeddedResource Include="Providers\RetroAchievements\PlatformMapping\console-mappings.json" />
     <EmbeddedResource Include="Providers\Hoyoverse\Data\starrailstation.json">
       <LogicalName>PlayniteAchievements.Providers.Hoyoverse.Data.starrailstation.json</LogicalName>
+    </EmbeddedResource>
+    <!-- Single-source default notification templates: rendered at runtime AND returned by the
+         "Export default template" action. Embedded (not Page) so the resolver can read the raw
+         XAML text; excluded from the Page glob above. -->
+    <EmbeddedResource Include="Resources\DefaultTemplates\AchievementToast.xaml">
+      <LogicalName>PlayniteAchievements.Resources.DefaultTemplates.AchievementToast.xaml</LogicalName>
+    </EmbeddedResource>
+    <EmbeddedResource Include="Resources\DefaultTemplates\ScreenshotFrame.xaml">
+      <LogicalName>PlayniteAchievements.Resources.DefaultTemplates.ScreenshotFrame.xaml</LogicalName>
     </EmbeddedResource>
   </ItemGroup>
   <PropertyGroup>
