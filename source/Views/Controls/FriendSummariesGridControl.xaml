@@ -132,7 +132,8 @@
                     <DataTemplate>
                         <DockPanel LastChildFill="True">
                             <!-- Fixed-width star gutter keeps friend names aligned whether or not
-                                 the friend is favorited (star is transparent when not a favorite). -->
+                                 the friend is favorited (star is transparent when not a favorite).
+                                 The whole gutter collapses when no friend in the list is favorited. -->
                             <TextBlock DockPanel.Dock="Left"
                                        Text="&#x2605;"
                                        Width="14"
@@ -143,7 +144,11 @@
                                 <TextBlock.Style>
                                     <Style TargetType="TextBlock">
                                         <Setter Property="Opacity" Value="0"/>
+                                        <Setter Property="Visibility" Value="Collapsed"/>
                                         <Style.Triggers>
+                                            <DataTrigger Binding="{Binding HasAnyFavorites, RelativeSource={RelativeSource AncestorType={x:Type controls:FriendSummariesGridControl}}}" Value="True">
+                                                <Setter Property="Visibility" Value="Visible"/>
+                                            </DataTrigger>
                                             <DataTrigger Binding="{Binding IsFavorite}" Value="True">
                                                 <Setter Property="Opacity" Value="1"/>
                                             </DataTrigger>
