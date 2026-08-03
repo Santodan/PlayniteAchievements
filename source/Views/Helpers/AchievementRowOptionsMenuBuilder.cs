@@ -39,10 +39,14 @@ namespace PlayniteAchievements.Views.Helpers
             // has no saved captures. Friend achievement rows never opt in.
             if (includeViewCaptures && data is AchievementDisplayItem achItem && !(data is FriendAchievementDisplayItem))
             {
+                // Live presence check (cached per game) so this works in every user-scope grid,
+                // including theme grids whose rows aren't presence-marked.
+                var hasCaptures = PlayniteAchievementsPlugin.Instance?.CaptureLibraryService?
+                    .AchievementHasCaptures(achItem.GameName, achItem.DisplayName) == true;
                 var captureItem = new MenuItem
                 {
                     Header = L(resourceOwner, "LOCPlayAch_Menu_ViewCaptures"),
-                    IsEnabled = achItem.HasCaptures
+                    IsEnabled = hasCaptures
                 };
                 captureItem.Click += (_, __) => PlayniteAchievementsPlugin.Instance?.OpenCapturesViewer(achItem);
                 menu.Items.Add(captureItem);
