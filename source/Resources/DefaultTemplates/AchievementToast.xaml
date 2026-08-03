@@ -198,18 +198,14 @@
                             <ColumnDefinition Width="*"/>
                         </Grid.ColumnDefinitions>
 
-                <!-- Left: centered icon (no box) with rarity glow, badge + percent centered below -->
+                <!-- Left: the icon (no box) with rarity glow, badge + percent below. The whole
+                     icon+footer group is centered on the row as a unit (StackPanel VerticalAlignment
+                     Center), so a bare icon and an icon-with-footer both sit centered against the
+                     text lines. -->
                 <StackPanel Grid.Column="0"
                             VerticalAlignment="Center"
                             HorizontalAlignment="Center"
                             Margin="0,0,14,0">
-                    <!-- Centers the icon (not the icon+extras group) on the row: this top spacer
-                         mirrors the extras block's full measured height (badge/percent + their gap,
-                         which lives once as ToastIconExtras' padding), so the icon is symmetrically
-                         padded and lands exactly on the row's vertical center. Collapses to 0 when
-                         there is no footer, so a bare icon still centers. No duplicated constants. -->
-                    <Border Height="{Binding ActualHeight, ElementName=ToastIconExtras}"
-                            IsHitTestVisible="False"/>
                     <Grid Width="{Binding ToastIconSize}"
                           Height="{Binding ToastIconSize}"
                           HorizontalAlignment="Center">
