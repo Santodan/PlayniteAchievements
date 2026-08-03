@@ -422,8 +422,14 @@ namespace PlayniteAchievements.Services.Recording
                 if (persisted.RecordingIncludeAudio)
                 {
                     // Best-effort: a recorder that fails to start is dropped and the clips stay
-                    // video-only (the recorder logs its own warning).
-                    var recorder = new AudioLoopbackRecorder(session.BufferDirectory, _logger);
+                    // video-only (the recorder logs its own warning). Game-only audio resolves the
+                    // session's live owner pid so a foreground switch retargets on the next session.
+                    var recorder = new AudioLoopbackRecorder(
+                        session.BufferDirectory,
+                        _logger,
+                        persisted.RecordingAudioSource,
+                        persisted.RecordingIncludeMicrophone,
+                        () => _getGameProcessId?.Invoke(session.OwnerGameId));
                     if (recorder.Start())
                     {
                         session.AudioRecorder = recorder;
