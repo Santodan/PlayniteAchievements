@@ -125,7 +125,7 @@ namespace PlayniteAchievements.Views.Controls
                 // Single-game summary: Cover, Game, Progress, Total visible; the rest hidden.
                 ["ViewAchievementsGameSummaries"] = CreateGameSummaryVisibility(captures: true),
                 // Theme AchievementDataGrid header row; mirrors the ViewAchievements defaults.
-                ["DesktopThemeGameSummaries"] = CreateGameSummaryVisibility(),
+                ["DesktopThemeGameSummaries"] = CreateGameSummaryVisibility(captures: true),
                 // No friend selected: Cover, Game, Platform only.
                 ["FriendsOverviewGameSummaries"] = CreateGameSummaryVisibility(
                     platform: true,
