@@ -5,6 +5,7 @@ using System.Windows;
 using System.Windows.Media;
 using System.Windows.Media.Animation;
 using System.Windows.Media.Imaging;
+using Playnite.SDK;
 
 namespace PlayniteAchievements.Views.Helpers
 {
@@ -14,6 +15,8 @@ namespace PlayniteAchievements.Views.Helpers
     /// </summary>
     public static class AsyncImage
     {
+        private static readonly ILogger Logger = LogManager.GetLogger();
+
         private const string GrayPrefix = "gray:";
         private const int DefaultDecodePixel = 64;
         private const double DecodeOverscan = 1.25;
@@ -341,39 +344,30 @@ namespace PlayniteAchievements.Views.Helpers
                 var decode = ResolveDecodePixel(d);
                 SetLastRequestedDecodePixel(d, decode);
 
-                BitmapSource bmp = await service.GetAsync(uriString, decode, cts.Token).ConfigureAwait(false);
+                // Resume on the UI thread: StartLoadAsync is only entered from dispatcher
+                // contexts, and the whole tail below (ApplySource, GIF start, finally
+                // bookkeeping) touches thread-affine DependencyObjects.
+                BitmapSource bmp = await service.GetAsync(uriString, decode, cts.Token);
                 if (cts.IsCancellationRequested)
                 {
                     return;
                 }
 
-                // Apply on UI thread if needed.
-                var dispatcher = Application.Current?.Dispatcher;
-                if (dispatcher != null && !dispatcher.CheckAccess())
-                {
-                    _ = dispatcher.BeginInvoke(new Action(() =>
-                    {
-                        if (!cts.IsCancellationRequested)
-                        {
-                            ApplySource(d, bmp);
-                        }
-                    }));
-                }
-                else
-                {
-                    ApplySource(d, bmp);
-                }
+                ApplySource(d, bmp);
 
-                // Start GIF animation asynchronously after the first static frame is already visible.
+                // Start GIF animation asynchronously after the first static frame is already
+                // visible. Runs synchronously up to its first await, so Task.Run registers
+                // with cts.Token before the finally below disposes cts.
                 _ = StartGifAnimationAsync(d, uriString, cts.Token);
             }
             catch (OperationCanceledException)
             {
                 // ignore
             }
-            catch
+            catch (Exception ex)
             {
-                // ignore; keep blank
+                // Keep blank on failure.
+                Logger?.Debug(ex, $"AsyncImage load failed for '{uriString}'.");
             }
             finally
             {
@@ -437,8 +431,9 @@ namespace PlayniteAchievements.Views.Helpers
             catch (OperationCanceledException)
             {
             }
-            catch
+            catch (Exception ex)
             {
+                Logger?.Debug(ex, $"GIF animation setup failed for '{uriString}'.");
             }
         }
 
