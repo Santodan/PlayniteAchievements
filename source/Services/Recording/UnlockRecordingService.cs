@@ -1299,78 +1299,17 @@ namespace PlayniteAchievements.Services.Recording
 
             LogRecordingTiming(session, request, toastShownUtc, windowStart, windowEnd, plan.Segments.Count, audioPlan != null);
 
-            var listPath = Path.Combine(session.BufferDirectory, $"clip_{Guid.NewGuid():N}.txt");
-            var audioListPath = audioPlan != null
-                ? Path.Combine(session.BufferDirectory, $"clipaud_{Guid.NewGuid():N}.txt")
-                : null;
             var tempPath = Path.Combine(session.BufferDirectory, $"clip_{Guid.NewGuid():N}.mp4");
             try
             {
-                File.WriteAllText(
-                    listPath,
-                    RecordingCommandBuilder.BuildConcatListContent(plan.Segments.Select(s => s.Path)));
-                if (audioPlan != null)
-                {
-                    File.WriteAllText(
-                        audioListPath,
-                        RecordingCommandBuilder.BuildConcatListContent(audioPlan.Segments.Select(s => s.Path)));
-                }
-
-                // Crop the export to the game window's client area (like screenshots) when the
-                // window doesn't already fill the monitor. Cropping forces a re-encode, so a
-                // fullscreen game keeps the cheap stream copy.
-                var crop = ResolveCropRectangle(session);
-
-                // Degrade ladder: preferred form first (cropped + audio when available), then drop
-                // the crop, then drop the audio; each state is tried as a stream copy before a
-                // re-encode. A worse clip always beats no clip.
-                var attempts = new List<(System.Drawing.Rectangle? Crop, bool UseAudio)>
-                {
-                    (crop, audioPlan != null),
-                };
-                if (crop.HasValue)
-                {
-                    attempts.Add((null, audioPlan != null));
-                }
-
-                if (audioPlan != null)
-                {
-                    attempts.Add((null, false));
-                }
-
-                var ok = false;
-                for (var i = 0; i < attempts.Count && !ok; i++)
-                {
-                    var attempt = attempts[i];
-                    if (i > 0)
-                    {
-                        _logger?.Debug(
-                            $"[Recording] Clip export for '{request.AchievementName}' degrading (crop={attempt.Crop.HasValue}, audio={attempt.UseAudio}).");
-                    }
-
-                    foreach (var reencode in new[] { false, true })
-                    {
-                        TryDeleteFile(tempPath);
-                        ok = await RunTrimAsync(
-                                session,
-                                listPath,
-                                plan,
-                                attempt.UseAudio ? audioListPath : null,
-                                attempt.UseAudio ? audioPlan : null,
-                                tempPath,
-                                reencode,
-                                attempt.Crop)
-                            .ConfigureAwait(false);
-                        if (ok)
-                        {
-                            break;
-                        }
-                    }
-                }
-
+                // Concatenate + trim the buffered segments and mux the loopback audio with Media
+                // Foundation (stream-copy video, PCM->AAC audio) — no ffmpeg. WGC already captures the
+                // client area at the target resolution, so no crop/re-encode is needed.
+                var exporter = new MediaFoundationClipExporter(_logger);
+                var ok = await Task.Run(() => exporter.Export(plan, audioPlan, tempPath)).ConfigureAwait(false);
                 if (!ok)
                 {
-                    _logger?.Warn($"[Recording] Clip export failed for '{request.AchievementName}' (copy and re-encode).");
+                    _logger?.Warn($"[Recording] Clip export failed for '{request.AchievementName}'.");
                     return null;
                 }
 
@@ -1382,17 +1321,10 @@ namespace PlayniteAchievements.Services.Recording
                 }
 
                 _logger?.Info($"[Recording] Saved unlock clip: {savedPath}");
-                VerifyClipNotFrozen(session, savedPath, request.AchievementName, plan.DurationSeconds);
                 return savedPath;
             }
             finally
             {
-                TryDeleteFile(listPath);
-                if (audioListPath != null)
-                {
-                    TryDeleteFile(audioListPath);
-                }
-
                 TryDeleteFile(tempPath);
             }
         }
