@@ -237,6 +237,24 @@ namespace PlayniteAchievements.Views.Controls
             set => SetValue(ItemsSourceProperty, value);
         }
 
+        private static readonly DependencyPropertyKey HasAnyFavoritesPropertyKey =
+            DependencyProperty.RegisterReadOnly(nameof(HasAnyFavorites), typeof(bool),
+                typeof(AchievementDataGridControl), new PropertyMetadata(false));
+
+        /// <summary>
+        /// True when any row belongs to a favorited friend. The Friend column's favorite-star gutter
+        /// collapses when this is false (also always false for self-achievement grids).
+        /// </summary>
+        public static readonly DependencyProperty HasAnyFavoritesProperty = HasAnyFavoritesPropertyKey.DependencyProperty;
+
+        public bool HasAnyFavorites => (bool)GetValue(HasAnyFavoritesProperty);
+
+        private void RecomputeHasAnyFavorites()
+        {
+            var hasAny = ItemsSource?.Any(item => item?.FriendIsFavorite == true) ?? false;
+            SetValue(HasAnyFavoritesPropertyKey, hasAny);
+        }
+
         private static void OnItemsSourceChanged(DependencyObject d, DependencyPropertyChangedEventArgs e)
         {
             if (d is AchievementDataGridControl control)
@@ -1440,6 +1458,8 @@ namespace PlayniteAchievements.Views.Controls
 
         private void OnItemsSourceContentChanged()
         {
+            RecomputeHasAnyFavorites();
+
             // Re-evaluate toggle availability first: a game switch or a newly loaded multi-game feed
             // may add or remove the category toggle (and drop us out of category mode) before the
             // rest of this method reads _isCategoryMode.
