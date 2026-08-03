@@ -114,20 +114,11 @@
                     <ColumnDefinition Width="*"/>
                     <ColumnDefinition Width="Auto"/>
                 </Grid.ColumnDefinitions>
-                <!-- Row 1 hosts the countdown bar, spanning all three columns so it runs the full
-                     card width (including under the provider-icon column) instead of being clipped
-                     to the content column. -->
-                <Grid.RowDefinitions>
-                    <RowDefinition Height="*"/>
-                    <RowDefinition Height="Auto"/>
-                </Grid.RowDefinitions>
-
                 <!-- Rarity accent strip (capstone color takes precedence over rarity). Completion
                      notifications restyle here, in the template: base values live in Setters so
-                     the IsGameCompleted trigger can override them. -->
+                     the IsGameCompleted trigger can override them. It fills the single content row,
+                     so it tracks the content height and never runs under the countdown overlay. -->
                 <Border Grid.Column="0"
-                        Grid.Row="0"
-                        Grid.RowSpan="2"
                         Width="4"
                         CornerRadius="8,0,0,8"
                         Visibility="{Binding ShowAccentStrip, Converter={StaticResource BooleanToVisibilityConverter}}">
@@ -315,25 +306,16 @@
                 </ItemsControl>
                 </Grid>
 
-                <!-- Invisible spacer reserving the countdown bar's vertical band (bar height + its
-                     8px top/bottom margins) in Row 1, so the auto-height card keeps its height and
-                     the text never sits under the bar. It gates on ShowCountdownBar just like the
-                     bar, so the band appears and collapses together with the visible overlay below. -->
-                <Border Grid.Row="1"
-                        Height="3"
-                        Margin="8,8,8,8"
-                        IsHitTestVisible="False"
-                        Visibility="{Binding ShowCountdownBar, Converter={StaticResource BooleanToVisibilityConverter}}"/>
                 </Grid>
                 </Border>
 
-                <!-- Countdown bar: depletes over the toast's display duration. A direct child of the
-                     content grid, outside the padding border, so it ignores the user's left/right
-                     card padding and always spans the full card width; bottom-aligned over the
-                     spacer row that the column grid above reserves. The service runs
-                     PlayAch.Storyboard.ToastCountdown against this ScaleX; the transform is reassigned
-                     in code before animating (a frozen template transform can't be animated), so this
-                     inline transform is a design-time/no-op placeholder. -->
+                <!-- Countdown bar: depletes over the toast's display duration. A pure bottom overlay
+                     (a direct child of the content grid, outside the padding border) that reserves no
+                     layout space, so it never pads the card height, skews its aspect, or extends the
+                     rarity accent. It ignores the user's left/right card padding and spans the full
+                     card width. The service runs PlayAch.Storyboard.ToastCountdown against this
+                     ScaleX; the transform is reassigned in code before animating (a frozen template
+                     transform can't be animated), so this inline transform is a no-op placeholder. -->
                 <Border x:Name="PART_ToastCountdown"
                         VerticalAlignment="Bottom"
                         HorizontalAlignment="Stretch"
