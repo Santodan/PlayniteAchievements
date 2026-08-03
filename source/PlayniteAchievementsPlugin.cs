@@ -140,7 +140,7 @@ namespace PlayniteAchievements
         public AchievementDataService AchievementDataService => _achievementDataService;
         public MemoryImageService ImageService => _imageService;
         public DiskImageService DiskImageService => _diskImageService;
-        public Services.Captures.CaptureLibraryService CaptureLibraryService => _captureLibraryService;
+        internal Services.Captures.CaptureLibraryService CaptureLibraryService => _captureLibraryService;
         public ManagedCustomIconService ManagedCustomIconService => _managedCustomIconService;
         public ICacheManager CacheManager => _cacheManager;
         public NotificationImageStore NotificationImageStore => _notificationImageStore;
