@@ -11,7 +11,9 @@ namespace PlayniteAchievements.Services.GameCustomData
 {
     internal static class GameCustomDataNormalizer
     {
-        internal const int CurrentSchemaVersion = 6;
+        // v7: notification badge images and header texts moved onto each surface style, and
+        // portable files became zip-only under the bare .pa extension.
+        internal const int CurrentSchemaVersion = 7;
 
         private sealed class LegacyFilterExtractionResult
         {

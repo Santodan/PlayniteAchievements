@@ -855,11 +855,9 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
 
                 var dialog = new SaveFileDialog
                 {
-                    Filter =
-                        "Playnite Achievements Package (*.pa.zip)|*.pa.zip|" +
-                        "Playnite Achievements Portable (*.pa)|*.pa",
+                    Filter = "Playnite Achievements Portable (*.pa)|*.pa",
                     AddExtension = true,
-                    DefaultExt = ".zip",
+                    DefaultExt = GameCustomDataStore.PortableFileExtension,
                     FileName = BuildDefaultPortableFileBaseName()
                 };
 
@@ -868,32 +866,11 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
                     return;
                 }
 
-                // FilterIndex is 1-based: 1 = package (bundled images), 2 = plain .pa (JSON only).
-                var usePackage = dialog.FilterIndex != 2;
-
-                string successMessage;
-                if (usePackage)
-                {
-                    var destinationPath = NormalizePortableExportPath(
-                        dialog.FileName,
-                        GameCustomDataStore.PortablePackageFileExtension);
-                    store.ExportPortablePackage(_gameId, destinationPath);
-                    successMessage = L("LOCPlayAch_Status_Succeeded") + "\n" + destinationPath;
-                }
-                else
-                {
-                    var destinationPath = NormalizePortableExportPath(
-                        dialog.FileName,
-                        GameCustomDataStore.PortableFileExtension);
-                    var result = store.ExportPortablePa(_gameId, destinationPath);
-                    successMessage = L("LOCPlayAch_Status_Succeeded") + "\n" + result.DestinationPath;
-                    if (result.HasOmittedLocalImageOverrides)
-                    {
-                        successMessage += "\n\n" + string.Format(
-                            L("LOCPlayAch_ManageAchievements_Overrides_ExportPaOmittedLocalIcons"),
-                            result.OmittedLocalImageOverrideCount);
-                    }
-                }
+                var destinationPath = NormalizePortableExportPath(
+                    dialog.FileName,
+                    GameCustomDataStore.PortableFileExtension);
+                store.ExportPortablePackage(_gameId, destinationPath);
+                var successMessage = L("LOCPlayAch_Status_Succeeded") + "\n" + destinationPath;
 
                 _playniteApi?.Dialogs?.ShowMessage(
                     successMessage,
@@ -923,7 +900,7 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
             {
                 var dialog = new OpenFileDialog
                 {
-                    Filter = "Playnite Achievements Files (*.pa;*.pa.zip)|*.pa;*.pa.zip|Playnite Achievements Portable (*.pa)|*.pa|Playnite Achievements Package (*.pa.zip)|*.pa.zip",
+                    Filter = "Playnite Achievements Portable (*.pa)|*.pa;*.pa.zip",
                     CheckFileExists = true,
                     Multiselect = false
                 };

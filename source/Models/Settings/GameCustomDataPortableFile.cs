@@ -9,7 +9,7 @@ namespace PlayniteAchievements.Models.Settings
     /// </summary>
     public sealed class GameCustomDataPortableFile
     {
-        public int SchemaVersion { get; set; } = 6;
+        public int SchemaVersion { get; set; } = 7;
 
         public Guid PlayniteGameId { get; set; }
 

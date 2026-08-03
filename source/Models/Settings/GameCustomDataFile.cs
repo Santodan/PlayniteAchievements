@@ -85,7 +85,7 @@ namespace PlayniteAchievements.Models.Settings
     /// </summary>
     public sealed class GameCustomDataFile
     {
-        public int SchemaVersion { get; set; } = 6;
+        public int SchemaVersion { get; set; } = 7;
 
         public Guid PlayniteGameId { get; set; }
 
@@ -241,7 +241,7 @@ namespace PlayniteAchievements.Models.Settings
         {
             return new GameCustomDataFile
             {
-                SchemaVersion = portable?.SchemaVersion > 0 ? portable.SchemaVersion : 6,
+                SchemaVersion = portable?.SchemaVersion > 0 ? portable.SchemaVersion : 7,
                 PlayniteGameId = playniteGameId,
                 ExcludedFromRefreshes = excludedFromRefreshes,
                 ExcludedFromSummaries = excludedFromSummaries,

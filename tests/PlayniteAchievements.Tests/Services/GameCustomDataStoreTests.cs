@@ -381,70 +381,6 @@ namespace PlayniteAchievements.Services.Tests
         }
 
         [TestMethod]
-        public void Export_OmitsInternalExclusionFlags()
-        {
-            var tempDir = CreateTempDirectory();
-            var gameId = Guid.NewGuid();
-            var exportPath = Path.Combine(tempDir, "portable-export.json");
-
-            try
-            {
-                var store = new GameCustomDataStore(tempDir);
-                store.Save(gameId, new GameCustomDataFile
-                {
-                    PlayniteGameId = gameId,
-                    ExcludedFromRefreshes = true,
-                    ExcludedFromSummaries = true,
-                    UseSeparateLockedIconsOverride = true,
-                    ManualCapstoneApiName = " capstone_one ",
-                    AchievementOrder = new List<string> { "ach_one", " ACH_ONE ", "ach_two" },
-                    AchievementUnlockedIconOverrides = new Dictionary<string, string>
-                    {
-                        [" ach_one "] = " https://example.com/unlocked.png ",
-                        ["ach_blank"] = " "
-                    },
-                    AchievementLockedIconOverrides = new Dictionary<string, string>
-                    {
-                        ["ach_one"] = " https://example.com/locked.png "
-                    },
-                    AchievementNotes = new Dictionary<string, string>
-                    {
-                        [" ach_one "] = " remember this "
-                    },
-                    ProviderOverride = new ProviderOverrideData
-                    {
-                        ProviderKey = "Steam",
-                        Value = "480"
-                    }
-                });
-
-                store.Export(gameId, exportPath);
-
-                var exportedJson = File.ReadAllText(exportPath);
-                Assert.IsFalse(exportedJson.Contains(nameof(GameCustomDataFile.ExcludedFromRefreshes)));
-                Assert.IsFalse(exportedJson.Contains(nameof(GameCustomDataFile.ExcludedFromSummaries)));
-
-                var portable = JsonConvert.DeserializeObject<GameCustomDataPortableFile>(exportedJson);
-                Assert.IsNotNull(portable);
-                Assert.AreEqual(gameId, portable.PlayniteGameId);
-                Assert.AreEqual("capstone_one", portable.ManualCapstoneApiName);
-                CollectionAssert.AreEqual(new[] { "ach_one", "ach_two" }, portable.AchievementOrder);
-                Assert.AreEqual("https://example.com/unlocked.png", portable.AchievementUnlockedIconOverrides["ach_one"]);
-                Assert.AreEqual("https://example.com/locked.png", portable.AchievementLockedIconOverrides["ach_one"]);
-                Assert.AreEqual("remember this", portable.AchievementNotes["ach_one"]);
-                Assert.AreEqual(1, portable.AchievementUnlockedIconOverrides.Count);
-                Assert.AreEqual(1, portable.AchievementLockedIconOverrides.Count);
-                Assert.AreEqual(1, portable.AchievementNotes.Count);
-                AssertProviderOverride(portable, "Steam", "480");
-                Assert.IsTrue(portable.UseSeparateLockedIconsOverride == true);
-            }
-            finally
-            {
-                DeleteDirectory(tempDir);
-            }
-        }
-
-        [TestMethod]
         public void Save_UrlOverride_PrunesCustomCacheButKeepsExpectedManagedCustomFile()
         {
             var tempDir = CreateTempDirectory();
@@ -475,119 +411,6 @@ namespace PlayniteAchievements.Services.Tests
                 });
 
                 Assert.IsTrue(File.Exists(expectedManagedPath));
-            }
-            finally
-            {
-                DeleteDirectory(tempDir);
-            }
-        }
-
-        [TestMethod]
-        public void ExportPortablePa_OmitsManagedLocalIconOverrides()
-        {
-            var tempDir = CreateTempDirectory();
-            var gameId = Guid.NewGuid();
-            const string apiName = "ach_one";
-
-            try
-            {
-                var store = new GameCustomDataStore(tempDir);
-                var diskImageService = new DiskImageService(logger: null, cacheRoot: tempDir);
-                var managedCustomIconService = new ManagedCustomIconService(diskImageService, logger: null);
-                store.AttachManagedCustomIconService(managedCustomIconService);
-
-                var fileStem = AchievementIconCachePathBuilder.BuildFileStems(new[] { apiName })[apiName];
-                var managedPath = managedCustomIconService.GetAchievementCustomIconPath(
-                    gameId.ToString("D"),
-                    fileStem,
-                    AchievementIconVariant.Unlocked);
-                WritePlaceholderFile(managedPath);
-
-                store.Save(gameId, new GameCustomDataFile
-                {
-                    PlayniteGameId = gameId,
-                    AchievementUnlockedIconOverrides = new Dictionary<string, string>
-                    {
-                        [apiName] = managedPath
-                    },
-                    AchievementLockedIconOverrides = new Dictionary<string, string>
-                    {
-                        [apiName] = "https://example.com/locked.png"
-                    },
-                    AchievementNotes = new Dictionary<string, string>
-                    {
-                        [apiName] = "portable note"
-                    },
-                    ProviderOverride = new ProviderOverrideData
-                    {
-                        ProviderKey = "Steam",
-                        Value = "480"
-                    }
-                });
-
-                var exportPath = Path.Combine(tempDir, "portable.pa");
-                var result = store.ExportPortablePa(gameId, exportPath);
-                var portable = JsonConvert.DeserializeObject<GameCustomDataPortableFile>(File.ReadAllText(exportPath));
-
-                Assert.IsTrue(result.HasOmittedLocalIconOverrides);
-                Assert.AreEqual(1, result.OmittedLocalIconOverrideCount);
-                Assert.IsNull(portable.AchievementUnlockedIconOverrides);
-                Assert.AreEqual("https://example.com/locked.png", portable.AchievementLockedIconOverrides[apiName]);
-                Assert.AreEqual("portable note", portable.AchievementNotes[apiName]);
-                AssertProviderOverride(portable, "Steam", "480");
-            }
-            finally
-            {
-                DeleteDirectory(tempDir);
-            }
-        }
-
-        [TestMethod]
-        public void NotificationAppearance_PlainPa_RoundTripsFalseFlagsAndOmitsLocalImages()
-        {
-            var tempDir = CreateTempDirectory();
-            var gameId = Guid.NewGuid();
-            var importedGameId = Guid.NewGuid();
-
-            try
-            {
-                var imagePath = Path.Combine(tempDir, "notification.png");
-                WritePngFile(imagePath);
-                var store = new GameCustomDataStore(tempDir);
-                var style = NotificationStyleSettings.CreateDefault();
-                style.Toast.ShowHeader = false;
-                style.Frame.ShowUnlockTime = false;
-                style.ToastBackgroundImagePath = imagePath;
-                store.Save(gameId, new GameCustomDataFile
-                {
-                    PlayniteGameId = gameId,
-                    NotificationAppearanceOverride = new GameNotificationAppearanceOverride
-                    {
-                        Style = style,
-                        ToastUseThemeStyling = false,
-                        FrameUseThemeStyling = false
-                    }
-                });
-
-                var exportPath = Path.Combine(tempDir, "notification.pa");
-                var result = store.ExportPortablePa(gameId, exportPath);
-                var json = File.ReadAllText(exportPath);
-                var portable = JsonConvert.DeserializeObject<GameCustomDataPortableFile>(json);
-
-                Assert.IsTrue(result.HasOmittedLocalImageOverrides);
-                Assert.AreEqual(1, result.OmittedLocalImageOverrideCount);
-                StringAssert.Contains(json, "\"ToastUseThemeStyling\": false");
-                StringAssert.Contains(json, "\"FrameUseThemeStyling\": false");
-                Assert.IsNull(portable.NotificationAppearanceOverride.Style.ToastBackgroundImagePath);
-                Assert.IsFalse(portable.NotificationAppearanceOverride.Style.Toast.ShowHeader);
-                Assert.IsFalse(portable.NotificationAppearanceOverride.Style.Frame.ShowUnlockTime);
-
-                var imported = store.ImportReplacePortable(importedGameId, exportPath).ImportedData;
-                Assert.IsNotNull(imported.NotificationAppearanceOverride);
-                Assert.IsFalse(imported.NotificationAppearanceOverride.ToastUseThemeStyling);
-                Assert.IsFalse(imported.NotificationAppearanceOverride.FrameUseThemeStyling);
-                Assert.IsFalse(imported.NotificationAppearanceOverride.Style.Toast.ShowHeader);
-                Assert.IsNull(imported.NotificationAppearanceOverride.Style.ToastBackgroundImagePath);
             }
             finally
             {
@@ -636,7 +459,7 @@ namespace PlayniteAchievements.Services.Tests
                     }
                 });
 
-                var packagePath = Path.Combine(tempDir, "notification.pa.zip");
+                var packagePath = Path.Combine(tempDir, "notification.pa");
                 store.ExportPortablePackage(gameId, packagePath);
                 using (var archive = ZipFile.OpenRead(packagePath))
                 {
@@ -743,36 +566,6 @@ namespace PlayniteAchievements.Services.Tests
         }
 
         [TestMethod]
-        public void ImportReplacePortable_RejectsLocalPathsInPa()
-        {
-            var tempDir = CreateTempDirectory();
-            var gameId = Guid.NewGuid();
-            var importPath = Path.Combine(tempDir, "bad.pa");
-
-            try
-            {
-                var store = new GameCustomDataStore(tempDir);
-                File.WriteAllText(
-                    importPath,
-                    JsonConvert.SerializeObject(
-                        new GameCustomDataPortableFile
-                        {
-                            PlayniteGameId = Guid.NewGuid(),
-                            AchievementUnlockedIconOverrides = new Dictionary<string, string>
-                            {
-                                ["ach_one"] = @"C:\temp\custom.png"
-                            }
-                        }));
-
-                Assert.ThrowsException<InvalidOperationException>(() => store.ImportReplacePortable(gameId, importPath));
-            }
-            finally
-            {
-                DeleteDirectory(tempDir);
-            }
-        }
-
-        [TestMethod]
         public void ExportPortablePackage_AndImportReplacePortable_RoundTripBundledImages()
         {
             var tempDir = CreateTempDirectory();
@@ -821,7 +614,7 @@ namespace PlayniteAchievements.Services.Tests
                     }
                 });
 
-                var packagePath = Path.Combine(tempDir, "portable.pa.zip");
+                var packagePath = Path.Combine(tempDir, "portable.pa");
                 store.ExportPortablePackage(gameId, packagePath);
 
                 using (var archive = ZipFile.OpenRead(packagePath))

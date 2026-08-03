@@ -155,7 +155,7 @@ namespace PlayniteAchievements.Services.Tests
                 },
                 gameId);
 
-            Assert.AreEqual(6, normalized.SchemaVersion);
+            Assert.AreEqual(7, normalized.SchemaVersion);
             Assert.AreEqual("capstone", normalized.ManualCapstoneApiName);
             Assert.IsNull(normalized.NotificationAppearanceOverride);
         }
@@ -213,7 +213,7 @@ namespace PlayniteAchievements.Services.Tests
                 },
                 gameId);
 
-            Assert.AreEqual(6, normalized.SchemaVersion);
+            Assert.AreEqual(7, normalized.SchemaVersion);
             AssertProviderOverride(normalized, "Steam", "480");
             AssertLegacyProviderFieldsCleared(normalized);
         }
