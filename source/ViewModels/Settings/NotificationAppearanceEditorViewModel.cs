@@ -51,7 +51,6 @@ namespace PlayniteAchievements.ViewModels.Settings
         private string _completionHeaderText;
         private string _friendCompletionHeaderText;
         private bool _hasHeaderFormatError;
-        private bool _applyingHeaderTexts;
         private string _cardWidthText = string.Empty;
         private string _cardHeightText = string.Empty;
         private string _iconSizeText = string.Empty;
@@ -842,13 +841,13 @@ namespace PlayniteAchievements.ViewModels.Settings
         }
 
         /// <summary>
-        /// Commits the pending header texts to the style. Blank or default-equal values store
-        /// null (keep following the localized default). A non-blank friend format missing its
-        /// {0} placeholder is kept pending and flagged instead of being stored.
+        /// Commits the pending header texts to this editor's surface. Blank or default-equal
+        /// values store null (keep following the localized default). A non-blank friend format
+        /// missing its {0} placeholder is kept pending and flagged instead of being stored.
         /// </summary>
         public void ApplyHeaderTexts()
         {
-            var texts = _style?.HeaderTexts;
+            var texts = Surface?.HeaderTexts;
             if (texts == null || !_isEditable)
             {
                 return;
@@ -856,41 +855,31 @@ namespace PlayniteAchievements.ViewModels.Settings
 
             var hasError = false;
 
-            // Suppress the change-driven mirror refresh while this instance is mid-apply, so a
-            // store write for one field cannot reset the still-pending mirrors of the others.
-            _applyingHeaderTexts = true;
-            try
+            texts.UnlockHeader = NotificationHeaderTextService.NormalizeForStore(
+                UnlockHeaderText, NotificationHeaderTextService.GetDefaultUnlockHeader());
+            texts.CompletionHeader = NotificationHeaderTextService.NormalizeForStore(
+                CompletionHeaderText, NotificationHeaderTextService.GetDefaultCompletionHeader());
+
+            if (string.IsNullOrWhiteSpace(FriendUnlockHeaderText) ||
+                NotificationHeaderTextService.IsValidHeaderFormat(FriendUnlockHeaderText))
             {
-                texts.UnlockHeader = NotificationHeaderTextService.NormalizeForStore(
-                    UnlockHeaderText, NotificationHeaderTextService.GetDefaultUnlockHeader());
-                texts.CompletionHeader = NotificationHeaderTextService.NormalizeForStore(
-                    CompletionHeaderText, NotificationHeaderTextService.GetDefaultCompletionHeader());
-
-                if (string.IsNullOrWhiteSpace(FriendUnlockHeaderText) ||
-                    NotificationHeaderTextService.IsValidHeaderFormat(FriendUnlockHeaderText))
-                {
-                    texts.FriendUnlockHeaderFormat = NotificationHeaderTextService.NormalizeForStore(
-                        FriendUnlockHeaderText, NotificationHeaderTextService.GetDefaultFriendUnlockHeaderFormat());
-                }
-                else
-                {
-                    hasError = true;
-                }
-
-                if (string.IsNullOrWhiteSpace(FriendCompletionHeaderText) ||
-                    NotificationHeaderTextService.IsValidHeaderFormat(FriendCompletionHeaderText))
-                {
-                    texts.FriendCompletionHeaderFormat = NotificationHeaderTextService.NormalizeForStore(
-                        FriendCompletionHeaderText, NotificationHeaderTextService.GetDefaultFriendCompletionHeaderFormat());
-                }
-                else
-                {
-                    hasError = true;
-                }
+                texts.FriendUnlockHeaderFormat = NotificationHeaderTextService.NormalizeForStore(
+                    FriendUnlockHeaderText, NotificationHeaderTextService.GetDefaultFriendUnlockHeaderFormat());
             }
-            finally
+            else
             {
-                _applyingHeaderTexts = false;
+                hasError = true;
+            }
+
+            if (string.IsNullOrWhiteSpace(FriendCompletionHeaderText) ||
+                NotificationHeaderTextService.IsValidHeaderFormat(FriendCompletionHeaderText))
+            {
+                texts.FriendCompletionHeaderFormat = NotificationHeaderTextService.NormalizeForStore(
+                    FriendCompletionHeaderText, NotificationHeaderTextService.GetDefaultFriendCompletionHeaderFormat());
+            }
+            else
+            {
+                hasError = true;
             }
 
             HasHeaderFormatError = hasError;
@@ -899,7 +888,7 @@ namespace PlayniteAchievements.ViewModels.Settings
 
         private void RefreshHeaderTexts(bool keepInvalidPending = false)
         {
-            var texts = _style?.HeaderTexts;
+            var texts = Surface?.HeaderTexts;
             UnlockHeaderText = texts?.UnlockHeader
                 ?? NotificationHeaderTextService.GetDefaultUnlockHeader();
             CompletionHeaderText = texts?.CompletionHeader
@@ -916,7 +905,37 @@ namespace PlayniteAchievements.ViewModels.Settings
 
         #endregion
 
-        #region Images (shared background and badge images, editable from either surface)
+        #region Images (this surface's badge images, plus the toast-owned background)
+
+        /// <summary>
+        /// Maps a logical slot (as named by the editor XAML's Tag attributes, which serve both
+        /// surfaces) onto this surface's concrete store slot: badge slots resolve to the
+        /// frame's own slots on the frame editor. The background is toast-only and passes
+        /// through.
+        /// </summary>
+        private NotificationImageSlot ResolveSurfaceSlot(NotificationImageSlot slot)
+        {
+            if (!IsFrameSurface)
+            {
+                return slot;
+            }
+
+            switch (slot)
+            {
+                case NotificationImageSlot.BadgeCommon:
+                    return NotificationImageSlot.FrameBadgeCommon;
+                case NotificationImageSlot.BadgeUncommon:
+                    return NotificationImageSlot.FrameBadgeUncommon;
+                case NotificationImageSlot.BadgeRare:
+                    return NotificationImageSlot.FrameBadgeRare;
+                case NotificationImageSlot.BadgeUltraRare:
+                    return NotificationImageSlot.FrameBadgeUltraRare;
+                case NotificationImageSlot.BadgeCompletion:
+                    return NotificationImageSlot.FrameBadgeCompletion;
+                default:
+                    return slot;
+            }
+        }
 
         /// <summary>
         /// Copies the picked file or URL into managed storage for the slot and stores the
@@ -929,6 +948,7 @@ namespace PlayniteAchievements.ViewModels.Settings
                 return;
             }
 
+            slot = ResolveSurfaceSlot(slot);
             try
             {
                 // Clear the existing slot first so the UI releases the old file and the managed
@@ -965,6 +985,7 @@ namespace PlayniteAchievements.ViewModels.Settings
                 return;
             }
 
+            slot = ResolveSurfaceSlot(slot);
             var previous = GetImagePath(slot);
             _plugin.NotificationImageStore.DeleteSlot(_imageOwner, slot);
             SetImagePath(slot, null);
@@ -984,15 +1005,25 @@ namespace PlayniteAchievements.ViewModels.Settings
                 case NotificationImageSlot.Background:
                     return _style?.ToastBackgroundImagePath;
                 case NotificationImageSlot.BadgeCommon:
-                    return _style?.BadgeImages?.CommonPath;
+                    return _style?.Toast?.BadgeImages?.CommonPath;
                 case NotificationImageSlot.BadgeUncommon:
-                    return _style?.BadgeImages?.UncommonPath;
+                    return _style?.Toast?.BadgeImages?.UncommonPath;
                 case NotificationImageSlot.BadgeRare:
-                    return _style?.BadgeImages?.RarePath;
+                    return _style?.Toast?.BadgeImages?.RarePath;
                 case NotificationImageSlot.BadgeUltraRare:
-                    return _style?.BadgeImages?.UltraRarePath;
+                    return _style?.Toast?.BadgeImages?.UltraRarePath;
                 case NotificationImageSlot.BadgeCompletion:
-                    return _style?.BadgeImages?.CompletionPath;
+                    return _style?.Toast?.BadgeImages?.CompletionPath;
+                case NotificationImageSlot.FrameBadgeCommon:
+                    return _style?.Frame?.BadgeImages?.CommonPath;
+                case NotificationImageSlot.FrameBadgeUncommon:
+                    return _style?.Frame?.BadgeImages?.UncommonPath;
+                case NotificationImageSlot.FrameBadgeRare:
+                    return _style?.Frame?.BadgeImages?.RarePath;
+                case NotificationImageSlot.FrameBadgeUltraRare:
+                    return _style?.Frame?.BadgeImages?.UltraRarePath;
+                case NotificationImageSlot.FrameBadgeCompletion:
+                    return _style?.Frame?.BadgeImages?.CompletionPath;
                 default:
                     return null;
             }
@@ -1006,19 +1037,34 @@ namespace PlayniteAchievements.ViewModels.Settings
                     _style.ToastBackgroundImagePath = path;
                     break;
                 case NotificationImageSlot.BadgeCommon:
-                    _style.BadgeImages.CommonPath = path;
+                    _style.Toast.BadgeImages.CommonPath = path;
                     break;
                 case NotificationImageSlot.BadgeUncommon:
-                    _style.BadgeImages.UncommonPath = path;
+                    _style.Toast.BadgeImages.UncommonPath = path;
                     break;
                 case NotificationImageSlot.BadgeRare:
-                    _style.BadgeImages.RarePath = path;
+                    _style.Toast.BadgeImages.RarePath = path;
                     break;
                 case NotificationImageSlot.BadgeUltraRare:
-                    _style.BadgeImages.UltraRarePath = path;
+                    _style.Toast.BadgeImages.UltraRarePath = path;
                     break;
                 case NotificationImageSlot.BadgeCompletion:
-                    _style.BadgeImages.CompletionPath = path;
+                    _style.Toast.BadgeImages.CompletionPath = path;
+                    break;
+                case NotificationImageSlot.FrameBadgeCommon:
+                    _style.Frame.BadgeImages.CommonPath = path;
+                    break;
+                case NotificationImageSlot.FrameBadgeUncommon:
+                    _style.Frame.BadgeImages.UncommonPath = path;
+                    break;
+                case NotificationImageSlot.FrameBadgeRare:
+                    _style.Frame.BadgeImages.RarePath = path;
+                    break;
+                case NotificationImageSlot.FrameBadgeUltraRare:
+                    _style.Frame.BadgeImages.UltraRarePath = path;
+                    break;
+                case NotificationImageSlot.FrameBadgeCompletion:
+                    _style.Frame.BadgeImages.CompletionPath = path;
                     break;
             }
         }
@@ -1220,13 +1266,12 @@ namespace PlayniteAchievements.ViewModels.Settings
 
         /// <summary>
         /// Resets the edited surface (toast or frame) to its built-in factory default,
-        /// discarding the user's style edits for that surface only. Replacing the surface object
-        /// triggers the resubscribe, debounced persist, and mockup refresh through
-        /// <see cref="OnStyleObjectPropertyChanged"/>; the surface-bound editor fields are
-        /// refreshed here so the controls show the default values. On the toast surface (which
-        /// hosts the shared background and badge image groups) the user-supplied images are also
-        /// cleared and their files deleted, so a reset restores the true default look. No-op when
-        /// nothing is loaded or the current selection is read-only.
+        /// discarding the user's style edits for that surface only, including its badge images
+        /// and header texts. Replacing the surface object triggers the resubscribe, debounced
+        /// persist, and mockup refresh through <see cref="OnStyleObjectPropertyChanged"/>; the
+        /// surface-bound editor fields are refreshed here so the controls show the default
+        /// values. The toast surface also owns the background image, so it is cleared there.
+        /// No-op when nothing is loaded or the current selection is read-only.
         /// </summary>
         public void ResetSurfaceToDefault()
         {
@@ -1235,6 +1280,21 @@ namespace PlayniteAchievements.ViewModels.Settings
                 return;
             }
 
+            // Clear this surface's managed images before replacing the surface object, so the
+            // old paths are still readable for memory-cache eviction. ClearImage maps the
+            // logical badge slots onto this surface's own store slots.
+            if (!IsFrameSurface)
+            {
+                ClearImage(NotificationImageSlot.Background);
+            }
+
+            ClearImage(NotificationImageSlot.BadgeCommon);
+            ClearImage(NotificationImageSlot.BadgeUncommon);
+            ClearImage(NotificationImageSlot.BadgeRare);
+            ClearImage(NotificationImageSlot.BadgeUltraRare);
+            ClearImage(NotificationImageSlot.BadgeCompletion);
+
+            // A fresh surface carries fresh header texts too (empty store = localized default).
             if (IsFrameSurface)
             {
                 _style.Frame = NotificationSurfaceStyle.CreateFrameDefault();
@@ -1242,23 +1302,10 @@ namespace PlayniteAchievements.ViewModels.Settings
             else
             {
                 _style.Toast = NotificationSurfaceStyle.CreateToastDefault();
-
-                // The background and badge images are shared style-level groups hosted by the
-                // toast editor; clearing them deletes the managed files and resets the paths.
-                ClearImage(NotificationImageSlot.Background);
-                ClearImage(NotificationImageSlot.BadgeCommon);
-                ClearImage(NotificationImageSlot.BadgeUncommon);
-                ClearImage(NotificationImageSlot.BadgeRare);
-                ClearImage(NotificationImageSlot.BadgeUltraRare);
-                ClearImage(NotificationImageSlot.BadgeCompletion);
-
-                // All custom notification strings (unlock header, completion header, and both
-                // friend format strings) are shared and edited on the toast tab; a fresh set
-                // restores the built-in localized defaults for every one (empty store = default).
-                _style.HeaderTexts = new NotificationHeaderTextSettings();
-                HasHeaderFormatError = false;
-                RefreshHeaderTexts();
             }
+
+            HasHeaderFormatError = false;
+            RefreshHeaderTexts();
 
             SyncLineRows();
             RefreshCardDimensions();
@@ -1357,19 +1404,12 @@ namespace PlayniteAchievements.ViewModels.Settings
             if (_subscribedSurface != null)
             {
                 _subscribedSurface.PropertyChanged += OnSurfacePropertyChanged;
-            }
 
-            // Header texts are editable from both surface tabs, so every instance keeps its
-            // staged mirrors in sync with the shared store object.
-            _subscribedHeaderTexts = _style.HeaderTexts;
-            _subscribedHeaderTexts.PropertyChanged += OnHeaderTextsPropertyChanged;
-
-            // The shared badge/header objects are routed into the persist pipeline by the toast
-            // editor only, so a shared edit persists exactly once.
-            if (IsToastSurface)
-            {
-                _subscribedBadges = _style.BadgeImages;
+                // Each editor persists edits to its own surface's badge images and header
+                // texts; the two surfaces are fully independent objects.
+                _subscribedBadges = _subscribedSurface.BadgeImages;
                 _subscribedBadges.PropertyChanged += OnStyleObjectPropertyChanged;
+                _subscribedHeaderTexts = _subscribedSurface.HeaderTexts;
                 _subscribedHeaderTexts.PropertyChanged += OnStyleObjectPropertyChanged;
             }
         }
@@ -1395,33 +1435,19 @@ namespace PlayniteAchievements.ViewModels.Settings
 
             if (_subscribedHeaderTexts != null)
             {
-                _subscribedHeaderTexts.PropertyChanged -= OnHeaderTextsPropertyChanged;
                 _subscribedHeaderTexts.PropertyChanged -= OnStyleObjectPropertyChanged;
                 _subscribedHeaderTexts = null;
             }
         }
 
-        private void OnHeaderTextsPropertyChanged(object sender, PropertyChangedEventArgs e)
-        {
-            // The other surface's editor (or an import/preset apply) changed the shared header
-            // texts; re-snapshot the mirrors so a later Apply here cannot write stale values.
-            if (!_applyingHeaderTexts)
-            {
-                RefreshHeaderTexts(keepInvalidPending: true);
-            }
-        }
-
         private void OnStyleObjectPropertyChanged(object sender, PropertyChangedEventArgs e)
         {
-            // Frame-only style edits route through the frame editor's surface handler; the
-            // toast editor owns the shared style-level objects.
             if (ReferenceEquals(sender, _style) &&
                 (e.PropertyName == nameof(NotificationStyleSettings.Toast) ||
-                 e.PropertyName == nameof(NotificationStyleSettings.Frame) ||
-                 e.PropertyName == nameof(NotificationStyleSettings.BadgeImages) ||
-                 e.PropertyName == nameof(NotificationStyleSettings.HeaderTexts)))
+                 e.PropertyName == nameof(NotificationStyleSettings.Frame)))
             {
-                // A child object was replaced wholesale; resubscribe to the new instances.
+                // The surface object was replaced wholesale (reset, import, preset apply);
+                // resubscribe to the new instance and its nested groups.
                 Unsubscribe();
                 Subscribe();
             }
@@ -1487,6 +1513,15 @@ namespace PlayniteAchievements.ViewModels.Settings
             else if (e.PropertyName == nameof(NotificationSurfaceStyle.FrameVignette))
             {
                 OnPropertyChanged(nameof(SelectedFrameVignette));
+            }
+            else if (e.PropertyName == nameof(NotificationSurfaceStyle.BadgeImages) ||
+                     e.PropertyName == nameof(NotificationSurfaceStyle.HeaderTexts))
+            {
+                // A nested group object was replaced wholesale (import, preset apply);
+                // resubscribe to the new instance and re-snapshot the header mirrors.
+                Unsubscribe();
+                Subscribe();
+                RefreshHeaderTexts();
             }
 
             NotifyStyleEdited();
