@@ -913,6 +913,10 @@ namespace PlayniteAchievements.Services.UI
                 {
                     _lastOverlayPublishTick = 0;
                     PublishVideoOverlay(window);
+                    // The unconditional ~30fps republish also carries GIF animation frames into
+                    // the recording (min effective GIF frame delay is 100ms per
+                    // GifAnimationHelper.BuildFrameDelays) — do not reduce this to
+                    // publish-on-position-change.
                     onOverlayPublish = (s, e) =>
                     {
                         try
