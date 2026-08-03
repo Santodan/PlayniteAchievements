@@ -87,13 +87,6 @@
                                         Content="{DynamicResource LOCPlayAch_Settings_Style_FireTheme}"
                                         Margin="0,0,8,8"/>
                             </WrapPanel>
-
-                            <!-- Theme toggle grouped with the tester: it decides whether the live
-                                 notification (and the preview above) use the theme's design or the
-                                 plugin's. -->
-                            <CheckBox x:Name="ToastThemeStylingCheckBox"
-                                      Content="{DynamicResource LOCPlayAch_Settings_Style_UseThemeTemplate}"
-                                      Click="ThemeStylingCheckBox_Click"/>
                         </StackPanel>
                     </TabItem>
 
@@ -118,14 +111,22 @@
                                     Padding="10"
                                     HorizontalAlignment="Stretch"
                                     Margin="0,0,0,10">
-                                <!-- Fill the tab width; the 16:9 canvas scales up uniformly to it. -->
+                                <!-- Show only the bottom half of the canvas (the frame's content is
+                                     bottom-anchored), so fitting the tab width costs half the height.
+                                     MaxHeight backstops very wide windows. -->
                                 <Viewbox Stretch="Uniform"
-                                         HorizontalAlignment="Stretch">
-                                    <Grid Width="1920"
-                                          Height="1080"
-                                          Background="#FF17222D">
-                                        <ContentControl x:Name="FrameMockupHost"/>
-                                    </Grid>
+                                         HorizontalAlignment="Stretch"
+                                         MaxHeight="320">
+                                    <Border Width="1920"
+                                            Height="540"
+                                            ClipToBounds="True">
+                                        <Grid Width="1920"
+                                              Height="1080"
+                                              VerticalAlignment="Bottom"
+                                              Background="#FF17222D">
+                                            <ContentControl x:Name="FrameMockupHost"/>
+                                        </Grid>
+                                    </Border>
                                 </Viewbox>
                             </Border>
 
@@ -162,13 +163,6 @@
                                         Content="{DynamicResource LOCPlayAch_Settings_Style_FireTheme}"
                                         Margin="0,0,8,8"/>
                             </WrapPanel>
-
-                            <!-- Theme toggle grouped with the tester: it decides whether the saved
-                                 screenshot frame (and the preview above) use the theme's design or
-                                 the plugin's. -->
-                            <CheckBox x:Name="FrameThemeStylingCheckBox"
-                                      Content="{DynamicResource LOCPlayAch_Settings_Style_UseThemeTemplate}"
-                                      Click="ThemeStylingCheckBox_Click"/>
                         </StackPanel>
                     </TabItem>
                 </TabControl>
@@ -245,31 +239,64 @@
                                            TextWrapping="Wrap"
                                            Margin="0,8,0,0"/>
                             </StackPanel>
+                        </StackPanel>
+                    </Border>
 
-                            <!-- Share the selected style: export to a .pastyle(.zip) file or import
-                                 one onto the current platform selection. -->
-                            <WrapPanel Margin="0,14,0,0">
-                                <Button x:Name="ExportStyleButton"
-                                        Click="ExportStyle_Click"
-                                        Content="{DynamicResource LOCPlayAch_Settings_Style_ExportButton}"
+                    <!-- General: baseline design for the tab selected above. Only the active tab's
+                         controls show; the theme checkboxes exist per surface because each persists
+                         its own flag. -->
+                    <Border Style="{StaticResource SectionBorderStyle}">
+                        <StackPanel>
+                            <TextBlock Text="{DynamicResource LOCPlayAch_Common_General}"
+                                       Style="{StaticResource SectionHeaderStyle}"
+                                       Margin="{StaticResource PlayAch.Thickness.Bottom.Md}"/>
+                            <Border Style="{StaticResource SectionAccentRuleStyle}"/>
+
+                            <!-- Theme toggle: decides whether the live notification / saved frame
+                                 (and the preview above) use the theme's design or the plugin's. -->
+                            <CheckBox x:Name="ToastThemeStylingCheckBox"
+                                      Content="{DynamicResource LOCPlayAch_Settings_Style_UseThemeTemplate}"
+                                      Click="ThemeStylingCheckBox_Click"
+                                      Visibility="{Binding IsSelected, ElementName=ToastTabItem, Converter={StaticResource BoolToVis}}"/>
+                            <CheckBox x:Name="FrameThemeStylingCheckBox"
+                                      Content="{DynamicResource LOCPlayAch_Settings_Style_UseThemeTemplate}"
+                                      Click="ThemeStylingCheckBox_Click"
+                                      Visibility="{Binding IsSelected, ElementName=FrameTabItem, Converter={StaticResource BoolToVis}}"/>
+
+                            <!-- Per-surface actions: reset the surface to its built-in default
+                                 (clears style edits and any custom template), or export the default
+                                 template as a loose .xaml starting point to edit and re-import. -->
+                            <WrapPanel Margin="0,10,0,0"
+                                       Visibility="{Binding IsSelected, ElementName=ToastTabItem, Converter={StaticResource BoolToVis}}">
+                                <Button Click="ResetToastStyle_Click"
+                                        Content="{DynamicResource LOCPlayAch_Settings_Style_ResetToDefault}"
                                         Margin="0,0,8,0"/>
-                                <Button x:Name="ImportStyleButton"
-                                        Click="ImportStyle_Click"
-                                        Content="{DynamicResource LOCPlayAch_Settings_Style_ImportButton}"/>
+                                <Button Click="ExportDefaultToastTemplate_Click"
+                                        Content="{DynamicResource LOCPlayAch_Settings_Style_ExportDefaultTemplate}"/>
                             </WrapPanel>
-                            <TextBlock Text="{DynamicResource LOCPlayAch_Settings_Style_ShareHint}"
-                                       Style="{StaticResource MutedTextStyle}"
-                                       TextWrapping="Wrap"
-                                       Margin="0,8,0,0"/>
+                            <WrapPanel Margin="0,10,0,0"
+                                       Visibility="{Binding IsSelected, ElementName=FrameTabItem, Converter={StaticResource BoolToVis}}">
+                                <Button Click="ResetFrameStyle_Click"
+                                        Content="{DynamicResource LOCPlayAch_Settings_Style_ResetToDefault}"
+                                        Margin="0,0,8,0"/>
+                                <Button Click="ExportDefaultFrameTemplate_Click"
+                                        Content="{DynamicResource LOCPlayAch_Settings_Style_ExportDefaultTemplate}"/>
+                            </WrapPanel>
+                        </StackPanel>
+                    </Border>
 
-                            <!-- Named presets for the tab selected above: save the active surface's
-                                 appearance (including images and any custom template) under a name,
-                                 or apply a saved preset to the current platform/game selection. The
-                                 dropdown lists only presets for the active surface. -->
+                    <!-- Presets and sharing for the tab selected above: save the active surface's
+                         appearance (including images and any custom template) under a name, apply a
+                         saved preset to the current platform/game selection, or exchange styles as
+                         .pastyle(.zip) files. The dropdown lists only presets for the active surface. -->
+                    <Border Style="{StaticResource SectionBorderStyle}">
+                        <StackPanel>
                             <TextBlock Text="{DynamicResource LOCPlayAch_Presets_Header}"
                                        Style="{StaticResource SectionHeaderStyle}"
-                                       Margin="0,14,0,0"/>
-                            <WrapPanel Margin="0,8,0,0">
+                                       Margin="{StaticResource PlayAch.Thickness.Bottom.Md}"/>
+                            <Border Style="{StaticResource SectionAccentRuleStyle}"/>
+
+                            <WrapPanel>
                                 <ComboBox x:Name="PresetSelector"
                                           MinWidth="220"
                                           VerticalAlignment="Center"
@@ -294,26 +321,21 @@
                                        TextWrapping="Wrap"
                                        Margin="0,8,0,0"/>
 
-                            <!-- Per-surface actions for the tab selected above: reset the surface to
-                                 its built-in default (clears style edits and any custom template),
-                                 or export the default template as a loose .xaml starting point to
-                                 edit and re-import. Only the active tab's row is shown. -->
-                            <WrapPanel Margin="0,10,0,0"
-                                       Visibility="{Binding IsSelected, ElementName=ToastTabItem, Converter={StaticResource BoolToVis}}">
-                                <Button Click="ResetToastStyle_Click"
-                                        Content="{DynamicResource LOCPlayAch_Settings_Style_ResetToDefault}"
+                            <!-- Share the selected style: export to a .pastyle(.zip) file or import
+                                 one onto the current platform selection. -->
+                            <WrapPanel Margin="0,14,0,0">
+                                <Button x:Name="ExportStyleButton"
+                                        Click="ExportStyle_Click"
+                                        Content="{DynamicResource LOCPlayAch_Settings_Style_ExportButton}"
                                         Margin="0,0,8,0"/>
-                                <Button Click="ExportDefaultToastTemplate_Click"
-                                        Content="{DynamicResource LOCPlayAch_Settings_Style_ExportDefaultTemplate}"/>
+                                <Button x:Name="ImportStyleButton"
+                                        Click="ImportStyle_Click"
+                                        Content="{DynamicResource LOCPlayAch_Settings_Style_ImportButton}"/>
                             </WrapPanel>
-                            <WrapPanel Margin="0,10,0,0"
-                                       Visibility="{Binding IsSelected, ElementName=FrameTabItem, Converter={StaticResource BoolToVis}}">
-                                <Button Click="ResetFrameStyle_Click"
-                                        Content="{DynamicResource LOCPlayAch_Settings_Style_ResetToDefault}"
-                                        Margin="0,0,8,0"/>
-                                <Button Click="ExportDefaultFrameTemplate_Click"
-                                        Content="{DynamicResource LOCPlayAch_Settings_Style_ExportDefaultTemplate}"/>
-                            </WrapPanel>
+                            <TextBlock Text="{DynamicResource LOCPlayAch_Settings_Style_ShareHint}"
+                                       Style="{StaticResource MutedTextStyle}"
+                                       TextWrapping="Wrap"
+                                       Margin="0,8,0,0"/>
                         </StackPanel>
                     </Border>
 

@@ -639,7 +639,7 @@ namespace PlayniteAchievements.ViewModels
 
         /// <summary>
         /// The frame's text lines in the user's order. Frame lines never show the friend
-        /// avatar (async image loads render blank in the offscreen composite).
+        /// avatar (friend unlocks do not produce screenshots).
         /// </summary>
         public IReadOnlyList<ToastLineDescriptor> FrameLines =>
             _frameLines ?? (_frameLines = BuildLines(isFrame: true));
@@ -696,7 +696,8 @@ namespace PlayniteAchievements.ViewModels
                             isFrame ? FrameTitleBrush : TitleBrush,
                             isFrame ? FrameCompletedTitleBrush : CompletedTitleBrush,
                             isFrame ? FrameShowInlineBadge : ShowInlineBadge,
-                            isFrame ? (object)FrameBadgeImage : ToastBadgeSource));
+                            isFrame ? (object)FrameBadgeImage : ToastBadgeSource,
+                            isFrame ? FrameBadgeSize : ToastBadgeSize));
                         break;
                     case NotificationSurfaceStyle.LineDescription:
                         lines.Add(new ToastDescriptionLine(
