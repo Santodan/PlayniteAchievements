@@ -1046,9 +1046,9 @@ namespace PlayniteAchievements.Views.Settings.General
                 var dialog = new OpenFileDialog
                 {
                     Filter =
-                        "Playnite Achievements Style Files (*.panotif;*.paframe;*.pastyle;*.pastyle.zip)|*.panotif;*.paframe;*.pastyle;*.pastyle.zip|" +
-                        "Playnite Achievements Notification Style (*.panotif)|*.panotif|" +
-                        "Playnite Achievements Frame Style (*.paframe)|*.paframe|" +
+                        "Playnite Achievements Style Files (*.panotif;*.paframe;*.pastyle;*.pastyle.zip)|*.panotif;*.paframe;*.panotif.zip;*.paframe.zip;*.pastyle;*.pastyle.zip|" +
+                        "Playnite Achievements Notification Style (*.panotif)|*.panotif;*.panotif.zip|" +
+                        "Playnite Achievements Frame Style (*.paframe)|*.paframe;*.paframe.zip|" +
                         "Playnite Achievements Style Package (*.pastyle.zip)|*.pastyle.zip|" +
                         "Playnite Achievements Style (*.pastyle)|*.pastyle",
                     CheckFileExists = true,

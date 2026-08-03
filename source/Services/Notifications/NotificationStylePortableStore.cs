@@ -479,10 +479,18 @@ namespace PlayniteAchievements.Services.Notifications
 
         public static bool IsPackagePath(string path)
         {
-            return !string.IsNullOrWhiteSpace(path) &&
-                   (path.EndsWith(PackageFileExtension, StringComparison.OrdinalIgnoreCase) ||
-                    path.EndsWith(ToastPackageFileExtension, StringComparison.OrdinalIgnoreCase) ||
-                    path.EndsWith(FramePackageFileExtension, StringComparison.OrdinalIgnoreCase));
+            if (string.IsNullOrWhiteSpace(path))
+            {
+                return false;
+            }
+
+            // The surface packages are canonically bare (.panotif/.paframe, zip inside like
+            // Playnite's .pext), but a ".zip"-suffixed rename still imports.
+            return path.EndsWith(PackageFileExtension, StringComparison.OrdinalIgnoreCase) ||
+                   path.EndsWith(ToastPackageFileExtension, StringComparison.OrdinalIgnoreCase) ||
+                   path.EndsWith(FramePackageFileExtension, StringComparison.OrdinalIgnoreCase) ||
+                   path.EndsWith(ToastPackageFileExtension + ".zip", StringComparison.OrdinalIgnoreCase) ||
+                   path.EndsWith(FramePackageFileExtension + ".zip", StringComparison.OrdinalIgnoreCase);
         }
 
         /// <summary>
@@ -501,6 +509,8 @@ namespace PlayniteAchievements.Services.Notifications
             foreach (var suffix in new[]
                      {
                          PackageFileExtension,
+                         ToastPackageFileExtension + ".zip",
+                         FramePackageFileExtension + ".zip",
                          ToastPackageFileExtension,
                          FramePackageFileExtension,
                          FileExtension,
