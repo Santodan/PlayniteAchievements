@@ -26,12 +26,14 @@ namespace PlayniteAchievements.Views.Controls
         private PersistedSettings _subscribedPersisted;
         private const double DefaultCoverColumnWidth = 96;
         private const double DefaultPlatformColumnWidth = 44;
+        private const double DefaultCapturesColumnWidth = 56;
 
         private static readonly IReadOnlyDictionary<string, double> DefaultImageColumnWidthSeeds =
             new Dictionary<string, double>(StringComparer.OrdinalIgnoreCase)
             {
                 ["Cover"] = DefaultCoverColumnWidth,
-                ["GameSummaryPlatform"] = DefaultPlatformColumnWidth
+                ["GameSummaryPlatform"] = DefaultPlatformColumnWidth,
+                ["Captures"] = DefaultCapturesColumnWidth
             };
 
         // The View Friends Achievements summary strip is a single-row header; the image cell
@@ -40,7 +42,8 @@ namespace PlayniteAchievements.Views.Controls
             new Dictionary<string, double>(StringComparer.OrdinalIgnoreCase)
             {
                 ["Cover"] = 48,
-                ["GameSummaryPlatform"] = 36
+                ["GameSummaryPlatform"] = 36,
+                ["Captures"] = DefaultCapturesColumnWidth
             };
 
         private static readonly IReadOnlyDictionary<string, double> LegacyImageColumnRuntimeDefaults =
