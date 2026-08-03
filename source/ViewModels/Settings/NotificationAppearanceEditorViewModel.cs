@@ -51,6 +51,7 @@ namespace PlayniteAchievements.ViewModels.Settings
         private string _completionHeaderText;
         private string _friendCompletionHeaderText;
         private bool _hasHeaderFormatError;
+        private bool _applyingHeaderTexts;
         private string _cardWidthText = string.Empty;
         private string _cardHeightText = string.Empty;
         private string _iconSizeText = string.Empty;
@@ -853,32 +854,43 @@ namespace PlayniteAchievements.ViewModels.Settings
                 return;
             }
 
-            texts.UnlockHeader = NotificationHeaderTextService.NormalizeForStore(
-                UnlockHeaderText, NotificationHeaderTextService.GetDefaultUnlockHeader());
-            texts.CompletionHeader = NotificationHeaderTextService.NormalizeForStore(
-                CompletionHeaderText, NotificationHeaderTextService.GetDefaultCompletionHeader());
-
             var hasError = false;
-            if (string.IsNullOrWhiteSpace(FriendUnlockHeaderText) ||
-                NotificationHeaderTextService.IsValidHeaderFormat(FriendUnlockHeaderText))
-            {
-                texts.FriendUnlockHeaderFormat = NotificationHeaderTextService.NormalizeForStore(
-                    FriendUnlockHeaderText, NotificationHeaderTextService.GetDefaultFriendUnlockHeaderFormat());
-            }
-            else
-            {
-                hasError = true;
-            }
 
-            if (string.IsNullOrWhiteSpace(FriendCompletionHeaderText) ||
-                NotificationHeaderTextService.IsValidHeaderFormat(FriendCompletionHeaderText))
+            // Suppress the change-driven mirror refresh while this instance is mid-apply, so a
+            // store write for one field cannot reset the still-pending mirrors of the others.
+            _applyingHeaderTexts = true;
+            try
             {
-                texts.FriendCompletionHeaderFormat = NotificationHeaderTextService.NormalizeForStore(
-                    FriendCompletionHeaderText, NotificationHeaderTextService.GetDefaultFriendCompletionHeaderFormat());
+                texts.UnlockHeader = NotificationHeaderTextService.NormalizeForStore(
+                    UnlockHeaderText, NotificationHeaderTextService.GetDefaultUnlockHeader());
+                texts.CompletionHeader = NotificationHeaderTextService.NormalizeForStore(
+                    CompletionHeaderText, NotificationHeaderTextService.GetDefaultCompletionHeader());
+
+                if (string.IsNullOrWhiteSpace(FriendUnlockHeaderText) ||
+                    NotificationHeaderTextService.IsValidHeaderFormat(FriendUnlockHeaderText))
+                {
+                    texts.FriendUnlockHeaderFormat = NotificationHeaderTextService.NormalizeForStore(
+                        FriendUnlockHeaderText, NotificationHeaderTextService.GetDefaultFriendUnlockHeaderFormat());
+                }
+                else
+                {
+                    hasError = true;
+                }
+
+                if (string.IsNullOrWhiteSpace(FriendCompletionHeaderText) ||
+                    NotificationHeaderTextService.IsValidHeaderFormat(FriendCompletionHeaderText))
+                {
+                    texts.FriendCompletionHeaderFormat = NotificationHeaderTextService.NormalizeForStore(
+                        FriendCompletionHeaderText, NotificationHeaderTextService.GetDefaultFriendCompletionHeaderFormat());
+                }
+                else
+                {
+                    hasError = true;
+                }
             }
-            else
+            finally
             {
-                hasError = true;
+                _applyingHeaderTexts = false;
             }
 
             HasHeaderFormatError = hasError;
@@ -904,7 +916,7 @@ namespace PlayniteAchievements.ViewModels.Settings
 
         #endregion
 
-        #region Images (toast surface hosts the shared background and badge groups)
+        #region Images (shared background and badge images, editable from either surface)
 
         /// <summary>
         /// Copies the picked file or URL into managed storage for the slot and stores the
@@ -1347,13 +1359,17 @@ namespace PlayniteAchievements.ViewModels.Settings
                 _subscribedSurface.PropertyChanged += OnSurfacePropertyChanged;
             }
 
-            // The shared background/badge/header groups are hosted by the toast editor only,
-            // so only it observes (and persists) those objects.
+            // Header texts are editable from both surface tabs, so every instance keeps its
+            // staged mirrors in sync with the shared store object.
+            _subscribedHeaderTexts = _style.HeaderTexts;
+            _subscribedHeaderTexts.PropertyChanged += OnHeaderTextsPropertyChanged;
+
+            // The shared badge/header objects are routed into the persist pipeline by the toast
+            // editor only, so a shared edit persists exactly once.
             if (IsToastSurface)
             {
                 _subscribedBadges = _style.BadgeImages;
                 _subscribedBadges.PropertyChanged += OnStyleObjectPropertyChanged;
-                _subscribedHeaderTexts = _style.HeaderTexts;
                 _subscribedHeaderTexts.PropertyChanged += OnStyleObjectPropertyChanged;
             }
         }
@@ -1379,8 +1395,19 @@ namespace PlayniteAchievements.ViewModels.Settings
 
             if (_subscribedHeaderTexts != null)
             {
+                _subscribedHeaderTexts.PropertyChanged -= OnHeaderTextsPropertyChanged;
                 _subscribedHeaderTexts.PropertyChanged -= OnStyleObjectPropertyChanged;
                 _subscribedHeaderTexts = null;
+            }
+        }
+
+        private void OnHeaderTextsPropertyChanged(object sender, PropertyChangedEventArgs e)
+        {
+            // The other surface's editor (or an import/preset apply) changed the shared header
+            // texts; re-snapshot the mirrors so a later Apply here cannot write stale values.
+            if (!_applyingHeaderTexts)
+            {
+                RefreshHeaderTexts(keepInvalidPending: true);
             }
         }
 

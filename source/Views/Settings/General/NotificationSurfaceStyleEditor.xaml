@@ -791,10 +791,10 @@
             </StackPanel>
         </Border>
 
-        <!-- Header texts (toast only; shared across both surfaces). Explicit commit + Apply so
-             format strings never persist per keystroke. -->
-        <Border Style="{StaticResource EditorCardStyle}"
-                Visibility="{Binding IsToastSurface, Converter={StaticResource BoolToVis}}">
+        <!-- Header texts (shared across both surfaces; the friend formats are toast-only since
+             friend unlocks never produce screenshots). Explicit commit + Apply so format strings
+             never persist per keystroke. -->
+        <Border Style="{StaticResource EditorCardStyle}">
             <StackPanel>
                 <TextBlock Text="{DynamicResource LOCPlayAch_Settings_Style_HeaderTexts}"
                            Style="{StaticResource EditorGroupHeaderStyle}"/>
@@ -831,11 +831,13 @@
                                Text="{DynamicResource LOCPlayAch_Settings_Style_HeaderFriendUnlock}"
                                Foreground="{DynamicResource PlayAch.Brush.Text}"
                                VerticalAlignment="Center"
-                               Margin="0,0,12,6"/>
+                               Margin="0,0,12,6"
+                               Visibility="{Binding IsToastSurface, Converter={StaticResource BoolToVis}}"/>
                     <TextBox x:Name="FriendUnlockHeaderTextBox"
                              Grid.Row="1" Grid.Column="1"
                              Text="{Binding FriendUnlockHeaderText, Mode=TwoWay, UpdateSourceTrigger=Explicit}"
-                             Margin="0,0,0,6"/>
+                             Margin="0,0,0,6"
+                             Visibility="{Binding IsToastSurface, Converter={StaticResource BoolToVis}}"/>
 
                     <TextBlock Grid.Row="2" Grid.Column="0"
                                Text="{DynamicResource LOCPlayAch_Settings_Style_HeaderCongratulations}"
@@ -851,10 +853,12 @@
                                Text="{DynamicResource LOCPlayAch_Settings_Style_HeaderFriendCompleted}"
                                Foreground="{DynamicResource PlayAch.Brush.Text}"
                                VerticalAlignment="Center"
-                               Margin="0,0,12,0"/>
+                               Margin="0,0,12,0"
+                               Visibility="{Binding IsToastSurface, Converter={StaticResource BoolToVis}}"/>
                     <TextBox x:Name="FriendCompletionHeaderTextBox"
                              Grid.Row="3" Grid.Column="1"
-                             Text="{Binding FriendCompletionHeaderText, Mode=TwoWay, UpdateSourceTrigger=Explicit}"/>
+                             Text="{Binding FriendCompletionHeaderText, Mode=TwoWay, UpdateSourceTrigger=Explicit}"
+                             Visibility="{Binding IsToastSurface, Converter={StaticResource BoolToVis}}"/>
                 </Grid>
                 <TextBlock Text="{DynamicResource LOCPlayAch_Settings_Style_HeaderFormatInvalid}"
                            Foreground="{DynamicResource PlayAch.Brush.ErrorText}"
