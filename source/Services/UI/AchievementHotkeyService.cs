@@ -226,14 +226,22 @@ namespace PlayniteAchievements.Services.UI
                     return;
                 }
 
-                if (_settings?.Persisted?.EnableAchievementHotkeys != true ||
-                    KeyboardFocusScope.IsTextInputFocused())
+                if (_settings?.Persisted?.EnableAchievementHotkeys != true)
                 {
                     return;
                 }
 
                 var key = GetEffectiveKey(keyArgs);
                 if (!AchievementHotkeyGesture.TryCreate(key, Keyboard.Modifiers, out var gesture))
+                {
+                    return;
+                }
+
+                // Only typeable gestures (no Ctrl/Alt/Win modifier) are suppressed while a
+                // text input has focus, so bare-letter shortcuts never fire mid-typing but
+                // modified shortcuts keep working from any focused Playnite window.
+                if ((gesture.Modifiers & (ModifierKeys.Control | ModifierKeys.Alt | ModifierKeys.Windows)) == ModifierKeys.None &&
+                    KeyboardFocusScope.IsTextInputFocused())
                 {
                     return;
                 }
