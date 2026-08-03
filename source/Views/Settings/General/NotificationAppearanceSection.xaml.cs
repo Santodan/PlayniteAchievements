@@ -1395,6 +1395,8 @@ namespace PlayniteAchievements.Views.Settings.General
                     throw new InvalidOperationException("Preset notification style was empty.");
                 }
 
+                // The preset's surface replaces the target surface wholesale, badge images and
+                // header texts included; a toast preset also carries the toast-only background.
                 if (isFrame)
                 {
                     merged.Frame = imported.Frame;
@@ -1403,8 +1405,6 @@ namespace PlayniteAchievements.Views.Settings.General
                 {
                     merged.Toast = imported.Toast;
                     merged.ToastBackgroundImagePath = imported.ToastBackgroundImagePath;
-                    merged.BadgeImages = imported.BadgeImages;
-                    merged.HeaderTexts = imported.HeaderTexts;
                 }
 
                 ApplyImportedStyle(persisted, providerKey, merged);
