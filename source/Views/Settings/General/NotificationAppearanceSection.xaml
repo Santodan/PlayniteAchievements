@@ -109,11 +109,12 @@
                                     BorderThickness="1"
                                     CornerRadius="8"
                                     Padding="10"
-                                    HorizontalAlignment="Stretch"
+                                    HorizontalAlignment="Left"
                                     Margin="0,0,0,10">
-                                <!-- Fill the tab width; the 16:9 canvas scales up uniformly to it. -->
+                                <!-- Fit the tab width, capped so the pinned band never dominates the
+                                     tab; the 16:9 canvas scales uniformly within both limits. -->
                                 <Viewbox Stretch="Uniform"
-                                         HorizontalAlignment="Stretch">
+                                         MaxHeight="320">
                                     <Grid Width="1920"
                                           Height="1080"
                                           Background="#FF17222D">
