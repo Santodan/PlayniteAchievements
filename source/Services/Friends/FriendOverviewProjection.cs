@@ -360,11 +360,15 @@ namespace PlayniteAchievements.Services.Friends
                     achievement.FriendGroupId = group.Id;
                     achievement.FriendName = ResolveMergedFriendName(group, friendByAccount, settingsByAccount);
                     achievement.FriendAvatarPath = ResolveMergedFriendAvatar(group, friendByAccount);
+                    achievement.FriendIsFavorite = IsMergeGroupFavorite(group, settingsByAccount);
                 }
-                else if (settingsByAccount.TryGetValue(accountKey, out var setting) &&
-                         !string.IsNullOrWhiteSpace(setting.Nickname))
+                else if (settingsByAccount.TryGetValue(accountKey, out var setting))
                 {
-                    achievement.FriendName = setting.Nickname;
+                    achievement.FriendIsFavorite = setting.IsFavorite;
+                    if (!string.IsNullOrWhiteSpace(setting.Nickname))
+                    {
+                        achievement.FriendName = setting.Nickname;
+                    }
                 }
             }
 
@@ -507,11 +511,7 @@ namespace PlayniteAchievements.Services.Friends
                 LastUnlockUtc = members.Select(member => member.LastUnlockUtc).Where(value => value.HasValue).DefaultIfEmpty().Max(),
                 LastRefreshedUtc = members.Select(member => member.LastRefreshedUtc).Where(value => value.HasValue).DefaultIfEmpty().Max(),
                 TotalPlaytimeMinutes = members.Sum(member => Math.Max(0, member.TotalPlaytimeMinutes)),
-                IsFavorite = (group.Members ?? new List<FriendAccountRef>())
-                    .Any(member => member != null &&
-                                   settingsByAccount != null &&
-                                   settingsByAccount.TryGetValue(member.Key, out var favoriteEntry) &&
-                                   favoriteEntry.IsFavorite),
+                IsFavorite = IsMergeGroupFavorite(group, settingsByAccount),
                 MemberAccounts = (group.Members ?? new List<FriendAccountRef>()).Select(member => member.Clone().Normalize()).ToList(),
                 MemberProviderKeys = (group.Members ?? new List<FriendAccountRef>())
                     .Select(member => member.ProviderKey)
@@ -519,6 +519,17 @@ namespace PlayniteAchievements.Services.Friends
                     .Distinct(StringComparer.OrdinalIgnoreCase)
                     .ToList()
             };
+        }
+
+        private static bool IsMergeGroupFavorite(
+            FriendMergeGroup group,
+            Dictionary<string, FriendSettingsEntry> settingsByAccount)
+        {
+            return (group?.Members ?? new List<FriendAccountRef>())
+                .Any(member => member != null &&
+                               settingsByAccount != null &&
+                               settingsByAccount.TryGetValue(member.Key, out var entry) &&
+                               entry.IsFavorite);
         }
 
         private static string ResolveMergedFriendName(

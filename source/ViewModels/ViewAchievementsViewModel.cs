@@ -577,6 +577,8 @@ namespace PlayniteAchievements.ViewModels
                 }
 
                 _allAchievements = displayItems;
+                Services.Captures.CapturePresenceMarker.MarkAchievements(
+                    _allAchievements, PlayniteAchievementsPlugin.Instance?.CaptureLibraryService);
                 RefreshOrderedAchievements(skipDefaultSort: false);
 
                 // The control bar's filter option collections are UI-bound.
@@ -653,6 +655,8 @@ namespace PlayniteAchievements.ViewModels
 
             System.Windows.Application.Current?.Dispatcher?.Invoke(() =>
                 CollectionHelper.SynchronizeCollection(SummaryItems, items));
+            Services.Captures.CapturePresenceMarker.MarkSummaries(
+                items, PlayniteAchievementsPlugin.Instance?.CaptureLibraryService);
         }
 
         private void RaiseSummaryAppearanceProperties()

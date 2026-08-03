@@ -50,6 +50,7 @@ namespace PlayniteAchievements.ViewModels.Items
         private string _friendName;
         private string _friendExternalUserId;
         private string _friendAvatarPath;
+        private bool _friendIsFavorite;
         private int? _pointsValue;
         private string _categoryType;
         private string _categoryLabel;
@@ -94,6 +95,13 @@ namespace PlayniteAchievements.ViewModels.Items
             set => SetValue(ref _friendName, value);
         }
 
+        // Session-only: true when this achievement has any saved unlock captures on disk. Set by the
+        // capture presence marker after the grid is built; gates the Captures column button.
+        private bool _hasCaptures;
+        [DontSerialize]
+        [IgnoreDataMember]
+        public bool HasCaptures { get => _hasCaptures; set => SetValue(ref _hasCaptures, value); }
+
         public string FriendExternalUserId
         {
             get => _friendExternalUserId;
@@ -104,6 +112,14 @@ namespace PlayniteAchievements.ViewModels.Items
         {
             get => _friendAvatarPath;
             set => SetValue(ref _friendAvatarPath, value);
+        }
+
+        // Projected from the friend's persisted favorite flag; drives the favorite star in the
+        // friend achievements grid's Friend column. Always false for self-achievement rows.
+        public bool FriendIsFavorite
+        {
+            get => _friendIsFavorite;
+            set => SetValue(ref _friendIsFavorite, value);
         }
 
         // --- Friend comparison (session-only; set by the hosting view model when a
@@ -1189,6 +1205,7 @@ namespace PlayniteAchievements.ViewModels.Items
             clone.FriendName = _friendName;
             clone.FriendExternalUserId = _friendExternalUserId;
             clone.FriendAvatarPath = _friendAvatarPath;
+            clone.FriendIsFavorite = _friendIsFavorite;
             clone.GameName = _gameName;
             clone.SortingName = _sortingName;
             clone.PlayniteGameId = _playniteGameId;

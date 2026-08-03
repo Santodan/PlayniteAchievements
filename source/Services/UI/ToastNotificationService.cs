@@ -1325,6 +1325,16 @@ namespace PlayniteAchievements.Services.UI
                                     plan.FramedSuffix);
                             }
                         }
+
+                        // Drop cached capture scans for the games in this wave so an already-open
+                        // grid lights up its Captures button on its next rebuild.
+                        foreach (var gameName in items
+                            .Select(i => i.Vm?.GameName)
+                            .Where(n => !string.IsNullOrWhiteSpace(n))
+                            .Distinct(StringComparer.OrdinalIgnoreCase))
+                        {
+                            PlayniteAchievementsPlugin.Instance?.CaptureLibraryService?.Invalidate(gameName);
+                        }
                     }
                     finally
                     {

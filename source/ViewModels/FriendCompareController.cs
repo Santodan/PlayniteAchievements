@@ -80,6 +80,12 @@ namespace PlayniteAchievements.ViewModels
                 string.Equals(option.Key, key, StringComparison.OrdinalIgnoreCase))?.DisplayName ?? key;
         }
 
+        public bool IsKeyFavorite(string key)
+        {
+            return _options.FirstOrDefault(option =>
+                string.Equals(option.Key, key, StringComparison.OrdinalIgnoreCase))?.IsFavorite == true;
+        }
+
         // Single-select semantics over checkable menu items: checking a friend replaces any
         // other selection; unchecking the selected friend clears the comparison.
         public void SelectKey(string key, bool isSelected)

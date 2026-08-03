@@ -433,7 +433,8 @@ namespace PlayniteAchievements.ViewModels
                 key => _friendCompare?.IsKeySelected(key) == true,
                 (key, isSelected) => _friendCompare?.SelectKey(key, isSelected),
                 key => _friendCompare?.GetDisplayNameForKey(key) ?? key,
-                () => _friendCompare?.IsCompareAvailable == true)
+                () => _friendCompare?.IsCompareAvailable == true,
+                key => _friendCompare?.IsKeyFavorite(key) == true)
             {
                 Width = 140,
                 ToolTip = L("LOCPlayAch_Filter_CompareSelectorPlaceholder")

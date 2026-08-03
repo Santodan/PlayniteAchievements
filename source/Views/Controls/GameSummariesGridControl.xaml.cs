@@ -107,7 +107,7 @@ namespace PlayniteAchievements.Views.Controls
         private static readonly IReadOnlyDictionary<string, IReadOnlyDictionary<string, bool>> DefaultVisibilityByColumnSettingsKey =
             new Dictionary<string, IReadOnlyDictionary<string, bool>>(StringComparer.OrdinalIgnoreCase)
             {
-                ["OverviewGameSummaries"] = CreateGameSummaryVisibility(),
+                ["OverviewGameSummaries"] = CreateGameSummaryVisibility(captures: true),
                 ["StartPageGameSummaries"] = CreateGameSummaryVisibility(
                     platform: false,
                     lastPlayed: false,
@@ -123,9 +123,9 @@ namespace PlayniteAchievements.Views.Controls
                     collectionScore: false,
                     prestigeScore: false),
                 // Single-game summary: Cover, Game, Progress, Total visible; the rest hidden.
-                ["ViewAchievementsGameSummaries"] = CreateGameSummaryVisibility(),
+                ["ViewAchievementsGameSummaries"] = CreateGameSummaryVisibility(captures: true),
                 // Theme AchievementDataGrid header row; mirrors the ViewAchievements defaults.
-                ["DesktopThemeGameSummaries"] = CreateGameSummaryVisibility(),
+                ["DesktopThemeGameSummaries"] = CreateGameSummaryVisibility(captures: true),
                 // No friend selected: Cover, Game, Platform only.
                 ["FriendsOverviewGameSummaries"] = CreateGameSummaryVisibility(
                     platform: true,
@@ -186,7 +186,8 @@ namespace PlayniteAchievements.Views.Controls
             bool total = true,
             bool collectionScore = false,
             bool prestigeScore = false,
-            bool points = false)
+            bool points = false,
+            bool captures = false)
         {
             return new Dictionary<string, bool>(StringComparer.OrdinalIgnoreCase)
             {
@@ -201,7 +202,8 @@ namespace PlayniteAchievements.Views.Controls
                 ["TotalAchievements"] = total,
                 ["GameSummaryCollectionScore"] = collectionScore,
                 ["GameSummaryPrestigeScore"] = prestigeScore,
-                ["GameSummaryPoints"] = points
+                ["GameSummaryPoints"] = points,
+                ["Captures"] = captures
             };
         }
 
@@ -1348,7 +1350,31 @@ namespace PlayniteAchievements.Views.Controls
 
         private void DataGridRow_PreviewMouseLeftButtonDown(object sender, MouseButtonEventArgs e)
         {
+            // A click on an in-cell button (e.g. the Captures button) must not also drive row
+            // selection/navigation, so don't forward the row event in that case.
+            if (IsFromButton(e.OriginalSource))
+            {
+                return;
+            }
+
             ForwardRowMouseEvent(e, RowPreviewMouseLeftButtonDownEvent, sender);
+        }
+
+        private static bool IsFromButton(object originalSource)
+        {
+            // Use the shared traversal: the click can originate on a non-visual element (e.g. a Run
+            // inside a TextBlock), which VisualTreeHelper.GetParent cannot handle and would throw on.
+            return VisualTreeHelpers.FindVisualParent<ButtonBase>(originalSource as DependencyObject) != null;
+        }
+
+        private void CapturesButton_Click(object sender, RoutedEventArgs e)
+        {
+            if ((sender as FrameworkElement)?.DataContext is GameSummaryItem item)
+            {
+                PlayniteAchievementsPlugin.Instance?.OpenCapturesViewer(item);
+            }
+
+            e.Handled = true;
         }
 
         private void DataGridRow_PreviewMouseRightButtonDown(object sender, MouseButtonEventArgs e)

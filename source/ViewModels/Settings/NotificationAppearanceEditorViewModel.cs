@@ -55,6 +55,7 @@ namespace PlayniteAchievements.ViewModels.Settings
         private string _cardHeightText = string.Empty;
         private string _iconSizeText = string.Empty;
         private string _rarityBadgeSizeText = string.Empty;
+        private string _rarityFontSizeText = string.Empty;
         private string _providerIconSizeText = string.Empty;
         private string _cardPaddingLeftText = string.Empty;
         private string _cardPaddingRightText = string.Empty;
@@ -492,6 +493,21 @@ namespace PlayniteAchievements.ViewModels.Settings
         }
 
         /// <summary>
+        /// Rarity percent text size. Blank/invalid clears the override.
+        /// </summary>
+        public string RarityFontSizeText
+        {
+            get => _rarityFontSizeText;
+            set
+            {
+                if (SetValueAndReturn(ref _rarityFontSizeText, value))
+                {
+                    CommitSize(value, (surface, parsed) => surface.RarityFontSize = parsed);
+                }
+            }
+        }
+
+        /// <summary>
         /// Provider (platform) icon size. Blank/invalid clears the override.
         /// </summary>
         public string ProviderIconSizeText
@@ -617,6 +633,9 @@ namespace PlayniteAchievements.ViewModels.Settings
             SetValue(ref _rarityBadgeSizeText,
                 surface?.RarityBadgeSize?.ToString(CultureInfo.CurrentCulture) ?? string.Empty,
                 nameof(RarityBadgeSizeText));
+            SetValue(ref _rarityFontSizeText,
+                surface?.RarityFontSize?.ToString(CultureInfo.CurrentCulture) ?? string.Empty,
+                nameof(RarityFontSizeText));
             SetValue(ref _providerIconSizeText,
                 surface?.ProviderIconSize?.ToString(CultureInfo.CurrentCulture) ?? string.Empty,
                 nameof(ProviderIconSizeText));

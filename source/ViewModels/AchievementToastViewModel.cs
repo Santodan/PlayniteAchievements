@@ -592,11 +592,17 @@ namespace PlayniteAchievements.ViewModels
         public FontFamily ToastFontFamily => ResolveFontFamily(_style.Toast.FontFamily);
         public FontFamily FrameFontFamily => ResolveFontFamily(_style.Frame.FontFamily);
 
-        // Effective caption/header size per surface, also used by the icon column's percent
-        // text (part of the "header/caption" size group).
+        // Effective caption/header size per surface.
         public double ToastHeaderFontSize => _style.Toast.HeaderFontSize
             ?? ResolveFontSizeResource("PlayAch.FontSize.Caption", 11);
         public double FrameHeaderFontSize => _style.Frame.HeaderFontSize ?? FrameHeaderFontFallback;
+
+        // Effective rarity percent text size per surface. Decoupled from the header size; when
+        // unset it falls back to the same caption/header default so the out-of-the-box look is
+        // unchanged.
+        public double ToastRarityFontSize => _style.Toast.RarityFontSize
+            ?? ResolveFontSizeResource("PlayAch.FontSize.Caption", 11);
+        public double FrameRarityFontSize => _style.Frame.RarityFontSize ?? FrameHeaderFontFallback;
 
         // Effective title size per surface: the single source of truth for both the title line
         // and the badge size, so the inline and footer badges always match.

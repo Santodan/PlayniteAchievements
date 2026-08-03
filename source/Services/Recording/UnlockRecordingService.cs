@@ -965,6 +965,9 @@ namespace PlayniteAchievements.Services.Recording
                 }
 
                 _logger?.Info($"[Recording] Saved unlock clip: {savedPath}");
+                // Drop the cached capture scan for this game so an already-open grid picks up the
+                // new clip on its next rebuild.
+                PlayniteAchievementsPlugin.Instance?.CaptureLibraryService?.Invalidate(request.GameName);
                 return savedPath;
             }
             finally
