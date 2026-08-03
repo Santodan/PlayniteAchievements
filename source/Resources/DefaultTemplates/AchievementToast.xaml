@@ -185,6 +185,25 @@
                     <Grid Width="{Binding ToastIconSize}"
                           Height="{Binding ToastIconSize}"
                           HorizontalAlignment="Center">
+                        <!-- Preview only: a square glow "plate" the size of the icon box, behind the
+                             icon so the crisp icon covers it and only its rarity glow rings out around
+                             the square boundary. A thin outline alone casts almost no glow, so this
+                             gives the example a clearly visible square glow; the live toast glows the
+                             icon shape instead. -->
+                        <Border Visibility="{Binding IsPreview, Converter={StaticResource BooleanToVisibilityConverter}}">
+                            <Border.Style>
+                                <Style TargetType="Border">
+                                    <Setter Property="Background" Value="{Binding AccentBrush}"/>
+                                    <Setter Property="Effect" Value="{Binding RarityGlowEffect}"/>
+                                    <Style.Triggers>
+                                        <DataTrigger Binding="{Binding IsGameCompleted}" Value="True">
+                                            <Setter Property="Background" Value="{Binding CompletedBrush}"/>
+                                            <Setter Property="Effect" Value="{Binding CompletedGlowEffect}"/>
+                                        </DataTrigger>
+                                    </Style.Triggers>
+                                </Style>
+                            </Border.Style>
+                        </Border>
                         <!-- Completion notifications swap the achievement icon for the
                              completed-game badge and the completed glow. The glow lives on this
                              backing layer (a crisp front copy sits on top); it renders un-cached so
@@ -239,25 +258,12 @@
                                 BorderBrush="{Binding IconBorderBrush}"
                                 Visibility="{Binding ShowShineBorder, Converter={StaticResource BooleanToVisibilityConverter}}"/>
                         <!-- Preview only: a thin gold outline marks the icon's full boundary so the
-                             icon size and surrounding padding are easy to judge in the mockup. In the
-                             example this square also carries the rarity glow (the icon glow is
-                             suppressed above), so the glow color and size are easy to judge; the live
-                             toast glows the icon shape instead. -->
+                             icon size and surrounding padding are easy to judge in the mockup. The
+                             rarity glow is cast by the square plate behind the icon (above). -->
                         <Border BorderThickness="1"
                                 BorderBrush="#FFD4AF37"
                                 Background="Transparent"
-                                Visibility="{Binding IsPreview, Converter={StaticResource BooleanToVisibilityConverter}}">
-                            <Border.Style>
-                                <Style TargetType="Border">
-                                    <Setter Property="Effect" Value="{Binding RarityGlowEffect}"/>
-                                    <Style.Triggers>
-                                        <DataTrigger Binding="{Binding IsGameCompleted}" Value="True">
-                                            <Setter Property="Effect" Value="{Binding CompletedGlowEffect}"/>
-                                        </DataTrigger>
-                                    </Style.Triggers>
-                                </Style>
-                            </Border.Style>
-                        </Border>
+                                Visibility="{Binding IsPreview, Converter={StaticResource BooleanToVisibilityConverter}}"/>
                     </Grid>
 
                     <!-- The badge/percent footer under the icon. The icon->footer gap lives once
