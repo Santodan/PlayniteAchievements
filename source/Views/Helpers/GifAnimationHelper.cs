@@ -44,7 +44,13 @@ namespace PlayniteAchievements.Views.Helpers
                 var cached = TryGetCachedAnimation(cacheKey);
                 if (cached == null)
                 {
-                    var decoder = new GifBitmapDecoder(new Uri(normalizedSource, UriKind.Absolute), BitmapCreateOptions.PreservePixelFormat, BitmapCacheOption.OnLoad);
+                    // IgnoreImageCache bypasses WPF's URI-keyed decode cache: the managed image
+                    // slots reuse fixed file names, so an overwritten GIF at the same path must
+                    // decode fresh bytes.
+                    var decoder = new GifBitmapDecoder(
+                        new Uri(normalizedSource, UriKind.Absolute),
+                        BitmapCreateOptions.PreservePixelFormat | BitmapCreateOptions.IgnoreImageCache,
+                        BitmapCacheOption.OnLoad);
                     if (decoder.Frames == null || decoder.Frames.Count == 0)
                     {
                         return false;
@@ -108,6 +114,42 @@ namespace PlayniteAchievements.Views.Helpers
             catch
             {
                 return false;
+            }
+        }
+
+        /// <summary>
+        /// Removes cached composited frames for every source whose key contains the given
+        /// segment (case-insensitive). Called through the image service's eviction chokepoint
+        /// so an overwritten or cleared GIF at a fixed managed path never re-serves the old
+        /// animation.
+        /// </summary>
+        internal static void EvictBySegment(string segment)
+        {
+            if (string.IsNullOrWhiteSpace(segment))
+            {
+                return;
+            }
+
+            lock (CacheSync)
+            {
+                List<string> keysToEvict = null;
+                foreach (var key in FrameCache.Keys)
+                {
+                    if (key.IndexOf(segment, StringComparison.OrdinalIgnoreCase) >= 0)
+                    {
+                        (keysToEvict ?? (keysToEvict = new List<string>())).Add(key);
+                    }
+                }
+
+                if (keysToEvict == null)
+                {
+                    return;
+                }
+
+                foreach (var key in keysToEvict)
+                {
+                    FrameCache.Remove(key);
+                }
             }
         }
 
