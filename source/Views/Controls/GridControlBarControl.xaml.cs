@@ -130,7 +130,7 @@ namespace PlayniteAchievements.Views.Controls
                 var value = option;
                 var item = new MenuItem
                 {
-                    Header = filter.GetDisplayLabel(value),
+                    Header = BuildMultiSelectHeader(filter, value),
                     IsCheckable = true,
                     StaysOpenOnClick = true,
                     IsChecked = filter.IsSelected(value),
@@ -160,6 +160,36 @@ namespace PlayniteAchievements.Views.Controls
             }
 
             OpenSelectorContextMenu(button, menu);
+        }
+
+        // Plain string header for ordinary dropdowns; for a marker-aware filter (e.g. the friend
+        // Compare dropdown) render a fixed-width star gutter before the label so marked options show
+        // a star while every label stays aligned (unmarked options keep a transparent star).
+        private static object BuildMultiSelectHeader(GridMultiSelectFilter filter, string value)
+        {
+            var label = filter.GetDisplayLabel(value);
+            if (!filter.HasMarker)
+            {
+                return label;
+            }
+
+            var panel = new DockPanel { LastChildFill = true };
+            var star = new TextBlock
+            {
+                Text = "★",
+                Width = 14,
+                TextAlignment = TextAlignment.Center,
+                VerticalAlignment = VerticalAlignment.Center,
+                Opacity = filter.IsMarked(value) ? 1d : 0d
+            };
+            DockPanel.SetDock(star, Dock.Left);
+            panel.Children.Add(star);
+            panel.Children.Add(new TextBlock
+            {
+                Text = label,
+                VerticalAlignment = VerticalAlignment.Center
+            });
+            return panel;
         }
 
         private void ProviderFilter_Click(object sender, RoutedEventArgs e)
