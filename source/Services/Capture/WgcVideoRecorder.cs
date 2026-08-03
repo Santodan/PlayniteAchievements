@@ -34,11 +34,14 @@ namespace PlayniteAchievements.Services.Capture
 
         private const string SegmentStrftime = "yyyyMMdd-HHmmss";
 
-        private readonly IntPtr _hwnd;
+        // Resolves the game window to capture, re-checked each second so the recorder follows the
+        // learned game window (idle until it's known, re-target if it changes) instead of grabbing
+        // whatever is foreground at start.
+        private readonly Func<IntPtr> _resolveHwnd;
+        private IntPtr _activeHwnd;
         private readonly string _bufferDirectory;
         private readonly int _fps;
         private readonly int _segmentSeconds;
-        private readonly int _bitrate;
         private readonly ILogger _logger;
 
         private D3D11.Device _device;
@@ -61,27 +64,35 @@ namespace PlayniteAchievements.Services.Capture
         private volatile bool _running;
         private bool _disposed;
 
-        public WgcVideoRecorder(IntPtr hwnd, string bufferDirectory, int fps, int bitrate, int segmentSeconds, ILogger logger)
+        public WgcVideoRecorder(Func<IntPtr> resolveHwnd, string bufferDirectory, int fps, int segmentSeconds, ILogger logger)
         {
-            _hwnd = hwnd;
+            _resolveHwnd = resolveHwnd;
             _bufferDirectory = bufferDirectory;
             _fps = Math.Max(1, fps);
-            _bitrate = Math.Max(1_000_000, bitrate);
             _segmentSeconds = Math.Max(1, segmentSeconds);
             _logger = logger;
             _frameDuration100ns = 10_000_000L / _fps;
         }
 
+        // Target H.264 bitrate from the actual capture resolution and fps (~0.12 bits/pixel/frame):
+        // ~15 Mbps at 1080p60, ~27 at 1440p60, ~60 at 4K60. Clamped to a sane range.
+        private int ComputeBitrate(int width, int height)
+        {
+            var bits = (long)(width * (double)height * _fps * 0.12);
+            return (int)Math.Max(8_000_000L, Math.Min(120_000_000L, bits));
+        }
+
         public static bool IsSupported => GraphicsCaptureSession.IsSupported();
 
-        /// <summary>Starts capture. Returns false (and leaves nothing running) if it can't initialize.</summary>
+        /// <summary>
+        /// Starts the recorder: creates the D3D11/MF device and the pump thread. The pump idles until
+        /// the game window is resolvable (see the resolver), then captures it — so it never grabs a
+        /// foreground window that isn't the game. Returns false if the device can't be created.
+        /// </summary>
         public bool Start()
         {
             try
             {
-                _hdr = HdrDisplayDetector.IsHdrActive(_hwnd);
-                _refWhite = _hdr ? HdrDisplayDetector.GetSdrWhiteScRgb(_hwnd) : 1.0f;
-
                 _device = new D3D11.Device(SharpDX.Direct3D.DriverType.Hardware,
                     D3D11.DeviceCreationFlags.BgraSupport | D3D11.DeviceCreationFlags.VideoSupport);
                 using (var dxgiDevice = _device.QueryInterface<DXGI.Device>())
@@ -98,30 +109,11 @@ namespace PlayniteAchievements.Services.Capture
                     }
                 }
 
-                _item = CreateItemForWindow(_hwnd);
-                if (_item == null || _item.Size.Width <= 0 || _item.Size.Height <= 0)
-                {
-                    return false;
-                }
-
-                if (_hdr)
-                {
-                    _toneMapper = new GpuHdrToneMapper(_device);
-                }
-
-                var pixelFormat = _hdr
-                    ? DirectXPixelFormat.R16G16B16A16Float
-                    : DirectXPixelFormat.B8G8R8A8UIntNormalized;
-                _framePool = Direct3D11CaptureFramePool.CreateFreeThreaded(_winrtDevice, pixelFormat, 2, _item.Size);
-                _session = _framePool.CreateCaptureSession(_item);
-                TrySuppressBorder(_session);
-                _session.StartCapture();
-
                 Directory.CreateDirectory(_bufferDirectory);
                 _running = true;
                 _pumpThread = new Thread(PumpLoop) { IsBackground = true, Name = "PlayAch-WgcVideo" };
                 _pumpThread.Start();
-                _logger?.Info($"[Recording] WGC-MF capture started (hdr={_hdr}, {_item.Size.Width}x{_item.Size.Height}@{_fps}).");
+                _logger?.Info("[Recording] WGC-MF capture started (following the game window).");
                 return true;
             }
             catch (Exception ex)
@@ -132,17 +124,88 @@ namespace PlayniteAchievements.Services.Capture
             }
         }
 
+        /// <summary>
+        /// Points the capture at <paramref name="hwnd"/>: tears down the old WGC session/pool/item,
+        /// re-detects HDR for the new window's monitor, and starts a fresh capture. Ends the current
+        /// segment so the resolution change starts a new one (segments in a clip must match size).
+        /// </summary>
+        private void SetupCapture(IntPtr hwnd)
+        {
+            GraphicsCaptureItem item;
+            try
+            {
+                item = CreateItemForWindow(hwnd);
+            }
+            catch (Exception ex)
+            {
+                _logger?.Debug(ex, "[Recording] WGC-MF could not create a capture item for the game window.");
+                return;
+            }
+
+            if (item == null || item.Size.Width <= 0 || item.Size.Height <= 0)
+            {
+                return;
+            }
+
+            TearDownCapture();
+            FinalizeSegment();
+
+            _hdr = HdrDisplayDetector.IsHdrActive(hwnd);
+            _refWhite = _hdr ? HdrDisplayDetector.GetSdrWhiteScRgb(hwnd) : 1.0f;
+            if (_hdr && _toneMapper == null)
+            {
+                _toneMapper = new GpuHdrToneMapper(_device);
+            }
+
+            var pixelFormat = _hdr
+                ? DirectXPixelFormat.R16G16B16A16Float
+                : DirectXPixelFormat.B8G8R8A8UIntNormalized;
+            _item = item;
+            _framePool = Direct3D11CaptureFramePool.CreateFreeThreaded(_winrtDevice, pixelFormat, 2, item.Size);
+            _session = _framePool.CreateCaptureSession(_item);
+            TrySuppressBorder(_session);
+            _session.StartCapture();
+            _activeHwnd = hwnd;
+            _logger?.Info($"[Recording] WGC-MF capturing game window 0x{hwnd.ToInt64():X} (hdr={_hdr}, {item.Size.Width}x{item.Size.Height}@{_fps}).");
+        }
+
+        private void TearDownCapture()
+        {
+            try { _session?.Dispose(); } catch { }
+            try { _framePool?.Dispose(); } catch { }
+            _session = null;
+            _framePool = null;
+            _item = null;
+        }
+
         private void PumpLoop()
         {
             var frameInterval = TimeSpan.FromSeconds(1.0 / _fps);
             var next = DateTime.UtcNow;
+            var lastResolveUtc = DateTime.MinValue;
             try
             {
                 while (_running)
                 {
-                    PullLatestFrame();
+                    // Follow the game window: (re)target when the resolved handle changes (throttled).
+                    // Idle while the game window isn't known yet rather than capturing a foreground
+                    // window that isn't the game.
+                    if ((DateTime.UtcNow - lastResolveUtc).TotalSeconds >= 1)
+                    {
+                        lastResolveUtc = DateTime.UtcNow;
+                        var hwnd = _resolveHwnd?.Invoke() ?? IntPtr.Zero;
+                        if (hwnd != IntPtr.Zero && hwnd != _activeHwnd)
+                        {
+                            SetupCapture(hwnd);
+                        }
+                    }
 
-                    if (_latest != null)
+                    if (_activeHwnd != IntPtr.Zero && _framePool != null)
+                    {
+                        PullLatestFrame();
+                    }
+
+                    if (_latest != null && _framePool != null)
                     {
                         // Create the first segment once we have a frame (its size), and roll over on
                         // schedule. The encoder can't be built before the first frame, so this — not
@@ -185,6 +248,7 @@ namespace PlayniteAchievements.Services.Capture
             finally
             {
                 FinalizeSegment();
+                TearDownCapture();
             }
         }
 
@@ -244,7 +308,9 @@ namespace PlayniteAchievements.Services.Capture
 
             var name = SegmentFilePrefix + DateTime.Now.ToString(SegmentStrftime, CultureInfo.InvariantCulture) + SegmentFileExtension;
             var path = EnsureUniqueSegment(Path.Combine(_bufferDirectory, name));
-            _encoder = new MediaFoundationH264Encoder(_device, path, _latest.Description.Width, _latest.Description.Height, _fps, _bitrate);
+            _encoder = new MediaFoundationH264Encoder(
+                _device, path, _latest.Description.Width, _latest.Description.Height, _fps,
+                ComputeBitrate(_latest.Description.Width, _latest.Description.Height));
             _segmentFrameIndex = 0;
             _segmentStartUtc = DateTime.UtcNow;
             _segmentCount++;

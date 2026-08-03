@@ -658,16 +658,14 @@ namespace PlayniteAchievements.Services.Recording
                     return false;
                 }
 
-                var trackedHwnd = _windowTracker?.TryGetWindowHandle(session.OwnerGameId) ?? IntPtr.Zero;
-                var pid = _getGameProcessId?.Invoke(session.OwnerGameId);
-                var hwnd = _screenshotService.ResolveGameWindowHandle(trackedHwnd, pid);
-                if (hwnd == IntPtr.Zero)
-                {
-                    return false;
-                }
+                // Resolve the LEARNED game window each tick (not a foreground fallback), so the
+                // recorder captures the actual game — following it once it's known — instead of
+                // whatever window is on top at capture start.
+                var gameId = session.OwnerGameId;
+                Func<IntPtr> resolveHwnd = () => _windowTracker?.TryGetWindowHandle(gameId) ?? IntPtr.Zero;
 
                 var recorder = new WgcVideoRecorder(
-                    hwnd, session.BufferDirectory, persisted.RecordingFps, ResolveBitrate(persisted), SegmentSeconds, _logger);
+                    resolveHwnd, session.BufferDirectory, persisted.RecordingFps, SegmentSeconds, _logger);
                 if (!recorder.Start())
                 {
                     recorder.Dispose();
@@ -686,19 +684,6 @@ namespace PlayniteAchievements.Services.Recording
             }
         }
 
-        /// <summary>Target H.264 bitrate for the WGC-MF encode, by output resolution.</summary>
-        private static int ResolveBitrate(PersistedSettings persisted)
-        {
-            switch (persisted.RecordingResolution)
-            {
-                case RecordingResolution.P720:
-                    return 8_000_000;
-                case RecordingResolution.P1080:
-                    return 14_000_000;
-                default:
-                    return 20_000_000; // Native (unknown size) — generous flat default.
-            }
-        }
 
         /// <summary>
         /// Capture crash recovery: up to 3 restarts with a 5s backoff, then the session is
