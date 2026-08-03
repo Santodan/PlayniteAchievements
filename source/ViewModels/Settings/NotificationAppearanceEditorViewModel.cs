@@ -699,6 +699,33 @@ namespace PlayniteAchievements.ViewModels.Settings
         public string BackgroundThumbnailUri =>
             Models.Achievements.AchievementIconResolver.ApplyCacheBust(_style?.ToastBackgroundImagePath);
 
+        // Cache-busted sources for the editor's badge thumbnails, for the same reason as the
+        // background: the managed slots reuse fixed filenames, so imports and preset applies
+        // overwrite the file without changing the stored path string.
+        public string BadgeCommonThumbnailUri =>
+            Models.Achievements.AchievementIconResolver.ApplyCacheBust(Surface?.BadgeImages?.CommonPath);
+
+        public string BadgeUncommonThumbnailUri =>
+            Models.Achievements.AchievementIconResolver.ApplyCacheBust(Surface?.BadgeImages?.UncommonPath);
+
+        public string BadgeRareThumbnailUri =>
+            Models.Achievements.AchievementIconResolver.ApplyCacheBust(Surface?.BadgeImages?.RarePath);
+
+        public string BadgeUltraRareThumbnailUri =>
+            Models.Achievements.AchievementIconResolver.ApplyCacheBust(Surface?.BadgeImages?.UltraRarePath);
+
+        public string BadgeCompletionThumbnailUri =>
+            Models.Achievements.AchievementIconResolver.ApplyCacheBust(Surface?.BadgeImages?.CompletionPath);
+
+        private void RefreshBadgeThumbnails()
+        {
+            OnPropertyChanged(nameof(BadgeCommonThumbnailUri));
+            OnPropertyChanged(nameof(BadgeUncommonThumbnailUri));
+            OnPropertyChanged(nameof(BadgeRareThumbnailUri));
+            OnPropertyChanged(nameof(BadgeUltraRareThumbnailUri));
+            OnPropertyChanged(nameof(BadgeCompletionThumbnailUri));
+        }
+
         /// <summary>
         /// The background image's pixel dimensions as "W × H" (empty when none is set), so the
         /// user can see what the "fit card to image" button sizes the card to.
@@ -1322,6 +1349,7 @@ namespace PlayniteAchievements.ViewModels.Settings
             OnPropertyChanged(nameof(HasBackgroundImage));
             OnPropertyChanged(nameof(BackgroundImageDimensionsText));
             OnPropertyChanged(nameof(BackgroundThumbnailUri));
+            RefreshBadgeThumbnails();
         }
 
         /// <summary>
@@ -1390,6 +1418,7 @@ namespace PlayniteAchievements.ViewModels.Settings
             OnPropertyChanged(nameof(BackgroundImageDimensionsText));
             OnPropertyChanged(nameof(BackgroundThumbnailUri));
             OnPropertyChanged(nameof(TitleLineOffsetText));
+            RefreshBadgeThumbnails();
         }
 
         private void Subscribe()
@@ -1461,6 +1490,11 @@ namespace PlayniteAchievements.ViewModels.Settings
                 OnPropertyChanged(nameof(BackgroundThumbnailUri));
             }
 
+            if (ReferenceEquals(sender, _subscribedBadges))
+            {
+                RefreshBadgeThumbnails();
+            }
+
             NotifyStyleEdited();
         }
 
@@ -1518,10 +1552,11 @@ namespace PlayniteAchievements.ViewModels.Settings
                      e.PropertyName == nameof(NotificationSurfaceStyle.HeaderTexts))
             {
                 // A nested group object was replaced wholesale (import, preset apply);
-                // resubscribe to the new instance and re-snapshot the header mirrors.
+                // resubscribe to the new instance and re-snapshot the mirrors and thumbnails.
                 Unsubscribe();
                 Subscribe();
                 RefreshHeaderTexts();
+                RefreshBadgeThumbnails();
             }
 
             NotifyStyleEdited();

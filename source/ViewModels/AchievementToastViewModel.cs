@@ -516,13 +516,15 @@ namespace PlayniteAchievements.ViewModels
 
         // Badge source for the toast template's AsyncImage binding: the toast surface's custom
         // image path when one is set (a string, so animated GIF badges animate), otherwise the
-        // drawn badge ImageSource.
+        // drawn badge ImageSource. Cache-busted (write-time + size token, stripped before
+        // decoding) so an overwritten badge file at the same managed slot path never shows a
+        // stale cached bitmap.
         public object ToastBadgeSource =>
-            (object)ResolveCustomBadgePath(_style.Toast.BadgeImages) ?? BadgeImage;
+            (object)AchievementIconResolver.ApplyCacheBust(ResolveCustomBadgePath(_style.Toast.BadgeImages)) ?? BadgeImage;
 
         // Toast icon-swap source for the completion trigger, mirroring CompletedBadgeImage.
         public object ToastCompletedBadgeSource =>
-            (object)NullIfBlank(_style.Toast.BadgeImages.CompletionPath) ?? CompletedBadgeImage;
+            (object)AchievementIconResolver.ApplyCacheBust(NullIfBlank(_style.Toast.BadgeImages.CompletionPath)) ?? CompletedBadgeImage;
 
         // Frame equivalents read the frame surface's own badge set. The frame is rendered
         // offscreen, so images must be synchronously decoded (an async load renders blank);
@@ -778,6 +780,9 @@ namespace PlayniteAchievements.ViewModels
                 var image = new BitmapImage();
                 image.BeginInit();
                 image.CacheOption = BitmapCacheOption.OnLoad;
+                // Bypass WPF's process-wide bitmap cache: the managed slots reuse fixed file
+                // names, so an overwritten file at the same path must decode fresh bytes.
+                image.CreateOptions = BitmapCreateOptions.IgnoreImageCache;
                 image.UriSource = new Uri(path, UriKind.Absolute);
                 image.EndInit();
                 image.Freeze();
