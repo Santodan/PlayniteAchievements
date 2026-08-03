@@ -51,6 +51,7 @@ namespace PlayniteAchievements.ViewModels.Settings
         private string _completionHeaderText;
         private string _friendCompletionHeaderText;
         private bool _hasHeaderFormatError;
+        private string _textShadowText;
         private string _cardWidthText = string.Empty;
         private string _cardHeightText = string.Empty;
         private string _iconSizeText = string.Empty;
@@ -648,6 +649,22 @@ namespace PlayniteAchievements.ViewModels.Settings
             SetValue(ref _linePaddingText,
                 surface?.LinePadding?.ToString(CultureInfo.CurrentCulture) ?? string.Empty,
                 nameof(LinePaddingText));
+            SetValue(ref _textShadowText,
+                surface?.TextShadowOpacity?.ToString(CultureInfo.CurrentCulture) ?? string.Empty,
+                nameof(TextShadowText));
+
+            // The slider companions are computed straight from the surface; refresh them
+            // together with their text mirrors.
+            OnPropertyChanged(nameof(IconSizeSlider));
+            OnPropertyChanged(nameof(RarityBadgeSizeSlider));
+            OnPropertyChanged(nameof(RarityFontSizeSlider));
+            OnPropertyChanged(nameof(ProviderIconSizeSlider));
+            OnPropertyChanged(nameof(LinePaddingSlider));
+            OnPropertyChanged(nameof(CardWidthSlider));
+            OnPropertyChanged(nameof(CardHeightSlider));
+            OnPropertyChanged(nameof(CardPaddingLeftSlider));
+            OnPropertyChanged(nameof(CardPaddingRightSlider));
+            OnPropertyChanged(nameof(TextShadowSlider));
         }
 
         // Slider/textbox range for the name-line offset; must match the Slider bounds in the view.
@@ -680,9 +697,140 @@ namespace PlayniteAchievements.ViewModels.Settings
             }
         }
 
+        // The built-in text shadow strength (percent); must match the renderer's default.
+        private const double DefaultTextShadowStrength = 50;
+
+        /// <summary>
+        /// Text shadow strength (0-100; 50 matches the built-in shadow, 0 disables it). Blank
+        /// clears the override back to the default. Zero is meaningful here, so this commits
+        /// through its own parser instead of <see cref="CommitSize"/>.
+        /// </summary>
+        public string TextShadowText
+        {
+            get => _textShadowText;
+            set
+            {
+                if (!SetValueAndReturn(ref _textShadowText, value))
+                {
+                    return;
+                }
+
+                var surface = Surface;
+                if (surface != null && _isEditable)
+                {
+                    surface.TextShadowOpacity = ParseShadowStrength(value);
+                }
+
+                RefreshCardDimensions();
+            }
+        }
+
+        public double TextShadowSlider
+        {
+            get => Surface?.TextShadowOpacity ?? DefaultTextShadowStrength;
+            set => TextShadowText = Math.Round(Math.Max(0, Math.Min(100, value)))
+                .ToString(CultureInfo.CurrentCulture);
+        }
+
+        private static double? ParseShadowStrength(string text)
+        {
+            if (string.IsNullOrWhiteSpace(text))
+            {
+                return null;
+            }
+
+            if (double.TryParse(text.Trim(), NumberStyles.Float, CultureInfo.CurrentCulture, out var current) ||
+                double.TryParse(text.Trim(), NumberStyles.Float, CultureInfo.InvariantCulture, out current))
+            {
+                return Math.Max(0, Math.Min(100, current));
+            }
+
+            return null;
+        }
+
+        // Slider companions for the size text boxes: each reads the effective value (the
+        // user's override, or the default the renderer applies) and writes through its text
+        // mirror, so parsing, persistence, and refresh stay on the one shared path.
+        public double IconSizeSlider
+        {
+            get => Surface?.IconSize ?? (IsFrameSurface
+                ? AchievementToastViewModel.DefaultFrameIconSize
+                : AchievementToastViewModel.DefaultToastIconSize);
+            set => IconSizeText = FormatSliderValue(value);
+        }
+
+        public double RarityBadgeSizeSlider
+        {
+            get => Surface?.RarityBadgeSize ??
+                EffectiveTitleFontSize * AchievementToastViewModel.BadgeToTitleRatio;
+            set => RarityBadgeSizeText = FormatSliderValue(value);
+        }
+
+        public double RarityFontSizeSlider
+        {
+            get => Surface?.RarityFontSize ?? (IsFrameSurface
+                ? AchievementToastViewModel.FrameHeaderFontFallback
+                : AchievementToastViewModel.DefaultToastCaptionFontSize);
+            set => RarityFontSizeText = FormatSliderValue(value);
+        }
+
+        public double ProviderIconSizeSlider
+        {
+            get => Surface?.ProviderIconSize ?? (IsFrameSurface
+                ? AchievementToastViewModel.DefaultFrameProviderIconSize
+                : AchievementToastViewModel.DefaultToastProviderIconSize);
+            set => ProviderIconSizeText = FormatSliderValue(value);
+        }
+
+        public double LinePaddingSlider
+        {
+            get => Surface?.LinePadding ?? 0;
+            set => LinePaddingText = FormatOptionalSliderValue(value);
+        }
+
+        public double CardWidthSlider
+        {
+            get => Surface?.CardWidth ?? AchievementToastViewModel.DefaultToastCardWidth;
+            set => CardWidthText = FormatSliderValue(value);
+        }
+
+        // Zero means "auto height" (the renderer's default), so the slider's minimum clears
+        // the override instead of storing an explicit value.
+        public double CardHeightSlider
+        {
+            get => Surface?.CardHeight ?? 0;
+            set => CardHeightText = FormatOptionalSliderValue(value);
+        }
+
+        public double CardPaddingLeftSlider
+        {
+            get => Surface?.CardPaddingLeft ?? 0;
+            set => CardPaddingLeftText = FormatOptionalSliderValue(value);
+        }
+
+        public double CardPaddingRightSlider
+        {
+            get => Surface?.CardPaddingRight ?? 0;
+            set => CardPaddingRightText = FormatOptionalSliderValue(value);
+        }
+
+        // The title size the renderer would use, for the badge slider's default resting
+        // position (badge default = title size x BadgeToTitleRatio).
+        private double EffectiveTitleFontSize => Surface?.TitleFontSize ?? (IsFrameSurface
+            ? AchievementToastViewModel.FrameTitleFontFallback
+            : AchievementToastViewModel.DefaultToastTitleFontSize);
+
+        private static string FormatSliderValue(double value) =>
+            Math.Round(value).ToString(CultureInfo.CurrentCulture);
+
+        // For fields whose renderer default is zero/none, dragging to the minimum clears the
+        // override instead of storing an explicit 0 (which the size parser treats as invalid).
+        private static string FormatOptionalSliderValue(double value) =>
+            value <= 0 ? string.Empty : Math.Round(value).ToString(CultureInfo.CurrentCulture);
+
         // Anchor width used when fitting the card to a background image; mirrors the toast view
         // model's ToastCardWidth fallback so a blank width fits at the same size the card renders.
-        private const double DefaultCardWidth = 410;
+        private const double DefaultCardWidth = AchievementToastViewModel.DefaultToastCardWidth;
 
         /// <summary>
         /// Whether a toast background image is set. Drives the fit-to-image affordance, which is
@@ -1448,6 +1596,9 @@ namespace PlayniteAchievements.ViewModels.Settings
                      e.PropertyName == nameof(NotificationSurfaceStyle.GameCategoryFontSize))
             {
                 RefreshLineSizes();
+
+                // The badge slider's default resting position tracks the title size.
+                OnPropertyChanged(nameof(RarityBadgeSizeSlider));
             }
             else if (e.PropertyName == nameof(NotificationSurfaceStyle.FontFamily))
             {

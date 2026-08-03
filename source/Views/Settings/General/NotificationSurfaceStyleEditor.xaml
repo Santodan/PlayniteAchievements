@@ -219,6 +219,7 @@
                 <Grid HorizontalAlignment="Left">
                     <Grid.ColumnDefinitions>
                         <ColumnDefinition Width="Auto" MinWidth="90"/>
+                        <ColumnDefinition Width="160"/>
                         <ColumnDefinition Width="Auto"/>
                     </Grid.ColumnDefinitions>
                     <Grid.RowDefinitions>
@@ -233,7 +234,13 @@
                                Text="{DynamicResource LOCPlayAch_Column_Icon}"
                                Style="{StaticResource EditorRowLabelStyle}"
                                Margin="0,0,8,8"/>
-                    <TextBox Grid.Row="0" Grid.Column="1"
+                    <Slider Grid.Row="0" Grid.Column="1"
+                            Minimum="16" Maximum="200"
+                            SmallChange="1" LargeChange="5" TickFrequency="1" IsSnapToTickEnabled="True"
+                            Value="{Binding IconSizeSlider, Mode=TwoWay}"
+                            VerticalAlignment="Center"
+                            Margin="0,0,8,8"/>
+                    <TextBox Grid.Row="0" Grid.Column="2"
                              Text="{Binding IconSizeText, Mode=TwoWay, UpdateSourceTrigger=LostFocus}"
                              Width="70"
                              TextAlignment="Right"
@@ -243,7 +250,13 @@
                                Text="{DynamicResource LOCPlayAch_Settings_Style_Rarity_BadgeLabel}"
                                Style="{StaticResource EditorRowLabelStyle}"
                                Margin="0,0,8,8"/>
-                    <TextBox Grid.Row="1" Grid.Column="1"
+                    <Slider Grid.Row="1" Grid.Column="1"
+                            Minimum="8" Maximum="128"
+                            SmallChange="1" LargeChange="5" TickFrequency="1" IsSnapToTickEnabled="True"
+                            Value="{Binding RarityBadgeSizeSlider, Mode=TwoWay}"
+                            VerticalAlignment="Center"
+                            Margin="0,0,8,8"/>
+                    <TextBox Grid.Row="1" Grid.Column="2"
                              Text="{Binding RarityBadgeSizeText, Mode=TwoWay, UpdateSourceTrigger=LostFocus}"
                              Width="70"
                              TextAlignment="Right"
@@ -253,7 +266,13 @@
                                Text="{DynamicResource LOCPlayAch_Settings_Style_Rarity_PercentLabel}"
                                Style="{StaticResource EditorRowLabelStyle}"
                                Margin="0,0,8,8"/>
-                    <TextBox Grid.Row="2" Grid.Column="1"
+                    <Slider Grid.Row="2" Grid.Column="1"
+                            Minimum="6" Maximum="48"
+                            SmallChange="1" LargeChange="5" TickFrequency="1" IsSnapToTickEnabled="True"
+                            Value="{Binding RarityFontSizeSlider, Mode=TwoWay}"
+                            VerticalAlignment="Center"
+                            Margin="0,0,8,8"/>
+                    <TextBox Grid.Row="2" Grid.Column="2"
                              Text="{Binding RarityFontSizeText, Mode=TwoWay, UpdateSourceTrigger=LostFocus}"
                              Width="70"
                              TextAlignment="Right"
@@ -263,7 +282,13 @@
                                Text="{DynamicResource LOCPlayAch_Common_Label_Platform}"
                                Style="{StaticResource EditorRowLabelStyle}"
                                Margin="0,0,8,8"/>
-                    <TextBox Grid.Row="3" Grid.Column="1"
+                    <Slider Grid.Row="3" Grid.Column="1"
+                            Minimum="8" Maximum="128"
+                            SmallChange="1" LargeChange="5" TickFrequency="1" IsSnapToTickEnabled="True"
+                            Value="{Binding ProviderIconSizeSlider, Mode=TwoWay}"
+                            VerticalAlignment="Center"
+                            Margin="0,0,8,8"/>
+                    <TextBox Grid.Row="3" Grid.Column="2"
                              Text="{Binding ProviderIconSizeText, Mode=TwoWay, UpdateSourceTrigger=LostFocus}"
                              Width="70"
                              TextAlignment="Right"
@@ -272,18 +297,26 @@
                     <TextBlock Grid.Row="4" Grid.Column="0"
                                Text="{DynamicResource LOCPlayAch_Settings_Style_LinePadding}"
                                Style="{StaticResource EditorRowLabelStyle}"/>
-                    <TextBox Grid.Row="4" Grid.Column="1"
+                    <Slider Grid.Row="4" Grid.Column="1"
+                            Minimum="0" Maximum="24"
+                            SmallChange="1" LargeChange="2" TickFrequency="1" IsSnapToTickEnabled="True"
+                            Value="{Binding LinePaddingSlider, Mode=TwoWay}"
+                            VerticalAlignment="Center"
+                            Margin="0,0,8,0"/>
+                    <TextBox Grid.Row="4" Grid.Column="2"
                              Text="{Binding LinePaddingText, Mode=TwoWay, UpdateSourceTrigger=LostFocus}"
                              Width="70"
                              TextAlignment="Right"/>
                 </Grid>
 
-                <!-- Toast card size: the frame has no free card size. -->
+                <!-- Toast card size: the frame has no free card size. The height slider's
+                     minimum (0) means auto height. -->
                 <Grid HorizontalAlignment="Left"
                       Margin="0,10,0,0"
                       Visibility="{Binding IsToastSurface, Converter={StaticResource BoolToVis}}">
                     <Grid.ColumnDefinitions>
                         <ColumnDefinition Width="Auto" MinWidth="90"/>
+                        <ColumnDefinition Width="160"/>
                         <ColumnDefinition Width="Auto"/>
                     </Grid.ColumnDefinitions>
                     <Grid.RowDefinitions>
@@ -297,7 +330,13 @@
                                Text="{DynamicResource LOCPlayAch_Settings_Style_CardWidth}"
                                Style="{StaticResource EditorRowLabelStyle}"
                                Margin="0,0,8,8"/>
-                    <TextBox Grid.Row="0" Grid.Column="1"
+                    <Slider Grid.Row="0" Grid.Column="1"
+                            Minimum="200" Maximum="1200"
+                            SmallChange="5" LargeChange="25" TickFrequency="5" IsSnapToTickEnabled="True"
+                            Value="{Binding CardWidthSlider, Mode=TwoWay}"
+                            VerticalAlignment="Center"
+                            Margin="0,0,8,8"/>
+                    <TextBox Grid.Row="0" Grid.Column="2"
                              Text="{Binding CardWidthText, Mode=TwoWay, UpdateSourceTrigger=LostFocus}"
                              Width="70"
                              TextAlignment="Right"
@@ -307,7 +346,13 @@
                                Text="{DynamicResource LOCPlayAch_Settings_Style_CardHeight}"
                                Style="{StaticResource EditorRowLabelStyle}"
                                Margin="0,0,8,8"/>
-                    <TextBox Grid.Row="1" Grid.Column="1"
+                    <Slider Grid.Row="1" Grid.Column="1"
+                            Minimum="0" Maximum="500"
+                            SmallChange="5" LargeChange="25" TickFrequency="5" IsSnapToTickEnabled="True"
+                            Value="{Binding CardHeightSlider, Mode=TwoWay}"
+                            VerticalAlignment="Center"
+                            Margin="0,0,8,8"/>
+                    <TextBox Grid.Row="1" Grid.Column="2"
                              Text="{Binding CardHeightText, Mode=TwoWay, UpdateSourceTrigger=LostFocus}"
                              Width="70"
                              TextAlignment="Right"
@@ -317,7 +362,13 @@
                                Text="{DynamicResource LOCPlayAch_Settings_Style_CardPaddingLeft}"
                                Style="{StaticResource EditorRowLabelStyle}"
                                Margin="0,0,8,8"/>
-                    <TextBox Grid.Row="2" Grid.Column="1"
+                    <Slider Grid.Row="2" Grid.Column="1"
+                            Minimum="0" Maximum="120"
+                            SmallChange="1" LargeChange="5" TickFrequency="1" IsSnapToTickEnabled="True"
+                            Value="{Binding CardPaddingLeftSlider, Mode=TwoWay}"
+                            VerticalAlignment="Center"
+                            Margin="0,0,8,8"/>
+                    <TextBox Grid.Row="2" Grid.Column="2"
                              Text="{Binding CardPaddingLeftText, Mode=TwoWay, UpdateSourceTrigger=LostFocus}"
                              Width="70"
                              TextAlignment="Right"
@@ -326,7 +377,13 @@
                     <TextBlock Grid.Row="3" Grid.Column="0"
                                Text="{DynamicResource LOCPlayAch_Settings_Style_CardPaddingRight}"
                                Style="{StaticResource EditorRowLabelStyle}"/>
-                    <TextBox Grid.Row="3" Grid.Column="1"
+                    <Slider Grid.Row="3" Grid.Column="1"
+                            Minimum="0" Maximum="120"
+                            SmallChange="1" LargeChange="5" TickFrequency="1" IsSnapToTickEnabled="True"
+                            Value="{Binding CardPaddingRightSlider, Mode=TwoWay}"
+                            VerticalAlignment="Center"
+                            Margin="0,0,8,0"/>
+                    <TextBox Grid.Row="3" Grid.Column="2"
                              Text="{Binding CardPaddingRightText, Mode=TwoWay, UpdateSourceTrigger=LostFocus}"
                              Width="70"
                              TextAlignment="Right"/>
@@ -492,6 +549,29 @@
                         </DataTemplate>
                     </ComboBox.ItemTemplate>
                 </ComboBox>
+
+                <!-- Text shadow strength: 50 matches the built-in shadow, 0 disables it,
+                     100 doubles it. Applies to this surface's text, badges, and logos. -->
+                <TextBlock Text="{DynamicResource LOCPlayAch_Settings_Style_TextShadow}"
+                           Style="{StaticResource EditorSubGroupHeaderStyle}"/>
+                <Grid HorizontalAlignment="Left"
+                      MinWidth="260">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*"/>
+                        <ColumnDefinition Width="Auto"/>
+                    </Grid.ColumnDefinitions>
+                    <Slider Grid.Column="0"
+                            Minimum="0" Maximum="100"
+                            SmallChange="1" LargeChange="10" TickFrequency="1" IsSnapToTickEnabled="True"
+                            Value="{Binding TextShadowSlider, Mode=TwoWay}"
+                            VerticalAlignment="Center"/>
+                    <TextBox Grid.Column="1"
+                             Text="{Binding TextShadowText, Mode=TwoWay, UpdateSourceTrigger=LostFocus}"
+                             Width="50"
+                             TextAlignment="Right"
+                             VerticalAlignment="Center"
+                             Margin="8,0,0,0"/>
+                </Grid>
             </StackPanel>
         </Border>
 
