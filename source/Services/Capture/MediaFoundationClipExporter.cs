@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.Runtime.ExceptionServices;
 using Playnite.SDK;
 using PlayniteAchievements.Services.Recording;
@@ -76,22 +77,8 @@ namespace PlayniteAchievements.Services.Capture
                     var videoLead = clipStart - keyframeStart; // ≥ 0
                     _logger?.Debug($"[Recording] MF export: keyframeStart={keyframeStart / 10000}ms lead={videoLead / 10000}ms; writing video.");
 
-                    WriteVideo(sink, videoStream, videoPlan, keyframeStart, clipEnd);
-                    _logger?.Debug("[Recording] MF export: video written.");
-
-                    if (audioStream >= 0)
-                    {
-                        try
-                        {
-                            WriteAudio(sink, audioStream, pcmType, audioPlan, videoLead);
-                            _logger?.Debug("[Recording] MF export: audio written.");
-                        }
-                        catch (Exception ex)
-                        {
-                            // Audio is best-effort: a mux failure must not lose the (already written) video.
-                            _logger?.Warn(ex, "[Recording] Clip audio mux failed; clip will be video-only.");
-                        }
-                    }
+                    WriteInterleaved(sink, videoStream, videoPlan, keyframeStart, clipEnd, audioStream, pcmType, audioPlan, videoLead);
+                    _logger?.Debug("[Recording] MF export: samples written.");
 
                     pcmType?.Dispose();
                     sink.Finalize();
@@ -224,10 +211,91 @@ namespace PlayniteAchievements.Services.Capture
             }
         }
 
-        private static void WriteVideo(
-            SinkWriter sink, int streamIndex, SegmentTimeline.ClipPlan plan, long keyframeStart, long clipEnd)
+        private struct TimedSample
         {
-            long prefix = 0;      // concat time at the start of the current segment
+            public long Time;
+            public Sample Sample;
+        }
+
+        /// <summary>
+        /// Writes video and audio samples to the sink in a single timestamp-ordered stream. A
+        /// multi-stream Media Foundation SinkWriter blocks a stream that runs too far ahead of the
+        /// others, so writing all video before any audio deadlocks — interleaving by output time
+        /// keeps both streams advancing. Audio is best-effort: a read failure degrades to a
+        /// video-only clip.
+        /// </summary>
+        private void WriteInterleaved(
+            SinkWriter sink, int videoStream, SegmentTimeline.ClipPlan videoPlan, long keyframeStart, long clipEnd,
+            int audioStream, MediaType pcmType, SegmentTimeline.ClipPlan audioPlan, long videoLead)
+        {
+            using (var video = VideoSamples(videoPlan, keyframeStart, clipEnd).GetEnumerator())
+            {
+                IEnumerator<TimedSample> audio = null;
+                var hasAudio = false;
+                if (audioStream >= 0 && audioPlan?.Segments != null && audioPlan.Segments.Count > 0)
+                {
+                    audio = AudioSamples(audioPlan, pcmType, videoLead).GetEnumerator();
+                    hasAudio = TryMoveNext(audio);
+                }
+
+                try
+                {
+                    var hasVideo = video.MoveNext();
+                    while (hasVideo || hasAudio)
+                    {
+                        if (hasVideo && (!hasAudio || video.Current.Time <= audio.Current.Time))
+                        {
+                            WriteAndDispose(sink, videoStream, video.Current);
+                            hasVideo = video.MoveNext();
+                        }
+                        else
+                        {
+                            WriteAndDispose(sink, audioStream, audio.Current);
+                            hasAudio = TryMoveNext(audio);
+                        }
+                    }
+                }
+                finally
+                {
+                    audio?.Dispose();
+                }
+            }
+        }
+
+        private static void WriteAndDispose(SinkWriter sink, int streamIndex, TimedSample timed)
+        {
+            try
+            {
+                sink.WriteSample(streamIndex, timed.Sample);
+            }
+            finally
+            {
+                timed.Sample.Dispose();
+            }
+        }
+
+        private bool TryMoveNext(IEnumerator<TimedSample> enumerator)
+        {
+            try
+            {
+                return enumerator.MoveNext();
+            }
+            catch (Exception ex)
+            {
+                _logger?.Warn(ex, "[Recording] Clip audio read failed; clip will be video-only.");
+                return false;
+            }
+        }
+
+        /// <summary>
+        /// The kept video samples (stream-copied H.264), concatenated across segments and trimmed to
+        /// the window, each stamped with its output time (0 = the start keyframe). Skipped samples are
+        /// disposed; yielded samples are the caller's to dispose after writing.
+        /// </summary>
+        private static IEnumerable<TimedSample> VideoSamples(
+            SegmentTimeline.ClipPlan plan, long keyframeStart, long clipEnd)
+        {
+            long prefix = 0; // concat time at the start of the current segment
             var started = false;
 
             foreach (var segment in plan.Segments)
@@ -279,22 +347,25 @@ namespace PlayniteAchievements.Services.Capture
                         }
 
                         sample.SampleTime = concat - keyframeStart;
-                        sink.WriteSample(streamIndex, sample);
-                        sample.Dispose();
+                        yield return new TimedSample { Time = sample.SampleTime, Sample = sample };
                     }
                 }
 
                 if (reachedEnd)
                 {
-                    break;
+                    yield break;
                 }
 
                 prefix = segSpanEnd;
             }
         }
 
-        private static void WriteAudio(
-            SinkWriter sink, int streamIndex, MediaType pcmType, SegmentTimeline.ClipPlan plan, long videoLead)
+        /// <summary>
+        /// The kept audio samples (PCM, converted for the AAC encoder), concatenated + trimmed, each
+        /// stamped so its window start aligns with the video (offset by <paramref name="videoLead"/>).
+        /// </summary>
+        private static IEnumerable<TimedSample> AudioSamples(
+            SegmentTimeline.ClipPlan plan, MediaType pcmType, long videoLead)
         {
             var clipStart = ToTicks(plan.StartOffsetSeconds);
             var clipEnd = clipStart + ToTicks(plan.DurationSeconds);
@@ -355,14 +426,13 @@ namespace PlayniteAchievements.Services.Capture
                         // Align to video: video output 0 is the keyframe, which is `videoLead` before
                         // the window start; audio's window start therefore sits at `videoLead`.
                         sample.SampleTime = (concat - clipStart) + videoLead;
-                        sink.WriteSample(streamIndex, sample);
-                        sample.Dispose();
+                        yield return new TimedSample { Time = sample.SampleTime, Sample = sample };
                     }
                 }
 
                 if (reachedEnd)
                 {
-                    break;
+                    yield break;
                 }
 
                 prefix = segSpanEnd;
