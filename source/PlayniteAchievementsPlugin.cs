@@ -600,7 +600,7 @@ namespace PlayniteAchievements
                         gameId => _windowService.ToggleViewAchievementsWindowFromHotkey(gameId),
                         gameId => _windowService.ToggleManageAchievementsViewFromHotkey(gameId),
                         ToggleOverviewWindowFromHotkey,
-                        () => OpenSettingsView(),
+                        OpenSettingsViewFromHotkey,
                         TryFlipCategoryModeInActiveView,
                         TryRefreshActivePluginView,
                         runningGameId => _inGameMonitor?.FireTestNotification(runningGameId));
