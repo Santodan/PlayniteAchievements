@@ -124,17 +124,10 @@
                                     </Image.Source>
                                 </Image>
 
-                                <TextBlock Text="{Binding IconGlyph}"
-                                           FontFamily="{DynamicResource PlayAch.FontFamily.Icon}"
-                                           FontSize="16"
-                                           FontWeight="Normal"
-                                           Foreground="{DynamicResource PlayAch.Brush.Text}"
-                                           Margin="{StaticResource PlayAch.Thickness.Right.Sm}"
-                                           VerticalAlignment="Center"
-                                           UseLayoutRounding="True"
-                                           SnapsToDevicePixels="True"
-                                           TextOptions.TextFormattingMode="Display"
-                                           TextOptions.TextRenderingMode="Grayscale"
+                                <!-- Match the main settings tab headers exactly (HeaderIconStyle):
+                                     IcoFont at FontSize 14 with no rendering-mode overrides. -->
+                                <TextBlock Style="{StaticResource HeaderIconStyle}"
+                                           Text="{Binding IconGlyph}"
                                            Visibility="{Binding HasIconGlyph, Converter={StaticResource BoolToVis}}"/>
 
                                 <StackPanel Grid.Column="1"
