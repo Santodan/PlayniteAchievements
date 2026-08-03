@@ -56,7 +56,8 @@ namespace PlayniteAchievements.Services.Capture
         private bool _hdr;
         private float _refWhite = 1.0f;
 
-        private D3D11.Texture2D _latest; // owned, BGRA, the most recent (tone-mapped) frame
+        private D3D11.Texture2D _latest; // owned, BGRA, the most recent (tone-mapped) clean game frame
+        private D3D11.Texture2D _composited; // owned, BGRA, scratch for game+toast when a toast is showing
         private MediaFoundationH264Encoder _encoder;
         private long _segmentFrameIndex;
         private long _lastSegmentPts100ns; // last PTS written in the current segment (strictly increasing)
@@ -297,7 +298,11 @@ namespace PlayniteAchievements.Services.Capture
                                     pts = _lastSegmentPts100ns + 1;
                                 }
                                 _lastSegmentPts100ns = pts;
-                                _encoder.WriteFrame(_latest, pts, _frameDuration100ns);
+                                // Composite the toast fresh each encoded frame (including held dups
+                                // during a capture stall) so it keeps animating even while the game
+                                // frame is frozen, and off a clean base so successive toasts don't
+                                // smear over each other.
+                                _encoder.WriteFrame(ComposeFrame(), pts, _frameDuration100ns);
                                 _segmentFrameIndex++;
                             }
                             catch (Exception ex)
@@ -353,37 +358,38 @@ namespace PlayniteAchievements.Services.Capture
                     EnsureLatest(w, h);
                     var region = new D3D11.ResourceRegion(_cropX, _cropY, 0, _cropX + w, _cropY + h, 1);
                     _device.ImmediateContext.CopySubresourceRegion(bgra, 0, region, _latest, 0, 0, 0, 0);
-
-                    // Composite the notification toast (a separate window WGC can't see) if one is
-                    // currently on screen over the game.
-                    BlendOverlay(_latest);
                 }
             }
         }
 
-        private void BlendOverlay(D3D11.Texture2D target)
+        /// <summary>
+        /// The texture to encode for the current frame: the clean captured game frame when no toast is
+        /// on screen, otherwise a scratch copy with the current toast composited on top. Compositing
+        /// off a fresh copy of <see cref="_latest"/> (rather than into it) keeps the clean frame reusable
+        /// for held dups and prevents successive toast states from smearing over each other.
+        /// </summary>
+        private D3D11.Texture2D ComposeFrame()
         {
-            if (target == null)
+            if (_latest == null)
             {
-                return;
+                return null;
             }
 
             if (!VideoOverlaySink.TryGet(
                     out var overlayBgra, out var ow, out var oh,
-                    out var clientX, out var clientY, out var clientW, out var clientH, out _))
+                    out var clientX, out var clientY, out var clientW, out var clientH, out _) ||
+                overlayBgra == null || ow <= 0 || oh <= 0 || clientW <= 0 || clientH <= 0)
             {
-                return;
+                return _latest;
             }
 
-            if (overlayBgra == null || ow <= 0 || oh <= 0 || clientW <= 0 || clientH <= 0)
-            {
-                return;
-            }
+            EnsureComposited(_latest.Description.Width, _latest.Description.Height);
+            _device.ImmediateContext.CopyResource(_latest, _composited);
 
             // The overlay position is expressed in the game's client-pixel space; the target is the
             // (possibly differently-sized) captured client area. Scale into target pixels.
-            var scaleX = target.Description.Width / clientW;
-            var scaleY = target.Description.Height / clientH;
+            var scaleX = _composited.Description.Width / clientW;
+            var scaleY = _composited.Description.Height / clientH;
             var destX = (int)Math.Round(clientX * scaleX);
             var destY = (int)Math.Round(clientY * scaleY);
             var destW = (int)Math.Round(ow * scaleX);
@@ -394,7 +400,31 @@ namespace PlayniteAchievements.Services.Capture
                 _overlayBlitter = new OverlayBlitter(_device);
             }
 
-            _overlayBlitter.Blit(target, overlayBgra, ow, oh, destX, destY, destW, destH);
+            _overlayBlitter.Blit(_composited, overlayBgra, ow, oh, destX, destY, destW, destH);
+            return _composited;
+        }
+
+        private void EnsureComposited(int width, int height)
+        {
+            if (_composited != null && _composited.Description.Width == width && _composited.Description.Height == height)
+            {
+                return;
+            }
+
+            _composited?.Dispose();
+            _composited = new D3D11.Texture2D(_device, new D3D11.Texture2DDescription
+            {
+                Width = width,
+                Height = height,
+                MipLevels = 1,
+                ArraySize = 1,
+                Format = DXGI.Format.B8G8R8A8_UNorm,
+                SampleDescription = new DXGI.SampleDescription(1, 0),
+                Usage = D3D11.ResourceUsage.Default,
+                BindFlags = D3D11.BindFlags.RenderTarget | D3D11.BindFlags.ShaderResource,
+                CpuAccessFlags = D3D11.CpuAccessFlags.None,
+                OptionFlags = D3D11.ResourceOptionFlags.None,
+            });
         }
 
         private void EnsureLatest(int width, int height)
@@ -532,6 +562,7 @@ namespace PlayniteAchievements.Services.Capture
             Stop();
             FinalizeSegment();
             _latest?.Dispose();
+            _composited?.Dispose();
             _overlayBlitter?.Dispose();
             _toneMapper?.Dispose();
             _session?.Dispose();
