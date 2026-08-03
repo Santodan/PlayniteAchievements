@@ -334,12 +334,6 @@
                     <!-- User left/right card padding insets the content; the background image above
                          stays full-bleed (it is a sibling outside this Border). -->
                     <Border Padding="{Binding ToastContentPadding}">
-                    <!-- Wrap the column grid with a full-width countdown overlay: the bar is
-                         parented outside the columns so it always spans the full inset card width
-                         (across the platform-icon column) instead of stopping at it, while an
-                         invisible spacer in the grid's Row 1 reserves the bar's band so the
-                         auto-height card and the text layout stay exactly as before. -->
-                    <Grid>
                 <Grid>
                 <Grid.ColumnDefinitions>
                     <ColumnDefinition Width="Auto"/>
@@ -561,14 +555,15 @@
                         IsHitTestVisible="False"
                         Visibility="{Binding ShowCountdownBar, Converter={StaticResource BooleanToVisibilityConverter}}"/>
                 </Grid>
+                </Border>
 
-                <!-- Countdown bar: depletes over the toast's display duration. Parented outside the
-                     column grid above and stretched full-width, so it always runs the whole inset
-                     card width (across the platform-icon column) instead of stopping at it; the
-                     spacer above reserves its band. The service runs PlayAch.Storyboard.ToastCountdown
-                     against this ScaleX; the transform is reassigned in code before animating (a
-                     frozen template transform can't be animated), so this inline transform is a
-                     design-time/no-op placeholder. -->
+                <!-- Countdown bar: depletes over the toast's display duration. A direct child of the
+                     content grid, outside the padding border, so it ignores the user's left/right
+                     card padding and always spans the full card width; bottom-aligned over the
+                     spacer row that the column grid above reserves. The service runs
+                     PlayAch.Storyboard.ToastCountdown against this ScaleX; the transform is reassigned
+                     in code before animating (a frozen template transform can't be animated), so this
+                     inline transform is a design-time/no-op placeholder. -->
                 <Border x:Name="PART_ToastCountdown"
                         VerticalAlignment="Bottom"
                         HorizontalAlignment="Stretch"
@@ -582,8 +577,6 @@
                         <ScaleTransform ScaleX="1"
                                         ScaleY="1"/>
                     </Border.RenderTransform>
-                </Border>
-                </Grid>
                 </Border>
             </Grid>
             </Border>

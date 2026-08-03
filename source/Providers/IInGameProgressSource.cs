@@ -30,7 +30,7 @@ namespace PlayniteAchievements.Providers
         /// folder) cannot stall detection. Every local file source should use this rather than a longer
         /// interval; remote (polled) sources set their own <see cref="PollInterval"/> instead.
         /// </summary>
-        public static readonly TimeSpan FileWatchSafetyPollInterval = TimeSpan.FromSeconds(1);
+        public static readonly TimeSpan FileWatchSafetyPollInterval = TimeSpan.FromMilliseconds(500);
 
         public string ProviderKey { get; set; }
 
