@@ -114,11 +114,21 @@
                     <ColumnDefinition Width="*"/>
                     <ColumnDefinition Width="Auto"/>
                 </Grid.ColumnDefinitions>
+                <!-- Row 0 holds the content; Row 1 is a slim strip for the countdown bar. On a
+                     fixed-size card the content row simply gives up this small height (the card
+                     keeps its size and aspect); it collapses to nothing when the bar is hidden. -->
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="*"/>
+                    <RowDefinition Height="Auto"/>
+                </Grid.RowDefinitions>
                 <!-- Rarity accent strip (capstone color takes precedence over rarity). Completion
                      notifications restyle here, in the template: base values live in Setters so
-                     the IsGameCompleted trigger can override them. It fills the single content row,
-                     so it tracks the content height and never runs under the countdown overlay. -->
+                     the IsGameCompleted trigger can override them. Spans the full card height (both
+                     rows) as a clean left spine; the countdown bar is inset from the left, so they
+                     never overlap. -->
                 <Border Grid.Column="0"
+                        Grid.Row="0"
+                        Grid.RowSpan="2"
                         Width="4"
                         CornerRadius="8,0,0,8"
                         Visibility="{Binding ShowAccentStrip, Converter={StaticResource BooleanToVisibilityConverter}}">
@@ -307,21 +317,29 @@
                 </ItemsControl>
                 </Grid>
 
+                <!-- Slim spacer matching the countdown bar's footprint so the content clears the
+                     bar by a small gap (bar sits just below), without the tall band that previously
+                     skewed the card aspect. Collapses with the bar. -->
+                <Border Grid.Row="1"
+                        Height="3"
+                        Margin="8,3,8,6"
+                        IsHitTestVisible="False"
+                        Visibility="{Binding ShowCountdownBar, Converter={StaticResource BooleanToVisibilityConverter}}"/>
                 </Grid>
                 </Border>
 
-                <!-- Countdown bar: depletes over the toast's display duration. A pure bottom overlay
-                     (a direct child of the content grid, outside the padding border) that reserves no
-                     layout space, so it never pads the card height, skews its aspect, or extends the
-                     rarity accent. It ignores the user's left/right card padding and spans the full
-                     card width. The service runs PlayAch.Storyboard.ToastCountdown against this
-                     ScaleX; the transform is reassigned in code before animating (a frozen template
-                     transform can't be animated), so this inline transform is a no-op placeholder. -->
+                <!-- Countdown bar: depletes over the toast's display duration. A direct child of the
+                     content grid (outside the padding border) so it ignores the user's left/right
+                     card padding and spans the full card width; bottom-aligned over the slim spacer
+                     strip the grid above reserves, so it sits just below the content. The service
+                     runs PlayAch.Storyboard.ToastCountdown against this ScaleX; the transform is
+                     reassigned in code before animating (a frozen template transform can't be
+                     animated), so this inline transform is a no-op placeholder. -->
                 <Border x:Name="PART_ToastCountdown"
                         VerticalAlignment="Bottom"
                         HorizontalAlignment="Stretch"
                         Height="3"
-                        Margin="8,8,8,8"
+                        Margin="8,3,8,6"
                         CornerRadius="2"
                         Background="{Binding CountdownBarBrush}"
                         Visibility="{Binding ShowCountdownBar, Converter={StaticResource BooleanToVisibilityConverter}}"
