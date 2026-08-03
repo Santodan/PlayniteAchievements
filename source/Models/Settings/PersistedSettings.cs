@@ -516,6 +516,29 @@ namespace PlayniteAchievements.Models.Settings
             return true;
         }
 
+        public HashSet<string> GetFavoriteFriendIds(string providerKey)
+        {
+            return new HashSet<string>(
+                GetFriendSettings(providerKey)
+                    .Where(entry => entry.IsFavorite)
+                    .Select(entry => entry.ExternalUserId)
+                    .Where(id => !string.IsNullOrWhiteSpace(id)),
+                StringComparer.OrdinalIgnoreCase);
+        }
+
+        public bool SetFriendFavorite(string providerKey, string externalUserId, bool favorite)
+        {
+            var entry = GetFriendSetting(providerKey, externalUserId);
+            if (entry == null || entry.IsFavorite == favorite)
+            {
+                return false;
+            }
+
+            entry.IsFavorite = favorite;
+            Friends = Friends;
+            return true;
+        }
+
         public bool RemoveFriendSetting(string providerKey, string externalUserId)
         {
             providerKey = NormalizeProviderKeyToken(providerKey);
