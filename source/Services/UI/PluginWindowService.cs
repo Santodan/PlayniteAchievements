@@ -821,6 +821,24 @@ namespace PlayniteAchievements.Services.UI
             OpenCapturesViewerCore(CaptureGalleryViewModel.ForGame(set, game.GameName));
         }
 
+        /// <summary>Opens the whole-game capture gallery by game name (used by the Playnite library menu).</summary>
+        public void OpenCapturesViewerForGame(string gameName)
+        {
+            if (string.IsNullOrWhiteSpace(gameName))
+            {
+                return;
+            }
+
+            var service = PlayniteAchievementsPlugin.Instance?.CaptureLibraryService;
+            var set = service?.RefreshGame(gameName);
+            if (set == null || !set.HasAny)
+            {
+                return;
+            }
+
+            OpenCapturesViewerCore(CaptureGalleryViewModel.ForGame(set, gameName));
+        }
+
         /// <summary>Opens the capture gallery for a single achievement (type selector only, no arrows).</summary>
         public void OpenCapturesViewer(AchievementDisplayItem achievement)
         {
