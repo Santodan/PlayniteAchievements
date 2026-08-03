@@ -145,8 +145,8 @@
                                 VerticalAlignment="Top"
                                 Padding="{StaticResource PlayAch.Thickness.ButtonPadding.Wide}"/>
                         <Button DockPanel.Dock="Right"
-                                Content="{DynamicResource LOCPlayAch_FriendsSettings_IgnoreAll}"
-                                Command="{Binding IgnoreAllCommand}"
+                                Content="{Binding IgnoreSelectedLabel}"
+                                Command="{Binding IgnoreSelectedCommand}"
                                 VerticalAlignment="Top"
                                 Margin="0,0,8,0"
                                 Padding="{StaticResource PlayAch.Thickness.ButtonPadding.Wide}"/>
@@ -213,9 +213,16 @@
                               ScrollViewer.VerticalScrollBarVisibility="Auto"
                               ScrollViewer.HorizontalScrollBarVisibility="Auto">
                         <DataGrid.Columns>
-                            <DataGridTemplateColumn Header=""
-                                                    Width="Auto"
+                            <DataGridTemplateColumn Width="Auto"
                                                     MinWidth="36">
+                                <DataGridTemplateColumn.HeaderTemplate>
+                                    <DataTemplate>
+                                        <CheckBox IsChecked="{Binding DataContext.AreAllVisibleFriendsSelected, RelativeSource={RelativeSource AncestorType=DataGrid}, Mode=TwoWay}"
+                                                  HorizontalAlignment="Center"
+                                                  VerticalAlignment="Center"
+                                                  ToolTip="{DynamicResource LOCPlayAch_Common_SelectAll}"/>
+                                    </DataTemplate>
+                                </DataGridTemplateColumn.HeaderTemplate>
                                 <DataGridTemplateColumn.CellTemplate>
                                     <DataTemplate>
                                         <CheckBox IsChecked="{Binding IsSelected, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
