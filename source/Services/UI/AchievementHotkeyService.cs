@@ -23,6 +23,7 @@ namespace PlayniteAchievements.Services.UI
         private const int ManageAchievementsHotkeyId = 0x504102;
         private const int OverviewHotkeyId = 0x504103;
         private const int TestUnlockHotkeyId = 0x504104;
+        private const int OpenSettingsHotkeyId = 0x504105;
         private const int WmHotkey = 0x0312;
         private const uint ModAlt = 0x0001;
         private const uint ModControl = 0x0002;
@@ -397,6 +398,11 @@ namespace PlayniteAchievements.Services.UI
             RegisterGlobalHotkey(ViewAchievementsHotkeyId, AchievementHotkeyAction.ViewAchievements, _viewGesture, failedGestures);
             RegisterGlobalHotkey(ManageAchievementsHotkeyId, AchievementHotkeyAction.ManageAchievements, _manageGesture, failedGestures);
             RegisterGlobalHotkey(OverviewHotkeyId, AchievementHotkeyAction.Overview, _overviewGesture, failedGestures);
+            if (_openSettings != null)
+            {
+                RegisterGlobalHotkey(OpenSettingsHotkeyId, AchievementHotkeyAction.OpenSettings, _openSettingsGesture, failedGestures);
+            }
+
             RegisterGlobalHotkey(TestUnlockHotkeyId, AchievementHotkeyAction.FireTestUnlock, _testUnlockGesture, failedGestures);
             ShowGlobalRegistrationFailureNotification(failedGestures);
         }
@@ -621,8 +627,6 @@ namespace PlayniteAchievements.Services.UI
             ManageAchievements,
             Overview,
 
-            // Handled only through the in-process input hook; deliberately excluded from
-            // RegisterGlobalHotkeys so opening plugin settings stays scoped to Playnite focus.
             OpenSettings,
 
             // Fires the full notification flow for the running game's last-earned achievement.
