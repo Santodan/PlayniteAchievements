@@ -137,22 +137,11 @@ namespace PlayniteAchievements.Services.Notifications
                 throw new ArgumentException("Preset name is invalid.", nameof(name));
             }
 
-            var pruned = new NotificationStyleSettings();
-            if (isFrame)
-            {
-                pruned.Frame = currentStyle.Frame.Clone();
-            }
-            else
-            {
-                pruned.Toast = currentStyle.Toast.Clone();
-                pruned.ToastBackgroundImagePath = currentStyle.ToastBackgroundImagePath;
-            }
-
-            _portableStore.ExportPackage(
-                pruned,
+            _portableStore.ExportSurfacePackage(
+                isFrame,
+                currentStyle,
                 GetPresetPath(isFrame, sanitized),
-                toastTemplateXaml: isFrame ? null : templateXamlOrNull,
-                frameTemplateXaml: isFrame ? templateXamlOrNull : null);
+                templateXamlOrNull);
         }
 
         /// <summary>

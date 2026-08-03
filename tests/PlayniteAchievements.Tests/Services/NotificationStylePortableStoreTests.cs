@@ -92,6 +92,65 @@ namespace PlayniteAchievements.Services.Tests
         }
 
         [TestMethod]
+        public async Task ExportSurfacePackage_Frame_RoundTripsOnlyTheFrameSurface()
+        {
+            var tempDir = CreateTempDirectory();
+            try
+            {
+                var store = CreateStore(tempDir, out _);
+
+                var sourceDir = Path.Combine(tempDir, "src");
+                Directory.CreateDirectory(sourceDir);
+                var frameCommonSource = Path.Combine(sourceDir, "frame-common.png");
+                WritePlaceholderFile(frameCommonSource, "frame-common-bytes");
+
+                var style = NotificationStyleSettings.CreateDefault();
+                style.Frame.ShowUnlockTime = false;
+                style.Frame.HeaderTexts.UnlockHeader = "Frame header";
+                style.Frame.BadgeImages.CommonPath = frameCommonSource;
+                style.Toast.ShowHeader = false;
+                style.Toast.HeaderTexts.UnlockHeader = "Should not travel";
+
+                var packagePath = Path.Combine(tempDir, "share.paframe");
+                store.ExportSurfacePackage(isFrame: true, style, packagePath);
+
+                using (var archive = ZipFile.OpenRead(packagePath))
+                {
+                    var entryNames = archive.Entries.Select(entry => entry.FullName).ToList();
+                    CollectionAssert.Contains(entryNames, "images/frame_badge_common.png");
+
+                    using (var reader = new StreamReader(
+                        archive.GetEntry(NotificationStylePortableStore.ManifestEntryName).Open()))
+                    {
+                        var portable = JsonConvert.DeserializeObject<NotificationStylePortableFile>(reader.ReadToEnd());
+                        Assert.IsFalse(portable.HasToast);
+                        Assert.IsTrue(portable.HasFrame);
+                        // Toast data stays at factory defaults in a frame package.
+                        Assert.IsTrue(portable.Style.Toast.ShowHeader);
+                        Assert.IsNull(portable.Style.Toast.HeaderTexts?.UnlockHeader);
+                    }
+                }
+
+                var contents = store.InspectPackage(packagePath);
+                Assert.IsTrue(contents.HasStyle);
+                Assert.IsTrue(contents.HasFrameStyle);
+                Assert.IsFalse(contents.HasToastStyle);
+
+                var imported = await store.ImportAsync(packagePath, targetProviderKeyOrNull: null, CancellationToken.None);
+                Assert.IsFalse(imported.Frame.ShowUnlockTime);
+                Assert.AreEqual("Frame header", imported.Frame.HeaderTexts.UnlockHeader);
+
+                var expectedFrameCommonSuffix = Path.Combine("notification_images", "global", "frame_badge_common.png");
+                Assert.IsTrue(imported.Frame.BadgeImages.CommonPath.EndsWith(expectedFrameCommonSuffix, StringComparison.OrdinalIgnoreCase));
+                Assert.IsTrue(File.Exists(imported.Frame.BadgeImages.CommonPath));
+            }
+            finally
+            {
+                DeleteDirectory(tempDir);
+            }
+        }
+
+        [TestMethod]
         public void ExportPackage_WithTemplates_InspectAndReadRoundTrip()
         {
             var tempDir = CreateTempDirectory();

@@ -328,6 +328,10 @@
                                         Click="ExportStyle_Click"
                                         Content="{DynamicResource LOCPlayAch_Settings_Style_ExportButton}"
                                         Margin="0,0,8,0"/>
+                                <Button x:Name="ExportBothStylesButton"
+                                        Click="ExportBothStyles_Click"
+                                        Content="{DynamicResource LOCPlayAch_Settings_Style_ExportBothButton}"
+                                        Margin="0,0,8,0"/>
                                 <Button x:Name="ImportStyleButton"
                                         Click="ImportStyle_Click"
                                         Content="{DynamicResource LOCPlayAch_Settings_Style_ImportButton}"/>

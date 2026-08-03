@@ -1476,9 +1476,12 @@ namespace PlayniteAchievements.ViewModels.Settings
                  e.PropertyName == nameof(NotificationStyleSettings.Frame)))
             {
                 // The surface object was replaced wholesale (reset, import, preset apply);
-                // resubscribe to the new instance and its nested groups.
+                // resubscribe to the new instance and its nested groups, and re-snapshot the
+                // surface-derived mirrors so the editor never shows the old surface's values.
                 Unsubscribe();
                 Subscribe();
+                RefreshHeaderTexts();
+                RefreshBadgeThumbnails();
             }
 
             if (ReferenceEquals(sender, _style) &&
