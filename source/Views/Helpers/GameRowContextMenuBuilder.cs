@@ -62,7 +62,8 @@ namespace PlayniteAchievements.Views.Helpers
                 {
                     var captureItem = CreateMenuItem(resourceOwner, "LOCPlayAch_Menu_ViewCaptures",
                         () => PlayniteAchievementsPlugin.Instance?.OpenCapturesViewer(gameSummary));
-                    captureItem.IsEnabled = gameSummary.HasCaptures;
+                    captureItem.IsEnabled = PlayniteAchievementsPlugin.Instance?.CaptureLibraryService?
+                        .GameHasCaptures(gameSummary.GameName) == true;
                     menu.Items.Add(captureItem);
                 }
 
