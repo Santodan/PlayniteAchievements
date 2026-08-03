@@ -17,6 +17,8 @@ using PlayniteAchievements.Services.Notifications;
 using PlayniteAchievements.Services.UI;
 using PlayniteAchievements.ViewModels;
 using PlayniteAchievements.ViewModels.Settings;
+using PlayniteAchievements.Views.Dialogs;
+using PlayniteAchievements.Views.Helpers;
 
 namespace PlayniteAchievements.Views.Settings.General
 {
@@ -118,6 +120,7 @@ namespace PlayniteAchievements.Views.Settings.General
             {
                 UpdateMockups();
                 RefreshFireButtons();
+                RefreshPresetOptions();
             };
         }
 
@@ -1153,6 +1156,346 @@ namespace PlayniteAchievements.Views.Settings.General
                 _logger?.Error(ex, $"Failed installing custom {(isFrame ? "frame" : "toast")} template.");
                 errors.Add(ex.Message);
             }
+        }
+
+        private bool IsFrameTabActive => FrameTabItem?.IsSelected == true;
+
+        private NotificationStylePresetInfo SelectedPreset =>
+            PresetSelector?.SelectedItem as NotificationStylePresetInfo;
+
+        /// <summary>
+        /// Repopulates the preset dropdown with the active surface tab's saved presets behind a
+        /// "None" placeholder, selecting <paramref name="selectName"/> when given (e.g. right
+        /// after saving) and the placeholder otherwise.
+        /// </summary>
+        private void RefreshPresetOptions(string selectName = null)
+        {
+            var store = _plugin?.NotificationStylePresetStore;
+            if (PresetSelector == null || store == null)
+            {
+                return;
+            }
+
+            var items = new List<object> { L("LOCPlayAch_Common_None") };
+            try
+            {
+                items.AddRange(store.ListPresets(IsFrameTabActive));
+            }
+            catch (Exception ex)
+            {
+                _logger?.Warn(ex, "Failed listing notification appearance presets.");
+            }
+
+            PresetSelector.ItemsSource = items;
+            PresetSelector.SelectedItem = string.IsNullOrWhiteSpace(selectName)
+                ? items[0]
+                : items.OfType<NotificationStylePresetInfo>().FirstOrDefault(preset =>
+                      string.Equals(preset.Name, selectName, StringComparison.OrdinalIgnoreCase)) ??
+                  items[0];
+            RefreshPresetButtons();
+        }
+
+        private void RefreshPresetButtons()
+        {
+            if (ApplyPresetButton == null || DeletePresetButton == null)
+            {
+                return;
+            }
+
+            ApplyPresetButton.IsEnabled = DeletePresetButton.IsEnabled = SelectedPreset != null;
+        }
+
+        private void SurfaceTabs_SelectionChanged(object sender, SelectionChangedEventArgs e)
+        {
+            // SelectionChanged bubbles up from ComboBoxes inside the tabs; only a tab switch
+            // should swap the preset list.
+            if (!ReferenceEquals(e.OriginalSource, SurfaceTabs))
+            {
+                return;
+            }
+
+            RefreshPresetOptions();
+        }
+
+        private void PresetSelector_SelectionChanged(object sender, SelectionChangedEventArgs e)
+        {
+            RefreshPresetButtons();
+        }
+
+        /// <summary>
+        /// Saves the active surface tab's appearance as a named preset: the surface style, its
+        /// images (toast only), and the current scope's custom template when one is installed.
+        /// Debounced edits are flushed first so the preset matches what the editors show.
+        /// </summary>
+        private void SavePreset_Click(object sender, RoutedEventArgs e)
+        {
+            var style = _currentStyle;
+            var store = _plugin?.NotificationStylePresetStore;
+            if (style == null || store == null)
+            {
+                return;
+            }
+
+            try
+            {
+                _toastEditorViewModel?.FlushPendingPersist();
+                _frameEditorViewModel?.FlushPendingPersist();
+
+                var isFrame = IsFrameTabActive;
+                if (!TryPromptPresetName(SelectedPreset?.Name, out var name))
+                {
+                    return;
+                }
+
+                var exists = store.PresetExists(isFrame, name);
+                if (!exists &&
+                    store.CountPresets(isFrame) >= NotificationStylePresetStore.MaxPresetCount)
+                {
+                    _plugin.PlayniteApi?.Dialogs?.ShowMessage(
+                        string.Format(
+                            L("LOCPlayAch_CustomRefresh_Presets_MaxReached"),
+                            NotificationStylePresetStore.MaxPresetCount),
+                        L("LOCPlayAch_Title_PluginName"),
+                        MessageBoxButton.OK,
+                        MessageBoxImage.Warning);
+                    return;
+                }
+
+                if (exists &&
+                    !Confirm(string.Format(L("LOCPlayAch_CustomRefresh_Presets_OverwriteConfirm"), name)))
+                {
+                    return;
+                }
+
+                var templateXaml = _toastTemplateResolver?.ReadCustomTemplateXaml(
+                    isFrame, ScopeProviderKey, ScopeGameId);
+                store.SavePreset(isFrame, name, style, templateXaml);
+                RefreshPresetOptions(selectName: name);
+            }
+            catch (Exception ex)
+            {
+                _logger?.Error(ex, "Failed saving notification appearance preset.");
+                _plugin.PlayniteApi?.Dialogs?.ShowMessage(
+                    string.Format(L("LOCPlayAch_Status_Failed"), ex.Message),
+                    L("LOCPlayAch_Title_PluginName"),
+                    MessageBoxButton.OK,
+                    MessageBoxImage.Error);
+            }
+        }
+
+        private bool TryPromptPresetName(string defaultName, out string presetName)
+        {
+            presetName = null;
+
+            var inputDialog = new TextInputDialog(
+                L("LOCPlayAch_CustomRefresh_Presets_NameDialogHint"),
+                defaultName ?? string.Empty);
+
+            var window = PlayniteUiProvider.CreateExtensionWindow(
+                L("LOCPlayAch_Settings_Style_Presets_NameDialogTitle"),
+                inputDialog,
+                new WindowOptions
+                {
+                    ShowMinimizeButton = false,
+                    ShowMaximizeButton = false,
+                    ShowCloseButton = true,
+                    CanBeResizable = false,
+                    Width = 460,
+                    Height = 200
+                });
+
+            try
+            {
+                if (window.Owner == null)
+                {
+                    window.Owner = _plugin.PlayniteApi?.Dialogs?.GetCurrentAppWindow();
+                }
+            }
+            catch
+            {
+            }
+
+            inputDialog.RequestClose += (s, e) => window.Close();
+            window.ShowDialog();
+
+            if (inputDialog.DialogResult != true)
+            {
+                return false;
+            }
+
+            var sanitized = NotificationStylePresetStore.SanitizeName(inputDialog.InputText);
+            if (string.IsNullOrWhiteSpace(sanitized))
+            {
+                _plugin.PlayniteApi?.Dialogs?.ShowMessage(
+                    string.Format(
+                        L("LOCPlayAch_CustomRefresh_Presets_NameInvalid"),
+                        NotificationStylePresetStore.MaxNameLength),
+                    L("LOCPlayAch_Title_PluginName"),
+                    MessageBoxButton.OK,
+                    MessageBoxImage.Warning);
+                return false;
+            }
+
+            presetName = sanitized;
+            return true;
+        }
+
+        /// <summary>
+        /// Applies the selected preset to the current platform/game selection, replacing only
+        /// the preset's surface: its style, its images (toast only), and its custom template.
+        /// A preset saved without a template removes the target scope's template so the applied
+        /// look always matches what was saved.
+        /// </summary>
+        private async void ApplyPreset_Click(object sender, RoutedEventArgs e)
+        {
+            var preset = SelectedPreset;
+            var persisted = _settings?.Persisted;
+            var store = _plugin?.NotificationStylePresetStore;
+            var style = _currentStyle;
+            if (preset == null || persisted == null || store == null || style == null)
+            {
+                return;
+            }
+
+            try
+            {
+                var isFrame = preset.IsFrame;
+                var confirmKey = isFrame
+                    ? "LOCPlayAch_Settings_Style_Presets_ApplyConfirmFrame"
+                    : "LOCPlayAch_Settings_Style_Presets_ApplyConfirmToast";
+                if (!Confirm(string.Format(L(confirmKey), preset.Name)))
+                {
+                    return;
+                }
+
+                _toastEditorViewModel?.FlushPendingPersist();
+                _frameEditorViewModel?.FlushPendingPersist();
+
+                var providerKey = _selectedProviderKey;
+                var owner = IsGameMode
+                    ? NotificationImageOwner.ForGame(_gameId)
+                    : NotificationImageOwner.ForProvider(providerKey);
+
+                // The merge base keeps the untouched surface intact. When the target scope is
+                // still following an inherited style, snapshot the inherited images into the
+                // scope first so the new copy never references another owner's slot files.
+                var merged = style.Clone();
+                if (!IsGameMode && providerKey != null &&
+                    persisted.GetProviderNotificationStyle(providerKey) == null)
+                {
+                    await _plugin.NotificationImageStore.CopyImagesForProviderAsync(
+                        merged, providerKey, CancellationToken.None);
+                }
+                else if (IsGameMode && CustomizeGameCheckBox?.IsChecked != true)
+                {
+                    await _plugin.NotificationImageStore.CopyImagesForGameAsync(
+                        merged, _gameId, CancellationToken.None);
+                }
+
+                var imported = await store.LoadPresetStyleAsync(preset, owner, CancellationToken.None);
+                if (imported == null)
+                {
+                    throw new InvalidOperationException("Preset notification style was empty.");
+                }
+
+                if (isFrame)
+                {
+                    merged.Frame = imported.Frame;
+                }
+                else
+                {
+                    merged.Toast = imported.Toast;
+                    merged.ToastBackgroundImagePath = imported.ToastBackgroundImagePath;
+                    merged.BadgeImages = imported.BadgeImages;
+                    merged.HeaderTexts = imported.HeaderTexts;
+                }
+
+                ApplyImportedStyle(persisted, providerKey, merged);
+
+                if (!IsGameMode)
+                {
+                    _plugin.PersistSettingsForUi();
+                }
+
+                // Drop slot files the replaced style no longer references.
+                _plugin.NotificationImageStore.PruneOrphans(
+                    persisted,
+                    _plugin.GameCustomDataStore?.LoadAll());
+
+                var templateErrors = new List<string>();
+                try
+                {
+                    var xaml = store.ReadPresetTemplateXaml(preset);
+                    if (!string.IsNullOrWhiteSpace(xaml))
+                    {
+                        _toastTemplateResolver.SaveCustomTemplate(
+                            isFrame, xaml, ScopeProviderKey, ScopeGameId);
+                    }
+                    else if (_toastTemplateResolver.HasCustomTemplate(
+                                 isFrame, ScopeProviderKey, ScopeGameId))
+                    {
+                        _toastTemplateResolver.DeleteCustomTemplate(
+                            isFrame, ScopeProviderKey, ScopeGameId);
+                    }
+                }
+                catch (Exception ex)
+                {
+                    _logger?.Error(ex, $"Failed applying preset {(isFrame ? "frame" : "toast")} template.");
+                    templateErrors.Add(ex.Message);
+                }
+
+                ApplySelection();
+                UpdateMockups();
+
+                if (templateErrors.Count > 0)
+                {
+                    _plugin.PlayniteApi?.Dialogs?.ShowMessage(
+                        string.Format(L("LOCPlayAch_Status_Failed"), string.Join("\n", templateErrors)),
+                        L("LOCPlayAch_Title_PluginName"),
+                        MessageBoxButton.OK,
+                        MessageBoxImage.Warning);
+                }
+            }
+            catch (Exception ex)
+            {
+                _logger?.Error(ex, "Failed applying notification appearance preset.");
+                _plugin.PlayniteApi?.Dialogs?.ShowMessage(
+                    string.Format(L("LOCPlayAch_Status_Failed"), ex.Message),
+                    L("LOCPlayAch_Title_PluginName"),
+                    MessageBoxButton.OK,
+                    MessageBoxImage.Error);
+            }
+        }
+
+        private void DeletePreset_Click(object sender, RoutedEventArgs e)
+        {
+            var preset = SelectedPreset;
+            var store = _plugin?.NotificationStylePresetStore;
+            if (preset == null || store == null)
+            {
+                return;
+            }
+
+            if (!Confirm(string.Format(L("LOCPlayAch_CustomRefresh_Presets_DeleteConfirm"), preset.Name)))
+            {
+                return;
+            }
+
+            try
+            {
+                store.DeletePreset(preset);
+            }
+            catch (Exception ex)
+            {
+                _logger?.Error(ex, "Failed deleting notification appearance preset.");
+                _plugin.PlayniteApi?.Dialogs?.ShowMessage(
+                    string.Format(L("LOCPlayAch_Status_Failed"), ex.Message),
+                    L("LOCPlayAch_Title_PluginName"),
+                    MessageBoxButton.OK,
+                    MessageBoxImage.Error);
+            }
+
+            RefreshPresetOptions();
         }
 
         private void ExportDefaultToastTemplate_Click(object sender, RoutedEventArgs e)
