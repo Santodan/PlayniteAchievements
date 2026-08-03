@@ -125,12 +125,16 @@ namespace PlayniteAchievements.Views.Controls
 
             menu.Items.Clear();
             var itemStyle = button.TryFindResource("AchievementMultiSelectMenuItemStyle") as Style;
+            // Only reserve the marker gutter when at least one option is actually marked; with none
+            // marked the dropdown drops the gutter entirely and labels sit flush left.
+            var showMarkerGutter = filter.HasMarker &&
+                (filter.Options?.Any(value => !string.IsNullOrWhiteSpace(value) && filter.IsMarked(value)) ?? false);
             foreach (var option in filter.Options?.Where(value => !string.IsNullOrWhiteSpace(value)) ?? Enumerable.Empty<string>())
             {
                 var value = option;
                 var item = new MenuItem
                 {
-                    Header = BuildMultiSelectHeader(filter, value),
+                    Header = BuildMultiSelectHeader(filter, value, showMarkerGutter),
                     IsCheckable = true,
                     StaysOpenOnClick = true,
                     IsChecked = filter.IsSelected(value),
@@ -164,11 +168,12 @@ namespace PlayniteAchievements.Views.Controls
 
         // Plain string header for ordinary dropdowns; for a marker-aware filter (e.g. the friend
         // Compare dropdown) render a fixed-width star gutter before the label so marked options show
-        // a star while every label stays aligned (unmarked options keep a transparent star).
-        private static object BuildMultiSelectHeader(GridMultiSelectFilter filter, string value)
+        // a star while every label stays aligned (unmarked options keep a transparent star). The
+        // gutter is only shown when the dropdown has at least one marked option.
+        private static object BuildMultiSelectHeader(GridMultiSelectFilter filter, string value, bool showMarkerGutter)
         {
             var label = filter.GetDisplayLabel(value);
-            if (!filter.HasMarker)
+            if (!showMarkerGutter)
             {
                 return label;
             }
