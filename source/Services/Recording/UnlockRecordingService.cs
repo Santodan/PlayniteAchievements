@@ -1286,7 +1286,9 @@ namespace PlayniteAchievements.Services.Recording
                     session.BufferDirectory,
                     RecordingCommandBuilder.SegmentFilePrefix,
                     session.SegmentExtension),
-                TimeZoneInfo.Local);
+                TimeZoneInfo.Local,
+                RecordingCommandBuilder.SegmentFilePrefix,
+                session.SegmentExtension);
             var plan = SegmentTimeline.PlanClip(segments, windowStart, windowEnd, SegmentSeconds);
             if (plan == null)
             {
@@ -1623,7 +1625,9 @@ namespace PlayniteAchievements.Services.Recording
                         session.BufferDirectory,
                         RecordingCommandBuilder.SegmentFilePrefix,
                         session.SegmentExtension),
-                    TimeZoneInfo.Local);
+                    TimeZoneInfo.Local,
+                    RecordingCommandBuilder.SegmentFilePrefix,
+                    session.SegmentExtension);
                 LogCaptureHealth(session, segments);
                 foreach (var segment in SegmentTimeline.SelectPrunable(
                              segments, retentionInterval, preRoll, SegmentSeconds, MaxBufferBytes))
