@@ -48,6 +48,49 @@ namespace PlayniteAchievements.Views.Dialogs
         /// <summary>Stops playback and releases the media file handle. Call from the window's Closed.</summary>
         public void StopMedia() => StopVideo();
 
+        private void FullscreenButton_Click(object sender, RoutedEventArgs e)
+        {
+            e.Handled = true;
+
+            var isVideo = _vm.IsVideo;
+            var path = isVideo ? _vm.CurrentVideoPath : _vm.CurrentImagePath;
+            if (string.IsNullOrEmpty(path))
+            {
+                return;
+            }
+
+            // Pause the inline player so audio doesn't double up while the lightbox plays.
+            if (isVideo && _isPlaying)
+            {
+                VideoPlayer?.Pause();
+                _isPlaying = false;
+                UpdatePlayPauseGlyph();
+            }
+
+            var content = new FullscreenMediaViewer(path, isVideo);
+            var window = new Window
+            {
+                WindowStyle = WindowStyle.None,
+                ResizeMode = ResizeMode.NoResize,
+                WindowStartupLocation = WindowStartupLocation.CenterOwner,
+                Background = System.Windows.Media.Brushes.Black,
+                ShowInTaskbar = false,
+                Owner = Window.GetWindow(this),
+                Content = content
+            };
+            content.RequestClose += (_, __) => window.Close();
+            window.Loaded += (_, __) => window.WindowState = WindowState.Maximized;
+            window.PreviewKeyDown += (s, args) =>
+            {
+                if (args.Key == Key.Escape)
+                {
+                    window.Close();
+                    args.Handled = true;
+                }
+            };
+            window.ShowDialog();
+        }
+
         private void ViewModel_PropertyChanged(object sender, PropertyChangedEventArgs e)
         {
             if (e.PropertyName == nameof(CaptureGalleryViewModel.Current) ||
