@@ -61,9 +61,11 @@ namespace PlayniteAchievements.Services.Notifications
         public const string ToastTemplateEntryName = "template-toast.xaml";
         public const string FrameTemplateEntryName = "template-frame.xaml";
 
-        // v2 added the optional template-toast.xaml / template-frame.xaml entries. The Kind
-        // discriminator is unchanged, so older readers still validate and simply ignore templates.
-        public const int CurrentVersion = 2;
+        // v2 added the optional template-toast.xaml / template-frame.xaml entries. v3 made badge
+        // images and header texts per-surface (toast keeps the legacy entry stems, the frame gets
+        // frame_badge_* entries) with no backwards compatibility for the old shared shape. The
+        // Kind discriminator is unchanged.
+        public const int CurrentVersion = 3;
 
         private const string ImagesFolderName = "images";
 
@@ -82,28 +84,53 @@ namespace PlayniteAchievements.Services.Notifications
             new ImageSlotBinding(
                 NotificationImageSlot.BadgeCommon,
                 "badge_common",
-                style => style.BadgeImages.CommonPath,
-                (style, path) => style.BadgeImages.CommonPath = path),
+                style => style.Toast.BadgeImages.CommonPath,
+                (style, path) => style.Toast.BadgeImages.CommonPath = path),
             new ImageSlotBinding(
                 NotificationImageSlot.BadgeUncommon,
                 "badge_uncommon",
-                style => style.BadgeImages.UncommonPath,
-                (style, path) => style.BadgeImages.UncommonPath = path),
+                style => style.Toast.BadgeImages.UncommonPath,
+                (style, path) => style.Toast.BadgeImages.UncommonPath = path),
             new ImageSlotBinding(
                 NotificationImageSlot.BadgeRare,
                 "badge_rare",
-                style => style.BadgeImages.RarePath,
-                (style, path) => style.BadgeImages.RarePath = path),
+                style => style.Toast.BadgeImages.RarePath,
+                (style, path) => style.Toast.BadgeImages.RarePath = path),
             new ImageSlotBinding(
                 NotificationImageSlot.BadgeUltraRare,
                 "badge_ultrarare",
-                style => style.BadgeImages.UltraRarePath,
-                (style, path) => style.BadgeImages.UltraRarePath = path),
+                style => style.Toast.BadgeImages.UltraRarePath,
+                (style, path) => style.Toast.BadgeImages.UltraRarePath = path),
             new ImageSlotBinding(
                 NotificationImageSlot.BadgeCompletion,
                 "badge_completion",
-                style => style.BadgeImages.CompletionPath,
-                (style, path) => style.BadgeImages.CompletionPath = path),
+                style => style.Toast.BadgeImages.CompletionPath,
+                (style, path) => style.Toast.BadgeImages.CompletionPath = path),
+            new ImageSlotBinding(
+                NotificationImageSlot.FrameBadgeCommon,
+                "frame_badge_common",
+                style => style.Frame.BadgeImages.CommonPath,
+                (style, path) => style.Frame.BadgeImages.CommonPath = path),
+            new ImageSlotBinding(
+                NotificationImageSlot.FrameBadgeUncommon,
+                "frame_badge_uncommon",
+                style => style.Frame.BadgeImages.UncommonPath,
+                (style, path) => style.Frame.BadgeImages.UncommonPath = path),
+            new ImageSlotBinding(
+                NotificationImageSlot.FrameBadgeRare,
+                "frame_badge_rare",
+                style => style.Frame.BadgeImages.RarePath,
+                (style, path) => style.Frame.BadgeImages.RarePath = path),
+            new ImageSlotBinding(
+                NotificationImageSlot.FrameBadgeUltraRare,
+                "frame_badge_ultrarare",
+                style => style.Frame.BadgeImages.UltraRarePath,
+                (style, path) => style.Frame.BadgeImages.UltraRarePath = path),
+            new ImageSlotBinding(
+                NotificationImageSlot.FrameBadgeCompletion,
+                "frame_badge_completion",
+                style => style.Frame.BadgeImages.CompletionPath,
+                (style, path) => style.Frame.BadgeImages.CompletionPath = path),
         };
 
         private readonly NotificationImageStore _imageStore;
