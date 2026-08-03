@@ -42,9 +42,9 @@ namespace PlayniteAchievements.Services.Tests
                 style.Toast.LineOrder = new List<string> { "Title", "Header" };
                 style.Toast.CardWidth = 500;
                 style.Toast.FontFamily = "Arial";
-                style.HeaderTexts.UnlockHeader = "Custom Unlock!";
+                style.Toast.HeaderTexts.UnlockHeader = "Custom Unlock!";
                 style.ToastBackgroundImagePath = backgroundSource;
-                style.BadgeImages.CommonPath = commonSource;
+                style.Toast.BadgeImages.CommonPath = commonSource;
 
                 var packagePath = Path.Combine(tempDir, "share.pastyle.zip");
                 store.ExportPackage(style, packagePath);
@@ -63,7 +63,7 @@ namespace PlayniteAchievements.Services.Tests
                         Assert.AreEqual(NotificationStylePortableFile.NotificationStyleKind, portable.Kind);
                         Assert.AreEqual(NotificationStylePortableStore.CurrentVersion, portable.Version);
                         Assert.AreEqual("images/background.png", portable.Style.ToastBackgroundImagePath);
-                        Assert.AreEqual("images/badge_common.png", portable.Style.BadgeImages.CommonPath);
+                        Assert.AreEqual("images/badge_common.png", portable.Style.Toast.BadgeImages.CommonPath);
                     }
                 }
 
@@ -76,14 +76,14 @@ namespace PlayniteAchievements.Services.Tests
                 CollectionAssert.AreEqual(new List<string> { "Title", "Header" }, imported.Toast.LineOrder);
                 Assert.AreEqual(500d, imported.Toast.CardWidth);
                 Assert.AreEqual("Arial", imported.Toast.FontFamily);
-                Assert.AreEqual("Custom Unlock!", imported.HeaderTexts.UnlockHeader);
+                Assert.AreEqual("Custom Unlock!", imported.Toast.HeaderTexts.UnlockHeader);
 
                 var expectedBackgroundSuffix = Path.Combine("notification_images", "global", "background.png");
                 var expectedCommonSuffix = Path.Combine("notification_images", "global", "badge_common.png");
                 Assert.IsTrue(imported.ToastBackgroundImagePath.EndsWith(expectedBackgroundSuffix, StringComparison.OrdinalIgnoreCase));
-                Assert.IsTrue(imported.BadgeImages.CommonPath.EndsWith(expectedCommonSuffix, StringComparison.OrdinalIgnoreCase));
+                Assert.IsTrue(imported.Toast.BadgeImages.CommonPath.EndsWith(expectedCommonSuffix, StringComparison.OrdinalIgnoreCase));
                 Assert.IsTrue(File.Exists(imported.ToastBackgroundImagePath));
-                Assert.IsTrue(File.Exists(imported.BadgeImages.CommonPath));
+                Assert.IsTrue(File.Exists(imported.Toast.BadgeImages.CommonPath));
             }
             finally
             {
@@ -152,7 +152,7 @@ namespace PlayniteAchievements.Services.Tests
                 var style = NotificationStyleSettings.CreateDefault();
                 style.Toast.ShowHeader = false;
                 style.Toast.TitleFontSize = 22;
-                style.HeaderTexts.CompletionHeader = "Done!";
+                style.Toast.HeaderTexts.CompletionHeader = "Done!";
 
                 var filePath = Path.Combine(tempDir, "share.pastyle");
                 store.ExportPa(style, filePath);
@@ -161,9 +161,9 @@ namespace PlayniteAchievements.Services.Tests
 
                 Assert.IsFalse(imported.Toast.ShowHeader);
                 Assert.AreEqual(22d, imported.Toast.TitleFontSize);
-                Assert.AreEqual("Done!", imported.HeaderTexts.CompletionHeader);
+                Assert.AreEqual("Done!", imported.Toast.HeaderTexts.CompletionHeader);
                 Assert.IsNull(imported.ToastBackgroundImagePath);
-                Assert.IsNull(imported.BadgeImages.CommonPath);
+                Assert.IsNull(imported.Toast.BadgeImages.CommonPath);
             }
             finally
             {

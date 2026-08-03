@@ -76,20 +76,20 @@ namespace PlayniteAchievements.Tests.Services
         {
             var service = new NotificationHeaderTextService(_tempDirectory);
             var settings = new PersistedSettings();
-            settings.NotificationStyle.HeaderTexts.UnlockHeader = "Erfolg freigeschaltet";
-            settings.NotificationStyle.HeaderTexts.FriendUnlockHeaderFormat = "{0} unlocked";
-            settings.NotificationStyle.HeaderTexts.CompletionHeader = "My own header";
-            settings.NotificationStyle.HeaderTexts.FriendCompletionHeaderFormat =
+            settings.NotificationStyle.Toast.HeaderTexts.UnlockHeader = "Erfolg freigeschaltet";
+            settings.NotificationStyle.Toast.HeaderTexts.FriendUnlockHeaderFormat = "{0} unlocked";
+            settings.NotificationStyle.Toast.HeaderTexts.CompletionHeader = "My own header";
+            settings.NotificationStyle.Toast.HeaderTexts.FriendCompletionHeaderFormat =
                 "{0} hat das Spiel abgeschlossen!";
 
             var changed = service.RelocalizeDefaultHeaderTexts(settings);
 
             Assert.IsTrue(changed);
-            Assert.IsNull(settings.NotificationStyle.HeaderTexts.UnlockHeader);
-            Assert.IsNull(settings.NotificationStyle.HeaderTexts.FriendUnlockHeaderFormat);
-            Assert.IsNull(settings.NotificationStyle.HeaderTexts.FriendCompletionHeaderFormat);
+            Assert.IsNull(settings.NotificationStyle.Toast.HeaderTexts.UnlockHeader);
+            Assert.IsNull(settings.NotificationStyle.Toast.HeaderTexts.FriendUnlockHeaderFormat);
+            Assert.IsNull(settings.NotificationStyle.Toast.HeaderTexts.FriendCompletionHeaderFormat);
             // User-customized text sticks.
-            Assert.AreEqual("My own header", settings.NotificationStyle.HeaderTexts.CompletionHeader);
+            Assert.AreEqual("My own header", settings.NotificationStyle.Toast.HeaderTexts.CompletionHeader);
         }
 
         [TestMethod]
@@ -98,16 +98,16 @@ namespace PlayniteAchievements.Tests.Services
             var service = new NotificationHeaderTextService(_tempDirectory);
             var settings = new PersistedSettings();
             var providerStyle = NotificationStyleSettings.CreateDefault();
-            providerStyle.HeaderTexts.UnlockHeader = "Achievement unlocked";
-            providerStyle.HeaderTexts.CompletionHeader = "Custom congrats";
+            providerStyle.Toast.HeaderTexts.UnlockHeader = "Achievement unlocked";
+            providerStyle.Toast.HeaderTexts.CompletionHeader = "Custom congrats";
             settings.SetProviderNotificationStyle("Steam", providerStyle);
 
             var changed = service.RelocalizeDefaultHeaderTexts(settings);
 
             Assert.IsTrue(changed);
             var stored = settings.GetProviderNotificationStyle("Steam");
-            Assert.IsNull(stored.HeaderTexts.UnlockHeader);
-            Assert.AreEqual("Custom congrats", stored.HeaderTexts.CompletionHeader);
+            Assert.IsNull(stored.Toast.HeaderTexts.UnlockHeader);
+            Assert.AreEqual("Custom congrats", stored.Toast.HeaderTexts.CompletionHeader);
         }
 
         [TestMethod]
@@ -115,11 +115,11 @@ namespace PlayniteAchievements.Tests.Services
         {
             var service = new NotificationHeaderTextService(_tempDirectory);
             var settings = new PersistedSettings();
-            settings.NotificationStyle.HeaderTexts.UnlockHeader = "Totally custom";
+            settings.NotificationStyle.Toast.HeaderTexts.UnlockHeader = "Totally custom";
 
             Assert.IsFalse(service.RelocalizeDefaultHeaderTexts(settings));
             Assert.IsFalse(service.RelocalizeDefaultHeaderTexts(null));
-            Assert.AreEqual("Totally custom", settings.NotificationStyle.HeaderTexts.UnlockHeader);
+            Assert.AreEqual("Totally custom", settings.NotificationStyle.Toast.HeaderTexts.UnlockHeader);
         }
     }
 }
