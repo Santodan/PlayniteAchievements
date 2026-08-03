@@ -1253,7 +1253,7 @@ namespace PlayniteAchievements.Views.Settings.General
                 {
                     _plugin.PlayniteApi?.Dialogs?.ShowMessage(
                         string.Format(
-                            L("LOCPlayAch_CustomRefresh_Presets_MaxReached"),
+                            L("LOCPlayAch_Presets_MaxReached"),
                             NotificationStylePresetStore.MaxPresetCount),
                         L("LOCPlayAch_Title_PluginName"),
                         MessageBoxButton.OK,
@@ -1262,7 +1262,7 @@ namespace PlayniteAchievements.Views.Settings.General
                 }
 
                 if (exists &&
-                    !Confirm(string.Format(L("LOCPlayAch_CustomRefresh_Presets_OverwriteConfirm"), name)))
+                    !Confirm(string.Format(L("LOCPlayAch_Presets_OverwriteConfirm"), name)))
                 {
                     return;
                 }
@@ -1288,11 +1288,11 @@ namespace PlayniteAchievements.Views.Settings.General
             presetName = null;
 
             var inputDialog = new TextInputDialog(
-                L("LOCPlayAch_CustomRefresh_Presets_NameDialogHint"),
+                L("LOCPlayAch_Presets_NameDialogHint"),
                 defaultName ?? string.Empty);
 
             var window = PlayniteUiProvider.CreateExtensionWindow(
-                L("LOCPlayAch_Settings_Style_Presets_NameDialogTitle"),
+                L("LOCPlayAch_Presets_NameDialogTitle"),
                 inputDialog,
                 new WindowOptions
                 {
@@ -1328,7 +1328,7 @@ namespace PlayniteAchievements.Views.Settings.General
             {
                 _plugin.PlayniteApi?.Dialogs?.ShowMessage(
                     string.Format(
-                        L("LOCPlayAch_CustomRefresh_Presets_NameInvalid"),
+                        L("LOCPlayAch_Presets_NameInvalid"),
                         NotificationStylePresetStore.MaxNameLength),
                     L("LOCPlayAch_Title_PluginName"),
                     MessageBoxButton.OK,
@@ -1360,10 +1360,7 @@ namespace PlayniteAchievements.Views.Settings.General
             try
             {
                 var isFrame = preset.IsFrame;
-                var confirmKey = isFrame
-                    ? "LOCPlayAch_Settings_Style_Presets_ApplyConfirmFrame"
-                    : "LOCPlayAch_Settings_Style_Presets_ApplyConfirmToast";
-                if (!Confirm(string.Format(L(confirmKey), preset.Name)))
+                if (!Confirm(string.Format(L("LOCPlayAch_Presets_ApplyConfirm"), preset.Name)))
                 {
                     return;
                 }
@@ -1476,7 +1473,7 @@ namespace PlayniteAchievements.Views.Settings.General
                 return;
             }
 
-            if (!Confirm(string.Format(L("LOCPlayAch_CustomRefresh_Presets_DeleteConfirm"), preset.Name)))
+            if (!Confirm(string.Format(L("LOCPlayAch_Presets_DeleteConfirm"), preset.Name)))
             {
                 return;
             }

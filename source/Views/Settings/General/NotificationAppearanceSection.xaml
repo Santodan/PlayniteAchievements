@@ -266,7 +266,7 @@
                                  appearance (including images and any custom template) under a name,
                                  or apply a saved preset to the current platform/game selection. The
                                  dropdown lists only presets for the active surface. -->
-                            <TextBlock Text="{DynamicResource LOCPlayAch_CustomRefresh_PresetsHeader}"
+                            <TextBlock Text="{DynamicResource LOCPlayAch_Presets_Header}"
                                        Style="{StaticResource SectionHeaderStyle}"
                                        Margin="0,14,0,0"/>
                             <WrapPanel Margin="0,8,0,0">
@@ -282,11 +282,11 @@
                                         Margin="0,0,8,0"/>
                                 <Button x:Name="SavePresetButton"
                                         Click="SavePreset_Click"
-                                        Content="{DynamicResource LOCPlayAch_Settings_Style_Presets_SaveButton}"
+                                        Content="{DynamicResource LOCPlayAch_Presets_Save}"
                                         Margin="0,0,8,0"/>
                                 <Button x:Name="DeletePresetButton"
                                         Click="DeletePreset_Click"
-                                        Content="{DynamicResource LOCPlayAch_CustomRefresh_Presets_Delete}"
+                                        Content="{DynamicResource LOCPlayAch_Button_Delete}"
                                         IsEnabled="False"/>
                             </WrapPanel>
                             <TextBlock Text="{DynamicResource LOCPlayAch_Settings_Style_Presets_Hint}"
