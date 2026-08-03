@@ -252,6 +252,14 @@ namespace PlayniteAchievements.ViewModels
             }
         }
 
+        /// <summary>
+        /// Fixed line-box height (DIPs), matching the description line's rhythm
+        /// (<see cref="ToastDescriptionLine.LineBoxHeight"/>), so the game/category row reserves the
+        /// same vertical leading as the other text lines instead of rendering cramped against the
+        /// line above it.
+        /// </summary>
+        public double LineBoxHeight => FontSize * 1.4;
+
         /// <summary>Collapses the row when neither the game name nor the category is shown.</summary>
         public bool HasGameCategoryContent => !string.IsNullOrEmpty(GameCategoryText);
 

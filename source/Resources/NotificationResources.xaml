@@ -246,6 +246,8 @@
                    FontFamily="{Binding FontFamily}"
                    TextWrapping="NoWrap"
                    TextTrimming="CharacterEllipsis"
+                   LineHeight="{Binding LineBoxHeight}"
+                   LineStackingStrategy="BlockLineHeight"
                    Effect="{StaticResource PlayAch.Effect.ContentShadow}"
                    Visibility="{Binding HasGameCategoryContent, Converter={StaticResource BooleanToVisibilityConverter}}"/>
     </DataTemplate>

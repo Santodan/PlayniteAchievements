@@ -1211,8 +1211,10 @@ namespace PlayniteAchievements.ViewModels.Settings
         /// discarding the user's style edits for that surface only. Replacing the surface object
         /// triggers the resubscribe, debounced persist, and mockup refresh through
         /// <see cref="OnStyleObjectPropertyChanged"/>; the surface-bound editor fields are
-        /// refreshed here so the controls show the default values. No-op when nothing is loaded
-        /// or the current selection is read-only.
+        /// refreshed here so the controls show the default values. On the toast surface (which
+        /// hosts the shared background and badge image groups) the user-supplied images are also
+        /// cleared and their files deleted, so a reset restores the true default look. No-op when
+        /// nothing is loaded or the current selection is read-only.
         /// </summary>
         public void ResetSurfaceToDefault()
         {
@@ -1228,6 +1230,22 @@ namespace PlayniteAchievements.ViewModels.Settings
             else
             {
                 _style.Toast = NotificationSurfaceStyle.CreateToastDefault();
+
+                // The background and badge images are shared style-level groups hosted by the
+                // toast editor; clearing them deletes the managed files and resets the paths.
+                ClearImage(NotificationImageSlot.Background);
+                ClearImage(NotificationImageSlot.BadgeCommon);
+                ClearImage(NotificationImageSlot.BadgeUncommon);
+                ClearImage(NotificationImageSlot.BadgeRare);
+                ClearImage(NotificationImageSlot.BadgeUltraRare);
+                ClearImage(NotificationImageSlot.BadgeCompletion);
+
+                // All custom notification strings (unlock header, completion header, and both
+                // friend format strings) are shared and edited on the toast tab; a fresh set
+                // restores the built-in localized defaults for every one (empty store = default).
+                _style.HeaderTexts = new NotificationHeaderTextSettings();
+                HasHeaderFormatError = false;
+                RefreshHeaderTexts();
             }
 
             SyncLineRows();
@@ -1242,6 +1260,9 @@ namespace PlayniteAchievements.ViewModels.Settings
             OnPropertyChanged(nameof(CountdownBarColorText));
             OnPropertyChanged(nameof(CountdownBarSwatch));
             OnPropertyChanged(nameof(TitleLineOffsetText));
+            OnPropertyChanged(nameof(HasBackgroundImage));
+            OnPropertyChanged(nameof(BackgroundImageDimensionsText));
+            OnPropertyChanged(nameof(BackgroundThumbnailUri));
         }
 
         /// <summary>
