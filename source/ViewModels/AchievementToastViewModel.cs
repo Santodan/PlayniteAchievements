@@ -673,13 +673,20 @@ namespace PlayniteAchievements.ViewModels
                 return null;
             }
 
-            // Blur widens linearly, but depth grows quadratically: under a widening blur a
-            // linear offset reads soft, so the top end needs the shadow to visibly detach
-            // (default 1px at the built-in strength, 4px at 2x, 16px at the maximum).
+            // Above the built-in strength, blur grows gently and caps at twice the default: a
+            // wide gaussian of a whole text line smears into a solid band that reads as a
+            // rectangle. Depth carries the extra strength instead (up to 6x the default), so
+            // the maximum reads as a dark, clearly offset shadow that still follows the glyphs.
+            var blur = strength <= 1.0
+                ? ContentShadowDefaultBlur * strength
+                : ContentShadowDefaultBlur * (1.0 + (strength - 1.0) / 3.0);
+            var depth = strength <= 1.0
+                ? ContentShadowDefaultDepth * strength
+                : ContentShadowDefaultDepth * (1.0 + (strength - 1.0) * (5.0 / 3.0));
             var effect = new DropShadowEffect
             {
-                BlurRadius = ContentShadowDefaultBlur * strength,
-                ShadowDepth = ContentShadowDefaultDepth * strength * strength,
+                BlurRadius = blur,
+                ShadowDepth = depth,
                 Direction = 315,
                 Color = Colors.Black,
                 Opacity = Math.Min(1.0, strength)
