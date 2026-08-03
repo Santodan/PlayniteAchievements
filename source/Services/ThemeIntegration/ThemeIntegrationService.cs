@@ -3867,7 +3867,13 @@ namespace PlayniteAchievements.Services.ThemeIntegration
             }
 
             source = ApplyDynamicFilterPredicates(source, viewState.FilterKey, FriendSummaryFilterPredicates);
-            return FriendSummarySortTable.Sort(source, viewState).ToList();
+            var sorted = FriendSummarySortTable.Sort(source, viewState).ToList();
+            // Pin favorites ahead of non-favorites while preserving the sorted order within each group
+            // (Where is stable), so favorites lead regardless of the theme's active sort key.
+            return sorted
+                .Where(friend => friend?.IsFavorite == true)
+                .Concat(sorted.Where(friend => friend?.IsFavorite != true))
+                .ToList();
         }
 
         private List<FriendGameSummaryItem> BuildDynamicFriendGameSummaries(
