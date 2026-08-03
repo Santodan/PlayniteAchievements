@@ -1239,6 +1239,13 @@ namespace PlayniteAchievements.ViewModels.Settings
                 ClearImage(NotificationImageSlot.BadgeRare);
                 ClearImage(NotificationImageSlot.BadgeUltraRare);
                 ClearImage(NotificationImageSlot.BadgeCompletion);
+
+                // All custom notification strings (unlock header, completion header, and both
+                // friend format strings) are shared and edited on the toast tab; a fresh set
+                // restores the built-in localized defaults for every one (empty store = default).
+                _style.HeaderTexts = new NotificationHeaderTextSettings();
+                HasHeaderFormatError = false;
+                RefreshHeaderTexts();
             }
 
             SyncLineRows();
