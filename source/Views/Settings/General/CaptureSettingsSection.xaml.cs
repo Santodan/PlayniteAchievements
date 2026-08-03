@@ -14,14 +14,14 @@ namespace PlayniteAchievements.Views.Settings.General
 {
     /// <summary>
     /// General settings: Screenshots and recordings section. Hosts the unlock screenshot
-    /// options (variants, per-variant rarity sets, suffixes, folder) and the ffmpeg-based unlock
-    /// recording options. DataContext (the settings object) is inherited from the settings view.
+    /// options (variants, per-variant rarity sets, suffixes, folder) and the unlock recording
+    /// options (WGC + Media Foundation capture). DataContext (the settings object) is inherited
+    /// from the settings view.
     /// </summary>
     public partial class CaptureSettingsSection : UserControl, IDisposable
     {
         private readonly PlayniteAchievementsSettings _settings;
         private readonly PlayniteAchievementsPlugin _plugin;
-        private readonly Services.Recording.FfmpegValidationService _ffmpegValidation;
         private readonly PersistedSettingsSubscription _persistedSubscription;
 
         // Rarity tiers in ascending order, paired with their display-label keys. Drives both the
@@ -47,7 +47,6 @@ namespace PlayniteAchievements.Views.Settings.General
         {
             _settings = settings ?? throw new ArgumentNullException(nameof(settings));
             _plugin = plugin ?? throw new ArgumentNullException(nameof(plugin));
-            _ffmpegValidation = new Services.Recording.FfmpegValidationService(logger);
 
             _persistedSubscription = new PersistedSettingsSubscription(
                 _settings,
@@ -276,101 +275,6 @@ namespace PlayniteAchievements.Views.Settings.General
             if (!string.IsNullOrWhiteSpace(selected))
             {
                 settings.UnlockRecordingDirectory = selected;
-            }
-        }
-
-        private void FfmpegPath_Browse_Click(object sender, RoutedEventArgs e)
-        {
-            var settings = _settings?.Persisted;
-            if (settings == null)
-            {
-                return;
-            }
-
-            var selected = _plugin?.PlayniteApi?.Dialogs?.SelectFile("ffmpeg|ffmpeg.exe|Executable|*.exe");
-            if (!string.IsNullOrWhiteSpace(selected))
-            {
-                settings.FfmpegPath = selected;
-            }
-        }
-
-        /// <summary>
-        /// Runs the ffmpeg validation (version + encoder probes + a 1s screen-capture smoke
-        /// test) and reports the outcome in the status line. The button is disabled while the
-        /// probes run; results are cached per path for the session.
-        /// </summary>
-        private async void FfmpegTest_Click(object sender, RoutedEventArgs e)
-        {
-            var path = _settings?.Persisted?.FfmpegPath;
-            if (_ffmpegValidation == null || FfmpegTestButton == null || FfmpegStatusText == null)
-            {
-                return;
-            }
-
-            FfmpegTestButton.IsEnabled = false;
-            try
-            {
-                var result = await _ffmpegValidation.ValidateAsync(path, runSmokeTest: true);
-                if (result?.IsValid == true)
-                {
-                    // List the encoders that actually encode, not the ones merely compiled into the
-                    // build: a present-but-driver-broken encoder is excluded here and called out below.
-                    FfmpegStatusText.Text = string.Format(
-                        ResourceProvider.GetString("LOCPlayAch_Settings_RecordingFfmpegValid"),
-                        result.Version,
-                        string.Join(", ", result.UsableEncoders));
-                    // Back to the muted style's own foreground for the success case.
-                    FfmpegStatusText.ClearValue(TextBlock.ForegroundProperty);
-
-                    // Report an encoder failure only when it affects the encoder that will actually
-                    // be used: the explicit choice, or (for Auto) whichever the runtime resolves to
-                    // from the driver-validated set. A failed encoder the user isn't using (e.g.
-                    // h264_amf on an NVIDIA-only box) is already excluded from UsableEncoders above
-                    // and otherwise stays silent.
-                    var selected = _settings?.Persisted?.RecordingEncoder ?? RecordingEncoder.Auto;
-                    var effective = selected == RecordingEncoder.Auto
-                        ? Services.Recording.RecordingCommandBuilder.DetectEncoderFamily(
-                            Services.Recording.RecordingCommandBuilder.BuildEncoderArguments(
-                                RecordingEncoder.Auto, result.UsableEncoders))
-                        : selected;
-                    var effectiveCodec = Services.Recording.RecordingCommandBuilder.EncoderCodec(effective);
-
-                    if (effectiveCodec != null && !result.CanEncode(effective))
-                    {
-                        var recommended = result.UsableEncoders.Count > 0
-                            ? result.UsableEncoders[0]
-                            : "libx264";
-                        FfmpegStatusText.Text = FfmpegStatusText.Text + "\n" + string.Format(
-                            ResourceProvider.GetString("LOCPlayAch_Settings_RecordingEncoderFailed"),
-                            effectiveCodec,
-                            recommended,
-                            result.EncodeError(effective));
-                        if (TryFindResource("PlayAch.Brush.ErrorText") is System.Windows.Media.Brush warnBrush)
-                        {
-                            FfmpegStatusText.Foreground = warnBrush;
-                        }
-                    }
-                }
-                else
-                {
-                    FfmpegStatusText.Text = string.Format(
-                        ResourceProvider.GetString("LOCPlayAch_Settings_RecordingFfmpegInvalid"),
-                        result?.Error ?? string.Empty);
-                    if (TryFindResource("PlayAch.Brush.ErrorText") is System.Windows.Media.Brush errorBrush)
-                    {
-                        FfmpegStatusText.Foreground = errorBrush;
-                    }
-                }
-
-                FfmpegStatusText.Visibility = Visibility.Visible;
-            }
-            catch (Exception)
-            {
-                // Validation never throws by design; guard the async-void boundary anyway.
-            }
-            finally
-            {
-                FfmpegTestButton.IsEnabled = true;
             }
         }
 

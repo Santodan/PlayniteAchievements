@@ -86,8 +86,8 @@ namespace PlayniteAchievements.Services.Recording
             string fileExtension = null)
         {
             startUtc = default;
-            var prefix = filePrefix ?? RecordingCommandBuilder.SegmentFilePrefix;
-            var extension = fileExtension ?? RecordingCommandBuilder.SegmentFileExtension;
+            var prefix = filePrefix ?? RecordingPaths.SegmentFilePrefix;
+            var extension = fileExtension ?? RecordingPaths.SegmentFileExtension;
             var name = Path.GetFileName(path ?? string.Empty);
             if (!name.StartsWith(prefix, StringComparison.OrdinalIgnoreCase) ||
                 !name.EndsWith(extension, StringComparison.OrdinalIgnoreCase))

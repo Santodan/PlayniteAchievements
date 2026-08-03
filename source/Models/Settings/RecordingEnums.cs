@@ -1,8 +1,8 @@
 namespace PlayniteAchievements.Models.Settings
 {
     /// <summary>
-    /// Output height of unlock recordings. Native keeps the captured monitor resolution;
-    /// the fixed options downscale (never upscale) via an ffmpeg scale filter.
+    /// Output height of unlock recordings. Native keeps the captured game-window resolution;
+    /// the fixed options downscale (never upscale) via a GPU scale pass at capture time.
     /// </summary>
     public enum RecordingResolution
     {
@@ -12,28 +12,14 @@ namespace PlayniteAchievements.Models.Settings
     }
 
     /// <summary>
-    /// H.264 encoder used for the rolling capture. Auto prefers hardware encoders
-    /// (NVENC &gt; QSV &gt; AMF) when the probed ffmpeg build supports them, else libx264.
+    /// Which audio is captured into unlock clips. FullSystem records the default render endpoint
+    /// (everything you hear); GameOnly records just the game process's audio via per-process
+    /// loopback (Windows 10 build 19041+, else it degrades to FullSystem). The microphone is a
+    /// separate opt-in mixed on top of either (see RecordingIncludeMicrophone).
     /// </summary>
-    public enum RecordingEncoder
+    public enum RecordingAudioSource
     {
-        Auto,
-        X264,
-        Nvenc,
-        Qsv,
-        Amf
-    }
-
-    /// <summary>
-    /// ffmpeg screen-capture input. Gdigrab works on every ffmpeg build but makes the visible
-    /// mouse cursor flicker while capturing (GDI BitBlt with CAPTUREBLT); Ddagrab (Desktop
-    /// Duplication, ffmpeg 5.0+) records the cursor without the flicker. Auto prefers Ddagrab
-    /// when the probed build supports it, falling back to Gdigrab.
-    /// </summary>
-    public enum RecordingCaptureBackend
-    {
-        Auto,
-        Gdigrab,
-        Ddagrab
+        FullSystem,
+        GameOnly
     }
 }

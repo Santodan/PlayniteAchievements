@@ -210,9 +210,9 @@ namespace PlayniteAchievements.Services.Recording
 
         private void OpenChunkLocked()
         {
-            var name = RecordingCommandBuilder.AudioChunkFilePrefix +
+            var name = RecordingPaths.AudioChunkFilePrefix +
                        DateTime.Now.ToString("yyyyMMdd-HHmmss", CultureInfo.InvariantCulture) +
-                       RecordingCommandBuilder.AudioChunkFileExtension;
+                       RecordingPaths.AudioChunkFileExtension;
             _writer = new WaveFileWriter(Path.Combine(_bufferDirectory, name), _capture.WaveFormat);
             _chunkBytesWritten = 0;
             _chunkClock = Stopwatch.StartNew();

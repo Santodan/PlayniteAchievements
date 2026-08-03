@@ -4,6 +4,8 @@ using System.IO;
 using System.Runtime.InteropServices;
 using System.Threading;
 using Playnite.SDK;
+using PlayniteAchievements.Models.Settings;
+using PlayniteAchievements.Services.Recording;
 using Windows.Foundation;
 using Windows.Graphics.Capture;
 using Windows.Graphics.DirectX;
@@ -27,11 +29,6 @@ namespace PlayniteAchievements.Services.Capture
     /// </summary>
     internal sealed class WgcVideoRecorder : IDisposable
     {
-        /// <summary>Segment filename pattern (local wall-clock), mirroring the ffmpeg capture's.</summary>
-        public const string SegmentFilePrefix = "seg_";
-
-        public const string SegmentFileExtension = ".mp4";
-
         private const string SegmentStrftime = "yyyyMMdd-HHmmss";
 
         // Resolves the game window to capture, re-checked each second so the recorder follows the
@@ -44,6 +41,7 @@ namespace PlayniteAchievements.Services.Capture
         private readonly string _bufferDirectory;
         private readonly int _fps;
         private readonly int _segmentSeconds;
+        private readonly RecordingResolution _resolution;
         private readonly ILogger _logger;
 
         private D3D11.Device _device;
@@ -58,6 +56,9 @@ namespace PlayniteAchievements.Services.Capture
 
         private D3D11.Texture2D _latest; // owned, BGRA, the most recent (tone-mapped) clean game frame
         private D3D11.Texture2D _composited; // owned, BGRA, scratch for game+toast when a toast is showing
+        private D3D11.Texture2D _scaled; // owned, BGRA, downscaled encode frame when a resolution cap applies
+        private FrameScaler _frameScaler;
+        private int _encW, _encH; // encoder (output) dimensions, after any resolution cap
         private MediaFoundationH264Encoder _encoder;
         private long _segmentFrameIndex;
         private long _lastSegmentPts100ns; // last PTS written in the current segment (strictly increasing)
@@ -69,14 +70,36 @@ namespace PlayniteAchievements.Services.Capture
         private volatile bool _running;
         private bool _disposed;
 
-        public WgcVideoRecorder(Func<IntPtr> resolveHwnd, string bufferDirectory, int fps, int segmentSeconds, ILogger logger)
+        public WgcVideoRecorder(
+            Func<IntPtr> resolveHwnd, string bufferDirectory, int fps, int segmentSeconds,
+            RecordingResolution resolution, ILogger logger)
         {
             _resolveHwnd = resolveHwnd;
             _bufferDirectory = bufferDirectory;
             _fps = Math.Max(1, fps);
             _segmentSeconds = Math.Max(1, segmentSeconds);
+            _resolution = resolution;
             _logger = logger;
             _frameDuration100ns = 10_000_000L / _fps;
+        }
+
+        // The encoded-frame size after the resolution cap: caps the height to 1080/720 (aspect
+        // preserving, even dimensions), never upscales; Native keeps the captured client size.
+        private void ComputeEncodeSize(int clientW, int clientH, out int width, out int height)
+        {
+            var cap = _resolution == RecordingResolution.P1080 ? 1080
+                : _resolution == RecordingResolution.P720 ? 720
+                : 0;
+            if (cap <= 0 || clientH <= cap)
+            {
+                width = Math.Max(2, clientW & ~1);
+                height = Math.Max(2, clientH & ~1);
+                return;
+            }
+
+            height = cap;
+            width = Math.Max(2, (int)Math.Round(clientW * (cap / (double)clientH)) & ~1);
+            height &= ~1;
         }
 
         // Target H.264 bitrate from the actual capture resolution and fps (~0.12 bits/pixel/frame):
@@ -380,7 +403,7 @@ namespace PlayniteAchievements.Services.Capture
                     out var clientX, out var clientY, out var clientW, out var clientH, out _) ||
                 overlayBgra == null || ow <= 0 || oh <= 0 || clientW <= 0 || clientH <= 0)
             {
-                return _latest;
+                return ScaleForEncode(_latest);
             }
 
             EnsureComposited(_latest.Description.Width, _latest.Description.Height);
@@ -401,7 +424,51 @@ namespace PlayniteAchievements.Services.Capture
             }
 
             _overlayBlitter.Blit(_composited, overlayBgra, ow, oh, destX, destY, destW, destH);
-            return _composited;
+            return ScaleForEncode(_composited);
+        }
+
+        /// <summary>
+        /// Returns <paramref name="src"/> unchanged when it already matches the encoder size, else a
+        /// GPU downscale of it to the resolution-capped encoder dimensions.
+        /// </summary>
+        private D3D11.Texture2D ScaleForEncode(D3D11.Texture2D src)
+        {
+            if (src == null || (src.Description.Width == _encW && src.Description.Height == _encH))
+            {
+                return src;
+            }
+
+            EnsureScaled(_encW, _encH);
+            if (_frameScaler == null)
+            {
+                _frameScaler = new FrameScaler(_device);
+            }
+
+            _frameScaler.Scale(src, _scaled);
+            return _scaled;
+        }
+
+        private void EnsureScaled(int width, int height)
+        {
+            if (_scaled != null && _scaled.Description.Width == width && _scaled.Description.Height == height)
+            {
+                return;
+            }
+
+            _scaled?.Dispose();
+            _scaled = new D3D11.Texture2D(_device, new D3D11.Texture2DDescription
+            {
+                Width = width,
+                Height = height,
+                MipLevels = 1,
+                ArraySize = 1,
+                Format = DXGI.Format.B8G8R8A8_UNorm,
+                SampleDescription = new DXGI.SampleDescription(1, 0),
+                Usage = D3D11.ResourceUsage.Default,
+                BindFlags = D3D11.BindFlags.RenderTarget | D3D11.BindFlags.ShaderResource,
+                CpuAccessFlags = D3D11.CpuAccessFlags.None,
+                OptionFlags = D3D11.ResourceOptionFlags.None,
+            });
         }
 
         private void EnsureComposited(int width, int height)
@@ -459,18 +526,21 @@ namespace PlayniteAchievements.Services.Capture
                 return;
             }
 
-            var name = SegmentFilePrefix + DateTime.Now.ToString(SegmentStrftime, CultureInfo.InvariantCulture) + SegmentFileExtension;
+            // Encode at the resolution-capped size; frames are downscaled from the captured client
+            // size in ComposeFrame when a cap applies.
+            ComputeEncodeSize(_latest.Description.Width, _latest.Description.Height, out _encW, out _encH);
+
+            var name = RecordingPaths.SegmentFilePrefix + DateTime.Now.ToString(SegmentStrftime, CultureInfo.InvariantCulture) + RecordingPaths.SegmentFileExtension;
             var path = EnsureUniqueSegment(Path.Combine(_bufferDirectory, name));
             _encoder = new MediaFoundationH264Encoder(
-                _device, path, _latest.Description.Width, _latest.Description.Height, _fps,
-                ComputeBitrate(_latest.Description.Width, _latest.Description.Height));
+                _device, path, _encW, _encH, _fps, ComputeBitrate(_encW, _encH));
             _segmentFrameIndex = 0;
             _lastSegmentPts100ns = 0;
             _segmentStartUtc = DateTime.UtcNow;
             _segmentCount++;
             if (_segmentCount <= 2 || _segmentCount % 12 == 0)
             {
-                _logger?.Debug($"[Recording] WGC-MF segment #{_segmentCount} started ({Path.GetFileName(path)}, {_latest.Description.Width}x{_latest.Description.Height}).");
+                _logger?.Debug($"[Recording] WGC-MF segment #{_segmentCount} started ({Path.GetFileName(path)}, {_encW}x{_encH}).");
             }
         }
 
@@ -563,6 +633,8 @@ namespace PlayniteAchievements.Services.Capture
             FinalizeSegment();
             _latest?.Dispose();
             _composited?.Dispose();
+            _scaled?.Dispose();
+            _frameScaler?.Dispose();
             _overlayBlitter?.Dispose();
             _toneMapper?.Dispose();
             _session?.Dispose();

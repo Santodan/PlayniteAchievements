@@ -400,8 +400,8 @@
     <Compile Include="..\..\source\Services\ThemeMigration\ThemeMigrationResult.cs" Link="Source\Services\ThemeMigration\ThemeMigrationResult.cs" />
     <Compile Include="..\..\source\Services\ThemeMigration\ThemeMigrationService.cs" Link="Source\Services\ThemeMigration\ThemeMigrationService.cs" />
     <Compile Include="..\..\source\Services\ThemeMigration\ThemeYamlVersionReader.cs" Link="Source\Services\ThemeMigration\ThemeYamlVersionReader.cs" />
-    <Compile Include="..\..\source\Services\Recording\RecordingCommandBuilder.cs" Link="Source\Services\Recording\RecordingCommandBuilder.cs" />
     <Compile Include="..\..\source\Services\Recording\SegmentTimeline.cs" Link="Source\Services\Recording\SegmentTimeline.cs" />
+    <Compile Include="..\..\source\Services\Recording\RecordingPaths.cs" Link="Source\Services\Recording\RecordingPaths.cs" />
     <Compile Include="..\..\source\Services\UI\AchievementHotkeyTargetResolver.cs" Link="Source\Services\UI\AchievementHotkeyTargetResolver.cs" />
     <Compile Include="..\..\source\Services\UI\AchievementToastTemplateResolver.cs" Link="Source\Services\UI\AchievementToastTemplateResolver.cs" />
     <Compile Include="..\..\source\Services\UI\PlayAchResourceService.cs" Link="Source\Services\UI\PlayAchResourceService.cs" />

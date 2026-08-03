@@ -122,14 +122,13 @@ namespace PlayniteAchievements.Models.Settings
             target.UnlockScreenshotFramedRarities = source.UnlockScreenshotFramedRarities;
             target.UnlockScreenshotFramedAlwaysCaptureCompletion = source.UnlockScreenshotFramedAlwaysCaptureCompletion;
             target.EnableUnlockRecordings = source.EnableUnlockRecordings;
-            target.FfmpegPath = source.FfmpegPath;
             target.UnlockRecordingDirectory = source.UnlockRecordingDirectory;
             target.RecordingClipSeconds = source.RecordingClipSeconds;
             target.RecordingFps = source.RecordingFps;
             target.RecordingResolution = source.RecordingResolution;
-            target.RecordingEncoder = source.RecordingEncoder;
-            target.RecordingCaptureBackend = source.RecordingCaptureBackend;
             target.RecordingIncludeAudio = source.RecordingIncludeAudio;
+            target.RecordingAudioSource = source.RecordingAudioSource;
+            target.RecordingIncludeMicrophone = source.RecordingIncludeMicrophone;
             target.UnlockRecordingRarities = source.UnlockRecordingRarities;
             target.UnlockRecordingAlwaysCaptureCompletion = source.UnlockRecordingAlwaysCaptureCompletion;
             target.ProviderNotificationOverrides = source.ProviderNotificationOverrides != null

@@ -201,8 +201,8 @@
                     </StackPanel>
                 </Border>
 
-                <!-- Unlock recordings: rolling ffmpeg screen capture + per-unlock clip export.
-                     ffmpeg is user-supplied (path + Test button); the plugin never downloads it. -->
+                <!-- Unlock recordings: in-process Windows.Graphics.Capture + Media Foundation
+                     rolling capture and per-unlock clip export. No external tools. -->
                 <Border Style="{StaticResource SectionBorderStyle}">
                     <StackPanel>
                         <TextBlock Text="{DynamicResource LOCPlayAch_Settings_RecordingsHeader}"
@@ -244,34 +244,6 @@
                                       IsChecked="{Binding Persisted.UnlockRecordingAlwaysCaptureCompletion}"
                                       Margin="0,0,0,10"/>
 
-                            <TextBlock Text="{DynamicResource LOCPlayAch_Settings_RecordingFfmpegPath}"
-                                       Foreground="{DynamicResource PlayAch.Brush.Text}"
-                                       Margin="0,0,0,4"/>
-                            <Grid>
-                                <Grid.ColumnDefinitions>
-                                    <ColumnDefinition Width="*"/>
-                                    <ColumnDefinition Width="Auto"/>
-                                    <ColumnDefinition Width="Auto"/>
-                                </Grid.ColumnDefinitions>
-                                <TextBox Grid.Column="0"
-                                         Text="{Binding Persisted.FfmpegPath, UpdateSourceTrigger=PropertyChanged}"
-                                         VerticalAlignment="Center"/>
-                                <Button Grid.Column="1"
-                                        Content="{DynamicResource LOCPlayAch_Button_Browse}"
-                                        Click="FfmpegPath_Browse_Click"
-                                        Margin="8,0,0,0"/>
-                                <Button x:Name="FfmpegTestButton"
-                                        Grid.Column="2"
-                                        Content="{DynamicResource LOCPlayAch_Button_Test}"
-                                        Click="FfmpegTest_Click"
-                                        Margin="8,0,0,0"/>
-                            </Grid>
-                            <TextBlock x:Name="FfmpegStatusText"
-                                       Style="{StaticResource MutedTextStyle}"
-                                       TextWrapping="Wrap"
-                                       Visibility="Collapsed"
-                                       Margin="0,6,0,0"/>
-
                             <TextBlock Text="{DynamicResource LOCPlayAch_Settings_RecordingDirectory}"
                                        Foreground="{DynamicResource PlayAch.Brush.Text}"
                                        Margin="0,10,0,4"/>
@@ -299,8 +271,6 @@
                                     <ColumnDefinition Width="Auto"/>
                                 </Grid.ColumnDefinitions>
                                 <Grid.RowDefinitions>
-                                    <RowDefinition Height="Auto"/>
-                                    <RowDefinition Height="Auto"/>
                                     <RowDefinition Height="Auto"/>
                                     <RowDefinition Height="Auto"/>
                                     <RowDefinition Height="Auto"/>
@@ -342,42 +312,36 @@
                                     <ComboBoxItem Content="1080p" Tag="{x:Static settings:RecordingResolution.P1080}"/>
                                     <ComboBoxItem Content="720p" Tag="{x:Static settings:RecordingResolution.P720}"/>
                                 </ComboBox>
-
-                                <TextBlock Grid.Row="3" Grid.Column="0"
-                                           Text="{DynamicResource LOCPlayAch_Settings_RecordingEncoder}"
-                                           Foreground="{DynamicResource PlayAch.Brush.Text}"
-                                           VerticalAlignment="Center"
-                                           Margin="0,0,8,8"/>
-                                <ComboBox Grid.Row="3" Grid.Column="1"
-                                          SelectedValue="{Binding Persisted.RecordingEncoder, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
-                                          SelectedValuePath="Tag"
-                                          MinWidth="140"
-                                          Margin="0,0,0,8">
-                                    <ComboBoxItem Content="{DynamicResource LOCPlayAch_Settings_RecordingAuto}" Tag="{x:Static settings:RecordingEncoder.Auto}"/>
-                                    <ComboBoxItem Content="x264 (CPU)" Tag="{x:Static settings:RecordingEncoder.X264}"/>
-                                    <ComboBoxItem Content="NVENC (NVIDIA)" Tag="{x:Static settings:RecordingEncoder.Nvenc}"/>
-                                    <ComboBoxItem Content="Quick Sync (Intel)" Tag="{x:Static settings:RecordingEncoder.Qsv}"/>
-                                    <ComboBoxItem Content="AMF (AMD)" Tag="{x:Static settings:RecordingEncoder.Amf}"/>
-                                </ComboBox>
-
-                                <TextBlock Grid.Row="4" Grid.Column="0"
-                                           Text="{DynamicResource LOCPlayAch_Settings_RecordingCaptureBackend}"
-                                           Foreground="{DynamicResource PlayAch.Brush.Text}"
-                                           VerticalAlignment="Center"
-                                           Margin="0,0,8,8"/>
-                                <ComboBox Grid.Row="4" Grid.Column="1"
-                                          SelectedValue="{Binding Persisted.RecordingCaptureBackend, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
-                                          SelectedValuePath="Tag"
-                                          MinWidth="140"
-                                          Margin="0,0,0,8">
-                                    <ComboBoxItem Content="{DynamicResource LOCPlayAch_Settings_RecordingAuto}" Tag="{x:Static settings:RecordingCaptureBackend.Auto}"/>
-                                    <ComboBoxItem Content="GDI (gdigrab)" Tag="{x:Static settings:RecordingCaptureBackend.Gdigrab}"/>
-                                    <ComboBoxItem Content="DirectX (ddagrab)" Tag="{x:Static settings:RecordingCaptureBackend.Ddagrab}"/>
-                                </ComboBox>
                             </Grid>
+
                             <CheckBox Content="{DynamicResource LOCPlayAch_Settings_RecordingIncludeAudio}"
                                       IsChecked="{Binding Persisted.RecordingIncludeAudio}"
                                       Margin="0,10,0,0"/>
+                            <StackPanel Margin="18,6,0,0"
+                                        IsEnabled="{Binding Persisted.RecordingIncludeAudio}">
+                                <Grid>
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*"/>
+                                        <ColumnDefinition Width="Auto"/>
+                                    </Grid.ColumnDefinitions>
+                                    <TextBlock Grid.Column="0"
+                                               Text="{DynamicResource LOCPlayAch_Settings_RecordingAudioSource}"
+                                               Foreground="{DynamicResource PlayAch.Brush.Text}"
+                                               VerticalAlignment="Center"
+                                               Margin="0,0,8,0"/>
+                                    <ComboBox Grid.Column="1"
+                                              SelectedValue="{Binding Persisted.RecordingAudioSource, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                              SelectedValuePath="Tag"
+                                              MinWidth="160"
+                                              HorizontalAlignment="Left">
+                                        <ComboBoxItem Content="{DynamicResource LOCPlayAch_Settings_RecordingAudioSourceFull}" Tag="{x:Static settings:RecordingAudioSource.FullSystem}"/>
+                                        <ComboBoxItem Content="{DynamicResource LOCPlayAch_Settings_RecordingAudioSourceGame}" Tag="{x:Static settings:RecordingAudioSource.GameOnly}"/>
+                                    </ComboBox>
+                                </Grid>
+                                <CheckBox Content="{DynamicResource LOCPlayAch_Settings_RecordingIncludeMicrophone}"
+                                          IsChecked="{Binding Persisted.RecordingIncludeMicrophone}"
+                                          Margin="0,8,0,0"/>
+                            </StackPanel>
                         </StackPanel>
                     </StackPanel>
                 </Border>

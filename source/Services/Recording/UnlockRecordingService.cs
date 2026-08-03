@@ -80,7 +80,6 @@ namespace PlayniteAchievements.Services.Recording
         // ownership switches when the user moves between running games.
         private readonly ActiveGameWindowTracker _windowTracker;
         private readonly UnlockScreenshotService _screenshotService;
-        private readonly FfmpegValidationService _validation;
 
         private readonly object _gate = new object();
         private readonly List<ClipRequest> _pending = new List<ClipRequest>();
@@ -93,7 +92,6 @@ namespace PlayniteAchievements.Services.Recording
         private readonly HashSet<string> _liveBufferDirs = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
 
         private CaptureSession _session;
-        private WindowsJobObject _jobObject;
         private bool _sessionNotified;
         private bool _disposed;
         // Last time any toast wave went on screen (guarded by _gate). Extends the toast-wait
@@ -119,7 +117,6 @@ namespace PlayniteAchievements.Services.Recording
             _isProviderRecordingEnabled = isProviderRecordingEnabled;
             _windowTracker = windowTracker;
             _screenshotService = new UnlockScreenshotService(logger);
-            _validation = new FfmpegValidationService(logger);
 
             PlayniteAchievementsPlugin.AchievementUnlocked += OnAchievementUnlocked;
             if (_toastNotifications != null)
@@ -136,48 +133,25 @@ namespace PlayniteAchievements.Services.Recording
         private sealed class CaptureSession
         {
             public string BufferDirectory;
-            public string FfmpegPath;
-            public string CaptureArguments;
-            public string EncoderArguments;
-            public RecordingCaptureBackend Backend;
-            /// <summary>True when Backend came from the Auto setting, allowing the ddagrab
-            /// crash path to downgrade to gdigrab instead of retrying an explicit choice.</summary>
-            public bool BackendAutoResolved;
-            /// <summary>The GPU-resident bridge this session captures through (ddagrab frames kept
-            /// on the GPU), or None for the hwdownload path. The crash path resets it to None to
-            /// fall back to the hwdownload ddagrab path before any ddagrab-&gt;gdigrab downgrade.</summary>
-            public RecordingCommandBuilder.GpuCaptureBridge GpuBridge;
-            public System.Drawing.Rectangle MonitorBounds;
             public Guid OwnerGameId;
             public string GameName;
             public DateTime CaptureStartUtc;
-            public FfmpegProcessHost CaptureHost;
-            // The WGC + Media Foundation capture engine, when that path is used instead of ffmpeg
-            // (occlusion-independent + HDR). Writes .mp4 segments the ffmpeg export/prune consume.
+            // The WGC + Media Foundation capture engine: occlusion-independent, HDR-correct,
+            // GPU-resident. Writes .mp4 segments the Media Foundation export/prune consume.
             public WgcVideoRecorder WgcRecorder;
-            // Segment file extension for this session's capture engine: .ts for ffmpeg, .mp4 for
-            // WGC-MF. Threaded into segment discovery/prune/export so both paths share them.
-            public string SegmentExtension = RecordingCommandBuilder.SegmentFileExtension;
+            // Segment file extension for the capture engine (.mp4 for WGC-MF). Threaded into segment
+            // discovery/prune/export.
+            public string SegmentExtension = RecordingPaths.SegmentFileExtension;
             public AudioLoopbackRecorder AudioRecorder;
             public CancellationTokenSource Cts;
             public Timer PruneTimer;
-            public int RestartCount;
             public volatile bool Stopping;
             // Capture-health watchdog state (diagnostic): the newest segment file seen and when it
-            // last advanced (to detect a frozen-but-alive capture that stops opening segments), plus
-            // the largest closed segment seen this session as a healthy-size reference in the log.
+            // last advanced (to detect a capture that stops opening segments), plus the largest
+            // closed segment seen this session as a healthy-size reference in the log.
             public string LastSegmentPath;
             public DateTime LastSegmentAdvanceUtc;
             public long MaxSegmentBytes;
-            // Freeze-recovery state: PendingFreezeRestart flags a kill issued by the freeze
-            // detectors so OnCaptureExited runs freeze recovery instead of the crash ladder;
-            // ResidentFreezeRetries counts fast-path restarts before dropping the bridge;
-            // FreezeRestartCount is the freeze budget (separate from the crash RestartCount);
-            // LastFreezeRecoveryUtc debounces recoveries and anchors the healthy-run reset.
-            public volatile bool PendingFreezeRestart;
-            public int ResidentFreezeRetries;
-            public int FreezeRestartCount;
-            public DateTime LastFreezeRecoveryUtc;
         }
 
         private sealed class ClipRequest
@@ -212,11 +186,10 @@ namespace PlayniteAchievements.Services.Recording
                 return;
             }
 
-            var ffmpegPath = persisted.FfmpegPath?.Trim();
             var outputDir = ResolveOutputDirectory(persisted);
-            if (string.IsNullOrEmpty(ffmpegPath) || !SafeFileExists(ffmpegPath) || string.IsNullOrWhiteSpace(outputDir))
+            if (string.IsNullOrWhiteSpace(outputDir))
             {
-                _logger?.Warn("[Recording] Unlock recordings are enabled but the ffmpeg path or output folder is missing/invalid; skipping this session.");
+                _logger?.Warn("[Recording] Unlock recordings are enabled but the output folder is missing/invalid; skipping this session.");
                 NotifyRecordingUnavailableOnce();
                 return;
             }
@@ -237,7 +210,6 @@ namespace PlayniteAchievements.Services.Recording
                     bufferRoot,
                     DateTime.Now.ToString("yyyyMMdd-HHmmss", CultureInfo.InvariantCulture) +
                         "-" + Guid.NewGuid().ToString("N").Substring(0, 8)),
-                FfmpegPath = ffmpegPath,
                 OwnerGameId = game?.Id ?? Guid.Empty,
                 GameName = game?.Name,
                 Cts = new CancellationTokenSource()
@@ -291,11 +263,11 @@ namespace PlayniteAchievements.Services.Recording
         }
 
         /// <summary>
-        /// Follows the user's attention between running games. Same monitor as the current
-        /// capture: cheap switch — the ffmpeg process and rolling buffer are kept and only the
-        /// session's owner flips, so clip gating and cropping immediately target the new game.
-        /// Different monitor: full handoff (fresh session and buffer) since the buffer footage
-        /// shows the wrong screen. The tracker debounces, so alt-tab flicker never lands here.
+        /// Follows the user's attention between running games. WGC captures per-window and the
+        /// recorder resolves the session's live owner each tick, so switching to another running
+        /// game is a cheap owner flip — no restart, works across monitors — after which clip gating
+        /// and the capture both target the new game. The tracker debounces, so alt-tab flicker never
+        /// lands here.
         /// </summary>
         private void OnStableForegroundGameChanged(object sender, StableForegroundGameChangedEventArgs e)
         {
@@ -317,31 +289,6 @@ namespace PlayniteAchievements.Services.Recording
                     return;
                 }
 
-                var hwnd = _windowTracker?.TryGetWindowHandle(e.Game.Id) ?? IntPtr.Zero;
-                var newBounds = _screenshotService.TryGetGameMonitorBounds(
-                    hwnd,
-                    _getGameProcessId?.Invoke(e.Game.Id));
-
-                if (session.CaptureHost != null &&
-                    newBounds.HasValue &&
-                    newBounds.Value != session.MonitorBounds)
-                {
-                    lock (_gate)
-                    {
-                        // A concurrent start/stop may have replaced the session since it was
-                        // observed; restarting on top of the replacement would kill it.
-                        if (!ReferenceEquals(_session, session) || session.Stopping)
-                        {
-                            return;
-                        }
-                    }
-
-                    _logger?.Info(
-                        $"[Recording] Foreground moved to '{e.Game.Name}' on monitor {newBounds.Value}; restarting capture there.");
-                    OnGameStarted(e.Game);
-                    return;
-                }
-
                 lock (_gate)
                 {
                     if (!ReferenceEquals(_session, session) || session.Stopping)
@@ -353,7 +300,7 @@ namespace PlayniteAchievements.Services.Recording
                     session.GameName = e.Game.Name;
                 }
 
-                _logger?.Info($"[Recording] Capture owner switched to '{e.Game.Name}' (same monitor, no restart).");
+                _logger?.Info($"[Recording] Capture owner switched to '{e.Game.Name}' (WGC follows the window, no restart).");
             }
             catch (Exception ex)
             {
@@ -454,38 +401,19 @@ namespace PlayniteAchievements.Services.Recording
                     return;
                 }
 
-                session.MonitorBounds = bounds.Value;
                 Directory.CreateDirectory(session.BufferDirectory);
 
-                // Prefer WGC + Media Foundation: occlusion-independent, HDR-correct, GPU-resident.
-                // Falls back to the ffmpeg screen-capture path when unavailable (Windows N/KN without
-                // the H.264 MFT, pre-1903, or the game window can't be resolved for per-window
-                // capture). The .mp4 segments it writes flow through the same prune/export as ffmpeg's.
-                var wgcStarted = TryStartWgcCapture(session, persisted);
-                if (!wgcStarted)
+                // WGC + Media Foundation capture: occlusion-independent, HDR-correct, GPU-resident,
+                // no external binary. Unavailable only on Windows N/KN without the H.264 MFT or
+                // pre-1903; there is no fallback, so recording is skipped with one notification.
+                if (!TryStartWgcCapture(session, persisted))
                 {
-                    var encoderArgs = await ResolveEncoderArgumentsAsync(session.FfmpegPath, persisted.RecordingEncoder)
-                        .ConfigureAwait(false);
-                    var backend = await ResolveBackendAsync(session.FfmpegPath, persisted.RecordingCaptureBackend)
-                        .ConfigureAwait(false);
-
-                    session.EncoderArguments = encoderArgs;
-                    session.Backend = backend;
-                    session.BackendAutoResolved = persisted.RecordingCaptureBackend == RecordingCaptureBackend.Auto;
-                    // GPU-resident capture is native-only (the direct feed has no scaler) and only for
-                    // a hardware encoder the probed build can actually feed ddagrab frames into.
-                    session.GpuBridge = backend == RecordingCaptureBackend.Ddagrab &&
-                        persisted.RecordingResolution == RecordingResolution.Native
-                        ? await ResolveGpuBridgeAsync(session.FfmpegPath, encoderArgs).ConfigureAwait(false)
-                        : RecordingCommandBuilder.GpuCaptureBridge.None;
-                    session.CaptureArguments = BuildCaptureArgumentsFor(session, persisted, bounds.Value);
-
-                    if (session.Stopping || !SpawnCapture(session))
-                    {
-                        return;
-                    }
+                    _logger?.Warn("[Recording] WGC + Media Foundation capture is unavailable on this machine; recording skipped for this session.");
+                    NotifyRecordingUnavailableOnce();
+                    return;
                 }
-                else if (session.Stopping)
+
+                if (session.Stopping)
                 {
                     session.WgcRecorder?.Stop();
                     return;
@@ -512,14 +440,7 @@ namespace PlayniteAchievements.Services.Recording
                     TimeSpan.FromSeconds(PruneIntervalSeconds),
                     TimeSpan.FromSeconds(PruneIntervalSeconds));
                 _logger?.Info(
-                    $"[Recording] Capture started for '{session.GameName}' ({(wgcStarted ? "WGC+MediaFoundation" : $"ffmpeg {session.Backend}, {session.EncoderArguments}")}), buffer={session.BufferDirectory}.");
-
-                // Only the ffmpeg monitor-capture path needs to correct the monitor if the game window
-                // later appears elsewhere; WGC per-window capture follows the window itself.
-                if (!wgcStarted && !mainWindowResolved)
-                {
-                    _ = Task.Run(() => CorrectMonitorWhenWindowAppearsAsync(session, bounds.Value, deadline));
-                }
+                    $"[Recording] Capture started for '{session.GameName}' (WGC+MediaFoundation), buffer={session.BufferDirectory}.");
             }
             catch (OperationCanceledException)
             {
@@ -531,123 +452,11 @@ namespace PlayniteAchievements.Services.Recording
             }
         }
 
-        private string BuildCaptureArgumentsFor(
-            CaptureSession session,
-            PersistedSettings persisted,
-            System.Drawing.Rectangle bounds)
-        {
-            return RecordingCommandBuilder.BuildCaptureArguments(
-                new RecordingCommandBuilder.CaptureOptions
-                {
-                    Backend = session.Backend,
-                    Fps = persisted.RecordingFps,
-                    MonitorX = bounds.X,
-                    MonitorY = bounds.Y,
-                    MonitorWidth = bounds.Width,
-                    MonitorHeight = bounds.Height,
-                    MonitorIndex = ResolveMonitorIndex(bounds),
-                    Resolution = persisted.RecordingResolution,
-                    EncoderArguments = session.EncoderArguments,
-                    GpuBridge = session.GpuBridge,
-                    SegmentSeconds = SegmentSeconds,
-                    BufferDirectory = session.BufferDirectory
-                });
-        }
-
-        /// <summary>
-        /// Runs after a capture that started before the game window existed. If the game's main
-        /// window appears (within the resolve deadline) on a different monitor than the one being
-        /// captured, the ffmpeg capture is restarted on the correct monitor. Segments recorded on
-        /// the wrong monitor age out of the buffer naturally.
-        /// </summary>
-        private async Task CorrectMonitorWhenWindowAppearsAsync(
-            CaptureSession session,
-            System.Drawing.Rectangle capturedBounds,
-            DateTime deadlineUtc)
-        {
-            try
-            {
-                var token = session.Cts.Token;
-                while (!token.IsCancellationRequested && DateTime.UtcNow < deadlineUtc)
-                {
-                    await Task.Delay(WindowResolvePollMs, token).ConfigureAwait(false);
-
-                    var trackedHwnd = _windowTracker?.TryGetWindowHandle(session.OwnerGameId) ?? IntPtr.Zero;
-                    var processId = _getGameProcessId?.Invoke(session.OwnerGameId);
-                    if (trackedHwnd == IntPtr.Zero &&
-                        (!processId.HasValue || !ProcessHasMainWindow(processId.Value)))
-                    {
-                        continue;
-                    }
-
-                    var resolved = _screenshotService.TryGetGameMonitorBounds(trackedHwnd, processId);
-                    if (!resolved.HasValue || resolved.Value == capturedBounds)
-                    {
-                        return;
-                    }
-
-                    var persisted = _settings?.Persisted;
-                    if (persisted == null || session.Stopping)
-                    {
-                        return;
-                    }
-
-                    _logger?.Info(
-                        $"[Recording] Game window appeared on {resolved.Value}; restarting capture from fallback monitor {capturedBounds}.");
-
-                    // Detach the old host first so its Exited handler doesn't count the swap as a
-                    // crash, then kill it and spawn on the correct monitor.
-                    var oldHost = session.CaptureHost;
-                    session.CaptureHost = null;
-                    try
-                    {
-                        oldHost?.Dispose();
-                    }
-                    catch
-                    {
-                    }
-
-                    session.MonitorBounds = resolved.Value;
-                    session.CaptureArguments = BuildCaptureArgumentsFor(session, persisted, resolved.Value);
-                    if (!session.Stopping)
-                    {
-                        SpawnCapture(session);
-                    }
-
-                    return;
-                }
-            }
-            catch (OperationCanceledException)
-            {
-                // Game stopped while watching.
-            }
-            catch (Exception ex)
-            {
-                _logger?.Debug(ex, "[Recording] Monitor correction watcher failed.");
-            }
-        }
-
-        private bool SpawnCapture(CaptureSession session)
-        {
-            var host = new FfmpegProcessHost(session.FfmpegPath, session.CaptureArguments, _logger);
-            host.Exited += (s, e) => OnCaptureExited(session, host);
-            if (!host.Start(EnsureJobObject()))
-            {
-                host.Dispose();
-                _logger?.Warn("[Recording] ffmpeg capture process failed to start.");
-                return false;
-            }
-
-            session.CaptureStartUtc = DateTime.UtcNow;
-            session.CaptureHost = host;
-            return true;
-        }
-
         /// <summary>
         /// Starts the WGC + Media Foundation capture (occlusion-independent, HDR-correct, GPU-resident)
         /// for the session's game window, writing .mp4 segments into the buffer directory. Returns
         /// false — leaving nothing running — when WGC-MF isn't usable (pre-1903, Windows N/KN without
-        /// the H.264 MFT, or the game window can't be resolved), so the caller falls back to ffmpeg.
+        /// the H.264 MFT), so the caller skips recording for the session.
         /// </summary>
         private bool TryStartWgcCapture(CaptureSession session, PersistedSettings persisted)
         {
@@ -658,14 +467,15 @@ namespace PlayniteAchievements.Services.Recording
                     return false;
                 }
 
-                // Resolve the LEARNED game window each tick (not a foreground fallback), so the
-                // recorder captures the actual game — following it once it's known — instead of
-                // whatever window is on top at capture start.
-                var gameId = session.OwnerGameId;
-                Func<IntPtr> resolveHwnd = () => _windowTracker?.TryGetWindowHandle(gameId) ?? IntPtr.Zero;
+                // Resolve the LEARNED window of the session's CURRENT owner each tick (read live, not
+                // a captured snapshot, so a foreground switch to another running game redirects the
+                // per-window capture without a restart) — never a foreground fallback, so it follows
+                // the actual game once known instead of whatever window is on top at capture start.
+                Func<IntPtr> resolveHwnd = () => _windowTracker?.TryGetWindowHandle(session.OwnerGameId) ?? IntPtr.Zero;
 
                 var recorder = new WgcVideoRecorder(
-                    resolveHwnd, session.BufferDirectory, persisted.RecordingFps, SegmentSeconds, _logger);
+                    resolveHwnd, session.BufferDirectory, persisted.RecordingFps, SegmentSeconds,
+                    persisted.RecordingResolution, _logger);
                 if (!recorder.Start())
                 {
                     recorder.Dispose();
@@ -673,198 +483,22 @@ namespace PlayniteAchievements.Services.Recording
                 }
 
                 session.WgcRecorder = recorder;
-                session.SegmentExtension = WgcVideoRecorder.SegmentFileExtension;
+                session.SegmentExtension = RecordingPaths.SegmentFileExtension;
                 session.CaptureStartUtc = DateTime.UtcNow;
                 return true;
             }
             catch (Exception ex)
             {
-                _logger?.Debug(ex, "[Recording] WGC-MF capture unavailable; falling back to ffmpeg.");
+                _logger?.Debug(ex, "[Recording] WGC + Media Foundation capture could not start.");
                 return false;
             }
         }
 
 
-        /// <summary>
-        /// Capture crash recovery: up to 3 restarts with a 5s backoff, then the session is
-        /// disabled with one notification. The stderr tail is logged for diagnosis.
-        /// </summary>
-        private void OnCaptureExited(CaptureSession session, FfmpegProcessHost host)
-        {
-            if (_disposed || session.Stopping || !ReferenceEquals(session.CaptureHost, host))
-            {
-                return;
-            }
-
-            var freezeKill = session.PendingFreezeRestart;
-            session.PendingFreezeRestart = false;
-            if (freezeKill)
-            {
-                HandleFreezeRestart(session, host);
-                return;
-            }
-
-            var tail = host.StdErrTail;
-            session.RestartCount++;
-            if (session.RestartCount > MaxCaptureRestarts)
-            {
-                _logger?.Warn(
-                    $"[Recording] ffmpeg capture exited {session.RestartCount} times; disabling recording for this session. stderr tail:\n{tail}");
-                session.Stopping = true;
-                NotifyRecordingUnavailableOnce(tail);
-                return;
-            }
-
-            // A GPU-resident capture that dies (driver/hardware quirks the smoke test didn't
-            // surface) first drops to the hwdownload ddagrab path — same backend, no round-trip
-            // savings but still Desktop Duplication — before any ddagrab->gdigrab downgrade.
-            if (session.GpuBridge != RecordingCommandBuilder.GpuCaptureBridge.None)
-            {
-                var persisted = _settings?.Persisted;
-                if (persisted != null)
-                {
-                    session.GpuBridge = RecordingCommandBuilder.GpuCaptureBridge.None;
-                    session.CaptureArguments = BuildCaptureArgumentsFor(session, persisted, session.MonitorBounds);
-                    _logger?.Info("[Recording] GPU-resident capture failed; falling back to the hwdownload ddagrab path for this session.");
-                }
-            }
-            // An Auto-resolved ddagrab capture that dies (RDP session, hybrid GPU, driver
-            // quirks) restarts as gdigrab instead of retrying the same failing backend; an
-            // explicit Ddagrab selection keeps retrying the user's choice.
-            else if (session.Backend == RecordingCaptureBackend.Ddagrab && session.BackendAutoResolved)
-            {
-                var persisted = _settings?.Persisted;
-                if (persisted != null)
-                {
-                    session.Backend = RecordingCaptureBackend.Gdigrab;
-                    session.CaptureArguments = BuildCaptureArgumentsFor(session, persisted, session.MonitorBounds);
-                    _logger?.Info("[Recording] ddagrab capture failed; falling back to gdigrab for this session.");
-                }
-            }
-
-            _logger?.Warn(
-                $"[Recording] ffmpeg capture exited unexpectedly (exit={host.ExitCode}); restart {session.RestartCount}/{MaxCaptureRestarts} in {RestartBackoffSeconds}s. stderr tail:\n{tail}");
-            ScheduleRespawn(session, host);
-        }
-
-        /// <summary>
-        /// Frozen-but-alive capture recovery, routed here when a freeze detector killed the host
-        /// (PendingFreezeRestart). Unlike the crash ladder it retries the fast GPU-resident path in
-        /// place first — a transient device hiccup clears on a fresh grab at no performance cost —
-        /// and only after <see cref="ResidentFreezeRetryMax"/> drops to the copy-through path.
-        /// Budgeted separately from crash restarts so spaced-out freezes never disable recording;
-        /// deliberately never escalates to gdigrab (CPU-heavy and equally blind to the failure).
-        /// </summary>
-        private void HandleFreezeRestart(CaptureSession session, FfmpegProcessHost host)
-        {
-            session.FreezeRestartCount++;
-            if (session.FreezeRestartCount > MaxFreezeRestarts)
-            {
-                _logger?.Warn(
-                    $"[Recording] Capture froze {session.FreezeRestartCount} times this session; leaving it stopped.");
-                session.Stopping = true;
-                return;
-            }
-
-            var persisted = _settings?.Persisted;
-            if (session.GpuBridge != RecordingCommandBuilder.GpuCaptureBridge.None &&
-                session.ResidentFreezeRetries < ResidentFreezeRetryMax)
-            {
-                session.ResidentFreezeRetries++;
-                _logger?.Warn(
-                    $"[Recording] GPU-resident capture froze; restarting on the fast path (fresh device), " +
-                    $"attempt {session.ResidentFreezeRetries}/{ResidentFreezeRetryMax}.");
-            }
-            else if (session.GpuBridge != RecordingCommandBuilder.GpuCaptureBridge.None && persisted != null)
-            {
-                session.GpuBridge = RecordingCommandBuilder.GpuCaptureBridge.None;
-                session.CaptureArguments = BuildCaptureArgumentsFor(session, persisted, session.MonitorBounds);
-                _logger?.Warn(
-                    "[Recording] GPU-resident capture kept freezing; switching to the copy-through path for this session.");
-            }
-            else
-            {
-                _logger?.Warn(
-                    "[Recording] Capture froze on the copy-through path; restarting it (a fresh grab may clear a transient stall).");
-            }
-
-            ScheduleRespawn(session, host);
-        }
-
-        /// <summary>
-        /// Issued by the freeze detectors (stall watchdog, clip freeze probe): flags the kill as a
-        /// freeze restart and kills the live capture so <see cref="OnCaptureExited"/> runs freeze
-        /// recovery. Guards against re-entry while a restart is already pending or within the
-        /// cooldown, and resets the stall tracking so the fresh capture isn't immediately re-flagged.
-        /// </summary>
-        private void RecoverFromFreeze(CaptureSession session, string reason)
-        {
-            if (_disposed || session == null || session.Stopping)
-            {
-                return;
-            }
-
-            var host = session.CaptureHost;
-            if (host == null || host.HasExited || session.PendingFreezeRestart)
-            {
-                return;
-            }
-
-            var now = DateTime.UtcNow;
-            if (session.LastFreezeRecoveryUtc != default &&
-                (now - session.LastFreezeRecoveryUtc).TotalSeconds < FreezeRecoveryCooldownSeconds)
-            {
-                return;
-            }
-
-            session.PendingFreezeRestart = true;
-            session.LastFreezeRecoveryUtc = now;
-            // The fresh capture writes into the same buffer; clear the stall anchor so it is not
-            // judged frozen before it has had a chance to open a new segment.
-            session.LastSegmentPath = null;
-            session.LastSegmentAdvanceUtc = now;
-            _logger?.Warn($"[Recording] Capture freeze detected ({reason}); killing and restarting the capture.");
-            host.Kill();
-        }
-
-        /// <summary>
-        /// Shared restart tail for the crash and freeze paths: after <see cref="RestartBackoffSeconds"/>
-        /// disposes the dead host and spawns a fresh capture with the session's current (possibly
-        /// downgraded) arguments, unless the session was disposed or stopped meanwhile.
-        /// </summary>
-        private void ScheduleRespawn(CaptureSession session, FfmpegProcessHost host)
-        {
-            _ = Task.Run(async () =>
-            {
-                try
-                {
-                    await Task.Delay(TimeSpan.FromSeconds(RestartBackoffSeconds), session.Cts.Token).ConfigureAwait(false);
-                    if (!_disposed && !session.Stopping)
-                    {
-                        host.Dispose();
-                        SpawnCapture(session);
-                    }
-                }
-                catch (OperationCanceledException)
-                {
-                }
-                catch (Exception ex)
-                {
-                    _logger?.Debug(ex, "[Recording] Capture restart failed.");
-                }
-            });
-        }
-
         private async Task ShutdownSessionAsync(CaptureSession session)
         {
             try
             {
-                var host = session.CaptureHost;
-                if (host != null)
-                {
-                    await host.StopGracefullyAsync(TimeSpan.FromSeconds(StopGraceSeconds)).ConfigureAwait(false);
-                }
-
                 // Stop the WGC-MF capture and finalize its current segment before pending clips read
                 // the buffer (an unfinalized mp4 segment is not decodable).
                 session.WgcRecorder?.Stop();
@@ -899,8 +533,6 @@ namespace PlayniteAchievements.Services.Recording
                         .ConfigureAwait(false);
                 }
 
-                host?.Dispose();
-                session.CaptureHost = null;
                 session.WgcRecorder?.Dispose();
                 session.WgcRecorder = null;
                 session.AudioRecorder?.Dispose();
@@ -953,9 +585,8 @@ namespace PlayniteAchievements.Services.Recording
                 session = _session;
             }
 
-            // Active means either the WGC-MF recorder is running or a live ffmpeg capture process.
-            var captureActive = session != null && !session.Stopping &&
-                (session.WgcRecorder != null || (session.CaptureHost != null && !session.CaptureHost.HasExited));
+            // Active means the WGC-MF recorder is running for this session.
+            var captureActive = session != null && !session.Stopping && session.WgcRecorder != null;
             if (!captureActive)
             {
                 _logger?.Debug(
@@ -1269,10 +900,10 @@ namespace PlayniteAchievements.Services.Recording
             var segments = SegmentTimeline.ParseSegments(
                 ListBufferFiles(
                     session.BufferDirectory,
-                    RecordingCommandBuilder.SegmentFilePrefix,
+                    RecordingPaths.SegmentFilePrefix,
                     session.SegmentExtension),
                 TimeZoneInfo.Local,
-                RecordingCommandBuilder.SegmentFilePrefix,
+                RecordingPaths.SegmentFilePrefix,
                 session.SegmentExtension);
             var plan = SegmentTimeline.PlanClip(segments, windowStart, windowEnd, SegmentSeconds);
             if (plan == null)
@@ -1289,11 +920,11 @@ namespace PlayniteAchievements.Services.Recording
                 var audioChunks = SegmentTimeline.ParseSegments(
                     ListBufferFiles(
                         session.BufferDirectory,
-                        RecordingCommandBuilder.AudioChunkFilePrefix,
-                        RecordingCommandBuilder.AudioChunkFileExtension),
+                        RecordingPaths.AudioChunkFilePrefix,
+                        RecordingPaths.AudioChunkFileExtension),
                     TimeZoneInfo.Local,
-                    RecordingCommandBuilder.AudioChunkFilePrefix,
-                    RecordingCommandBuilder.AudioChunkFileExtension);
+                    RecordingPaths.AudioChunkFilePrefix,
+                    RecordingPaths.AudioChunkFileExtension);
                 audioPlan = SegmentTimeline.PlanClip(audioChunks, windowStart, windowEnd, SegmentSeconds);
             }
 
@@ -1326,88 +957,6 @@ namespace PlayniteAchievements.Services.Recording
             finally
             {
                 TryDeleteFile(tempPath);
-            }
-        }
-
-        /// <summary>
-        /// Crop region for exports: the game window's client rect (same Win32 resolution the
-        /// screenshots use) mapped into the captured video's pixel space. Null when the window
-        /// can't be resolved, fills the monitor, or the game already exited.
-        /// </summary>
-        private System.Drawing.Rectangle? ResolveCropRectangle(CaptureSession session)
-        {
-            // WGC captures the game window per-window, so its segments are already the game (client)
-            // area — no crop out of a monitor capture is needed.
-            if (session.WgcRecorder != null)
-            {
-                return null;
-            }
-
-            try
-            {
-                var trackedHwnd = _windowTracker?.TryGetWindowHandle(session.OwnerGameId) ?? IntPtr.Zero;
-                var processId = _getGameProcessId?.Invoke(session.OwnerGameId);
-                var client = _screenshotService.TryGetGameWindowBounds(trackedHwnd, processId);
-                if (client == null)
-                {
-                    return null;
-                }
-
-                return RecordingCommandBuilder.ComputeCropRectangle(
-                    session.MonitorBounds,
-                    client.Value,
-                    _settings?.Persisted?.RecordingResolution ?? RecordingResolution.Native);
-            }
-            catch
-            {
-                return null;
-            }
-        }
-
-        private async Task<bool> RunTrimAsync(
-            CaptureSession session,
-            string listPath,
-            SegmentTimeline.ClipPlan plan,
-            string audioListPath,
-            SegmentTimeline.ClipPlan audioPlan,
-            string tempPath,
-            bool reencode,
-            System.Drawing.Rectangle? crop = null)
-        {
-            var arguments = RecordingCommandBuilder.BuildTrimArguments(
-                listPath,
-                plan.StartOffsetSeconds,
-                plan.DurationSeconds,
-                tempPath,
-                reencode,
-                audioListPath,
-                audioPlan?.StartOffsetSeconds ?? 0,
-                crop,
-                session.EncoderArguments);
-            using (var host = new FfmpegProcessHost(session.FfmpegPath, arguments, _logger))
-            {
-                if (!host.Start(EnsureJobObject()))
-                {
-                    return false;
-                }
-
-                var timeout = TimeSpan.FromSeconds(Math.Max(30, plan.DurationSeconds) + 60);
-                var exitCode = await host.WaitForExitAsync(timeout).ConfigureAwait(false);
-                if (exitCode != 0)
-                {
-                    _logger?.Debug($"[Recording] ffmpeg trim exited with {exitCode} (reencode={reencode}): {host.StdErrTail}");
-                    return false;
-                }
-            }
-
-            try
-            {
-                var info = new FileInfo(tempPath);
-                return info.Exists && info.Length > 0;
-            }
-            catch
-            {
-                return false;
             }
         }
 
@@ -1540,10 +1089,10 @@ namespace PlayniteAchievements.Services.Recording
                 var segments = SegmentTimeline.ParseSegments(
                     ListBufferFiles(
                         session.BufferDirectory,
-                        RecordingCommandBuilder.SegmentFilePrefix,
+                        RecordingPaths.SegmentFilePrefix,
                         session.SegmentExtension),
                     TimeZoneInfo.Local,
-                    RecordingCommandBuilder.SegmentFilePrefix,
+                    RecordingPaths.SegmentFilePrefix,
                     session.SegmentExtension);
                 LogCaptureHealth(session, segments);
                 foreach (var segment in SegmentTimeline.SelectPrunable(
@@ -1557,11 +1106,11 @@ namespace PlayniteAchievements.Services.Recording
                 var audioChunks = SegmentTimeline.ParseSegments(
                     ListBufferFiles(
                         session.BufferDirectory,
-                        RecordingCommandBuilder.AudioChunkFilePrefix,
-                        RecordingCommandBuilder.AudioChunkFileExtension),
+                        RecordingPaths.AudioChunkFilePrefix,
+                        RecordingPaths.AudioChunkFileExtension),
                     TimeZoneInfo.Local,
-                    RecordingCommandBuilder.AudioChunkFilePrefix,
-                    RecordingCommandBuilder.AudioChunkFileExtension);
+                    RecordingPaths.AudioChunkFilePrefix,
+                    RecordingPaths.AudioChunkFileExtension);
                 foreach (var chunk in SegmentTimeline.SelectPrunable(
                              audioChunks, retentionInterval, preRoll, SegmentSeconds, MaxBufferBytes))
                 {
@@ -1575,11 +1124,7 @@ namespace PlayniteAchievements.Services.Recording
                     session.PruneTimer?.Dispose();
                     session.PruneTimer = null;
                     NotifyRecordingUnavailableOnce();
-                    var host = session.CaptureHost;
-                    if (host != null)
-                    {
-                        _ = Task.Run(() => host.StopGracefullyAsync(TimeSpan.FromSeconds(StopGraceSeconds)));
-                    }
+                    session.WgcRecorder?.Stop();
                 }
             }
             catch (Exception ex)
@@ -1589,19 +1134,17 @@ namespace PlayniteAchievements.Services.Recording
         }
 
         /// <summary>
-        /// Diagnostic only: a per-prune-tick capture-health line. Warns when the muxer has stopped
-        /// opening new segments — a capture frozen while its process stays alive, so nothing crashes
-        /// and the exit-driven fallback never fires. That is the failure that leaves an unlock with
-        /// no footage ("no buffered segments overlap the clip window"). Frozen-content where
-        /// segments still advance but every frame is identical is caught separately, at clip time,
-        /// by <see cref="VerifyClipNotFrozen"/>. Never throws.
+        /// Diagnostic only: a per-prune-tick capture-health line. Warns when the recorder has stopped
+        /// opening new segments — a stalled capture that leaves an unlock with no footage ("no
+        /// buffered segments overlap the clip window"). The WGC recorder duplicates the last frame at
+        /// a constant rate, so segments should always advance; a stall here means the recorder itself
+        /// wedged. Never throws.
         /// </summary>
         private void LogCaptureHealth(CaptureSession session, IReadOnlyList<SegmentTimeline.SegmentInfo> segments)
         {
             try
             {
-                if (session == null || session.Stopping ||
-                    session.CaptureHost == null || session.CaptureHost.HasExited)
+                if (session == null || session.Stopping || session.WgcRecorder == null)
                 {
                     return;
                 }
@@ -1641,26 +1184,14 @@ namespace PlayniteAchievements.Services.Recording
                     $"lastClosed={(lastClosed?.SizeBytes ?? 0) / 1024}KB peak={session.MaxSegmentBytes / 1024}KB";
 
                 // A new segment should open every SegmentSeconds; several periods without one means
-                // the capture has stalled while the process is still alive.
+                // the capture has stalled.
                 if (sinceNewSegment > SegmentSeconds * 3 + 2)
                 {
                     _logger?.Warn(
-                        $"{line} -- STALLED: no new segment for {sinceNewSegment:F0}s " +
-                        "(capture frozen; process alive so no crash fired); recovering.");
-                    RecoverFromFreeze(session, "stall");
+                        $"{line} -- STALLED: no new segment for {sinceNewSegment:F0}s (capture wedged).");
                 }
                 else
                 {
-                    // A sustained healthy run clears the freeze budgets so spaced-out freezes over a
-                    // long session never exhaust them.
-                    if (session.LastFreezeRecoveryUtc != default &&
-                        (now - session.LastFreezeRecoveryUtc).TotalMinutes >= HealthyResetMinutes)
-                    {
-                        session.FreezeRestartCount = 0;
-                        session.ResidentFreezeRetries = 0;
-                        session.LastFreezeRecoveryUtc = default;
-                    }
-
                     _logger?.Debug(line);
                 }
             }
@@ -1668,56 +1199,6 @@ namespace PlayniteAchievements.Services.Recording
             {
                 _logger?.Debug(ex, "[RecordingHealth] Health check failed.");
             }
-        }
-
-        /// <summary>
-        /// Diagnostic only: after a clip is saved, decode it through ffmpeg's freezedetect filter
-        /// and warn when the clip is frozen for most of its length — the fingerprint of a capture
-        /// that kept muxing the same frame (observed on the ddagrab GPU-resident path), which
-        /// produces a valid, full-size file the encode pipeline can't distinguish from real footage.
-        /// The freeze duration is set to 60% of the clip so a brief static moment (a menu, a load
-        /// screen) never trips it. Fire-and-forget, job-object owned; never throws.
-        /// </summary>
-        private void VerifyClipNotFrozen(CaptureSession session, string clipPath, string achievementName, double clipSeconds)
-        {
-            var freezeSeconds = Math.Max(3, clipSeconds * 0.6);
-            _ = Task.Run(async () =>
-            {
-                try
-                {
-                    var args =
-                        $"-hide_banner -nostats -i \"{clipPath}\" -map 0:v:0 " +
-                        $"-vf freezedetect=n=-60dB:d={freezeSeconds.ToString("F1", CultureInfo.InvariantCulture)} " +
-                        "-an -f null -";
-                    using (var host = new FfmpegProcessHost(session.FfmpegPath, args, _logger))
-                    {
-                        if (!host.Start(EnsureJobObject()))
-                        {
-                            return;
-                        }
-
-                        await host.WaitForExitAsync(TimeSpan.FromSeconds(60)).ConfigureAwait(false);
-                        var stderr = host.StdErrTail ?? string.Empty;
-                        if (stderr.IndexOf("freeze_start", StringComparison.OrdinalIgnoreCase) >= 0)
-                        {
-                            _logger?.Warn(
-                                $"[RecordingHealth] Saved clip for '{achievementName}' is frozen " +
-                                "(freezedetect fired for >=60% of the clip); the capture was producing static " +
-                                $"frames. Recovering the capture. Clip: {clipPath}");
-                            RecoverFromFreeze(session, "frozen-clip");
-                        }
-                        else
-                        {
-                            _logger?.Debug(
-                                $"[RecordingHealth] Clip for '{achievementName}' passed the freeze check.");
-                        }
-                    }
-                }
-                catch (Exception ex)
-                {
-                    _logger?.Debug(ex, "[RecordingHealth] Clip freeze check failed.");
-                }
-            });
         }
 
         private static IEnumerable<(string Path, long SizeBytes)> ListBufferFiles(
@@ -1789,78 +1270,6 @@ namespace PlayniteAchievements.Services.Recording
 
         // === Helpers ===
 
-        private async Task<string> ResolveEncoderArgumentsAsync(string ffmpegPath, RecordingEncoder encoder)
-        {
-            if (encoder != RecordingEncoder.Auto)
-            {
-                return RecordingCommandBuilder.BuildEncoderArguments(encoder, null);
-            }
-
-            try
-            {
-                var result = await _validation.ValidateAsync(ffmpegPath).ConfigureAwait(false);
-                // Prefer driver-validated encoders. Without a smoke test UsableEncoders equals
-                // AvailableEncoders (support is seeded from presence), so this matches the prior
-                // presence-only behavior unless a smoke-tested result is already cached — in which
-                // case Auto correctly skips a present-but-driver-broken encoder instead of picking
-                // it and crashing at record time.
-                return RecordingCommandBuilder.BuildEncoderArguments(RecordingEncoder.Auto, result?.UsableEncoders);
-            }
-            catch (Exception ex)
-            {
-                _logger?.Debug(ex, "[Recording] Encoder probe failed; defaulting to libx264.");
-                return RecordingCommandBuilder.BuildEncoderArguments(RecordingEncoder.Auto, null);
-            }
-        }
-
-        private async Task<RecordingCaptureBackend> ResolveBackendAsync(string ffmpegPath, RecordingCaptureBackend configured)
-        {
-            if (configured != RecordingCaptureBackend.Auto)
-            {
-                return configured;
-            }
-
-            try
-            {
-                // Cached per path, so this shares the probe run by the encoder resolution.
-                var result = await _validation.ValidateAsync(ffmpegPath).ConfigureAwait(false);
-                return RecordingCommandBuilder.ResolveBackend(configured, result?.SupportsDdagrab == true);
-            }
-            catch (Exception ex)
-            {
-                _logger?.Debug(ex, "[Recording] Capture backend probe failed; defaulting to gdigrab.");
-                return RecordingCaptureBackend.Gdigrab;
-            }
-        }
-
-        /// <summary>
-        /// The GPU-resident bridge to use for the resolved encoder, or None when the build/hardware
-        /// can't keep ddagrab frames on the GPU for it. Reads the same cached probe as the
-        /// encoder/backend resolution; a probe failure just falls back to the hwdownload path.
-        /// </summary>
-        private async Task<RecordingCommandBuilder.GpuCaptureBridge> ResolveGpuBridgeAsync(
-            string ffmpegPath, string encoderArgs)
-        {
-            var encoder = RecordingCommandBuilder.DetectEncoderFamily(encoderArgs);
-            if (RecordingCommandBuilder.BridgeFor(encoder) == RecordingCommandBuilder.GpuCaptureBridge.None)
-            {
-                return RecordingCommandBuilder.GpuCaptureBridge.None;
-            }
-
-            try
-            {
-                var result = await _validation.ValidateAsync(ffmpegPath).ConfigureAwait(false);
-                return result?.SupportsGpuCapture(encoder) == true
-                    ? RecordingCommandBuilder.BridgeFor(encoder)
-                    : RecordingCommandBuilder.GpuCaptureBridge.None;
-            }
-            catch (Exception ex)
-            {
-                _logger?.Debug(ex, "[Recording] GPU-capture probe failed; using the hwdownload path.");
-                return RecordingCommandBuilder.GpuCaptureBridge.None;
-            }
-        }
-
         private static string ResolveOutputDirectory(PersistedSettings persisted)
         {
             var directory = persisted?.UnlockRecordingDirectory;
@@ -1870,14 +1279,6 @@ namespace PlayniteAchievements.Services.Recording
             }
 
             return string.IsNullOrWhiteSpace(directory) ? null : directory.Trim();
-        }
-
-        private WindowsJobObject EnsureJobObject()
-        {
-            lock (_gate)
-            {
-                return _jobObject ?? (_jobObject = new WindowsJobObject());
-            }
         }
 
         private static bool ProcessHasMainWindow(int processId)
@@ -1893,26 +1294,6 @@ namespace PlayniteAchievements.Services.Recording
             {
                 return false;
             }
-        }
-
-        private static int ResolveMonitorIndex(System.Drawing.Rectangle monitorBounds)
-        {
-            try
-            {
-                var screens = System.Windows.Forms.Screen.AllScreens;
-                for (var i = 0; i < screens.Length; i++)
-                {
-                    if (screens[i].Bounds == monitorBounds)
-                    {
-                        return i;
-                    }
-                }
-            }
-            catch
-            {
-            }
-
-            return 0;
         }
 
         private bool HasFreeSpace(string path, long minimumBytes)
@@ -2045,14 +1426,9 @@ namespace PlayniteAchievements.Services.Recording
                 }
 
                 session.PruneTimer?.Dispose();
-                session.CaptureHost?.Dispose();
                 session.WgcRecorder?.Dispose();
                 session.AudioRecorder?.Dispose();
             }
-
-            // Closing the job object kills any ffmpeg process that somehow survived disposal.
-            _jobObject?.Dispose();
-            _jobObject = null;
         }
     }
 }

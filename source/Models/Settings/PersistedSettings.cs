@@ -96,14 +96,13 @@ namespace PlayniteAchievements.Models.Settings
         private RaritySelection _unlockScreenshotFramedRarities = RaritySelection.All;
         private bool _unlockScreenshotFramedAlwaysCaptureCompletion = true;
         private bool _enableUnlockRecordings = false;
-        private string _ffmpegPath;
         private string _unlockRecordingDirectory;
         private int _recordingClipSeconds = 15;
         private int _recordingFps = 30;
         private RecordingResolution _recordingResolution = RecordingResolution.Native;
-        private RecordingEncoder _recordingEncoder = RecordingEncoder.Auto;
-        private RecordingCaptureBackend _recordingCaptureBackend = RecordingCaptureBackend.Auto;
         private bool _recordingIncludeAudio = false;
+        private RecordingAudioSource _recordingAudioSource = RecordingAudioSource.FullSystem;
+        private bool _recordingIncludeMicrophone = false;
         private RaritySelection _unlockRecordingRarities = RaritySelection.All;
         private bool _unlockRecordingAlwaysCaptureCompletion = true;
         private Dictionary<string, ProviderNotificationOverride> _providerNotificationOverrides =
@@ -1202,23 +1201,14 @@ namespace PlayniteAchievements.Models.Settings
         }
 
         /// <summary>
-        /// When true, a video clip of the game's monitor is saved for each of your own unlocks
-        /// while a game is running, via a rolling ffmpeg screen capture. Requires a valid
-        /// <see cref="FfmpegPath"/>; the plugin never downloads ffmpeg.
+        /// When true, a video clip of the game window is saved for each of your own unlocks while a
+        /// game is running, via an in-process Windows.Graphics.Capture + Media Foundation rolling
+        /// capture (occlusion-independent, HDR-correct; no external tools).
         /// </summary>
         public bool EnableUnlockRecordings
         {
             get => _enableUnlockRecordings;
             set => SetValue(ref _enableUnlockRecordings, value);
-        }
-
-        /// <summary>
-        /// Full path to a user-supplied ffmpeg.exe used for unlock recordings.
-        /// </summary>
-        public string FfmpegPath
-        {
-            get => _ffmpegPath;
-            set => SetValue(ref _ffmpegPath, value);
         }
 
         /// <summary>
@@ -1254,27 +1244,37 @@ namespace PlayniteAchievements.Models.Settings
             set => SetValue(ref _recordingResolution, value);
         }
 
-        public RecordingEncoder RecordingEncoder
-        {
-            get => _recordingEncoder;
-            set => SetValue(ref _recordingEncoder, value);
-        }
-
-        public RecordingCaptureBackend RecordingCaptureBackend
-        {
-            get => _recordingCaptureBackend;
-            set => SetValue(ref _recordingCaptureBackend, value);
-        }
-
         /// <summary>
-        /// When true, unlock clips include system audio (everything the PC is playing) captured
-        /// alongside the rolling screen capture. Off by default; audio capture is best-effort
-        /// and never blocks the video pipeline.
+        /// When true, unlock clips include audio captured alongside the rolling video. Off by
+        /// default; audio capture is best-effort and never blocks the video pipeline. The source
+        /// (all system audio vs. game only) is <see cref="RecordingAudioSource"/>, and the
+        /// microphone can be mixed in via <see cref="RecordingIncludeMicrophone"/>.
         /// </summary>
         public bool RecordingIncludeAudio
         {
             get => _recordingIncludeAudio;
             set => SetValue(ref _recordingIncludeAudio, value);
+        }
+
+        /// <summary>
+        /// Which audio is recorded when <see cref="RecordingIncludeAudio"/> is on: all system audio
+        /// or just the game process's. GameOnly needs Windows 10 build 19041+; older builds fall
+        /// back to full system audio.
+        /// </summary>
+        public RecordingAudioSource RecordingAudioSource
+        {
+            get => _recordingAudioSource;
+            set => SetValue(ref _recordingAudioSource, value);
+        }
+
+        /// <summary>
+        /// When true (and <see cref="RecordingIncludeAudio"/> is on), the default microphone is mixed
+        /// into the clip on top of the chosen system/game audio.
+        /// </summary>
+        public bool RecordingIncludeMicrophone
+        {
+            get => _recordingIncludeMicrophone;
+            set => SetValue(ref _recordingIncludeMicrophone, value);
         }
 
         /// <summary>
@@ -2551,14 +2551,13 @@ namespace PlayniteAchievements.Models.Settings
                 UnlockScreenshotFramedRarities = this.UnlockScreenshotFramedRarities,
                 UnlockScreenshotFramedAlwaysCaptureCompletion = this.UnlockScreenshotFramedAlwaysCaptureCompletion,
                 EnableUnlockRecordings = this.EnableUnlockRecordings,
-                FfmpegPath = this.FfmpegPath,
                 UnlockRecordingDirectory = this.UnlockRecordingDirectory,
                 RecordingClipSeconds = this.RecordingClipSeconds,
                 RecordingFps = this.RecordingFps,
                 RecordingResolution = this.RecordingResolution,
-                RecordingEncoder = this.RecordingEncoder,
-                RecordingCaptureBackend = this.RecordingCaptureBackend,
                 RecordingIncludeAudio = this.RecordingIncludeAudio,
+                RecordingAudioSource = this.RecordingAudioSource,
+                RecordingIncludeMicrophone = this.RecordingIncludeMicrophone,
                 UnlockRecordingRarities = this.UnlockRecordingRarities,
                 UnlockRecordingAlwaysCaptureCompletion = this.UnlockRecordingAlwaysCaptureCompletion,
                 ProviderNotificationOverrides = this.ProviderNotificationOverrides != null
