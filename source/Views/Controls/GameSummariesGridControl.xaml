@@ -533,7 +533,7 @@
                     </DataTemplate>
                 </DataGridTemplateColumn.CellTemplate>
             </DataGridTemplateColumn>
-            <DataGridTemplateColumn Width="Auto" MinWidth="56" CanUserResize="True" CanUserSort="False"
+            <DataGridTemplateColumn Width="56" MinWidth="40" MaxWidth="120" CanUserResize="True" CanUserSort="False"
                                     Header="{DynamicResource LOCPlayAch_Column_Captures}"
                                     helpers:ColumnVisibilityHelper.ColumnKey="Captures">
                 <DataGridTemplateColumn.CellTemplate>
