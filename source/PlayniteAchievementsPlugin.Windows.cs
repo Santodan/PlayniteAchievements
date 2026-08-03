@@ -162,27 +162,45 @@ namespace PlayniteAchievements
             _windowService.ToggleOverviewWindowFromHotkey();
         }
 
+        private bool _settingsViewOpen;
+
         /// <summary>
-        /// Opens Playnite's plugin-settings dialog for hotkey invocations. A modal dialog
-        /// (including an already-open settings dialog) disables the main window while it is
-        /// shown; opening a second settings view on top would stack BeginEdit sessions, so
-        /// the hotkey is ignored while any modal or the settings popout is open.
+        /// Opens Playnite's plugin-settings dialog for hotkey invocations. The dialog is a
+        /// blocking ShowDialog, so the flag stays set for its whole lifetime and repeated
+        /// presses pumped by the nested dispatcher loop are ignored. Other modals (e.g. the
+        /// add-ons window) are detected at the Win32 level: ShowDialog disables sibling
+        /// windows via EnableWindow, which never flows into the IsEnabled dependency property.
         /// </summary>
         private void OpenSettingsViewFromHotkey()
         {
-            if (_settingsPopoutOpen)
+            if (_settingsViewOpen || _settingsPopoutOpen)
             {
                 return;
             }
 
             var mainWindow = System.Windows.Application.Current?.MainWindow;
-            if (mainWindow != null && !mainWindow.IsEnabled)
+            if (mainWindow != null)
             {
-                return;
+                var handle = new System.Windows.Interop.WindowInteropHelper(mainWindow).Handle;
+                if (handle != IntPtr.Zero && !IsWindowEnabled(handle))
+                {
+                    return;
+                }
             }
 
-            OpenSettingsView();
+            _settingsViewOpen = true;
+            try
+            {
+                OpenSettingsView();
+            }
+            finally
+            {
+                _settingsViewOpen = false;
+            }
         }
+
+        [System.Runtime.InteropServices.DllImport("user32.dll")]
+        private static extern bool IsWindowEnabled(IntPtr hWnd);
 
         private enum ParityTestMode
         {
