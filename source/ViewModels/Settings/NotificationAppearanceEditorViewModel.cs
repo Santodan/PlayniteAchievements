@@ -697,11 +697,8 @@ namespace PlayniteAchievements.ViewModels.Settings
             }
         }
 
-        // The built-in text shadow strength (percent); must match the renderer's default.
-        private const double DefaultTextShadowStrength = 50;
-
         /// <summary>
-        /// Text shadow strength (0-100; 50 matches the built-in shadow, 0 disables it). Blank
+        /// Text shadow strength (0-100; 25 matches the built-in shadow, 0 disables it). Blank
         /// clears the override back to the default. Zero is meaningful here, so this commits
         /// through its own parser instead of <see cref="CommitSize"/>.
         /// </summary>
@@ -727,7 +724,7 @@ namespace PlayniteAchievements.ViewModels.Settings
 
         public double TextShadowSlider
         {
-            get => Surface?.TextShadowOpacity ?? DefaultTextShadowStrength;
+            get => Surface?.TextShadowOpacity ?? AchievementToastViewModel.DefaultTextShadowStrength;
             set => TextShadowText = Math.Round(Math.Max(0, Math.Min(100, value)))
                 .ToString(CultureInfo.CurrentCulture);
         }

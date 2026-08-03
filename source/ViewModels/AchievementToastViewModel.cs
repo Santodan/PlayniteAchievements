@@ -647,11 +647,14 @@ namespace PlayniteAchievements.ViewModels
         public double FrameProviderIconSize => _style.Frame.ProviderIconSize is double s && s > 0 ? s : DefaultFrameProviderIconSize;
 
         // The built-in content shadow parameters (matching PlayAch.Effect.ContentShadow). The
-        // strength setting maps 50% to exactly this look; blur and depth scale linearly with
-        // strength while opacity saturates at the default, so values above 50% read as a
-        // heavier, wider shadow.
+        // strength setting maps 25% to exactly this look; blur and depth scale linearly with
+        // strength (up to four times the default at 100%) while opacity saturates at the
+        // default, so values above 25% read as a heavier, wider shadow.
         private const double ContentShadowDefaultBlur = 6;
         private const double ContentShadowDefaultDepth = 1;
+
+        // The percent value that maps to the built-in shadow; shared with the settings editor.
+        public const double DefaultTextShadowStrength = 25;
 
         /// <summary>
         /// The drop shadow behind this surface's text, badges, and logos, scaled by the
@@ -663,7 +666,8 @@ namespace PlayniteAchievements.ViewModels
 
         private static Effect BuildContentShadow(double? strengthPercent)
         {
-            var strength = Math.Max(0.0, Math.Min(100.0, strengthPercent ?? 50.0)) / 50.0;
+            var strength = Math.Max(0.0, Math.Min(100.0, strengthPercent ?? DefaultTextShadowStrength))
+                / DefaultTextShadowStrength;
             if (strength <= 0)
             {
                 return null;

@@ -459,8 +459,8 @@ namespace PlayniteAchievements.Models.Settings
 
         /// <summary>
         /// Strength of the drop shadow behind the surface's text, badges, and logos, as a
-        /// percentage: 50 matches the built-in shadow, 100 is twice as strong, 0 disables it.
-        /// Null means the built-in default (50).
+        /// percentage: 25 matches the built-in shadow, 100 is four times as strong, 0 disables
+        /// it. Null means the built-in default (25).
         /// </summary>
         public double? TextShadowOpacity
         {

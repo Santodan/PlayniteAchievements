@@ -550,8 +550,9 @@
                     </ComboBox.ItemTemplate>
                 </ComboBox>
 
-                <!-- Text shadow strength: 50 matches the built-in shadow, 0 disables it,
-                     100 doubles it. Applies to this surface's text, badges, and logos. -->
+                <!-- Text shadow strength: 25 matches the built-in shadow, 0 disables it,
+                     100 is four times as strong. Applies to this surface's text, badges,
+                     and logos. -->
                 <TextBlock Text="{DynamicResource LOCPlayAch_Settings_Style_TextShadow}"
                            Style="{StaticResource EditorSubGroupHeaderStyle}"/>
                 <Grid HorizontalAlignment="Left"
