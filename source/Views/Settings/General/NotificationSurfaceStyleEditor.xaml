@@ -201,6 +201,7 @@
                         <RowDefinition Height="Auto"/>
                         <RowDefinition Height="Auto"/>
                         <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="Auto"/>
                     </Grid.RowDefinitions>
 
                     <TextBlock Grid.Row="0" Grid.Column="0"
@@ -224,19 +225,29 @@
                              Margin="0,0,0,8"/>
 
                     <TextBlock Grid.Row="2" Grid.Column="0"
-                               Text="{DynamicResource LOCPlayAch_Common_Label_Platform}"
+                               Text="{DynamicResource LOCPlayAch_Settings_Style_Rarity_PercentLabel}"
                                Style="{StaticResource EditorRowLabelStyle}"
                                Margin="0,0,8,8"/>
                     <TextBox Grid.Row="2" Grid.Column="1"
-                             Text="{Binding ProviderIconSizeText, Mode=TwoWay, UpdateSourceTrigger=LostFocus}"
+                             Text="{Binding RarityFontSizeText, Mode=TwoWay, UpdateSourceTrigger=LostFocus}"
                              Width="70"
                              TextAlignment="Right"
                              Margin="0,0,0,8"/>
 
                     <TextBlock Grid.Row="3" Grid.Column="0"
+                               Text="{DynamicResource LOCPlayAch_Common_Label_Platform}"
+                               Style="{StaticResource EditorRowLabelStyle}"
+                               Margin="0,0,8,8"/>
+                    <TextBox Grid.Row="3" Grid.Column="1"
+                             Text="{Binding ProviderIconSizeText, Mode=TwoWay, UpdateSourceTrigger=LostFocus}"
+                             Width="70"
+                             TextAlignment="Right"
+                             Margin="0,0,0,8"/>
+
+                    <TextBlock Grid.Row="4" Grid.Column="0"
                                Text="{DynamicResource LOCPlayAch_Settings_Style_LinePadding}"
                                Style="{StaticResource EditorRowLabelStyle}"/>
-                    <TextBox Grid.Row="3" Grid.Column="1"
+                    <TextBox Grid.Row="4" Grid.Column="1"
                              Text="{Binding LinePaddingText, Mode=TwoWay, UpdateSourceTrigger=LostFocus}"
                              Width="70"
                              TextAlignment="Right"/>

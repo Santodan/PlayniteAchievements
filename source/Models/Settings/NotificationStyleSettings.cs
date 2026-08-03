@@ -130,6 +130,7 @@ namespace PlayniteAchievements.Models.Settings
         private double? _titleFontSize;
         private double? _bodyFontSize;
         private double? _gameCategoryFontSize;
+        private double? _rarityFontSize;
         private double? _cardWidth;
         private double? _cardHeight;
         private double? _iconSize;
@@ -427,8 +428,8 @@ namespace PlayniteAchievements.Models.Settings
         }
 
         /// <summary>
-        /// Font size for the header/caption lines (header row, game and category row, percent
-        /// text), or null for the theme-derived size.
+        /// Font size for the header/caption line (the header row), or null for the theme-derived
+        /// size. The rarity percent text has its own <see cref="RarityFontSize"/>.
         /// </summary>
         public double? HeaderFontSize
         {
@@ -462,6 +463,17 @@ namespace PlayniteAchievements.Models.Settings
         {
             get => _gameCategoryFontSize;
             set => SetValue(ref _gameCategoryFontSize, value);
+        }
+
+        /// <summary>
+        /// Font size for the rarity percent text (footer, inline, and right-side badge
+        /// placements), or null for the theme-derived caption size. Independent of the header
+        /// line size so the percent can be sized on its own.
+        /// </summary>
+        public double? RarityFontSize
+        {
+            get => _rarityFontSize;
+            set => SetValue(ref _rarityFontSize, value);
         }
 
         /// <summary>
@@ -522,6 +534,7 @@ namespace PlayniteAchievements.Models.Settings
                 TitleFontSize = TitleFontSize,
                 BodyFontSize = BodyFontSize,
                 GameCategoryFontSize = GameCategoryFontSize,
+                RarityFontSize = RarityFontSize,
                 CardWidth = CardWidth,
                 CardHeight = CardHeight,
                 IconSize = IconSize,
