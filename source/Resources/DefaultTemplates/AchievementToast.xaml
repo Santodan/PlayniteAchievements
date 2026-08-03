@@ -114,19 +114,21 @@
                     <ColumnDefinition Width="*"/>
                     <ColumnDefinition Width="Auto"/>
                 </Grid.ColumnDefinitions>
-                <!-- Row 1 reserves a slim strip (far smaller than the content) so the countdown
-                     overlay sits just below the content instead of over it; it collapses to nothing
-                     when the bar is hidden. -->
+                <!-- Row 0 holds the content; Row 1 is a slim strip for the countdown bar. On a
+                     fixed-size card the content row simply gives up this small height (the card
+                     keeps its size and aspect); it collapses to nothing when the bar is hidden. -->
                 <Grid.RowDefinitions>
                     <RowDefinition Height="*"/>
                     <RowDefinition Height="Auto"/>
                 </Grid.RowDefinitions>
                 <!-- Rarity accent strip (capstone color takes precedence over rarity). Completion
                      notifications restyle here, in the template: base values live in Setters so
-                     the IsGameCompleted trigger can override them. Spans only the content row so it
-                     tracks the content height and never runs under the countdown overlay. -->
+                     the IsGameCompleted trigger can override them. Spans the full card height (both
+                     rows) as a clean left spine; the countdown bar is inset from the left, so they
+                     never overlap. -->
                 <Border Grid.Column="0"
                         Grid.Row="0"
+                        Grid.RowSpan="2"
                         Width="4"
                         CornerRadius="8,0,0,8"
                         Visibility="{Binding ShowAccentStrip, Converter={StaticResource BooleanToVisibilityConverter}}">
