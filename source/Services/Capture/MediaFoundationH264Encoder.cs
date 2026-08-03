@@ -1,4 +1,5 @@
 using System;
+using System.IO;
 using SharpDX.MediaFoundation;
 using D3D11 = SharpDX.Direct3D11;
 
@@ -25,6 +26,57 @@ namespace PlayniteAchievements.Services.Capture
         private readonly int _streamIndex;
         private bool _disposed;
 
+        private static bool? _available;
+
+        /// <summary>
+        /// Whether MF H.264 encoding is usable on this machine — false on Windows N/KN without the
+        /// Media Feature Pack (the H.264 encoder MFT is absent), so the caller falls back to ffmpeg.
+        /// Probed once by building and tearing down a tiny encoder; cached for the process.
+        /// </summary>
+        public static bool IsAvailable()
+        {
+            if (_available.HasValue)
+            {
+                return _available.Value;
+            }
+
+            string temp = null;
+            D3D11.Device device = null;
+            try
+            {
+                temp = Path.Combine(Path.GetTempPath(), $"pa_mfprobe_{Guid.NewGuid():N}.mp4");
+                device = new D3D11.Device(
+                    SharpDX.Direct3D.DriverType.Hardware,
+                    D3D11.DeviceCreationFlags.BgraSupport | D3D11.DeviceCreationFlags.VideoSupport);
+                using (new MediaFoundationH264Encoder(device, temp, 64, 64, 30, 1_000_000))
+                {
+                }
+
+                _available = true;
+            }
+            catch
+            {
+                _available = false;
+            }
+            finally
+            {
+                device?.Dispose();
+                try
+                {
+                    if (temp != null && File.Exists(temp))
+                    {
+                        File.Delete(temp);
+                    }
+                }
+                catch
+                {
+                    // ignore probe cleanup failure
+                }
+            }
+
+            return _available.Value;
+        }
+
         public MediaFoundationH264Encoder(
             D3D11.Device device, string outputPath, int width, int height, int fps, int bitrate)
         {
@@ -47,6 +99,9 @@ namespace PlayniteAchievements.Services.Capture
                 outputType.Set(MediaTypeAttributeKeys.MajorType, MediaTypeGuids.Video);
                 outputType.Set(MediaTypeAttributeKeys.Subtype, VideoFormatGuids.H264);
                 outputType.Set(MediaTypeAttributeKeys.AvgBitrate, bitrate);
+                // One keyframe per second so the concat/stream-copy clip trim snaps at most ~1s early
+                // (matching the old ffmpeg -force_key_frames), not to a distant GOP boundary.
+                outputType.Set(MediaTypeAttributeKeys.MaxKeyframeSpacing, fps);
                 outputType.Set(MediaTypeAttributeKeys.InterlaceMode, (int)VideoInterlaceMode.Progressive);
                 outputType.Set(MediaTypeAttributeKeys.FrameSize, Pack(width, height));
                 outputType.Set(MediaTypeAttributeKeys.FrameRate, Pack(fps, 1));

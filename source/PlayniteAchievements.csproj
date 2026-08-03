@@ -99,6 +99,10 @@
       <HintPath>packages\SharpDX.DXGI.4.2.0\lib\net45\SharpDX.DXGI.dll</HintPath>
       <Private>True</Private>
     </Reference>
+    <Reference Include="SharpDX.D3DCompiler">
+      <HintPath>packages\SharpDX.D3DCompiler.4.2.0\lib\net45\SharpDX.D3DCompiler.dll</HintPath>
+      <Private>True</Private>
+    </Reference>
     <!-- Media Foundation H.264 encode (GPU-resident) for WGC unlock video. -->
     <Reference Include="SharpDX.Mathematics">
       <HintPath>packages\SharpDX.Mathematics.4.2.0\lib\net45\SharpDX.Mathematics.dll</HintPath>

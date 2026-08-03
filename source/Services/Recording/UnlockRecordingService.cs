@@ -10,6 +10,7 @@ using Playnite.SDK;
 using PlayniteAchievements.Models;
 using PlayniteAchievements.Models.Achievements;
 using PlayniteAchievements.Models.Settings;
+using PlayniteAchievements.Services.Capture;
 using PlayniteAchievements.Services.UI;
 
 namespace PlayniteAchievements.Services.Recording
@@ -151,6 +152,12 @@ namespace PlayniteAchievements.Services.Recording
             public string GameName;
             public DateTime CaptureStartUtc;
             public FfmpegProcessHost CaptureHost;
+            // The WGC + Media Foundation capture engine, when that path is used instead of ffmpeg
+            // (occlusion-independent + HDR). Writes .mp4 segments the ffmpeg export/prune consume.
+            public WgcVideoRecorder WgcRecorder;
+            // Segment file extension for this session's capture engine: .ts for ffmpeg, .mp4 for
+            // WGC-MF. Threaded into segment discovery/prune/export so both paths share them.
+            public string SegmentExtension = RecordingCommandBuilder.SegmentFileExtension;
             public AudioLoopbackRecorder AudioRecorder;
             public CancellationTokenSource Cts;
             public Timer PruneTimer;
@@ -447,26 +454,40 @@ namespace PlayniteAchievements.Services.Recording
                     return;
                 }
 
-                var encoderArgs = await ResolveEncoderArgumentsAsync(session.FfmpegPath, persisted.RecordingEncoder)
-                    .ConfigureAwait(false);
-                var backend = await ResolveBackendAsync(session.FfmpegPath, persisted.RecordingCaptureBackend)
-                    .ConfigureAwait(false);
-
-                session.EncoderArguments = encoderArgs;
-                session.Backend = backend;
-                session.BackendAutoResolved = persisted.RecordingCaptureBackend == RecordingCaptureBackend.Auto;
-                // GPU-resident capture is native-only (the direct feed has no scaler) and only for
-                // a hardware encoder the probed build can actually feed ddagrab frames into.
-                session.GpuBridge = backend == RecordingCaptureBackend.Ddagrab &&
-                    persisted.RecordingResolution == RecordingResolution.Native
-                    ? await ResolveGpuBridgeAsync(session.FfmpegPath, encoderArgs).ConfigureAwait(false)
-                    : RecordingCommandBuilder.GpuCaptureBridge.None;
                 session.MonitorBounds = bounds.Value;
-                session.CaptureArguments = BuildCaptureArgumentsFor(session, persisted, bounds.Value);
-
                 Directory.CreateDirectory(session.BufferDirectory);
-                if (session.Stopping || !SpawnCapture(session))
+
+                // Prefer WGC + Media Foundation: occlusion-independent, HDR-correct, GPU-resident.
+                // Falls back to the ffmpeg screen-capture path when unavailable (Windows N/KN without
+                // the H.264 MFT, pre-1903, or the game window can't be resolved for per-window
+                // capture). The .mp4 segments it writes flow through the same prune/export as ffmpeg's.
+                var wgcStarted = TryStartWgcCapture(session, persisted);
+                if (!wgcStarted)
                 {
+                    var encoderArgs = await ResolveEncoderArgumentsAsync(session.FfmpegPath, persisted.RecordingEncoder)
+                        .ConfigureAwait(false);
+                    var backend = await ResolveBackendAsync(session.FfmpegPath, persisted.RecordingCaptureBackend)
+                        .ConfigureAwait(false);
+
+                    session.EncoderArguments = encoderArgs;
+                    session.Backend = backend;
+                    session.BackendAutoResolved = persisted.RecordingCaptureBackend == RecordingCaptureBackend.Auto;
+                    // GPU-resident capture is native-only (the direct feed has no scaler) and only for
+                    // a hardware encoder the probed build can actually feed ddagrab frames into.
+                    session.GpuBridge = backend == RecordingCaptureBackend.Ddagrab &&
+                        persisted.RecordingResolution == RecordingResolution.Native
+                        ? await ResolveGpuBridgeAsync(session.FfmpegPath, encoderArgs).ConfigureAwait(false)
+                        : RecordingCommandBuilder.GpuCaptureBridge.None;
+                    session.CaptureArguments = BuildCaptureArgumentsFor(session, persisted, bounds.Value);
+
+                    if (session.Stopping || !SpawnCapture(session))
+                    {
+                        return;
+                    }
+                }
+                else if (session.Stopping)
+                {
+                    session.WgcRecorder?.Stop();
                     return;
                 }
 
@@ -491,12 +512,11 @@ namespace PlayniteAchievements.Services.Recording
                     TimeSpan.FromSeconds(PruneIntervalSeconds),
                     TimeSpan.FromSeconds(PruneIntervalSeconds));
                 _logger?.Info(
-                    $"[Recording] Capture started for '{session.GameName}' on monitor {bounds.Value} ({backend}, {encoderArgs}{(session.GpuBridge != RecordingCommandBuilder.GpuCaptureBridge.None ? $", GPU-resident:{session.GpuBridge}" : string.Empty)}), buffer={session.BufferDirectory}.");
+                    $"[Recording] Capture started for '{session.GameName}' ({(wgcStarted ? "WGC+MediaFoundation" : $"ffmpeg {session.Backend}, {session.EncoderArguments}")}), buffer={session.BufferDirectory}.");
 
-                // Capture started from the fallback (foreground) monitor before the game window
-                // existed: keep watching, and if the game window appears on a different monitor,
-                // restart the capture there.
-                if (!mainWindowResolved)
+                // Only the ffmpeg monitor-capture path needs to correct the monitor if the game window
+                // later appears elsewhere; WGC per-window capture follows the window itself.
+                if (!wgcStarted && !mainWindowResolved)
                 {
                     _ = Task.Run(() => CorrectMonitorWhenWindowAppearsAsync(session, bounds.Value, deadline));
                 }
@@ -621,6 +641,63 @@ namespace PlayniteAchievements.Services.Recording
             session.CaptureStartUtc = DateTime.UtcNow;
             session.CaptureHost = host;
             return true;
+        }
+
+        /// <summary>
+        /// Starts the WGC + Media Foundation capture (occlusion-independent, HDR-correct, GPU-resident)
+        /// for the session's game window, writing .mp4 segments into the buffer directory. Returns
+        /// false — leaving nothing running — when WGC-MF isn't usable (pre-1903, Windows N/KN without
+        /// the H.264 MFT, or the game window can't be resolved), so the caller falls back to ffmpeg.
+        /// </summary>
+        private bool TryStartWgcCapture(CaptureSession session, PersistedSettings persisted)
+        {
+            try
+            {
+                if (!WgcVideoRecorder.IsSupported || !MediaFoundationH264Encoder.IsAvailable())
+                {
+                    return false;
+                }
+
+                var trackedHwnd = _windowTracker?.TryGetWindowHandle(session.OwnerGameId) ?? IntPtr.Zero;
+                var pid = _getGameProcessId?.Invoke(session.OwnerGameId);
+                var hwnd = _screenshotService.ResolveGameWindowHandle(trackedHwnd, pid);
+                if (hwnd == IntPtr.Zero)
+                {
+                    return false;
+                }
+
+                var recorder = new WgcVideoRecorder(
+                    hwnd, session.BufferDirectory, persisted.RecordingFps, ResolveBitrate(persisted), SegmentSeconds, _logger);
+                if (!recorder.Start())
+                {
+                    recorder.Dispose();
+                    return false;
+                }
+
+                session.WgcRecorder = recorder;
+                session.SegmentExtension = WgcVideoRecorder.SegmentFileExtension;
+                session.CaptureStartUtc = DateTime.UtcNow;
+                return true;
+            }
+            catch (Exception ex)
+            {
+                _logger?.Debug(ex, "[Recording] WGC-MF capture unavailable; falling back to ffmpeg.");
+                return false;
+            }
+        }
+
+        /// <summary>Target H.264 bitrate for the WGC-MF encode, by output resolution.</summary>
+        private static int ResolveBitrate(PersistedSettings persisted)
+        {
+            switch (persisted.RecordingResolution)
+            {
+                case RecordingResolution.P720:
+                    return 8_000_000;
+                case RecordingResolution.P1080:
+                    return 14_000_000;
+                default:
+                    return 20_000_000; // Native (unknown size) — generous flat default.
+            }
         }
 
         /// <summary>
@@ -803,6 +880,10 @@ namespace PlayniteAchievements.Services.Recording
                     await host.StopGracefullyAsync(TimeSpan.FromSeconds(StopGraceSeconds)).ConfigureAwait(false);
                 }
 
+                // Stop the WGC-MF capture and finalize its current segment before pending clips read
+                // the buffer (an unfinalized mp4 segment is not decodable).
+                session.WgcRecorder?.Stop();
+
                 // Close the current audio chunk before pending clips read the buffer.
                 session.AudioRecorder?.Stop();
 
@@ -835,6 +916,8 @@ namespace PlayniteAchievements.Services.Recording
 
                 host?.Dispose();
                 session.CaptureHost = null;
+                session.WgcRecorder?.Dispose();
+                session.WgcRecorder = null;
                 session.AudioRecorder?.Dispose();
                 session.AudioRecorder = null;
                 lock (_gate)
@@ -1199,7 +1282,7 @@ namespace PlayniteAchievements.Services.Recording
                 ListBufferFiles(
                     session.BufferDirectory,
                     RecordingCommandBuilder.SegmentFilePrefix,
-                    RecordingCommandBuilder.SegmentFileExtension),
+                    session.SegmentExtension),
                 TimeZoneInfo.Local);
             var plan = SegmentTimeline.PlanClip(segments, windowStart, windowEnd, SegmentSeconds);
             if (plan == null)
@@ -1331,6 +1414,13 @@ namespace PlayniteAchievements.Services.Recording
         /// </summary>
         private System.Drawing.Rectangle? ResolveCropRectangle(CaptureSession session)
         {
+            // WGC captures the game window per-window, so its segments are already the game (client)
+            // area — no crop out of a monitor capture is needed.
+            if (session.WgcRecorder != null)
+            {
+                return null;
+            }
+
             try
             {
                 var trackedHwnd = _windowTracker?.TryGetWindowHandle(session.OwnerGameId) ?? IntPtr.Zero;
@@ -1529,7 +1619,7 @@ namespace PlayniteAchievements.Services.Recording
                     ListBufferFiles(
                         session.BufferDirectory,
                         RecordingCommandBuilder.SegmentFilePrefix,
-                        RecordingCommandBuilder.SegmentFileExtension),
+                        session.SegmentExtension),
                     TimeZoneInfo.Local);
                 LogCaptureHealth(session, segments);
                 foreach (var segment in SegmentTimeline.SelectPrunable(
@@ -2032,6 +2122,7 @@ namespace PlayniteAchievements.Services.Recording
 
                 session.PruneTimer?.Dispose();
                 session.CaptureHost?.Dispose();
+                session.WgcRecorder?.Dispose();
                 session.AudioRecorder?.Dispose();
             }
 
