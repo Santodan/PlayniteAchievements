@@ -525,9 +525,11 @@
                                     helpers:ColumnVisibilityHelper.ColumnKey="Captures">
                 <DataGridTemplateColumn.CellTemplate>
                     <DataTemplate>
-                        <Button Content="{DynamicResource LOCPlayAch_Common_View}"
+                        <Button Content="&#xE768;"
+                                FontFamily="Segoe MDL2 Assets"
+                                FontSize="13"
                                 Style="{StaticResource PlayAch.Button.BaseStyle}"
-                                Padding="9,3"
+                                Padding="10,3"
                                 HorizontalAlignment="Center"
                                 VerticalAlignment="Center"
                                 ToolTip="{DynamicResource LOCPlayAch_Column_Captures}"
