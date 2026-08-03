@@ -172,7 +172,7 @@ namespace PlayniteAchievements.Services.Capture
             var framePool = Direct3D11CaptureFramePool.CreateFreeThreaded(
                 _winrtDevice, pixelFormat, 2, item.Size);
             var session = framePool.CreateCaptureSession(item);
-            TrySuppressBorder(session);
+            WgcCaptureBorder.Suppress(session);
 
             var gate = new object();
             Direct3D11CaptureFrame latest = null;
@@ -295,25 +295,6 @@ namespace PlayniteAchievements.Services.Capture
             finally
             {
                 Marshal.Release(itemPtr);
-            }
-        }
-
-        private static void TrySuppressBorder(GraphicsCaptureSession session)
-        {
-            // IsBorderRequired (build 20348+) is newer than the pinned WinRT contracts, so set it by
-            // reflection: no-op on older builds, and the border is never in the captured pixels
-            // regardless, so failure is purely cosmetic (a brief on-screen indicator).
-            try
-            {
-                var prop = session.GetType().GetProperty("IsBorderRequired");
-                if (prop != null && prop.CanWrite)
-                {
-                    prop.SetValue(session, false);
-                }
-            }
-            catch
-            {
-                // Older build / no borderless consent — leave the border on.
             }
         }
 

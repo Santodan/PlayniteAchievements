@@ -193,7 +193,7 @@ namespace PlayniteAchievements.Services.Capture
             _item = item;
             _framePool = Direct3D11CaptureFramePool.CreateFreeThreaded(_winrtDevice, pixelFormat, 2, item.Size);
             _session = _framePool.CreateCaptureSession(_item);
-            TrySuppressBorder(_session);
+            WgcCaptureBorder.Suppress(_session);
             _session.StartCapture();
             _activeHwnd = hwnd;
             _logger?.Info($"[Recording] WGC-MF capturing game window 0x{hwnd.ToInt64():X} (hdr={_hdr}, {item.Size.Width}x{item.Size.Height}@{_fps}).");
@@ -587,22 +587,6 @@ namespace PlayniteAchievements.Services.Capture
             finally
             {
                 Marshal.Release(itemPtr);
-            }
-        }
-
-        private static void TrySuppressBorder(GraphicsCaptureSession session)
-        {
-            try
-            {
-                var prop = session.GetType().GetProperty("IsBorderRequired");
-                if (prop != null && prop.CanWrite)
-                {
-                    prop.SetValue(session, false);
-                }
-            }
-            catch
-            {
-                // Older build; the border isn't in the captured pixels anyway.
             }
         }
 
