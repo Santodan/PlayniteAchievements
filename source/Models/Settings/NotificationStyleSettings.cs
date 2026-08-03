@@ -118,6 +118,7 @@ namespace PlayniteAchievements.Models.Settings
         private double? _cardPaddingRight;
         private double? _linePadding;
         private double _titleLineOffset;
+        private double? _textShadowOpacity;
         private NotificationBadgeImageSet _badgeImages;
         private NotificationHeaderTextSettings _headerTexts;
 
@@ -457,6 +458,17 @@ namespace PlayniteAchievements.Models.Settings
         }
 
         /// <summary>
+        /// Strength of the drop shadow behind the surface's text, badges, and logos, as a
+        /// percentage: 50 matches the built-in shadow, 100 is twice as strong, 0 disables it.
+        /// Null means the built-in default (50).
+        /// </summary>
+        public double? TextShadowOpacity
+        {
+            get => _textShadowOpacity;
+            set => SetValue(ref _textShadowOpacity, value);
+        }
+
+        /// <summary>
         /// User-supplied badge replacement images for this surface. Lazily initialized;
         /// never null.
         /// </summary>
@@ -543,6 +555,7 @@ namespace PlayniteAchievements.Models.Settings
                 CardPaddingRight = CardPaddingRight,
                 LinePadding = LinePadding,
                 TitleLineOffset = TitleLineOffset,
+                TextShadowOpacity = TextShadowOpacity,
                 BadgeImages = BadgeImages.Clone(),
                 HeaderTexts = HeaderTexts.Clone()
             };

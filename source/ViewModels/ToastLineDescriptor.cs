@@ -1,5 +1,6 @@
 using System.Windows;
 using System.Windows.Media;
+using System.Windows.Media.Effects;
 
 namespace PlayniteAchievements.ViewModels
 {
@@ -13,11 +14,16 @@ namespace PlayniteAchievements.ViewModels
     /// </summary>
     public abstract class ToastLineDescriptor
     {
-        protected ToastLineDescriptor(AchievementToastViewModel parent, double fontSize, FontFamily fontFamily)
+        protected ToastLineDescriptor(
+            AchievementToastViewModel parent,
+            double fontSize,
+            FontFamily fontFamily,
+            Effect textShadow)
         {
             Parent = parent;
             FontSize = fontSize;
             FontFamily = fontFamily;
+            TextShadow = textShadow;
         }
 
         public AchievementToastViewModel Parent { get; }
@@ -27,6 +33,12 @@ namespace PlayniteAchievements.ViewModels
         // Bound as a local value on each line TextBlock: the shared TextBlock base style sets
         // FontFamily via a style setter, which would beat an inherited TextElement.FontFamily.
         public FontFamily FontFamily { get; }
+
+        /// <summary>
+        /// The surface's content drop shadow (strength-scaled), applied on each line's root;
+        /// null when the user disabled the shadow.
+        /// </summary>
+        public Effect TextShadow { get; }
 
         /// <summary>
         /// Horizontal left indent (DIPs) applied to this line through the ItemsControl item
@@ -65,6 +77,7 @@ namespace PlayniteAchievements.ViewModels
             AchievementToastViewModel parent,
             double fontSize,
             FontFamily fontFamily,
+            Effect textShadow,
             bool showHeader,
             bool showUnlockTime,
             bool showDateSeparator,
@@ -72,7 +85,7 @@ namespace PlayniteAchievements.ViewModels
             string headerText,
             string completionHeaderText,
             string friendCompletionHeaderText)
-            : base(parent, fontSize, fontFamily)
+            : base(parent, fontSize, fontFamily, textShadow)
         {
             ShowHeader = showHeader;
             ShowUnlockTime = showUnlockTime;
@@ -120,13 +133,14 @@ namespace PlayniteAchievements.ViewModels
             AchievementToastViewModel parent,
             double fontSize,
             FontFamily fontFamily,
+            Effect textShadow,
             bool showName,
             Brush titleBrush,
             Brush completedTitleBrush,
             bool showInlineBadge,
             object inlineBadgeSource,
             double inlineBadgeSize)
-            : base(parent, fontSize, fontFamily)
+            : base(parent, fontSize, fontFamily, textShadow)
         {
             ShowName = showName;
             TitleBrush = titleBrush;
@@ -178,9 +192,10 @@ namespace PlayniteAchievements.ViewModels
             AchievementToastViewModel parent,
             double fontSize,
             FontFamily fontFamily,
+            Effect textShadow,
             bool showDescription,
             int maxLines)
-            : base(parent, fontSize, fontFamily)
+            : base(parent, fontSize, fontFamily, textShadow)
         {
             ShowDescription = showDescription;
             MaxLines = maxLines < 1 ? 1 : maxLines;
@@ -226,10 +241,11 @@ namespace PlayniteAchievements.ViewModels
             AchievementToastViewModel parent,
             double fontSize,
             FontFamily fontFamily,
+            Effect textShadow,
             bool showGameName,
             bool showCategory,
             bool showSeparator)
-            : base(parent, fontSize, fontFamily)
+            : base(parent, fontSize, fontFamily, textShadow)
         {
             ShowGameName = showGameName;
             ShowCategory = showCategory;

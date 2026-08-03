@@ -30,10 +30,21 @@ namespace PlayniteAchievements.ViewModels
 
         // Frame font fallbacks are 1080-reference-canvas DIPs matching the bundled frame
         // template's historical literals, deliberately independent of theme font sizes.
-        private const double FrameHeaderFontFallback = 17;
-        private const double FrameTitleFontFallback = 30;
+        // Public (with the size fallbacks below) so the settings editor's sliders can rest on
+        // the same defaults the renderer applies.
+        public const double FrameHeaderFontFallback = 17;
+        public const double FrameTitleFontFallback = 30;
         private const double FrameBodyFontFallback = 19;
         private const double FrameGameCategoryFontFallback = 19;
+
+        // Built-in size fallbacks used when the style stores null.
+        public const double DefaultToastIconSize = 55;
+        public const double DefaultFrameIconSize = 84;
+        public const double DefaultToastProviderIconSize = 24;
+        public const double DefaultFrameProviderIconSize = 40;
+        public const double DefaultToastCardWidth = 410;
+        public const double DefaultToastTitleFontSize = 16;
+        public const double DefaultToastCaptionFontSize = 11;
 
         private readonly AchievementUnlockedEventArgs _args;
         private readonly PersistedSettings _settings;
@@ -572,7 +583,7 @@ namespace PlayniteAchievements.ViewModels
             new Thickness(_style.Toast.CardPaddingLeft ?? 0, 0, _style.Toast.CardPaddingRight ?? 0, 0);
 
         // User toast card dimensions, falling back to the bundled template's defaults.
-        public double ToastCardWidth => _style.Toast.CardWidth is double w && w > 0 ? w : 410;
+        public double ToastCardWidth => _style.Toast.CardWidth is double w && w > 0 ? w : DefaultToastCardWidth;
 
         // NaN maps to WPF "Auto": with no explicit height the card sizes to its content (its
         // natural height), floored by the template's MinHeight. A set value fixes the height.
@@ -599,20 +610,20 @@ namespace PlayniteAchievements.ViewModels
 
         // Effective caption/header size per surface.
         public double ToastHeaderFontSize => _style.Toast.HeaderFontSize
-            ?? ResolveFontSizeResource("PlayAch.FontSize.Caption", 11);
+            ?? ResolveFontSizeResource("PlayAch.FontSize.Caption", DefaultToastCaptionFontSize);
         public double FrameHeaderFontSize => _style.Frame.HeaderFontSize ?? FrameHeaderFontFallback;
 
         // Effective rarity percent text size per surface. Decoupled from the header size; when
         // unset it falls back to the same caption/header default so the out-of-the-box look is
         // unchanged.
         public double ToastRarityFontSize => _style.Toast.RarityFontSize
-            ?? ResolveFontSizeResource("PlayAch.FontSize.Caption", 11);
+            ?? ResolveFontSizeResource("PlayAch.FontSize.Caption", DefaultToastCaptionFontSize);
         public double FrameRarityFontSize => _style.Frame.RarityFontSize ?? FrameHeaderFontFallback;
 
         // Effective title size per surface: the single source of truth for both the title line
         // and the badge size, so the inline and footer badges always match.
         public double ToastTitleFontSize => _style.Toast.TitleFontSize
-            ?? ResolveFontSizeResource("PlayAch.FontSize.Title", 16);
+            ?? ResolveFontSizeResource("PlayAch.FontSize.Title", DefaultToastTitleFontSize);
         public double FrameTitleFontSize => _style.Frame.TitleFontSize ?? FrameTitleFontFallback;
 
         // Rarity badge render size per surface, identical across every rarity display mode
@@ -628,12 +639,47 @@ namespace PlayniteAchievements.ViewModels
         public double FrameRightBadgeSize => _style.Frame.RarityBadgeSize ?? (FrameTitleFontSize * RightBadgeToTitleRatio);
 
         // Achievement icon render size per surface (user IconSize, else the bundled default).
-        public double ToastIconSize => _style.Toast.IconSize is double s && s > 0 ? s : 55;
-        public double FrameIconSize => _style.Frame.IconSize is double s && s > 0 ? s : 84;
+        public double ToastIconSize => _style.Toast.IconSize is double s && s > 0 ? s : DefaultToastIconSize;
+        public double FrameIconSize => _style.Frame.IconSize is double s && s > 0 ? s : DefaultFrameIconSize;
 
         // Provider (platform) icon render size per surface (user ProviderIconSize, else default).
-        public double ToastProviderIconSize => _style.Toast.ProviderIconSize is double s && s > 0 ? s : 24;
-        public double FrameProviderIconSize => _style.Frame.ProviderIconSize is double s && s > 0 ? s : 40;
+        public double ToastProviderIconSize => _style.Toast.ProviderIconSize is double s && s > 0 ? s : DefaultToastProviderIconSize;
+        public double FrameProviderIconSize => _style.Frame.ProviderIconSize is double s && s > 0 ? s : DefaultFrameProviderIconSize;
+
+        // The built-in content shadow parameters (matching PlayAch.Effect.ContentShadow). The
+        // strength setting maps 50% to exactly this look; blur and depth scale linearly with
+        // strength while opacity saturates at the default, so values above 50% read as a
+        // heavier, wider shadow.
+        private const double ContentShadowDefaultBlur = 6;
+        private const double ContentShadowDefaultDepth = 1;
+
+        /// <summary>
+        /// The drop shadow behind this surface's text, badges, and logos, scaled by the
+        /// surface's text-shadow strength setting; null when the shadow is disabled (0%).
+        /// </summary>
+        public Effect ToastContentShadow => BuildContentShadow(_style.Toast.TextShadowOpacity);
+
+        public Effect FrameContentShadow => BuildContentShadow(_style.Frame.TextShadowOpacity);
+
+        private static Effect BuildContentShadow(double? strengthPercent)
+        {
+            var strength = Math.Max(0.0, Math.Min(100.0, strengthPercent ?? 50.0)) / 50.0;
+            if (strength <= 0)
+            {
+                return null;
+            }
+
+            var effect = new DropShadowEffect
+            {
+                BlurRadius = ContentShadowDefaultBlur * strength,
+                ShadowDepth = ContentShadowDefaultDepth * strength,
+                Direction = 315,
+                Color = Colors.Black,
+                Opacity = Math.Min(1.0, strength)
+            };
+            effect.Freeze();
+            return effect;
+        }
 
         /// <summary>
         /// The toast's text lines in the user's order; hidden lines are still present with
@@ -656,9 +702,9 @@ namespace PlayniteAchievements.ViewModels
             var headerSize = isFrame ? FrameHeaderFontSize : ToastHeaderFontSize;
             var titleSize = isFrame ? FrameTitleFontSize : ToastTitleFontSize;
             var bodySize = surface.BodyFontSize ??
-                (isFrame ? FrameBodyFontFallback : ResolveFontSizeResource("PlayAch.FontSize.Caption", 11));
+                (isFrame ? FrameBodyFontFallback : ResolveFontSizeResource("PlayAch.FontSize.Caption", DefaultToastCaptionFontSize));
             var gameCategorySize = surface.GameCategoryFontSize ??
-                (isFrame ? FrameGameCategoryFontFallback : ResolveFontSizeResource("PlayAch.FontSize.Caption", 11));
+                (isFrame ? FrameGameCategoryFontFallback : ResolveFontSizeResource("PlayAch.FontSize.Caption", DefaultToastCaptionFontSize));
 
             var showGameName = isFrame ? FrameShowGameName : ShowGameName;
             var showCategory = isFrame ? FrameShowCategory : ShowCategory;
@@ -677,6 +723,9 @@ namespace PlayniteAchievements.ViewModels
             // Extra top/bottom padding applied to every line.
             var linePadding = surface.LinePadding is double lp && lp > 0 ? lp : 0;
 
+            // One strength-scaled shadow instance shared by every line of this surface.
+            var contentShadow = isFrame ? FrameContentShadow : ToastContentShadow;
+
             var lines = new List<ToastLineDescriptor>(NotificationSurfaceStyle.DefaultLineOrder.Count);
             foreach (var token in NotificationSurfaceStyle.CanonicalizeLineOrder(surface.LineOrder))
             {
@@ -687,6 +736,7 @@ namespace PlayniteAchievements.ViewModels
                             this,
                             headerSize,
                             family,
+                            contentShadow,
                             isFrame ? FrameShowHeader : ShowHeader,
                             isFrame ? FrameShowUnlockTime : ShowUnlockTime,
                             isFrame ? FrameShowHeaderDateSeparator : ShowHeaderDateSeparator,
@@ -700,6 +750,7 @@ namespace PlayniteAchievements.ViewModels
                             this,
                             titleSize,
                             family,
+                            contentShadow,
                             isFrame ? FrameShowName : ShowName,
                             isFrame ? FrameTitleBrush : TitleBrush,
                             isFrame ? FrameCompletedTitleBrush : CompletedTitleBrush,
@@ -712,6 +763,7 @@ namespace PlayniteAchievements.ViewModels
                             this,
                             bodySize,
                             family,
+                            contentShadow,
                             isFrame ? FrameShowDescription : ShowDescription,
                             descriptionMaxLines));
                         break;
@@ -720,6 +772,7 @@ namespace PlayniteAchievements.ViewModels
                             this,
                             gameCategorySize,
                             family,
+                            contentShadow,
                             showGameName,
                             showCategory,
                             isFrame ? FrameShowGameCategorySeparator : ShowGameCategorySeparator));

@@ -116,7 +116,7 @@
                         <StackPanel Orientation="Horizontal"
                                     HorizontalAlignment="Center"
                                     Margin="0,6,0,0"
-                                    Effect="{StaticResource PlayAch.Effect.ContentShadow}">
+                                    Effect="{Binding FrameContentShadow}">
                             <!-- Sync-loaded custom badge image (offscreen render contract);
                                  animated GIF badges contribute their first frame here. -->
                             <Image Source="{Binding FrameBadgeImage}"
@@ -163,7 +163,7 @@
                     <Grid Grid.Column="2"
                           Margin="0,0,22,0"
                           VerticalAlignment="Center"
-                          Effect="{StaticResource PlayAch.Effect.ContentShadow}">
+                          Effect="{Binding FrameContentShadow}">
                         <Image Width="{Binding FrameProviderIconSize}"
                                Height="{Binding FrameProviderIconSize}"
                                VerticalAlignment="Center"
@@ -201,7 +201,7 @@
                     <StackPanel Grid.Column="3"
                                 Orientation="Horizontal"
                                 VerticalAlignment="Center"
-                                Effect="{StaticResource PlayAch.Effect.ContentShadow}">
+                                Effect="{Binding FrameContentShadow}">
                         <Border Width="1"
                                 Margin="0,10,20,10"
                                 Background="{DynamicResource PlayAch.Brush.PopupBorder}"/>

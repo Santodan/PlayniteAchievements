@@ -61,11 +61,11 @@
     </Storyboard>
 
     <!--
-        The single, standardized content shadow that lifts text, badges, and logos off the card
-        surface or a user background image so they stay legible. Shared and frozen, so a single
-        tweak here restyles every text line and badge on both the toast and frame surfaces. Applied
-        on the shared line-template roots (below) and on the badge/provider images in each surface
-        template.
+        The standardized content shadow that lifts text, badges, and logos off the card surface
+        or a user background image so they stay legible. The live surfaces bind strength-scaled
+        instances from the view model (TextShadow on line descriptors, Toast/FrameContentShadow
+        on the surface templates); this static resource remains the reference default and keeps
+        older custom templates that reference it working.
     -->
     <DropShadowEffect x:Key="PlayAch.Effect.ContentShadow"
                       BlurRadius="6"
@@ -87,7 +87,7 @@
     <DataTemplate DataType="{x:Type vm:ToastHeaderLine}">
         <StackPanel Orientation="Horizontal"
                     VerticalAlignment="Center"
-                    Effect="{StaticResource PlayAch.Effect.ContentShadow}">
+                    Effect="{Binding TextShadow}">
             <Border Width="16"
                     Height="16"
                     CornerRadius="8"
@@ -178,7 +178,7 @@
              notifications force the title, swap it for "Game Complete!", and color it with the
              completed brush. -->
         <DockPanel LastChildFill="True"
-                   Effect="{StaticResource PlayAch.Effect.ContentShadow}">
+                   Effect="{Binding TextShadow}">
             <Image DockPanel.Dock="Left"
                    helpers:AsyncImage.Uri="{Binding InlineBadgeSource}"
                    helpers:AsyncImage.DecodePixel="64"
@@ -231,7 +231,7 @@
                    LineHeight="{Binding LineBoxHeight}"
                    LineStackingStrategy="BlockLineHeight"
                    MaxHeight="{Binding MaxTextHeight}"
-                   Effect="{StaticResource PlayAch.Effect.ContentShadow}"
+                   Effect="{Binding TextShadow}"
                    Visibility="{Binding ShowDescription, Converter={StaticResource BooleanToVisibilityConverter}}"/>
     </DataTemplate>
 
@@ -248,7 +248,7 @@
                    TextTrimming="CharacterEllipsis"
                    LineHeight="{Binding LineBoxHeight}"
                    LineStackingStrategy="BlockLineHeight"
-                   Effect="{StaticResource PlayAch.Effect.ContentShadow}"
+                   Effect="{Binding TextShadow}"
                    Visibility="{Binding HasGameCategoryContent, Converter={StaticResource BooleanToVisibilityConverter}}"/>
     </DataTemplate>
 </ResourceDictionary>
