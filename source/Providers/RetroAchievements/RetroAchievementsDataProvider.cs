@@ -304,7 +304,7 @@ namespace PlayniteAchievements.Providers.RetroAchievements
             {
                 ProviderKey = ProviderKey,
                 WatchTargets = new[] { logPath },
-                PollInterval = TimeSpan.FromSeconds(60),
+                PollInterval = InGameProgressRegistration.FileWatchSafetyPollInterval,
                 State = new RaEmulatorLogSession(logPath, entry.Profile, achievementIds)
             };
         }

@@ -112,8 +112,43 @@ namespace PlayniteAchievements.ViewModels.Settings
 
         public ObservableCollection<NotificationLineRowItem> LineRows { get; }
 
-        public IReadOnlyList<FontFamilyOption> FontFamilyOptions =>
-            _fontFamilyOptions ?? (_fontFamilyOptions = BuildFontFamilyOptions());
+        private static readonly object _fontFamilyOptionsGate = new object();
+
+        public IReadOnlyList<FontFamilyOption> FontFamilyOptions => EnsureFontFamilyOptions();
+
+        /// <summary>
+        /// Builds (once, process-wide) the system font-family list. Enumerating
+        /// <see cref="Fonts.SystemFontFamilies"/> and culture-sorting it is slow, so it is cached and
+        /// guarded so a background pre-warm and the first UI access never build it twice.
+        /// </summary>
+        private static IReadOnlyList<FontFamilyOption> EnsureFontFamilyOptions()
+        {
+            if (_fontFamilyOptions != null)
+            {
+                return _fontFamilyOptions;
+            }
+
+            lock (_fontFamilyOptionsGate)
+            {
+                return _fontFamilyOptions ?? (_fontFamilyOptions = BuildFontFamilyOptions());
+            }
+        }
+
+        /// <summary>
+        /// Pre-builds the font-family list off the UI thread so the first open of the notification
+        /// appearance tab doesn't block on the enumeration. Safe to call repeatedly; best-effort.
+        /// </summary>
+        public static void PrewarmFontOptions()
+        {
+            try
+            {
+                EnsureFontFamilyOptions();
+            }
+            catch
+            {
+                // Falls back to the lazy UI-thread build on first access.
+            }
+        }
 
         public FontFamilyOption SelectedFontFamilyOption
         {
@@ -344,6 +379,48 @@ namespace PlayniteAchievements.ViewModels.Settings
                 // The frame never has a border glow regardless of the selection.
                 surface.NotificationBorderGlow = !IsFrameSurface &&
                     (mode == GlowDisplay.Notification || mode == GlowDisplay.Both);
+            }
+        }
+
+        #endregion
+
+        #region Frame vignette (frame surface only)
+
+        private static IReadOnlyList<FrameVignetteOption> _frameVignetteOptions;
+
+        /// <summary>
+        /// Vignette choices for the screenshot frame: Full (radial edge vignette plus the bottom
+        /// contrast wash), Bottom (bottom wash only), or None. Frame surface only; the toast has
+        /// its own card chrome, so the dropdown is hidden there.
+        /// </summary>
+        public IReadOnlyList<FrameVignetteOption> FrameVignetteOptions =>
+            _frameVignetteOptions ?? (_frameVignetteOptions = new[]
+            {
+                new FrameVignetteOption(FrameVignetteStyle.Full, L("LOCPlayAch_Settings_Style_VignetteFull")),
+                new FrameVignetteOption(FrameVignetteStyle.Bottom, L("LOCPlayAch_Settings_Style_VignetteBottom")),
+                new FrameVignetteOption(FrameVignetteStyle.None, L("LOCPlayAch_Common_None"))
+            });
+
+        /// <summary>
+        /// The frame vignette style, read from and written back to the surface.
+        /// </summary>
+        public FrameVignetteOption SelectedFrameVignette
+        {
+            get
+            {
+                var value = Surface?.FrameVignette ?? FrameVignetteStyle.Full;
+                return FrameVignetteOptions.FirstOrDefault(option => option.Value == value)
+                       ?? FrameVignetteOptions[0];
+            }
+            set
+            {
+                var surface = Surface;
+                if (surface == null || value == null)
+                {
+                    return;
+                }
+
+                surface.FrameVignette = value.Value;
             }
         }
 
@@ -594,6 +671,14 @@ namespace PlayniteAchievements.ViewModels.Settings
         /// </summary>
         public bool HasBackgroundImage =>
             !IsFrameSurface && !string.IsNullOrWhiteSpace(_style?.ToastBackgroundImagePath);
+
+        /// <summary>
+        /// Cache-busted source for the editor's background thumbnail. The managed slot reuses a
+        /// fixed filename, so picking a different image resolves to the same path; the write-time +
+        /// size token makes the thumbnail re-decode the new file instead of showing the cached one.
+        /// </summary>
+        public string BackgroundThumbnailUri =>
+            Models.Achievements.AchievementIconResolver.ApplyCacheBust(_style?.ToastBackgroundImagePath);
 
         /// <summary>
         /// The background image's pixel dimensions as "W × H" (empty when none is set), so the
@@ -1161,10 +1246,12 @@ namespace PlayniteAchievements.ViewModels.Settings
             OnPropertyChanged(nameof(SelectedPercentPlacement));
             OnPropertyChanged(nameof(IsProviderIconEnabled));
             OnPropertyChanged(nameof(SelectedGlowDisplay));
+            OnPropertyChanged(nameof(SelectedFrameVignette));
             OnPropertyChanged(nameof(CountdownBarColorText));
             OnPropertyChanged(nameof(CountdownBarSwatch));
             OnPropertyChanged(nameof(HasBackgroundImage));
             OnPropertyChanged(nameof(BackgroundImageDimensionsText));
+            OnPropertyChanged(nameof(BackgroundThumbnailUri));
             OnPropertyChanged(nameof(TitleLineOffsetText));
         }
 
@@ -1240,6 +1327,7 @@ namespace PlayniteAchievements.ViewModels.Settings
                 OnPropertyChanged(nameof(Style));
                 OnPropertyChanged(nameof(HasBackgroundImage));
                 OnPropertyChanged(nameof(BackgroundImageDimensionsText));
+                OnPropertyChanged(nameof(BackgroundThumbnailUri));
             }
 
             NotifyStyleEdited();
@@ -1290,6 +1378,10 @@ namespace PlayniteAchievements.ViewModels.Settings
                      e.PropertyName == nameof(NotificationSurfaceStyle.NotificationBorderGlow))
             {
                 OnPropertyChanged(nameof(SelectedGlowDisplay));
+            }
+            else if (e.PropertyName == nameof(NotificationSurfaceStyle.FrameVignette))
+            {
+                OnPropertyChanged(nameof(SelectedFrameVignette));
             }
 
             NotifyStyleEdited();
@@ -1418,6 +1510,22 @@ namespace PlayniteAchievements.ViewModels.Settings
         }
 
         public GlowDisplay Value { get; }
+
+        public string Display { get; }
+    }
+
+    /// <summary>
+    /// One entry of the frame vignette dropdown: the value and its localized label.
+    /// </summary>
+    internal sealed class FrameVignetteOption
+    {
+        public FrameVignetteOption(FrameVignetteStyle value, string display)
+        {
+            Value = value;
+            Display = display;
+        }
+
+        public FrameVignetteStyle Value { get; }
 
         public string Display { get; }
     }

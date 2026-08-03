@@ -29,6 +29,8 @@ namespace PlayniteAchievements.Models.Settings
 
         public bool IsIgnored { get; set; }
 
+        public bool IsFavorite { get; set; }
+
         public List<string> SelectedPlatforms { get; set; } = new List<string>();
 
         public DateTime AddedUtc { get; set; } = DateTime.UtcNow;
@@ -56,6 +58,7 @@ namespace PlayniteAchievements.Models.Settings
                 AvatarPath = AvatarPath,
                 Source = Source,
                 IsIgnored = IsIgnored,
+                IsFavorite = IsFavorite,
                 SelectedPlatforms = SelectedPlatforms?.ToList() ?? new List<string>(),
                 AddedUtc = AddedUtc,
                 LastRefreshedUtc = LastRefreshedUtc,

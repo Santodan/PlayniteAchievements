@@ -43,6 +43,16 @@ namespace PlayniteAchievements.Providers.RetroAchievements.EmulatorLog
                     session.ConsumedOffset = 0;
                 }
 
+                if (!session.Primed)
+                {
+                    // First read: tail from the current end so a cumulative log's historical awards (from
+                    // earlier launches) are never parsed. Baseline unlock state comes from the cached RA
+                    // schema, not replayed log lines; only awards appended after this point are new unlocks.
+                    session.ConsumedOffset = length;
+                    session.Primed = true;
+                    return true;
+                }
+
                 if (length <= session.ConsumedOffset)
                 {
                     return true;

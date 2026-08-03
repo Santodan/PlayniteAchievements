@@ -144,6 +144,41 @@
                                 Command="{Binding MergeSelectedCommand}"
                                 VerticalAlignment="Top"
                                 Padding="{StaticResource PlayAch.Thickness.ButtonPadding.Wide}"/>
+                        <Button DockPanel.Dock="Right"
+                                Content="{Binding IgnoreSelectedLabel}"
+                                Command="{Binding IgnoreSelectedCommand}"
+                                VerticalAlignment="Top"
+                                Margin="0,0,8,0"
+                                Padding="{StaticResource PlayAch.Thickness.ButtonPadding.Wide}"/>
+                        <Grid DockPanel.Dock="Right"
+                              Width="200"
+                              Margin="0,0,8,0"
+                              VerticalAlignment="Top">
+                            <TextBox x:Name="FriendSearchTextBox"
+                                     Text="{Binding FriendSearchText, UpdateSourceTrigger=PropertyChanged, Delay=100}"
+                                     Padding="6,4"
+                                     VerticalContentAlignment="Center"/>
+                            <TextBlock Text="{DynamicResource LOCPlayAch_FriendsOverview_SearchFriends}"
+                                       VerticalAlignment="Center"
+                                       Margin="9,0,0,0"
+                                       Foreground="{DynamicResource PlayAch.Brush.Text}"
+                                       Opacity="{StaticResource PlayAch.Opacity.Placeholder}"
+                                       IsHitTestVisible="False">
+                                <TextBlock.Style>
+                                    <Style TargetType="TextBlock">
+                                        <Setter Property="Visibility" Value="Collapsed"/>
+                                        <Style.Triggers>
+                                            <DataTrigger Binding="{Binding ElementName=FriendSearchTextBox, Path=Text}" Value="">
+                                                <Setter Property="Visibility" Value="Visible"/>
+                                            </DataTrigger>
+                                            <DataTrigger Binding="{Binding ElementName=FriendSearchTextBox, Path=Text}" Value="{x:Null}">
+                                                <Setter Property="Visibility" Value="Visible"/>
+                                            </DataTrigger>
+                                        </Style.Triggers>
+                                    </Style>
+                                </TextBlock.Style>
+                            </TextBlock>
+                        </Grid>
                         <TextBlock Text="{DynamicResource LOCPlayAch_Settings_Friends}"
                                    Style="{StaticResource SectionHeaderStyle}"
                                    VerticalAlignment="Center"/>
@@ -157,7 +192,7 @@
 
                     <DataGrid Grid.Row="2"
                               Style="{StaticResource PlayAch.DataGrid.BaseStyle}"
-                              ItemsSource="{Binding Friends}"
+                              ItemsSource="{Binding FriendsView}"
                               AutoGenerateColumns="False"
                               CanUserAddRows="False"
                               CanUserDeleteRows="False"
@@ -178,12 +213,32 @@
                               ScrollViewer.VerticalScrollBarVisibility="Auto"
                               ScrollViewer.HorizontalScrollBarVisibility="Auto">
                         <DataGrid.Columns>
-                            <DataGridTemplateColumn Header=""
-                                                    Width="Auto"
+                            <DataGridTemplateColumn Width="Auto"
                                                     MinWidth="36">
+                                <DataGridTemplateColumn.HeaderTemplate>
+                                    <DataTemplate>
+                                        <CheckBox IsChecked="{Binding DataContext.AreAllVisibleFriendsSelected, RelativeSource={RelativeSource AncestorType=DataGrid}, Mode=TwoWay}"
+                                                  HorizontalAlignment="Center"
+                                                  VerticalAlignment="Center"
+                                                  ToolTip="{DynamicResource LOCPlayAch_Common_SelectAll}"/>
+                                    </DataTemplate>
+                                </DataGridTemplateColumn.HeaderTemplate>
                                 <DataGridTemplateColumn.CellTemplate>
                                     <DataTemplate>
                                         <CheckBox IsChecked="{Binding IsSelected, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                                  HorizontalAlignment="Center"
+                                                  VerticalAlignment="Center"
+                                                  Margin="0,4"/>
+                                    </DataTemplate>
+                                </DataGridTemplateColumn.CellTemplate>
+                            </DataGridTemplateColumn>
+
+                            <DataGridTemplateColumn Header="{DynamicResource LOCPlayAch_Column_Favorite}"
+                                                    Width="Auto"
+                                                    MinWidth="64">
+                                <DataGridTemplateColumn.CellTemplate>
+                                    <DataTemplate>
+                                        <CheckBox IsChecked="{Binding IsFavorite, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
                                                   HorizontalAlignment="Center"
                                                   VerticalAlignment="Center"
                                                   Margin="0,4"/>

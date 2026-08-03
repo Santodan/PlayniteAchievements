@@ -507,7 +507,7 @@ namespace PlayniteAchievements.Providers.ShadPS4
             {
                 ProviderKey = ProviderKey,
                 WatchTargets = new[] { progressPath },
-                PollInterval = TimeSpan.FromSeconds(60),
+                PollInterval = InGameProgressRegistration.FileWatchSafetyPollInterval,
                 State = progressPath
             };
         }

@@ -117,6 +117,7 @@
     <sys:String x:Key="LOCPlayAch_Column_SharedGames">Games</sys:String>
     <sys:String x:Key="LOCPlayAch_Column_Unlocks">Unlocks</sys:String>
     <sys:String x:Key="LOCPlayAch_Column_Ignore">Ignore</sys:String>
+    <sys:String x:Key="LOCPlayAch_Column_Favorite">Favorite</sys:String>
     <sys:String x:Key="LOCPlayAch_Column_LastPlayed">Last Played</sys:String>
     <sys:String x:Key="LOCPlayAch_Column_Name">Name</sys:String>
     <sys:String x:Key="LOCPlayAch_Column_Points">Points</sys:String>
@@ -565,13 +566,15 @@
     <sys:String x:Key="LOCPlayAch_Settings_Style_ImportButton">Import Style</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_Style_ShareHint">Export or import the selected style as a .pastyle.zip file, which can also bundle custom images and templates.</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_Style_ImportConfirm">Import this notification style and replace the currently displayed appearance?</sys:String>
-    <sys:String x:Key="LOCPlayAch_Settings_Style_ExportIncludeToastTemplate">Include the current notification template in the package as an editable starting point?</sys:String>
-    <sys:String x:Key="LOCPlayAch_Settings_Style_ExportIncludeFrameTemplate">Include the current frame template in the package as an editable starting point?</sys:String>
+    <sys:String x:Key="LOCPlayAch_Settings_Style_ExportIncludeToastTemplate">Include your custom notification template in the package?</sys:String>
+    <sys:String x:Key="LOCPlayAch_Settings_Style_ExportIncludeFrameTemplate">Include your custom frame template in the package?</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_Style_ImportApplyStyle">Apply the appearance style from this file to the selected platform?</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_Style_ImportInstallToastTemplate">This file includes a custom notification template. Install it for the current selection? It replaces any custom notification template already set for that scope.</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_Style_ImportInstallFrameTemplate">This file includes a custom frame template. Install it for the current selection? It replaces any custom frame template already set for that scope.</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_Style_RemoveToastTemplate">Remove custom notification template</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_Style_RemoveFrameTemplate">Remove custom frame template</sys:String>
+    <sys:String x:Key="LOCPlayAch_Settings_Style_ExportDefaultToastTemplate">Export default notification template</sys:String>
+    <sys:String x:Key="LOCPlayAch_Settings_Style_ExportDefaultFrameTemplate">Export default frame template</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_Style_NoCustomTemplate">No custom template is installed for this surface.</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_Style_Rarity_BadgeLabel">Rarity badge</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_Style_Rarity_PercentLabel">Rarity percent</sys:String>
@@ -591,6 +594,9 @@
     <sys:String x:Key="LOCPlayAch_Settings_Style_CardPaddingRight">Right padding</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_Style_FitCardToImage">Fit card to image</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_Style_TitleLineOffset">Name line offset</sys:String>
+    <sys:String x:Key="LOCPlayAch_Settings_Style_FrameVignette">Vignette</sys:String>
+    <sys:String x:Key="LOCPlayAch_Settings_Style_VignetteFull">Full</sys:String>
+    <sys:String x:Key="LOCPlayAch_Settings_Style_VignetteBottom">Bottom</sys:String>
     <sys:String x:Key="LOCPlayAch_Notification_ThemePreviewUnavailable">The active theme's notification template could not be rendered. It may reference resources that are not currently available.</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_Style_SampleUnlock">Example unlock</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_Style_FirePluginStyle">Plugin</sys:String>
@@ -791,6 +797,8 @@
     <sys:String x:Key="LOCPlayAch_FriendsSettings_ManualAdd">Add manual friend</sys:String>
     <sys:String x:Key="LOCPlayAch_FriendsSettings_MergeInvalid">Select at least two friends from different platforms to merge.</sys:String>
     <sys:String x:Key="LOCPlayAch_FriendsSettings_MergeSelected">Merge Selected</sys:String>
+    <sys:String x:Key="LOCPlayAch_FriendsSettings_IgnoreSelected">Ignore Selected</sys:String>
+    <sys:String x:Key="LOCPlayAch_FriendsSettings_UnignoreSelected">Un-ignore Selected</sys:String>
     <sys:String x:Key="LOCPlayAch_FriendsSettings_Merged">Merged</sys:String>
     <sys:String x:Key="LOCPlayAch_FriendsSettings_NoAutoProviders">No auto-discovery platforms are enabled.</sys:String>
     <sys:String x:Key="LOCPlayAch_FriendsSettings_RefreshCompleteFormat">Friends refreshed: {0:N0}.</sys:String>

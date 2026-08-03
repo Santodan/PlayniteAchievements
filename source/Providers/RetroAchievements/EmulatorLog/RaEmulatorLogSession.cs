@@ -32,6 +32,15 @@ namespace PlayniteAchievements.Providers.RetroAchievements.EmulatorLog
         /// <summary>Byte offset already consumed from the log; reset to 0 when the emulator rewrites the file.</summary>
         public long ConsumedOffset { get; set; }
 
+        /// <summary>
+        /// False until the first read seeks past any pre-existing content. Emulators such as PPSSPP append
+        /// to one cumulative log across launches, so the first read must skip the historical portion (which
+        /// includes earlier runs' awards) and tail only bytes appended during this session; otherwise the
+        /// silent first-grab baseline would mark stale awards unlocked and suppress the genuine in-session
+        /// unlock.
+        /// </summary>
+        public bool Primed { get; set; }
+
         /// <summary>Last observed hardcore-mode state for the running session (softcore until proven otherwise).</summary>
         public bool Hardcore { get; set; }
     }

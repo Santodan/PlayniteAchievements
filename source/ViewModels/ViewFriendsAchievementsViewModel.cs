@@ -451,7 +451,8 @@ namespace PlayniteAchievements.ViewModels
             _allFriends.Clear();
             _allFriends.AddRange((snapshot?.Friends ?? new List<FriendSummaryItem>())
                 .Where(friend => friend != null)
-                .OrderByDescending(friend => friend.LastUnlockUtc ?? DateTime.MinValue)
+                .OrderByDescending(friend => friend.IsFavorite)
+                .ThenByDescending(friend => friend.LastUnlockUtc ?? DateTime.MinValue)
                 .ThenBy(friend => friend.DisplayName, StringComparer.CurrentCultureIgnoreCase));
 
             _allAchievements.Clear();

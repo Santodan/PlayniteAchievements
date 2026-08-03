@@ -633,7 +633,7 @@ namespace PlayniteAchievements.Providers.RPCS3
             {
                 ProviderKey = ProviderKey,
                 WatchTargets = sources.Select(source => source.Path).ToList(),
-                PollInterval = TimeSpan.FromSeconds(60),
+                PollInterval = InGameProgressRegistration.FileWatchSafetyPollInterval,
                 State = sources
             };
         }

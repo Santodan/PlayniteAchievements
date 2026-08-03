@@ -893,21 +893,29 @@ namespace PlayniteAchievements.Views.Settings.General
 
                 if (usePackage)
                 {
-                    // A package can also carry the toast and/or frame template as an editable
-                    // starting point; the plain .pastyle is data-only.
+                    // A package can also carry the toast and/or frame template, but only a template
+                    // the user actually authored for this scope: that is portable loose XAML that
+                    // passed validation on install. The active theme's override is never bundled
+                    // (it is theme-coupled and would import broken), so when nothing is authored the
+                    // prompt is skipped and the package is data-only. Users who want a working
+                    // template to start from use the separate "export default template" action.
                     string toastTemplateXaml = null;
                     string frameTemplateXaml = null;
                     var resolver = _toastTemplateResolver;
                     if (resolver != null)
                     {
-                        if (Confirm(L("LOCPlayAch_Settings_Style_ExportIncludeToastTemplate")))
+                        var customToast = resolver.ReadCustomTemplateXaml(isFrame: false, ScopeProviderKey, ScopeGameId);
+                        if (customToast != null &&
+                            Confirm(L("LOCPlayAch_Settings_Style_ExportIncludeToastTemplate")))
                         {
-                            toastTemplateXaml = resolver.ReadEffectiveTemplateXaml(isFrame: false, ScopeProviderKey, ScopeGameId);
+                            toastTemplateXaml = customToast;
                         }
 
-                        if (Confirm(L("LOCPlayAch_Settings_Style_ExportIncludeFrameTemplate")))
+                        var customFrame = resolver.ReadCustomTemplateXaml(isFrame: true, ScopeProviderKey, ScopeGameId);
+                        if (customFrame != null &&
+                            Confirm(L("LOCPlayAch_Settings_Style_ExportIncludeFrameTemplate")))
                         {
-                            frameTemplateXaml = resolver.ReadEffectiveTemplateXaml(isFrame: true, ScopeProviderKey, ScopeGameId);
+                            frameTemplateXaml = customFrame;
                         }
                     }
 
@@ -1144,6 +1152,70 @@ namespace PlayniteAchievements.Views.Settings.General
             {
                 _logger?.Error(ex, $"Failed installing custom {(isFrame ? "frame" : "toast")} template.");
                 errors.Add(ex.Message);
+            }
+        }
+
+        private void ExportDefaultToastTemplate_Click(object sender, RoutedEventArgs e)
+        {
+            ExportDefaultTemplate(isFrame: false);
+        }
+
+        private void ExportDefaultFrameTemplate_Click(object sender, RoutedEventArgs e)
+        {
+            ExportDefaultTemplate(isFrame: true);
+        }
+
+        /// <summary>
+        /// Writes the default template for the surface to a loose <c>.xaml</c> file as a working,
+        /// theme-independent starting point the user can edit and re-import. Deliberately separate
+        /// from style export: the package never carries this, and this never carries a theme
+        /// override, so an imported template always renders.
+        /// </summary>
+        private void ExportDefaultTemplate(bool isFrame)
+        {
+            var resolver = _toastTemplateResolver;
+            if (resolver == null)
+            {
+                return;
+            }
+
+            try
+            {
+                var xaml = resolver.ReadDefaultTemplateXaml(isFrame);
+                var dialog = new SaveFileDialog
+                {
+                    Filter = "XAML template (*.xaml)|*.xaml",
+                    AddExtension = true,
+                    DefaultExt = ".xaml",
+                    FileName = isFrame
+                        ? AchievementToastTemplateResolver.CustomFrameTemplateFileName
+                        : AchievementToastTemplateResolver.CustomToastTemplateFileName
+                };
+
+                if (dialog.ShowDialog() != true)
+                {
+                    return;
+                }
+
+                File.WriteAllText(
+                    dialog.FileName,
+                    xaml,
+                    new System.Text.UTF8Encoding(encoderShouldEmitUTF8Identifier: false));
+
+                _plugin.PlayniteApi?.Dialogs?.ShowMessage(
+                    L("LOCPlayAch_Status_Succeeded") + "\n" + dialog.FileName,
+                    L("LOCPlayAch_Title_PluginName"),
+                    MessageBoxButton.OK,
+                    MessageBoxImage.Information);
+            }
+            catch (Exception ex)
+            {
+                _logger?.Error(ex, "Failed exporting default notification template.");
+                _plugin.PlayniteApi?.Dialogs?.ShowMessage(
+                    string.Format(L("LOCPlayAch_Status_Failed"), ex.Message),
+                    L("LOCPlayAch_Title_PluginName"),
+                    MessageBoxButton.OK,
+                    MessageBoxImage.Error);
             }
         }
 

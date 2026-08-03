@@ -6,6 +6,7 @@ using System.Threading.Tasks;
 using Playnite.SDK;
 using PlayniteAchievements.Common;
 using PlayniteAchievements.Models;
+using PlayniteAchievements.Models.Settings;
 using PlayniteAchievements.Services.Friends;
 using PlayniteAchievements.ViewModels.Items;
 
@@ -27,6 +28,7 @@ namespace PlayniteAchievements.ViewModels
             public string Key { get; set; }
             public string DisplayName { get; set; }
             public string AvatarPath { get; set; }
+            public bool IsFavorite { get; set; }
         }
 
         private readonly IFriendCacheManager _friendCache;
@@ -172,7 +174,7 @@ namespace PlayniteAchievements.ViewModels
                     }
 
                     _friendRows = rows ?? new List<FriendAchievementDisplayItem>();
-                    _options = BuildOptions(_friendRows);
+                    _options = BuildOptions(_friendRows, _settings?.Persisted);
                     _indexedAvailability = _options.Count > 0;
                     _availabilityPending = false;
                     OnPropertyChanged(nameof(OptionKeys));
@@ -264,8 +266,19 @@ namespace PlayniteAchievements.ViewModels
             });
         }
 
-        private static List<Option> BuildOptions(List<FriendAchievementDisplayItem> rows)
+        private static List<Option> BuildOptions(List<FriendAchievementDisplayItem> rows, PersistedSettings persisted)
         {
+            var favoriteAccountKeys = new HashSet<string>(
+                (persisted?.Friends ?? Enumerable.Empty<FriendSettingsEntry>())
+                    .Where(entry => entry != null && entry.IsFavorite)
+                    .Select(entry => FriendAccountRef.BuildKey(entry.ProviderKey, entry.ExternalUserId))
+                    .Where(key => !string.IsNullOrWhiteSpace(key)),
+                StringComparer.OrdinalIgnoreCase);
+            var groupsById = (persisted?.GetFriendMergeGroups() ?? Enumerable.Empty<FriendMergeGroup>())
+                .Where(group => !string.IsNullOrWhiteSpace(group?.Id))
+                .GroupBy(group => group.Id, StringComparer.OrdinalIgnoreCase)
+                .ToDictionary(group => group.Key, group => group.First(), StringComparer.OrdinalIgnoreCase);
+
             var byKey = new Dictionary<string, Option>(StringComparer.OrdinalIgnoreCase);
             foreach (var row in rows)
             {
@@ -284,13 +297,39 @@ namespace PlayniteAchievements.ViewModels
                 {
                     Key = key,
                     DisplayName = row.FriendName,
-                    AvatarPath = row.FriendAvatarPath
+                    AvatarPath = row.FriendAvatarPath,
+                    IsFavorite = IsRowFavorite(row, favoriteAccountKeys, groupsById)
                 };
             }
 
+            // Favorites first, then alphabetical within each group.
             return byKey.Values
-                .OrderBy(option => option.DisplayName, StringComparer.CurrentCultureIgnoreCase)
+                .OrderByDescending(option => option.IsFavorite)
+                .ThenBy(option => option.DisplayName, StringComparer.CurrentCultureIgnoreCase)
                 .ToList();
+        }
+
+        private static bool IsRowFavorite(
+            FriendAchievementDisplayItem row,
+            HashSet<string> favoriteAccountKeys,
+            Dictionary<string, FriendMergeGroup> groupsById)
+        {
+            if (favoriteAccountKeys.Count == 0)
+            {
+                return false;
+            }
+
+            if (!string.IsNullOrWhiteSpace(row.FriendGroupId) &&
+                groupsById.TryGetValue(row.FriendGroupId, out var group))
+            {
+                return (group.Members ?? new List<FriendAccountRef>())
+                    .Any(member => member != null &&
+                                   favoriteAccountKeys.Contains(
+                                       FriendAccountRef.BuildKey(member.ProviderKey, member.ExternalUserId)));
+            }
+
+            return favoriteAccountKeys.Contains(
+                FriendAccountRef.BuildKey(row.ProviderKey, row.FriendExternalUserId));
         }
 
         private void ApplySelection()

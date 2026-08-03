@@ -188,6 +188,9 @@
     <Compile Include="..\..\source\Providers\RetroAchievements\RetroAchievementsCategoryImagePlanner.cs" Link="Source\Providers\RetroAchievements\RetroAchievementsCategoryImagePlanner.cs" />
     <Compile Include="..\..\source\Providers\RetroAchievements\RetroAchievementsSubsetTitleResolver.cs" Link="Source\Providers\RetroAchievements\RetroAchievementsSubsetTitleResolver.cs" />
     <Compile Include="..\..\source\Providers\RetroAchievements\RaConsoleIdResolver.cs" Link="Source\Providers\RetroAchievements\RaConsoleIdResolver.cs" />
+    <Compile Include="..\..\source\Providers\RetroAchievements\EmulatorLog\RaEmulatorLogParseProfile.cs" Link="Source\Providers\RetroAchievements\EmulatorLog\RaEmulatorLogParseProfile.cs" />
+    <Compile Include="..\..\source\Providers\RetroAchievements\EmulatorLog\RaEmulatorLogSession.cs" Link="Source\Providers\RetroAchievements\EmulatorLog\RaEmulatorLogSession.cs" />
+    <Compile Include="..\..\source\Providers\RetroAchievements\EmulatorLog\RaEmulatorLogReader.cs" Link="Source\Providers\RetroAchievements\EmulatorLog\RaEmulatorLogReader.cs" />
     <Compile Include="..\..\source\Providers\EmuLibrary\EmuLibraryGameIdDecoder.cs" Link="Source\Providers\EmuLibrary\EmuLibraryGameIdDecoder.cs" />
     <Compile Include="..\..\source\Providers\EmuLibrary\EmuLibrarySettingsReader.cs" Link="Source\Providers\EmuLibrary\EmuLibrarySettingsReader.cs" />
     <Compile Include="..\..\source\Providers\EmuLibrary\EmuLibraryPathResolver.cs" Link="Source\Providers\EmuLibrary\EmuLibraryPathResolver.cs" />

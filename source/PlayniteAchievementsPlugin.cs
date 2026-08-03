@@ -676,6 +676,10 @@ namespace PlayniteAchievements
             try
             {
                 _logger.Info($"GetSettingsView called, firstRunView={firstRunView}");
+                // Pre-build the system font-family list off the UI thread so the first open of the
+                // notification appearance tab doesn't block on the (slow) font enumeration.
+                System.Threading.Tasks.Task.Run(
+                    () => ViewModels.Settings.NotificationAppearanceEditorViewModel.PrewarmFontOptions());
                 var control = new SettingsControl(
                     _settingsViewModel,
                     _logger,

@@ -248,6 +248,11 @@ namespace PlayniteAchievements.ViewModels
         public bool FrameShowGameCategorySeparator => FrameShowGameName && FrameShowCategory;
         public bool FrameShowShineBorder => _style.Frame.ShowRarityGlow && IsHardcore;
 
+        // Frame vignette chrome: the radial edge vignette shows only for Full; the bottom contrast
+        // wash shows for Full and Bottom. None removes both, leaving the raw screenshot.
+        public bool FrameShowRadialVignette => _style.Frame.FrameVignette == FrameVignetteStyle.Full;
+        public bool FrameShowBottomWash => _style.Frame.FrameVignette != FrameVignetteStyle.None;
+
         // Mirrors TitleBrush but honors the frame's own rarity-colored-name toggle.
         public Brush FrameTitleBrush => _style.Frame.RarityColoredName
             ? AccentBrush
@@ -569,8 +574,10 @@ namespace PlayniteAchievements.ViewModels
         public double ToastCardHeight => _style.Toast.CardHeight is double h && h > 0 ? h : double.NaN;
 
         // User toast background image (frames never get a background). Missing files fall
-        // back to the default surface brush via HasToastBackground.
-        public string ToastBackgroundImagePath => _style.ToastBackgroundImagePath;
+        // back to the default surface brush via HasToastBackground. Cache-busted (write-time +
+        // size token) so overwriting the image at the same managed path shows the new one rather
+        // than a stale cached bitmap; AsyncImage strips the token before decoding.
+        public string ToastBackgroundImagePath => AchievementIconResolver.ApplyCacheBust(_style.ToastBackgroundImagePath);
         public bool HasToastBackground
         {
             get

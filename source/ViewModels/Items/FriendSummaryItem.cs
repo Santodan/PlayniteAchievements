@@ -98,6 +98,10 @@ namespace PlayniteAchievements.ViewModels.Items
 
         public List<string> MemberProviderKeys { get; set; } = new List<string>();
 
+        // Projected from the persisted friend settings (FriendSettingsEntry.IsFavorite). Favorites are
+        // pinned ahead of non-favorites in every friend list regardless of the active sort.
+        public bool IsFavorite { get; set; }
+
         [DontSerialize]
         [IgnoreDataMember]
         public bool IsMergedFriend => !string.IsNullOrWhiteSpace(MergedFriendId);

@@ -23,6 +23,15 @@ namespace PlayniteAchievements.Providers
 
     internal sealed class InGameProgressRegistration
     {
+        /// <summary>
+        /// Safety re-read cadence for a local file-watched source. The FileSystemWatcher is the primary
+        /// detection signal; this backstop re-reads the watched file directly on this cadence so a change
+        /// event that is delayed or coalesced by the OS/sync engine (for example on a OneDrive-synced
+        /// folder) cannot stall detection. Every local file source should use this rather than a longer
+        /// interval; remote (polled) sources set their own <see cref="PollInterval"/> instead.
+        /// </summary>
+        public static readonly TimeSpan FileWatchSafetyPollInterval = TimeSpan.FromSeconds(1);
+
         public string ProviderKey { get; set; }
 
         public IReadOnlyList<string> WatchTargets { get; set; } = Array.Empty<string>();

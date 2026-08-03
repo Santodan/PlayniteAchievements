@@ -790,42 +790,42 @@ namespace PlayniteAchievements.Services.UI
         }
 
         /// <summary>
-        /// Returns editable XAML for the surface to seed an export/starting point: the installed
-        /// custom template if present, else the active theme's override file if present, else a
-        /// generated minimal starter that follows the loose-XAML override contract (assembly-
-        /// qualified namespaces, merged plugin dictionary, the template key). Never returns the
-        /// compiled bundled template (its source is not shippable as loose XAML).
+        /// Returns the installed custom template's XAML for the scope (resolved most-specific
+        /// first: game, then provider, then global), or null when no custom template is installed.
+        /// This is the only template the plugin bundles into an exported package: it is
+        /// user-authored loose XAML that passed validation on install, so it imports intact. The
+        /// active theme's override is intentionally never returned here — it is coupled to that
+        /// theme's resources and to the theme being active, so it would import broken elsewhere.
         /// </summary>
-        public string ReadEffectiveTemplateXaml(bool isFrame, string providerKey, Guid gameId)
+        public string ReadCustomTemplateXaml(bool isFrame, string providerKey, Guid gameId)
         {
             var customPath = ResolveCustomTemplatePath(isFrame, providerKey, gameId);
-            if (!string.IsNullOrWhiteSpace(customPath) && File.Exists(customPath))
+            if (string.IsNullOrWhiteSpace(customPath) || !File.Exists(customPath))
             {
-                try
-                {
-                    return File.ReadAllText(customPath);
-                }
-                catch (Exception ex)
-                {
-                    _logger?.Debug(ex, $"Failed to read custom template for export: {customPath}");
-                }
+                return null;
             }
 
-            var overrideRelativePath = isFrame ? FrameThemeOverrideRelativePath : ThemeOverrideRelativePath;
-            var themePath = ResolveActiveThemeOverridePaths(Application.Current?.Resources, overrideRelativePath)
-                .FirstOrDefault(File.Exists);
-            if (!string.IsNullOrWhiteSpace(themePath))
+            try
             {
-                try
-                {
-                    return ReadThemeOverrideText(themePath);
-                }
-                catch (Exception ex)
-                {
-                    _logger?.Debug(ex, $"Failed to read theme override for export: {themePath}");
-                }
+                return File.ReadAllText(customPath);
             }
+            catch (Exception ex)
+            {
+                _logger?.Debug(ex, $"Failed to read custom template for export: {customPath}");
+                return null;
+            }
+        }
 
+        /// <summary>
+        /// Returns the default template as loose, standalone XAML: a minimal, known-good starting
+        /// point that follows the override contract (assembly-qualified namespaces, merged plugin
+        /// dictionary, the template key) and references only the plugin's own dictionary, so it
+        /// renders on any machine and theme. Exported by the "export default template" action as a
+        /// working scaffold to edit and re-import. Never returns the compiled bundled template (its
+        /// source is not shippable as loose XAML) or a theme override.
+        /// </summary>
+        public string ReadDefaultTemplateXaml(bool isFrame)
+        {
             return BuildStarterTemplateXaml(isFrame);
         }
 

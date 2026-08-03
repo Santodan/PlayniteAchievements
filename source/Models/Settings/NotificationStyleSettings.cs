@@ -123,6 +123,7 @@ namespace PlayniteAchievements.Models.Settings
         private bool _showAccentStrip = true;
         private bool _showCountdownBar = true;
         private string _countdownBarColor;
+        private FrameVignetteStyle _frameVignette = FrameVignetteStyle.Full;
         private List<string> _lineOrder;
         private string _fontFamily;
         private double? _headerFontSize;
@@ -300,6 +301,18 @@ namespace PlayniteAchievements.Models.Settings
         {
             get => _countdownBarColor;
             set => SetValue(ref _countdownBarColor, value);
+        }
+
+        /// <summary>
+        /// Vignette darkening on the screenshot frame. Frame surface only; the toast has its own
+        /// card chrome and ignores this. Defaults to <see cref="FrameVignetteStyle.Full"/> to
+        /// preserve the original radial-plus-bottom-wash look.
+        /// </summary>
+        [JsonProperty(DefaultValueHandling = DefaultValueHandling.Include)]
+        public FrameVignetteStyle FrameVignette
+        {
+            get => _frameVignette;
+            set => SetValue(ref _frameVignette, value);
         }
 
         /// <summary>
@@ -502,6 +515,7 @@ namespace PlayniteAchievements.Models.Settings
                 ShowAccentStrip = ShowAccentStrip,
                 ShowCountdownBar = ShowCountdownBar,
                 CountdownBarColor = CountdownBarColor,
+                FrameVignette = FrameVignette,
                 LineOrder = LineOrder != null ? new List<string>(LineOrder) : null,
                 FontFamily = FontFamily,
                 HeaderFontSize = HeaderFontSize,

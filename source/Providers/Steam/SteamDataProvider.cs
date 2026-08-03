@@ -245,7 +245,7 @@ namespace PlayniteAchievements.Providers.Steam
             {
                 ProviderKey = ProviderKey,
                 WatchTargets = new[] { statsPath },
-                PollInterval = TimeSpan.FromSeconds(60),
+                PollInterval = InGameProgressRegistration.FileWatchSafetyPollInterval,
                 State = new SteamInGameState
                 {
                     StatsPath = statsPath,
