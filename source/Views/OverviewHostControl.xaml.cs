@@ -33,15 +33,15 @@ namespace PlayniteAchievements.Views
         private FirstTimeLandingPage _landingPage;
         private bool _createScheduled;
         private DispatcherTimer _createTimer;
+        private bool _settingsSavedHooked;
 
-        // Each open rebuilds the heavy OverviewControl, and several not-yet-collected
-        // copies can exhaust Playnite's 32-bit address space. The settle delay coalesces
-        // rapid open/close cycles into a single build; the cooldown spaces successive
-        // builds so reclamation of the previous tree can keep up. Static so the cooldown
-        // spans host instances (Playnite constructs a new host per sidebar open).
-        private static readonly TimeSpan CreateSettleDelay = TimeSpan.FromMilliseconds(300);
-        private static readonly TimeSpan CreateCooldown = TimeSpan.FromSeconds(5);
-        private static DateTime _lastCreateStartedUtc = DateTime.MinValue;
+        // Each open builds the heavy OverviewControl on a short settle timer rather than
+        // synchronously. Flicking through the sidebar without landing on the view leaves before
+        // the timer fires, so the build is cancelled (OverviewHostControl_Unloaded / RecreateContent
+        // stop the timer) and nothing is allocated. A genuine open lets the timer fire and builds
+        // once. Retained memory across successive opens is bounded by OverviewViewModel.Dispose
+        // releasing its collections eagerly, so no wall-clock cooldown between builds is needed.
+        private static readonly TimeSpan CreateSettleDelay = TimeSpan.FromMilliseconds(150);
 
         public OverviewHostControl(
             Func<UserControl> createView,
@@ -61,14 +61,22 @@ namespace PlayniteAchievements.Views
 
             Loaded += OverviewHostControl_Loaded;
             Unloaded += OverviewHostControl_Unloaded;
-
-            // Subscribe to settings saved event to refresh provider status
-            PlayniteAchievementsPlugin.SettingsSaved += Plugin_SettingsSaved;
         }
 
         private void OverviewHostControl_Loaded(object sender, RoutedEventArgs e)
         {
             _logger.Info("OverviewHostControl_Loaded called");
+            // Subscribe to the static settings-saved event here rather than in the constructor so
+            // the subscription tracks the visual-tree lifecycle. WPF does not guarantee Unloaded
+            // fires; hooking in the constructor and unhooking only in Unloaded would permanently
+            // root this host (and its overview tree) via the static event whenever Unloaded is
+            // skipped. The guard makes a second Loaded without an intervening Unloaded idempotent.
+            if (!_settingsSavedHooked)
+            {
+                PlayniteAchievementsPlugin.SettingsSaved += Plugin_SettingsSaved;
+                _settingsSavedHooked = true;
+            }
+
             // Always recreate content when loaded (handles overview reopen)
             RecreateContent();
             _overview?.Activate();
@@ -116,7 +124,11 @@ namespace PlayniteAchievements.Views
                 PART_Content.Content = null;
 
                 // Unsubscribe from settings saved event
-                PlayniteAchievementsPlugin.SettingsSaved -= Plugin_SettingsSaved;
+                if (_settingsSavedHooked)
+                {
+                    PlayniteAchievementsPlugin.SettingsSaved -= Plugin_SettingsSaved;
+                    _settingsSavedHooked = false;
+                }
             }
         }
 
@@ -166,16 +178,8 @@ namespace PlayniteAchievements.Views
 
             _createScheduled = true;
 
-            var delay = CreateSettleDelay;
-            var cooldownRemaining = CreateCooldown - (DateTime.UtcNow - _lastCreateStartedUtc);
-            if (cooldownRemaining > delay)
-            {
-                delay = cooldownRemaining;
-                _logger.Info($"EnsureContentCreate: within create cooldown, delaying {delay.TotalMilliseconds:F0}ms");
-            }
-
             _createTimer?.Stop();
-            _createTimer = new DispatcherTimer(DispatcherPriority.Background) { Interval = delay };
+            _createTimer = new DispatcherTimer(DispatcherPriority.Background) { Interval = CreateSettleDelay };
             _createTimer.Tick += CreateTimer_Tick;
             _createTimer.Start();
         }
@@ -215,7 +219,6 @@ namespace PlayniteAchievements.Views
                 // 3. No data in achievements_cache (NO MATTER WHAT)
                 bool showLandingPage = !seenThemeMigration || !firstTimeCompleted || !hasCachedData;
 
-                _lastCreateStartedUtc = DateTime.UtcNow;
                 if (settings != null && showLandingPage)
                 {
                     _logger.Info("Creating landing page");
