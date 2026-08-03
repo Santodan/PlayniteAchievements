@@ -132,9 +132,10 @@ namespace PlayniteAchievements.Views.Controls
             foreach (var option in filter.Options?.Where(value => !string.IsNullOrWhiteSpace(value)) ?? Enumerable.Empty<string>())
             {
                 var value = option;
+                var header = BuildMultiSelectHeader(filter, value, showMarkerGutter);
                 var item = new MenuItem
                 {
-                    Header = BuildMultiSelectHeader(filter, value, showMarkerGutter),
+                    Header = header,
                     IsCheckable = true,
                     StaysOpenOnClick = true,
                     IsChecked = filter.IsSelected(value),
@@ -143,6 +144,14 @@ namespace PlayniteAchievements.Views.Controls
                 if (itemStyle != null)
                 {
                     item.Style = itemStyle;
+                }
+
+                // The shared menu-item style forces a string HeaderTemplate (TextBlock Text={Binding}),
+                // which would ToString() a UIElement header. Clear it locally so the star-gutter panel
+                // renders directly (a directly-set property beats the style setter).
+                if (!(header is string))
+                {
+                    item.HeaderTemplate = null;
                 }
 
                 item.Click += (_, __) =>
@@ -192,7 +201,9 @@ namespace PlayniteAchievements.Views.Controls
             panel.Children.Add(new TextBlock
             {
                 Text = label,
-                VerticalAlignment = VerticalAlignment.Center
+                VerticalAlignment = VerticalAlignment.Center,
+                TextTrimming = TextTrimming.CharacterEllipsis,
+                TextWrapping = TextWrapping.NoWrap
             });
             return panel;
         }
