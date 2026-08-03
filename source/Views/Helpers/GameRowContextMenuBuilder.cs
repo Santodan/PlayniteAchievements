@@ -32,7 +32,8 @@ namespace PlayniteAchievements.Views.Helpers
             IPlayniteAPI playniteApi,
             AchievementOverridesService overridesService,
             ICacheManager cacheManager,
-            ILogger logger)
+            ILogger logger,
+            bool includeViewCaptures = false)
         {
             var menu = new ContextMenu();
             var hasPlayniteGameId = TryGetGameId(data, out _);
@@ -53,6 +54,16 @@ namespace PlayniteAchievements.Views.Helpers
                             openManageAchievements(gameId);
                         }
                     }));
+                }
+
+                // User-earned scopes only (opted in by the caller); disabled when the game has no
+                // saved captures. Friend game rows never opt in.
+                if (includeViewCaptures && data is GameSummaryItem gameSummary && !(data is FriendGameSummaryItem))
+                {
+                    var captureItem = CreateMenuItem(resourceOwner, "LOCPlayAch_Menu_ViewCaptures",
+                        () => PlayniteAchievementsPlugin.Instance?.OpenCapturesViewer(gameSummary));
+                    captureItem.IsEnabled = gameSummary.HasCaptures;
+                    menu.Items.Add(captureItem);
                 }
 
                 menu.Items.Add(new Separator());
