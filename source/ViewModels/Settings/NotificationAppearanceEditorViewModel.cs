@@ -1207,6 +1207,44 @@ namespace PlayniteAchievements.ViewModels.Settings
         #endregion
 
         /// <summary>
+        /// Resets the edited surface (toast or frame) to its built-in factory default,
+        /// discarding the user's style edits for that surface only. Replacing the surface object
+        /// triggers the resubscribe, debounced persist, and mockup refresh through
+        /// <see cref="OnStyleObjectPropertyChanged"/>; the surface-bound editor fields are
+        /// refreshed here so the controls show the default values. No-op when nothing is loaded
+        /// or the current selection is read-only.
+        /// </summary>
+        public void ResetSurfaceToDefault()
+        {
+            if (_style == null || !_isEditable)
+            {
+                return;
+            }
+
+            if (IsFrameSurface)
+            {
+                _style.Frame = NotificationSurfaceStyle.CreateFrameDefault();
+            }
+            else
+            {
+                _style.Toast = NotificationSurfaceStyle.CreateToastDefault();
+            }
+
+            SyncLineRows();
+            RefreshCardDimensions();
+            OnPropertyChanged(nameof(Surface));
+            OnPropertyChanged(nameof(SelectedFontFamilyOption));
+            OnPropertyChanged(nameof(SelectedBadgePlacement));
+            OnPropertyChanged(nameof(SelectedPercentPlacement));
+            OnPropertyChanged(nameof(IsProviderIconEnabled));
+            OnPropertyChanged(nameof(SelectedGlowDisplay));
+            OnPropertyChanged(nameof(SelectedFrameVignette));
+            OnPropertyChanged(nameof(CountdownBarColorText));
+            OnPropertyChanged(nameof(CountdownBarSwatch));
+            OnPropertyChanged(nameof(TitleLineOffsetText));
+        }
+
+        /// <summary>
         /// Points the editor at a new style object (global default or a provider copy).
         /// Pending edits against the previous style are flushed first.
         /// </summary>
