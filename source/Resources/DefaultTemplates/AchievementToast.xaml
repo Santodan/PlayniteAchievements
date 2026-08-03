@@ -232,6 +232,12 @@
                                         <DataTrigger Binding="{Binding AnimateRarityGlows}" Value="True">
                                             <Setter Property="helpers:RarityGlowPulse.IsActive" Value="True"/>
                                         </DataTrigger>
+                                        <!-- In the settings example the glow is shown on the square
+                                             boundary outline below instead of the icon, so suppress
+                                             the icon-shape glow here (last, to win over completion). -->
+                                        <DataTrigger Binding="{Binding IsPreview}" Value="True">
+                                            <Setter Property="Effect" Value="{x:Null}"/>
+                                        </DataTrigger>
                                     </Style.Triggers>
                                 </Style>
                             </Image.Style>
@@ -258,11 +264,25 @@
                                 BorderBrush="{Binding IconBorderBrush}"
                                 Visibility="{Binding ShowShineBorder, Converter={StaticResource BooleanToVisibilityConverter}}"/>
                         <!-- Preview only: a thin gold outline marks the icon's full boundary so the
-                             icon size and surrounding padding are easy to judge in the mockup. -->
+                             icon size and surrounding padding are easy to judge in the mockup. In the
+                             example this square also carries the rarity glow (the icon glow is
+                             suppressed above), so the glow color and size are easy to judge; the live
+                             toast glows the icon shape instead. -->
                         <Border BorderThickness="1"
                                 BorderBrush="#FFD4AF37"
                                 Background="Transparent"
-                                Visibility="{Binding IsPreview, Converter={StaticResource BooleanToVisibilityConverter}}"/>
+                                Visibility="{Binding IsPreview, Converter={StaticResource BooleanToVisibilityConverter}}">
+                            <Border.Style>
+                                <Style TargetType="Border">
+                                    <Setter Property="Effect" Value="{Binding RarityGlowEffect}"/>
+                                    <Style.Triggers>
+                                        <DataTrigger Binding="{Binding IsGameCompleted}" Value="True">
+                                            <Setter Property="Effect" Value="{Binding CompletedGlowEffect}"/>
+                                        </DataTrigger>
+                                    </Style.Triggers>
+                                </Style>
+                            </Border.Style>
+                        </Border>
                     </Grid>
 
                     <!-- The badge/percent footer under the icon. The icon->footer gap lives once
