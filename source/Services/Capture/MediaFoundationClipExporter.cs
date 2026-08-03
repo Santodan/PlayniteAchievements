@@ -1,4 +1,5 @@
 using System;
+using System.Runtime.ExceptionServices;
 using Playnite.SDK;
 using PlayniteAchievements.Services.Recording;
 using SharpDX.MediaFoundation;
@@ -36,6 +37,10 @@ namespace PlayniteAchievements.Services.Capture
         /// Writes the trimmed, concatenated clip (video + optional audio) to <paramref name="outputPath"/>.
         /// Returns false (with one log line) on any failure so the caller can drop the clip cleanly.
         /// </summary>
+        // The Media Foundation interop can surface native corrupted-state exceptions (access
+        // violations from the source reader / sink writer); catch them so a failure degrades to
+        // "no clip" with a log line instead of silently faulting the producer task.
+        [HandleProcessCorruptedStateExceptions, System.Security.SecurityCritical]
         public bool Export(
             SegmentTimeline.ClipPlan videoPlan, SegmentTimeline.ClipPlan audioPlan, string outputPath)
         {
@@ -50,14 +55,17 @@ namespace PlayniteAchievements.Services.Capture
                 SinkWriter sink = null;
                 try
                 {
+                    _logger?.Debug($"[Recording] MF export: creating sink for {System.IO.Path.GetFileName(outputPath)} ({videoPlan.Segments.Count} video segs, audio={audioPlan?.Segments?.Count ?? 0}).");
                     sink = MediaFactory.CreateSinkWriterFromURL(outputPath, null, null);
 
                     var videoStream = AddVideoStream(sink, videoPlan.Segments[0].Path);
+                    _logger?.Debug("[Recording] MF export: video stream added.");
                     var audioStream = -1;
                     MediaType pcmType = null;
                     if (audioPlan?.Segments != null && audioPlan.Segments.Count > 0)
                     {
                         audioStream = TryAddAudioStream(sink, out pcmType);
+                        _logger?.Debug($"[Recording] MF export: audio stream added ({audioStream}).");
                     }
 
                     sink.BeginWriting();
@@ -66,24 +74,28 @@ namespace PlayniteAchievements.Services.Capture
                     var clipEnd = clipStart + ToTicks(videoPlan.DurationSeconds);
                     var keyframeStart = FindKeyframeStart(videoPlan.Segments[0].Path, clipStart);
                     var videoLead = clipStart - keyframeStart; // ≥ 0
+                    _logger?.Debug($"[Recording] MF export: keyframeStart={keyframeStart / 10000}ms lead={videoLead / 10000}ms; writing video.");
 
                     WriteVideo(sink, videoStream, videoPlan, keyframeStart, clipEnd);
+                    _logger?.Debug("[Recording] MF export: video written.");
 
                     if (audioStream >= 0)
                     {
                         try
                         {
                             WriteAudio(sink, audioStream, pcmType, audioPlan, videoLead);
+                            _logger?.Debug("[Recording] MF export: audio written.");
                         }
                         catch (Exception ex)
                         {
                             // Audio is best-effort: a mux failure must not lose the (already written) video.
-                            _logger?.Debug(ex, "[Recording] Clip audio mux failed; clip will be video-only.");
+                            _logger?.Warn(ex, "[Recording] Clip audio mux failed; clip will be video-only.");
                         }
                     }
 
                     pcmType?.Dispose();
                     sink.Finalize();
+                    _logger?.Debug("[Recording] MF export: finalized.");
                     return true;
                 }
                 finally

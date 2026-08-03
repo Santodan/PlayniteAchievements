@@ -762,6 +762,13 @@ namespace PlayniteAchievements.Services.Recording
             task.ContinueWith(
                 t =>
                 {
+                    // Surface a faulted producer (e.g. a native corrupted-state exception from the
+                    // Media Foundation exporter that ProduceClipAsync's managed catch never sees).
+                    if (t.IsFaulted)
+                    {
+                        _logger?.Warn(t.Exception, $"[Recording] Clip production task faulted for '{request?.AchievementName}'.");
+                    }
+
                     lock (_gate)
                     {
                         _inFlightTasks.Remove(t);
