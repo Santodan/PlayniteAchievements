@@ -68,8 +68,8 @@
         older custom templates that reference it working.
     -->
     <DropShadowEffect x:Key="PlayAch.Effect.ContentShadow"
-                      BlurRadius="5.5"
-                      ShadowDepth="0"
+                      BlurRadius="5"
+                      ShadowDepth="1"
                       Direction="315"
                       Opacity="1"
                       Color="#FF000000"/>

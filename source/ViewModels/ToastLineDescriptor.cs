@@ -27,8 +27,8 @@ namespace PlayniteAchievements.ViewModels
         }
 
         /// <summary>
-        /// Second, tighter halo layer nested under <see cref="TextShadow"/>; null at and below
-        /// the built-in strength. Resolved per surface by the owning view model.
+        /// Second, tighter shadow layer nested under <see cref="TextShadow"/>; null at and
+        /// below the built-in strength. Resolved per surface by the owning view model.
         /// </summary>
         public Effect TextShadowInner { get; set; }
 

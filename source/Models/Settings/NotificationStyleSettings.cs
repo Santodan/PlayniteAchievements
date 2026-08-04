@@ -458,9 +458,9 @@ namespace PlayniteAchievements.Models.Settings
         }
 
         /// <summary>
-        /// Strength of the dark halo behind the surface's text, badges, and logos, as a
-        /// percentage: 25 matches the built-in halo, higher values widen it, 0 disables it.
-        /// Null means the built-in default (25).
+        /// Strength of the drop shadow behind the surface's text, badges, and logos, as a
+        /// percentage: 25 matches the built-in shadow, higher values darken it to solid black
+        /// and grow its offset, 0 disables it. Null means the built-in default (25).
         /// </summary>
         public double? TextShadowOpacity
         {

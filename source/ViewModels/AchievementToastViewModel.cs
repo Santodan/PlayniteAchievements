@@ -646,14 +646,13 @@ namespace PlayniteAchievements.ViewModels
         public double ToastProviderIconSize => _style.Toast.ProviderIconSize is double s && s > 0 ? s : DefaultToastProviderIconSize;
         public double FrameProviderIconSize => _style.Frame.ProviderIconSize is double s && s > 0 ? s : DefaultFrameProviderIconSize;
 
-        // The content shadow is an omnidirectional halo (zero-depth drop shadow), not a
-        // directional shadow: light text over a multicolored background needs dark contrast on
-        // every glyph edge, which an offset shadow cannot provide. The halo hugs the glyphs at
-        // the minimum and widens with strength into a localized darkening around the text.
-        private const double ContentShadowMinBlur = 3;
-        private const double ContentShadowBlurPerStrength = 2.5;
+        // The content shadow is directional (down-right) with a FIXED, tight blur at every
+        // strength: widening the blur is what smears a whole text line's shadow into a
+        // straight-edged band. Strength grows the offset and (via the second layer below)
+        // the density instead, so the maximum is a solid black shadow that traces the glyphs.
+        private const double ContentShadowBlur = 5;
 
-        // The percent value that maps to the built-in halo; shared with the settings editor.
+        // The percent value that maps to the built-in shadow; shared with the settings editor.
         public const double DefaultTextShadowStrength = 25;
 
         /// <summary>
@@ -665,11 +664,10 @@ namespace PlayniteAchievements.ViewModels
         public Effect FrameContentShadow => BuildContentShadow(_style.Frame.TextShadowOpacity);
 
         /// <summary>
-        /// Second halo layer for the text-line templates. Null at and below the built-in
-        /// strength (the single-layer look is unchanged there); above it, a tight second halo
-        /// fades in under the widening outer one, so the top of the range reaches a
-        /// near-solid black glyph edge — a single gaussian layer cannot exceed its feathered
-        /// opacity.
+        /// Second shadow layer for the text-line templates. Null at and below the built-in
+        /// strength (the single-layer look is unchanged there); above it, a tight second
+        /// directional shadow fades in under the outer one, so the top of the range reaches
+        /// solid black — a single gaussian layer cannot exceed its feathered opacity.
         /// </summary>
         public Effect ToastContentShadowInner => BuildInnerContentShadow(_style.Toast.TextShadowOpacity);
 
@@ -684,14 +682,13 @@ namespace PlayniteAchievements.ViewModels
                 return null;
             }
 
-            // Zero depth turns the drop shadow into an even halo around every glyph edge. The
-            // halo's darkness saturates at the built-in strength; above it, the halo widens,
-            // which reads as a stronger, scrim-like darkening behind the text without ever
-            // smearing into an offset band.
+            // Opacity ramps up to the built-in strength; above it the offset grows (1px at
+            // the default up to 4px at the maximum). The blur never widens, so the shadow
+            // stays glyph-shaped at every strength.
             var effect = new DropShadowEffect
             {
-                BlurRadius = ContentShadowMinBlur + (ContentShadowBlurPerStrength * strength),
-                ShadowDepth = 0,
+                BlurRadius = ContentShadowBlur,
+                ShadowDepth = strength <= 1.0 ? strength : 1.0 + (strength - 1.0),
                 Direction = 315,
                 Color = Colors.Black,
                 Opacity = Math.Min(1.0, strength)
@@ -709,14 +706,14 @@ namespace PlayniteAchievements.ViewModels
                 return null;
             }
 
-            // 0..1 across the above-default part of the range. The layer darkens quickly
-            // (fully black halfway up) and stays tight so it solidifies the glyph edge
-            // rather than widening the field further.
+            // 0..1 across the above-default part of the range. A tight second directional
+            // layer that darkens quickly (fully black halfway up), stacking under the outer
+            // one so the maximum reaches a solid black shadow.
             var extra = (strength - 1.0) / 3.0;
             var effect = new DropShadowEffect
             {
-                BlurRadius = 2.0 + (4.0 * extra),
-                ShadowDepth = 0,
+                BlurRadius = 2.5,
+                ShadowDepth = 1.0 + (2.0 * extra),
                 Direction = 315,
                 Color = Colors.Black,
                 Opacity = Math.Min(1.0, extra * 2.0)

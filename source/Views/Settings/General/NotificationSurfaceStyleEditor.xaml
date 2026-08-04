@@ -550,9 +550,9 @@
                     </ComboBox.ItemTemplate>
                 </ComboBox>
 
-                <!-- Text shadow strength: a dark halo around the glyphs (25 = built-in,
-                     0 = none; higher widens the halo). Applies to this surface's text,
-                     badges, and logos. -->
+                <!-- Text shadow strength: 25 = built-in, 0 = none; higher darkens the shadow
+                     to solid black and grows its offset, never its blur. Applies to this
+                     surface's text, badges, and logos. -->
                 <TextBlock Text="{DynamicResource LOCPlayAch_Settings_Style_TextShadow}"
                            Style="{StaticResource EditorSubGroupHeaderStyle}"/>
                 <Grid HorizontalAlignment="Left"
