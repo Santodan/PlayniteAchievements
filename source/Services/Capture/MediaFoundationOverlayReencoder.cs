@@ -1,6 +1,7 @@
 using System;
 using System.Runtime.ExceptionServices;
 using System.Runtime.InteropServices;
+using System.Threading;
 using Playnite.SDK;
 using SharpDX.MediaFoundation;
 
@@ -22,7 +23,17 @@ namespace PlayniteAchievements.Services.Capture
     {
         private const long OneSecond100ns = 10_000_000L;
 
+        // Backpressure cap on the sink writer's input queue. Decoding runs much faster than the
+        // H.264 encoder drains, and uncompressed RGB32 frames are huge (~14 MB at 1440p) — an
+        // unthrottled write loop balloons the queue by gigabytes of native memory and the whole
+        // export dies with E_OUTOFMEMORY. ~96 MB keeps a handful of frames in flight, plenty to
+        // keep the encoder busy.
+        private const int MaxQueuedVideoBytes = 96 * 1024 * 1024;
+        private const int QueuePollSleepMs = 10;
+        private const int QueuePollMaxIterations = 1000; // give up pacing after ~10s and proceed
+
         private readonly ILogger _logger;
+        private bool _statisticsUnavailable;
 
         public MediaFoundationOverlayReencoder(ILogger logger)
         {
@@ -271,6 +282,8 @@ namespace PlayniteAchievements.Services.Capture
                     sample?.Dispose();
                     outSample?.Dispose();
                 }
+
+                WaitForEncoderQueue(sink, videoStream);
             }
 
             // Trailing audio after the last video sample.
@@ -278,6 +291,38 @@ namespace PlayniteAchievements.Services.Capture
             {
                 WriteAndDispose(sink, audioStream, pendingAudio);
                 pendingAudio = ReadNextAudio(audioReader, trimLead);
+            }
+        }
+
+        /// <summary>
+        /// Blocks until the sink writer's queued input drops under the byte cap, pacing the
+        /// decode loop to the encoder. Statistics failures disable pacing for the run (the export
+        /// then just risks the old memory profile rather than failing outright).
+        /// </summary>
+        private void WaitForEncoderQueue(SinkWriter sink, int videoStream)
+        {
+            if (_statisticsUnavailable)
+            {
+                return;
+            }
+
+            try
+            {
+                for (var i = 0; i < QueuePollMaxIterations; i++)
+                {
+                    sink.GetStatistics(videoStream, out var stats);
+                    if (stats.DwByteCountQueued < MaxQueuedVideoBytes)
+                    {
+                        return;
+                    }
+
+                    Thread.Sleep(QueuePollSleepMs);
+                }
+            }
+            catch (Exception ex)
+            {
+                _statisticsUnavailable = true;
+                _logger?.Debug(ex, "[Recording] Sink writer statistics unavailable; re-encode runs unpaced.");
             }
         }
 
