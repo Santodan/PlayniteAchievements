@@ -91,6 +91,23 @@ namespace PlayniteAchievements.Views.ThemeIntegration.Modern
 
         #endregion
 
+        #region HasData Property
+
+        public static readonly DependencyProperty HasDataProperty =
+            DependencyProperty.Register(
+                nameof(HasData),
+                typeof(bool),
+                typeof(AchievementViewItemControl),
+                new PropertyMetadata(false));
+
+        public bool HasData
+        {
+            get => (bool)GetValue(HasDataProperty);
+            set => SetValue(HasDataProperty, value);
+        }
+
+        #endregion
+
         public AchievementViewItemControl()
         {
             InitializeComponent();
@@ -407,14 +424,14 @@ namespace PlayniteAchievements.Views.ThemeIntegration.Modern
             // Use pre-computed counts from GameAchievementData instead of counting with LINQ
             UnlockedCount = gameData.UnlockedCount;
             AchievementCount = gameData.AchievementCount;
-            Visibility = Visibility.Visible;
+            HasData = true;
         }
 
         private void ClearData()
         {
             UnlockedCount = 0;
             AchievementCount = 0;
-            Visibility = Visibility.Collapsed;
+            HasData = false;
         }
     }
 }

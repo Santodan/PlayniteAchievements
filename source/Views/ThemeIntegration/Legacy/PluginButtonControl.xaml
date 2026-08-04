@@ -8,6 +8,17 @@
                    xmlns:local="clr-namespace:PlayniteAchievements.Views.ThemeIntegration.Base"
                    mc:Ignorable="d"
                    d:DesignHeight="40" d:DesignWidth="200">
+    <local:ThemeControlBase.Style>
+        <Style TargetType="local:ThemeControlBase">
+            <Style.Triggers>
+                <DataTrigger Binding="{Binding Persisted.EnableAchievementButtonControl}"
+                             Value="False">
+                    <Setter Property="Visibility" Value="Collapsed"/>
+                </DataTrigger>
+            </Style.Triggers>
+        </Style>
+    </local:ThemeControlBase.Style>
+
     <local:ThemeControlBase.Resources>
         <ResourceDictionary>
             <ResourceDictionary.MergedDictionaries>

@@ -15,6 +15,17 @@
         SuccessStory-compatible compact unlocked control for theme integration.
         Programmatically creates grid columns to fit achievements, with "+X more" in the last column.
     -->
+    <local:CompactAchievementControlBase.Style>
+        <Style TargetType="local:CompactAchievementControlBase">
+            <Style.Triggers>
+                <DataTrigger Binding="{Binding Persisted.EnableAchievementCompactUnlockedListControl}"
+                             Value="False">
+                    <Setter Property="Visibility" Value="Collapsed"/>
+                </DataTrigger>
+            </Style.Triggers>
+        </Style>
+    </local:CompactAchievementControlBase.Style>
+
     <local:CompactAchievementControlBase.Resources>
         <ResourceDictionary>
             <ResourceDictionary.MergedDictionaries>

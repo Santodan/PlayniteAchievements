@@ -5,6 +5,7 @@
                    xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
                    xmlns:controls="clr-namespace:Playnite.SDK.Controls;assembly=Playnite.SDK"
                    xmlns:converters="clr-namespace:PlayniteAchievements.Views.Converters"
+                   xmlns:ach="clr-namespace:PlayniteAchievements"
                    mc:Ignorable="d"
                    d:DesignHeight="40" d:DesignWidth="200">
     <!--
@@ -13,6 +14,22 @@
         Displays achievement summary per game in grid/list views.
         DataContext is inherited from parent (the Game for this row).
     -->
+    <controls:PluginUserControl.Style>
+        <Style TargetType="controls:PluginUserControl">
+            <Style.Triggers>
+                <!-- Source-anchored: this control's DataContext is the game row. -->
+                <DataTrigger Binding="{Binding Settings.Persisted.EnableAchievementViewItemControl, Source={x:Static ach:PlayniteAchievementsPlugin.Instance}}"
+                             Value="False">
+                    <Setter Property="Visibility" Value="Collapsed"/>
+                </DataTrigger>
+                <DataTrigger Binding="{Binding HasData, RelativeSource={RelativeSource Self}}"
+                             Value="False">
+                    <Setter Property="Visibility" Value="Collapsed"/>
+                </DataTrigger>
+            </Style.Triggers>
+        </Style>
+    </controls:PluginUserControl.Style>
+
     <controls:PluginUserControl.Resources>
         <ResourceDictionary>
             <ResourceDictionary.MergedDictionaries>

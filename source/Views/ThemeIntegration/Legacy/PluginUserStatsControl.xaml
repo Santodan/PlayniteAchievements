@@ -5,11 +5,24 @@
                    xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
                    xmlns:controls="clr-namespace:Playnite.SDK.Controls;assembly=Playnite.SDK"
                    xmlns:local="clr-namespace:PlayniteAchievements.Views.ThemeIntegration.Base"
+                   xmlns:ach="clr-namespace:PlayniteAchievements"
                    mc:Ignorable="d"
                    d:DesignHeight="150" d:DesignWidth="300"
                    MinHeight="{Binding RelativeSource={RelativeSource AncestorType=ContentControl}, Path=MinHeight}"
                    Height="{Binding Height}"
                    MaxHeight="{Binding RelativeSource={RelativeSource AncestorType=ContentControl}, Path=MaxHeight}">
+    <local:ThemeControlBase.Style>
+        <Style TargetType="local:ThemeControlBase">
+            <Style.Triggers>
+                <!-- Source-anchored: this control's DataContext is its stats view model. -->
+                <DataTrigger Binding="{Binding Settings.Persisted.EnableAchievementStatsControl, Source={x:Static ach:PlayniteAchievementsPlugin.Instance}}"
+                             Value="False">
+                    <Setter Property="Visibility" Value="Collapsed"/>
+                </DataTrigger>
+            </Style.Triggers>
+        </Style>
+    </local:ThemeControlBase.Style>
+
     <Grid Name="PART_GridContener">
         <ListBox Grid.IsSharedSizeScope="True" ItemsSource="{Binding ItemsSource}"
                  Width="{Binding ElementName=PART_GridContener, Path=ActualWidth}"
