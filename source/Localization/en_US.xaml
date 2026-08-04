@@ -617,6 +617,8 @@
     <sys:String x:Key="LOCPlayAch_Settings_Style_TextLinesHint">Drag to reorder. A blank size uses the theme default.</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_Style_FontFamily">Font family</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_Style_TextShadow">Text shadow</sys:String>
+    <sys:String x:Key="LOCPlayAch_Settings_Style_TextShadowOpacity">Opacity</sys:String>
+    <sys:String x:Key="LOCPlayAch_Settings_Style_TextShadowOffset">Offset</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_Style_FontThemeDefault">Theme default</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_Style_HeaderTexts">Header text</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_Style_HeaderTextsHint">Leave blank to use the localized default. {0} is the friend's name.</sys:String>

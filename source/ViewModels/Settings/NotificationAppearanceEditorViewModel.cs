@@ -52,6 +52,7 @@ namespace PlayniteAchievements.ViewModels.Settings
         private string _friendCompletionHeaderText;
         private bool _hasHeaderFormatError;
         private string _textShadowText;
+        private string _textShadowOffsetText;
         private string _cardWidthText = string.Empty;
         private string _cardHeightText = string.Empty;
         private string _iconSizeText = string.Empty;
@@ -652,6 +653,9 @@ namespace PlayniteAchievements.ViewModels.Settings
             SetValue(ref _textShadowText,
                 surface?.TextShadowOpacity?.ToString(CultureInfo.CurrentCulture) ?? string.Empty,
                 nameof(TextShadowText));
+            SetValue(ref _textShadowOffsetText,
+                surface?.TextShadowOffset?.ToString(CultureInfo.CurrentCulture) ?? string.Empty,
+                nameof(TextShadowOffsetText));
 
             // The slider companions are computed straight from the surface; refresh them
             // together with their text mirrors.
@@ -665,6 +669,7 @@ namespace PlayniteAchievements.ViewModels.Settings
             OnPropertyChanged(nameof(CardPaddingLeftSlider));
             OnPropertyChanged(nameof(CardPaddingRightSlider));
             OnPropertyChanged(nameof(TextShadowSlider));
+            OnPropertyChanged(nameof(TextShadowOffsetSlider));
         }
 
         // Slider/textbox range for the name-line offset; must match the Slider bounds in the view.
@@ -698,9 +703,10 @@ namespace PlayniteAchievements.ViewModels.Settings
         }
 
         /// <summary>
-        /// Text shadow strength (0-100; 25 matches the built-in shadow, 0 disables it). Blank
-        /// clears the override back to the default. Zero is meaningful here, so this commits
-        /// through its own parser instead of <see cref="CommitSize"/>.
+        /// Text shadow opacity (0-100; 50 matches the built-in shadow, higher stacks to solid
+        /// black, 0 disables it). Blank clears the override back to the default. Zero is
+        /// meaningful here, so this commits through its own parser instead of
+        /// <see cref="CommitSize"/>.
         /// </summary>
         public string TextShadowText
         {
@@ -724,8 +730,39 @@ namespace PlayniteAchievements.ViewModels.Settings
 
         public double TextShadowSlider
         {
-            get => Surface?.TextShadowOpacity ?? AchievementToastViewModel.DefaultTextShadowStrength;
+            get => Surface?.TextShadowOpacity ?? AchievementToastViewModel.DefaultTextShadowOpacity;
             set => TextShadowText = Math.Round(Math.Max(0, Math.Min(100, value)))
+                .ToString(CultureInfo.CurrentCulture);
+        }
+
+        /// <summary>
+        /// Text shadow offset (0-100; 25 matches the built-in shadow, 0 sits directly behind
+        /// the glyphs). Blank clears the override back to the default; zero is meaningful.
+        /// </summary>
+        public string TextShadowOffsetText
+        {
+            get => _textShadowOffsetText;
+            set
+            {
+                if (!SetValueAndReturn(ref _textShadowOffsetText, value))
+                {
+                    return;
+                }
+
+                var surface = Surface;
+                if (surface != null && _isEditable)
+                {
+                    surface.TextShadowOffset = ParseShadowStrength(value);
+                }
+
+                RefreshCardDimensions();
+            }
+        }
+
+        public double TextShadowOffsetSlider
+        {
+            get => Surface?.TextShadowOffset ?? AchievementToastViewModel.DefaultTextShadowOffset;
+            set => TextShadowOffsetText = Math.Round(Math.Max(0, Math.Min(100, value)))
                 .ToString(CultureInfo.CurrentCulture);
         }
 

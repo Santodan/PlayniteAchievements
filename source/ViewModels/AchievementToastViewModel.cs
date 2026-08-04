@@ -646,75 +646,81 @@ namespace PlayniteAchievements.ViewModels
         public double ToastProviderIconSize => _style.Toast.ProviderIconSize is double s && s > 0 ? s : DefaultToastProviderIconSize;
         public double FrameProviderIconSize => _style.Frame.ProviderIconSize is double s && s > 0 ? s : DefaultFrameProviderIconSize;
 
-        // The content shadow is directional (down-right) with a FIXED, tight blur at every
-        // strength: widening the blur is what smears a whole text line's shadow into a
-        // straight-edged band. Strength grows the offset and (via the second layer below)
-        // the density instead, so the maximum is a solid black shadow that traces the glyphs.
+        // The content shadow is directional (down-right) with a FIXED, tight blur: widening
+        // the blur is what smears a whole text line's shadow into a straight-edged band. Two
+        // independent settings drive it: opacity darkens the shadow (stacking a second layer
+        // through its upper half, up to solid black), and offset moves it away from the
+        // glyphs (as a fraction of the maximum depths below).
         private const double ContentShadowBlur = 5;
+        private const double ContentShadowInnerBlur = 2.5;
+        private const double ContentShadowMaxDepth = 4;
+        private const double ContentShadowInnerMaxDepth = 3;
 
-        // The percent value that maps to the built-in shadow; shared with the settings editor.
-        public const double DefaultTextShadowStrength = 25;
+        // The percent values that map to the built-in shadow; shared with the settings editor.
+        public const double DefaultTextShadowOpacity = 50;
+        public const double DefaultTextShadowOffset = 25;
 
         /// <summary>
-        /// The drop shadow behind this surface's text, badges, and logos, scaled by the
-        /// surface's text-shadow strength setting; null when the shadow is disabled (0%).
+        /// The drop shadow behind this surface's text, badges, and logos, shaped by the
+        /// surface's shadow opacity and offset settings; null when disabled (opacity 0).
         /// </summary>
-        public Effect ToastContentShadow => BuildContentShadow(_style.Toast.TextShadowOpacity);
+        public Effect ToastContentShadow =>
+            BuildContentShadow(_style.Toast.TextShadowOpacity, _style.Toast.TextShadowOffset);
 
-        public Effect FrameContentShadow => BuildContentShadow(_style.Frame.TextShadowOpacity);
+        public Effect FrameContentShadow =>
+            BuildContentShadow(_style.Frame.TextShadowOpacity, _style.Frame.TextShadowOffset);
 
         /// <summary>
         /// Second shadow layer for the text-line templates. Null at and below the built-in
-        /// strength (the single-layer look is unchanged there); above it, a tight second
+        /// opacity (the single-layer look is unchanged there); above it, a tight second
         /// directional shadow fades in under the outer one, so the top of the range reaches
         /// solid black — a single gaussian layer cannot exceed its feathered opacity.
         /// </summary>
-        public Effect ToastContentShadowInner => BuildInnerContentShadow(_style.Toast.TextShadowOpacity);
+        public Effect ToastContentShadowInner =>
+            BuildInnerContentShadow(_style.Toast.TextShadowOpacity, _style.Toast.TextShadowOffset);
 
-        public Effect FrameContentShadowInner => BuildInnerContentShadow(_style.Frame.TextShadowOpacity);
+        public Effect FrameContentShadowInner =>
+            BuildInnerContentShadow(_style.Frame.TextShadowOpacity, _style.Frame.TextShadowOffset);
 
-        private static Effect BuildContentShadow(double? strengthPercent)
+        private static double NormalizePercent(double? value, double fallback) =>
+            Math.Max(0.0, Math.Min(100.0, value ?? fallback)) / 100.0;
+
+        private static Effect BuildContentShadow(double? opacityPercent, double? offsetPercent)
         {
-            var strength = Math.Max(0.0, Math.Min(100.0, strengthPercent ?? DefaultTextShadowStrength))
-                / DefaultTextShadowStrength;
-            if (strength <= 0)
+            var darkness = NormalizePercent(opacityPercent, DefaultTextShadowOpacity);
+            if (darkness <= 0)
             {
                 return null;
             }
 
-            // Opacity ramps up to the built-in strength; above it the offset grows (1px at
-            // the default up to ~3.3px at the maximum), sitting slightly closer to the
-            // glyphs than a full linear ramp. The blur never widens, so the shadow stays
-            // glyph-shaped at every strength.
             var effect = new DropShadowEffect
             {
                 BlurRadius = ContentShadowBlur,
-                ShadowDepth = strength <= 1.0 ? strength : 1.0 + ((strength - 1.0) * 0.75),
+                ShadowDepth = ContentShadowMaxDepth * NormalizePercent(offsetPercent, DefaultTextShadowOffset),
                 Direction = 315,
                 Color = Colors.Black,
-                Opacity = Math.Min(1.0, strength)
+                // Fully dark from the built-in opacity (50%) upward; the layer stacking
+                // below carries the upper half of the range.
+                Opacity = Math.Min(1.0, darkness * 2.0)
             };
             effect.Freeze();
             return effect;
         }
 
-        private static Effect BuildInnerContentShadow(double? strengthPercent)
+        private static Effect BuildInnerContentShadow(double? opacityPercent, double? offsetPercent)
         {
-            var strength = Math.Max(0.0, Math.Min(100.0, strengthPercent ?? DefaultTextShadowStrength))
-                / DefaultTextShadowStrength;
-            if (strength <= 1.0)
+            var darkness = NormalizePercent(opacityPercent, DefaultTextShadowOpacity);
+            if (darkness <= 0.5)
             {
                 return null;
             }
 
-            // 0..1 across the above-default part of the range. A tight second directional
-            // layer that darkens quickly (fully black halfway up), stacking under the outer
-            // one so the maximum reaches a solid black shadow that stays close to the text.
-            var extra = (strength - 1.0) / 3.0;
+            // 0..1 across the upper half of the opacity range; solid black by 75%.
+            var extra = (darkness - 0.5) * 2.0;
             var effect = new DropShadowEffect
             {
-                BlurRadius = 2.5,
-                ShadowDepth = 0.75 + (1.5 * extra),
+                BlurRadius = ContentShadowInnerBlur,
+                ShadowDepth = ContentShadowInnerMaxDepth * NormalizePercent(offsetPercent, DefaultTextShadowOffset),
                 Direction = 315,
                 Color = Colors.Black,
                 Opacity = Math.Min(1.0, extra * 2.0)

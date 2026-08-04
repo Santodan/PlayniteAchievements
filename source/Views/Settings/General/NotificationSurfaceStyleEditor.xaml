@@ -550,28 +550,52 @@
                     </ComboBox.ItemTemplate>
                 </ComboBox>
 
-                <!-- Text shadow strength: 25 = built-in, 0 = none; higher darkens the shadow
-                     to solid black and grows its offset, never its blur. Applies to this
+                <!-- Text shadow: opacity darkens up to solid black (50 = built-in, 0 = none);
+                     offset moves the shadow away from the glyphs (25 = built-in). The blur is
+                     fixed, so the shadow stays glyph-shaped at every setting. Applies to this
                      surface's text, badges, and logos. -->
                 <TextBlock Text="{DynamicResource LOCPlayAch_Settings_Style_TextShadow}"
                            Style="{StaticResource EditorSubGroupHeaderStyle}"/>
-                <Grid HorizontalAlignment="Left"
-                      MinWidth="260">
+                <Grid HorizontalAlignment="Left">
                     <Grid.ColumnDefinitions>
-                        <ColumnDefinition Width="*"/>
+                        <ColumnDefinition Width="Auto" MinWidth="90"/>
+                        <ColumnDefinition Width="160"/>
                         <ColumnDefinition Width="Auto"/>
                     </Grid.ColumnDefinitions>
-                    <Slider Grid.Column="0"
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="Auto"/>
+                    </Grid.RowDefinitions>
+
+                    <TextBlock Grid.Row="0" Grid.Column="0"
+                               Text="{DynamicResource LOCPlayAch_Settings_Style_TextShadowOpacity}"
+                               Style="{StaticResource EditorRowLabelStyle}"
+                               Margin="0,0,8,8"/>
+                    <Slider Grid.Row="0" Grid.Column="1"
                             Minimum="0" Maximum="100"
                             SmallChange="1" LargeChange="10" TickFrequency="1" IsSnapToTickEnabled="True"
                             Value="{Binding TextShadowSlider, Mode=TwoWay}"
-                            VerticalAlignment="Center"/>
-                    <TextBox Grid.Column="1"
+                            VerticalAlignment="Center"
+                            Margin="0,0,8,8"/>
+                    <TextBox Grid.Row="0" Grid.Column="2"
                              Text="{Binding TextShadowText, Mode=TwoWay, UpdateSourceTrigger=LostFocus}"
-                             Width="50"
+                             Width="70"
                              TextAlignment="Right"
-                             VerticalAlignment="Center"
-                             Margin="8,0,0,0"/>
+                             Margin="0,0,0,8"/>
+
+                    <TextBlock Grid.Row="1" Grid.Column="0"
+                               Text="{DynamicResource LOCPlayAch_Settings_Style_TextShadowOffset}"
+                               Style="{StaticResource EditorRowLabelStyle}"/>
+                    <Slider Grid.Row="1" Grid.Column="1"
+                            Minimum="0" Maximum="100"
+                            SmallChange="1" LargeChange="10" TickFrequency="1" IsSnapToTickEnabled="True"
+                            Value="{Binding TextShadowOffsetSlider, Mode=TwoWay}"
+                            VerticalAlignment="Center"
+                            Margin="0,0,8,0"/>
+                    <TextBox Grid.Row="1" Grid.Column="2"
+                             Text="{Binding TextShadowOffsetText, Mode=TwoWay, UpdateSourceTrigger=LostFocus}"
+                             Width="70"
+                             TextAlignment="Right"/>
                 </Grid>
             </StackPanel>
         </Border>

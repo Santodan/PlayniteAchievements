@@ -119,6 +119,7 @@ namespace PlayniteAchievements.Models.Settings
         private double? _linePadding;
         private double _titleLineOffset;
         private double? _textShadowOpacity;
+        private double? _textShadowOffset;
         private NotificationBadgeImageSet _badgeImages;
         private NotificationHeaderTextSettings _headerTexts;
 
@@ -458,14 +459,25 @@ namespace PlayniteAchievements.Models.Settings
         }
 
         /// <summary>
-        /// Strength of the drop shadow behind the surface's text, badges, and logos, as a
-        /// percentage: 25 matches the built-in shadow, higher values darken it to solid black
-        /// and grow its offset, 0 disables it. Null means the built-in default (25).
+        /// Darkness of the drop shadow behind the surface's text, badges, and logos, as a
+        /// percentage: 50 matches the built-in shadow, higher values stack a second layer up
+        /// to solid black, 0 disables it. Null means the built-in default (50).
         /// </summary>
         public double? TextShadowOpacity
         {
             get => _textShadowOpacity;
             set => SetValue(ref _textShadowOpacity, value);
+        }
+
+        /// <summary>
+        /// How far the drop shadow sits from the glyphs, as a percentage of the maximum
+        /// offset: 25 matches the built-in shadow, 0 puts it directly behind the text. Null
+        /// means the built-in default (25).
+        /// </summary>
+        public double? TextShadowOffset
+        {
+            get => _textShadowOffset;
+            set => SetValue(ref _textShadowOffset, value);
         }
 
         /// <summary>
@@ -556,6 +568,7 @@ namespace PlayniteAchievements.Models.Settings
                 LinePadding = LinePadding,
                 TitleLineOffset = TitleLineOffset,
                 TextShadowOpacity = TextShadowOpacity,
+                TextShadowOffset = TextShadowOffset,
                 BadgeImages = BadgeImages.Clone(),
                 HeaderTexts = HeaderTexts.Clone()
             };
