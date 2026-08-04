@@ -70,6 +70,24 @@ namespace PlayniteAchievements.Models.Tests
         }
 
         [TestMethod]
+        public void AutomaticThemeMigration_DefaultsOn_AndSurvivesCloneAndCopy()
+        {
+            var defaults = new PersistedSettings();
+            var source = new PersistedSettings
+            {
+                EnableAutomaticThemeMigration = false
+            };
+
+            var clone = source.Clone();
+            var target = new PersistedSettings();
+            target.CopyFrom(source);
+
+            Assert.IsTrue(defaults.EnableAutomaticThemeMigration);
+            Assert.IsFalse(clone.EnableAutomaticThemeMigration);
+            Assert.IsFalse(target.EnableAutomaticThemeMigration);
+        }
+
+        [TestMethod]
         public void CloneAndCopyFrom_PreserveEnableFriendsFeatures()
         {
             var source = new PersistedSettings

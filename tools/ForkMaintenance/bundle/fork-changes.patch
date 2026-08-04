@@ -1,6 +1,7 @@
-warning: in the working copy of 'source/PlayniteAchievementsPlugin.cs', LF will be replaced by CRLF the next time Git touches it
-warning: in the working copy of 'source/Services/NotificationPublisher.cs', LF will be replaced by CRLF the next time Git touches it
-warning: in the working copy of 'source/ViewModels/SettingsViewModel.cs', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'source/Models/Settings/PersistedSettings.cs', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'source/Models/Settings/SettingsExtensions.cs', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'source/Services/ThemeMigration/ThemeAutoMigrationService.cs', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'tests/PlayniteAchievements.Tests/Models/PersistedSettingsDefaultsTests.cs', LF will be replaced by CRLF the next time Git touches it
 diff --git a/.gitignore b/.gitignore
 index 5e12022a1ec68295804fa1a6b2b12d0466614631..dd93b805a2211987591bc7b59a92b5c6e77af5c5 100644
 --- a/.gitignore
@@ -104,10 +105,10 @@ index 4bbe03feb756665ed105752ea1f9fa3e7bdd2314..9dce25a1da1a5cae228d23f2d3212262
 +    Image: https://raw.githubusercontent.com/santodan/PlayniteAchievements/main/Images/aniki-remake1.png
 \ No newline at end of file
 diff --git a/README.md b/README.md
-index 39887bdbdaaae092ed292fa99f10d9b84b089fce..ae0ec55a7e651dc42938907787ddd8a37a447a39 100644
+index 39887bdbdaaae092ed292fa99f10d9b84b089fce..fa6930959fc8dd21df24c3cab8be22a0d55e81fc 100644
 --- a/README.md
 +++ b/README.md
-@@ -1,267 +1,415 @@
+@@ -1,267 +1,418 @@
  <p align="center">
 -  <picture>
 -    <source
@@ -307,24 +308,6 @@ index 39887bdbdaaae092ed292fa99f10d9b84b089fce..ae0ec55a7e651dc42938907787ddd8a3
 -# Overlay
 -
 -PlayniteAchievements includes a robust achievement notification and tracking system. When achievements are unlocked while you are in a game, notifications appear, and screenshots or videos can be taken to record your progress.
--
--Screenshots can be taken with/without the achievement notification on screen, or they can be taken with a full presentation frame.
--
--Unlock videos show the moment you earned an achievement, with a configurable amount of buffer time around the moment.
--
--**Clean**
--
--![Clean unlock screenshot](Images/001_First%20Contact_clean.png)
--
--**Notification**
--
--![Unlock screenshot with notification](Images/001_First%20Contact_toast.png)
--
--**Framed**
--
--![Framed unlock screenshot](Images/001_First%20Contact_framed.png)
--
--NOTE: Achievement notifications will not show for games that use DirectX 9 and lower in Exclusive Fullscreen mode.
 +> Official documentation for the base project should be taken from the original repository.
 +>
 +> - Original repository: https://github.com/justin-delano/PlayniteAchievements
@@ -338,10 +321,10 @@ index 39887bdbdaaae092ed292fa99f10d9b84b089fce..ae0ec55a7e651dc42938907787ddd8a3
 +>
 +> I'm not a developer, I'm a troubleshooting guy, so everything is made with LLM
  
--Themes can create custom notification and frame styles, for full consistency. For example, in [Aniki-ReMake](https://github.com/Mike-Aniki/Aniki-ReMake):
+-Screenshots can be taken with/without the achievement notification on screen, or they can be taken with a full presentation frame.
 +# What This Fork Focuses On
  
--**Toast**
+-Unlock videos show the moment you earned an achievement, with a configurable amount of buffer time around the moment.
 +- Local save support and local achievement
 +- No need for a steam account to gather the achievements schema
 +  - There is the option to select between Steam ( API ), SteamHunters and Completionist.me
@@ -355,79 +338,89 @@ index 39887bdbdaaae092ed292fa99f10d9b84b089fce..ae0ec55a7e651dc42938907787ddd8a3
 +- `SuccessStory` Import
 +- Theme and `StartPage` migration
  
--![Aniki-ReMake custom toast](Images/PlayniteAchievements%20-%20Mike%20Aniki%20Toast.png)
+-**Clean**
 +Guides available in [Achievement Notifications Guide](ACHIEVEMENT_NOTIFICATIONS_GUIDE.md) and [Local Provider Troubleshooting](LOCAL_PROVIDER_TROUBLESHOOTING.md)
  
--**Frame**
+-![Clean unlock screenshot](Images/001_First%20Contact_clean.png)
 +## Local Provider Folder List And Browse Flow
  
--![Aniki-ReMake custom frame](Images/PlayniteAchievements%20-%20Mike%20Aniki%20Frame.png)
+-**Notification**
 +You can set any custom folder where you have saves located in your system as exception to never detect achievements from it
  
--Notification and capture settings are described on the [General](https://github.com/justin-delano/PlayniteAchievements/wiki/General) settings page. Theme authors can build custom styles with [Toast and Frame Overrides](https://github.com/justin-delano/PlayniteAchievements/wiki/Toast-And-Frame-Overrides).
+-![Unlock screenshot with notification](Images/001_First%20Contact_toast.png)
 +<img src="Images/LocalAchivementsFolders.png" alt="Sidebar single-game view" width="900">
  
--# Integration with Themes
+-**Framed**
  
--Any desktop theme created with SuccessStory support can migrate the theme to use PlayniteAchievements instead.
+-![Framed unlock screenshot](Images/001_First%20Contact_framed.png)
 +## Local Game Options Overrides
  
--Many fullscreen themes can be migrated as well, but these complex themes are more likely to reveal compatibility issues. I recommend using [Aniki-ReMake](https://github.com/Mike-Aniki/Aniki-ReMake) for the most comprehensive integration of PlayniteAchievements features.
+-NOTE: Achievement notifications will not show for games that use DirectX 9 and lower in Exclusive Fullscreen mode.
 +If you Right-click the game it will show a quicker way to do these changes:
  
--See [Theme Migration](https://github.com/justin-delano/PlayniteAchievements/wiki/Theme-Migration), [Theme Bindings](https://github.com/justin-delano/PlayniteAchievements/wiki/Theme-Bindings), and [Migrating From Legacy](https://github.com/justin-delano/PlayniteAchievements/wiki/Migrating-From-Legacy) on the wiki for more detail.
+-Themes can create custom notification and frame styles, for full consistency. For example, in [Aniki-ReMake](https://github.com/Mike-Aniki/Aniki-ReMake):
 +<img src="Images/LocalAchivementsRightClickOptions.png" alt="Sidebar single-game view" width="900">
  
--# Integration with other Plugins
+-**Toast**
 +From the PlayniteAchievements menu inside the game
  
--PlayniteAchievements supports additional features when used with the following extensions:
+-![Aniki-ReMake custom toast](Images/PlayniteAchievements%20-%20Mike%20Aniki%20Toast.png)
 +<img src="Images/LocalAchivementsOverrides.png" alt="Sidebar single-game view" width="900">
  
--## UniPlaySong
+-**Frame**
  
--When [UniPlaySong](https://github.com/aHuddini/UniPlaySong) is installed, achievement notifications are accompanied by custom musical jingles. Themes can also take advantage of this to have their own custom consistent jingles.
+-![Aniki-ReMake custom frame](Images/PlayniteAchievements%20-%20Mike%20Aniki%20Frame.png)
 +## Local Achievements' Games import and `SuccessStory Import`
  
--## StartPage
+-Notification and capture settings are described on the [General](https://github.com/justin-delano/PlayniteAchievements/wiki/General) settings page. Theme authors can build custom styles with [Toast and Frame Overrides](https://github.com/justin-delano/PlayniteAchievements/wiki/Toast-And-Frame-Overrides).
 +This is a way of adding all of those achievements that are in the folders ina  way that it isn't needed to go through the folders and adding one by one.
  
--PlayniteAchievements tables and visualizations can be added to [StartPage](https://github.com/felixkmh/StartPage-for-Playnite), with their own separate customization, so you can create stunning dashboards like the example below:
+-# Integration with Themes
 +There is also the option to import data from `SuccessStory`. This will go through all the JSON files in the selected SuccessStory folder and import the `Local` games and also the achievements for the games that were detected in them.
  
--![StartPage dashboard](Images/PlayniteAchievements%20-%20StartPage.png)
+-Any desktop theme created with SuccessStory support can migrate the theme to use PlayniteAchievements instead.
 +<img src="Images/LocalAchivementsGamesImport.png" alt="Sidebar single-game view" width="900">
  
--## Docs
+-Many fullscreen themes can be migrated as well, but these complex themes are more likely to reveal compatibility issues. I recommend using [Aniki-ReMake](https://github.com/Mike-Aniki/Aniki-ReMake) for the most comprehensive integration of PlayniteAchievements features.
  
--- [Open the wiki](https://github.com/justin-delano/PlayniteAchievements/wiki)
+-See [Theme Migration](https://github.com/justin-delano/PlayniteAchievements/wiki/Theme-Migration), [Theme Bindings](https://github.com/justin-delano/PlayniteAchievements/wiki/Theme-Bindings), and [Migrating From Legacy](https://github.com/justin-delano/PlayniteAchievements/wiki/Migrating-From-Legacy) on the wiki for more detail.
 +## Local Achievement Notification
-+
+ 
+-# Integration with other Plugins
 +This was a request from a user to have a sound playing when an achievement is unlocked while playing a game.<br>
 +Extra sounds in the [Resources/AdditionalSounds](source/Resources/AdditionalSounds)<br>
 +A notification for when the game that is been played has a new achievement unlocked.<br>
 +You can customize the overlay or use one of the provided themes.<br>
 +You can enable / disable the `Achievement Notification` in the right click  menu for each game.
-+
+ 
+-PlayniteAchievements supports additional features when used with the following extensions:
 +<img src="Images/AchievementNotificationMenu.png" alt="Sidebar single-game view" width="900">
 +
 +<img src="Images/AchievementNotificationTest.png" alt="Sidebar single-game view">
-+
-+
+ 
+-## UniPlaySong
+ 
+-When [UniPlaySong](https://github.com/aHuddini/UniPlaySong) is installed, achievement notifications are accompanied by custom musical jingles. Themes can also take advantage of this to have their own custom consistent jingles.
 +## `StartPage` and Themes compatibility
-+
+ 
+-## StartPage
 +In the `Theme Migration` tab you will have the possibility to make theme compatible with this fork, and that's also for theme that already support the original PlayniteAchievements fork, they still need to go through the `Theme Migration` since they are point to the other repo and not this one
-+
+ 
+-PlayniteAchievements tables and visualizations can be added to [StartPage](https://github.com/felixkmh/StartPage-for-Playnite), with their own separate customization, so you can create stunning dashboards like the example below:
 +There is also the `StartPage Compatibility` so the `Local` achievements appear in the `StartPage` extension when `PlayniteAchievements` is selected
 +
 +<img src="Images/ThemeMigration.png" alt="Sidebar single-game view"  width="900">
 +
 +
 +# Fork Changelog
-+
+ 
+-![StartPage dashboard](Images/PlayniteAchievements%20-%20StartPage.png)
 +The entries below are fork-side changes, grouped by date. When a date includes an upstream sync, only the fork-specific additions are called out here.
 +
 +## Next release - TBD
++
++
++## 2026-08-02 - v3.0.0.1
 +
 +- v3.0.0 merge
 +- `Start-page` migration fixed to not show the friend's achievements
@@ -438,7 +431,8 @@ index 39887bdbdaaae092ed292fa99f10d9b84b089fce..ae0ec55a7e651dc42938907787ddd8a3
 +- Change the `Local save folder override` to mention that it isn't using any local folder if that's the case
 +- Added a refresh icon in the `View Achievements` window to refresh the achievements from that window
 +- Added a dedicated file for the `Debug` setting for the `Achievement Notification`. The file is called `AchNotifDebug.log`
-+
+ 
+-## Docs
 +## 2026-07-27 - v2.5.3.4
 +
 +- Fixed `RetroAchievements Game ID Override` displaying `No override set` after setting an override
@@ -452,7 +446,8 @@ index 39887bdbdaaae092ed292fa99f10d9b84b089fce..ae0ec55a7e651dc42938907787ddd8a3
 +- Fixed the defined overrides not appearing in the `Overview` tab
 +- Added Debug mode for the achievement notification to generate additional logs
 +- The setting to have the overlay in the same monitor as the game for multiple monitors is set to false as default
-+
+ 
+-- [Open the wiki](https://github.com/justin-delano/PlayniteAchievements/wiki)
 +## 2026-07-20 - v2.5.3.3
 +- Trying to make the WebView notification quicker
 +- Fixed a duplicate playnite window in the `ALT+TAB` menu in windows
@@ -476,6 +471,9 @@ index 39887bdbdaaae092ed292fa99f10d9b84b089fce..ae0ec55a7e651dc42938907787ddd8a3
 +- Fixed the notification not showing the achievement's icon when offline
 +- Guides added to the github
 +
++## Old Changelogs
++<details>
++
 +## 2026-07-09 - v2.5.3.2
 +- Fixed the multiple folders detection showing the list index instead of the folder path
 +- Fixed missing `Prestige Score` and `Collection Score` when using `SteamHunters` to fetch the schema
@@ -493,9 +491,6 @@ index 39887bdbdaaae092ed292fa99f10d9b84b089fce..ae0ec55a7e651dc42938907787ddd8a3
 + - It might trigger some rate-limit since it is through API
 +- `Achievement notification` reimagined (`SAN-Integration` branch merged)
 +  - You can see the changelog in https://github.com/Santodan/PlayniteAchievements/issues/5#issuecomment-4877909986
-+
-+## Old Changelogs
-+<details>
 +
 +## 2026-06-22 - v2.5.3.1
 +- v2.5.2 + v2.5.3 merge
@@ -902,10 +897,34 @@ index ee1bb5b72f5129f6c9221584315e9bc60476be70..7a44bedf400009690ffe1a1ccef12a11
                  ManualLink = ManualLink?.Clone()
              };
 diff --git a/source/Models/Settings/PersistedSettings.cs b/source/Models/Settings/PersistedSettings.cs
-index 4774004149f933aabd097707fae77993820f4451..103ea9c5eca00a21ba7bb6c3a5b7876a5576b110 100644
+index 4774004149f933aabd097707fae77993820f4451..871feb16488d948ba10a4dbb5d9ace1ea34faf82 100644
 --- a/source/Models/Settings/PersistedSettings.cs
 +++ b/source/Models/Settings/PersistedSettings.cs
-@@ -2398,6 +2398,66 @@ public PersistedSettings Clone()
+@@ -201,6 +201,7 @@ public PersistedSettings()
+         private bool _viewAchievementsTimelineVisible = false;
+         private bool _firstTimeSetupCompleted = false;
+         private bool _seenThemeMigration = false;
++        private bool _enableAutomaticThemeMigration = true;
+         private HashSet<Guid> _excludedGameIds = new HashSet<Guid>();
+         private HashSet<Guid> _excludedFromSummariesGameIds = new HashSet<Guid>();
+         private Dictionary<Guid, string> _manualCapstones = new Dictionary<Guid, string>();
+@@ -2034,6 +2035,15 @@ public bool SeenThemeMigration
+             set => SetValue(ref _seenThemeMigration, value);
+         }
+ 
++        /// <summary>
++        /// Whether newly discovered and upgraded themes are migrated automatically at startup.
++        /// </summary>
++        public bool EnableAutomaticThemeMigration
++        {
++            get => _enableAutomaticThemeMigration;
++            set => SetValue(ref _enableAutomaticThemeMigration, value);
++        }
++
+         /// <summary>
+         /// Cache mapping ThemePath -> last migrated theme.yaml Version.
+         /// Used to detect themes that have been upgraded since migration and may need re-migration.
+@@ -2398,6 +2408,66 @@ public PersistedSettings Clone()
                          StringComparer.OrdinalIgnoreCase)
                      : new Dictionary<string, ProviderNotificationOverride>(StringComparer.OrdinalIgnoreCase),
  
@@ -972,6 +991,26 @@ index 4774004149f933aabd097707fae77993820f4451..103ea9c5eca00a21ba7bb6c3a5b7876a
                  // Display Preferences
                  ShowHiddenIcon = this.ShowHiddenIcon,
                  ShowHiddenTitle = this.ShowHiddenTitle,
+@@ -2482,6 +2552,7 @@ public PersistedSettings Clone()
+                 // General Settings
+                 FirstTimeSetupCompleted = this.FirstTimeSetupCompleted,
+                 SeenThemeMigration = this.SeenThemeMigration,
++                EnableAutomaticThemeMigration = this.EnableAutomaticThemeMigration,
+                 ThemeMigrationVersionCache = this.ThemeMigrationVersionCache != null
+                     ? this.ThemeMigrationVersionCache.ToDictionary(
+                         kvp => kvp.Key,
+diff --git a/source/Models/Settings/SettingsExtensions.cs b/source/Models/Settings/SettingsExtensions.cs
+index 46dae41793a7b3e8d851149ebfd8dd3a7a5224a4..5101a16f216e6caf7ac1bdd4d4b8683abb787ccb 100644
+--- a/source/Models/Settings/SettingsExtensions.cs
++++ b/source/Models/Settings/SettingsExtensions.cs
+@@ -223,6 +223,7 @@ public static void CopyFrom(this PersistedSettings target, PersistedSettings sou
+             // General Settings
+             target.FirstTimeSetupCompleted = source.FirstTimeSetupCompleted;
+             target.SeenThemeMigration = source.SeenThemeMigration;
++            target.EnableAutomaticThemeMigration = source.EnableAutomaticThemeMigration;
+             target.ThemeMigrationVersionCache = source.ThemeMigrationVersionCache != null
+                 ? source.ThemeMigrationVersionCache.ToDictionary(
+                     kvp => kvp.Key,
 diff --git a/source/Models/ThemeIntegration/LibraryRuntimeState.cs b/source/Models/ThemeIntegration/LibraryRuntimeState.cs
 index 9d9a321eac26c6648a4242172f2ce9d2b657e77a..470a6ca4cad8724fbf6526e409e089974a4f5597 100644
 --- a/source/Models/ThemeIntegration/LibraryRuntimeState.cs
@@ -13326,10 +13365,23 @@ index 7aa5493030e6e24468154d40ea153dc70295f35d..ba0c78afe90f5e6bab50e440842bdf5e
      }
  }
 diff --git a/source/Services/ThemeMigration/ThemeAutoMigrationService.cs b/source/Services/ThemeMigration/ThemeAutoMigrationService.cs
-index c7907bc5645ba8d00ad195bca1cdac14cd243297..14261a27a5471216770b2b69397e7349b25027a0 100644
+index c7907bc5645ba8d00ad195bca1cdac14cd243297..fa2595d627dcbdaaf71f77b54d93fd8e044c388e 100644
 --- a/source/Services/ThemeMigration/ThemeAutoMigrationService.cs
 +++ b/source/Services/ThemeMigration/ThemeAutoMigrationService.cs
-@@ -40,8 +40,8 @@ public void ScheduleAutoMigration()
+@@ -33,6 +33,12 @@ public ThemeAutoMigrationService(
+ 
+         public void ScheduleAutoMigration()
+         {
++            if (_settings?.Persisted?.EnableAutomaticThemeMigration != true)
++            {
++                _logger?.Info("Automatic theme migration is disabled.");
++                return;
++            }
++
+             try
+             {
+                 _ = Task.Run(async () =>
+@@ -40,8 +46,8 @@ public void ScheduleAutoMigration()
                      try
                      {
                          var themesDiscovery = new ThemeDiscoveryService(_logger, _playniteApi);
@@ -13340,7 +13392,7 @@ index c7907bc5645ba8d00ad195bca1cdac14cd243297..14261a27a5471216770b2b69397e7349
                          {
                              return;
                          }
-@@ -50,8 +50,6 @@ public void ScheduleAutoMigration()
+@@ -50,8 +56,6 @@ public void ScheduleAutoMigration()
                          var wasCacheEmpty = persisted != null &&
                                              (persisted.ThemeMigrationVersionCache == null || persisted.ThemeMigrationVersionCache.Count == 0);
  
@@ -13349,7 +13401,7 @@ index c7907bc5645ba8d00ad195bca1cdac14cd243297..14261a27a5471216770b2b69397e7349
                          if (wasCacheEmpty)
                          {
                              var seededThemes = themes
-@@ -84,7 +82,13 @@ public void ScheduleAutoMigration()
+@@ -84,7 +88,13 @@ public void ScheduleAutoMigration()
                                          !string.Equals(cached.MigratedThemeVersion, t.CurrentThemeVersion, StringComparison.OrdinalIgnoreCase))
                              .ToList();
  
@@ -13364,7 +13416,7 @@ index c7907bc5645ba8d00ad195bca1cdac14cd243297..14261a27a5471216770b2b69397e7349
                          {
                              return;
                          }
-@@ -117,6 +121,27 @@ public void ScheduleAutoMigration()
+@@ -117,6 +127,27 @@ public void ScheduleAutoMigration()
                              }
                          }
  
@@ -19266,6 +19318,35 @@ index 77e9f7bbf9a67477c223c1e205f8c702258b48aa..63ed6735c9ff2c8329a63afa30dd0d48
    <package id="Newtonsoft.Json" version="10.0.3" targetFramework="net462" />
    <package id="protobuf-net" version="2.0.0.668" targetFramework="net462" />
    <package id="PlayniteSDK" version="6.14.0" targetFramework="net462" />
+diff --git a/tests/PlayniteAchievements.Tests/Models/PersistedSettingsDefaultsTests.cs b/tests/PlayniteAchievements.Tests/Models/PersistedSettingsDefaultsTests.cs
+index 97070b070e8a9857dbe016c0706bbd7d95a46961..f9b4bb1b88bf38db2ae26a8d6a36c3fabe56eaef 100644
+--- a/tests/PlayniteAchievements.Tests/Models/PersistedSettingsDefaultsTests.cs
++++ b/tests/PlayniteAchievements.Tests/Models/PersistedSettingsDefaultsTests.cs
+@@ -69,6 +69,24 @@ public void Constructor_DefaultsEnableFriendsFeaturesOn()
+             Assert.IsTrue(settings.EnableFriendsFeatures);
+         }
+ 
++        [TestMethod]
++        public void AutomaticThemeMigration_DefaultsOn_AndSurvivesCloneAndCopy()
++        {
++            var defaults = new PersistedSettings();
++            var source = new PersistedSettings
++            {
++                EnableAutomaticThemeMigration = false
++            };
++
++            var clone = source.Clone();
++            var target = new PersistedSettings();
++            target.CopyFrom(source);
++
++            Assert.IsTrue(defaults.EnableAutomaticThemeMigration);
++            Assert.IsFalse(clone.EnableAutomaticThemeMigration);
++            Assert.IsFalse(target.EnableAutomaticThemeMigration);
++        }
++
+         [TestMethod]
+         public void CloneAndCopyFrom_PreserveEnableFriendsFeatures()
+         {
 diff --git a/tests/PlayniteAchievements.Tests/PlayniteAchievements.Tests.csproj b/tests/PlayniteAchievements.Tests/PlayniteAchievements.Tests.csproj
 index c9e76c04eafee4f4f5574a54b58255e301c10738..94f179810828c6b01e4910e4692c856ee9e7e53d 100644
 --- a/tests/PlayniteAchievements.Tests/PlayniteAchievements.Tests.csproj

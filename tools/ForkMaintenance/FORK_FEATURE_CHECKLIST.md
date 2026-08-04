@@ -113,7 +113,9 @@ Primary fork areas:
   unlocked-achievement row.
 - Both legacy `PluginCompactUnlocked` and modern
   `AchievementCompactUnlockedList` migration paths retain the highlighted row.
-- Automatic migration handles first-time themes and upgraded themes.
+- Automatic migration handles first-time themes and upgraded themes when its
+  Theme Migration toggle is enabled, and skips both when disabled. The toggle
+  remains persisted and defaults to enabled.
 - The non-scrollable legacy option, scrollable option, revert, and StartPage
   compatibility apply/revert actions work.
 - Fullscreen library summaries normalize legacy `Local` rows whose platform was

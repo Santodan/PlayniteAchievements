@@ -201,6 +201,7 @@ namespace PlayniteAchievements.Models.Settings
         private bool _viewAchievementsTimelineVisible = false;
         private bool _firstTimeSetupCompleted = false;
         private bool _seenThemeMigration = false;
+        private bool _enableAutomaticThemeMigration = true;
         private HashSet<Guid> _excludedGameIds = new HashSet<Guid>();
         private HashSet<Guid> _excludedFromSummariesGameIds = new HashSet<Guid>();
         private Dictionary<Guid, string> _manualCapstones = new Dictionary<Guid, string>();
@@ -2035,6 +2036,15 @@ namespace PlayniteAchievements.Models.Settings
         }
 
         /// <summary>
+        /// Whether newly discovered and upgraded themes are migrated automatically at startup.
+        /// </summary>
+        public bool EnableAutomaticThemeMigration
+        {
+            get => _enableAutomaticThemeMigration;
+            set => SetValue(ref _enableAutomaticThemeMigration, value);
+        }
+
+        /// <summary>
         /// Cache mapping ThemePath -> last migrated theme.yaml Version.
         /// Used to detect themes that have been upgraded since migration and may need re-migration.
         /// </summary>
@@ -2542,6 +2552,7 @@ namespace PlayniteAchievements.Models.Settings
                 // General Settings
                 FirstTimeSetupCompleted = this.FirstTimeSetupCompleted,
                 SeenThemeMigration = this.SeenThemeMigration,
+                EnableAutomaticThemeMigration = this.EnableAutomaticThemeMigration,
                 ThemeMigrationVersionCache = this.ThemeMigrationVersionCache != null
                     ? this.ThemeMigrationVersionCache.ToDictionary(
                         kvp => kvp.Key,

@@ -33,6 +33,12 @@ namespace PlayniteAchievements.Services.ThemeMigration
 
         public void ScheduleAutoMigration()
         {
+            if (_settings?.Persisted?.EnableAutomaticThemeMigration != true)
+            {
+                _logger?.Info("Automatic theme migration is disabled.");
+                return;
+            }
+
             try
             {
                 _ = Task.Run(async () =>

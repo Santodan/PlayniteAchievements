@@ -4398,6 +4398,11 @@
                                               IsEnabled="{Binding HasThemesToMigrate, ElementName=LegacyNotificationSettingsControlRoot}"/>
                                 </Grid>
 
+                                <CheckBox Content="Automatically migrate new themes"
+                                          IsChecked="{Binding Persisted.EnableAutomaticThemeMigration, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                          Margin="0,8,0,0"
+                                          ToolTip="Automatically migrate newly discovered themes and re-migrate themes after they are updated."/>
+
                                 <CheckBox x:Name="LegacyUseScrollableAchievementsCheckBox"
                                           Content="Scrollable achievements"
                                           IsChecked="{Binding UseScrollableAchievementsForThemeMigration, ElementName=LegacyNotificationSettingsControlRoot, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"

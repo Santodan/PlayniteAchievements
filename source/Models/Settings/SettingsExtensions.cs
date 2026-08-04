@@ -223,6 +223,7 @@ namespace PlayniteAchievements.Models.Settings
             // General Settings
             target.FirstTimeSetupCompleted = source.FirstTimeSetupCompleted;
             target.SeenThemeMigration = source.SeenThemeMigration;
+            target.EnableAutomaticThemeMigration = source.EnableAutomaticThemeMigration;
             target.ThemeMigrationVersionCache = source.ThemeMigrationVersionCache != null
                 ? source.ThemeMigrationVersionCache.ToDictionary(
                     kvp => kvp.Key,
