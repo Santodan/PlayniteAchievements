@@ -433,6 +433,15 @@ namespace PlayniteAchievements.Services.UI
                 return null;
             }
 
+            return CreatePArgbBitmap(pixels, pw, ph);
+        }
+
+        /// <summary>
+        /// Wraps a tightly-packed premultiplied-BGRA buffer in a GDI bitmap for GDI+ compositing.
+        /// Returns null (and the shot omits the toast) on failure.
+        /// </summary>
+        private System.Drawing.Bitmap CreatePArgbBitmap(byte[] pixels, int pw, int ph)
+        {
             try
             {
                 var bitmap = new System.Drawing.Bitmap(pw, ph, System.Drawing.Imaging.PixelFormat.Format32bppPArgb);
@@ -456,6 +465,108 @@ namespace PlayniteAchievements.Services.UI
                 _logger?.Debug(ex, "Toast overlay render failed; with-notification shot omits the toast.");
                 return null;
             }
+        }
+
+        /// <summary>
+        /// Renders one live toast card (its item container inside the wave's ItemsControl) to a
+        /// tightly-packed premultiplied-BGRA buffer at the physical pixel size it renders on screen.
+        /// The card is drawn through a VisualBrush into a DrawingVisual at the origin: rendering the
+        /// container directly would bake in its stacked offset within the window, and cropping a
+        /// whole-window render would bleed the neighbouring cards' glow into the crop (stacked
+        /// containers overlap via negative margins). The card's own glow room is part of the
+        /// container's RenderSize (the template root carries the ToastGlowMargin), so the result is
+        /// dimensionally identical to a single-toast window's content. Must be called on the UI
+        /// thread (renders the live visual). Returns false when the container can't be rendered.
+        /// </summary>
+        private bool TryRenderToastItemBytes(
+            Window window, FrameworkElement container,
+            out byte[] pixels, out int width, out int height)
+        {
+            pixels = null;
+            width = 0;
+            height = 0;
+            try
+            {
+                if (window == null || container == null ||
+                    container.RenderSize.Width <= 0 || container.RenderSize.Height <= 0 ||
+                    window.ActualWidth <= 0 || window.ActualHeight <= 0 ||
+                    !ToastWindowPlacer.TryGetPhysicalRect(window, out var windowPhys))
+                {
+                    return false;
+                }
+
+                // Same DIP->physical factor as the whole-window render: the window rect is the
+                // content's physical size, ActualWidth its DIP size.
+                var pxPerDipX = (double)windowPhys.Width / window.ActualWidth;
+                var pxPerDipY = (double)windowPhys.Height / window.ActualHeight;
+
+                // Window-DIP bounds include the ItemsControl LayoutTransform (fit scale * DPI
+                // compensation); RenderSize is the local, pre-transform size.
+                var local = container.RenderSize;
+                var bounds = container.TransformToAncestor(window)
+                    .TransformBounds(new Rect(local));
+                var pw = Math.Max(1, (int)Math.Ceiling(bounds.Width * pxPerDipX));
+                var ph = Math.Max(1, (int)Math.Ceiling(bounds.Height * pxPerDipY));
+
+                var visual = new DrawingVisual();
+                using (var dc = visual.RenderOpen())
+                {
+                    // Absolute viewbox pins the mapping to the layout bounds so effect bleed can't
+                    // inflate the brush content; clipping matches where the live window edge clips.
+                    var brush = new VisualBrush(container)
+                    {
+                        Stretch = Stretch.Fill,
+                        ViewboxUnits = BrushMappingMode.Absolute,
+                        Viewbox = new Rect(0, 0, local.Width, local.Height),
+                    };
+                    dc.DrawRectangle(brush, null, new Rect(0, 0, local.Width, local.Height));
+                }
+
+                // The physical/local DPI ratio carries both the LayoutTransform scale and the
+                // window's physical render scale in one factor.
+                var rtb = new System.Windows.Media.Imaging.RenderTargetBitmap(
+                    pw, ph, 96.0 * pw / local.Width, 96.0 * ph / local.Height,
+                    PixelFormats.Pbgra32);
+                rtb.Render(visual);
+                rtb.Freeze();
+
+                var stride = pw * 4;
+                var buffer = new byte[stride * ph];
+                rtb.CopyPixels(buffer, stride, 0);
+
+                pixels = buffer;
+                width = pw;
+                height = ph;
+                return true;
+            }
+            catch (Exception ex)
+            {
+                _logger?.Debug(ex, "Toast card render failed.");
+                return false;
+            }
+        }
+
+        /// <summary>
+        /// Renders one live toast card to a premultiplied-alpha GDI bitmap at its physical pixel
+        /// size (see <see cref="TryRenderToastItemBytes"/>). Returns null (the caller degrades to
+        /// the plain game capture) when the card can't be rendered.
+        /// </summary>
+        private System.Drawing.Bitmap TryRenderToastItemOverlay(
+            Window window, FrameworkElement container, out System.Drawing.Size physSize)
+        {
+            physSize = System.Drawing.Size.Empty;
+            if (!TryRenderToastItemBytes(window, container, out var pixels, out var pw, out var ph))
+            {
+                return null;
+            }
+
+            var bitmap = CreatePArgbBitmap(pixels, pw, ph);
+            if (bitmap != null)
+            {
+                physSize = new System.Drawing.Size(pw, ph);
+            }
+
+            return bitmap;
         }
 
         /// <summary>
