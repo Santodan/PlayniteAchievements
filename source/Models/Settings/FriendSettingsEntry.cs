@@ -21,6 +21,8 @@ namespace PlayniteAchievements.Models.Settings
 
         public string Nickname { get; set; }
 
+        public string ProviderNickname { get; set; }
+
         public string AvatarUrl { get; set; }
 
         public string AvatarPath { get; set; }
@@ -54,6 +56,7 @@ namespace PlayniteAchievements.Models.Settings
                 ExternalUserId = ExternalUserId,
                 DisplayName = DisplayName,
                 Nickname = Nickname,
+                ProviderNickname = ProviderNickname,
                 AvatarUrl = AvatarUrl,
                 AvatarPath = AvatarPath,
                 Source = Source,
@@ -74,6 +77,7 @@ namespace PlayniteAchievements.Models.Settings
             ExternalUserId = NormalizeToken(ExternalUserId);
             DisplayName = string.IsNullOrWhiteSpace(DisplayName) ? ExternalUserId : DisplayName.Trim();
             Nickname = NormalizeNullable(Nickname);
+            ProviderNickname = NormalizeNullable(ProviderNickname);
             AvatarUrl = NormalizeNullable(AvatarUrl);
             AvatarPath = NormalizeNullable(AvatarPath);
             SelectedPlatforms = NormalizePlatformList(SelectedPlatforms);

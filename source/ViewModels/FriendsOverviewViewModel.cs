@@ -2804,7 +2804,8 @@ namespace PlayniteAchievements.ViewModels
             }
 
             if (string.IsNullOrWhiteSpace(propertyName) ||
-                propertyName == nameof(PersistedSettings.ShowFriendSpoilers))
+                propertyName == nameof(PersistedSettings.ShowFriendSpoilers) ||
+                propertyName == nameof(PersistedSettings.FriendNameDisplayMode))
             {
                 _friendsOverviewDataCoordinator?.Invalidate();
             }

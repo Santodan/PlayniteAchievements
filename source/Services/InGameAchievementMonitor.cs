@@ -1589,7 +1589,7 @@ namespace PlayniteAchievements.Services
                 IsCompletionAchievement = gameCompleted,
                 IsFriendUnlock = true,
                 FriendExternalUserId = target?.Friend?.ExternalUserId,
-                FriendDisplayName = target?.Friend?.DisplayName,
+                FriendDisplayName = ResolveFriendDisplayName(target),
                 FriendAvatarPath = target?.Friend?.AvatarPath,
                 FriendAvatarUrl = target?.Friend?.AvatarUrl
             };
@@ -1614,10 +1614,28 @@ namespace PlayniteAchievements.Services
                 IsGameCompleted = true,
                 IsFriendUnlock = true,
                 FriendExternalUserId = target?.Friend?.ExternalUserId,
-                FriendDisplayName = target?.Friend?.DisplayName,
+                FriendDisplayName = ResolveFriendDisplayName(target),
                 FriendAvatarPath = target?.Friend?.AvatarPath,
                 FriendAvatarUrl = target?.Friend?.AvatarUrl
             };
+        }
+
+        // Notifications resolve at the account level (manual rename, then the configured
+        // persona/nickname mode), matching the per-achievement behavior in the overview.
+        private string ResolveFriendDisplayName(FriendPollTarget target)
+        {
+            var friend = target?.Friend;
+            if (friend == null)
+            {
+                return null;
+            }
+
+            var persisted = _settings?.Persisted;
+            var entry = persisted?.GetFriendSetting(target.ProviderKey ?? friend.ProviderKey, friend.ExternalUserId);
+            return FriendDisplayNameResolver.Resolve(
+                friend,
+                entry,
+                persisted?.FriendNameDisplayMode ?? FriendNameDisplayMode.PersonaAndNickname);
         }
 
         private static string BuildFriendTargetKey(FriendPollTarget target)

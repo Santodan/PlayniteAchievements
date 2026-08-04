@@ -23,8 +23,51 @@ namespace PlayniteAchievements.Steam.Tests
             Assert.AreEqual(1, friends.Count);
             Assert.AreEqual("76561198000000001", friends[0].SteamId);
             Assert.AreEqual("Display Name", friends[0].DisplayName);
+            Assert.IsNull(friends[0].ProviderNickname);
             Assert.AreEqual("https://avatars.example/avatar.jpg", friends[0].AvatarUrl);
             Assert.IsTrue(SteamCommunityPageParser.LooksLikeFriendsPayload(html));
+        }
+
+        [TestMethod]
+        public void ParseFriends_TreatsPrimaryTextAsNicknameWhenNicknameHintPresent()
+        {
+            // A nicknamed friend's block renders the assigned nickname as the primary text and
+            // omits the persona name entirely; data-search and the avatar alt also carry the
+            // nickname, so none of the fallbacks may be consulted.
+            const string html =
+                "<div id=\"friends_list\">" +
+                "<a class=\"selectable friend_block_v2 persona online\" data-steamid=\"76561198000000002\" data-search=\"My Nick\" href=\"https://steamcommunity.com/profiles/76561198000000002/\">" +
+                "<div class=\"player_avatar\"><img src=\"https://avatars.example/avatar2.jpg\" alt=\"My Nick\" /></div>" +
+                "<div class=\"friend_block_content\">My Nick<span class=\"player_nickname_hint\"><br><span class=\"friend_small_text\">Last Online 3 days ago</span></span></div>" +
+                "</a></div>";
+
+            var friends = SteamCommunityPageParser.ParseFriends(html);
+
+            Assert.AreEqual(1, friends.Count);
+            Assert.AreEqual("My Nick", friends[0].ProviderNickname);
+            Assert.IsNull(friends[0].DisplayName);
+        }
+
+        [TestMethod]
+        public void TryExtractProfilePersonaName_ReadsCdataSteamIdElement()
+        {
+            const string xml =
+                "<profile><steamID64>76561198000000002</steamID64>" +
+                "<steamID><![CDATA[Persona Name]]></steamID></profile>";
+
+            Assert.AreEqual("Persona Name", SteamCommunityPageParser.TryExtractProfilePersonaName(xml));
+        }
+
+        [TestMethod]
+        public void TryExtractProfilePersonaName_ReadsEscapedXmlViewerPayload()
+        {
+            const string html =
+                "<html><body><div id=\"webkit-xml-viewer-source-xml\">" +
+                "&lt;profile&gt;&lt;steamID64&gt;76561198000000002&lt;/steamID64&gt;" +
+                "&lt;steamID&gt;Persona Name&lt;/steamID&gt;&lt;/profile&gt;" +
+                "</div></body></html>";
+
+            Assert.AreEqual("Persona Name", SteamCommunityPageParser.TryExtractProfilePersonaName(html));
         }
 
         [TestMethod]

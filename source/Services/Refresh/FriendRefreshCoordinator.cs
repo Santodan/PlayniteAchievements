@@ -2838,7 +2838,7 @@ namespace PlayniteAchievements.Services.Refresh
             return true;
         }
 
-        private static string ResolveLogicalFriendDisplayName(
+        private string ResolveLogicalFriendDisplayName(
             FriendMergeGroup mergeGroup,
             FriendIdentity fallbackFriend,
             IReadOnlyDictionary<string, FriendIdentity> accountLookup)
@@ -2855,7 +2855,7 @@ namespace PlayniteAchievements.Services.Refresh
                     accountLookup.TryGetValue(member.Key, out var friend) &&
                     !string.IsNullOrWhiteSpace(friend?.DisplayName))
                 {
-                    return friend.DisplayName.Trim();
+                    return GetFriendDisplayName(friend);
                 }
             }
 
@@ -2877,6 +2877,7 @@ namespace PlayniteAchievements.Services.Refresh
                     DisplayName = string.IsNullOrWhiteSpace(friend.DisplayName)
                         ? friend.ExternalUserId.Trim()
                         : friend.DisplayName.Trim(),
+                    ProviderNickname = string.IsNullOrWhiteSpace(friend.ProviderNickname) ? null : friend.ProviderNickname.Trim(),
                     AvatarUrl = string.IsNullOrWhiteSpace(friend.AvatarUrl) ? null : friend.AvatarUrl.Trim(),
                     AvatarPath = string.IsNullOrWhiteSpace(friend.AvatarPath) ? null : friend.AvatarPath.Trim(),
                     LastRefreshedUtc = friend.LastRefreshedUtc
@@ -3274,17 +3275,22 @@ namespace PlayniteAchievements.Services.Refresh
                 .Any(context => context != null && FriendRefreshWorkPolicy.ShouldRefreshOwnership(context.ProviderKey, options));
         }
 
-        private static string GetFriendDisplayName(FriendIdentity friend)
+        private string GetFriendDisplayName(FriendIdentity friend)
         {
-            if (!string.IsNullOrWhiteSpace(friend?.DisplayName))
+            if (friend == null)
             {
-                return friend.DisplayName.Trim();
+                return null;
             }
 
-            return friend?.ExternalUserId?.Trim();
+            var persisted = _settings?.Persisted;
+            var entry = persisted?.GetFriendSetting(friend.ProviderKey, friend.ExternalUserId);
+            return FriendDisplayNameResolver.Resolve(
+                friend,
+                entry,
+                persisted?.FriendNameDisplayMode ?? FriendNameDisplayMode.PersonaAndNickname);
         }
 
-        private static string FormatFriendGameDetail(FriendRefreshCandidate candidate)
+        private string FormatFriendGameDetail(FriendRefreshCandidate candidate)
         {
             if (candidate == null)
             {

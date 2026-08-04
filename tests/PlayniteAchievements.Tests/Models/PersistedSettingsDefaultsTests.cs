@@ -119,6 +119,28 @@ namespace PlayniteAchievements.Models.Tests
         }
 
         [TestMethod]
+        public void FriendNameDisplayMode_DefaultsToPersonaAndNickname()
+        {
+            Assert.AreEqual(FriendNameDisplayMode.PersonaAndNickname, new PersistedSettings().FriendNameDisplayMode);
+        }
+
+        [TestMethod]
+        public void CloneAndCopyFrom_PreserveFriendNameDisplayMode()
+        {
+            var source = new PersistedSettings
+            {
+                FriendNameDisplayMode = FriendNameDisplayMode.Nickname
+            };
+
+            var clone = source.Clone();
+            var target = new PersistedSettings();
+            target.CopyFrom(source);
+
+            Assert.AreEqual(FriendNameDisplayMode.Nickname, clone.FriendNameDisplayMode);
+            Assert.AreEqual(FriendNameDisplayMode.Nickname, target.FriendNameDisplayMode);
+        }
+
+        [TestMethod]
         public void CloneAndCopyFrom_PreserveEnableFriendsFeatures()
         {
             var source = new PersistedSettings

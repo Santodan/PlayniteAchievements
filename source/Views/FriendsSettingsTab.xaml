@@ -4,6 +4,7 @@
              xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
              xmlns:helpers="clr-namespace:PlayniteAchievements.Views.Helpers"
              xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+             xmlns:settings="clr-namespace:PlayniteAchievements.Models.Settings"
              xmlns:sys="clr-namespace:System;assembly=mscorlib"
              mc:Ignorable="d"
              d:DesignHeight="520"
@@ -92,6 +93,23 @@
                                Style="{StaticResource MutedTextStyle}"
                                TextWrapping="Wrap"
                                Margin="18,2,0,0"/>
+
+                    <StackPanel Orientation="Horizontal" Margin="0,10,0,0">
+                        <TextBlock Text="{DynamicResource LOCPlayAch_Settings_FriendNameDisplay}"
+                                   VerticalAlignment="Center"/>
+                        <ComboBox SelectedValue="{Binding FriendNameDisplayMode, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                  SelectedValuePath="Tag"
+                                  MinWidth="140"
+                                  Margin="{StaticResource PlayAch.Thickness.Left.Sm}">
+                            <ComboBoxItem Content="{DynamicResource LOCPlayAch_Settings_FriendNameDisplayMode_Persona}" Tag="{x:Static settings:FriendNameDisplayMode.Persona}"/>
+                            <ComboBoxItem Content="{DynamicResource LOCPlayAch_Settings_FriendNameDisplayMode_Nickname}" Tag="{x:Static settings:FriendNameDisplayMode.Nickname}"/>
+                            <ComboBoxItem Content="{DynamicResource LOCPlayAch_Settings_FriendNameDisplayMode_PersonaAndNickname}" Tag="{x:Static settings:FriendNameDisplayMode.PersonaAndNickname}"/>
+                        </ComboBox>
+                    </StackPanel>
+                    <TextBlock Text="{DynamicResource LOCPlayAch_Settings_FriendNameDisplayHint}"
+                               Style="{StaticResource MutedTextStyle}"
+                               TextWrapping="Wrap"
+                               Margin="0,2,0,0"/>
                 </StackPanel>
             </Border>
 

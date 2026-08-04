@@ -181,6 +181,24 @@ namespace PlayniteAchievements.ViewModels
             }
         }
 
+        public FriendNameDisplayMode FriendNameDisplayMode
+        {
+            get => _settings?.Persisted?.FriendNameDisplayMode ?? FriendNameDisplayMode.PersonaAndNickname;
+            set
+            {
+                var persisted = _settings?.Persisted;
+                if (persisted == null || persisted.FriendNameDisplayMode == value)
+                {
+                    return;
+                }
+
+                persisted.FriendNameDisplayMode = value;
+                OnPropertyChanged();
+                RebuildFriends();
+                PersistAndNotify(null);
+            }
+        }
+
         public bool IsExophaseProviderEnabled => _exophaseSettings?.IsEnabled == true;
 
         public string ManualExophaseUsername
@@ -348,7 +366,8 @@ namespace PlayniteAchievements.ViewModels
                     ResolveDisabledExophasePlatformTokens(groupEntries),
                     OnPersonRowChanged,
                     OnAccountRowChanged,
-                    OnPersonSelectionChanged));
+                    OnPersonSelectionChanged,
+                    persisted.FriendNameDisplayMode));
             }
 
             foreach (var entry in entries.Where(entry => !groupedKeys.Contains(FriendAccountRef.BuildKey(entry.ProviderKey, entry.ExternalUserId))))
@@ -359,7 +378,8 @@ namespace PlayniteAchievements.ViewModels
                     ResolveDisabledExophasePlatformTokens(new[] { entry }),
                     OnPersonRowChanged,
                     OnAccountRowChanged,
-                    OnPersonSelectionChanged));
+                    OnPersonSelectionChanged,
+                    persisted.FriendNameDisplayMode));
             }
 
             foreach (var row in rows
@@ -961,7 +981,8 @@ namespace PlayniteAchievements.ViewModels
             HashSet<string> disabledExophasePlatformTokens,
             Action<FriendSettingsPersonRowItem> onChanged,
             Action<FriendSettingsAccountItem> onAccountChanged,
-            Action<FriendSettingsPersonRowItem> onSelectionChanged)
+            Action<FriendSettingsPersonRowItem> onSelectionChanged,
+            FriendNameDisplayMode nameMode = FriendNameDisplayMode.PersonaAndNickname)
         {
             MergeGroupId = group?.Id;
             _nickname = group?.Nickname;
@@ -978,7 +999,8 @@ namespace PlayniteAchievements.ViewModels
                         RefreshDerivedProperties();
                         onAccountChanged?.Invoke(account);
                     },
-                    SelectAvatarSource)));
+                    SelectAvatarSource,
+                    nameMode)));
             SeedAvatarSource(group?.AvatarAccount);
             if (!IsMerged && Accounts.Count == 1)
             {
@@ -1173,14 +1195,22 @@ namespace PlayniteAchievements.ViewModels
             FriendSettingsEntry entry,
             HashSet<string> disabledExophasePlatformTokens,
             Action<FriendSettingsAccountItem> onChanged,
-            Action<FriendSettingsAccountItem> onAvatarSourceSelected = null)
+            Action<FriendSettingsAccountItem> onAvatarSourceSelected = null,
+            FriendNameDisplayMode nameMode = FriendNameDisplayMode.PersonaAndNickname)
         {
             Entry = entry ?? throw new ArgumentNullException(nameof(entry));
             _onChanged = onChanged;
             _onAvatarSourceSelected = onAvatarSourceSelected;
             ProviderKey = entry.ProviderKey;
             ExternalUserId = entry.ExternalUserId;
-            DisplayName = string.IsNullOrWhiteSpace(entry.DisplayName) ? entry.ExternalUserId : entry.DisplayName;
+            // Manual nickname deliberately excluded: the nickname text box shows it, and the
+            // person row's DefaultDisplayName is the placeholder behind it.
+            DisplayName = FriendDisplayNameResolver.Resolve(
+                null,
+                entry.DisplayName,
+                entry.ProviderNickname,
+                nameMode,
+                entry.ExternalUserId);
             AvatarSource = !string.IsNullOrWhiteSpace(entry.AvatarPath) ? entry.AvatarPath : entry.AvatarUrl;
             Source = entry.Source;
             _isIgnored = entry.IsIgnored;
