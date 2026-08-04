@@ -6,8 +6,9 @@ namespace PlayniteAchievements.Services.UI
 {
     /// <summary>
     /// Raised by <see cref="ToastNotificationService"/> the moment a non-preview toast wave is
-    /// fully on screen (slide-in finished and placement snapped). The unlock-recording service
-    /// uses <see cref="ShownUtc"/> as the clip end anchor so every clip contains the toast.
+    /// fully on screen (slide-in finished and placement snapped). A liveness signal for the
+    /// unlock-recording service's overlay-track wait — clip windows are unlock-anchored and the
+    /// toast is composited into clips at export.
     /// </summary>
     internal sealed class ToastWaveDisplayedEventArgs : EventArgs
     {
