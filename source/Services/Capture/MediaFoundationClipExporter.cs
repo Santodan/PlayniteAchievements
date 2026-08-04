@@ -130,31 +130,44 @@ namespace PlayniteAchievements.Services.Capture
             }
         }
 
+        /// <summary>The AAC output type used for clip audio (shared with the overlay re-encoder).</summary>
+        internal static MediaType CreateAacType()
+        {
+            var aacType = new MediaType();
+            aacType.Set(MediaTypeAttributeKeys.MajorType, MediaTypeGuids.Audio);
+            aacType.Set(MediaTypeAttributeKeys.Subtype, AudioFormatGuids.Aac);
+            aacType.Set(MediaTypeAttributeKeys.AudioSamplesPerSecond, AudioSampleRate);
+            aacType.Set(MediaTypeAttributeKeys.AudioNumChannels, AudioChannels);
+            aacType.Set(MediaTypeAttributeKeys.AudioBitsPerSample, AudioBitsPerSample);
+            aacType.Set(MediaTypeAttributeKeys.AudioAvgBytesPerSecond, AudioBytesPerAacSecond);
+            return aacType;
+        }
+
+        /// <summary>The 48 kHz stereo 16-bit PCM type used for clip audio (shared with the overlay re-encoder).</summary>
+        internal static MediaType CreatePcmType()
+        {
+            var pcmType = new MediaType();
+            pcmType.Set(MediaTypeAttributeKeys.MajorType, MediaTypeGuids.Audio);
+            pcmType.Set(MediaTypeAttributeKeys.Subtype, AudioFormatGuids.Pcm);
+            pcmType.Set(MediaTypeAttributeKeys.AudioSamplesPerSecond, AudioSampleRate);
+            pcmType.Set(MediaTypeAttributeKeys.AudioNumChannels, AudioChannels);
+            pcmType.Set(MediaTypeAttributeKeys.AudioBitsPerSample, AudioBitsPerSample);
+            pcmType.Set(MediaTypeAttributeKeys.AudioBlockAlignment, AudioChannels * AudioBitsPerSample / 8);
+            pcmType.Set(
+                MediaTypeAttributeKeys.AudioAvgBytesPerSecond,
+                AudioSampleRate * AudioChannels * AudioBitsPerSample / 8);
+            return pcmType;
+        }
+
         private int TryAddAudioStream(SinkWriter sink, out MediaType pcmType)
         {
             pcmType = null;
             try
             {
-                using (var aacType = new MediaType())
+                using (var aacType = CreateAacType())
                 {
-                    aacType.Set(MediaTypeAttributeKeys.MajorType, MediaTypeGuids.Audio);
-                    aacType.Set(MediaTypeAttributeKeys.Subtype, AudioFormatGuids.Aac);
-                    aacType.Set(MediaTypeAttributeKeys.AudioSamplesPerSecond, AudioSampleRate);
-                    aacType.Set(MediaTypeAttributeKeys.AudioNumChannels, AudioChannels);
-                    aacType.Set(MediaTypeAttributeKeys.AudioBitsPerSample, AudioBitsPerSample);
-                    aacType.Set(MediaTypeAttributeKeys.AudioAvgBytesPerSecond, AudioBytesPerAacSecond);
                     sink.AddStream(aacType, out var streamIndex);
-
-                    pcmType = new MediaType();
-                    pcmType.Set(MediaTypeAttributeKeys.MajorType, MediaTypeGuids.Audio);
-                    pcmType.Set(MediaTypeAttributeKeys.Subtype, AudioFormatGuids.Pcm);
-                    pcmType.Set(MediaTypeAttributeKeys.AudioSamplesPerSecond, AudioSampleRate);
-                    pcmType.Set(MediaTypeAttributeKeys.AudioNumChannels, AudioChannels);
-                    pcmType.Set(MediaTypeAttributeKeys.AudioBitsPerSample, AudioBitsPerSample);
-                    pcmType.Set(MediaTypeAttributeKeys.AudioBlockAlignment, AudioChannels * AudioBitsPerSample / 8);
-                    pcmType.Set(
-                        MediaTypeAttributeKeys.AudioAvgBytesPerSecond,
-                        AudioSampleRate * AudioChannels * AudioBitsPerSample / 8);
+                    pcmType = CreatePcmType();
                     sink.SetInputMediaType(streamIndex, pcmType, null);
                     return streamIndex;
                 }
@@ -165,6 +178,65 @@ namespace PlayniteAchievements.Services.Capture
                 pcmType?.Dispose();
                 pcmType = null;
                 return -1;
+            }
+        }
+
+        /// <summary>
+        /// Reads a planned audio window (e.g. the chime sidecar chunks around one wave's unlock
+        /// sound) into one contiguous 48 kHz stereo 16-bit PCM buffer. Returns null on failure or
+        /// when nothing overlaps.
+        /// </summary>
+        [HandleProcessCorruptedStateExceptions, System.Security.SecurityCritical]
+        public static byte[] TryReadPcmWindow(SegmentTimeline.ClipPlan plan, ILogger logger)
+        {
+            if (plan?.Segments == null || plan.Segments.Count == 0)
+            {
+                return null;
+            }
+
+            MediaManager.Startup();
+            try
+            {
+                using (var pcmType = CreatePcmType())
+                using (var stream = new System.IO.MemoryStream())
+                {
+                    foreach (var timed in AudioSamples(plan, pcmType, videoLead: 0))
+                    {
+                        using (var sample = timed.Sample)
+                        using (var buffer = sample.ConvertToContiguousBuffer())
+                        {
+                            var ptr = buffer.Lock(out _, out var length);
+                            try
+                            {
+                                var bytes = new byte[length];
+                                System.Runtime.InteropServices.Marshal.Copy(ptr, bytes, 0, length);
+                                stream.Write(bytes, 0, length);
+                            }
+                            finally
+                            {
+                                buffer.Unlock();
+                            }
+                        }
+                    }
+
+                    return stream.Length > 0 ? stream.ToArray() : null;
+                }
+            }
+            catch (Exception ex)
+            {
+                logger?.Debug(ex, "[Recording] Chime PCM window read failed; the clip keeps its audio without the chime.");
+                return null;
+            }
+            finally
+            {
+                try
+                {
+                    MediaManager.Shutdown();
+                }
+                catch
+                {
+                    // Startup/Shutdown are refcounted per process; ignore an unbalanced shutdown.
+                }
             }
         }
 
