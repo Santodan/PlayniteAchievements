@@ -534,17 +534,25 @@ namespace PlayniteAchievements.Views.Helpers
             StopAnimation(target);
             SetActiveAnimatedGifSource(target, normalizedSource);
 
+            // Stamp the phase-lock at the moment the animation begins (the frozen source
+            // animation carries only the iteration duration): computing it earlier would bake
+            // the creation-to-begin delay in as a per-instance phase error, visibly desyncing
+            // instances of the same GIF.
+            var phased = animation.Clone();
+            phased.BeginTime = GifAnimationHelper.PhaseLockBeginTime(animation.Duration);
+            phased.Freeze();
+
             if (target is System.Windows.Controls.Image image)
             {
                 image.Source = firstFrame;
-                image.BeginAnimation(System.Windows.Controls.Image.SourceProperty, animation, HandoffBehavior.SnapshotAndReplace);
+                image.BeginAnimation(System.Windows.Controls.Image.SourceProperty, phased, HandoffBehavior.SnapshotAndReplace);
                 return;
             }
 
             if (target is System.Windows.Media.ImageBrush brush)
             {
                 brush.ImageSource = firstFrame;
-                brush.BeginAnimation(System.Windows.Media.ImageBrush.ImageSourceProperty, animation, HandoffBehavior.SnapshotAndReplace);
+                brush.BeginAnimation(System.Windows.Media.ImageBrush.ImageSourceProperty, phased, HandoffBehavior.SnapshotAndReplace);
             }
         }
 

@@ -131,13 +131,11 @@ namespace PlayniteAchievements.Views.Helpers
                     return false;
                 }
 
-                var phaseMilliseconds = 0.0;
-                if (current.TotalMilliseconds > 0)
-                {
-                    // Phase-lock to the shared epoch so recreated instances continue the cycle.
-                    phaseMilliseconds = AnimationEpoch.ElapsedMilliseconds % current.TotalMilliseconds;
-                    keyFrames.BeginTime = TimeSpan.FromMilliseconds(-phaseMilliseconds);
-                }
+                // One iteration = the full frame sequence; the phase-lock BeginTime is stamped
+                // by the caller at the moment the animation actually begins (see
+                // PhaseLockBeginTime) — computing it here would bake in the creation-to-begin
+                // delay as a per-instance phase error.
+                keyFrames.Duration = new Duration(current);
 
                 if (keyFrames.CanFreeze)
                 {
@@ -146,6 +144,9 @@ namespace PlayniteAchievements.Views.Helpers
 
                 // The static frame shown until the animation takes over is the frame at the
                 // current phase (not frame zero), so the handoff is seamless.
+                var phaseMilliseconds = current.TotalMilliseconds > 0
+                    ? AnimationEpoch.ElapsedMilliseconds % current.TotalMilliseconds
+                    : 0.0;
                 firstFrame = FrameAtPhase(cached.Value, phaseMilliseconds);
                 animation = keyFrames;
                 return true;
@@ -307,6 +308,21 @@ namespace PlayniteAchievements.Views.Helpers
             }
 
             return delays;
+        }
+
+        /// <summary>
+        /// The negative BeginTime that aligns an animation with the shared epoch when begun
+        /// right now. Call immediately before BeginAnimation so no creation-to-begin delay
+        /// leaks into the phase.
+        /// </summary>
+        internal static TimeSpan PhaseLockBeginTime(Duration iterationDuration)
+        {
+            var totalMilliseconds = iterationDuration.HasTimeSpan
+                ? iterationDuration.TimeSpan.TotalMilliseconds
+                : 0.0;
+            return totalMilliseconds <= 0
+                ? TimeSpan.Zero
+                : TimeSpan.FromMilliseconds(-(AnimationEpoch.ElapsedMilliseconds % totalMilliseconds));
         }
 
         private static BitmapSource FrameAtPhase(

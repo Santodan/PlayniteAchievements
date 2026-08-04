@@ -198,8 +198,10 @@ namespace PlayniteAchievements.Views.Helpers
         {
             var (min, max, seconds) = ResolvePulseParams(persisted);
 
-            // Phase-lock to the shared epoch (full cycle = fade in + auto-reversed fade out)
-            // so a recreated element resumes the pulse mid-cycle instead of restarting it.
+            // Phase-locked to the shared epoch (full cycle = fade in + auto-reversed fade
+            // out) so a recreated element resumes the pulse mid-cycle instead of restarting
+            // it. The BeginTime is stamped immediately before each BeginAnimation call —
+            // computing it earlier would bake the deferral delay in as a phase error.
             var cycleMilliseconds = seconds * 2000.0;
             var animation = new DoubleAnimation
             {
@@ -208,9 +210,7 @@ namespace PlayniteAchievements.Views.Helpers
                 Duration = new Duration(TimeSpan.FromSeconds(seconds)),
                 AutoReverse = true,
                 RepeatBehavior = RepeatBehavior.Forever,
-                EasingFunction = new SineEase { EasingMode = EasingMode.EaseInOut },
-                BeginTime = TimeSpan.FromMilliseconds(
-                    -(PulseEpoch.ElapsedMilliseconds % cycleMilliseconds))
+                EasingFunction = new SineEase { EasingMode = EasingMode.EaseInOut }
             };
 
             if (GetTarget(element) == RarityGlowPulseTarget.Effect)
@@ -224,6 +224,7 @@ namespace PlayniteAchievements.Views.Helpers
                     {
                         if (GetIsActive(element) && element.Effect is DropShadowEffect effect)
                         {
+                            animation.BeginTime = PhaseLockBeginTime(cycleMilliseconds);
                             effect.BeginAnimation(DropShadowEffect.OpacityProperty, animation);
                         }
                     }),
@@ -231,9 +232,15 @@ namespace PlayniteAchievements.Views.Helpers
             }
             else
             {
+                animation.BeginTime = PhaseLockBeginTime(cycleMilliseconds);
                 element.BeginAnimation(UIElement.OpacityProperty, animation);
             }
         }
+
+        private static TimeSpan PhaseLockBeginTime(double cycleMilliseconds) =>
+            cycleMilliseconds <= 0
+                ? TimeSpan.Zero
+                : TimeSpan.FromMilliseconds(-(PulseEpoch.ElapsedMilliseconds % cycleMilliseconds));
 
         private static void StopAnimation(FrameworkElement element)
         {
