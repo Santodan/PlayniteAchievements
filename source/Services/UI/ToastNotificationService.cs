@@ -74,8 +74,8 @@ namespace PlayniteAchievements.Services.UI
         private double _activeMonitorScale = 1.0;
         // The running physical slide's per-frame tick handler (CompositionTarget.Rendering), or null.
         private EventHandler _activeSlideTick;
-        // Throttle (Environment.TickCount) for republishing the toast overlay to the video recorder.
-        private int _lastOverlayPublishTick;
+        // Throttle (Environment.TickCount) for sampling the toast cards into their overlay tracks.
+        private int _lastTrackSampleTick;
 
         public ToastNotificationService(
             IPlayniteAPI api,
@@ -105,9 +105,16 @@ namespace PlayniteAchievements.Services.UI
 
         /// <summary>
         /// Raised when a non-preview toast wave is fully on screen (slide-in finished and
-        /// placement snapped) — the end anchor for unlock recordings. Fires on the UI thread.
+        /// placement snapped) — a liveness signal for the recording service's track wait (clip
+        /// windows themselves are unlock-anchored). Fires on the UI thread.
         /// </summary>
         internal event EventHandler<ToastWaveDisplayedEventArgs> WaveDisplayed;
+
+        /// <summary>
+        /// Raised once per wave after the slide-out, carrying the recorded overlay track of every
+        /// toasted item for export-time clip compositing.
+        /// </summary>
+        internal event EventHandler<ToastTracksCompletedEventArgs> TracksCompleted;
 
         private void RaiseWaveDisplayed(IReadOnlyList<AchievementToastViewModel> wave)
         {
@@ -123,6 +130,62 @@ namespace PlayniteAchievements.Services.UI
             catch (Exception ex)
             {
                 _logger?.Debug(ex, "Toast wave-displayed handler failed.");
+            }
+        }
+
+        /// <summary>
+        /// Drains the wave's track recorder (compression worker) off the UI thread and raises
+        /// <see cref="TracksCompleted"/>. Fire-and-forget from the wave's cleanup.
+        /// </summary>
+        private async Task CompleteAndRaiseTracksAsync(ToastOverlayTrackRecorder recorder)
+        {
+            if (recorder == null)
+            {
+                return;
+            }
+
+            try
+            {
+                var tracks = await recorder.CompleteAsync().ConfigureAwait(false);
+                if (tracks.Count > 0)
+                {
+                    TracksCompleted?.Invoke(this, new ToastTracksCompletedEventArgs(tracks));
+                }
+            }
+            catch (Exception ex)
+            {
+                _logger?.Debug(ex, "Toast overlay track completion failed.");
+            }
+        }
+
+        /// <summary>
+        /// The effective toast display duration (theme override included), callable from any
+        /// thread: marshals to the UI thread with a short timeout and falls back to the raw
+        /// setting. Sizes the toast slot of unlock clip windows.
+        /// </summary>
+        internal int GetEffectiveToastDurationSecondsSafe()
+        {
+            var fallback = Math.Max(2, _settings?.Persisted?.ToastDurationSeconds ?? 6);
+            try
+            {
+                var dispatcher = Application.Current?.Dispatcher;
+                if (dispatcher == null)
+                {
+                    return fallback;
+                }
+
+                if (dispatcher.CheckAccess())
+                {
+                    return EffectiveDurationSeconds();
+                }
+
+                var operation = dispatcher.InvokeAsync(EffectiveDurationSeconds);
+                return operation.Task.Wait(500) ? operation.Task.Result : fallback;
+            }
+            catch (Exception ex)
+            {
+                _logger?.Debug(ex, "Failed to resolve effective toast duration off-thread.");
+                return fallback;
             }
         }
 
@@ -644,72 +707,93 @@ namespace PlayniteAchievements.Services.UI
         }
 
         /// <summary>
-        /// Renders the live toast window to a tightly-packed premultiplied-BGRA byte buffer at its
-        /// physical pixel size, and reports its physical rect plus the game client-rect anchor (both
-        /// physical pixels). Serves the video overlay publish. Returns false (no toast) when this
-        /// isn't a game anchor or a rect can't be resolved. Must be called on the UI thread (renders
-        /// the live window).
+        /// Records one animation tick of every toast card into the wave's overlay track recorder:
+        /// per item, the card's rendered pixels plus its client-relative physical rect. The
+        /// per-item tracks are re-timed into each achievement's unlock clip at export (WGC's
+        /// per-window video capture can't see the separate toast window). Throttled by the
+        /// caller; a no-op when not a game anchor. UI thread only.
         /// </summary>
-        private bool TryRenderToastBytes(
-            Window window, out byte[] pixels, out int width, out int height,
-            out System.Drawing.Rectangle toastPhys, out System.Drawing.Rectangle clientPhys)
+        private void SampleWaveTracks(
+            ToastOverlayTrackRecorder recorder, Window window,
+            IReadOnlyList<AchievementToastViewModel> toastItems)
         {
-            pixels = null;
-            width = 0;
-            height = 0;
-            toastPhys = System.Drawing.Rectangle.Empty;
-            clientPhys = System.Drawing.Rectangle.Empty;
-            try
-            {
-                if (window == null || !_activeIsGame ||
-                    window.ActualWidth <= 0 || window.ActualHeight <= 0 ||
-                    !TryResolveAnchor(out clientPhys) ||
-                    !ToastWindowPlacer.TryGetPhysicalRect(window, out toastPhys))
-                {
-                    return false;
-                }
-
-                var pw = Math.Max(1, toastPhys.Width);
-                var ph = Math.Max(1, toastPhys.Height);
-                var rtb = new System.Windows.Media.Imaging.RenderTargetBitmap(
-                    pw, ph, 96.0 * pw / window.ActualWidth, 96.0 * ph / window.ActualHeight,
-                    System.Windows.Media.PixelFormats.Pbgra32);
-                rtb.Render(window);
-                rtb.Freeze();
-
-                var stride = pw * 4;
-                var buffer = new byte[stride * ph];
-                rtb.CopyPixels(buffer, stride, 0);
-
-                pixels = buffer;
-                width = pw;
-                height = ph;
-                return true;
-            }
-            catch (Exception ex)
-            {
-                _logger?.Debug(ex, "Toast overlay render failed.");
-                return false;
-            }
-        }
-
-        /// <summary>
-        /// Renders the current toast and publishes it to <see cref="VideoOverlaySink"/> so the WGC
-        /// video recorder can composite it into the clip (WGC's per-window capture can't see the
-        /// separate toast window). Throttled by the caller; a no-op when not a game anchor.
-        /// </summary>
-        private void PublishVideoOverlay(Window window)
-        {
-            if (!TryRenderToastBytes(window, out var pixels, out var w, out var h, out var toastPhys, out var clientPhys) ||
-                clientPhys.Width <= 0 || clientPhys.Height <= 0)
+            if (recorder == null || window == null || !_activeIsGame ||
+                window.ActualWidth <= 0 || window.ActualHeight <= 0 ||
+                !(window.Content is ItemsControl itemsControl) ||
+                !TryResolveAnchor(out var clientPhys) ||
+                clientPhys.Width <= 0 || clientPhys.Height <= 0 ||
+                !ToastWindowPlacer.TryGetPhysicalRect(window, out var windowPhys))
             {
                 return;
             }
 
-            VideoOverlaySink.Publish(
-                pixels, w, h,
-                toastPhys.X - clientPhys.X, toastPhys.Y - clientPhys.Y,
-                clientPhys.Width, clientPhys.Height);
+            var pxPerDipX = windowPhys.Width / window.ActualWidth;
+            var pxPerDipY = windowPhys.Height / window.ActualHeight;
+            for (var i = 0; i < toastItems.Count; i++)
+            {
+                var container = itemsControl.ItemContainerGenerator.ContainerFromIndex(i) as FrameworkElement;
+                if (container == null ||
+                    !TryRenderToastItemBytes(window, container, out var pixels, out var pw, out var ph))
+                {
+                    continue;
+                }
+
+                // Card origin in window DIPs (includes the LayoutTransform) -> screen physical ->
+                // client-relative. Relative rects cancel game-window motion (the toast follows the
+                // window on screen while the game content never moves inside the captured frame)
+                // but keep the slide animation.
+                var origin = container.TransformToAncestor(window).Transform(new Point(0, 0));
+                var relX = windowPhys.X + (int)Math.Round(origin.X * pxPerDipX) - clientPhys.X;
+                var relY = windowPhys.Y + (int)Math.Round(origin.Y * pxPerDipY) - clientPhys.Y;
+                recorder.Sample(toastItems[i], pixels, pw, ph, relX, relY, clientPhys.Width, clientPhys.Height);
+            }
+        }
+
+        /// <summary>
+        /// Computes, for every toast card, the constant translation from its settled stacked
+        /// position to the synthetic single-toast corner — where a genuine lone toast would sit —
+        /// and stores it on the card's track. Called once at the placement snap, when layout and
+        /// position are final. UI thread only.
+        /// </summary>
+        private void SetTrackCornerOffsets(
+            ToastOverlayTrackRecorder recorder, Window window,
+            IReadOnlyList<AchievementToastViewModel> toastItems)
+        {
+            if (recorder == null || window == null || !_activeIsGame ||
+                window.ActualWidth <= 0 || window.ActualHeight <= 0 ||
+                !(window.Content is ItemsControl itemsControl) ||
+                !TryResolveAnchor(out var clientPhys) ||
+                clientPhys.Width <= 0 || clientPhys.Height <= 0 ||
+                !ToastWindowPlacer.TryGetPhysicalRect(window, out var windowPhys))
+            {
+                return;
+            }
+
+            var pxPerDipX = windowPhys.Width / window.ActualWidth;
+            var pxPerDipY = windowPhys.Height / window.ActualHeight;
+            foreach (var vm in toastItems)
+            {
+                var container = itemsControl.ItemContainerGenerator.ContainerFromItem(vm) as FrameworkElement;
+                if (container == null || container.RenderSize.Width <= 0 || container.RenderSize.Height <= 0)
+                {
+                    continue;
+                }
+
+                var bounds = container.TransformToAncestor(window)
+                    .TransformBounds(new Rect(container.RenderSize));
+                var physW = Math.Max(1, (int)Math.Ceiling(bounds.Width * pxPerDipX));
+                var physH = Math.Max(1, (int)Math.Ceiling(bounds.Height * pxPerDipY));
+                var settledRelX = windowPhys.X + (int)Math.Round(bounds.X * pxPerDipX) - clientPhys.X;
+                var settledRelY = windowPhys.Y + (int)Math.Round(bounds.Y * pxPerDipY) - clientPhys.Y;
+
+                ToastWindowPlacer.ComputeCorner(
+                    clientPhys, physW, physH, _activeMonitorScale,
+                    AlignRight(), AlignBottom(), EffectiveGapDip(), out var cornerX, out var cornerY);
+                recorder.SetCornerOffset(
+                    vm,
+                    (cornerX - clientPhys.X) - settledRelX,
+                    (cornerY - clientPhys.Y) - settledRelY);
+            }
         }
 
         /// <summary>
@@ -1049,7 +1133,8 @@ namespace PlayniteAchievements.Services.UI
             window.ContentRendered += (s, e) => PlaceWindow(window, "rendered");
 
             EventHandler onRendering = null;
-            EventHandler onOverlayPublish = null;
+            EventHandler onTrackSample = null;
+            ToastOverlayTrackRecorder trackRecorder = null;
             try
             {
                 // Realize the toast HWND under Per-Monitor-V2 so Windows does not bitmap-rescale it on
@@ -1106,27 +1191,29 @@ namespace PlayniteAchievements.Services.UI
                 PlaceWindow(window, "shown");
                 SlideInPhysical(window);
 
-                // Start compositing the toast into the recorded video now, at the reveal, so the
-                // slide-in animation is captured in the clip (not just the settled toast). This reads
-                // the toast's live physical position each frame, so it follows the slide and, later,
-                // the anchor. Independent of the placement hooks below (it only publishes, never
-                // moves the window). Game anchor only — a test fire out of game has no video.
+                // Start recording each card's overlay track now, at the reveal, so the slide-in
+                // animation lands in the tracks (not just the settled toast). Tracks are re-timed
+                // into each achievement's clip at export. Independent of the placement hooks below
+                // (sampling only reads, never moves the window). Game anchor only — a test fire
+                // out of game has no video.
                 if (_activeIsGame && _activeReferenceHwnd != IntPtr.Zero)
                 {
-                    _lastOverlayPublishTick = 0;
-                    PublishVideoOverlay(window);
-                    // The unconditional ~30fps republish also carries GIF animation frames into
-                    // the recording (min effective GIF frame delay is 100ms per
+                    trackRecorder = new ToastOverlayTrackRecorder(_logger);
+                    _lastTrackSampleTick = 0;
+                    SampleWaveTracks(trackRecorder, window, toastItems);
+                    // The unconditional ~30fps resample also carries GIF animation frames into
+                    // the tracks (min effective GIF frame delay is 100ms per
                     // GifAnimationHelper.BuildFrameDelays) — do not reduce this to
-                    // publish-on-position-change.
-                    onOverlayPublish = (s, e) =>
+                    // sample-on-position-change.
+                    var recorder = trackRecorder;
+                    onTrackSample = (s, e) =>
                     {
                         try
                         {
-                            if (unchecked(Environment.TickCount - _lastOverlayPublishTick) >= OverlayPublishIntervalMs)
+                            if (unchecked(Environment.TickCount - _lastTrackSampleTick) >= TrackSampleIntervalMs)
                             {
-                                _lastOverlayPublishTick = Environment.TickCount;
-                                PublishVideoOverlay(window);
+                                _lastTrackSampleTick = Environment.TickCount;
+                                SampleWaveTracks(recorder, window, toastItems);
                             }
                         }
                         catch
@@ -1134,7 +1221,7 @@ namespace PlayniteAchievements.Services.UI
                             // Ignore transient render/placement failures (e.g. window closing).
                         }
                     };
-                    CompositionTarget.Rendering += onOverlayPublish;
+                    CompositionTarget.Rendering += onTrackSample;
                 }
 
                 // Let the toast finish sliding in and paint, then capture (so the toast is in the
@@ -1151,9 +1238,13 @@ namespace PlayniteAchievements.Services.UI
                 StopActiveSlide();
                 PlaceWindow(window, "snap");
 
-                // The wave is now fully visible: signal the recording service so it can anchor
-                // clip ends at the moment the toast actually appeared on screen.
+                // The wave is now fully visible: signal the recording service (a liveness bump for
+                // its track wait — clip windows themselves are unlock-anchored).
                 RaiseWaveDisplayed(toastItems);
+
+                // Layout and placement are final: pin each card's synthetic single-toast corner so
+                // its recorded motion lands where a genuine lone toast would sit.
+                SetTrackCornerOffsets(trackRecorder, window, toastItems);
 
                 // The with-notification composites happen here: the toast has slid in and settled,
                 // so each item's card renders at its final laid-out size. Cards render on the UI
@@ -1173,8 +1264,8 @@ namespace PlayniteAchievements.Services.UI
 
                 // Follow the anchor window every rendered frame (smooth while dragging). The anchor
                 // handle was resolved once at wave start (game window, else the Playnite window) and
-                // stays valid even if focus later changes. The video overlay is published separately
-                // by onOverlayPublish (started at the reveal so the slide-in is captured too).
+                // stays valid even if focus later changes. The overlay tracks are sampled separately
+                // by onTrackSample (started at the reveal so the slide-in is recorded too).
                 if (_activeReferenceHwnd != IntPtr.Zero)
                 {
                     onRendering = (s, e) =>
@@ -1210,18 +1301,19 @@ namespace PlayniteAchievements.Services.UI
                     onRendering = null;
                 }
 
-                // Stop publishing before the slide-out so the clip ends on the settled toast, not a
-                // slide-out (the clip end is anchored at toast dismissal anyway).
-                if (onOverlayPublish != null)
-                {
-                    CompositionTarget.Rendering -= onOverlayPublish;
-                    onOverlayPublish = null;
-                }
-
+                // Track sampling keeps running through the slide-out so the exit motion (and any
+                // still-animating GIF/countdown pixels) land in the tracks; an endedHidden wave
+                // played no slide-out on screen, so its tracks simply end at the last sample.
                 if (!endedHidden)
                 {
                     var slideOutMs = SlideOutPhysical(window);
                     await Task.Delay((int)Math.Round(slideOutMs) + SlideSettleBufferMs).ConfigureAwait(true);
+                }
+
+                if (onTrackSample != null)
+                {
+                    CompositionTarget.Rendering -= onTrackSample;
+                    onTrackSample = null;
                 }
             }
             catch (Exception ex) when (previewSource.HasValue)
@@ -1244,14 +1336,14 @@ namespace PlayniteAchievements.Services.UI
                     CompositionTarget.Rendering -= onRendering;
                 }
 
-                if (onOverlayPublish != null)
+                if (onTrackSample != null)
                 {
-                    CompositionTarget.Rendering -= onOverlayPublish;
+                    CompositionTarget.Rendering -= onTrackSample;
                 }
 
-                // Stop compositing the toast into recorded frames; the clip past this point is the
-                // bare game again.
-                VideoOverlaySink.Clear();
+                // Finalize and hand the recorded card tracks to the recording service. The raw
+                // pixels are already captured, so this safely outlives window.Close() below.
+                _ = CompleteAndRaiseTracksAsync(trackRecorder);
 
                 StopActiveSlide();
                 _activeReferenceHwnd = IntPtr.Zero;
@@ -1882,10 +1974,10 @@ namespace PlayniteAchievements.Services.UI
         private const double SlideTravelPaddingDip = 40d;
         // Small pause after a slide-out finishes before the window is torn down.
         private const int SlideSettleBufferMs = 10;
-        // Minimum spacing between toast overlay republishes to the video recorder (~30 fps): fast
-        // enough that the animating countdown bar reads as smooth in the clip, without paying a full
-        // toast re-render on every 60 fps composition tick.
-        private const int OverlayPublishIntervalMs = 33;
+        // Minimum spacing between overlay-track samples (~30 fps): fast enough that the animating
+        // countdown bar reads as smooth in the clip, without paying the card re-renders on every
+        // 60 fps composition tick.
+        private const int TrackSampleIntervalMs = 33;
         // Below this, the content scale is treated as 1.0 and no LayoutTransform is applied.
         private const double ContentScaleEpsilon = 0.001;
         // Post-Show wait for the per-monitor DPI change to settle before revealing the toast: poll the
