@@ -14,10 +14,11 @@ using PlayniteAchievements.Services.Images;
 namespace PlayniteAchievements.Services.UI
 {
     /// <summary>
-    /// Captures a screenshot of the monitor the running game is on and saves it under a
-    /// user-chosen base directory as &lt;base&gt;\Game\NNN_AchievementName_&lt;variant&gt;.png.
-    /// Used by the unlock-toast pipeline to record images per own-unlock wave. All failures are
-    /// swallowed (logged at debug) so screenshotting never disrupts toasts.
+    /// Captures a screenshot of the running game's window (monitor capture for the out-of-game
+    /// test fire) and saves it under a user-chosen base directory as
+    /// &lt;base&gt;\Game\NNN_AchievementName_&lt;variant&gt;.png. Used by the unlock-toast
+    /// pipeline to record images per own-unlock wave. All failures are swallowed (logged at
+    /// debug) so screenshotting never disrupts toasts.
     /// </summary>
     internal sealed class UnlockScreenshotService
     {
@@ -223,9 +224,9 @@ namespace PlayniteAchievements.Services.UI
         {
             try
             {
-                // WGC monitor capture (HDR-correct) so the with-notification shot includes the toast
-                // — a separate window z-ordered over the game — and the out-of-game test fire tone-
-                // maps the whole screen. GDI fallback below is SDR-only.
+                // WGC monitor capture (HDR-correct) for the out-of-game test fire, where the toast
+                // is genuinely on screen and there is no game window to capture. GDI fallback
+                // below is SDR-only.
                 if (windowOnMonitor != IntPtr.Zero && WgcWindowCapture.IsSupported)
                 {
                     using (var wgc = new WgcWindowCapture())
