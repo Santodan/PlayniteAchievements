@@ -19,9 +19,9 @@ namespace PlayniteAchievements.Services.Capture
     /// <summary>
     /// Occlusion-independent, HDR-correct unlock-clip capture: continuously captures a game window via
     /// WGC, tone-maps HDR frames on the GPU, paces to a constant frame rate, and encodes to rotating
-    /// H.264 MP4 segments (Media Foundation, GPU-resident) in the buffer directory — the same rolling
-    /// segments the ffmpeg export/prune already consume, so clip extraction and audio muxing are
-    /// unchanged. Replaces the ffmpeg screen-capture process for the WGC-MF recording path.
+    /// H.264 MP4 segments (Media Foundation, GPU-resident) in the buffer directory that the clip
+    /// export and prune consume. Segments hold clean game footage only — each achievement's toast is
+    /// composited into its clip at export from the recorded overlay track.
     ///
     /// A single pacing thread drives capture→tonemap→encode so there is no cross-thread GPU sharing:
     /// each tick pulls the latest WGC frame (re-using the last one for a static scene, matching a
@@ -50,12 +50,10 @@ namespace PlayniteAchievements.Services.Capture
         private Direct3D11CaptureFramePool _framePool;
         private GraphicsCaptureSession _session;
         private GpuHdrToneMapper _toneMapper;
-        private OverlayBlitter _overlayBlitter;
         private bool _hdr;
         private float _refWhite = 1.0f;
 
         private D3D11.Texture2D _latest; // owned, BGRA, the most recent (tone-mapped) clean game frame
-        private D3D11.Texture2D _composited; // owned, BGRA, scratch for game+toast when a toast is showing
         private D3D11.Texture2D _scaled; // owned, BGRA, downscaled encode frame when a resolution cap applies
         private FrameScaler _frameScaler;
         private int _encW, _encH; // encoder (output) dimensions, after any resolution cap
@@ -318,11 +316,10 @@ namespace PlayniteAchievements.Services.Capture
                                     pts = _lastSegmentPts100ns + 1;
                                 }
                                 _lastSegmentPts100ns = pts;
-                                // Composite the toast fresh each encoded frame (including held dups
-                                // during a capture stall) so it keeps animating even while the game
-                                // frame is frozen, and off a clean base so successive toasts don't
-                                // smear over each other.
-                                _encoder.WriteFrame(ComposeFrame(), pts, _frameDuration100ns);
+                                // Segments record the clean game frame only; the unlock toast is
+                                // composited into each achievement's clip at export from its
+                                // recorded overlay track.
+                                _encoder.WriteFrame(ScaleForEncode(_latest), pts, _frameDuration100ns);
                                 _segmentFrameIndex++;
                             }
                             catch (Exception ex)
@@ -383,48 +380,6 @@ namespace PlayniteAchievements.Services.Capture
         }
 
         /// <summary>
-        /// The texture to encode for the current frame: the clean captured game frame when no toast is
-        /// on screen, otherwise a scratch copy with the current toast composited on top. Compositing
-        /// off a fresh copy of <see cref="_latest"/> (rather than into it) keeps the clean frame reusable
-        /// for held dups and prevents successive toast states from smearing over each other.
-        /// </summary>
-        private D3D11.Texture2D ComposeFrame()
-        {
-            if (_latest == null)
-            {
-                return null;
-            }
-
-            if (!VideoOverlaySink.TryGet(
-                    out var overlayBgra, out var ow, out var oh,
-                    out var clientX, out var clientY, out var clientW, out var clientH, out _) ||
-                overlayBgra == null || ow <= 0 || oh <= 0 || clientW <= 0 || clientH <= 0)
-            {
-                return ScaleForEncode(_latest);
-            }
-
-            EnsureComposited(_latest.Description.Width, _latest.Description.Height);
-            _device.ImmediateContext.CopyResource(_latest, _composited);
-
-            // The overlay position is expressed in the game's client-pixel space; the target is the
-            // (possibly differently-sized) captured client area. Scale into target pixels.
-            var scaleX = _composited.Description.Width / clientW;
-            var scaleY = _composited.Description.Height / clientH;
-            var destX = (int)Math.Round(clientX * scaleX);
-            var destY = (int)Math.Round(clientY * scaleY);
-            var destW = (int)Math.Round(ow * scaleX);
-            var destH = (int)Math.Round(oh * scaleY);
-
-            if (_overlayBlitter == null)
-            {
-                _overlayBlitter = new OverlayBlitter(_device);
-            }
-
-            _overlayBlitter.Blit(_composited, overlayBgra, ow, oh, destX, destY, destW, destH);
-            return ScaleForEncode(_composited);
-        }
-
-        /// <summary>
         /// Returns <paramref name="src"/> unchanged when it already matches the encoder size, else a
         /// GPU downscale of it to the resolution-capped encoder dimensions.
         /// </summary>
@@ -468,28 +423,6 @@ namespace PlayniteAchievements.Services.Capture
             });
         }
 
-        private void EnsureComposited(int width, int height)
-        {
-            if (_composited != null && _composited.Description.Width == width && _composited.Description.Height == height)
-            {
-                return;
-            }
-
-            _composited?.Dispose();
-            _composited = new D3D11.Texture2D(_device, new D3D11.Texture2DDescription
-            {
-                Width = width,
-                Height = height,
-                MipLevels = 1,
-                ArraySize = 1,
-                Format = DXGI.Format.B8G8R8A8_UNorm,
-                SampleDescription = new DXGI.SampleDescription(1, 0),
-                Usage = D3D11.ResourceUsage.Default,
-                BindFlags = D3D11.BindFlags.RenderTarget | D3D11.BindFlags.ShaderResource,
-                CpuAccessFlags = D3D11.CpuAccessFlags.None,
-                OptionFlags = D3D11.ResourceOptionFlags.None,
-            });
-        }
 
         private void EnsureLatest(int width, int height)
         {
@@ -613,10 +546,8 @@ namespace PlayniteAchievements.Services.Capture
             Stop();
             FinalizeSegment();
             _latest?.Dispose();
-            _composited?.Dispose();
             _scaled?.Dispose();
             _frameScaler?.Dispose();
-            _overlayBlitter?.Dispose();
             _toneMapper?.Dispose();
             _session?.Dispose();
             _framePool?.Dispose();
