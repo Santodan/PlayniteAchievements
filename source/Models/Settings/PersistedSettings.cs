@@ -350,7 +350,9 @@ namespace PlayniteAchievements.Models.Settings
                 null,
                 identity.LastRefreshedUtc,
                 null,
-                null);
+                null,
+                identity.ProviderNickname,
+                applyProviderNickname: true);
         }
 
         public FriendSettingsEntry AddOrUpdateFriend(
@@ -363,7 +365,9 @@ namespace PlayniteAchievements.Models.Settings
             IEnumerable<string> selectedPlatforms = null,
             DateTime? lastRefreshedUtc = null,
             DateTime? lastProbedUtc = null,
-            string lastError = null)
+            string lastError = null,
+            string providerNickname = null,
+            bool applyProviderNickname = false)
         {
             providerKey = NormalizeProviderKeyToken(providerKey);
             externalUserId = NormalizeProviderKeyToken(externalUserId);
@@ -405,6 +409,15 @@ namespace PlayniteAchievements.Models.Settings
             if (!string.IsNullOrWhiteSpace(displayName))
             {
                 existing.DisplayName = displayName.Trim();
+            }
+
+            // Overwrite (including to null) only when the caller carries roster data; other
+            // callers (manual add, probe updates) preserve the stored provider nickname.
+            if (applyProviderNickname)
+            {
+                existing.ProviderNickname = string.IsNullOrWhiteSpace(providerNickname)
+                    ? null
+                    : providerNickname.Trim();
             }
 
             if (!string.IsNullOrWhiteSpace(avatarUrl))
@@ -489,6 +502,7 @@ namespace PlayniteAchievements.Models.Settings
                     ProviderKey = entry.ProviderKey,
                     ExternalUserId = entry.ExternalUserId,
                     DisplayName = entry.DisplayName,
+                    ProviderNickname = entry.ProviderNickname,
                     AvatarUrl = entry.AvatarUrl,
                     AvatarPath = entry.AvatarPath,
                     LastRefreshedUtc = entry.LastRefreshedUtc
