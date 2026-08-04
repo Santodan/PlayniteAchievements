@@ -13,7 +13,6 @@ using Playnite.SDK;
 using PlayniteAchievements.Models;
 using PlayniteAchievements.Models.Achievements;
 using PlayniteAchievements.Models.Settings;
-using PlayniteAchievements.Services.Capture;
 using PlayniteAchievements.Services.GameCustomData;
 using PlayniteAchievements.ViewModels;
 using PlayniteAchievements.Views.Helpers;
@@ -707,6 +706,35 @@ namespace PlayniteAchievements.Services.UI
         }
 
         /// <summary>
+        /// The shared geometry for one track operation: the wave's ItemsControl, the game client
+        /// rect and toast window rect (physical pixels), and the window's DIP-to-physical factors.
+        /// False when this isn't a game anchor or a rect can't be resolved.
+        /// </summary>
+        private bool TryGetTrackGeometry(
+            Window window, out ItemsControl itemsControl,
+            out System.Drawing.Rectangle clientPhys, out System.Drawing.Rectangle windowPhys,
+            out double pxPerDipX, out double pxPerDipY)
+        {
+            itemsControl = window?.Content as ItemsControl;
+            windowPhys = System.Drawing.Rectangle.Empty;
+            pxPerDipX = 0;
+            pxPerDipY = 0;
+            if (itemsControl == null || !_activeIsGame ||
+                window.ActualWidth <= 0 || window.ActualHeight <= 0 ||
+                !TryResolveAnchor(out clientPhys) ||
+                clientPhys.Width <= 0 || clientPhys.Height <= 0 ||
+                !ToastWindowPlacer.TryGetPhysicalRect(window, out windowPhys))
+            {
+                clientPhys = System.Drawing.Rectangle.Empty;
+                return false;
+            }
+
+            pxPerDipX = windowPhys.Width / window.ActualWidth;
+            pxPerDipY = windowPhys.Height / window.ActualHeight;
+            return true;
+        }
+
+        /// <summary>
         /// Records one animation tick of every toast card into the wave's overlay track recorder:
         /// per item, the card's rendered pixels plus its client-relative physical rect. The
         /// per-item tracks are re-timed into each achievement's unlock clip at export (WGC's
@@ -717,18 +745,13 @@ namespace PlayniteAchievements.Services.UI
             ToastOverlayTrackRecorder recorder, Window window,
             IReadOnlyList<AchievementToastViewModel> toastItems)
         {
-            if (recorder == null || window == null || !_activeIsGame ||
-                window.ActualWidth <= 0 || window.ActualHeight <= 0 ||
-                !(window.Content is ItemsControl itemsControl) ||
-                !TryResolveAnchor(out var clientPhys) ||
-                clientPhys.Width <= 0 || clientPhys.Height <= 0 ||
-                !ToastWindowPlacer.TryGetPhysicalRect(window, out var windowPhys))
+            if (recorder == null ||
+                !TryGetTrackGeometry(window, out var itemsControl, out var clientPhys, out var windowPhys,
+                    out var pxPerDipX, out var pxPerDipY))
             {
                 return;
             }
 
-            var pxPerDipX = windowPhys.Width / window.ActualWidth;
-            var pxPerDipY = windowPhys.Height / window.ActualHeight;
             for (var i = 0; i < toastItems.Count; i++)
             {
                 var container = itemsControl.ItemContainerGenerator.ContainerFromIndex(i) as FrameworkElement;
@@ -759,18 +782,13 @@ namespace PlayniteAchievements.Services.UI
             ToastOverlayTrackRecorder recorder, Window window,
             IReadOnlyList<AchievementToastViewModel> toastItems)
         {
-            if (recorder == null || window == null || !_activeIsGame ||
-                window.ActualWidth <= 0 || window.ActualHeight <= 0 ||
-                !(window.Content is ItemsControl itemsControl) ||
-                !TryResolveAnchor(out var clientPhys) ||
-                clientPhys.Width <= 0 || clientPhys.Height <= 0 ||
-                !ToastWindowPlacer.TryGetPhysicalRect(window, out var windowPhys))
+            if (recorder == null ||
+                !TryGetTrackGeometry(window, out var itemsControl, out var clientPhys, out var windowPhys,
+                    out var pxPerDipX, out var pxPerDipY))
             {
                 return;
             }
 
-            var pxPerDipX = windowPhys.Width / window.ActualWidth;
-            var pxPerDipY = windowPhys.Height / window.ActualHeight;
             foreach (var vm in toastItems)
             {
                 var container = itemsControl.ItemContainerGenerator.ContainerFromItem(vm) as FrameworkElement;
