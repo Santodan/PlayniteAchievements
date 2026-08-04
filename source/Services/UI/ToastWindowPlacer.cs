@@ -226,6 +226,7 @@ namespace PlayniteAchievements.Services.UI
         /// the game's client rect (physical), inset by <paramref name="gapDip"/> scaled to the monitor.
         /// The toast's physical size is its WPF size times <paramref name="renderScale"/> (the content
         /// LayoutTransform already carries the DPI compensation, so the WPF size is monitor-correct).
+        /// Delegates the corner math to <see cref="ComputeCorner"/>.
         /// </summary>
         public static bool TryComputeCorner(
             Window window,
@@ -260,11 +261,29 @@ namespace PlayniteAchievements.Services.UI
 
             var physW = (int)Math.Ceiling(widthDip * renderScale);
             var physH = (int)Math.Ceiling(heightDip * renderScale);
-            var gap = (int)Math.Round(gapDip * (monitorScale > 0 ? monitorScale : 1.0));
+            ComputeCorner(gameClientPhys, physW, physH, monitorScale, alignRight, alignBottom, gapDip, out x, out y);
+            return true;
+        }
 
+        /// <summary>
+        /// Pure corner math, shared between live window placement and the per-item screenshot/clip
+        /// composites: the top-left of a box of the given physical size placed at the requested
+        /// corner of the client rect, inset by <paramref name="gapDip"/> scaled to the monitor.
+        /// </summary>
+        public static void ComputeCorner(
+            Rectangle gameClientPhys,
+            int physW,
+            int physH,
+            double monitorScale,
+            bool alignRight,
+            bool alignBottom,
+            double gapDip,
+            out int x,
+            out int y)
+        {
+            var gap = (int)Math.Round(gapDip * (monitorScale > 0 ? monitorScale : 1.0));
             x = alignRight ? gameClientPhys.Right - physW - gap : gameClientPhys.Left + gap;
             y = alignBottom ? gameClientPhys.Bottom - physH - gap : gameClientPhys.Top + gap;
-            return true;
         }
 
         /// <summary>
