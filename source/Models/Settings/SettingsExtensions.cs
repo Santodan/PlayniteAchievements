@@ -109,6 +109,7 @@ namespace PlayniteAchievements.Models.Settings
             target.ToastPosition = source.ToastPosition;
             target.EnableControllerVibration = source.EnableControllerVibration;
             target.ControllerVibrationStrengthPercent = source.ControllerVibrationStrengthPercent;
+            target.ControllerVibrationDurationMs = source.ControllerVibrationDurationMs;
             target.EnableUnlockScreenshots = source.EnableUnlockScreenshots;
             target.UnlockScreenshotClean = source.UnlockScreenshotClean;
             target.UnlockScreenshotWithToast = source.UnlockScreenshotWithToast;
