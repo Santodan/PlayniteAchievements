@@ -73,6 +73,7 @@ namespace PlayniteAchievements.Services.Database
                         u.ProviderKey AS ProviderKey,
                         u.ExternalUserId AS ExternalUserId,
                         u.DisplayName AS DisplayName,
+                        u.ProviderNickname AS ProviderNickname,
                         u.AvatarUrl AS AvatarUrl,
                         u.LastRefreshedUtc AS LastRefreshedUtc,
                         g.ProviderGameId AS ProviderGameId,
@@ -212,6 +213,7 @@ namespace PlayniteAchievements.Services.Database
             public string ProviderKey { get; set; }
             public string ExternalUserId { get; set; }
             public string DisplayName { get; set; }
+            public string ProviderNickname { get; set; }
             public string AvatarUrl { get; set; }
             public string LastRefreshedUtc { get; set; }
             public long? ProviderGameId { get; set; }
@@ -2756,6 +2758,7 @@ namespace PlayniteAchievements.Services.Database
                         ProviderKey = row.ProviderKey,
                         ExternalUserId = row.ExternalUserId,
                         DisplayName = row.DisplayName,
+                        ProviderNickname = row.ProviderNickname,
                         AvatarUrl = row.AvatarUrl,
                         LastRefreshedUtc = ParseUtc(row.LastRefreshedUtc)
                     },
@@ -3056,17 +3059,21 @@ namespace PlayniteAchievements.Services.Database
                 ? externalUserId
                 : friend.DisplayName.Trim();
             var lastRefreshedIso = ToIso(friend.LastRefreshedUtc ?? DateTime.UtcNow);
+            var providerNickname = string.IsNullOrWhiteSpace(friend.ProviderNickname)
+                ? null
+                : friend.ProviderNickname.Trim();
 
             var avatarPath = MakeRelativePath(friend.AvatarPath);
 
             db.ExecuteNonQuery(
                 @"INSERT OR IGNORE INTO Users
-                    (ProviderKey, ExternalUserId, DisplayName, IsCurrentUser, FriendSource, AvatarUrl, AvatarPath, LastRefreshedUtc, IsActiveFriend, CreatedUtc, UpdatedUtc)
+                    (ProviderKey, ExternalUserId, DisplayName, ProviderNickname, IsCurrentUser, FriendSource, AvatarUrl, AvatarPath, LastRefreshedUtc, IsActiveFriend, CreatedUtc, UpdatedUtc)
                   VALUES
-                    (?, ?, ?, 0, ?, ?, ?, ?, 1, ?, ?);",
+                    (?, ?, ?, ?, 0, ?, ?, ?, ?, 1, ?, ?);",
                 providerKey,
                 externalUserId,
                 DbValue(displayName),
+                DbValue(providerNickname),
                 DbValue(friendSource),
                 DbValue(friend.AvatarUrl),
                 DbValue(avatarPath),
@@ -3091,6 +3098,7 @@ namespace PlayniteAchievements.Services.Database
             db.ExecuteNonQuery(
                 @"UPDATE Users
                   SET DisplayName = ?,
+                      ProviderNickname = ?,
                       FriendSource = ?,
                       AvatarUrl = ?,
                       AvatarPath = COALESCE(?, AvatarPath),
@@ -3099,6 +3107,7 @@ namespace PlayniteAchievements.Services.Database
                       UpdatedUtc = ?
                   WHERE Id = ?;",
                 DbValue(displayName),
+                DbValue(providerNickname),
                 DbValue(friendSource),
                 DbValue(friend.AvatarUrl),
                 DbValue(avatarPath),
@@ -4388,6 +4397,7 @@ namespace PlayniteAchievements.Services.Database
                             u.ProviderKey AS ProviderKey,
                             u.ExternalUserId AS ExternalUserId,
                             u.DisplayName AS DisplayName,
+                            u.ProviderNickname AS ProviderNickname,
                             u.AvatarUrl AS AvatarUrl,
                             u.AvatarPath AS AvatarPath
                           FROM Users u
@@ -4400,6 +4410,7 @@ namespace PlayniteAchievements.Services.Database
                         ProviderKey = row.ProviderKey,
                         ExternalUserId = row.ExternalUserId,
                         DisplayName = row.DisplayName,
+                        ProviderNickname = row.ProviderNickname,
                         AvatarUrl = row.AvatarUrl,
                         AvatarPath = !string.IsNullOrWhiteSpace(row.AvatarPath)
                             ? MakeAbsolutePath(row.AvatarPath)
@@ -4419,6 +4430,7 @@ namespace PlayniteAchievements.Services.Database
             public string ProviderKey { get; set; }
             public string ExternalUserId { get; set; }
             public string DisplayName { get; set; }
+            public string ProviderNickname { get; set; }
             public string AvatarUrl { get; set; }
             public string AvatarPath { get; set; }
         }

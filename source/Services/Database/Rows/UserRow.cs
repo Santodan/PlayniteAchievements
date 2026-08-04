@@ -6,6 +6,7 @@ namespace PlayniteAchievements.Services.Database.Rows
         public string ProviderKey { get; set; }
         public string ExternalUserId { get; set; }
         public string DisplayName { get; set; }
+        public string ProviderNickname { get; set; }
         public long IsCurrentUser { get; set; }
         public string FriendSource { get; set; }
         public string AvatarUrl { get; set; }
