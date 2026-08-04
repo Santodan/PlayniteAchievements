@@ -548,27 +548,43 @@ namespace PlayniteAchievements.Views.Settings.General
         }
 
         private System.Windows.Threading.DispatcherTimer _mockupRefreshTimer;
+        private bool _mockupRefreshPending;
 
         private void OnEditorStyleChanged(object sender, EventArgs e)
         {
-            // Coalesce rapid style edits (slider drags fire one per tick) into a single mockup
-            // rebuild per pause: every rebuild recreates the preview elements, which restarts
-            // GIF badges/backgrounds and the glow pulse.
+            // Throttle mockup rebuilds during rapid style edits (slider drags fire one change
+            // per tick): the first edit rebuilds immediately so the preview follows the drag,
+            // further edits within the window coalesce, and a trailing tick applies the final
+            // value. Animations survive the rebuilds via the shared phase-lock epoch.
             if (_mockupRefreshTimer == null)
             {
                 _mockupRefreshTimer = new System.Windows.Threading.DispatcherTimer
                 {
-                    Interval = TimeSpan.FromMilliseconds(150)
+                    Interval = TimeSpan.FromMilliseconds(200)
                 };
                 _mockupRefreshTimer.Tick += (s, args) =>
                 {
-                    _mockupRefreshTimer.Stop();
-                    UpdateMockups();
+                    if (_mockupRefreshPending)
+                    {
+                        _mockupRefreshPending = false;
+                        UpdateMockups();
+                    }
+                    else
+                    {
+                        _mockupRefreshTimer.Stop();
+                    }
                 };
             }
 
-            _mockupRefreshTimer.Stop();
-            _mockupRefreshTimer.Start();
+            if (_mockupRefreshTimer.IsEnabled)
+            {
+                _mockupRefreshPending = true;
+            }
+            else
+            {
+                UpdateMockups();
+                _mockupRefreshTimer.Start();
+            }
         }
 
         private void OnPersistedPropertyChanged(object sender, PropertyChangedEventArgs e)

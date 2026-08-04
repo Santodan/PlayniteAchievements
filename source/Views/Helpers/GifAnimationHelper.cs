@@ -28,6 +28,24 @@ namespace PlayniteAchievements.Views.Helpers
 
         public static bool TryCreateAnimation(string uri, bool applyGray, out string normalizedSource, out ImageSource firstFrame, out ObjectAnimationUsingKeyFrames animation)
         {
+            return TryCreateAnimationCore(uri, applyGray, decodeIfMissing: true,
+                out normalizedSource, out firstFrame, out animation);
+        }
+
+        /// <summary>
+        /// Like <see cref="TryCreateAnimation"/> but never decodes: succeeds only when the
+        /// composited frames are already cached. Cheap enough to run synchronously on the UI
+        /// thread, so a recreated element can attach its animation in the same layout pass and
+        /// never flash a static frame.
+        /// </summary>
+        public static bool TryCreateAnimationFromCache(string uri, bool applyGray, out string normalizedSource, out ImageSource firstFrame, out ObjectAnimationUsingKeyFrames animation)
+        {
+            return TryCreateAnimationCore(uri, applyGray, decodeIfMissing: false,
+                out normalizedSource, out firstFrame, out animation);
+        }
+
+        private static bool TryCreateAnimationCore(string uri, bool applyGray, bool decodeIfMissing, out string normalizedSource, out ImageSource firstFrame, out ObjectAnimationUsingKeyFrames animation)
+        {
             normalizedSource = NormalizeGifSourceUri(uri);
             firstFrame = null;
             animation = null;
@@ -50,6 +68,11 @@ namespace PlayniteAchievements.Views.Helpers
                 var cached = TryGetCachedAnimation(cacheKey);
                 if (cached == null)
                 {
+                    if (!decodeIfMissing)
+                    {
+                        return false;
+                    }
+
                     // IgnoreImageCache bypasses WPF's URI-keyed decode cache: the managed image
                     // slots reuse fixed file names, so an overwritten GIF at the same path must
                     // decode fresh bytes.
@@ -108,11 +131,12 @@ namespace PlayniteAchievements.Views.Helpers
                     return false;
                 }
 
+                var phaseMilliseconds = 0.0;
                 if (current.TotalMilliseconds > 0)
                 {
                     // Phase-lock to the shared epoch so recreated instances continue the cycle.
-                    keyFrames.BeginTime = TimeSpan.FromMilliseconds(
-                        -(AnimationEpoch.ElapsedMilliseconds % current.TotalMilliseconds));
+                    phaseMilliseconds = AnimationEpoch.ElapsedMilliseconds % current.TotalMilliseconds;
+                    keyFrames.BeginTime = TimeSpan.FromMilliseconds(-phaseMilliseconds);
                 }
 
                 if (keyFrames.CanFreeze)
@@ -120,7 +144,9 @@ namespace PlayniteAchievements.Views.Helpers
                     keyFrames.Freeze();
                 }
 
-                firstFrame = cached.Value.Frames[0];
+                // The static frame shown until the animation takes over is the frame at the
+                // current phase (not frame zero), so the handoff is seamless.
+                firstFrame = FrameAtPhase(cached.Value, phaseMilliseconds);
                 animation = keyFrames;
                 return true;
             }
@@ -281,6 +307,23 @@ namespace PlayniteAchievements.Views.Helpers
             }
 
             return delays;
+        }
+
+        private static BitmapSource FrameAtPhase(
+            (List<BitmapSource> Frames, List<int> Delays) cached,
+            double phaseMilliseconds)
+        {
+            var elapsed = 0.0;
+            for (var i = 0; i < cached.Frames.Count && i < cached.Delays.Count; i++)
+            {
+                elapsed += cached.Delays[i];
+                if (phaseMilliseconds < elapsed)
+                {
+                    return cached.Frames[i];
+                }
+            }
+
+            return cached.Frames[0];
         }
 
         private static string GetFrameCacheKey(string normalizedSource, bool applyGray)

@@ -391,6 +391,19 @@ namespace PlayniteAchievements.Views.Helpers
             try
             {
                 var applyGray = GetGray(d);
+
+                // Fast path: with the composited frames already cached (e.g. a settings mockup
+                // rebuilt during a slider drag), building the animation is cheap — attach it
+                // synchronously, in the same dispatcher pass as the static bitmap, so the
+                // element never renders an out-of-phase frame.
+                if (GifAnimationHelper.TryCreateAnimationFromCache(
+                        uriString, applyGray,
+                        out var cachedNormalized, out var cachedFirstFrame, out var cachedAnimation))
+                {
+                    ApplyAnimatedFrames(d, cachedNormalized, cachedFirstFrame, cachedAnimation);
+                    return;
+                }
+
                 var created = await Task.Run(() =>
                 {
                     if (cancellationToken.IsCancellationRequested)
