@@ -19,6 +19,13 @@ namespace PlayniteAchievements.Services.UI
         private const string PreviewIcon =
             "pack://application:,,,/PlayniteAchievements;component/Resources/BrandingIcon.png";
 
+        // The repeated sample strings are ~5 KB each and rebuilt for every preview; cache them
+        // keyed by the localized source string (UI-thread only, so no synchronization).
+        private static string _repeatedTitleSource;
+        private static string _repeatedTitle;
+        private static string _repeatedDescriptionSource;
+        private static string _repeatedDescription;
+
         /// <summary>
         /// Returns preview args for the given sample kind: common / uncommon / rare /
         /// ultrarare / capstone / complete / friend / mockup.
@@ -30,10 +37,6 @@ namespace PlayniteAchievements.Services.UI
         {
             var sampleGame = L("LOCPlayAch_Settings_ToastPreviewSampleGame");
             var sampleCategory = L("LOCPlayAch_Settings_ToastPreviewSampleCategory");
-            // Repeat the sample name and description so previews always demonstrate the trimming /
-            // cutoff behavior for long text.
-            var sampleTitle = Repeat(L("LOCPlayAch_Settings_ToastPreviewSampleTitle"));
-            var sampleDescription = Repeat(L("LOCPlayAch_Settings_ToastPreviewSampleDescription"));
 
             switch (kind)
             {
@@ -76,6 +79,8 @@ namespace PlayniteAchievements.Services.UI
 
             AchievementUnlockedEventArgs SampleUnlock(string rarity, double percent, bool capstone)
             {
+                // Repeat the sample name and description so previews always demonstrate the
+                // trimming / cutoff behavior for long text.
                 return new AchievementUnlockedEventArgs
                 {
                     IsPreview = true,
@@ -83,8 +88,14 @@ namespace PlayniteAchievements.Services.UI
                     ProviderKey = providerKey,
                     GameName = sampleGame,
                     Category = sampleCategory,
-                    DisplayName = sampleTitle,
-                    Description = sampleDescription,
+                    DisplayName = RepeatCached(
+                        L("LOCPlayAch_Settings_ToastPreviewSampleTitle"),
+                        ref _repeatedTitleSource,
+                        ref _repeatedTitle),
+                    Description = RepeatCached(
+                        L("LOCPlayAch_Settings_ToastPreviewSampleDescription"),
+                        ref _repeatedDescriptionSource,
+                        ref _repeatedDescription),
                     IconPath = PreviewIcon,
                     RarityTier = rarity,
                     GlobalPercent = percent,
@@ -94,16 +105,19 @@ namespace PlayniteAchievements.Services.UI
                     UnlockTimeUtc = DateTime.UtcNow.AddMinutes(-3)
                 };
             }
+        }
 
-            string Repeat(string sample)
+        private static string RepeatCached(string sample, ref string cachedSource, ref string cachedValue)
+        {
+            if (!string.Equals(sample, cachedSource, StringComparison.Ordinal))
             {
-                if (string.IsNullOrEmpty(sample))
-                {
-                    return sample;
-                }
-
-                return string.Join(" ", Enumerable.Repeat(sample, 100));
+                cachedValue = string.IsNullOrEmpty(sample)
+                    ? sample
+                    : string.Join(" ", Enumerable.Repeat(sample, 100));
+                cachedSource = sample;
             }
+
+            return cachedValue;
         }
 
         private static string L(string key)
