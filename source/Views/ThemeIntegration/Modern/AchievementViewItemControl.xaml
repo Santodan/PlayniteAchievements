@@ -4,6 +4,7 @@
                    xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
                    xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
                    xmlns:base="clr-namespace:PlayniteAchievements.Views.ThemeIntegration.Base"
+                   xmlns:ach="clr-namespace:PlayniteAchievements"
                    mc:Ignorable="d"
                    d:DesignHeight="24" d:DesignWidth="200">
     <base:ThemeControlBase.Resources>
@@ -17,7 +18,12 @@
     <base:ThemeControlBase.Style>
         <Style TargetType="base:ThemeControlBase">
             <Style.Triggers>
-                <DataTrigger Binding="{Binding Persisted.EnableAchievementViewItemControl}"
+                <!-- Source-anchored: themes replace this control's DataContext with the game row. -->
+                <DataTrigger Binding="{Binding Settings.Persisted.EnableAchievementViewItemControl, Source={x:Static ach:PlayniteAchievementsPlugin.Instance}}"
+                             Value="False">
+                    <Setter Property="Visibility" Value="Collapsed"/>
+                </DataTrigger>
+                <DataTrigger Binding="{Binding HasData, RelativeSource={RelativeSource Self}}"
                              Value="False">
                     <Setter Property="Visibility" Value="Collapsed"/>
                 </DataTrigger>
