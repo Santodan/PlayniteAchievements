@@ -83,6 +83,10 @@
         templates via triggers on Parent.IsGameCompleted / Parent.IsFriendUnlock. Frame
         descriptors never show the friend avatar, keeping these templates free of async image
         loads for the offscreen frame render.
+
+        Line text binds through InlineMarkdownFormatter.MarkupText, which renders inline
+        markdown emphasis (**bold**, *italic*, __underline__, ~~strikethrough~~) as styled
+        runs; unmatched markers render literally. Links are not parsed on these surfaces.
     -->
     <DataTemplate DataType="{x:Type vm:ToastHeaderLine}">
         <!-- The wrapper stacks a second halo layer (TextShadowInner, null at default strength)
@@ -101,7 +105,7 @@
                        helpers:AsyncImage.Uri="{Binding Parent.FriendAvatar}"
                        helpers:AsyncImage.DecodePixel="64"/>
             </Border>
-            <TextBlock Text="{Binding HeaderText}"
+            <TextBlock helpers:InlineMarkdownFormatter.MarkupText="{Binding HeaderText}"
                        Foreground="{DynamicResource PlayAch.Brush.Text}"
                        FontSize="{Binding FontSize}"
                        FontFamily="{Binding FontFamily}"
@@ -120,7 +124,7 @@
             <!-- Completion headers replace the unlock header: "Congratulations!" for your own
                  completion, "<friend> completed the game!" for a friend's. Both texts honor
                  the surface's header edits, resolved onto the descriptor. -->
-            <TextBlock Text="{Binding CompletionHeaderText}"
+            <TextBlock helpers:InlineMarkdownFormatter.MarkupText="{Binding CompletionHeaderText}"
                        Foreground="{DynamicResource PlayAch.Brush.Text}"
                        FontSize="{Binding FontSize}"
                        FontFamily="{Binding FontFamily}"
@@ -140,7 +144,7 @@
                     </Style>
                 </TextBlock.Style>
             </TextBlock>
-            <TextBlock Text="{Binding FriendCompletionHeaderText}"
+            <TextBlock helpers:InlineMarkdownFormatter.MarkupText="{Binding FriendCompletionHeaderText}"
                        Foreground="{DynamicResource PlayAch.Brush.Text}"
                        FontSize="{Binding FontSize}"
                        FontFamily="{Binding FontFamily}"
@@ -205,12 +209,12 @@
                        Effect="{Binding TextShadowInner}">
                 <TextBlock.Style>
                     <Style TargetType="TextBlock" BasedOn="{StaticResource PlayAch.TextBlock.BaseStyle}">
-                        <Setter Property="Text" Value="{Binding Parent.TitleText}"/>
+                        <Setter Property="helpers:InlineMarkdownFormatter.MarkupText" Value="{Binding Parent.TitleText}"/>
                         <Setter Property="Foreground" Value="{Binding TitleBrush}"/>
                         <Setter Property="Visibility" Value="{Binding ShowName, Converter={StaticResource BooleanToVisibilityConverter}}"/>
                         <Style.Triggers>
                             <DataTrigger Binding="{Binding Parent.IsGameCompleted}" Value="True">
-                                <Setter Property="Text" Value="{DynamicResource LOCPlayAch_Toast_GameComplete}"/>
+                                <Setter Property="helpers:InlineMarkdownFormatter.MarkupText" Value="{DynamicResource LOCPlayAch_Toast_GameComplete}"/>
                                 <!-- CompletedTitleBrush honors the surface's rarity-colored-name
                                      toggle: completed color when on, plain text when off. -->
                                 <Setter Property="Foreground" Value="{Binding CompletedTitleBrush}"/>
@@ -232,7 +236,7 @@
              rendered line count matches the settings mockup. The wrapper stacks the second halo
              layer under the outer one. -->
         <Grid Effect="{Binding TextShadow}">
-        <TextBlock Text="{Binding Parent.Description}"
+        <TextBlock helpers:InlineMarkdownFormatter.MarkupText="{Binding Parent.Description}"
                    Style="{DynamicResource PlayAch.TextBlock.BaseStyle}"
                    Foreground="{DynamicResource PlayAch.Brush.Text}"
                    FontSize="{Binding FontSize}"
@@ -254,7 +258,7 @@
              rather than overflowing into the provider-icon column. The wrapper stacks the
              second halo layer under the outer one. -->
         <Grid Effect="{Binding TextShadow}">
-        <TextBlock Text="{Binding GameCategoryText}"
+        <TextBlock helpers:InlineMarkdownFormatter.MarkupText="{Binding GameCategoryText}"
                    Style="{DynamicResource PlayAch.TextBlock.BaseStyle}"
                    Foreground="{DynamicResource PlayAch.Brush.Text}"
                    FontSize="{Binding FontSize}"
