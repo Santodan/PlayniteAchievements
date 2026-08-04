@@ -365,75 +365,149 @@ namespace PlayniteAchievements.Services.UI
             }
 
             // All running-game shots capture the game window (WGC per-window, HDR-correct, client
-            // area). The with-notification overlay is composited on separately (see
-            // CaptureWaveWithToastAsync) — the toast is a separate window; a monitor capture would
+            // area). The with-notification card is composited onto this same capture per item (see
+            // ComposeWaveWithToastAsync) — the toast is a separate window; a monitor capture would
             // grab whatever is actually on top, not the game.
             return Task.Run(() => _screenshotService.CaptureGameWindow(waveHwnd, processId));
         }
 
         /// <summary>
-        /// The with-notification screenshot: the game window (WGC per-window, HDR, client area) with
-        /// the toast composited on top at its on-screen position. Test fires (no game) fall back to a
-        /// monitor capture (the toast is on the Playnite monitor). Any failure to build the overlay
-        /// degrades to the plain game capture rather than showing the wrong content or nothing.
+        /// Builds the with-notification screenshot for each qualifying item in the wave: an
+        /// independent clone of the shared base game capture with only that item's toast card
+        /// composited at the anchor corner — where a genuine single-toast notification would sit —
+        /// so every saved file reads as a normal single-unlock screenshot regardless of wave size.
+        /// Test fires with no game fall back to one monitor capture, cloned per item (the real
+        /// stack is genuinely on screen there). Items whose card can't be rendered degrade to the
+        /// plain base clone; a null base capture yields null (with-toast files are skipped). Never
+        /// disposes or mutates the base bitmap — the save pipeline owns it via the capture task.
         /// </summary>
-        private async Task<System.Drawing.Bitmap> CaptureWaveWithToastAsync(Window window, bool isTestFire)
+        private async Task<Dictionary<AchievementToastViewModel, System.Drawing.Bitmap>> ComposeWaveWithToastAsync(
+            WaveScreenshotPlan plan, Window window, bool isTestFire,
+            Task<System.Drawing.Bitmap> baseCaptureTask)
         {
+            var withToastVms = plan.Items
+                .Where(i => (i.Variants & ScreenshotVariants.WithToast) != 0)
+                .Select(i => i.Vm)
+                .ToList();
+            if (withToastVms.Count == 0)
+            {
+                return null;
+            }
+
             var waveHwnd = ResolveWaveWindowHandle();
             var processId = _getGameProcessId?.Invoke(_activeWaveGameId);
             var gameRunning = waveHwnd != IntPtr.Zero || (processId.HasValue && processId.Value > 0);
             if (!gameRunning && isTestFire)
             {
                 var appHwnd = ResolveAppWindowHandle();
-                return await Task.Run(() => _screenshotService.CaptureMonitor(appHwnd)).ConfigureAwait(true);
+                var monitor = await Task.Run(() => _screenshotService.CaptureMonitor(appHwnd)).ConfigureAwait(true);
+                if (monitor == null)
+                {
+                    return null;
+                }
+
+                return await Task.Run(() =>
+                {
+                    var monitorByVm = new Dictionary<AchievementToastViewModel, System.Drawing.Bitmap>();
+                    try
+                    {
+                        var full = new System.Drawing.Rectangle(0, 0, monitor.Width, monitor.Height);
+                        foreach (var vm in withToastVms)
+                        {
+                            monitorByVm[vm] = monitor.Clone(full, monitor.PixelFormat);
+                        }
+                    }
+                    catch (Exception ex)
+                    {
+                        _logger?.Debug(ex, "Test-fire monitor clone failed; some with-notification shots are skipped.");
+                    }
+                    finally
+                    {
+                        monitor.Dispose();
+                    }
+
+                    return monitorByVm.Count > 0 ? monitorByVm : null;
+                }).ConfigureAwait(true);
             }
 
-            // Kick off the game-window capture on the pool; render the toast overlay on the UI thread
-            // (where the live window lives) meanwhile.
-            var gameTask = Task.Run(() => _screenshotService.CaptureGameWindow(waveHwnd, processId));
-            var overlay = TryRenderToastOverlay(window, out var toastPhys, out var clientPhys);
-
-            var game = await gameTask.ConfigureAwait(true);
-            if (game == null || overlay == null || clientPhys.Width <= 0 || clientPhys.Height <= 0)
-            {
-                overlay?.Dispose();
-                return game;
-            }
-
-            return await Task.Run(() =>
-            {
-                try
-                {
-                    CompositeToastOverlay(game, overlay, toastPhys, clientPhys);
-                }
-                catch (Exception ex)
-                {
-                    _logger?.Debug(ex, "Toast overlay composite failed; with-notification shot omits the toast.");
-                }
-                finally
-                {
-                    overlay.Dispose();
-                }
-
-                return game;
-            }).ConfigureAwait(true);
-        }
-
-        /// <summary>
-        /// Renders the live toast window to a premultiplied-alpha bitmap at its physical pixel size,
-        /// and reports its physical rect plus the game client-rect anchor (both physical pixels) so
-        /// the caller can place it into the game capture. Returns null (and the shot omits the toast)
-        /// when this isn't a game anchor or a rect can't be resolved.
-        /// </summary>
-        private System.Drawing.Bitmap TryRenderToastOverlay(
-            Window window, out System.Drawing.Rectangle toastPhys, out System.Drawing.Rectangle clientPhys)
-        {
-            if (!TryRenderToastBytes(window, out var pixels, out var pw, out var ph, out toastPhys, out clientPhys))
+            var baseBitmap = baseCaptureTask != null
+                ? await baseCaptureTask.ConfigureAwait(true)
+                : null;
+            if (baseBitmap == null)
             {
                 return null;
             }
 
-            return CreatePArgbBitmap(pixels, pw, ph);
+            // UI thread: render each card and compute its synthetic single-toast corner rect. Map
+            // by VM identity — the screenshot plan and the on-screen toast items can differ (per
+            // variant rarity policy vs ShouldToast); an item with no card on screen degrades to
+            // the plain base clone.
+            var haveClient = TryResolveAnchor(out var clientPhys);
+            haveClient = haveClient && _activeIsGame && clientPhys.Width > 0 && clientPhys.Height > 0;
+            var itemsControl = window?.Content as ItemsControl;
+            var overlays = new List<(AchievementToastViewModel Vm, System.Drawing.Bitmap Overlay, System.Drawing.Rectangle Rect)>();
+            foreach (var vm in withToastVms)
+            {
+                System.Drawing.Bitmap overlay = null;
+                var rect = System.Drawing.Rectangle.Empty;
+                if (haveClient && itemsControl != null)
+                {
+                    var container = itemsControl.ItemContainerGenerator.ContainerFromItem(vm) as FrameworkElement;
+                    if (container != null)
+                    {
+                        overlay = TryRenderToastItemOverlay(window, container, out var physSize);
+                        if (overlay != null)
+                        {
+                            ToastWindowPlacer.ComputeCorner(
+                                clientPhys, physSize.Width, physSize.Height, _activeMonitorScale,
+                                AlignRight(), AlignBottom(), EffectiveGapDip(), out var ix, out var iy);
+                            rect = new System.Drawing.Rectangle(ix, iy, physSize.Width, physSize.Height);
+                        }
+                    }
+                }
+
+                overlays.Add((vm, overlay, rect));
+            }
+
+            // Pool: GDI+ clone + composite per item. This completes before the save pipeline takes
+            // the base capture, so nothing touches the base bitmap concurrently.
+            return await Task.Run(() =>
+            {
+                var byVm = new Dictionary<AchievementToastViewModel, System.Drawing.Bitmap>();
+                var full = new System.Drawing.Rectangle(0, 0, baseBitmap.Width, baseBitmap.Height);
+                foreach (var entry in overlays)
+                {
+                    try
+                    {
+                        // Clone(rect, format) preserves the capture's pixel format; new Bitmap(Image)
+                        // would convert it and change the alpha semantics.
+                        var clone = baseBitmap.Clone(full, baseBitmap.PixelFormat);
+                        if (entry.Overlay != null)
+                        {
+                            try
+                            {
+                                CompositeToastOverlay(clone, entry.Overlay, entry.Rect, clientPhys);
+                            }
+                            catch (Exception ex)
+                            {
+                                _logger?.Debug(ex, "Toast card composite failed; with-notification shot omits the toast.");
+                            }
+                        }
+
+                        byVm[entry.Vm] = clone;
+                    }
+                    catch (Exception ex)
+                    {
+                        _logger?.Debug(ex, "Base capture clone failed; with-notification shot skipped for one item.");
+                    }
+                    finally
+                    {
+                        entry.Overlay?.Dispose();
+                    }
+                }
+
+                return byVm.Count > 0 ? byVm : null;
+            }).ConfigureAwait(true);
         }
 
         /// <summary>
@@ -572,9 +646,9 @@ namespace PlayniteAchievements.Services.UI
         /// <summary>
         /// Renders the live toast window to a tightly-packed premultiplied-BGRA byte buffer at its
         /// physical pixel size, and reports its physical rect plus the game client-rect anchor (both
-        /// physical pixels). Shared by the with-notification screenshot composite and the video
-        /// overlay publish. Returns false (no toast) when this isn't a game anchor or a rect can't be
-        /// resolved. Must be called on the UI thread (renders the live window).
+        /// physical pixels). Serves the video overlay publish. Returns false (no toast) when this
+        /// isn't a game anchor or a rect can't be resolved. Must be called on the UI thread (renders
+        /// the live window).
         /// </summary>
         private bool TryRenderToastBytes(
             Window window, out byte[] pixels, out int width, out int height,
@@ -639,9 +713,10 @@ namespace PlayniteAchievements.Services.UI
         }
 
         /// <summary>
-        /// Draws the toast overlay onto the game client capture at the toast's position relative to
-        /// the client rect. Physical-pixel coordinates map 1:1 into the capture when it equals the
-        /// client rect; the width/height ratio absorbs any rounding or DPI difference. Mutates
+        /// Draws the toast overlay onto the game client capture at the given physical rect relative
+        /// to the client rect (the card's synthetic single-toast corner, or a live window rect).
+        /// Physical-pixel coordinates map 1:1 into the capture when it equals the client rect; the
+        /// width/height ratio absorbs any rounding or DPI difference. Mutates
         /// <paramref name="game"/> in place.
         /// </summary>
         private static void CompositeToastOverlay(
@@ -852,14 +927,16 @@ namespace PlayniteAchievements.Services.UI
                 .Where(vm => ShouldToast(vm.IsPreview, vm.IsFriendUnlock, vm.ProviderKey))
                 .ToList();
 
-            // The clean capture must precede window.Show(); overlapping it with the sound-align
-            // delay below adds no latency to the toast itself. With-toast variants are dropped
-            // when nothing in the wave toasts (they would just duplicate the clean shot).
+            // The base capture must precede window.Show(); overlapping it with the sound-align
+            // delay below adds no latency to the toast itself. It feeds every variant: clean saves
+            // it as-is, framed composites the frame onto it, and with-notification composites each
+            // item's rendered card onto a copy of it. With-toast variants are dropped when nothing
+            // in the wave toasts (they would just duplicate the clean shot).
             var plan = BuildScreenshotPlan(wave, toastItems.Count > 0);
-            Task<System.Drawing.Bitmap> cleanCaptureTask = null;
-            if (plan != null && plan.NeedsCleanCapture)
+            Task<System.Drawing.Bitmap> baseCaptureTask = null;
+            if (plan != null)
             {
-                cleanCaptureTask = StartWaveSurfaceCapture(waveIsTestFire);
+                baseCaptureTask = StartWaveSurfaceCapture(waveIsTestFire);
             }
 
             // Screenshot-only wave: no sound, no window, no delays — capture and save. Running
@@ -869,11 +946,7 @@ namespace PlayniteAchievements.Services.UI
             {
                 if (plan != null)
                 {
-                    _ = SaveWaveScreenshotsAsync(plan, cleanCaptureTask, null);
-                }
-                else
-                {
-                    DisposeCaptureTask(cleanCaptureTask);
+                    _ = SaveWaveScreenshotsAsync(plan, baseCaptureTask, null);
                 }
 
                 return;
@@ -885,7 +958,7 @@ namespace PlayniteAchievements.Services.UI
             await Task.Delay(450).ConfigureAwait(true);
             if (_disposed)
             {
-                DisposeCaptureTask(cleanCaptureTask);
+                DisposeCaptureTask(baseCaptureTask);
                 return;
             }
 
@@ -1082,19 +1155,20 @@ namespace PlayniteAchievements.Services.UI
                 // clip ends at the moment the toast actually appeared on screen.
                 RaiseWaveDisplayed(toastItems);
 
-                // The with-toast capture happens here (toast slid in and painted; DWM has
-                // presented the frame). CopyFromScreen has no UI-thread affinity, so blit on the
-                // thread pool.
-                System.Drawing.Bitmap toastBitmap = null;
-                if (plan != null && plan.NeedsToastCapture)
+                // The with-notification composites happen here: the toast has slid in and settled,
+                // so each item's card renders at its final laid-out size. Cards render on the UI
+                // thread (live visuals); the clones and blits run on the thread pool.
+                Dictionary<AchievementToastViewModel, System.Drawing.Bitmap> toastByVm = null;
+                if (plan != null && plan.NeedsToastComposite)
                 {
-                    toastBitmap = await CaptureWaveWithToastAsync(window, waveIsTestFire).ConfigureAwait(true);
+                    toastByVm = await ComposeWaveWithToastAsync(plan, window, waveIsTestFire, baseCaptureTask)
+                        .ConfigureAwait(true);
                 }
 
                 if (plan != null)
                 {
-                    _ = SaveWaveScreenshotsAsync(plan, cleanCaptureTask, toastBitmap);
-                    cleanCaptureTask = null;
+                    _ = SaveWaveScreenshotsAsync(plan, baseCaptureTask, toastByVm);
+                    baseCaptureTask = null;
                 }
 
                 // Follow the anchor window every rendered frame (smooth while dragging). The anchor
@@ -1163,7 +1237,7 @@ namespace PlayniteAchievements.Services.UI
             {
                 // Null after the save pipeline takes ownership; disposes the pending capture when
                 // the wave aborts (dispose, exception) before the hand-off.
-                DisposeCaptureTask(cleanCaptureTask);
+                DisposeCaptureTask(baseCaptureTask);
 
                 if (onRendering != null)
                 {
@@ -1279,10 +1353,10 @@ namespace PlayniteAchievements.Services.UI
 
             public string FramedSuffix { get; set; }
 
-            public bool NeedsCleanCapture => Items.Any(i =>
-                (i.Variants & (ScreenshotVariants.Clean | ScreenshotVariants.Framed)) != 0);
-
-            public bool NeedsToastCapture => Items.Any(i =>
+            // A non-null plan always needs the base capture: BuildScreenshotPlan returns a plan
+            // only when at least one item requests at least one variant, and every variant is
+            // derived from the single base capture.
+            public bool NeedsToastComposite => Items.Any(i =>
                 (i.Variants & ScreenshotVariants.WithToast) != 0);
 
             public bool NeedsFrame => Items.Any(i =>
@@ -1365,25 +1439,26 @@ namespace PlayniteAchievements.Services.UI
         /// Saves all requested screenshot variants for a wave. Starts on the UI thread
         /// (fire-and-forget from the toast pipeline): framed composites render on the dispatcher
         /// at Background priority so the toast animation stays smooth, and all PNG/file I/O is
-        /// offloaded to the thread pool. Owns disposal of both captured bitmaps.
+        /// offloaded to the thread pool. Owns disposal of the base capture and every per-item
+        /// with-notification composite.
         /// </summary>
         private async Task SaveWaveScreenshotsAsync(
             WaveScreenshotPlan plan,
-            Task<System.Drawing.Bitmap> cleanCaptureTask,
-            System.Drawing.Bitmap toastBitmap)
+            Task<System.Drawing.Bitmap> baseCaptureTask,
+            Dictionary<AchievementToastViewModel, System.Drawing.Bitmap> toastByVm)
         {
-            System.Drawing.Bitmap cleanBitmap = null;
+            System.Drawing.Bitmap baseBitmap = null;
             try
             {
-                if (cleanCaptureTask != null)
+                if (baseCaptureTask != null)
                 {
-                    cleanBitmap = await cleanCaptureTask.ConfigureAwait(true);
+                    baseBitmap = await baseCaptureTask.ConfigureAwait(true);
                 }
 
                 var framedByVm = new Dictionary<AchievementToastViewModel, System.Windows.Media.Imaging.BitmapSource>();
-                if (plan.NeedsFrame && cleanBitmap != null)
+                if (plan.NeedsFrame && baseBitmap != null)
                 {
-                    var captured = cleanBitmap;
+                    var captured = baseBitmap;
                     var cleanSource = await Task.Run(() => ScreenshotFrameCompositor.ToBitmapSource(captured))
                         .ConfigureAwait(true);
                     if (cleanSource != null)
@@ -1423,10 +1498,10 @@ namespace PlayniteAchievements.Services.UI
 
                 var baseDir = plan.BaseDirectory;
                 var items = plan.Items;
-                var clean = cleanBitmap;
-                var toast = toastBitmap;
-                cleanBitmap = null;
-                toastBitmap = null;
+                var clean = baseBitmap;
+                var toasts = toastByVm;
+                baseBitmap = null;
+                toastByVm = null;
                 _ = Task.Run(() =>
                 {
                     try
@@ -1442,10 +1517,11 @@ namespace PlayniteAchievements.Services.UI
                                     plan.CleanSuffix);
                             }
 
-                            if ((item.Variants & ScreenshotVariants.WithToast) != 0 && toast != null)
+                            if ((item.Variants & ScreenshotVariants.WithToast) != 0 &&
+                                toasts != null && toasts.TryGetValue(vm, out var toastShot) && toastShot != null)
                             {
                                 _screenshotService.Save(
-                                    toast, baseDir, vm.ProviderKey, vm.GameName, vm.AchievementName,
+                                    toastShot, baseDir, vm.ProviderKey, vm.GameName, vm.AchievementName,
                                     vm.AchievementNumber, vm.TotalCount,
                                     plan.WithToastSuffix);
                             }
@@ -1472,7 +1548,7 @@ namespace PlayniteAchievements.Services.UI
                     finally
                     {
                         clean?.Dispose();
-                        toast?.Dispose();
+                        DisposeAll(toasts);
                     }
                 });
             }
@@ -1482,13 +1558,29 @@ namespace PlayniteAchievements.Services.UI
             }
             finally
             {
-                cleanBitmap?.Dispose();
-                toastBitmap?.Dispose();
+                baseBitmap?.Dispose();
+                DisposeAll(toastByVm);
             }
         }
 
         /// <summary>
-        /// Disposes the bitmap of an in-flight clean capture when the wave aborts before the save
+        /// Disposes every per-item composite in the dictionary (null-safe).
+        /// </summary>
+        private static void DisposeAll(Dictionary<AchievementToastViewModel, System.Drawing.Bitmap> byVm)
+        {
+            if (byVm == null)
+            {
+                return;
+            }
+
+            foreach (var bitmap in byVm.Values)
+            {
+                bitmap?.Dispose();
+            }
+        }
+
+        /// <summary>
+        /// Disposes the bitmap of an in-flight base capture when the wave aborts before the save
         /// pipeline takes ownership.
         /// </summary>
         private static void DisposeCaptureTask(Task<System.Drawing.Bitmap> captureTask)
