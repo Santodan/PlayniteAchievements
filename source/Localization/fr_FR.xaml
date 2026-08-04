@@ -797,12 +797,12 @@ This deletes this game's manual links, capstones, custom icons, ordering, catego
     <sys:String x:Key="LOCPlayAch_Settings_Rpcs3ExecutablePath">Chemin de l'exécutable</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_Rpcs3ExecutablePathHint">Chemin vers rpcs3.exe.</sys:String>
     <sys:String x:Key="LOCPlayAch_Rpcs3Validation_NoTrophyFolder">Dossier des trophées introuvable</sys:String>
-    <sys:String x:Key="LOCPlayAch_Rpcs3Validation_NotRpcs3">Not a valid RPCS3 installation (missing dev_hdd0home)</sys:String>
+    <sys:String x:Key="LOCPlayAch_Rpcs3Validation_NotRpcs3">Installation RPCS3 invalide (dev_hdd0home manquant)</sys:String>
     <sys:String x:Key="LOCPlayAch_Rpcs3Validation_NoUser">Aucun profil utilisateur trouvé dans dev_hdd0\home</sys:String>
 
     <!-- Provider: ShadPS4 -->
     <sys:String x:Key="LOCPlayAch_Settings_ShadPS4GameDataPath">Dossier racine</sys:String>
-    <sys:String x:Key="LOCPlayAch_Settings_ShadPS4GameDataPathHint">Your ShadPS4 root folder; both legacy and newer layouts are detected. Default: %AppData%\shadPS4.</sys:String>
+    <sys:String x:Key="LOCPlayAch_Settings_ShadPS4GameDataPathHint">Votre dossier racine ShadPS4 ; les anciennes et nouvelles structures sont détectées. Par défaut : %AppData%\shadPS4.</sys:String>
 
     <!-- Provider: Xbox -->
     <sys:String x:Key="LOCPlayAch_Settings_XboxLowResIcons">Télécharger des icônes plus petites</sys:String>
@@ -810,30 +810,30 @@ This deletes this game's manual links, capstones, custom icons, ordering, catego
 
     <!-- Provider: Xenia -->
     <sys:String x:Key="LOCPlayAch_Settings_XeniaAccountPath">Chemin du compte</sys:String>
-    <sys:String x:Key="LOCPlayAch_Settings_XeniaAccountPathHint">Your Xenia account folder: &lt;Xenia Path&gt;\content\&lt;Account ID&gt;\FFFE07D1\00010000\&lt;Account ID&gt;\</sys:String>
-    <sys:String x:Key="LOCPlayAch_XeniaValidation_NoAccount">Not a valid Xenia account path (missing Account file)</sys:String>
+    <sys:String x:Key="LOCPlayAch_Settings_XeniaAccountPathHint">Votre dossier de compte Xenia : &lt; Chemin Xenia&gt;\content\&lt; ID de compte&gt;\FFFE07D1\00010000\&lt; ID de compte&gt;\</sys:String>
+    <sys:String x:Key="LOCPlayAch_XeniaValidation_NoAccount">Chemin de compte Xenia invalide (fichier Account manquant)</sys:String>
 
     <!-- General Settings (continued): display, maintenance, hotkeys, notifications -->
     <sys:String x:Key="LOCPlayAch_Settings_RebuildNow">Reconstruire maintenant</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_RecentRefresh_Description">Actualise uniquement vos jeux récemment joués qui possèdent des succès.</sys:String>
-    <sys:String x:Key="LOCPlayAch_Settings_RecentRefresh_RecentGames">Recent Games to Refresh</sys:String>
+    <sys:String x:Key="LOCPlayAch_Settings_RecentRefresh_RecentGames">Jeux récents à actualiser</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_RemoveAllTags">Supprimer tous les tags</sys:String>
-    <sys:String x:Key="LOCPlayAch_Settings_ResetFirstTimeSetup">Show the first-time setup landing page again on next overview open.</sys:String>
+    <sys:String x:Key="LOCPlayAch_Settings_ResetFirstTimeSetup">Afficher à nouveau la page d'accueil de première configuration à la prochaine ouverture de la vue d'ensemble.</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_ResetFirstTimeSetupButton">Réinitialiser la page d'accueil</sys:String>
-    <sys:String x:Key="LOCPlayAch_Settings_ResetDisplaySettings">Reset Display Settings</sys:String>
-    <sys:String x:Key="LOCPlayAch_Settings_ResetDisplaySettings_Help">Revert Display tab options, grid visibility, column layouts, row sizing, and overview layout to defaults.</sys:String>
-    <sys:String x:Key="LOCPlayAch_Settings_RevealHiddenDescription">Reveal Hidden Description</sys:String>
-    <sys:String x:Key="LOCPlayAch_Settings_RevealHiddenIcon">Reveal Hidden Icon</sys:String>
-    <sys:String x:Key="LOCPlayAch_Settings_RevealHiddenTitle">Reveal Hidden Title</sys:String>
-    <sys:String x:Key="LOCPlayAch_Settings_RevealLockedIcon">Reveal Locked Icon</sys:String>
+    <sys:String x:Key="LOCPlayAch_Settings_ResetDisplaySettings">Réinitialiser les paramètres d'affichage</sys:String>
+    <sys:String x:Key="LOCPlayAch_Settings_ResetDisplaySettings_Help">Rétablit les options de l'onglet Affichage, la visibilité des grilles, la disposition des colonnes, la taille des lignes, et la mise en page de la vue d'ensemble à leurs valeurs par défaut.</sys:String>
+    <sys:String x:Key="LOCPlayAch_Settings_RevealHiddenDescription">Révéler la description masquée</sys:String>
+    <sys:String x:Key="LOCPlayAch_Settings_RevealHiddenIcon">Révéler l'icône masquée</sys:String>
+    <sys:String x:Key="LOCPlayAch_Settings_RevealHiddenTitle">Révéler le titre masqué</sys:String>
+    <sys:String x:Key="LOCPlayAch_Settings_RevealLockedIcon">Révéler l'icône verrouillée</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_ScanningHashing">Analyse et hachage</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_SetCompletionStatus">Définir le statut Terminé pour les jeux complétés</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_ShowCompactListRarityBar">Afficher la barre de rareté</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_SortBy">Trier par</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_SortDirection_Tooltip">Changer le sens du tri</sys:String>
-    <sys:String x:Key="LOCPlayAch_Settings_SortResetHint">Click the sorted column header again to return to this default.</sys:String>
-    <sys:String x:Key="LOCPlayAch_Settings_ShowCompletionGlow">Show Completion Glow</sys:String>
-    <sys:String x:Key="LOCPlayAch_Settings_ShowFriendSpoilers">Show Friend Spoilers</sys:String>
+    <sys:String x:Key="LOCPlayAch_Settings_SortResetHint">Cliquez à nouveau sur l'en-tête de colonne trié pour revenir à ce tri par défaut.</sys:String>
+    <sys:String x:Key="LOCPlayAch_Settings_ShowCompletionGlow">Afficher une lueur de complétion</sys:String>
+    <sys:String x:Key="LOCPlayAch_Settings_ShowFriendSpoilers">Afficher les indices des amis</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_ShowHiddenSuffix">Show (Hidden Achievement) Suffix</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_ShowRarityGlow">Afficher une lueur de rareté sur les icônes débloquées</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_ShowOverviewBarCharts">Show Bar Charts</sys:String>
