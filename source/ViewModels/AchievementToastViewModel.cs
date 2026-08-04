@@ -871,6 +871,8 @@ namespace PlayniteAchievements.ViewModels
 
             var innerShadow = isFrame ? FrameContentShadowInner : ToastContentShadowInner;
             var imageShadow = isFrame ? FrameImageShadow : ToastImageShadow;
+            var textBrush = Application.Current?.TryFindResource("PlayAch.Brush.Text") as Brush
+                ?? Brushes.White;
             foreach (var line in lines)
             {
                 line.LeftIndent = line is ToastTitleLine ? titleIndent : otherIndent;
@@ -879,16 +881,30 @@ namespace PlayniteAchievements.ViewModels
                 line.ImageShadow = imageShadow;
 
                 var emphasis = ResolveLineEmphasis(surface, line);
+                // The title line's base weight is already SemiBold, one step under Bold —
+                // its bold toggle jumps to ExtraBold so the change is actually visible.
                 line.FontWeight = (emphasis & NotificationLineEmphasis.Bold) != 0
-                    ? FontWeights.Bold
+                    ? (line is ToastTitleLine ? FontWeights.ExtraBold : FontWeights.Bold)
                     : (line is ToastTitleLine ? FontWeights.SemiBold : FontWeights.Normal);
                 line.FontStyle = (emphasis & NotificationLineEmphasis.Italic) != 0
                     ? FontStyles.Italic
                     : FontStyles.Normal;
-                line.TextDecorations = BuildLineDecorations(emphasis);
+                line.TextDecorations = BuildLineDecorations(
+                    emphasis, line.FontSize, LineDecorationBrush(line, textBrush));
             }
 
             return lines;
+        }
+
+        /// <summary>
+        /// The brush a line's underline/strikethrough pen should use: the title line draws in
+        /// its (possibly rarity-colored) title brush, every other line in the shared text brush.
+        /// </summary>
+        private Brush LineDecorationBrush(ToastLineDescriptor line, Brush textBrush)
+        {
+            return line is ToastTitleLine title
+                ? (IsGameCompleted ? title.CompletedTitleBrush : title.TitleBrush) ?? textBrush
+                : textBrush;
         }
 
         private static NotificationLineEmphasis ResolveLineEmphasis(
@@ -909,7 +925,15 @@ namespace PlayniteAchievements.ViewModels
             }
         }
 
-        private static TextDecorationCollection BuildLineDecorations(NotificationLineEmphasis emphasis)
+        // Explicit decoration pens: the WPF default underline/strike pen is a hairline from
+        // font metrics that ignores weight, so it reads far thinner than the text it marks.
+        // These factors scale the line with the row's font size and thicken it when the row
+        // is bold, keeping the decoration visually matched to the glyphs.
+        private const double DecorationThicknessFactor = 0.08;
+        private const double BoldDecorationThicknessFactor = 0.12;
+
+        private static TextDecorationCollection BuildLineDecorations(
+            NotificationLineEmphasis emphasis, double fontSize, Brush brush)
         {
             var underline = (emphasis & NotificationLineEmphasis.Underline) != 0;
             var strike = (emphasis & NotificationLineEmphasis.Strikethrough) != 0;
@@ -918,18 +942,30 @@ namespace PlayniteAchievements.ViewModels
                 return null;
             }
 
+            var bold = (emphasis & NotificationLineEmphasis.Bold) != 0;
+            var factor = bold ? BoldDecorationThicknessFactor : DecorationThicknessFactor;
+            var pen = new Pen(brush, Math.Max(1.0, fontSize * factor));
+            if (pen.CanFreeze)
+            {
+                pen.Freeze();
+            }
+
             var decorations = new TextDecorationCollection();
             if (underline)
             {
-                decorations.Add(System.Windows.TextDecorations.Underline);
+                decorations.Add(new TextDecoration { Location = TextDecorationLocation.Underline, Pen = pen });
             }
 
             if (strike)
             {
-                decorations.Add(System.Windows.TextDecorations.Strikethrough);
+                decorations.Add(new TextDecoration { Location = TextDecorationLocation.Strikethrough, Pen = pen });
             }
 
-            decorations.Freeze();
+            if (decorations.CanFreeze)
+            {
+                decorations.Freeze();
+            }
+
             return decorations;
         }
 

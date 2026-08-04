@@ -563,7 +563,7 @@
                                  pipeline away from the buttons (a template-column control
                                  otherwise risks its value being reverted by a stray edit
                                  transaction). -->
-                            <DataGridTemplateColumn Width="110" MinWidth="110" MaxWidth="110" CanUserResize="False" IsReadOnly="True">
+                            <DataGridTemplateColumn Width="122" MinWidth="122" MaxWidth="122" CanUserResize="False" IsReadOnly="True">
                                 <DataGridTemplateColumn.CellTemplate>
                                     <DataTemplate>
                                         <StackPanel Orientation="Horizontal"
