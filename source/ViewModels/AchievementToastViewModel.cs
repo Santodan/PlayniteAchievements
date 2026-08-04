@@ -664,6 +664,17 @@ namespace PlayniteAchievements.ViewModels
 
         public Effect FrameContentShadow => BuildContentShadow(_style.Frame.TextShadowOpacity);
 
+        /// <summary>
+        /// Second halo layer for the text-line templates. Null at and below the built-in
+        /// strength (the single-layer look is unchanged there); above it, a tight second halo
+        /// fades in under the widening outer one, so the top of the range reaches a
+        /// near-solid black glyph edge — a single gaussian layer cannot exceed its feathered
+        /// opacity.
+        /// </summary>
+        public Effect ToastContentShadowInner => BuildInnerContentShadow(_style.Toast.TextShadowOpacity);
+
+        public Effect FrameContentShadowInner => BuildInnerContentShadow(_style.Frame.TextShadowOpacity);
+
         private static Effect BuildContentShadow(double? strengthPercent)
         {
             var strength = Math.Max(0.0, Math.Min(100.0, strengthPercent ?? DefaultTextShadowStrength))
@@ -684,6 +695,31 @@ namespace PlayniteAchievements.ViewModels
                 Direction = 315,
                 Color = Colors.Black,
                 Opacity = Math.Min(1.0, strength)
+            };
+            effect.Freeze();
+            return effect;
+        }
+
+        private static Effect BuildInnerContentShadow(double? strengthPercent)
+        {
+            var strength = Math.Max(0.0, Math.Min(100.0, strengthPercent ?? DefaultTextShadowStrength))
+                / DefaultTextShadowStrength;
+            if (strength <= 1.0)
+            {
+                return null;
+            }
+
+            // 0..1 across the above-default part of the range. The layer darkens quickly
+            // (fully black halfway up) and stays tight so it solidifies the glyph edge
+            // rather than widening the field further.
+            var extra = (strength - 1.0) / 3.0;
+            var effect = new DropShadowEffect
+            {
+                BlurRadius = 2.0 + (4.0 * extra),
+                ShadowDepth = 0,
+                Direction = 315,
+                Color = Colors.Black,
+                Opacity = Math.Min(1.0, extra * 2.0)
             };
             effect.Freeze();
             return effect;
@@ -788,10 +824,12 @@ namespace PlayniteAchievements.ViewModels
                 }
             }
 
+            var innerShadow = isFrame ? FrameContentShadowInner : ToastContentShadowInner;
             foreach (var line in lines)
             {
                 line.LeftIndent = line is ToastTitleLine ? titleIndent : otherIndent;
                 line.VerticalPadding = linePadding;
+                line.TextShadowInner = innerShadow;
             }
 
             return lines;

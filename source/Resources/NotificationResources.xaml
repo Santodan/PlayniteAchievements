@@ -85,9 +85,12 @@
         loads for the offscreen frame render.
     -->
     <DataTemplate DataType="{x:Type vm:ToastHeaderLine}">
+        <!-- The wrapper stacks a second halo layer (TextShadowInner, null at default strength)
+             under the outer one so high strengths reach a solid black glyph edge. -->
+        <Grid Effect="{Binding TextShadow}">
         <StackPanel Orientation="Horizontal"
                     VerticalAlignment="Center"
-                    Effect="{Binding TextShadow}">
+                    Effect="{Binding TextShadowInner}">
             <Border Width="16"
                     Height="16"
                     CornerRadius="8"
@@ -171,14 +174,17 @@
                        FontFamily="{Binding FontFamily}"
                        Visibility="{Binding ShowUnlockTime, Converter={StaticResource BooleanToVisibilityConverter}}"/>
         </StackPanel>
+        </Grid>
     </DataTemplate>
 
     <DataTemplate DataType="{x:Type vm:ToastTitleLine}">
         <!-- Optional inline rarity badge sits immediately before the name; completion
              notifications force the title, swap it for "Game Complete!", and color it with the
-             completed brush. -->
+             completed brush. The wrapper stacks a second halo layer (TextShadowInner, null at
+             default strength) under the outer one so high strengths reach a solid black edge. -->
+        <Grid Effect="{Binding TextShadow}">
         <DockPanel LastChildFill="True"
-                   Effect="{Binding TextShadow}">
+                   Effect="{Binding TextShadowInner}">
             <Image DockPanel.Dock="Left"
                    helpers:AsyncImage.Uri="{Binding InlineBadgeSource}"
                    helpers:AsyncImage.DecodePixel="64"
@@ -212,6 +218,7 @@
                 </TextBlock.Style>
             </TextBlock>
         </DockPanel>
+        </Grid>
     </DataTemplate>
 
     <DataTemplate DataType="{x:Type vm:ToastDescriptionLine}">
@@ -219,7 +226,9 @@
              game/category line follows, one when it does); the trailing ellipsis marks overflow.
              UseLayoutRounding="False" keeps the floating toast window (which rounds layout to device
              pixels) from shaving the exact two-line height down and clipping the 2nd line, so the
-             rendered line count matches the settings mockup. -->
+             rendered line count matches the settings mockup. The wrapper stacks the second halo
+             layer under the outer one. -->
+        <Grid Effect="{Binding TextShadow}">
         <TextBlock Text="{Binding Parent.Description}"
                    Style="{DynamicResource PlayAch.TextBlock.BaseStyle}"
                    Foreground="{DynamicResource PlayAch.Brush.Text}"
@@ -231,14 +240,17 @@
                    LineHeight="{Binding LineBoxHeight}"
                    LineStackingStrategy="BlockLineHeight"
                    MaxHeight="{Binding MaxTextHeight}"
-                   Effect="{Binding TextShadow}"
+                   Effect="{Binding TextShadowInner}"
                    Visibility="{Binding ShowDescription, Converter={StaticResource BooleanToVisibilityConverter}}"/>
+        </Grid>
     </DataTemplate>
 
     <DataTemplate DataType="{x:Type vm:ToastGameCategoryLine}">
         <!-- "game name • category" as one bounded, left-aligned string: the category stays
              adjacent to the game name and the pair trims together with a trailing ellipsis
-             rather than overflowing into the provider-icon column. -->
+             rather than overflowing into the provider-icon column. The wrapper stacks the
+             second halo layer under the outer one. -->
+        <Grid Effect="{Binding TextShadow}">
         <TextBlock Text="{Binding GameCategoryText}"
                    Style="{DynamicResource PlayAch.TextBlock.BaseStyle}"
                    Foreground="{DynamicResource PlayAch.Brush.Text}"
@@ -248,7 +260,8 @@
                    TextTrimming="CharacterEllipsis"
                    LineHeight="{Binding LineBoxHeight}"
                    LineStackingStrategy="BlockLineHeight"
-                   Effect="{Binding TextShadow}"
+                   Effect="{Binding TextShadowInner}"
                    Visibility="{Binding HasGameCategoryContent, Converter={StaticResource BooleanToVisibilityConverter}}"/>
+        </Grid>
     </DataTemplate>
 </ResourceDictionary>
