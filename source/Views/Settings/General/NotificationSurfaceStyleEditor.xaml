@@ -60,6 +60,19 @@
                 <Setter Property="MinHeight" Value="32"/>
                 <Setter Property="Cursor" Value="Arrow"/>
             </Style>
+
+            <!-- Compact whole-line emphasis toggle (bold/italic/underline/strikethrough) for
+                 the text-line rows. -->
+            <Style x:Key="LineEmphasisToggleStyle"
+                   TargetType="ToggleButton"
+                   BasedOn="{StaticResource PlayAch.ToggleButton.BaseStyle}">
+                <Setter Property="Width" Value="24"/>
+                <Setter Property="MinHeight" Value="24"/>
+                <Setter Property="Height" Value="24"/>
+                <Setter Property="Padding" Value="0"/>
+                <Setter Property="Margin" Value="2,0,0,0"/>
+                <Setter Property="FontSize" Value="{DynamicResource PlayAch.FontSize.Caption}"/>
+            </Style>
         </ResourceDictionary>
     </UserControl.Resources>
 
@@ -428,8 +441,39 @@
                            Style="{StaticResource MutedTextStyle}"
                            TextWrapping="Wrap"
                            Margin="0,0,0,6"/>
+
+                <!-- Shared font family: persists immediately for every line still on "Default";
+                     Apply clears the per-line font overrides so all lines follow it at once. -->
+                <StackPanel Orientation="Horizontal"
+                            Margin="0,0,0,8">
+                    <TextBlock Text="{DynamicResource LOCPlayAch_Settings_Style_FontFamily}"
+                               Style="{StaticResource EditorRowLabelStyle}"/>
+                    <ComboBox ItemsSource="{Binding FontFamilyOptions}"
+                              SelectedItem="{Binding SelectedFontFamilyOption, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                              MinWidth="260"
+                              MaxDropDownHeight="360"
+                              VirtualizingPanel.IsVirtualizing="True">
+                        <ComboBox.ItemsPanel>
+                            <ItemsPanelTemplate>
+                                <VirtualizingStackPanel/>
+                            </ItemsPanelTemplate>
+                        </ComboBox.ItemsPanel>
+                        <ComboBox.ItemTemplate>
+                            <DataTemplate>
+                                <TextBlock Text="{Binding DisplayName}"
+                                           FontFamily="{Binding PreviewFamily}"/>
+                            </DataTemplate>
+                        </ComboBox.ItemTemplate>
+                    </ComboBox>
+                    <Button Content="{DynamicResource LOCPlayAch_Button_Apply}"
+                            Click="ApplyFontFamilyToAllLines_Click"
+                            Margin="8,0,0,0"
+                            VerticalAlignment="Center"
+                            Padding="{StaticResource PlayAch.Thickness.ButtonPadding}"/>
+                </StackPanel>
+
                 <Grid HorizontalAlignment="Left"
-                      MinWidth="360">
+                      MinWidth="620">
                     <DataGrid x:Name="LineOrderGrid"
                               Style="{StaticResource PlayAch.DataGrid.BaseStyle}"
                               ItemsSource="{Binding LineRows}"
@@ -488,6 +532,62 @@
                                 </DataGridTemplateColumn.CellTemplate>
                             </DataGridTemplateColumn>
 
+                            <!-- Per-line font family ("Default" follows the shared family). -->
+                            <DataGridTemplateColumn Width="150" MinWidth="150" MaxWidth="150" CanUserResize="False" IsReadOnly="True">
+                                <DataGridTemplateColumn.CellTemplate>
+                                    <DataTemplate>
+                                        <ComboBox ItemsSource="{Binding DataContext.LineFontFamilyOptions, RelativeSource={RelativeSource AncestorType=DataGrid}}"
+                                                  SelectedItem="{Binding SelectedFontFamilyOption, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                                  MaxDropDownHeight="360"
+                                                  VerticalAlignment="Center"
+                                                  Margin="4,2"
+                                                  VirtualizingPanel.IsVirtualizing="True">
+                                            <ComboBox.ItemsPanel>
+                                                <ItemsPanelTemplate>
+                                                    <VirtualizingStackPanel/>
+                                                </ItemsPanelTemplate>
+                                            </ComboBox.ItemsPanel>
+                                            <ComboBox.ItemTemplate>
+                                                <DataTemplate>
+                                                    <TextBlock Text="{Binding DisplayName}"
+                                                               FontFamily="{Binding PreviewFamily}"/>
+                                                </DataTemplate>
+                                            </ComboBox.ItemTemplate>
+                                        </ComboBox>
+                                    </DataTemplate>
+                                </DataGridTemplateColumn.CellTemplate>
+                            </DataGridTemplateColumn>
+
+                            <!-- Whole-line emphasis toggles. IsReadOnly keeps the grid's edit
+                                 pipeline away from the buttons (a template-column control
+                                 otherwise risks its value being reverted by a stray edit
+                                 transaction). -->
+                            <DataGridTemplateColumn Width="110" MinWidth="110" MaxWidth="110" CanUserResize="False" IsReadOnly="True">
+                                <DataGridTemplateColumn.CellTemplate>
+                                    <DataTemplate>
+                                        <StackPanel Orientation="Horizontal"
+                                                    VerticalAlignment="Center">
+                                            <ToggleButton Style="{StaticResource LineEmphasisToggleStyle}"
+                                                          IsChecked="{Binding IsBold, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}">
+                                                <TextBlock Text="B" FontWeight="Bold"/>
+                                            </ToggleButton>
+                                            <ToggleButton Style="{StaticResource LineEmphasisToggleStyle}"
+                                                          IsChecked="{Binding IsItalic, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}">
+                                                <TextBlock Text="I" FontStyle="Italic"/>
+                                            </ToggleButton>
+                                            <ToggleButton Style="{StaticResource LineEmphasisToggleStyle}"
+                                                          IsChecked="{Binding IsUnderline, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}">
+                                                <TextBlock Text="U" TextDecorations="Underline"/>
+                                            </ToggleButton>
+                                            <ToggleButton Style="{StaticResource LineEmphasisToggleStyle}"
+                                                          IsChecked="{Binding IsStrikethrough, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}">
+                                                <TextBlock Text="S" TextDecorations="Strikethrough"/>
+                                            </ToggleButton>
+                                        </StackPanel>
+                                    </DataTemplate>
+                                </DataGridTemplateColumn.CellTemplate>
+                            </DataGridTemplateColumn>
+
                             <DataGridTemplateColumn Width="70" MinWidth="70" MaxWidth="70" CanUserResize="False">
                                 <DataGridTemplateColumn.CellTemplate>
                                     <DataTemplate>
@@ -528,27 +628,6 @@
                         </Border>
                     </Popup>
                 </Grid>
-
-                <TextBlock Text="{DynamicResource LOCPlayAch_Settings_Style_FontFamily}"
-                           Style="{StaticResource EditorSubGroupHeaderStyle}"/>
-                <ComboBox ItemsSource="{Binding FontFamilyOptions}"
-                          SelectedItem="{Binding SelectedFontFamilyOption, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
-                          HorizontalAlignment="Left"
-                          MinWidth="260"
-                          MaxDropDownHeight="360"
-                          VirtualizingPanel.IsVirtualizing="True">
-                    <ComboBox.ItemsPanel>
-                        <ItemsPanelTemplate>
-                            <VirtualizingStackPanel/>
-                        </ItemsPanelTemplate>
-                    </ComboBox.ItemsPanel>
-                    <ComboBox.ItemTemplate>
-                        <DataTemplate>
-                            <TextBlock Text="{Binding DisplayName}"
-                                       FontFamily="{Binding PreviewFamily}"/>
-                        </DataTemplate>
-                    </ComboBox.ItemTemplate>
-                </ComboBox>
 
                 <!-- Text shadow: opacity darkens up to solid black (50 = built-in, 0 = none);
                      offset moves the shadow away from the glyphs (25 = built-in). The blur is
@@ -940,8 +1019,8 @@
         </Border>
 
         <!-- Header texts for this surface (the friend formats are toast-only since friend
-             unlocks never produce screenshots). Explicit commit + Apply so format strings
-             never persist per keystroke. -->
+             unlocks never produce screenshots). Explicit bindings committed on focus loss or
+             Enter so format strings never persist per keystroke. -->
         <Border Style="{StaticResource EditorCardStyle}">
             <StackPanel>
                 <TextBlock Text="{DynamicResource LOCPlayAch_Settings_Style_HeaderTexts}"
@@ -970,6 +1049,8 @@
                     <TextBox x:Name="UnlockHeaderTextBox"
                              Grid.Row="0" Grid.Column="1"
                              Text="{Binding UnlockHeaderText, Mode=TwoWay, UpdateSourceTrigger=Explicit}"
+                             LostFocus="HeaderTextBox_LostFocus"
+                             PreviewKeyDown="HeaderTextBox_PreviewKeyDown"
                              Margin="0,0,0,6"/>
 
                     <TextBlock Grid.Row="1" Grid.Column="0"
@@ -981,6 +1062,8 @@
                     <TextBox x:Name="FriendUnlockHeaderTextBox"
                              Grid.Row="1" Grid.Column="1"
                              Text="{Binding FriendUnlockHeaderText, Mode=TwoWay, UpdateSourceTrigger=Explicit}"
+                             LostFocus="HeaderTextBox_LostFocus"
+                             PreviewKeyDown="HeaderTextBox_PreviewKeyDown"
                              Margin="0,0,0,6"
                              Visibility="{Binding IsToastSurface, Converter={StaticResource BoolToVis}}"/>
 
@@ -992,6 +1075,8 @@
                     <TextBox x:Name="CompletionHeaderTextBox"
                              Grid.Row="2" Grid.Column="1"
                              Text="{Binding CompletionHeaderText, Mode=TwoWay, UpdateSourceTrigger=Explicit}"
+                             LostFocus="HeaderTextBox_LostFocus"
+                             PreviewKeyDown="HeaderTextBox_PreviewKeyDown"
                              Margin="0,0,0,6"/>
 
                     <TextBlock Grid.Row="3" Grid.Column="0"
@@ -1003,6 +1088,8 @@
                     <TextBox x:Name="FriendCompletionHeaderTextBox"
                              Grid.Row="3" Grid.Column="1"
                              Text="{Binding FriendCompletionHeaderText, Mode=TwoWay, UpdateSourceTrigger=Explicit}"
+                             LostFocus="HeaderTextBox_LostFocus"
+                             PreviewKeyDown="HeaderTextBox_PreviewKeyDown"
                              Visibility="{Binding IsToastSurface, Converter={StaticResource BoolToVis}}"/>
                 </Grid>
                 <TextBlock Text="{DynamicResource LOCPlayAch_Settings_Style_HeaderFormatInvalid}"
@@ -1010,11 +1097,6 @@
                            TextWrapping="Wrap"
                            Margin="0,6,0,0"
                            Visibility="{Binding HasHeaderFormatError, Converter={StaticResource BoolToVis}}"/>
-                <Button Content="{DynamicResource LOCPlayAch_Button_Apply}"
-                        Click="ApplyHeaderTexts_Click"
-                        HorizontalAlignment="Left"
-                        Margin="0,8,0,0"
-                        Padding="{StaticResource PlayAch.Thickness.ButtonPadding}"/>
             </StackPanel>
         </Border>
     </StackPanel>

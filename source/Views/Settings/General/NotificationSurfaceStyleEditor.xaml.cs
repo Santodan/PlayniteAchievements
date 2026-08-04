@@ -2,6 +2,7 @@ using System;
 using System.Linq;
 using System.Windows;
 using System.Windows.Controls;
+using System.Windows.Input;
 // WinForms dialog: the WPF Microsoft.Win32 picker renders legacy-style on .NET Framework.
 using DialogResult = System.Windows.Forms.DialogResult;
 using OpenFileDialog = System.Windows.Forms.OpenFileDialog;
@@ -151,20 +152,36 @@ namespace PlayniteAchievements.Views.Settings.General
             }
         }
 
-        private void ApplyHeaderTexts_Click(object sender, RoutedEventArgs e)
+        private void ApplyFontFamilyToAllLines_Click(object sender, RoutedEventArgs e)
         {
-            // Commit the Explicit bindings, then apply the pending values to the style.
-            foreach (var textBox in new[]
-                     {
-                         UnlockHeaderTextBox,
-                         FriendUnlockHeaderTextBox,
-                         CompletionHeaderTextBox,
-                         FriendCompletionHeaderTextBox
-                     })
+            ViewModel?.ApplyFontFamilyToAllLines();
+        }
+
+        // The header-text boxes keep Explicit bindings (format strings never persist per
+        // keystroke) and commit on focus loss or Enter, so the binding update and the style
+        // apply always run in one deterministic step.
+        private void HeaderTextBox_LostFocus(object sender, RoutedEventArgs e)
+        {
+            CommitHeaderText(sender as TextBox);
+        }
+
+        private void HeaderTextBox_PreviewKeyDown(object sender, KeyEventArgs e)
+        {
+            if (e.Key == Key.Enter)
             {
-                textBox?.GetBindingExpression(TextBox.TextProperty)?.UpdateSource();
+                CommitHeaderText(sender as TextBox);
+                e.Handled = true;
+            }
+        }
+
+        private void CommitHeaderText(TextBox textBox)
+        {
+            if (textBox == null)
+            {
+                return;
             }
 
+            textBox.GetBindingExpression(TextBox.TextProperty)?.UpdateSource();
             ViewModel?.ApplyHeaderTexts();
         }
 
