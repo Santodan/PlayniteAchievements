@@ -550,7 +550,7 @@
                                     helpers:ColumnVisibilityHelper.ColumnKey="Captures">
                 <DataGridTemplateColumn.CellTemplate>
                     <DataTemplate>
-                        <Button Content="&#xE768;"
+                        <Button Content="&#xF5B0;"
                                 FontFamily="Segoe MDL2 Assets"
                                 FontSize="13"
                                 Style="{StaticResource PlayAch.Button.BaseStyle}"
