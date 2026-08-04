@@ -834,12 +834,12 @@ This deletes this game's manual links, capstones, custom icons, ordering, catego
     <sys:String x:Key="LOCPlayAch_Settings_SortResetHint">Cliquez à nouveau sur l'en-tête de colonne trié pour revenir à ce tri par défaut.</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_ShowCompletionGlow">Afficher une lueur de complétion</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_ShowFriendSpoilers">Afficher les indices des amis</sys:String>
-    <sys:String x:Key="LOCPlayAch_Settings_ShowHiddenSuffix">Show (Hidden Achievement) Suffix</sys:String>
+    <sys:String x:Key="LOCPlayAch_Settings_ShowHiddenSuffix">Afficher le suffixe (Succès masqué)</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_ShowRarityGlow">Afficher une lueur de rareté sur les icônes débloquées</sys:String>
-    <sys:String x:Key="LOCPlayAch_Settings_ShowOverviewBarCharts">Show Bar Charts</sys:String>
-    <sys:String x:Key="LOCPlayAch_Settings_GameMetadataHeader">Game metadata</sys:String>
-    <sys:String x:Key="LOCPlayAch_Settings_ShowOverviewCollectionScoreCard">Show Collection Score Card</sys:String>
-    <sys:String x:Key="LOCPlayAch_Settings_ShowOverviewPrestigeScoreCard">Show Prestige Score Card</sys:String>
+    <sys:String x:Key="LOCPlayAch_Settings_ShowOverviewBarCharts">Afficher les graphiques en barres</sys:String>
+    <sys:String x:Key="LOCPlayAch_Settings_GameMetadataHeader">Métadonnées du jeu</sys:String>
+    <sys:String x:Key="LOCPlayAch_Settings_ShowOverviewCollectionScoreCard">Afficher la carte de score de collection</sys:String>
+    <sys:String x:Key="LOCPlayAch_Settings_ShowOverviewPrestigeScoreCard">Afficher la carte de score de prestige</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_ShowOverviewGamesPieChart">Show Completed Games Pie Chart</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_ShowOverviewPiePercentages">Show Pie Percentages</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_ShowOverviewProviderPieChart">Show Platform Pie Chart</sys:String>
