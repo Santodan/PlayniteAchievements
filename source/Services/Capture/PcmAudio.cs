@@ -22,6 +22,34 @@ namespace PlayniteAchievements.Services.Capture
         }
 
         /// <summary>
+        /// Applies a linear fade-out over the final <paramref name="seconds"/> of a 16-bit PCM
+        /// buffer in place, so a chime cut mid-ring ends silently instead of clicking.
+        /// </summary>
+        public static void FadeOutTail(byte[] pcm, double seconds)
+        {
+            if (pcm == null || pcm.Length < BlockAlign || seconds <= 0)
+            {
+                return;
+            }
+
+            var fadeBytes = Math.Min((long)pcm.Length & ~(long)(BlockAlign - 1), TicksToAlignedBytes((long)(seconds * 10_000_000)));
+            if (fadeBytes < BlockAlign)
+            {
+                return;
+            }
+
+            var start = pcm.Length - fadeBytes;
+            for (long i = start; i + 1 < pcm.Length; i += 2)
+            {
+                var scale = 1.0 - ((i - start) / (double)fadeBytes);
+                var value = (short)(pcm[i] | (pcm[i + 1] << 8));
+                var faded = (short)(value * scale);
+                pcm[i] = (byte)(faded & 0xff);
+                pcm[i + 1] = (byte)((faded >> 8) & 0xff);
+            }
+        }
+
+        /// <summary>
         /// Saturating add of 16-bit little-endian source samples into the destination in place.
         /// Offsets and count are in bytes and are clamped to both buffers; odd trailing bytes are
         /// ignored (16-bit samples only move in pairs).

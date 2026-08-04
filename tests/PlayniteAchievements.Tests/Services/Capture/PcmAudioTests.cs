@@ -69,6 +69,39 @@ namespace PlayniteAchievements.Services.Tests.Capture
         }
 
         [TestMethod]
+        public void FadeOutTail_RampsToSilenceWithoutTouchingTheHead()
+        {
+            // 1 second of constant full-scale samples; fade the last half second.
+            var pcm = new byte[PcmAudio.BytesPerSecond];
+            for (var i = 0; i < pcm.Length; i += 2)
+            {
+                pcm[i] = 0xff;
+                pcm[i + 1] = 0x3f; // 16383
+            }
+
+            PcmAudio.FadeOutTail(pcm, 0.5);
+
+            short At(int byteOffset) => (short)(pcm[byteOffset] | (pcm[byteOffset + 1] << 8));
+            // Head untouched.
+            Assert.AreEqual(16383, At(0));
+            Assert.AreEqual(16383, At(PcmAudio.BytesPerSecond / 2 - 4));
+            // Mid-fade roughly half amplitude; final sample near silence.
+            var mid = At(PcmAudio.BytesPerSecond * 3 / 4);
+            Assert.IsTrue(mid > 6000 && mid < 10500, $"mid-fade was {mid}");
+            Assert.IsTrue(Math.Abs(At(pcm.Length - 2)) < 50);
+        }
+
+        [TestMethod]
+        public void FadeOutTail_ShortBufferOrInvalid_NoThrow()
+        {
+            PcmAudio.FadeOutTail(null, 1);
+            PcmAudio.FadeOutTail(new byte[2], 1);
+            var pcm = Samples(1000, 1000);
+            PcmAudio.FadeOutTail(pcm, 0);
+            CollectionAssert.AreEqual(new short[] { 1000, 1000 }, ToShorts(pcm));
+        }
+
+        [TestMethod]
         public void TicksToAlignedBytes_AlignsToBlockBoundary()
         {
             // 1 second = 192000 bytes; already aligned.

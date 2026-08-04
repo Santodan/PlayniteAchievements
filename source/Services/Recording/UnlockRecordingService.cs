@@ -62,10 +62,14 @@ namespace PlayniteAchievements.Services.Recording
         private const double SlideAllowanceSeconds = 2.0;
         private const double ToastTailSeconds = 1.0;
         private const double PostFadeTailSeconds = 0.5;
-        // The chime mix: how much of the sidecar track to read from the wave's sound onset, and
-        // how far the chime onset precedes the toast reveal in the clip (sound fires, then the
-        // 450ms sound-align delay plus ~300ms of slide-in precede the settled card).
-        private const double ChimeMixSeconds = 3.0;
+        // The chime mix: the sidecar read spans the toast display duration plus this tail — long
+        // chimes ring for as long as their toast shows. Bounded (with a fade-out) because the
+        // NEXT sequential wave's chime fires ~duration+1s after this one and must never bleed
+        // into the window. ChimeLeadBeforeToastSeconds is how far the chime onset precedes the
+        // toast reveal in the clip (sound fires, then the 450ms sound-align delay plus ~300ms of
+        // slide-in precede the settled card).
+        private const double ChimeTailBeyondToastSeconds = 0.5;
+        private const double ChimeFadeOutSeconds = 0.15;
         private const double ChimeLeadBeforeToastSeconds = 0.75;
         private const int MaxCaptureRestarts = 3;
         private const int RestartBackoffSeconds = 5;
@@ -1167,9 +1171,16 @@ namespace PlayniteAchievements.Services.Recording
                 TimeZoneInfo.Local,
                 RecordingPaths.ChimeChunkFilePrefix,
                 RecordingPaths.AudioChunkFileExtension);
+            var chimeSpanSeconds = request.EffectiveToastSeconds + ChimeTailBeyondToastSeconds;
             var plan = SegmentTimeline.PlanClip(
-                chunks, ownSound.Value, ownSound.Value.AddSeconds(ChimeMixSeconds), SegmentSeconds);
-            return plan == null ? null : MediaFoundationClipExporter.TryReadPcmWindow(plan, _logger);
+                chunks, ownSound.Value, ownSound.Value.AddSeconds(chimeSpanSeconds), SegmentSeconds);
+            var pcm = plan == null ? null : MediaFoundationClipExporter.TryReadPcmWindow(plan, _logger);
+            if (pcm != null)
+            {
+                PcmAudio.FadeOutTail(pcm, ChimeFadeOutSeconds);
+            }
+
+            return pcm;
         }
 
         /// <summary>
