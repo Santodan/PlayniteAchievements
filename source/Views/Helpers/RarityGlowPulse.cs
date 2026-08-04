@@ -78,6 +78,18 @@ namespace PlayniteAchievements.Views.Helpers
             {
                 element.Loaded += OnElementLoaded;
                 element.Unloaded += OnElementUnloaded;
+
+                // The first render outranks Loaded (Render beats Loaded in dispatcher
+                // priority), so a recreated element would paint one frame at its static
+                // opacity before the animation attaches. Pre-set the phase-locked pulse
+                // value now so that frame already matches the cycle; the animation begun on
+                // Loaded continues from the same point via the shared epoch.
+                if (GetTarget(element) == RarityGlowPulseTarget.Element)
+                {
+                    element.Opacity = CurrentPulseOpacity(
+                        PlayniteAchievementsPlugin.Instance?.Settings?.Persisted);
+                }
+
                 if (element.IsLoaded)
                 {
                     Activate(element);
@@ -145,7 +157,7 @@ namespace PlayniteAchievements.Views.Helpers
             StopAnimation(element);
         }
 
-        private static void ApplyAnimation(FrameworkElement element, PersistedSettings persisted)
+        private static (double Min, double Max, double Seconds) ResolvePulseParams(PersistedSettings persisted)
         {
             var min = Clamp(persisted?.RarityGlowPulseMinOpacity ?? 0.6, 0.0, 1.0);
             var max = Clamp(persisted?.RarityGlowPulseMaxOpacity ?? 1.0, 0.0, 1.0);
@@ -162,6 +174,29 @@ namespace PlayniteAchievements.Views.Helpers
             const double fastSeconds = 0.1;
             var speed = Clamp(persisted?.RarityGlowPulseSpeed ?? 0.5, 0.0, 1.0);
             var seconds = slowSeconds - speed * (slowSeconds - fastSeconds);
+
+            return (min, max, seconds);
+        }
+
+        /// <summary>
+        /// The pulse opacity at the current point of the shared epoch's cycle, replicating the
+        /// animation's sine-eased auto-reversed sweep.
+        /// </summary>
+        private static double CurrentPulseOpacity(PersistedSettings persisted)
+        {
+            var (min, max, seconds) = ResolvePulseParams(persisted);
+            var halfMilliseconds = seconds * 1000.0;
+            var t = PulseEpoch.ElapsedMilliseconds % (halfMilliseconds * 2.0);
+            var progress = t < halfMilliseconds
+                ? t / halfMilliseconds
+                : 2.0 - (t / halfMilliseconds);
+            var eased = (1.0 - Math.Cos(Math.PI * progress)) / 2.0;
+            return min + ((max - min) * eased);
+        }
+
+        private static void ApplyAnimation(FrameworkElement element, PersistedSettings persisted)
+        {
+            var (min, max, seconds) = ResolvePulseParams(persisted);
 
             // Phase-lock to the shared epoch (full cycle = fade in + auto-reversed fade out)
             // so a recreated element resumes the pulse mid-cycle instead of restarting it.
@@ -212,6 +247,10 @@ namespace PlayniteAchievements.Views.Helpers
             else
             {
                 element.BeginAnimation(UIElement.OpacityProperty, null);
+
+                // Drop the phase pre-set local value (see OnIsActiveChanged) so the element
+                // returns to its style/default opacity when the pulse is off.
+                element.ClearValue(UIElement.OpacityProperty);
             }
         }
 
