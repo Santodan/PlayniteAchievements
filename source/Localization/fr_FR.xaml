@@ -840,20 +840,20 @@ This deletes this game's manual links, capstones, custom icons, ordering, catego
     <sys:String x:Key="LOCPlayAch_Settings_GameMetadataHeader">Métadonnées du jeu</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_ShowOverviewCollectionScoreCard">Afficher la carte de score de collection</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_ShowOverviewPrestigeScoreCard">Afficher la carte de score de prestige</sys:String>
-    <sys:String x:Key="LOCPlayAch_Settings_ShowOverviewGamesPieChart">Show Completed Games Pie Chart</sys:String>
-    <sys:String x:Key="LOCPlayAch_Settings_ShowOverviewPiePercentages">Show Pie Percentages</sys:String>
-    <sys:String x:Key="LOCPlayAch_Settings_ShowOverviewProviderPieChart">Show Platform Pie Chart</sys:String>
-    <sys:String x:Key="LOCPlayAch_Settings_ShowOverviewRarityPieChart">Show Rarity Pie Chart</sys:String>
-    <sys:String x:Key="LOCPlayAch_Settings_ShowOverviewTrophyPieChart">Show Trophy Pie Chart</sys:String>
+    <sys:String x:Key="LOCPlayAch_Settings_ShowOverviewGamesPieChart">Afficher le graphique circulaire des jeux terminés</sys:String>
+    <sys:String x:Key="LOCPlayAch_Settings_ShowOverviewPiePercentages">Afficher les pourcentages du graphique circulaire</sys:String>
+    <sys:String x:Key="LOCPlayAch_Settings_ShowOverviewProviderPieChart">Afficher le graphique circulaire par plateforme</sys:String>
+    <sys:String x:Key="LOCPlayAch_Settings_ShowOverviewRarityPieChart">Afficher le graphique circulaire par rareté</sys:String>
+    <sys:String x:Key="LOCPlayAch_Settings_ShowOverviewTrophyPieChart">Afficher le graphique circulaire par trophée</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_ShowTopMenuBarButton">Afficher le bouton dans la barre de menu supérieure</sys:String>
-    <sys:String x:Key="LOCPlayAch_Settings_ShowGameSummariesGridColumnHeaders">Show Column Headers</sys:String>
-    <sys:String x:Key="LOCPlayAch_Settings_ShowAchievementGridColumnHeaders">Show Column Headers</sys:String>
-    <sys:String x:Key="LOCPlayAch_Settings_ShowGridControlBar">Show Control Bar</sys:String>
-    <sys:String x:Key="LOCPlayAch_Settings_UseUniformRarityBadges">Use Uniform Rarity Badges</sys:String>
-    <sys:String x:Key="LOCPlayAch_Settings_UseTrophiesForRarity">Use Trophies for Rarity</sys:String>
-    <sys:String x:Key="LOCPlayAch_Settings_RoundRarityPercentages">Round Rarity Percentages</sys:String>
-    <sys:String x:Key="LOCPlayAch_Settings_RoundRarityPercentages_Help">Show rarity as whole percentages. Values under 1% display as &lt;1%.</sys:String>
-    <sys:String x:Key="LOCPlayAch_Settings_ShowCompletedProgressColoring">Color Completed Progress Bars</sys:String>
+    <sys:String x:Key="LOCPlayAch_Settings_ShowGameSummariesGridColumnHeaders">Afficher les en-têtes de colonnes</sys:String>
+    <sys:String x:Key="LOCPlayAch_Settings_ShowAchievementGridColumnHeaders">Afficher les en-têtes de colonnes</sys:String>
+    <sys:String x:Key="LOCPlayAch_Settings_ShowGridControlBar">Afficher la barre de contrôle</sys:String>
+    <sys:String x:Key="LOCPlayAch_Settings_UseUniformRarityBadges">Utiliser des badges de rareté uniformes</sys:String>
+    <sys:String x:Key="LOCPlayAch_Settings_UseTrophiesForRarity">Utiliser les trophées pour la rareté</sys:String>
+    <sys:String x:Key="LOCPlayAch_Settings_RoundRarityPercentages">Arrondir les pourcentages de rareté</sys:String>
+    <sys:String x:Key="LOCPlayAch_Settings_RoundRarityPercentages_Help">Affiche la rareté sous forme de pourcentages entiers. Les valeurs inférieures à 1 % s'affichent comme &lt;1%.</sys:String>
+    <sys:String x:Key="LOCPlayAch_Settings_ShowCompletedProgressColoring">Colorer les barres de progression complètes</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_ShowCompletedProgressColoring_Help">Use the completed game colors for the progress bars of fully completed games.</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_ColorNamesByRarity">Color Names by Rarity</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_ColorRarityTextByRarity">Color Rarity Text by Rarity</sys:String>
@@ -915,9 +915,9 @@ This deletes this game's manual links, capstones, custom icons, ordering, catego
     <!-- 11 Authentication -->
     <!-- ================================================================= -->
     <sys:String x:Key="LOCPlayAch_Auth_Authenticated">Authentifié</sys:String>
-    <sys:String x:Key="LOCPlayAch_Auth_AuthenticatedAs">Authenticated as {0}</sys:String>
+    <sys:String x:Key="LOCPlayAch_Auth_AuthenticatedAs">Authentifié en tant que {0}</sys:String>
     <sys:String x:Key="LOCPlayAch_Auth_Checking">Vérification de l'authentification...</sys:String>
-    <sys:String x:Key="LOCPlayAch_Auth_NotChecked">Waiting for check</sys:String>
+    <sys:String x:Key="LOCPlayAch_Auth_NotChecked">En attente de vérification</sys:String>
     <sys:String x:Key="LOCPlayAch_Auth_TemporaryFailure">Échec de la vérification de l'authentification. Réessayez.</sys:String>
 
     <!-- ================================================================= -->
@@ -925,15 +925,15 @@ This deletes this game's manual links, capstones, custom icons, ordering, catego
     <!-- ================================================================= -->
     <sys:String x:Key="LOCPlayAch_Filter_Achievements">Rechercher des succès</sys:String>
     <sys:String x:Key="LOCPlayAch_Filter_Complete">Terminé</sys:String>
-    <sys:String x:Key="LOCPlayAch_Filter_InProgress">In Progress</sys:String>
-    <sys:String x:Key="LOCPlayAch_Filter_ActivitySelectorPlaceholder">Activity</sys:String>
-    <sys:String x:Key="LOCPlayAch_Filter_OwnershipSelectorPlaceholder">Ownership</sys:String>
+    <sys:String x:Key="LOCPlayAch_Filter_InProgress">En cours</sys:String>
+    <sys:String x:Key="LOCPlayAch_Filter_ActivitySelectorPlaceholder">Activité</sys:String>
+    <sys:String x:Key="LOCPlayAch_Filter_OwnershipSelectorPlaceholder">Possession</sys:String>
     <sys:String x:Key="LOCPlayAch_Filter_Games">Rechercher des jeux</sys:String>
     <!-- Filter_Hidden: filter label for hidden (secret) achievements, not hidden games -->
     <sys:String x:Key="LOCPlayAch_Filter_Hidden">Masqué</sys:String>
     <sys:String x:Key="LOCPlayAch_Filter_NoProgress">Aucune progression</sys:String>
     <sys:String x:Key="LOCPlayAch_Filter_Played">Joué</sys:String>
-    <sys:String x:Key="LOCPlayAch_Filter_Unowned">Unowned</sys:String>
+    <sys:String x:Key="LOCPlayAch_Filter_Unowned">Non possédé</sys:String>
     <sys:String x:Key="LOCPlayAch_Filter_Unplayed">Jamais lancé</sys:String>
     <sys:String x:Key="LOCPlayAch_Dynamic_Visible">Visible</sys:String>
     <sys:String x:Key="LOCPlayAch_Dynamic_Capstone">Capstone</sys:String>
