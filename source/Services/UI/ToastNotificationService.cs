@@ -115,7 +115,7 @@ namespace PlayniteAchievements.Services.UI
         /// </summary>
         internal event EventHandler<ToastTracksCompletedEventArgs> TracksCompleted;
 
-        private void RaiseWaveDisplayed(IReadOnlyList<AchievementToastViewModel> wave)
+        private void RaiseWaveDisplayed(IReadOnlyList<AchievementToastViewModel> wave, DateTime? soundPlayedUtc)
         {
             if (wave == null || wave.Count == 0 || wave[0].IsPreview)
             {
@@ -124,7 +124,7 @@ namespace PlayniteAchievements.Services.UI
 
             try
             {
-                WaveDisplayed?.Invoke(this, new ToastWaveDisplayedEventArgs(wave, DateTime.UtcNow));
+                WaveDisplayed?.Invoke(this, new ToastWaveDisplayedEventArgs(wave, DateTime.UtcNow, soundPlayedUtc));
             }
             catch (Exception ex)
             {
@@ -1061,7 +1061,7 @@ namespace PlayniteAchievements.Services.UI
 
             // Play the sound first, then show the toast after a short delay so the audio onset and
             // the slide-in visually align.
-            PlayWaveSound(toastItems);
+            var soundPlayedUtc = PlayWaveSound(toastItems);
             await Task.Delay(450).ConfigureAwait(true);
             if (_disposed)
             {
@@ -1262,8 +1262,9 @@ namespace PlayniteAchievements.Services.UI
                 PlaceWindow(window, "snap");
 
                 // The wave is now fully visible: signal the recording service (a liveness bump for
-                // its track wait — clip windows themselves are unlock-anchored).
-                RaiseWaveDisplayed(toastItems);
+                // its track wait, plus this wave's chime time for the clip audio mix — clip
+                // windows themselves are unlock-anchored).
+                RaiseWaveDisplayed(toastItems, soundPlayedUtc);
 
                 // Layout and placement are final: pin each card's synthetic single-toast corner so
                 // its recorded motion lands where a genuine lone toast would sit.
@@ -1430,9 +1431,10 @@ namespace PlayniteAchievements.Services.UI
         /// Fires a single UniPlaySong sound for the wave, using the rarest tier present so a burst
         /// of unlocks does not stack overlapping sounds. UniPlaySong owns enablement and audio
         /// selection for the "playniteachievements/&lt;tier&gt;" URI; if it is not installed the URI
-        /// is unhandled and the call is ignored.
+        /// is unhandled and the call is ignored. Returns the launch moment (null when no sound
+        /// fired) so the recording service can locate the chime in its sidecar audio track.
         /// </summary>
-        private void PlayWaveSound(IReadOnlyList<AchievementToastViewModel> wave)
+        private DateTime? PlayWaveSound(IReadOnlyList<AchievementToastViewModel> wave)
         {
             var tier = wave?
                 .OrderByDescending(vm => vm.SoundTierRank)
@@ -1440,16 +1442,18 @@ namespace PlayniteAchievements.Services.UI
                 .FirstOrDefault();
             if (string.IsNullOrWhiteSpace(tier))
             {
-                return;
+                return null;
             }
 
             try
             {
                 Process.Start($"playnite://uniplaysong/playniteachievements/{tier}");
+                return DateTime.UtcNow;
             }
             catch (Exception ex)
             {
                 _logger?.Debug(ex, "Toast unlock sound URI could not be launched.");
+                return null;
             }
         }
 

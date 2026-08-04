@@ -12,14 +12,23 @@ namespace PlayniteAchievements.Services.UI
     /// </summary>
     internal sealed class ToastWaveDisplayedEventArgs : EventArgs
     {
-        public ToastWaveDisplayedEventArgs(IReadOnlyList<AchievementToastViewModel> wave, DateTime shownUtc)
+        public ToastWaveDisplayedEventArgs(
+            IReadOnlyList<AchievementToastViewModel> wave, DateTime shownUtc, DateTime? soundPlayedUtc)
         {
             Wave = wave;
             ShownUtc = shownUtc;
+            SoundPlayedUtc = soundPlayedUtc;
         }
 
         public IReadOnlyList<AchievementToastViewModel> Wave { get; }
 
         public DateTime ShownUtc { get; }
+
+        /// <summary>
+        /// When this wave's unlock chime started playing (null when no sound fired). The
+        /// recording service reads the chime sidecar track at this moment and mixes it into the
+        /// wave's clips at the composited toast.
+        /// </summary>
+        public DateTime? SoundPlayedUtc { get; }
     }
 }
