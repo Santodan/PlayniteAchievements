@@ -99,13 +99,14 @@ namespace PlayniteAchievements.Views.Helpers
                 // priority), so a recreated element would paint one frame at its static
                 // opacity before the animation attaches. Pre-set the pulse value now so that
                 // frame already matches: the epoch phase for phase-locked elements, the cycle
-                // floor for opt-outs (whose animation starts from the beginning).
+                // peak for opt-outs (whose animation starts at the peak and fades down, so a
+                // freshly revealed toast shows its glow at full strength).
                 if (GetTarget(element) == RarityGlowPulseTarget.Element)
                 {
                     var persisted = PlayniteAchievementsPlugin.Instance?.Settings?.Persisted;
                     element.Opacity = GetPhaseLock(element)
                         ? CurrentPulseOpacity(persisted)
-                        : ResolvePulseParams(persisted).Min;
+                        : ResolvePulseParams(persisted).Max;
                 }
 
                 if (element.IsLoaded)
@@ -244,7 +245,7 @@ namespace PlayniteAchievements.Views.Helpers
                         {
                             animation.BeginTime = GetPhaseLock(element)
                                 ? PhaseLockBeginTime(cycleMilliseconds)
-                                : TimeSpan.Zero;
+                                : PeakStartBeginTime(cycleMilliseconds);
                             effect.BeginAnimation(DropShadowEffect.OpacityProperty, animation);
                         }
                     }),
@@ -254,7 +255,7 @@ namespace PlayniteAchievements.Views.Helpers
             {
                 animation.BeginTime = GetPhaseLock(element)
                     ? PhaseLockBeginTime(cycleMilliseconds)
-                    : TimeSpan.Zero;
+                    : PeakStartBeginTime(cycleMilliseconds);
                 element.BeginAnimation(UIElement.OpacityProperty, animation);
             }
         }
@@ -263,6 +264,14 @@ namespace PlayniteAchievements.Views.Helpers
             cycleMilliseconds <= 0
                 ? TimeSpan.Zero
                 : TimeSpan.FromMilliseconds(-(PulseEpoch.ElapsedMilliseconds % cycleMilliseconds));
+
+        // Half a cycle back: the min->max auto-reversed timeline sits at its PEAK at the
+        // half-cycle point, so phase-lock opt-outs (fresh toast waves) reveal with the glow at
+        // full strength and fade down from there — a deterministic, strong glow in captures.
+        private static TimeSpan PeakStartBeginTime(double cycleMilliseconds) =>
+            cycleMilliseconds <= 0
+                ? TimeSpan.Zero
+                : TimeSpan.FromMilliseconds(-(cycleMilliseconds / 2.0));
 
         private static void StopAnimation(FrameworkElement element)
         {
