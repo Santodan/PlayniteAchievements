@@ -472,8 +472,7 @@
                             Padding="{StaticResource PlayAch.Thickness.ButtonPadding}"/>
                 </StackPanel>
 
-                <Grid HorizontalAlignment="Left"
-                      MinWidth="620">
+                <Grid HorizontalAlignment="Left">
                     <DataGrid x:Name="LineOrderGrid"
                               Style="{StaticResource PlayAch.DataGrid.BaseStyle}"
                               ItemsSource="{Binding LineRows}"
@@ -521,13 +520,15 @@
                                 </DataGridTemplateColumn.CellTemplate>
                             </DataGridTemplateColumn>
 
-                            <DataGridTemplateColumn Width="*">
+                            <!-- Auto width keeps the name column snug against the font column
+                                 instead of a star column stretching blank space between them. -->
+                            <DataGridTemplateColumn Width="Auto" MinWidth="90">
                                 <DataGridTemplateColumn.CellTemplate>
                                     <DataTemplate>
                                         <TextBlock Text="{Binding DisplayName}"
                                                    Foreground="{DynamicResource PlayAch.Brush.Text}"
                                                    VerticalAlignment="Center"
-                                                   Margin="6,0"/>
+                                                   Margin="6,0,10,0"/>
                                     </DataTemplate>
                                 </DataGridTemplateColumn.CellTemplate>
                             </DataGridTemplateColumn>
