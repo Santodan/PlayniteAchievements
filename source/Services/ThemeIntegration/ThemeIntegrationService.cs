@@ -3996,7 +3996,9 @@ namespace PlayniteAchievements.Services.ThemeIntegration
             try
             {
                 rows = await Task
-                    .Run(() => _friendCache.LoadFriendGameAchievementData(gameScope)?.AllAchievements)
+                    .Run(() => FriendOverviewProjection.ApplyMergeIdentity(
+                        _friendCache.LoadFriendGameAchievementData(gameScope),
+                        _settings?.Persisted))
                     .ConfigureAwait(false);
             }
             catch (Exception ex)
