@@ -366,6 +366,96 @@ namespace PlayniteAchievements.Tests.Services
         }
 
         [TestMethod]
+        public void ApplyMergeIdentity_FormatsProviderNicknameUnderDefaultMode()
+        {
+            var settings = new PersistedSettings();
+            settings.AddOrUpdateFriend(new FriendIdentity
+            {
+                ProviderKey = "Steam",
+                ExternalUserId = "steam-alice",
+                DisplayName = "Steam Alice",
+                ProviderNickname = "Ally"
+            });
+            var gameId = Guid.Parse("88888888-8888-8888-8888-888888888888");
+            var row = Achievement("Steam", "steam-alice", 10, gameId, "Steam Game", "SteamA", Utc(2026, 1, 1), RarityTier.Common);
+            row.FriendName = "Steam Alice";
+            var data = new FriendsOverviewData
+            {
+                AllAchievements = new List<FriendAchievementDisplayItem> { row }
+            };
+
+            FriendOverviewProjection.ApplyMergeIdentity(data, settings);
+
+            Assert.AreEqual("Steam Alice (Ally)", row.FriendName);
+        }
+
+        [TestMethod]
+        public void ApplyMergeIdentity_HonorsNameDisplayModeAndManualNicknamePrecedence()
+        {
+            var settings = new PersistedSettings { FriendNameDisplayMode = FriendNameDisplayMode.Nickname };
+            settings.AddOrUpdateFriend(new FriendIdentity
+            {
+                ProviderKey = "Steam",
+                ExternalUserId = "steam-alice",
+                DisplayName = "Steam Alice",
+                ProviderNickname = "Ally"
+            });
+            var gameId = Guid.Parse("99999999-9999-9999-9999-999999999999");
+            var row = Achievement("Steam", "steam-alice", 10, gameId, "Steam Game", "SteamA", Utc(2026, 1, 1), RarityTier.Common);
+            row.FriendName = "Steam Alice";
+            var data = new FriendsOverviewData
+            {
+                AllAchievements = new List<FriendAchievementDisplayItem> { row }
+            };
+
+            FriendOverviewProjection.ApplyMergeIdentity(data, settings);
+            Assert.AreEqual("Ally", row.FriendName);
+
+            // A manual plugin rename beats the mode formatting.
+            settings.SetFriendNickname("Steam", "steam-alice", "Bestie");
+            row.FriendName = "Steam Alice";
+            FriendOverviewProjection.ApplyMergeIdentity(data, settings);
+            Assert.AreEqual("Bestie", row.FriendName);
+        }
+
+        [TestMethod]
+        public void Projection_FormatsFriendSummaryDisplayNameWithProviderNickname()
+        {
+            var settings = new PersistedSettings();
+            settings.AddOrUpdateFriend(new FriendIdentity
+            {
+                ProviderKey = "Steam",
+                ExternalUserId = "steam-alice",
+                DisplayName = "Steam Alice",
+                ProviderNickname = "Ally"
+            });
+            settings.AddOrUpdateFriend(new FriendIdentity
+            {
+                ProviderKey = "RetroAchievements",
+                ExternalUserId = "retro-bob",
+                DisplayName = "Retro Bob"
+            });
+            var data = new FriendsOverviewData
+            {
+                Friends = new List<FriendSummaryItem>
+                {
+                    new FriendSummaryItem { ProviderKey = "Steam", ExternalUserId = "steam-alice", DisplayName = "Steam Alice" },
+                    new FriendSummaryItem { ProviderKey = "RetroAchievements", ExternalUserId = "retro-bob", DisplayName = "Retro Bob" }
+                }
+            };
+
+            var projection = new FriendOverviewProjection(data, settings);
+
+            Assert.AreEqual(
+                "Steam Alice (Ally)",
+                projection.Friends.Single(friend => friend.ExternalUserId == "steam-alice").DisplayName);
+            // Providers without nickname data keep the plain display name in every mode.
+            Assert.AreEqual(
+                "Retro Bob",
+                projection.Friends.Single(friend => friend.ExternalUserId == "retro-bob").DisplayName);
+        }
+
+        [TestMethod]
         public void ScopeKeys_AreStableAndCaseInsensitive()
         {
             var gameId = Guid.Parse("33333333-3333-3333-3333-333333333333");
