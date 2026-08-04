@@ -134,15 +134,17 @@
                             <!-- Fixed-width star gutter keeps friend names aligned whether or not
                                  the friend is favorited (star is transparent when not a favorite).
                                  The whole gutter collapses when no friend in the list is favorited. -->
+                            <!-- Match the name's font metrics and column vertical alignment so the
+                                 star sits on the same visual centerline as the text beside it. -->
                             <TextBlock DockPanel.Dock="Left"
                                        Text="&#x2605;"
                                        Width="14"
                                        TextAlignment="Center"
-                                       VerticalAlignment="Center"
+                                       VerticalAlignment="{Binding RelativeSource={RelativeSource AncestorType={x:Type DataGridCell}}, Path=Column.(helpers:DataGridAlignmentBehavior.CellVerticalAlignment)}"
                                        Foreground="{DynamicResource PlayAch.Brush.Text}"
                                        ToolTip="{DynamicResource LOCPlayAch_Column_Favorite}">
                                 <TextBlock.Style>
-                                    <Style TargetType="TextBlock">
+                                    <Style TargetType="TextBlock" BasedOn="{StaticResource PlayAch.TextBlock.BaseStyle}">
                                         <Setter Property="Opacity" Value="0"/>
                                         <Setter Property="Visibility" Value="Collapsed"/>
                                         <Style.Triggers>
