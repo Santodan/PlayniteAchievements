@@ -1112,10 +1112,13 @@ namespace PlayniteAchievements.Views
 
                 foreach (var account in GetConfigurableFriendAccounts(friend))
                 {
+                    // DisplayName is omitted: friend.DisplayName is the resolved display value
+                    // (nickname/mode formatting applied) and must not overwrite the stored
+                    // provider name.
                     var entry = persisted.AddOrUpdateFriend(
                         account.ProviderKey,
                         account.ExternalUserId,
-                        friend.DisplayName,
+                        null,
                         friend.AvatarPath,
                         null,
                         FriendSettingsSource.AutoDiscovered);

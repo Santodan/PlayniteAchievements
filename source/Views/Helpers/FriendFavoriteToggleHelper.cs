@@ -78,11 +78,13 @@ namespace PlayniteAchievements.Views.Helpers
                 foreach (var account in accounts)
                 {
                     // AddOrUpdateFriend rather than SetFriendFavorite so auto-discovered
-                    // friends without a settings entry can still be favorited.
+                    // friends without a settings entry can still be favorited. DisplayName is
+                    // omitted: friend.DisplayName is the resolved display value (nickname/mode
+                    // formatting applied) and must not overwrite the stored provider name.
                     var entry = persisted.AddOrUpdateFriend(
                         account.ProviderKey,
                         account.ExternalUserId,
-                        friend.DisplayName,
+                        null,
                         friend.AvatarPath,
                         null,
                         FriendSettingsSource.AutoDiscovered);
