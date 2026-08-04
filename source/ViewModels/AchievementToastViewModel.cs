@@ -683,12 +683,13 @@ namespace PlayniteAchievements.ViewModels
             }
 
             // Opacity ramps up to the built-in strength; above it the offset grows (1px at
-            // the default up to 4px at the maximum). The blur never widens, so the shadow
-            // stays glyph-shaped at every strength.
+            // the default up to ~3.3px at the maximum), sitting slightly closer to the
+            // glyphs than a full linear ramp. The blur never widens, so the shadow stays
+            // glyph-shaped at every strength.
             var effect = new DropShadowEffect
             {
                 BlurRadius = ContentShadowBlur,
-                ShadowDepth = strength <= 1.0 ? strength : 1.0 + (strength - 1.0),
+                ShadowDepth = strength <= 1.0 ? strength : 1.0 + ((strength - 1.0) * 0.75),
                 Direction = 315,
                 Color = Colors.Black,
                 Opacity = Math.Min(1.0, strength)
@@ -708,12 +709,12 @@ namespace PlayniteAchievements.ViewModels
 
             // 0..1 across the above-default part of the range. A tight second directional
             // layer that darkens quickly (fully black halfway up), stacking under the outer
-            // one so the maximum reaches a solid black shadow.
+            // one so the maximum reaches a solid black shadow that stays close to the text.
             var extra = (strength - 1.0) / 3.0;
             var effect = new DropShadowEffect
             {
                 BlurRadius = 2.5,
-                ShadowDepth = 1.0 + (2.0 * extra),
+                ShadowDepth = 0.75 + (1.5 * extra),
                 Direction = 315,
                 Color = Colors.Black,
                 Opacity = Math.Min(1.0, extra * 2.0)
