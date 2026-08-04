@@ -649,11 +649,16 @@ namespace PlayniteAchievements.Services.UI
                 {
                     // Absolute viewbox pins the mapping to the layout bounds so effect bleed can't
                     // inflate the brush content; clipping matches where the live window edge clips.
+                    // The viewbox coordinate space includes the container's offset within its
+                    // parent panel (a stacked card's offset is non-zero), so the viewbox must be
+                    // anchored at that offset — at (0,0) a stacked card renders shifted down and
+                    // cropped out of the bitmap.
+                    var offset = VisualTreeHelper.GetOffset(container);
                     var brush = new VisualBrush(container)
                     {
                         Stretch = Stretch.Fill,
                         ViewboxUnits = BrushMappingMode.Absolute,
-                        Viewbox = new Rect(0, 0, local.Width, local.Height),
+                        Viewbox = new Rect(offset.X, offset.Y, local.Width, local.Height),
                     };
                     dc.DrawRectangle(brush, null, new Rect(0, 0, local.Width, local.Height));
                 }
