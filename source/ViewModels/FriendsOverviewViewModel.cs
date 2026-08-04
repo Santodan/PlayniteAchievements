@@ -805,7 +805,8 @@ namespace PlayniteAchievements.ViewModels
                 IsCompareKeySelected,
                 SetCompareKeySelected,
                 GetCompareFriendDisplayName,
-                () => IsCompareAvailable)
+                () => IsCompareAvailable,
+                IsCompareKeyFavorite)
             {
                 Width = 140,
                 ToolTip = ResourceProvider.GetString("LOCPlayAch_Filter_CompareSelectorPlaceholder")
@@ -819,6 +820,14 @@ namespace PlayniteAchievements.ViewModels
                 FriendOverviewProjection.GetFriendScopeKey(_compareFriend),
                 key,
                 StringComparison.OrdinalIgnoreCase);
+        }
+
+        private bool IsCompareKeyFavorite(string key)
+        {
+            return _allFriends.FirstOrDefault(friend => friend != null && string.Equals(
+                FriendOverviewProjection.GetFriendScopeKey(friend),
+                key,
+                StringComparison.OrdinalIgnoreCase))?.IsFavorite == true;
         }
 
         // Single-select semantics over checkable menu items: checking a friend replaces any
