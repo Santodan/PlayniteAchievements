@@ -77,6 +77,17 @@ namespace PlayniteAchievements.Services.Capture
             return _available.Value;
         }
 
+        /// <summary>
+        /// Target H.264 bitrate from resolution and fps (~0.12 bits/pixel/frame): ~15 Mbps at
+        /// 1080p60, ~27 at 1440p60, ~60 at 4K60. Clamped to a sane range. Shared by the live
+        /// segment encoder and the export-time overlay re-encoder so clip quality matches.
+        /// </summary>
+        internal static int ComputeBitrate(int width, int height, int fps)
+        {
+            var bits = (long)(width * (double)height * fps * 0.12);
+            return (int)Math.Max(8_000_000L, Math.Min(120_000_000L, bits));
+        }
+
         public MediaFoundationH264Encoder(
             D3D11.Device device, string outputPath, int width, int height, int fps, int bitrate)
         {

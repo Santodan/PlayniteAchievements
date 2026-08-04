@@ -102,12 +102,9 @@ namespace PlayniteAchievements.Services.Capture
             height &= ~1;
         }
 
-        // Target H.264 bitrate from the actual capture resolution and fps (~0.12 bits/pixel/frame):
-        // ~15 Mbps at 1080p60, ~27 at 1440p60, ~60 at 4K60. Clamped to a sane range.
         private int ComputeBitrate(int width, int height)
         {
-            var bits = (long)(width * (double)height * _fps * 0.12);
-            return (int)Math.Max(8_000_000L, Math.Min(120_000_000L, bits));
+            return MediaFoundationH264Encoder.ComputeBitrate(width, height, _fps);
         }
 
         public static bool IsSupported => GraphicsCaptureSession.IsSupported();
