@@ -62,6 +62,12 @@ namespace PlayniteAchievements.Services.UI
         private static readonly Dictionary<string, CachedThemeDictionary> ThemeDictionaryCache =
             new Dictionary<string, CachedThemeDictionary>(StringComparer.OrdinalIgnoreCase);
 
+        // Memoized theme-directory resolution (see ResolveThemeDirectoriesCached). Static so the
+        // settings previews and the live toast pipeline share one resolution path.
+        private static readonly object ThemeDirectoriesCacheGate = new object();
+        private static readonly Dictionary<string, IReadOnlyList<string>> ThemeDirectoriesCache =
+            new Dictionary<string, IReadOnlyList<string>>(StringComparer.OrdinalIgnoreCase);
+
         // Parsed bundled default templates, keyed by manifest resource name. The embedded XAML is
         // immutable, so a successful parse is cached process-wide.
         private static readonly Dictionary<string, ResourceDictionary> PluginDefaultTemplateCache =
@@ -335,7 +341,7 @@ namespace PlayniteAchievements.Services.UI
         {
             var themeId = GetActiveThemeId(modeName);
             var themesRoots = GetThemesRootPaths();
-            var themeDirectories = ResolveThemeDirectories(applicationResources, themesRoots, modeName, themeId);
+            var themeDirectories = ResolveThemeDirectoriesCached(applicationResources, themesRoots, modeName, themeId);
             var overridePaths = themeDirectories
                 .Select(directory => Path.Combine(directory, overrideRelativePath))
                 .Distinct(StringComparer.OrdinalIgnoreCase)
@@ -960,6 +966,62 @@ namespace PlayniteAchievements.Services.UI
             }
         }
 
+        /// <summary>
+        /// Memoized <see cref="ResolveThemeDirectories"/>: the active theme's directory set is
+        /// stable for the process lifetime (Playnite requires a restart to switch or install
+        /// themes), so the directory enumeration and theme.yaml probing run once per distinct
+        /// input. Whether the override files inside those directories exist stays a live check
+        /// on every resolve, keeping mid-session theme-file authoring working. Empty results are
+        /// not cached so an early resolve (before theme dictionaries load) never pins a bad
+        /// answer.
+        /// </summary>
+        private static IReadOnlyList<string> ResolveThemeDirectoriesCached(
+            ResourceDictionary applicationResources,
+            IReadOnlyList<string> themesRoots,
+            string modeName,
+            string themeId)
+        {
+            var cacheKey = BuildThemeDirectoriesCacheKey(applicationResources, themesRoots, modeName, themeId);
+            lock (ThemeDirectoriesCacheGate)
+            {
+                if (ThemeDirectoriesCache.TryGetValue(cacheKey, out var cached))
+                {
+                    return cached;
+                }
+            }
+
+            var directories = ResolveThemeDirectories(applicationResources, themesRoots, modeName, themeId);
+            if (directories.Count > 0)
+            {
+                lock (ThemeDirectoriesCacheGate)
+                {
+                    ThemeDirectoriesCache[cacheKey] = directories;
+                }
+            }
+
+            return directories;
+        }
+
+        /// <summary>
+        /// The cache key covers every input the resolution reads: mode, theme id, the themes
+        /// roots, and the source paths of the loaded resource dictionaries (which can supply
+        /// theme directories on their own), so a resolve that ran before the theme's
+        /// dictionaries loaded keys separately from one that ran after.
+        /// </summary>
+        private static string BuildThemeDirectoriesCacheKey(
+            ResourceDictionary applicationResources,
+            IReadOnlyList<string> themesRoots,
+            string modeName,
+            string themeId)
+        {
+            return string.Join(
+                "|",
+                modeName,
+                themeId ?? string.Empty,
+                string.Join(";", themesRoots ?? (IReadOnlyList<string>)new string[0]),
+                string.Join(";", EnumerateResourceDictionarySourcePaths(applicationResources)));
+        }
+
         private static IReadOnlyList<string> ResolveThemeDirectories(
             ResourceDictionary applicationResources,
             IEnumerable<string> themesRoots,
@@ -1166,17 +1228,16 @@ namespace PlayniteAchievements.Services.UI
                 return Enumerable.Empty<string>();
             }
 
+            var themeDirectories = roots.SelectMany(EnumerateDirectories).ToList();
+
             var results = new List<string>();
             foreach (var sourcePath in EnumerateResourceDictionarySourcePaths(resources))
             {
-                foreach (var modeDirectory in roots)
+                foreach (var themeDirectory in themeDirectories)
                 {
-                    foreach (var themeDirectory in EnumerateDirectories(modeDirectory))
+                    if (PathIsInDirectory(sourcePath, themeDirectory))
                     {
-                        if (PathIsInDirectory(sourcePath, themeDirectory))
-                        {
-                            AddThemeDirectory(results, themeDirectory);
-                        }
+                        AddThemeDirectory(results, themeDirectory);
                     }
                 }
             }
