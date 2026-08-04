@@ -1169,6 +1169,7 @@ namespace PlayniteAchievements
         private static bool ShouldInvalidateFriendDataForSetting(string propertyName)
         {
             return propertyName == nameof(PersistedSettings.ShowFriendSpoilers) ||
+                   propertyName == nameof(PersistedSettings.FriendNameDisplayMode) ||
                    propertyName == nameof(PersistedSettings.Friends) ||
                    propertyName == nameof(PersistedSettings.FriendMergeGroups) ||
                    propertyName == nameof(PersistedSettings.ShowHiddenIcon) ||
