@@ -109,6 +109,9 @@
                        Foreground="{DynamicResource PlayAch.Brush.Text}"
                        FontSize="{Binding FontSize}"
                        FontFamily="{Binding FontFamily}"
+                       FontWeight="{Binding FontWeight}"
+                       FontStyle="{Binding FontStyle}"
+                       TextDecorations="{Binding TextDecorations}"
                        TextTrimming="CharacterEllipsis">
                 <TextBlock.Style>
                     <Style TargetType="TextBlock" BasedOn="{StaticResource PlayAch.TextBlock.BaseStyle}">
@@ -128,6 +131,9 @@
                        Foreground="{DynamicResource PlayAch.Brush.Text}"
                        FontSize="{Binding FontSize}"
                        FontFamily="{Binding FontFamily}"
+                       FontWeight="{Binding FontWeight}"
+                       FontStyle="{Binding FontStyle}"
+                       TextDecorations="{Binding TextDecorations}"
                        TextTrimming="CharacterEllipsis">
                 <TextBlock.Style>
                     <Style TargetType="TextBlock" BasedOn="{StaticResource PlayAch.TextBlock.BaseStyle}">
@@ -148,6 +154,9 @@
                        Foreground="{DynamicResource PlayAch.Brush.Text}"
                        FontSize="{Binding FontSize}"
                        FontFamily="{Binding FontFamily}"
+                       FontWeight="{Binding FontWeight}"
+                       FontStyle="{Binding FontStyle}"
+                       TextDecorations="{Binding TextDecorations}"
                        TextTrimming="CharacterEllipsis">
                 <TextBlock.Style>
                     <Style TargetType="TextBlock" BasedOn="{StaticResource PlayAch.TextBlock.BaseStyle}">
@@ -170,12 +179,18 @@
                        Foreground="{DynamicResource PlayAch.Brush.Text}"
                        FontSize="{Binding FontSize}"
                        FontFamily="{Binding FontFamily}"
+                       FontWeight="{Binding FontWeight}"
+                       FontStyle="{Binding FontStyle}"
+                       TextDecorations="{Binding TextDecorations}"
                        Visibility="{Binding ShowDateSeparator, Converter={StaticResource BooleanToVisibilityConverter}}"/>
             <TextBlock Text="{Binding Parent.UnlockDateTimeText}"
                        Style="{DynamicResource PlayAch.TextBlock.BaseStyle}"
                        Foreground="{DynamicResource PlayAch.Brush.Text}"
                        FontSize="{Binding FontSize}"
                        FontFamily="{Binding FontFamily}"
+                       FontWeight="{Binding FontWeight}"
+                       FontStyle="{Binding FontStyle}"
+                       TextDecorations="{Binding TextDecorations}"
                        Visibility="{Binding ShowUnlockTime, Converter={StaticResource BooleanToVisibilityConverter}}"/>
         </StackPanel>
         </Grid>
@@ -200,9 +215,13 @@
                    Effect="{Binding ImageShadow}"
                    Visibility="{Binding ShowInlineBadge, Converter={StaticResource BooleanToVisibilityConverter}}"/>
             <Grid Effect="{Binding TextShadow}">
+            <!-- The line's FontWeight comes from the descriptor: SemiBold by default, Bold
+                 when the surface's title emphasis has bold on. -->
             <TextBlock FontSize="{Binding FontSize}"
                        FontFamily="{Binding FontFamily}"
-                       FontWeight="SemiBold"
+                       FontWeight="{Binding FontWeight}"
+                       FontStyle="{Binding FontStyle}"
+                       TextDecorations="{Binding TextDecorations}"
                        TextWrapping="NoWrap"
                        TextTrimming="CharacterEllipsis"
                        VerticalAlignment="Center"
@@ -241,6 +260,9 @@
                    Foreground="{DynamicResource PlayAch.Brush.Text}"
                    FontSize="{Binding FontSize}"
                    FontFamily="{Binding FontFamily}"
+                   FontWeight="{Binding FontWeight}"
+                   FontStyle="{Binding FontStyle}"
+                   TextDecorations="{Binding TextDecorations}"
                    TextWrapping="Wrap"
                    TextTrimming="CharacterEllipsis"
                    UseLayoutRounding="False"
@@ -263,6 +285,9 @@
                    Foreground="{DynamicResource PlayAch.Brush.Text}"
                    FontSize="{Binding FontSize}"
                    FontFamily="{Binding FontFamily}"
+                   FontWeight="{Binding FontWeight}"
+                   FontStyle="{Binding FontStyle}"
+                   TextDecorations="{Binding TextDecorations}"
                    TextWrapping="NoWrap"
                    TextTrimming="CharacterEllipsis"
                    LineHeight="{Binding LineBoxHeight}"

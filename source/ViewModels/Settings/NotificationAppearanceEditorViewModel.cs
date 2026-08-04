@@ -5,6 +5,7 @@ using System.ComponentModel;
 using System.Globalization;
 using System.IO;
 using System.Linq;
+using System.Runtime.CompilerServices;
 using System.Threading;
 using System.Threading.Tasks;
 using System.Windows.Media;
@@ -81,7 +82,12 @@ namespace PlayniteAchievements.ViewModels.Settings
 
             LineRows = new ObservableCollection<NotificationLineRowItem>(
                 NotificationSurfaceStyle.DefaultLineOrder.Select(kind =>
-                    new NotificationLineRowItem(kind, BuildLineDisplayName(kind), OnLineRowSizeEdited)));
+                    new NotificationLineRowItem(
+                        kind,
+                        BuildLineDisplayName(kind),
+                        OnLineRowSizeEdited,
+                        OnLineRowEmphasisEdited,
+                        OnLineRowFontFamilyEdited)));
         }
 
         /// <summary>
@@ -157,18 +163,7 @@ namespace PlayniteAchievements.ViewModels.Settings
 
         public FontFamilyOption SelectedFontFamilyOption
         {
-            get
-            {
-                var familyName = Surface?.FontFamily;
-                if (string.IsNullOrWhiteSpace(familyName))
-                {
-                    return FontFamilyOptions.FirstOrDefault();
-                }
-
-                return FontFamilyOptions.FirstOrDefault(option =>
-                           string.Equals(option.FamilyName, familyName, StringComparison.OrdinalIgnoreCase))
-                       ?? FontFamilyOptions.FirstOrDefault();
-            }
+            get => FindOption(FontFamilyOptions, Surface?.FontFamily);
             set
             {
                 var surface = Surface;
@@ -183,6 +178,66 @@ namespace PlayniteAchievements.ViewModels.Settings
                     surface.FontFamily = familyName;
                 }
             }
+        }
+
+        /// <summary>
+        /// The per-line font dropdown's options: "Default" (follow the shared family) plus the
+        /// same system families as <see cref="FontFamilyOptions"/>.
+        /// </summary>
+        public IReadOnlyList<FontFamilyOption> LineFontFamilyOptions => EnsureLineFontFamilyOptions();
+
+        private static IReadOnlyList<FontFamilyOption> _lineFontFamilyOptions;
+
+        private static IReadOnlyList<FontFamilyOption> EnsureLineFontFamilyOptions()
+        {
+            lock (_fontFamilyOptionsGate)
+            {
+                if (_lineFontFamilyOptions == null)
+                {
+                    var options = new List<FontFamilyOption>
+                    {
+                        new FontFamilyOption(
+                            L("LOCPlayAch_Common_Default"),
+                            familyName: null,
+                            previewFamily: System.Windows.SystemFonts.MessageFontFamily)
+                    };
+                    options.AddRange(EnsureFontFamilyOptions().Where(option => option.FamilyName != null));
+                    _lineFontFamilyOptions = options;
+                }
+
+                return _lineFontFamilyOptions;
+            }
+        }
+
+        private static FontFamilyOption FindOption(IReadOnlyList<FontFamilyOption> options, string familyName)
+        {
+            if (string.IsNullOrWhiteSpace(familyName))
+            {
+                return options.FirstOrDefault();
+            }
+
+            return options.FirstOrDefault(option =>
+                       string.Equals(option.FamilyName, familyName, StringComparison.OrdinalIgnoreCase))
+                   ?? options.FirstOrDefault();
+        }
+
+        /// <summary>
+        /// Applies the shared family to every line at once by clearing the per-line overrides
+        /// (the lines then follow <see cref="SelectedFontFamilyOption"/>'s stored value).
+        /// </summary>
+        public void ApplyFontFamilyToAllLines()
+        {
+            var surface = Surface;
+            if (surface == null || !_isEditable)
+            {
+                return;
+            }
+
+            surface.HeaderFontFamily = null;
+            surface.TitleFontFamily = null;
+            surface.BodyFontFamily = null;
+            surface.GameCategoryFontFamily = null;
+            RefreshLineSizes();
         }
 
         #region Rarity badge / percent placement (two dropdowns over the surface flags)
@@ -1089,7 +1144,7 @@ namespace PlayniteAchievements.ViewModels.Settings
 
         #endregion
 
-        #region Header texts (pending until Apply; toast surface hosts the shared group)
+        #region Header texts (pending until committed on focus loss or Enter)
 
         public string UnlockHeaderText
         {
@@ -1387,6 +1442,103 @@ namespace PlayniteAchievements.ViewModels.Settings
             RefreshLineSizes();
         }
 
+        private void OnLineRowEmphasisEdited(NotificationLineRowItem row)
+        {
+            var surface = Surface;
+            if (surface == null || !_isEditable)
+            {
+                SyncLineRows();
+                return;
+            }
+
+            SetLineEmphasis(surface, row.Kind, row.Emphasis);
+        }
+
+        private void OnLineRowFontFamilyEdited(NotificationLineRowItem row)
+        {
+            var surface = Surface;
+            if (surface == null || !_isEditable)
+            {
+                SyncLineRows();
+                return;
+            }
+
+            SetLineFontFamily(surface, row.Kind, row.SelectedFontFamilyOption?.FamilyName);
+        }
+
+        private static void SetLineFontFamily(NotificationSurfaceStyle surface, string kind, string familyName)
+        {
+            switch (kind)
+            {
+                case NotificationSurfaceStyle.LineHeader:
+                    surface.HeaderFontFamily = familyName;
+                    break;
+                case NotificationSurfaceStyle.LineGameCategory:
+                    surface.GameCategoryFontFamily = familyName;
+                    break;
+                case NotificationSurfaceStyle.LineTitle:
+                    surface.TitleFontFamily = familyName;
+                    break;
+                case NotificationSurfaceStyle.LineDescription:
+                    surface.BodyFontFamily = familyName;
+                    break;
+            }
+        }
+
+        private static string GetLineFontFamily(NotificationSurfaceStyle surface, string kind)
+        {
+            switch (kind)
+            {
+                case NotificationSurfaceStyle.LineHeader:
+                    return surface?.HeaderFontFamily;
+                case NotificationSurfaceStyle.LineGameCategory:
+                    return surface?.GameCategoryFontFamily;
+                case NotificationSurfaceStyle.LineTitle:
+                    return surface?.TitleFontFamily;
+                case NotificationSurfaceStyle.LineDescription:
+                    return surface?.BodyFontFamily;
+                default:
+                    return null;
+            }
+        }
+
+        private static void SetLineEmphasis(
+            NotificationSurfaceStyle surface, string kind, NotificationLineEmphasis emphasis)
+        {
+            switch (kind)
+            {
+                case NotificationSurfaceStyle.LineHeader:
+                    surface.HeaderEmphasis = emphasis;
+                    break;
+                case NotificationSurfaceStyle.LineGameCategory:
+                    surface.GameCategoryEmphasis = emphasis;
+                    break;
+                case NotificationSurfaceStyle.LineTitle:
+                    surface.TitleEmphasis = emphasis;
+                    break;
+                case NotificationSurfaceStyle.LineDescription:
+                    surface.BodyEmphasis = emphasis;
+                    break;
+            }
+        }
+
+        private static NotificationLineEmphasis GetLineEmphasis(NotificationSurfaceStyle surface, string kind)
+        {
+            switch (kind)
+            {
+                case NotificationSurfaceStyle.LineHeader:
+                    return surface?.HeaderEmphasis ?? NotificationLineEmphasis.None;
+                case NotificationSurfaceStyle.LineGameCategory:
+                    return surface?.GameCategoryEmphasis ?? NotificationLineEmphasis.None;
+                case NotificationSurfaceStyle.LineTitle:
+                    return surface?.TitleEmphasis ?? NotificationLineEmphasis.None;
+                case NotificationSurfaceStyle.LineDescription:
+                    return surface?.BodyEmphasis ?? NotificationLineEmphasis.None;
+                default:
+                    return NotificationLineEmphasis.None;
+            }
+        }
+
         private static void SetLineSize(NotificationSurfaceStyle surface, string kind, double? size)
         {
             switch (kind)
@@ -1458,6 +1610,9 @@ namespace PlayniteAchievements.ViewModels.Settings
             {
                 var size = GetLineSize(surface, row.Kind);
                 row.UpdateSizeText(size?.ToString(CultureInfo.CurrentCulture) ?? string.Empty);
+                row.UpdateEmphasis(GetLineEmphasis(surface, row.Kind));
+                row.UpdateFontFamilyOption(
+                    FindOption(LineFontFamilyOptions, GetLineFontFamily(surface, row.Kind)));
             }
         }
 
@@ -1975,26 +2130,142 @@ namespace PlayniteAchievements.ViewModels.Settings
 
     /// <summary>
     /// One draggable text line row of the appearance editor: the line kind token, its
-    /// localized name, and its editable font size text (blank = theme default).
+    /// localized name, its editable font size text (blank = theme default), and its
+    /// whole-line emphasis toggles.
     /// </summary>
     internal sealed class NotificationLineRowItem : ObservableObject
     {
         private readonly Action<NotificationLineRowItem, string> _onSizeEdited;
+        private readonly Action<NotificationLineRowItem> _onEmphasisEdited;
+        private readonly Action<NotificationLineRowItem> _onFontFamilyEdited;
         private string _sizeText = string.Empty;
+        private bool _isBold;
+        private bool _isItalic;
+        private bool _isUnderline;
+        private bool _isStrikethrough;
+        private bool _suppressEmphasisCallback;
+        private FontFamilyOption _selectedFontFamilyOption;
+        private bool _suppressFontFamilyCallback;
 
         public NotificationLineRowItem(
             string kind,
             string displayName,
-            Action<NotificationLineRowItem, string> onSizeEdited)
+            Action<NotificationLineRowItem, string> onSizeEdited,
+            Action<NotificationLineRowItem> onEmphasisEdited,
+            Action<NotificationLineRowItem> onFontFamilyEdited)
         {
             Kind = kind;
             DisplayName = displayName;
             _onSizeEdited = onSizeEdited;
+            _onEmphasisEdited = onEmphasisEdited;
+            _onFontFamilyEdited = onFontFamilyEdited;
         }
 
         public string Kind { get; }
 
         public string DisplayName { get; }
+
+        public bool IsBold
+        {
+            get => _isBold;
+            set => SetEmphasisFlag(ref _isBold, value);
+        }
+
+        public bool IsItalic
+        {
+            get => _isItalic;
+            set => SetEmphasisFlag(ref _isItalic, value);
+        }
+
+        public bool IsUnderline
+        {
+            get => _isUnderline;
+            set => SetEmphasisFlag(ref _isUnderline, value);
+        }
+
+        public bool IsStrikethrough
+        {
+            get => _isStrikethrough;
+            set => SetEmphasisFlag(ref _isStrikethrough, value);
+        }
+
+        /// <summary>The four toggle flags composed as the stored emphasis value.</summary>
+        public NotificationLineEmphasis Emphasis =>
+            (IsBold ? NotificationLineEmphasis.Bold : NotificationLineEmphasis.None) |
+            (IsItalic ? NotificationLineEmphasis.Italic : NotificationLineEmphasis.None) |
+            (IsUnderline ? NotificationLineEmphasis.Underline : NotificationLineEmphasis.None) |
+            (IsStrikethrough ? NotificationLineEmphasis.Strikethrough : NotificationLineEmphasis.None);
+
+        /// <summary>
+        /// This line's font family selection: the "Default" option (follow the shared family)
+        /// or a concrete system family.
+        /// </summary>
+        public FontFamilyOption SelectedFontFamilyOption
+        {
+            get => _selectedFontFamilyOption;
+            set
+            {
+                if (!SetValueAndReturn(ref _selectedFontFamilyOption, value))
+                {
+                    return;
+                }
+
+                if (!_suppressFontFamilyCallback)
+                {
+                    _onFontFamilyEdited?.Invoke(this);
+                }
+            }
+        }
+
+        /// <summary>
+        /// Updates the font selection from the stored value without routing back through the
+        /// edit callback.
+        /// </summary>
+        public void UpdateFontFamilyOption(FontFamilyOption option)
+        {
+            _suppressFontFamilyCallback = true;
+            try
+            {
+                SelectedFontFamilyOption = option;
+            }
+            finally
+            {
+                _suppressFontFamilyCallback = false;
+            }
+        }
+
+        /// <summary>
+        /// Updates the toggle flags from the stored value without routing back through the
+        /// edit callback.
+        /// </summary>
+        public void UpdateEmphasis(NotificationLineEmphasis emphasis)
+        {
+            _suppressEmphasisCallback = true;
+            try
+            {
+                IsBold = (emphasis & NotificationLineEmphasis.Bold) != 0;
+                IsItalic = (emphasis & NotificationLineEmphasis.Italic) != 0;
+                IsUnderline = (emphasis & NotificationLineEmphasis.Underline) != 0;
+                IsStrikethrough = (emphasis & NotificationLineEmphasis.Strikethrough) != 0;
+            }
+            finally
+            {
+                _suppressEmphasisCallback = false;
+            }
+        }
+
+        private void SetEmphasisFlag(ref bool field, bool value, [CallerMemberName] string propertyName = null)
+        {
+            if (!SetValueAndReturn(ref field, value, propertyName))
+            {
+                return;
+            }
+
+            if (!_suppressEmphasisCallback)
+            {
+                _onEmphasisEdited?.Invoke(this);
+            }
+        }
 
         /// <summary>
         /// Editable size text (LostFocus commit). Setting it routes through the owner, which

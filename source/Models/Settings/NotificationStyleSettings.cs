@@ -104,11 +104,19 @@ namespace PlayniteAchievements.Models.Settings
         private FrameVignetteStyle _frameVignette = FrameVignetteStyle.Full;
         private List<string> _lineOrder;
         private string _fontFamily;
+        private string _headerFontFamily;
+        private string _titleFontFamily;
+        private string _bodyFontFamily;
+        private string _gameCategoryFontFamily;
         private double? _headerFontSize;
         private double? _titleFontSize;
         private double? _bodyFontSize;
         private double? _gameCategoryFontSize;
         private double? _rarityFontSize;
+        private NotificationLineEmphasis _headerEmphasis;
+        private NotificationLineEmphasis _titleEmphasis;
+        private NotificationLineEmphasis _bodyEmphasis;
+        private NotificationLineEmphasis _gameCategoryEmphasis;
         private double? _cardWidth;
         private double? _cardHeight;
         private double? _iconSize;
@@ -404,11 +412,52 @@ namespace PlayniteAchievements.Models.Settings
 
         /// <summary>
         /// Font family name for all surface text, or null/blank for the theme-derived family.
+        /// Individual lines may override it via the per-line *FontFamily properties.
         /// </summary>
         public string FontFamily
         {
             get => _fontFamily;
             set => SetValue(ref _fontFamily, value);
+        }
+
+        /// <summary>
+        /// Font family override for the header line, or null/blank to follow
+        /// <see cref="FontFamily"/>.
+        /// </summary>
+        public string HeaderFontFamily
+        {
+            get => _headerFontFamily;
+            set => SetValue(ref _headerFontFamily, value);
+        }
+
+        /// <summary>
+        /// Font family override for the achievement title line, or null/blank to follow
+        /// <see cref="FontFamily"/>.
+        /// </summary>
+        public string TitleFontFamily
+        {
+            get => _titleFontFamily;
+            set => SetValue(ref _titleFontFamily, value);
+        }
+
+        /// <summary>
+        /// Font family override for the description line, or null/blank to follow
+        /// <see cref="FontFamily"/>.
+        /// </summary>
+        public string BodyFontFamily
+        {
+            get => _bodyFontFamily;
+            set => SetValue(ref _bodyFontFamily, value);
+        }
+
+        /// <summary>
+        /// Font family override for the game/category line, or null/blank to follow
+        /// <see cref="FontFamily"/>.
+        /// </summary>
+        public string GameCategoryFontFamily
+        {
+            get => _gameCategoryFontFamily;
+            set => SetValue(ref _gameCategoryFontFamily, value);
         }
 
         /// <summary>
@@ -458,6 +507,47 @@ namespace PlayniteAchievements.Models.Settings
         {
             get => _rarityFontSize;
             set => SetValue(ref _rarityFontSize, value);
+        }
+
+        /// <summary>
+        /// Whole-line emphasis (bold/italic/underline/strikethrough) for the header line.
+        /// </summary>
+        [JsonProperty(DefaultValueHandling = DefaultValueHandling.Include)]
+        public NotificationLineEmphasis HeaderEmphasis
+        {
+            get => _headerEmphasis;
+            set => SetValue(ref _headerEmphasis, value);
+        }
+
+        /// <summary>
+        /// Whole-line emphasis for the achievement title line. Bold raises the line's built-in
+        /// SemiBold weight to Bold.
+        /// </summary>
+        [JsonProperty(DefaultValueHandling = DefaultValueHandling.Include)]
+        public NotificationLineEmphasis TitleEmphasis
+        {
+            get => _titleEmphasis;
+            set => SetValue(ref _titleEmphasis, value);
+        }
+
+        /// <summary>
+        /// Whole-line emphasis for the description line.
+        /// </summary>
+        [JsonProperty(DefaultValueHandling = DefaultValueHandling.Include)]
+        public NotificationLineEmphasis BodyEmphasis
+        {
+            get => _bodyEmphasis;
+            set => SetValue(ref _bodyEmphasis, value);
+        }
+
+        /// <summary>
+        /// Whole-line emphasis for the game/category line.
+        /// </summary>
+        [JsonProperty(DefaultValueHandling = DefaultValueHandling.Include)]
+        public NotificationLineEmphasis GameCategoryEmphasis
+        {
+            get => _gameCategoryEmphasis;
+            set => SetValue(ref _gameCategoryEmphasis, value);
         }
 
         /// <summary>
@@ -578,11 +668,19 @@ namespace PlayniteAchievements.Models.Settings
                 FrameVignette = FrameVignette,
                 LineOrder = LineOrder != null ? new List<string>(LineOrder) : null,
                 FontFamily = FontFamily,
+                HeaderFontFamily = HeaderFontFamily,
+                TitleFontFamily = TitleFontFamily,
+                BodyFontFamily = BodyFontFamily,
+                GameCategoryFontFamily = GameCategoryFontFamily,
                 HeaderFontSize = HeaderFontSize,
                 TitleFontSize = TitleFontSize,
                 BodyFontSize = BodyFontSize,
                 GameCategoryFontSize = GameCategoryFontSize,
                 RarityFontSize = RarityFontSize,
+                HeaderEmphasis = HeaderEmphasis,
+                TitleEmphasis = TitleEmphasis,
+                BodyEmphasis = BodyEmphasis,
+                GameCategoryEmphasis = GameCategoryEmphasis,
                 CardWidth = CardWidth,
                 CardHeight = CardHeight,
                 IconSize = IconSize,

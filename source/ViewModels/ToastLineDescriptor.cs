@@ -39,6 +39,25 @@ namespace PlayniteAchievements.ViewModels
         /// </summary>
         public Effect ImageShadow { get; set; }
 
+        /// <summary>
+        /// Whole-line font weight from the surface's per-line emphasis setting. The title line
+        /// defaults to SemiBold, every other line to Normal; the bold toggle raises either to
+        /// Bold. Resolved by the owning view model.
+        /// </summary>
+        public FontWeight FontWeight { get; set; } = FontWeights.Normal;
+
+        /// <summary>
+        /// Whole-line font style (italic toggle). Resolved by the owning view model.
+        /// </summary>
+        public FontStyle FontStyle { get; set; } = FontStyles.Normal;
+
+        /// <summary>
+        /// Whole-line text decorations (underline/strikethrough toggles), or null for none.
+        /// Inline markdown in the line text composes on top, except that a run carrying its
+        /// own markdown decoration replaces the line decoration for that run.
+        /// </summary>
+        public TextDecorationCollection TextDecorations { get; set; }
+
         public AchievementToastViewModel Parent { get; }
 
         public double FontSize { get; }

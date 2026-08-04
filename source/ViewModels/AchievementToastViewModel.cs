@@ -783,6 +783,11 @@ namespace PlayniteAchievements.ViewModels
         {
             var surface = isFrame ? _style.Frame : _style.Toast;
             var family = isFrame ? FrameFontFamily : ToastFontFamily;
+
+            // A line's family override wins over the surface family (which itself falls back
+            // to the theme-derived family).
+            FontFamily LineFamily(string overrideFamily) =>
+                string.IsNullOrWhiteSpace(overrideFamily) ? family : ResolveFontFamily(overrideFamily);
             var headerSize = isFrame ? FrameHeaderFontSize : ToastHeaderFontSize;
             var titleSize = isFrame ? FrameTitleFontSize : ToastTitleFontSize;
             var bodySize = surface.BodyFontSize ??
@@ -819,7 +824,7 @@ namespace PlayniteAchievements.ViewModels
                         lines.Add(new ToastHeaderLine(
                             this,
                             headerSize,
-                            family,
+                            LineFamily(surface.HeaderFontFamily),
                             contentShadow,
                             isFrame ? FrameShowHeader : ShowHeader,
                             isFrame ? FrameShowUnlockTime : ShowUnlockTime,
@@ -833,7 +838,7 @@ namespace PlayniteAchievements.ViewModels
                         lines.Add(new ToastTitleLine(
                             this,
                             titleSize,
-                            family,
+                            LineFamily(surface.TitleFontFamily),
                             contentShadow,
                             isFrame ? FrameShowName : ShowName,
                             isFrame ? FrameTitleBrush : TitleBrush,
@@ -846,7 +851,7 @@ namespace PlayniteAchievements.ViewModels
                         lines.Add(new ToastDescriptionLine(
                             this,
                             bodySize,
-                            family,
+                            LineFamily(surface.BodyFontFamily),
                             contentShadow,
                             isFrame ? FrameShowDescription : ShowDescription,
                             descriptionMaxLines));
@@ -855,7 +860,7 @@ namespace PlayniteAchievements.ViewModels
                         lines.Add(new ToastGameCategoryLine(
                             this,
                             gameCategorySize,
-                            family,
+                            LineFamily(surface.GameCategoryFontFamily),
                             contentShadow,
                             showGameName,
                             showCategory,
@@ -872,9 +877,60 @@ namespace PlayniteAchievements.ViewModels
                 line.VerticalPadding = linePadding;
                 line.TextShadowInner = innerShadow;
                 line.ImageShadow = imageShadow;
+
+                var emphasis = ResolveLineEmphasis(surface, line);
+                line.FontWeight = (emphasis & NotificationLineEmphasis.Bold) != 0
+                    ? FontWeights.Bold
+                    : (line is ToastTitleLine ? FontWeights.SemiBold : FontWeights.Normal);
+                line.FontStyle = (emphasis & NotificationLineEmphasis.Italic) != 0
+                    ? FontStyles.Italic
+                    : FontStyles.Normal;
+                line.TextDecorations = BuildLineDecorations(emphasis);
             }
 
             return lines;
+        }
+
+        private static NotificationLineEmphasis ResolveLineEmphasis(
+            NotificationSurfaceStyle surface, ToastLineDescriptor line)
+        {
+            switch (line)
+            {
+                case ToastHeaderLine _:
+                    return surface.HeaderEmphasis;
+                case ToastTitleLine _:
+                    return surface.TitleEmphasis;
+                case ToastDescriptionLine _:
+                    return surface.BodyEmphasis;
+                case ToastGameCategoryLine _:
+                    return surface.GameCategoryEmphasis;
+                default:
+                    return NotificationLineEmphasis.None;
+            }
+        }
+
+        private static TextDecorationCollection BuildLineDecorations(NotificationLineEmphasis emphasis)
+        {
+            var underline = (emphasis & NotificationLineEmphasis.Underline) != 0;
+            var strike = (emphasis & NotificationLineEmphasis.Strikethrough) != 0;
+            if (!underline && !strike)
+            {
+                return null;
+            }
+
+            var decorations = new TextDecorationCollection();
+            if (underline)
+            {
+                decorations.Add(System.Windows.TextDecorations.Underline);
+            }
+
+            if (strike)
+            {
+                decorations.Add(System.Windows.TextDecorations.Strikethrough);
+            }
+
+            decorations.Freeze();
+            return decorations;
         }
 
         private static double ResolveFontSizeResource(string key, double fallback)
