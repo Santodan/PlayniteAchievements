@@ -52,6 +52,7 @@ namespace PlayniteAchievements.Views.Settings.General
         private bool _currentFrameUseThemeStyling = true;
         private bool _suppressCustomizeEvents;
         private bool _suppressThemeStylingEvents;
+        private bool _suppressSelectionChanged;
 
         private bool IsGameMode => _gameId != Guid.Empty;
 
@@ -111,8 +112,12 @@ namespace PlayniteAchievements.Views.Settings.General
             }
             else
             {
+                // Setting SelectedIndex fires SelectionChanged synchronously; the ctor's single
+                // ApplySelection below already covers the initial selection.
+                _suppressSelectionChanged = true;
                 PlatformSelector.ItemsSource = BuildPlatformOptions();
                 PlatformSelector.SelectedIndex = 0;
+                _suppressSelectionChanged = false;
             }
 
             _persistedSubscription = new PersistedSettingsSubscription(
@@ -185,6 +190,11 @@ namespace PlayniteAchievements.Views.Settings.General
 
         private void PlatformSelector_SelectionChanged(object sender, SelectionChangedEventArgs e)
         {
+            if (_suppressSelectionChanged)
+            {
+                return;
+            }
+
             ApplySelection();
         }
 
@@ -647,6 +657,13 @@ namespace PlayniteAchievements.Views.Settings.General
 
         private void UpdateMockups()
         {
+            // Mockups (and the source summary) are visual-only; while the control is not in the
+            // visual tree, the Loaded handler's rebuild covers every change made in the meantime.
+            if (!IsLoaded)
+            {
+                return;
+            }
+
             // The source summary needs no mockup hosts, so refresh it before the host guard.
             RefreshSourceSummary();
 
