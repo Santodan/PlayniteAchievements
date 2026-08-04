@@ -62,6 +62,11 @@ namespace PlayniteAchievements.Services.Recording
         private const double SlideAllowanceSeconds = 2.0;
         private const double ToastTailSeconds = 1.0;
         private const double PostFadeTailSeconds = 0.5;
+        // The chime mix: how much of the sidecar track to read from the wave's sound onset, and
+        // how far the chime onset precedes the toast reveal in the clip (sound fires, then the
+        // 450ms sound-align delay plus ~300ms of slide-in precede the settled card).
+        private const double ChimeMixSeconds = 3.0;
+        private const double ChimeLeadBeforeToastSeconds = 0.75;
         private const int MaxCaptureRestarts = 3;
         private const int RestartBackoffSeconds = 5;
         // Freeze recovery (distinct from crash restarts): a frozen-but-alive capture is detected by
@@ -168,6 +173,9 @@ namespace PlayniteAchievements.Services.Recording
             // discovery/prune/export.
             public string SegmentExtension = RecordingPaths.SegmentFileExtension;
             public AudioLoopbackRecorder AudioRecorder;
+            // The Playnite-only sidecar track (chm_*.wav): the main track excludes Playnite's
+            // process tree, so unlock chimes exist only here for the per-clip chime mix.
+            public AudioLoopbackRecorder ChimeRecorder;
             public CancellationTokenSource Cts;
             public Timer PruneTimer;
             public volatile bool Stopping;
@@ -193,6 +201,9 @@ namespace PlayniteAchievements.Services.Recording
 
             /// <summary>Toast display duration snapshotted at unlock (theme override included).</summary>
             public int EffectiveToastSeconds;
+
+            /// <summary>When this request's own wave chime played — where the chime mix reads from.</summary>
+            public DateTime? OwnSoundUtc;
 
             /// <summary>
             /// Completed with this achievement's overlay track when its wave finishes, or null
@@ -472,6 +483,24 @@ namespace PlayniteAchievements.Services.Recording
                     {
                         recorder.Dispose();
                     }
+
+                    // The chime sidecar (Playnite-only) rides alongside so each clip can mix in
+                    // exactly its own wave's chime. Best-effort like the main track.
+                    if (session.AudioRecorder != null && AudioLoopbackRecorder.IsChimeCaptureSupported)
+                    {
+                        var chimeRecorder = new AudioLoopbackRecorder(
+                            session.BufferDirectory,
+                            _logger,
+                            capturePlayniteChimes: true);
+                        if (chimeRecorder.Start())
+                        {
+                            session.ChimeRecorder = chimeRecorder;
+                        }
+                        else
+                        {
+                            chimeRecorder.Dispose();
+                        }
+                    }
                 }
 
                 session.PruneTimer = new Timer(
@@ -543,8 +572,9 @@ namespace PlayniteAchievements.Services.Recording
                 // the buffer (an unfinalized mp4 segment is not decodable).
                 session.WgcRecorder?.Stop();
 
-                // Close the current audio chunk before pending clips read the buffer.
+                // Close the current audio chunks before pending clips read the buffer.
                 session.AudioRecorder?.Stop();
+                session.ChimeRecorder?.Stop();
 
                 // Toasts queued for this session were just cleared; resolve the still-waiting
                 // track waits null so their clips save toastless before the buffer goes away.
@@ -577,6 +607,8 @@ namespace PlayniteAchievements.Services.Recording
                 session.WgcRecorder = null;
                 session.AudioRecorder?.Dispose();
                 session.AudioRecorder = null;
+                session.ChimeRecorder?.Dispose();
+                session.ChimeRecorder = null;
 
                 TryDeleteDirectory(session.BufferDirectory);
             }
@@ -691,7 +723,9 @@ namespace PlayniteAchievements.Services.Recording
         /// <summary>
         /// A wave going on screen proves the toast queue is draining; bump the activity clock so
         /// requests queued behind long waves keep waiting for their own track instead of timing
-        /// out (track completions alone can be a full display duration apart).
+        /// out (track completions alone can be a full display duration apart). Also stamps the
+        /// wave's chime time on its still-waiting requests so the re-encode can read the chime
+        /// from the sidecar track.
         /// </summary>
         private void OnToastWaveDisplayed(object sender, ToastWaveDisplayedEventArgs e)
         {
@@ -703,6 +737,20 @@ namespace PlayniteAchievements.Services.Recording
             lock (_gate)
             {
                 _lastToastActivityUtc = DateTime.UtcNow;
+                if (e.SoundPlayedUtc.HasValue)
+                {
+                    foreach (var vm in e.Wave)
+                    {
+                        var match = _awaitingTrack.FirstOrDefault(r =>
+                            !r.OwnSoundUtc.HasValue &&
+                            string.Equals(r.ProviderKey, vm.ProviderKey, StringComparison.OrdinalIgnoreCase) &&
+                            string.Equals(r.AchievementName, vm.AchievementName, StringComparison.Ordinal));
+                        if (match != null)
+                        {
+                            match.OwnSoundUtc = e.SoundPlayedUtc;
+                        }
+                    }
+                }
             }
         }
 
@@ -845,7 +893,7 @@ namespace PlayniteAchievements.Services.Recording
                     if (track != null)
                     {
                         var composited = await ReencodeWithTrackAsync(
-                                session, basePath, track, window, toastSlotSeconds, videoLeadSeconds)
+                                session, request, basePath, track, window, toastSlotSeconds, videoLeadSeconds)
                             .ConfigureAwait(false);
                         if (composited != null)
                         {
@@ -946,7 +994,7 @@ namespace PlayniteAchievements.Services.Recording
         /// on failure (base clip stands).
         /// </summary>
         private async Task<string> ReencodeWithTrackAsync(
-            CaptureSession session, string basePath, ToastOverlayTrack track,
+            CaptureSession session, ClipRequest request, string basePath, ToastOverlayTrack track,
             SegmentTimeline.ClipWindow window, double toastSlotSeconds, double videoLeadSeconds)
         {
             // Toast position within the BASE clip's timeline: the base starts `videoLeadSeconds`
@@ -955,6 +1003,10 @@ namespace PlayniteAchievements.Services.Recording
             var endSeconds = toastStartSeconds
                 + Math.Min(toastSlotSeconds, track.DurationSeconds)
                 + PostFadeTailSeconds;
+            // The wave's own chime, read from the Playnite-only sidecar at its real time, mixed
+            // in slightly before the composited toast (matching the live sound-to-reveal lead).
+            var chimePcm = TryReadChimePcm(session, request);
+            var chimeStartSeconds = toastStartSeconds - ChimeLeadBeforeToastSeconds;
             var tempPath = Path.Combine(session.BufferDirectory, $"clipovl_{Guid.NewGuid():N}.mp4");
             await _reencodeGate.WaitAsync().ConfigureAwait(false);
             try
@@ -962,7 +1014,7 @@ namespace PlayniteAchievements.Services.Recording
                 var reencoder = new MediaFoundationOverlayReencoder(_logger);
                 var ok = await Task.Run(() => reencoder.Export(
                         basePath, track, toastStartSeconds, toastSlotSeconds, videoLeadSeconds,
-                        endSeconds, tempPath))
+                        endSeconds, chimePcm, chimeStartSeconds, tempPath))
                     .ConfigureAwait(false);
                 if (ok)
                 {
@@ -1090,6 +1142,37 @@ namespace PlayniteAchievements.Services.Recording
         }
 
         /// <summary>
+        /// Reads this request's chime from the Playnite-only sidecar chunks at the moment its
+        /// wave sound actually played. Null (clip audio ships without a chime) when the sidecar
+        /// isn't running, the wave never sounded, or the chunks are gone.
+        /// </summary>
+        private byte[] TryReadChimePcm(CaptureSession session, ClipRequest request)
+        {
+            DateTime? ownSound;
+            lock (_gate)
+            {
+                ownSound = request.OwnSoundUtc;
+            }
+
+            if (!ownSound.HasValue || session.ChimeRecorder == null)
+            {
+                return null;
+            }
+
+            var chunks = SegmentTimeline.ParseSegments(
+                ListBufferFiles(
+                    session.BufferDirectory,
+                    RecordingPaths.ChimeChunkFilePrefix,
+                    RecordingPaths.AudioChunkFileExtension),
+                TimeZoneInfo.Local,
+                RecordingPaths.ChimeChunkFilePrefix,
+                RecordingPaths.AudioChunkFileExtension);
+            var plan = SegmentTimeline.PlanClip(
+                chunks, ownSound.Value, ownSound.Value.AddSeconds(ChimeMixSeconds), SegmentSeconds);
+            return plan == null ? null : MediaFoundationClipExporter.TryReadPcmWindow(plan, _logger);
+        }
+
+        /// <summary>
         /// The per-clip timing line (Info) that makes refresh-latency-driven clip anchoring
         /// visible in the plugin log.
         /// </summary>
@@ -1206,19 +1289,22 @@ namespace PlayniteAchievements.Services.Recording
                 }
 
                 // Audio chunks share the retention policy (their bytes are negligible next to the
-                // video's, so reusing the same cap is safe).
-                var audioChunks = SegmentTimeline.ParseSegments(
-                    ListBufferFiles(
-                        session.BufferDirectory,
-                        RecordingPaths.AudioChunkFilePrefix,
-                        RecordingPaths.AudioChunkFileExtension),
-                    TimeZoneInfo.Local,
-                    RecordingPaths.AudioChunkFilePrefix,
-                    RecordingPaths.AudioChunkFileExtension);
-                foreach (var chunk in SegmentTimeline.SelectPrunable(
-                             audioChunks, retentionInterval, preRoll, SegmentSeconds, MaxBufferBytes))
+                // video's, so reusing the same cap is safe). The chime sidecar follows suit.
+                foreach (var prefix in new[] { RecordingPaths.AudioChunkFilePrefix, RecordingPaths.ChimeChunkFilePrefix })
                 {
-                    TryDeleteFile(chunk.Path);
+                    var audioChunks = SegmentTimeline.ParseSegments(
+                        ListBufferFiles(
+                            session.BufferDirectory,
+                            prefix,
+                            RecordingPaths.AudioChunkFileExtension),
+                        TimeZoneInfo.Local,
+                        prefix,
+                        RecordingPaths.AudioChunkFileExtension);
+                    foreach (var chunk in SegmentTimeline.SelectPrunable(
+                                 audioChunks, retentionInterval, preRoll, SegmentSeconds, MaxBufferBytes))
+                    {
+                        TryDeleteFile(chunk.Path);
+                    }
                 }
 
                 if (!HasFreeSpace(session.BufferDirectory, MinFreeBytesToContinue))
@@ -1527,6 +1613,7 @@ namespace PlayniteAchievements.Services.Recording
                 session.PruneTimer?.Dispose();
                 session.WgcRecorder?.Dispose();
                 session.AudioRecorder?.Dispose();
+                session.ChimeRecorder?.Dispose();
             }
         }
     }
