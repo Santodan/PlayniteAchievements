@@ -81,6 +81,8 @@ namespace PlayniteAchievements.Models.Settings
         private Dictionary<string, NotificationStyleSettings> _providerNotificationStyles;
         private int _toastDurationSeconds = 6;
         private int _maxConcurrentToasts = 3;
+        private bool _enableControllerVibration = false;
+        private int _controllerVibrationStrengthPercent = 50;
         private bool _enableUnlockScreenshots = false;
         private bool _unlockScreenshotClean = false;
         private bool _unlockScreenshotWithToast = true;
@@ -1088,6 +1090,24 @@ namespace PlayniteAchievements.Models.Settings
         {
             get => _toastPosition;
             set => SetValue(ref _toastPosition, value);
+        }
+
+        /// <summary>
+        /// Pulse connected game controllers when a notification shows.
+        /// </summary>
+        public bool EnableControllerVibration
+        {
+            get => _enableControllerVibration;
+            set => SetValue(ref _enableControllerVibration, value);
+        }
+
+        /// <summary>
+        /// Controller vibration strength as a percentage of full motor speed (0-100).
+        /// </summary>
+        public int ControllerVibrationStrengthPercent
+        {
+            get => _controllerVibrationStrengthPercent;
+            set => SetValue(ref _controllerVibrationStrengthPercent, Math.Max(0, Math.Min(100, value)));
         }
 
         /// <summary>
@@ -2559,6 +2579,8 @@ namespace PlayniteAchievements.Models.Settings
                 ToastDurationSeconds = this.ToastDurationSeconds,
                 MaxConcurrentToasts = this.MaxConcurrentToasts,
                 ToastPosition = this.ToastPosition,
+                EnableControllerVibration = this.EnableControllerVibration,
+                ControllerVibrationStrengthPercent = this.ControllerVibrationStrengthPercent,
                 EnableUnlockScreenshots = this.EnableUnlockScreenshots,
                 UnlockScreenshotClean = this.UnlockScreenshotClean,
                 UnlockScreenshotWithToast = this.UnlockScreenshotWithToast,
