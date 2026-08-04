@@ -515,12 +515,11 @@ namespace PlayniteAchievements.Services.UI
                     continue;
                 }
 
-                if (TryGetDirectResource(dictionary, key, out resource))
-                {
-                    return true;
-                }
-
-                if (TryFindLoadedThemeResourceInMergedDictionaries(dictionary.MergedDictionaries, key, out resource))
+                // Contains is a hash probe spanning the dictionary's whole merged subtree
+                // without instantiating deferred content, so no manual recursion is needed.
+                // Plugin dictionaries are only merged at the application level, which is the
+                // level this loop skips them at.
+                if (dictionary.Contains(key) && (resource = dictionary[key] as T) != null)
                 {
                     return true;
                 }
@@ -1272,13 +1271,7 @@ namespace PlayniteAchievements.Services.UI
             where T : class
         {
             resource = null;
-            if (dictionary == null)
-            {
-                return false;
-            }
-
-            var keys = dictionary.Keys.Cast<object>().ToList();
-            if (!keys.Any(k => string.Equals(k as string, key, StringComparison.Ordinal)))
+            if (!HasDirectResourceKey(dictionary, key))
             {
                 return false;
             }
@@ -1294,9 +1287,15 @@ namespace PlayniteAchievements.Services.UI
                 return false;
             }
 
-            return dictionary.Keys
-                .Cast<object>()
-                .Any(k => string.Equals(k as string, key, StringComparison.Ordinal));
+            foreach (var candidate in dictionary.Keys)
+            {
+                if (string.Equals(candidate as string, key, StringComparison.Ordinal))
+                {
+                    return true;
+                }
+            }
+
+            return false;
         }
 
         private static bool IsPluginDictionary(ResourceDictionary dictionary)
