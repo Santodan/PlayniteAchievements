@@ -28,7 +28,8 @@
                  at any display scale; only this shape is rasterized, where the softness is exactly
                  the shadow. Mirrors the achievement icon below (blurred backing layer + crisp
                  front copy). -->
-            <Grid helpers:RarityGlowPulse.Target="Effect">
+            <Grid helpers:RarityGlowPulse.Target="Effect"
+                  helpers:RarityGlowPulse.PhaseLock="{Binding IsPreview}">
                 <Grid.Style>
                     <Style TargetType="Grid">
                         <Setter Property="Effect">
@@ -201,6 +202,7 @@
                         <Image Stretch="Uniform"
                                RenderOptions.BitmapScalingMode="HighQuality"
                                helpers:AsyncImage.DecodePixel="160"
+                               helpers:RarityGlowPulse.PhaseLock="{Binding IsPreview}"
                                IsHitTestVisible="False">
                             <Image.Style>
                                 <Style TargetType="Image">

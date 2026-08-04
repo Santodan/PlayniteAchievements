@@ -59,6 +59,22 @@ namespace PlayniteAchievements.Views.Helpers
         public static RarityGlowPulseTarget GetTarget(DependencyObject element) =>
             (RarityGlowPulseTarget)element.GetValue(TargetProperty);
 
+        // When true (default), the pulse phase-locks to the process-wide epoch so recreated
+        // elements (grid recycling, settings mockup rebuilds) resume mid-cycle. Set false on
+        // surfaces that should pulse from the cycle start each time they are built — the toast
+        // templates opt out so every wave's glow (and its screenshots/clips) starts at the same
+        // deterministic point.
+        public static readonly DependencyProperty PhaseLockProperty =
+            DependencyProperty.RegisterAttached(
+                "PhaseLock", typeof(bool), typeof(RarityGlowPulse),
+                new PropertyMetadata(true));
+
+        public static void SetPhaseLock(DependencyObject element, bool value) =>
+            element.SetValue(PhaseLockProperty, value);
+
+        public static bool GetPhaseLock(DependencyObject element) =>
+            (bool)element.GetValue(PhaseLockProperty);
+
         // Stores the per-element settings-changed handler so it can be detached (kept only while
         // the element is loaded and active, so it never outlives the element on the app-lifetime
         // PersistedSettings instance).
@@ -81,13 +97,15 @@ namespace PlayniteAchievements.Views.Helpers
 
                 // The first render outranks Loaded (Render beats Loaded in dispatcher
                 // priority), so a recreated element would paint one frame at its static
-                // opacity before the animation attaches. Pre-set the phase-locked pulse
-                // value now so that frame already matches the cycle; the animation begun on
-                // Loaded continues from the same point via the shared epoch.
+                // opacity before the animation attaches. Pre-set the pulse value now so that
+                // frame already matches: the epoch phase for phase-locked elements, the cycle
+                // floor for opt-outs (whose animation starts from the beginning).
                 if (GetTarget(element) == RarityGlowPulseTarget.Element)
                 {
-                    element.Opacity = CurrentPulseOpacity(
-                        PlayniteAchievementsPlugin.Instance?.Settings?.Persisted);
+                    var persisted = PlayniteAchievementsPlugin.Instance?.Settings?.Persisted;
+                    element.Opacity = GetPhaseLock(element)
+                        ? CurrentPulseOpacity(persisted)
+                        : ResolvePulseParams(persisted).Min;
                 }
 
                 if (element.IsLoaded)
@@ -224,7 +242,9 @@ namespace PlayniteAchievements.Views.Helpers
                     {
                         if (GetIsActive(element) && element.Effect is DropShadowEffect effect)
                         {
-                            animation.BeginTime = PhaseLockBeginTime(cycleMilliseconds);
+                            animation.BeginTime = GetPhaseLock(element)
+                                ? PhaseLockBeginTime(cycleMilliseconds)
+                                : TimeSpan.Zero;
                             effect.BeginAnimation(DropShadowEffect.OpacityProperty, animation);
                         }
                     }),
@@ -232,7 +252,9 @@ namespace PlayniteAchievements.Views.Helpers
             }
             else
             {
-                animation.BeginTime = PhaseLockBeginTime(cycleMilliseconds);
+                animation.BeginTime = GetPhaseLock(element)
+                    ? PhaseLockBeginTime(cycleMilliseconds)
+                    : TimeSpan.Zero;
                 element.BeginAnimation(UIElement.OpacityProperty, animation);
             }
         }
