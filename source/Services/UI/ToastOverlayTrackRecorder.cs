@@ -135,19 +135,33 @@ namespace PlayniteAchievements.Services.UI
         }
 
         /// <summary>
-        /// Drains the compression worker and finalizes track durations. Call after sampling has
+        /// Drains the compression queue and finalizes track durations. Call after sampling has
         /// stopped (the handler is detached); no further <see cref="Sample"/> calls may follow.
+        /// Loops rather than awaiting one worker snapshot: an enqueue that raced a worker's exit
+        /// can leave jobs queued with no live worker, and any frame left uncompressed would play
+        /// back as a freeze in the clip.
         /// </summary>
         public async Task<IReadOnlyList<ToastOverlayTrack>> CompleteAsync()
         {
-            Task worker;
-            lock (_queueLock)
+            while (true)
             {
-                worker = _worker;
-            }
+                Task worker;
+                lock (_queueLock)
+                {
+                    var workerDone = _worker == null || _worker.IsCompleted;
+                    if (workerDone && _pending.Count == 0)
+                    {
+                        break;
+                    }
 
-            if (worker != null)
-            {
+                    if (workerDone)
+                    {
+                        _worker = Task.Run(() => DrainQueue());
+                    }
+
+                    worker = _worker;
+                }
+
                 try
                 {
                     await worker.ConfigureAwait(false);
