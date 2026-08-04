@@ -547,9 +547,28 @@ namespace PlayniteAchievements.Views.Settings.General
             UpdateMockups();
         }
 
+        private System.Windows.Threading.DispatcherTimer _mockupRefreshTimer;
+
         private void OnEditorStyleChanged(object sender, EventArgs e)
         {
-            UpdateMockups();
+            // Coalesce rapid style edits (slider drags fire one per tick) into a single mockup
+            // rebuild per pause: every rebuild recreates the preview elements, which restarts
+            // GIF badges/backgrounds and the glow pulse.
+            if (_mockupRefreshTimer == null)
+            {
+                _mockupRefreshTimer = new System.Windows.Threading.DispatcherTimer
+                {
+                    Interval = TimeSpan.FromMilliseconds(150)
+                };
+                _mockupRefreshTimer.Tick += (s, args) =>
+                {
+                    _mockupRefreshTimer.Stop();
+                    UpdateMockups();
+                };
+            }
+
+            _mockupRefreshTimer.Stop();
+            _mockupRefreshTimer.Start();
         }
 
         private void OnPersistedPropertyChanged(object sender, PropertyChangedEventArgs e)

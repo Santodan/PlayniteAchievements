@@ -20,6 +20,12 @@ namespace PlayniteAchievements.Views.Helpers
         private static readonly Dictionary<string, (List<BitmapSource> Frames, List<int> Delays)> FrameCache =
             new Dictionary<string, (List<BitmapSource> Frames, List<int> Delays)>(StringComparer.OrdinalIgnoreCase);
 
+        // Wall-clock epoch used to phase-lock every animation instance: a recreated element
+        // (e.g. the settings mockup rebuilding during a slider drag) resumes the GIF mid-cycle
+        // instead of restarting it from the first frame.
+        private static readonly System.Diagnostics.Stopwatch AnimationEpoch =
+            System.Diagnostics.Stopwatch.StartNew();
+
         public static bool TryCreateAnimation(string uri, bool applyGray, out string normalizedSource, out ImageSource firstFrame, out ObjectAnimationUsingKeyFrames animation)
         {
             normalizedSource = NormalizeGifSourceUri(uri);
@@ -100,6 +106,13 @@ namespace PlayniteAchievements.Views.Helpers
                 if (keyFrames.KeyFrames.Count == 0)
                 {
                     return false;
+                }
+
+                if (current.TotalMilliseconds > 0)
+                {
+                    // Phase-lock to the shared epoch so recreated instances continue the cycle.
+                    keyFrames.BeginTime = TimeSpan.FromMilliseconds(
+                        -(AnimationEpoch.ElapsedMilliseconds % current.TotalMilliseconds));
                 }
 
                 if (keyFrames.CanFreeze)

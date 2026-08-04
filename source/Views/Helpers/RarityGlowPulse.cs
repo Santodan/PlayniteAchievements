@@ -33,6 +33,10 @@ namespace PlayniteAchievements.Views.Helpers
     /// </summary>
     public static class RarityGlowPulse
     {
+        // Wall-clock epoch used to phase-lock the pulse across recreated elements.
+        private static readonly System.Diagnostics.Stopwatch PulseEpoch =
+            System.Diagnostics.Stopwatch.StartNew();
+
         public static readonly DependencyProperty IsActiveProperty =
             DependencyProperty.RegisterAttached(
                 "IsActive", typeof(bool), typeof(RarityGlowPulse),
@@ -159,6 +163,9 @@ namespace PlayniteAchievements.Views.Helpers
             var speed = Clamp(persisted?.RarityGlowPulseSpeed ?? 0.5, 0.0, 1.0);
             var seconds = slowSeconds - speed * (slowSeconds - fastSeconds);
 
+            // Phase-lock to the shared epoch (full cycle = fade in + auto-reversed fade out)
+            // so a recreated element resumes the pulse mid-cycle instead of restarting it.
+            var cycleMilliseconds = seconds * 2000.0;
             var animation = new DoubleAnimation
             {
                 From = min,
@@ -166,7 +173,9 @@ namespace PlayniteAchievements.Views.Helpers
                 Duration = new Duration(TimeSpan.FromSeconds(seconds)),
                 AutoReverse = true,
                 RepeatBehavior = RepeatBehavior.Forever,
-                EasingFunction = new SineEase { EasingMode = EasingMode.EaseInOut }
+                EasingFunction = new SineEase { EasingMode = EasingMode.EaseInOut },
+                BeginTime = TimeSpan.FromMilliseconds(
+                    -(PulseEpoch.ElapsedMilliseconds % cycleMilliseconds))
             };
 
             if (GetTarget(element) == RarityGlowPulseTarget.Effect)
