@@ -84,7 +84,7 @@
                         <ImageBrush Stretch="UniformToFill"
                                     helpers:AsyncImage.Uri="{Binding ToastBackgroundImagePath}"
                                     helpers:AsyncImage.DecodePixel="512"
-                                    helpers:AsyncImage.PhaseLock="False"/>
+                                    helpers:AsyncImage.PhaseLock="{Binding IsPreview}"/>
                     </Border.Background>
                 </Border>
             </Grid>
@@ -103,7 +103,7 @@
                             <ImageBrush Stretch="UniformToFill"
                                         helpers:AsyncImage.Uri="{Binding ToastBackgroundImagePath}"
                                         helpers:AsyncImage.DecodePixel="512"
-                                        helpers:AsyncImage.PhaseLock="False"/>
+                                        helpers:AsyncImage.PhaseLock="{Binding IsPreview}"/>
                         </Border.Background>
                     </Border>
 
@@ -152,7 +152,7 @@
                                 IsHitTestVisible="False"/>
                         <!-- Reuses the shared badge source, so animated GIF badges animate. -->
                         <Image helpers:AsyncImage.Uri="{Binding ToastBadgeSource}"
-                               helpers:AsyncImage.PhaseLock="False"
+                               helpers:AsyncImage.PhaseLock="{Binding IsPreview}"
                                helpers:AsyncImage.DecodePixel="96"
                                Width="{Binding ToastRightBadgeSize}"
                                Height="{Binding ToastRightBadgeSize}"
@@ -205,7 +205,7 @@
                             <Image.Style>
                                 <Style TargetType="Image">
                                     <Setter Property="helpers:AsyncImage.Uri" Value="{Binding IconPath}"/>
-                                    <Setter Property="helpers:AsyncImage.PhaseLock" Value="False"/>
+                                    <Setter Property="helpers:AsyncImage.PhaseLock" Value="{Binding IsPreview}"/>
                                     <Setter Property="Effect" Value="{Binding RarityGlowEffect}"/>
                                     <Style.Triggers>
                                         <DataTrigger Binding="{Binding IsGameCompleted}" Value="True">
@@ -227,7 +227,7 @@
                             <Image.Style>
                                 <Style TargetType="Image">
                                     <Setter Property="helpers:AsyncImage.Uri" Value="{Binding IconPath}"/>
-                                    <Setter Property="helpers:AsyncImage.PhaseLock" Value="False"/>
+                                    <Setter Property="helpers:AsyncImage.PhaseLock" Value="{Binding IsPreview}"/>
                                     <Style.Triggers>
                                         <DataTrigger Binding="{Binding IsGameCompleted}" Value="True">
                                             <Setter Property="helpers:AsyncImage.Uri" Value="{Binding ToastCompletedBadgeSource}"/>
@@ -265,7 +265,7 @@
                             <!-- User badge images replace the drawn badge; a string source keeps
                                  animated GIF badges animating. -->
                             <Image helpers:AsyncImage.Uri="{Binding ToastBadgeSource}"
-                                   helpers:AsyncImage.PhaseLock="False"
+                                   helpers:AsyncImage.PhaseLock="{Binding IsPreview}"
                                    helpers:AsyncImage.DecodePixel="64"
                                    Width="{Binding ToastBadgeSize}"
                                    Height="{Binding ToastBadgeSize}"
