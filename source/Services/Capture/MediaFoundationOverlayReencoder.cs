@@ -46,13 +46,16 @@ namespace PlayniteAchievements.Services.Capture
         /// [<paramref name="toastStartSeconds"/>, +<paramref name="toastMaxSeconds"/>], bounded
         /// by the track's own duration and the video's end, and the output ends at
         /// <paramref name="endSeconds"/> (typically shortly after the recorded fade, so the next
-        /// wave's unlock sound never lands in the clip's audio tail).
+        /// wave's unlock sound never lands in the clip's audio tail). When
+        /// <paramref name="chimePcm"/> is provided (48 kHz stereo 16-bit), the audio decodes to
+        /// PCM, the chime mixes in starting at <paramref name="chimeStartSeconds"/>, and the
+        /// result re-encodes to AAC; otherwise the audio stream passes through untouched.
         /// </summary>
         [HandleProcessCorruptedStateExceptions, System.Security.SecurityCritical]
         public bool Export(
             string baseClipPath, ToastOverlayTrack track,
             double toastStartSeconds, double toastMaxSeconds, double trimLeadSeconds,
-            double endSeconds, string outputPath)
+            double endSeconds, byte[] chimePcm, double chimeStartSeconds, string outputPath)
         {
             if (string.IsNullOrEmpty(baseClipPath) || track == null ||
                 track.Samples.Count == 0 || string.IsNullOrEmpty(outputPath))
@@ -108,14 +111,16 @@ namespace PlayniteAchievements.Services.Capture
                                 }
 
                                 var videoStream = AddVideoStream(sink, decodedType, frameW, frameH, fps);
-                                var audioStream = TryAddAudioPassthrough(sink, baseClipPath, out var audioReader);
+                                var audioStream = TryAddAudio(
+                                    sink, baseClipPath, decodeToPcm: chimePcm != null, out var audioReader);
                                 using (audioReader)
                                 {
                                     sink.BeginWriting();
                                     WriteComposited(
                                         sink, videoStream, videoReader, audioStream, audioReader,
                                         track, toastStartSeconds, toastMaxSeconds, trimLeadSeconds,
-                                        endSeconds, frameW, frameH, stride);
+                                        endSeconds, audioStream >= 0 ? chimePcm : null, chimeStartSeconds,
+                                        frameW, frameH, stride);
                                     sink.Finalize();
                                 }
 
@@ -171,10 +176,11 @@ namespace PlayniteAchievements.Services.Capture
         }
 
         /// <summary>
-        /// Adds an audio stream configured for native AAC passthrough (stream copy) when the base
-        /// clip has one; returns -1 (and a null reader) for video-only clips.
+        /// Adds an audio stream when the base clip has one; returns -1 (and a null reader) for
+        /// video-only clips. Passthrough mode stream-copies the native AAC; PCM mode (chime mix)
+        /// decodes to 48 kHz stereo 16-bit and re-encodes to AAC so samples can be modified.
         /// </summary>
-        private int TryAddAudioPassthrough(SinkWriter sink, string baseClipPath, out SourceReader audioReader)
+        private int TryAddAudio(SinkWriter sink, string baseClipPath, bool decodeToPcm, out SourceReader audioReader)
         {
             audioReader = null;
             try
@@ -184,13 +190,35 @@ namespace PlayniteAchievements.Services.Capture
                 {
                     reader.SetStreamSelection((int)SourceReaderIndex.AllStreams, false);
                     reader.SetStreamSelection((int)SourceReaderIndex.FirstAudioStream, true);
+                    int streamIndex;
                     using (var nativeType = reader.GetNativeMediaType((int)SourceReaderIndex.FirstAudioStream, 0))
                     {
-                        sink.AddStream(nativeType, out var streamIndex);
-                        sink.SetInputMediaType(streamIndex, nativeType, null);
-                        audioReader = reader;
-                        return streamIndex;
+                        if (decodeToPcm)
+                        {
+                            using (var pcmRequest = MediaFoundationClipExporter.CreatePcmType())
+                            {
+                                reader.SetCurrentMediaType((int)SourceReaderIndex.FirstAudioStream, pcmRequest);
+                            }
+
+                            using (var aacType = MediaFoundationClipExporter.CreateAacType())
+                            {
+                                sink.AddStream(aacType, out streamIndex);
+                            }
+
+                            using (var pcmType = MediaFoundationClipExporter.CreatePcmType())
+                            {
+                                sink.SetInputMediaType(streamIndex, pcmType, null);
+                            }
+                        }
+                        else
+                        {
+                            sink.AddStream(nativeType, out streamIndex);
+                            sink.SetInputMediaType(streamIndex, nativeType, null);
+                        }
                     }
+
+                    audioReader = reader;
+                    return streamIndex;
                 }
                 catch
                 {
@@ -214,13 +242,17 @@ namespace PlayniteAchievements.Services.Capture
             int audioStream, SourceReader audioReader,
             ToastOverlayTrack track,
             double toastStartSeconds, double toastMaxSeconds, double trimLeadSeconds,
-            double endSeconds, int frameW, int frameH, int stride)
+            double endSeconds, byte[] chimePcm, double chimeStartSeconds,
+            int frameW, int frameH, int stride)
         {
             var trimLead = ToTicks(trimLeadSeconds);
             var toastStart = ToTicks(toastStartSeconds);
             var toastEnd = toastStart + ToTicks(Math.Min(Math.Max(0, toastMaxSeconds), track.DurationSeconds));
             // Output-timeline end cut (base timeline minus the lead): both streams stop here.
             var endLimit = ToTicks(endSeconds) - trimLead;
+            // Output-timeline chime onset; may be negative (chime head before the clip start),
+            // which the mix offsets handle by skipping the chime's head.
+            var chimeStartOut = ToTicks(chimeStartSeconds) - trimLead;
 
             var absStride = Math.Abs(stride);
             var bottomUp = stride < 0;
@@ -256,7 +288,7 @@ namespace PlayniteAchievements.Services.Capture
                 // Drain audio up to this video timestamp so both streams advance together.
                 while (pendingAudio != null && pendingAudio.SampleTime <= time - trimLead)
                 {
-                    WriteAndDispose(sink, audioStream, pendingAudio);
+                    WriteAndDispose(sink, audioStream, MixChime(pendingAudio, chimePcm, chimeStartOut));
                     pendingAudio = ReadNextAudio(audioReader, trimLead);
                 }
 
@@ -306,11 +338,79 @@ namespace PlayniteAchievements.Services.Capture
             // Trailing audio after the last video sample, up to the end cut.
             while (pendingAudio != null && pendingAudio.SampleTime <= endLimit)
             {
-                WriteAndDispose(sink, audioStream, pendingAudio);
+                WriteAndDispose(sink, audioStream, MixChime(pendingAudio, chimePcm, chimeStartOut));
                 pendingAudio = ReadNextAudio(audioReader, trimLead);
             }
 
             pendingAudio?.Dispose();
+        }
+
+        /// <summary>
+        /// Mixes the chime PCM into an audio sample when their spans overlap, returning a fresh
+        /// sample (the reader's buffer may be a detached copy, so in-place mutation is not
+        /// reliable). Non-overlapping samples (or passthrough mode, chime null) return unchanged.
+        /// Only valid in PCM mode — 48 kHz stereo 16-bit on both sides.
+        /// </summary>
+        private static Sample MixChime(Sample sample, byte[] chimePcm, long chimeStartOut)
+        {
+            if (chimePcm == null || chimePcm.Length == 0)
+            {
+                return sample;
+            }
+
+            var time = sample.SampleTime;
+            var duration = Math.Max(0, sample.SampleDuration);
+            var chimeEnd = chimeStartOut + (long)(chimePcm.Length * 10_000_000.0 / PcmAudio.BytesPerSecond);
+            if (time + duration <= chimeStartOut || time >= chimeEnd)
+            {
+                return sample;
+            }
+
+            byte[] bytes;
+            using (var buffer = sample.ConvertToContiguousBuffer())
+            {
+                var ptr = buffer.Lock(out _, out var length);
+                try
+                {
+                    bytes = new byte[length];
+                    Marshal.Copy(ptr, bytes, 0, length);
+                }
+                finally
+                {
+                    buffer.Unlock();
+                }
+            }
+
+            var destOffset = PcmAudio.TicksToAlignedBytes(Math.Max(0, chimeStartOut - time));
+            var sourceOffset = PcmAudio.TicksToAlignedBytes(Math.Max(0, time - chimeStartOut));
+            PcmAudio.MixInto(bytes, destOffset, chimePcm, sourceOffset, bytes.Length);
+
+            var outBuffer = MediaFactory.CreateMemoryBuffer(bytes.Length);
+            try
+            {
+                var outPtr = outBuffer.Lock(out _, out _);
+                try
+                {
+                    Marshal.Copy(bytes, 0, outPtr, bytes.Length);
+                }
+                finally
+                {
+                    outBuffer.Unlock();
+                }
+
+                outBuffer.CurrentLength = bytes.Length;
+
+                var outSample = MediaFactory.CreateSample();
+                outSample.AddBuffer(outBuffer);
+                outSample.SampleTime = time;
+                outSample.SampleDuration = duration;
+                sample.Dispose();
+                return outSample;
+            }
+            finally
+            {
+                outBuffer.Dispose();
+            }
         }
 
         /// <summary>
