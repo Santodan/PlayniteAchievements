@@ -598,9 +598,9 @@
                              TextAlignment="Right"/>
                 </Grid>
 
-                <!-- Image shadow: independent of the text shadow, applied to badge images,
-                     the platform icon, and the frame branding. Single layer, so 100 is both
-                     the built-in look and the darkest. -->
+                <!-- Image shadow: independent of the text shadow, applied to badge images and
+                     the platform icon (the frame branding keeps a fixed shadow). Single
+                     layer, so 100 is both the built-in look and the darkest. -->
                 <TextBlock Text="{DynamicResource LOCPlayAch_Settings_Style_ImageShadow}"
                            Style="{StaticResource EditorSubGroupHeaderStyle}"/>
                 <Grid HorizontalAlignment="Left">

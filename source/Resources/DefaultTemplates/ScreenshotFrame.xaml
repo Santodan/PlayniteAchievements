@@ -209,10 +209,13 @@
                     <!-- Branding: shared screenshots identify the plugin. Product name stays a
                          literal (not localized). The logo is a DrawingImage (LogoResources.xaml),
                          which loads synchronously as offscreen rendering requires. -->
+                    <!-- Branding keeps the fixed built-in shadow: it identifies the plugin on
+                         shared screenshots, so it stays legible regardless of the user's
+                         shadow settings. -->
                     <StackPanel Grid.Column="3"
                                 Orientation="Horizontal"
                                 VerticalAlignment="Center"
-                                Effect="{Binding FrameImageShadow}">
+                                Effect="{StaticResource PlayAch.Effect.ContentShadow}">
                         <Border Width="1"
                                 Margin="0,10,20,10"
                                 Background="{DynamicResource PlayAch.Brush.PopupBorder}"/>

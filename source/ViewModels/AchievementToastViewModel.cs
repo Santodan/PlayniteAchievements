@@ -688,8 +688,9 @@ namespace PlayniteAchievements.ViewModels
             BuildInnerContentShadow(_style.Frame.TextShadowOpacity, _style.Frame.TextShadowOffset);
 
         /// <summary>
-        /// The drop shadow behind this surface's images (badges, provider icons, branding),
-        /// independent of the text shadow; null when disabled (opacity 0).
+        /// The drop shadow behind this surface's images (badge images and the provider icon),
+        /// independent of the text shadow; null when disabled (opacity 0). The frame's
+        /// branding block keeps the fixed built-in shadow instead.
         /// </summary>
         public Effect ToastImageShadow =>
             BuildImageShadow(_style.Toast.ImageShadowOpacity, _style.Toast.ImageShadowOffset);

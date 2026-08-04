@@ -483,10 +483,10 @@ namespace PlayniteAchievements.Models.Settings
         }
 
         /// <summary>
-        /// Darkness of the drop shadow behind the surface's images (badges, provider icons,
-        /// branding), as a percentage: 100 matches the built-in shadow (images use a single
-        /// layer, so 100 is the darkest), 0 disables it. Null means the built-in default
-        /// (100).
+        /// Darkness of the drop shadow behind the surface's images (badge images and the
+        /// provider icon), as a percentage: 100 matches the built-in shadow (images use a
+        /// single layer, so 100 is the darkest), 0 disables it. Null means the built-in
+        /// default (100).
         /// </summary>
         public double? ImageShadowOpacity
         {
