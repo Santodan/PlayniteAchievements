@@ -311,6 +311,49 @@ namespace PlayniteAchievements.Services.Friends
                    link.PlayniteGameId.Value == game.PlayniteGameId.Value;
         }
 
+        /// <summary>
+        /// Runs a freshly loaded data set through the same merge-group and nickname stamping the
+        /// snapshot projection applies (FriendGroupId, merged name/avatar/favorite), so friend
+        /// scope keys computed from these rows match merged-friend selections. Mutates the rows in
+        /// place and returns <c>data.AllAchievements</c>. When the load carries no friend
+        /// summaries (the game-definition-scoped load), name and avatar resolution falls back to
+        /// stubs built from the rows themselves.
+        /// </summary>
+        public static List<FriendAchievementDisplayItem> ApplyMergeIdentity(
+            FriendsOverviewData data,
+            PersistedSettings settings)
+        {
+            data = data ?? new FriendsOverviewData();
+            if (data.Friends == null || data.Friends.Count == 0)
+            {
+                data.Friends = BuildFriendStubsFromAchievements(data.AllAchievements);
+            }
+
+            ApplyMergeGroups(data, settings);
+            return data.AllAchievements ?? new List<FriendAchievementDisplayItem>();
+        }
+
+        private static List<FriendSummaryItem> BuildFriendStubsFromAchievements(
+            IEnumerable<FriendAchievementDisplayItem> achievements)
+        {
+            return (achievements ?? Enumerable.Empty<FriendAchievementDisplayItem>())
+                .Where(achievement => achievement != null)
+                .GroupBy(
+                    achievement => FriendAccountRef.BuildKey(achievement.ProviderKey, achievement.FriendExternalUserId),
+                    StringComparer.OrdinalIgnoreCase)
+                .Where(group => !string.IsNullOrWhiteSpace(group.Key))
+                .Select(group => new FriendSummaryItem
+                {
+                    ProviderKey = group.First().ProviderKey,
+                    ExternalUserId = group.First().FriendExternalUserId,
+                    DisplayName = group.Select(achievement => achievement.FriendName)
+                        .FirstOrDefault(name => !string.IsNullOrWhiteSpace(name)),
+                    AvatarPath = group.Select(achievement => achievement.FriendAvatarPath)
+                        .FirstOrDefault(path => !string.IsNullOrWhiteSpace(path))
+                })
+                .ToList();
+        }
+
         private static FriendsOverviewData ApplyMergeGroups(FriendsOverviewData data, PersistedSettings settings)
         {
             var groups = settings?.GetFriendMergeGroups() ?? new List<FriendMergeGroup>();
