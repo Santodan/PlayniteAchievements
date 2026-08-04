@@ -377,8 +377,20 @@ namespace PlayniteAchievements.Services.Recording
             int GetNextPacketSize(out uint framesInNextPacket);
         }
 
+        /// <summary>
+        /// Marker interface making the completion handler's CCW apartment-agile.
+        /// ActivateAudioInterfaceAsync rejects non-agile handlers with E_ILLEGAL_METHOD_CALL
+        /// (0x8000000E); .NET Core CCWs are agile by default, but .NET Framework's are not, so
+        /// the handler must implement this explicitly.
+        /// </summary>
+        [ComImport, Guid("94ea2b94-e9cc-49e0-c0ff-ee64ca8f5b90"),
+         InterfaceType(ComInterfaceType.InterfaceIsIUnknown)]
+        private interface IAgileObject
+        {
+        }
+
         /// <summary>Blocks the caller until the async activation completes, capturing its result.</summary>
-        private sealed class ActivationHandler : IActivateAudioInterfaceCompletionHandler
+        private sealed class ActivationHandler : IActivateAudioInterfaceCompletionHandler, IAgileObject
         {
             public readonly ManualResetEvent Completed = new ManualResetEvent(false);
             public int ActivateHr;
