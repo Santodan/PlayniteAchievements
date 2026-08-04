@@ -181,6 +181,24 @@ namespace PlayniteAchievements.ViewModels
             }
         }
 
+        public FriendNameDisplayMode FriendNameDisplayMode
+        {
+            get => _settings?.Persisted?.FriendNameDisplayMode ?? FriendNameDisplayMode.PersonaAndNickname;
+            set
+            {
+                var persisted = _settings?.Persisted;
+                if (persisted == null || persisted.FriendNameDisplayMode == value)
+                {
+                    return;
+                }
+
+                persisted.FriendNameDisplayMode = value;
+                OnPropertyChanged();
+                RebuildFriends();
+                PersistAndNotify(null);
+            }
+        }
+
         public bool IsExophaseProviderEnabled => _exophaseSettings?.IsEnabled == true;
 
         public string ManualExophaseUsername
