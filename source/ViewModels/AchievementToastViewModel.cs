@@ -865,11 +865,13 @@ namespace PlayniteAchievements.ViewModels
             }
 
             var innerShadow = isFrame ? FrameContentShadowInner : ToastContentShadowInner;
+            var imageShadow = isFrame ? FrameImageShadow : ToastImageShadow;
             foreach (var line in lines)
             {
                 line.LeftIndent = line is ToastTitleLine ? titleIndent : otherIndent;
                 line.VerticalPadding = linePadding;
                 line.TextShadowInner = innerShadow;
+                line.ImageShadow = imageShadow;
             }
 
             return lines;

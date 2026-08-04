@@ -180,11 +180,11 @@
     <DataTemplate DataType="{x:Type vm:ToastTitleLine}">
         <!-- Optional inline rarity badge sits immediately before the name; completion
              notifications force the title, swap it for "Game Complete!", and color it with the
-             completed brush. The wrapper stacks a second halo layer (TextShadowInner, null at
-             default strength) under the outer one so high strengths reach a solid black edge. -->
-        <Grid Effect="{Binding TextShadow}">
-        <DockPanel LastChildFill="True"
-                   Effect="{Binding TextShadowInner}">
+             completed brush. The badge is artwork, so it carries the image shadow and sits
+             outside the text-shadow wrappers; the name carries the two stacked text-shadow
+             layers (TextShadowInner is null at default strength) so high strengths reach a
+             solid black edge. -->
+        <DockPanel LastChildFill="True">
             <Image DockPanel.Dock="Left"
                    helpers:AsyncImage.Uri="{Binding InlineBadgeSource}"
                    helpers:AsyncImage.DecodePixel="64"
@@ -193,13 +193,16 @@
                    VerticalAlignment="Center"
                    Margin="0,0,5,0"
                    RenderOptions.BitmapScalingMode="HighQuality"
+                   Effect="{Binding ImageShadow}"
                    Visibility="{Binding ShowInlineBadge, Converter={StaticResource BooleanToVisibilityConverter}}"/>
+            <Grid Effect="{Binding TextShadow}">
             <TextBlock FontSize="{Binding FontSize}"
                        FontFamily="{Binding FontFamily}"
                        FontWeight="SemiBold"
                        TextWrapping="NoWrap"
                        TextTrimming="CharacterEllipsis"
-                       VerticalAlignment="Center">
+                       VerticalAlignment="Center"
+                       Effect="{Binding TextShadowInner}">
                 <TextBlock.Style>
                     <Style TargetType="TextBlock" BasedOn="{StaticResource PlayAch.TextBlock.BaseStyle}">
                         <Setter Property="Text" Value="{Binding Parent.TitleText}"/>
@@ -217,8 +220,8 @@
                     </Style>
                 </TextBlock.Style>
             </TextBlock>
+            </Grid>
         </DockPanel>
-        </Grid>
     </DataTemplate>
 
     <DataTemplate DataType="{x:Type vm:ToastDescriptionLine}">

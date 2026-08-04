@@ -32,6 +32,13 @@ namespace PlayniteAchievements.ViewModels
         /// </summary>
         public Effect TextShadowInner { get; set; }
 
+        /// <summary>
+        /// The surface's image shadow, for line elements that are artwork rather than text
+        /// (the title line's inline rarity badge). Resolved per surface by the owning view
+        /// model.
+        /// </summary>
+        public Effect ImageShadow { get; set; }
+
         public AchievementToastViewModel Parent { get; }
 
         public double FontSize { get; }
