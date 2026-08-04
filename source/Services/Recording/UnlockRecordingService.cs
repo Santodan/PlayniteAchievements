@@ -56,8 +56,12 @@ namespace PlayniteAchievements.Services.Recording
         private const int ToastWaitPollSeconds = 5;
         // The clip's toast slot: the effective display duration plus an allowance for the
         // slide-in delay (~0.75s to the snap) and the slide-out, plus a short tail after it.
+        // The slot sizes the base window (worst case, before the track exists); the composited
+        // clip is then cut PostFadeTailSeconds after the recorded fade, so the audio tail never
+        // reaches into the next wave's unlock sound.
         private const double SlideAllowanceSeconds = 2.0;
         private const double ToastTailSeconds = 1.0;
+        private const double PostFadeTailSeconds = 0.5;
         private const int MaxCaptureRestarts = 3;
         private const int RestartBackoffSeconds = 5;
         // Freeze recovery (distinct from crash restarts): a frozen-but-alive capture is detected by
@@ -936,7 +940,10 @@ namespace PlayniteAchievements.Services.Recording
 
         /// <summary>
         /// Re-encodes the base clip with the overlay track composited in, one at a time across
-        /// the service. Returns the composited temp path, or null on failure (base clip stands).
+        /// the service. The output is cut shortly after the recorded fade — the base window is
+        /// sized for the worst case before the track exists, and running it out would put the
+        /// next wave's unlock sound in the audio tail. Returns the composited temp path, or null
+        /// on failure (base clip stands).
         /// </summary>
         private async Task<string> ReencodeWithTrackAsync(
             CaptureSession session, string basePath, ToastOverlayTrack track,
@@ -945,13 +952,17 @@ namespace PlayniteAchievements.Services.Recording
             // Toast position within the BASE clip's timeline: the base starts `videoLeadSeconds`
             // before the window start (keyframe snap), and the anchor sits inside the window.
             var toastStartSeconds = videoLeadSeconds + (window.ToastAnchorUtc - window.StartUtc).TotalSeconds;
+            var endSeconds = toastStartSeconds
+                + Math.Min(toastSlotSeconds, track.DurationSeconds)
+                + PostFadeTailSeconds;
             var tempPath = Path.Combine(session.BufferDirectory, $"clipovl_{Guid.NewGuid():N}.mp4");
             await _reencodeGate.WaitAsync().ConfigureAwait(false);
             try
             {
                 var reencoder = new MediaFoundationOverlayReencoder(_logger);
                 var ok = await Task.Run(() => reencoder.Export(
-                        basePath, track, toastStartSeconds, toastSlotSeconds, videoLeadSeconds, tempPath))
+                        basePath, track, toastStartSeconds, toastSlotSeconds, videoLeadSeconds,
+                        endSeconds, tempPath))
                     .ConfigureAwait(false);
                 if (ok)
                 {

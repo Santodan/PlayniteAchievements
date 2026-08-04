@@ -44,13 +44,15 @@ namespace PlayniteAchievements.Services.Capture
         /// Writes the composited clip to <paramref name="outputPath"/>. Times are in the base
         /// clip's own timeline: the toast blits over
         /// [<paramref name="toastStartSeconds"/>, +<paramref name="toastMaxSeconds"/>], bounded
-        /// by the track's own duration and the video's end.
+        /// by the track's own duration and the video's end, and the output ends at
+        /// <paramref name="endSeconds"/> (typically shortly after the recorded fade, so the next
+        /// wave's unlock sound never lands in the clip's audio tail).
         /// </summary>
         [HandleProcessCorruptedStateExceptions, System.Security.SecurityCritical]
         public bool Export(
             string baseClipPath, ToastOverlayTrack track,
             double toastStartSeconds, double toastMaxSeconds, double trimLeadSeconds,
-            string outputPath)
+            double endSeconds, string outputPath)
         {
             if (string.IsNullOrEmpty(baseClipPath) || track == null ||
                 track.Samples.Count == 0 || string.IsNullOrEmpty(outputPath))
@@ -113,7 +115,7 @@ namespace PlayniteAchievements.Services.Capture
                                     WriteComposited(
                                         sink, videoStream, videoReader, audioStream, audioReader,
                                         track, toastStartSeconds, toastMaxSeconds, trimLeadSeconds,
-                                        frameW, frameH, stride);
+                                        endSeconds, frameW, frameH, stride);
                                     sink.Finalize();
                                 }
 
@@ -212,11 +214,13 @@ namespace PlayniteAchievements.Services.Capture
             int audioStream, SourceReader audioReader,
             ToastOverlayTrack track,
             double toastStartSeconds, double toastMaxSeconds, double trimLeadSeconds,
-            int frameW, int frameH, int stride)
+            double endSeconds, int frameW, int frameH, int stride)
         {
             var trimLead = ToTicks(trimLeadSeconds);
             var toastStart = ToTicks(toastStartSeconds);
             var toastEnd = toastStart + ToTicks(Math.Min(Math.Max(0, toastMaxSeconds), track.DurationSeconds));
+            // Output-timeline end cut (base timeline minus the lead): both streams stop here.
+            var endLimit = ToTicks(endSeconds) - trimLead;
 
             var absStride = Math.Abs(stride);
             var bottomUp = stride < 0;
@@ -241,6 +245,12 @@ namespace PlayniteAchievements.Services.Capture
                 {
                     sample.Dispose();
                     continue;
+                }
+
+                if (time - trimLead > endLimit)
+                {
+                    sample.Dispose();
+                    break;
                 }
 
                 // Drain audio up to this video timestamp so both streams advance together.
@@ -293,12 +303,14 @@ namespace PlayniteAchievements.Services.Capture
                 WaitForEncoderQueue(sink, videoStream);
             }
 
-            // Trailing audio after the last video sample.
-            while (pendingAudio != null)
+            // Trailing audio after the last video sample, up to the end cut.
+            while (pendingAudio != null && pendingAudio.SampleTime <= endLimit)
             {
                 WriteAndDispose(sink, audioStream, pendingAudio);
                 pendingAudio = ReadNextAudio(audioReader, trimLead);
             }
+
+            pendingAudio?.Dispose();
         }
 
         /// <summary>
