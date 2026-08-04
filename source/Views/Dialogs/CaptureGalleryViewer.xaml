@@ -17,11 +17,45 @@
                 <ResourceDictionary Source="pack://application:,,,/PlayniteAchievements;component/Resources/CommonResources.xaml"/>
             </ResourceDictionary.MergedDictionaries>
 
-            <!-- Type selector buttons: base sizing + dim disabled ones. The active-variant
-                 highlight is a per-button DataTrigger bound to the matching VM flag. -->
+            <!-- Type selector buttons: each button binds Tag to its VM selection flag; the
+                 template's Tag trigger is declared after the hover trigger so the accent
+                 fill wins on the selected button even while hovered. Non-focusable like the
+                 popout's other buttons, so no keyboard-focus tint can linger. -->
             <Style x:Key="CaptureTypeButtonStyle" TargetType="Button" BasedOn="{StaticResource PlayAch.Button.BaseStyle}">
                 <Setter Property="MinWidth" Value="88"/>
                 <Setter Property="Margin" Value="0,0,6,0"/>
+                <Setter Property="Focusable" Value="False"/>
+                <Setter Property="Template">
+                    <Setter.Value>
+                        <ControlTemplate TargetType="Button">
+                            <Border x:Name="Chrome"
+                                    Background="{TemplateBinding Background}"
+                                    BorderBrush="{TemplateBinding BorderBrush}"
+                                    BorderThickness="{TemplateBinding BorderThickness}"
+                                    CornerRadius="{StaticResource PlayAch.Radius.Small}"
+                                    SnapsToDevicePixels="True">
+                                <ContentPresenter Margin="{TemplateBinding Padding}"
+                                                  HorizontalAlignment="{TemplateBinding HorizontalContentAlignment}"
+                                                  VerticalAlignment="{TemplateBinding VerticalContentAlignment}"
+                                                  RecognizesAccessKey="True"/>
+                            </Border>
+                            <ControlTemplate.Triggers>
+                                <Trigger Property="IsMouseOver" Value="True">
+                                    <Setter TargetName="Chrome" Property="Background" Value="{DynamicResource PlayAch.Brush.Button.Background.Hover}"/>
+                                    <Setter TargetName="Chrome" Property="BorderBrush" Value="{DynamicResource PlayAch.Brush.Accent}"/>
+                                </Trigger>
+                                <DataTrigger Binding="{Binding Tag, RelativeSource={RelativeSource TemplatedParent}}" Value="True">
+                                    <Setter TargetName="Chrome" Property="Background" Value="{DynamicResource PlayAch.Brush.Accent}"/>
+                                    <Setter TargetName="Chrome" Property="BorderBrush" Value="{DynamicResource PlayAch.Brush.Accent}"/>
+                                    <Setter Property="FontWeight" Value="SemiBold"/>
+                                </DataTrigger>
+                                <Trigger Property="IsPressed" Value="True">
+                                    <Setter TargetName="Chrome" Property="Background" Value="{DynamicResource PlayAch.Brush.Button.Background.Pressed}"/>
+                                </Trigger>
+                            </ControlTemplate.Triggers>
+                        </ControlTemplate>
+                    </Setter.Value>
+                </Setter>
                 <Style.Triggers>
                     <Trigger Property="IsEnabled" Value="False">
                         <Setter Property="Opacity" Value="0.4"/>
@@ -129,69 +163,29 @@
                 <StackPanel Grid.Column="1" Orientation="Horizontal">
                     <Button Content="{DynamicResource LOCPlayAch_Settings_ScreenshotVariantClean}"
                             IsEnabled="{Binding HasClean}"
+                            Style="{StaticResource CaptureTypeButtonStyle}"
+                            Tag="{Binding IsCleanSelected}"
                             Command="{Binding SelectVariantCommand}"
-                            CommandParameter="{x:Static captures:CaptureVariant.Clean}">
-                        <Button.Style>
-                            <Style TargetType="Button" BasedOn="{StaticResource CaptureTypeButtonStyle}">
-                                <Style.Triggers>
-                                    <DataTrigger Binding="{Binding IsCleanSelected}" Value="True">
-                                        <Setter Property="Background" Value="{DynamicResource PlayAch.Brush.Accent}"/>
-                                        <Setter Property="BorderBrush" Value="{DynamicResource PlayAch.Brush.Accent}"/>
-                                        <Setter Property="FontWeight" Value="SemiBold"/>
-                                    </DataTrigger>
-                                </Style.Triggers>
-                            </Style>
-                        </Button.Style>
-                    </Button>
+                            CommandParameter="{x:Static captures:CaptureVariant.Clean}"/>
                     <Button Content="{DynamicResource LOCPlayAch_Settings_Style_ToastTab}"
                             IsEnabled="{Binding HasNotification}"
+                            Style="{StaticResource CaptureTypeButtonStyle}"
+                            Tag="{Binding IsNotificationSelected}"
                             Command="{Binding SelectVariantCommand}"
-                            CommandParameter="{x:Static captures:CaptureVariant.Notification}">
-                        <Button.Style>
-                            <Style TargetType="Button" BasedOn="{StaticResource CaptureTypeButtonStyle}">
-                                <Style.Triggers>
-                                    <DataTrigger Binding="{Binding IsNotificationSelected}" Value="True">
-                                        <Setter Property="Background" Value="{DynamicResource PlayAch.Brush.Accent}"/>
-                                        <Setter Property="BorderBrush" Value="{DynamicResource PlayAch.Brush.Accent}"/>
-                                        <Setter Property="FontWeight" Value="SemiBold"/>
-                                    </DataTrigger>
-                                </Style.Triggers>
-                            </Style>
-                        </Button.Style>
-                    </Button>
+                            CommandParameter="{x:Static captures:CaptureVariant.Notification}"/>
                     <Button Content="{DynamicResource LOCPlayAch_Settings_ScreenshotVariantFramed}"
                             IsEnabled="{Binding HasFramed}"
+                            Style="{StaticResource CaptureTypeButtonStyle}"
+                            Tag="{Binding IsFramedSelected}"
                             Command="{Binding SelectVariantCommand}"
-                            CommandParameter="{x:Static captures:CaptureVariant.Framed}">
-                        <Button.Style>
-                            <Style TargetType="Button" BasedOn="{StaticResource CaptureTypeButtonStyle}">
-                                <Style.Triggers>
-                                    <DataTrigger Binding="{Binding IsFramedSelected}" Value="True">
-                                        <Setter Property="Background" Value="{DynamicResource PlayAch.Brush.Accent}"/>
-                                        <Setter Property="BorderBrush" Value="{DynamicResource PlayAch.Brush.Accent}"/>
-                                        <Setter Property="FontWeight" Value="SemiBold"/>
-                                    </DataTrigger>
-                                </Style.Triggers>
-                            </Style>
-                        </Button.Style>
-                    </Button>
+                            CommandParameter="{x:Static captures:CaptureVariant.Framed}"/>
                     <Button Content="{DynamicResource LOCPlayAch_Captures_VariantVideo}"
                             Margin="0"
                             IsEnabled="{Binding HasVideo}"
+                            Style="{StaticResource CaptureTypeButtonStyle}"
+                            Tag="{Binding IsVideoSelected}"
                             Command="{Binding SelectVariantCommand}"
-                            CommandParameter="{x:Static captures:CaptureVariant.Video}">
-                        <Button.Style>
-                            <Style TargetType="Button" BasedOn="{StaticResource CaptureTypeButtonStyle}">
-                                <Style.Triggers>
-                                    <DataTrigger Binding="{Binding IsVideoSelected}" Value="True">
-                                        <Setter Property="Background" Value="{DynamicResource PlayAch.Brush.Accent}"/>
-                                        <Setter Property="BorderBrush" Value="{DynamicResource PlayAch.Brush.Accent}"/>
-                                        <Setter Property="FontWeight" Value="SemiBold"/>
-                                    </DataTrigger>
-                                </Style.Triggers>
-                            </Style>
-                        </Button.Style>
-                    </Button>
+                            CommandParameter="{x:Static captures:CaptureVariant.Video}"/>
                 </StackPanel>
 
                 <Button Grid.Column="2"
