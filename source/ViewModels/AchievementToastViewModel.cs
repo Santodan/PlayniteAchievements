@@ -881,16 +881,18 @@ namespace PlayniteAchievements.ViewModels
                 line.ImageShadow = imageShadow;
 
                 var emphasis = ResolveLineEmphasis(surface, line);
-                // The title line's base weight is already SemiBold, one step under Bold —
-                // its bold toggle jumps to ExtraBold so the change is actually visible.
+                // The title line's base weight is SemiBold, which fonts without a SemiBold
+                // face (e.g. Trebuchet MS) already render with their Bold face — so its bold
+                // toggle jumps all the way to Black, the farthest heavy face, to stay visible
+                // across font families. WPF picks the nearest existing face per weight.
                 line.FontWeight = (emphasis & NotificationLineEmphasis.Bold) != 0
-                    ? (line is ToastTitleLine ? FontWeights.ExtraBold : FontWeights.Bold)
+                    ? (line is ToastTitleLine ? FontWeights.Black : FontWeights.Bold)
                     : (line is ToastTitleLine ? FontWeights.SemiBold : FontWeights.Normal);
                 line.FontStyle = (emphasis & NotificationLineEmphasis.Italic) != 0
                     ? FontStyles.Italic
                     : FontStyles.Normal;
                 line.TextDecorations = BuildLineDecorations(
-                    emphasis, line.FontSize, LineDecorationBrush(line, textBrush));
+                    emphasis, LineDecorationBrush(line, textBrush));
             }
 
             return lines;
@@ -925,15 +927,15 @@ namespace PlayniteAchievements.ViewModels
             }
         }
 
-        // Explicit decoration pens: the WPF default underline/strike pen is a hairline from
-        // font metrics that ignores weight, so it reads far thinner than the text it marks.
-        // These factors scale the line with the row's font size and thicken it when the row
-        // is bold, keeping the decoration visually matched to the glyphs.
-        private const double DecorationThicknessFactor = 0.08;
-        private const double BoldDecorationThicknessFactor = 0.12;
+        // Decoration pen thickness as multiples of the font's recommended (hairline) thickness
+        // (TextDecorationUnit.FontRecommended: the pen's Thickness value is a multiplier, and
+        // the result scales with the font size automatically). The WPF default is 1x, which
+        // reads far thinner than the text it marks; bold rows get a heavier line still.
+        private const double DecorationThicknessMultiplier = 2.0;
+        private const double BoldDecorationThicknessMultiplier = 3.0;
 
         private static TextDecorationCollection BuildLineDecorations(
-            NotificationLineEmphasis emphasis, double fontSize, Brush brush)
+            NotificationLineEmphasis emphasis, Brush brush)
         {
             var underline = (emphasis & NotificationLineEmphasis.Underline) != 0;
             var strike = (emphasis & NotificationLineEmphasis.Strikethrough) != 0;
@@ -943,8 +945,9 @@ namespace PlayniteAchievements.ViewModels
             }
 
             var bold = (emphasis & NotificationLineEmphasis.Bold) != 0;
-            var factor = bold ? BoldDecorationThicknessFactor : DecorationThicknessFactor;
-            var pen = new Pen(brush, Math.Max(1.0, fontSize * factor));
+            var pen = new Pen(
+                brush,
+                bold ? BoldDecorationThicknessMultiplier : DecorationThicknessMultiplier);
             if (pen.CanFreeze)
             {
                 pen.Freeze();
@@ -953,12 +956,22 @@ namespace PlayniteAchievements.ViewModels
             var decorations = new TextDecorationCollection();
             if (underline)
             {
-                decorations.Add(new TextDecoration { Location = TextDecorationLocation.Underline, Pen = pen });
+                decorations.Add(new TextDecoration
+                {
+                    Location = TextDecorationLocation.Underline,
+                    Pen = pen,
+                    PenThicknessUnit = TextDecorationUnit.FontRecommended
+                });
             }
 
             if (strike)
             {
-                decorations.Add(new TextDecoration { Location = TextDecorationLocation.Strikethrough, Pen = pen });
+                decorations.Add(new TextDecoration
+                {
+                    Location = TextDecorationLocation.Strikethrough,
+                    Pen = pen,
+                    PenThicknessUnit = TextDecorationUnit.FontRecommended
+                });
             }
 
             if (decorations.CanFreeze)
