@@ -168,6 +168,24 @@ namespace PlayniteAchievements.Services.Recording
                 }
             }
 
+            // Full system audio minus Playnite's own process tree: the plugin's unlock chimes
+            // (UniPlaySong plays inside Playnite) never land in clip audio — clips composite
+            // their toast at the unlock moment, so the real chime rarely aligns with the card
+            // and other waves' chimes would pollute the clip. Game and desktop audio are
+            // untouched. Degrades to plain loopback on older Windows or activation failure.
+            if (ProcessLoopbackCapture.IsSupported)
+            {
+                try
+                {
+                    return new ProcessLoopbackCapture(
+                        System.Diagnostics.Process.GetCurrentProcess().Id, includeProcessTree: false);
+                }
+                catch (Exception ex)
+                {
+                    _logger?.Warn(ex, "[Recording] Playnite-excluded audio capture failed; using full system audio.");
+                }
+            }
+
             return new WasapiLoopbackCapture();
         }
 
