@@ -121,6 +121,35 @@
                                 <ComboBoxItem Content="{DynamicResource LOCPlayAch_Settings_ToastPosition_TopLeft}" Tag="{x:Static settings:ToastScreenCorner.TopLeft}"/>
                             </ComboBox>
                         </Grid>
+
+                        <CheckBox Content="{DynamicResource LOCPlayAch_Settings_EnableControllerVibration}"
+                                  IsChecked="{Binding Persisted.EnableControllerVibration}"
+                                  Margin="0,10,0,10"/>
+                        <Grid Margin="18,0,0,0"
+                              IsEnabled="{Binding Persisted.EnableControllerVibration}">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="Auto"/>
+                                <ColumnDefinition Width="*"/>
+                                <ColumnDefinition Width="Auto"/>
+                            </Grid.ColumnDefinitions>
+                            <TextBlock Grid.Column="0"
+                                       Text="{DynamicResource LOCPlayAch_Settings_ControllerVibrationStrength}"
+                                       Foreground="{DynamicResource PlayAch.Brush.Text}"
+                                       VerticalAlignment="Center"
+                                       Margin="0,0,8,0"/>
+                            <Slider Grid.Column="1"
+                                    Minimum="0" Maximum="100"
+                                    SmallChange="1" LargeChange="10" TickFrequency="1" IsSnapToTickEnabled="True"
+                                    Value="{Binding Persisted.ControllerVibrationStrengthPercent, Mode=TwoWay}"
+                                    VerticalAlignment="Center"
+                                    MaxWidth="220"
+                                    HorizontalAlignment="Left"
+                                    Margin="0,0,8,0"/>
+                            <TextBox Grid.Column="2"
+                                     Text="{Binding Persisted.ControllerVibrationStrengthPercent, UpdateSourceTrigger=LostFocus}"
+                                     Width="{StaticResource PlayAch.Size.Input.NarrowWidth}"
+                                     TextAlignment="Right"/>
+                        </Grid>
                     </StackPanel>
                 </Border>
 
