@@ -539,6 +539,8 @@
     <sys:String x:Key="LOCPlayAch_Settings_MaxConcurrentToasts">Concurrent notifications:</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_ToastDurationSeconds">Duration (seconds):</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_ToastPosition">Position:</sys:String>
+    <sys:String x:Key="LOCPlayAch_Settings_EnableControllerVibration">Vibrate controller on notification</sys:String>
+    <sys:String x:Key="LOCPlayAch_Settings_ControllerVibrationStrength">Vibration strength (%):</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_ToastPosition_BottomRight">Bottom right</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_ToastPosition_BottomLeft">Bottom left</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_ToastPosition_TopRight">Top right</sys:String>
