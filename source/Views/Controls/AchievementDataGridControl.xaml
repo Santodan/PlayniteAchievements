@@ -350,6 +350,8 @@
                                     HorizontalAlignment="{Binding RelativeSource={RelativeSource AncestorType={x:Type DataGridCell}}, Path=Column.(helpers:DataGridAlignmentBehavior.CellHorizontalAlignment)}">
                             <!-- Fixed-width star gutter marks favorited friends; collapses entirely when
                                  no row in the grid belongs to a favorited friend. -->
+                            <!-- Match the friend name's font metrics so the star sits on the same
+                                 visual centerline as the text beside it. -->
                             <TextBlock Text="&#x2605;"
                                        Width="14"
                                        TextAlignment="Center"
@@ -357,7 +359,7 @@
                                        Foreground="{DynamicResource PlayAch.Brush.Text}"
                                        ToolTip="{DynamicResource LOCPlayAch_Column_Favorite}">
                                 <TextBlock.Style>
-                                    <Style TargetType="TextBlock">
+                                    <Style TargetType="TextBlock" BasedOn="{StaticResource PlayAch.TextBlock.BaseStyle}">
                                         <Setter Property="Opacity" Value="0"/>
                                         <Setter Property="Visibility" Value="Collapsed"/>
                                         <Style.Triggers>
