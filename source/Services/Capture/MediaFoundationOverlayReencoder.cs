@@ -89,6 +89,13 @@ namespace PlayniteAchievements.Services.Capture
                             fps = ReadFps(decodedType);
                             stride = ReadStride(decodedType, frameW);
 
+                            // The sink must agree with our row-order interpretation. When the
+                            // decoder's type omits MF_MT_DEFAULT_STRIDE, MF's convention for RGB
+                            // is bottom-up — the encoder's converter would vertically flip the
+                            // whole clip even though the video processor hands us top-down rows.
+                            // Declaring the stride we actually assume removes the ambiguity.
+                            decodedType.Set(MediaTypeAttributeKeys.DefaultStride, stride);
+
                             SinkWriter sink = null;
                             try
                             {
