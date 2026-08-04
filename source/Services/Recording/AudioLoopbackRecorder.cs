@@ -58,14 +58,28 @@ namespace PlayniteAchievements.Services.Recording
             ILogger logger,
             RecordingAudioSource source = RecordingAudioSource.FullSystem,
             bool includeMicrophone = false,
-            Func<int?> gameProcessId = null)
+            Func<int?> gameProcessId = null,
+            bool capturePlayniteChimes = false)
         {
             _bufferDirectory = bufferDirectory;
             _logger = logger;
             _source = source;
             _includeMicrophone = includeMicrophone;
             _gameProcessId = gameProcessId;
+            _capturePlayniteChimes = capturePlayniteChimes;
         }
+
+        // When true this instance is the chime sidecar: it records ONLY Playnite's process tree
+        // (where UniPlaySong plays the unlock chimes) into chm_*.wav chunks. The main track
+        // excludes that same tree, so the clip re-encode can mix exactly this wave's chime back
+        // in at the composited toast without other waves' chimes or any game-audio damage.
+        private readonly bool _capturePlayniteChimes;
+
+        /// <summary>
+        /// Whether the chime sidecar track can exist on this machine (per-process loopback,
+        /// Windows 10 19041+).
+        /// </summary>
+        public static bool IsChimeCaptureSupported => ProcessLoopbackCapture.IsSupported;
 
         /// <summary>
         /// Builds the capture graph and starts the pump. Returns false (after one Warn log) when audio
@@ -128,7 +142,7 @@ namespace PlayniteAchievements.Services.Recording
                     _pumpThread.Start();
 
                     _logger?.Info(
-                        $"[Recording] Audio capture started (source={_source}, mic={_includeMicrophone}, {_outputFormat}).");
+                        $"[Recording] Audio capture started (source={(_capturePlayniteChimes ? "PlayniteChimes" : _source.ToString())}, mic={_includeMicrophone}, {_outputFormat}).");
                     return true;
                 }
                 catch (Exception ex)
@@ -148,6 +162,13 @@ namespace PlayniteAchievements.Services.Recording
         /// </summary>
         private IWaveIn CreateSystemCapture()
         {
+            if (_capturePlayniteChimes)
+            {
+                // No fallback: a full-system fallback here would duplicate the main track.
+                return new ProcessLoopbackCapture(
+                    System.Diagnostics.Process.GetCurrentProcess().Id, includeProcessTree: true);
+            }
+
             if (_source == RecordingAudioSource.GameOnly)
             {
                 var pid = _gameProcessId?.Invoke();
@@ -351,7 +372,10 @@ namespace PlayniteAchievements.Services.Recording
 
         private void OpenChunkLocked()
         {
-            var name = RecordingPaths.AudioChunkFilePrefix +
+            var prefix = _capturePlayniteChimes
+                ? RecordingPaths.ChimeChunkFilePrefix
+                : RecordingPaths.AudioChunkFilePrefix;
+            var name = prefix +
                        DateTime.Now.ToString("yyyyMMdd-HHmmss", CultureInfo.InvariantCulture) +
                        RecordingPaths.AudioChunkFileExtension;
             _chunkStartWallClockSamples = TotalFramesWritten();

@@ -16,6 +16,14 @@ namespace PlayniteAchievements.Services.Recording
         /// <summary>Audio chunk filenames: aud_yyyyMMdd-HHmmss.wav (WASAPI loopback PCM).</summary>
         public const string AudioChunkFilePrefix = "aud_";
 
+        /// <summary>
+        /// Chime chunk filenames: chm_yyyyMMdd-HHmmss.wav — the Playnite-only sidecar audio
+        /// track. The main track excludes Playnite's process tree, so unlock chimes live only
+        /// here; the clip re-encode mixes this wave's chime back in aligned with the composited
+        /// toast.
+        /// </summary>
+        public const string ChimeChunkFilePrefix = "chm_";
+
         public const string AudioChunkFileExtension = ".wav";
     }
 }
