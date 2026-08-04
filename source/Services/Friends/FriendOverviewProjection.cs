@@ -215,9 +215,29 @@ namespace PlayniteAchievements.Services.Friends
 
         public static bool IsSameFriend(FriendAchievementDisplayItem achievement, FriendSummaryItem friend)
         {
-            return achievement != null &&
-                   friend != null &&
-                   string.Equals(GetFriendScopeKey(achievement), GetFriendScopeKey(friend), StringComparison.OrdinalIgnoreCase);
+            if (achievement == null || friend == null)
+            {
+                return false;
+            }
+
+            if (string.Equals(
+                    GetFriendScopeKey(achievement),
+                    GetFriendScopeKey(friend),
+                    StringComparison.OrdinalIgnoreCase))
+            {
+                return true;
+            }
+
+            // Full per-game rows are loaded directly from the cache after selection and have not
+            // passed through ApplyMergeGroups, so they do not carry FriendGroupId. Match those raw
+            // rows against the merged summary's member accounts. A row already assigned to a merge
+            // group must continue to match only that group.
+            return friend.IsMergedFriend &&
+                   string.IsNullOrWhiteSpace(achievement.FriendGroupId) &&
+                   (friend.MemberAccounts ?? new List<FriendAccountRef>())
+                       .Any(member => member?.Matches(
+                           achievement.ProviderKey,
+                           achievement.FriendExternalUserId) == true);
         }
 
         public static bool IsSameFriend(FriendGameLinkItem link, FriendSummaryItem friend)

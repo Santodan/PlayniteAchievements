@@ -100,6 +100,7 @@ The entries below are fork-side changes, grouped by date. When a date includes a
 ## Next release - TBD
 
 - Added the setting for the automatic theme migration under the `Theme Migration` tab
+- Fixed the friend's achievements not appearing correctly when two friends's accounts are merged
 
 
 ## 2026-08-02 - v3.0.0.1

@@ -315,6 +315,60 @@ namespace PlayniteAchievements.Tests.Services
                 FriendOverviewProjection.BuildFriendGameUnlockKey(" Steam ", " Alice ", null, 10, gameId));
         }
 
+        [TestMethod]
+        public void IsSameFriend_MergedFriendMatchesRawMemberAchievement()
+        {
+            var merged = new FriendSummaryItem
+            {
+                ProviderKey = FriendOverviewProjection.MergedProviderKey,
+                ExternalUserId = "merged-alice",
+                MergedFriendId = "merged-alice",
+                MemberAccounts = new List<FriendAccountRef>
+                {
+                    FriendAccountRef.From("RetroAchievements", "Nalings"),
+                    FriendAccountRef.From("Steam", "steam-alice")
+                }
+            };
+            var rawPairRow = new FriendAchievementDisplayItem
+            {
+                ProviderKey = "retroachievements",
+                FriendExternalUserId = "nalings"
+            };
+
+            Assert.IsTrue(FriendOverviewProjection.IsSameFriend(rawPairRow, merged));
+        }
+
+        [TestMethod]
+        public void IsSameFriend_MergedFriendRejectsOtherMemberAndOtherMergeGroup()
+        {
+            var merged = new FriendSummaryItem
+            {
+                ProviderKey = FriendOverviewProjection.MergedProviderKey,
+                ExternalUserId = "merged-alice",
+                MergedFriendId = "merged-alice",
+                MemberAccounts = new List<FriendAccountRef>
+                {
+                    FriendAccountRef.From("RetroAchievements", "Nalings")
+                }
+            };
+
+            Assert.IsFalse(FriendOverviewProjection.IsSameFriend(
+                new FriendAchievementDisplayItem
+                {
+                    ProviderKey = "RetroAchievements",
+                    FriendExternalUserId = "someone-else"
+                },
+                merged));
+            Assert.IsFalse(FriendOverviewProjection.IsSameFriend(
+                new FriendAchievementDisplayItem
+                {
+                    ProviderKey = "RetroAchievements",
+                    FriendExternalUserId = "Nalings",
+                    FriendGroupId = "different-merge"
+                },
+                merged));
+        }
+
         private static FriendAchievementDisplayItem Achievement(
             string providerKey,
             string externalUserId,
