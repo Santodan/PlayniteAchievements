@@ -83,6 +83,7 @@ namespace PlayniteAchievements.Models.Settings
         private int _maxConcurrentToasts = 3;
         private bool _enableControllerVibration = false;
         private int _controllerVibrationStrengthPercent = 50;
+        private int _controllerVibrationDurationMs = 650;
         private bool _enableUnlockScreenshots = false;
         private bool _unlockScreenshotClean = false;
         private bool _unlockScreenshotWithToast = true;
@@ -1108,6 +1109,15 @@ namespace PlayniteAchievements.Models.Settings
         {
             get => _controllerVibrationStrengthPercent;
             set => SetValue(ref _controllerVibrationStrengthPercent, Math.Max(0, Math.Min(100, value)));
+        }
+
+        /// <summary>
+        /// Controller vibration pulse length in milliseconds (100-5000).
+        /// </summary>
+        public int ControllerVibrationDurationMs
+        {
+            get => _controllerVibrationDurationMs;
+            set => SetValue(ref _controllerVibrationDurationMs, Math.Max(100, Math.Min(5000, value)));
         }
 
         /// <summary>
@@ -2581,6 +2591,7 @@ namespace PlayniteAchievements.Models.Settings
                 ToastPosition = this.ToastPosition,
                 EnableControllerVibration = this.EnableControllerVibration,
                 ControllerVibrationStrengthPercent = this.ControllerVibrationStrengthPercent,
+                ControllerVibrationDurationMs = this.ControllerVibrationDurationMs,
                 EnableUnlockScreenshots = this.EnableUnlockScreenshots,
                 UnlockScreenshotClean = this.UnlockScreenshotClean,
                 UnlockScreenshotWithToast = this.UnlockScreenshotWithToast,
