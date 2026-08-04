@@ -8,19 +8,19 @@ using System.Windows.Navigation;
 
 namespace PlayniteAchievements.Views.Helpers
 {
-    public static class AchievementNoteInlineFormatter
+    public static class InlineMarkdownFormatter
     {
-        private const int MaxCachedFormattedNotes = 256;
-        private static readonly object FormattedNoteCacheSync = new object();
-        private static readonly Dictionary<string, IReadOnlyList<InlineToken>> FormattedNoteCache =
+        private const int MaxCachedFormattedTexts = 256;
+        private static readonly object FormattedTextCacheSync = new object();
+        private static readonly Dictionary<string, IReadOnlyList<InlineToken>> FormattedTextCache =
             new Dictionary<string, IReadOnlyList<InlineToken>>(StringComparer.Ordinal);
-        private static readonly Queue<string> FormattedNoteCacheKeys = new Queue<string>();
+        private static readonly Queue<string> FormattedTextCacheKeys = new Queue<string>();
 
         public static readonly DependencyProperty FormattedTextProperty =
             DependencyProperty.RegisterAttached(
                 "FormattedText",
                 typeof(string),
-                typeof(AchievementNoteInlineFormatter),
+                typeof(InlineMarkdownFormatter),
                 new PropertyMetadata(string.Empty, OnFormattedTextChanged));
 
         public static string GetFormattedText(DependencyObject element)
@@ -34,6 +34,49 @@ namespace PlayniteAchievements.Views.Helpers
         }
 
         public static void ApplyFormattedText(TextBlock textBlock, string value)
+        {
+            ApplyInlines(textBlock, value, parseLinks: true);
+        }
+
+        private static void OnFormattedTextChanged(DependencyObject d, DependencyPropertyChangedEventArgs e)
+        {
+            if (d is TextBlock textBlock)
+            {
+                ApplyFormattedText(textBlock, e.NewValue as string);
+            }
+        }
+
+        /// <summary>
+        /// Renders inline markdown emphasis (**bold**, *italic*, __underline__,
+        /// ~~strikethrough~~) without link detection, for surfaces where hyperlinks are not
+        /// interactive — the unlock notification and screenshot-frame text lines.
+        /// </summary>
+        public static readonly DependencyProperty MarkupTextProperty =
+            DependencyProperty.RegisterAttached(
+                "MarkupText",
+                typeof(string),
+                typeof(InlineMarkdownFormatter),
+                new PropertyMetadata(string.Empty, OnMarkupTextChanged));
+
+        public static string GetMarkupText(DependencyObject element)
+        {
+            return (string)element.GetValue(MarkupTextProperty);
+        }
+
+        public static void SetMarkupText(DependencyObject element, string value)
+        {
+            element.SetValue(MarkupTextProperty, value ?? string.Empty);
+        }
+
+        private static void OnMarkupTextChanged(DependencyObject d, DependencyPropertyChangedEventArgs e)
+        {
+            if (d is TextBlock textBlock)
+            {
+                ApplyInlines(textBlock, e.NewValue as string, parseLinks: false);
+            }
+        }
+
+        private static void ApplyInlines(TextBlock textBlock, string value, bool parseLinks)
         {
             if (textBlock == null)
             {
@@ -50,18 +93,10 @@ namespace PlayniteAchievements.Views.Helpers
                 return;
             }
 
-            var tokens = GetFormattedTokens(text);
+            var tokens = GetFormattedTokens(text, parseLinks);
             for (var i = 0; i < tokens.Count; i++)
             {
                 AddInline(textBlock.Inlines, tokens[i]);
-            }
-        }
-
-        private static void OnFormattedTextChanged(DependencyObject d, DependencyPropertyChangedEventArgs e)
-        {
-            if (d is TextBlock textBlock)
-            {
-                ApplyFormattedText(textBlock, e.NewValue as string);
             }
         }
 
@@ -76,7 +111,7 @@ namespace PlayniteAchievements.Views.Helpers
             DependencyProperty.RegisterAttached(
                 "NoteToolTip",
                 typeof(string),
-                typeof(AchievementNoteInlineFormatter),
+                typeof(InlineMarkdownFormatter),
                 new PropertyMetadata(null, OnNoteToolTipChanged));
 
         public static string GetNoteToolTip(DependencyObject element)
@@ -140,38 +175,41 @@ namespace PlayniteAchievements.Views.Helpers
             ApplyFormattedText(content, note);
         }
 
-        private static IReadOnlyList<InlineToken> GetFormattedTokens(string text)
+        private static IReadOnlyList<InlineToken> GetFormattedTokens(string text, bool parseLinks)
         {
-            lock (FormattedNoteCacheSync)
+            // Link-free parses share the cache under a key that cannot collide with note text
+            // (notes are normalized to '\n' newlines, so a leading '\0' never occurs naturally).
+            var cacheKey = parseLinks ? text : "\0" + text;
+            lock (FormattedTextCacheSync)
             {
-                if (FormattedNoteCache.TryGetValue(text, out var cached))
+                if (FormattedTextCache.TryGetValue(cacheKey, out var cached))
                 {
                     return cached;
                 }
             }
 
-            var tokens = ParseFormattedTokens(text);
-            lock (FormattedNoteCacheSync)
+            var tokens = ParseFormattedTokens(text, parseLinks);
+            lock (FormattedTextCacheSync)
             {
-                if (FormattedNoteCache.TryGetValue(text, out var cached))
+                if (FormattedTextCache.TryGetValue(cacheKey, out var cached))
                 {
                     return cached;
                 }
 
-                FormattedNoteCache[text] = tokens;
-                FormattedNoteCacheKeys.Enqueue(text);
-                while (FormattedNoteCache.Count > MaxCachedFormattedNotes &&
-                       FormattedNoteCacheKeys.Count > 0)
+                FormattedTextCache[cacheKey] = tokens;
+                FormattedTextCacheKeys.Enqueue(cacheKey);
+                while (FormattedTextCache.Count > MaxCachedFormattedTexts &&
+                       FormattedTextCacheKeys.Count > 0)
                 {
-                    var oldestKey = FormattedNoteCacheKeys.Dequeue();
-                    FormattedNoteCache.Remove(oldestKey);
+                    var oldestKey = FormattedTextCacheKeys.Dequeue();
+                    FormattedTextCache.Remove(oldestKey);
                 }
             }
 
             return tokens;
         }
 
-        private static IReadOnlyList<InlineToken> ParseFormattedTokens(string text)
+        private static IReadOnlyList<InlineToken> ParseFormattedTokens(string text, bool parseLinks)
         {
             var tokens = new List<InlineToken>();
             var lines = text.Split('\n');
@@ -182,7 +220,10 @@ namespace PlayniteAchievements.Views.Helpers
                     tokens.Add(InlineToken.CreateLineBreak());
                 }
 
-                AppendFormattedTokens(tokens, lines[i], bold: false, italic: false, underline: false);
+                AppendFormattedTokens(
+                    tokens, lines[i],
+                    bold: false, italic: false, underline: false, strike: false,
+                    parseLinks: parseLinks);
             }
 
             return tokens;
@@ -193,7 +234,9 @@ namespace PlayniteAchievements.Views.Helpers
             string text,
             bool bold,
             bool italic,
-            bool underline)
+            bool underline,
+            bool strike,
+            bool parseLinks)
         {
             if (tokens == null || string.IsNullOrEmpty(text))
             {
@@ -206,20 +249,20 @@ namespace PlayniteAchievements.Views.Helpers
                 var marker = FindNextMarker(text, index);
                 if (marker.Start < 0)
                 {
-                    AddRunTokens(tokens, text.Substring(index), bold, italic, underline);
+                    AddRunTokens(tokens, text.Substring(index), bold, italic, underline, strike, parseLinks);
                     return;
                 }
 
                 if (marker.Start > index)
                 {
-                    AddRunTokens(tokens, text.Substring(index, marker.Start - index), bold, italic, underline);
+                    AddRunTokens(tokens, text.Substring(index, marker.Start - index), bold, italic, underline, strike, parseLinks);
                 }
 
                 var contentStart = marker.Start + marker.Token.Length;
                 var end = text.IndexOf(marker.Token, contentStart, StringComparison.Ordinal);
                 if (end < 0)
                 {
-                    AddRunTokens(tokens, text.Substring(marker.Start), bold, italic, underline);
+                    AddRunTokens(tokens, text.Substring(marker.Start), bold, italic, underline, strike, parseLinks);
                     return;
                 }
 
@@ -228,7 +271,9 @@ namespace PlayniteAchievements.Views.Helpers
                     text.Substring(contentStart, end - contentStart),
                     bold || marker.Kind == MarkerKind.Bold,
                     italic || marker.Kind == MarkerKind.Italic,
-                    underline || marker.Kind == MarkerKind.Underline);
+                    underline || marker.Kind == MarkerKind.Underline,
+                    strike || marker.Kind == MarkerKind.Strikethrough,
+                    parseLinks);
 
                 index = end + marker.Token.Length;
             }
@@ -252,6 +297,13 @@ namespace PlayniteAchievements.Views.Helpers
                     return new Marker(i, "__", MarkerKind.Underline);
                 }
 
+                if (i + 1 < text.Length &&
+                    text[i] == '~' &&
+                    text[i + 1] == '~')
+                {
+                    return new Marker(i, "~~", MarkerKind.Strikethrough);
+                }
+
                 if (text[i] == '*')
                 {
                     return new Marker(i, "*", MarkerKind.Italic);
@@ -266,10 +318,18 @@ namespace PlayniteAchievements.Views.Helpers
             string text,
             bool bold,
             bool italic,
-            bool underline)
+            bool underline,
+            bool strike,
+            bool parseLinks)
         {
             if (string.IsNullOrEmpty(text))
             {
+                return;
+            }
+
+            if (!parseLinks)
+            {
+                AddTextToken(tokens, text, bold, italic, underline, strike);
                 return;
             }
 
@@ -279,16 +339,16 @@ namespace PlayniteAchievements.Views.Helpers
                 var link = FindNextLink(text, index);
                 if (link.Start < 0)
                 {
-                    AddTextToken(tokens, text.Substring(index), bold, italic, underline);
+                    AddTextToken(tokens, text.Substring(index), bold, italic, underline, strike);
                     return;
                 }
 
                 if (link.Start > index)
                 {
-                    AddTextToken(tokens, text.Substring(index, link.Start - index), bold, italic, underline);
+                    AddTextToken(tokens, text.Substring(index, link.Start - index), bold, italic, underline, strike);
                 }
 
-                AddHyperlinkToken(tokens, link.DisplayText, link.NavigateUri, bold, italic, underline);
+                AddHyperlinkToken(tokens, link.DisplayText, link.NavigateUri, bold, italic, underline, strike);
                 index = link.End;
             }
         }
@@ -298,14 +358,15 @@ namespace PlayniteAchievements.Views.Helpers
             string text,
             bool bold,
             bool italic,
-            bool underline)
+            bool underline,
+            bool strike)
         {
             if (string.IsNullOrEmpty(text))
             {
                 return;
             }
 
-            tokens.Add(InlineToken.CreateText(text, bold, italic, underline));
+            tokens.Add(InlineToken.CreateText(text, bold, italic, underline, strike));
         }
 
         private static void AddHyperlinkToken(
@@ -314,14 +375,15 @@ namespace PlayniteAchievements.Views.Helpers
             Uri navigateUri,
             bool bold,
             bool italic,
-            bool underline)
+            bool underline,
+            bool strike)
         {
             if (string.IsNullOrWhiteSpace(displayText) || navigateUri == null)
             {
                 return;
             }
 
-            tokens.Add(InlineToken.CreateLink(displayText, navigateUri, bold, italic, underline));
+            tokens.Add(InlineToken.CreateLink(displayText, navigateUri, bold, italic, underline, strike));
         }
 
         private static void AddInline(InlineCollection inlines, InlineToken token)
@@ -333,7 +395,7 @@ namespace PlayniteAchievements.Views.Helpers
             }
 
             var run = new Run(token.Text);
-            ApplyTextStyle(run, token.Bold, token.Italic, token.Underline);
+            ApplyTextStyle(run, token.Bold, token.Italic, token.Underline, token.Strikethrough);
 
             if (token.NavigateUri == null)
             {
@@ -350,7 +412,7 @@ namespace PlayniteAchievements.Views.Helpers
             inlines.Add(hyperlink);
         }
 
-        private static void ApplyTextStyle(Run run, bool bold, bool italic, bool underline)
+        private static void ApplyTextStyle(Run run, bool bold, bool italic, bool underline, bool strike)
         {
             if (run == null)
             {
@@ -367,9 +429,20 @@ namespace PlayniteAchievements.Views.Helpers
                 run.FontStyle = FontStyles.Italic;
             }
 
-            if (underline)
+            if (underline || strike)
             {
-                run.TextDecorations = TextDecorations.Underline;
+                var decorations = new TextDecorationCollection();
+                if (underline)
+                {
+                    decorations.Add(TextDecorations.Underline);
+                }
+
+                if (strike)
+                {
+                    decorations.Add(TextDecorations.Strikethrough);
+                }
+
+                run.TextDecorations = decorations;
             }
         }
 
@@ -516,7 +589,8 @@ namespace PlayniteAchievements.Views.Helpers
         {
             Bold,
             Italic,
-            Underline
+            Underline,
+            Strikethrough
         }
 
         private readonly struct Marker
@@ -562,6 +636,7 @@ namespace PlayniteAchievements.Views.Helpers
                 bool bold,
                 bool italic,
                 bool underline,
+                bool strikethrough,
                 bool isLineBreak)
             {
                 Text = text;
@@ -569,6 +644,7 @@ namespace PlayniteAchievements.Views.Helpers
                 Bold = bold;
                 Italic = italic;
                 Underline = underline;
+                Strikethrough = strikethrough;
                 IsLineBreak = isLineBreak;
             }
 
@@ -582,15 +658,18 @@ namespace PlayniteAchievements.Views.Helpers
 
             public bool Underline { get; }
 
+            public bool Strikethrough { get; }
+
             public bool IsLineBreak { get; }
 
             public static InlineToken CreateText(
                 string text,
                 bool bold,
                 bool italic,
-                bool underline)
+                bool underline,
+                bool strike)
             {
-                return new InlineToken(text, null, bold, italic, underline, isLineBreak: false);
+                return new InlineToken(text, null, bold, italic, underline, strike, isLineBreak: false);
             }
 
             public static InlineToken CreateLink(
@@ -598,14 +677,15 @@ namespace PlayniteAchievements.Views.Helpers
                 Uri navigateUri,
                 bool bold,
                 bool italic,
-                bool underline)
+                bool underline,
+                bool strike)
             {
-                return new InlineToken(text, navigateUri, bold, italic, underline, isLineBreak: false);
+                return new InlineToken(text, navigateUri, bold, italic, underline, strike, isLineBreak: false);
             }
 
             public static InlineToken CreateLineBreak()
             {
-                return new InlineToken(string.Empty, null, bold: false, italic: false, underline: false, isLineBreak: true);
+                return new InlineToken(string.Empty, null, bold: false, italic: false, underline: false, strikethrough: false, isLineBreak: true);
             }
         }
     }

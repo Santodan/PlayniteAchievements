@@ -240,7 +240,7 @@
                                     Visibility="Collapsed">
                 <DataGridTemplateColumn.CellStyle>
                     <Style TargetType="DataGridCell" BasedOn="{StaticResource AchievementNoteCellStyle}">
-                        <Setter Property="helpers:AchievementNoteInlineFormatter.NoteToolTip" Value="{Binding AchievementNote}"/>
+                        <Setter Property="helpers:InlineMarkdownFormatter.NoteToolTip" Value="{Binding AchievementNote}"/>
                     </Style>
                 </DataGridTemplateColumn.CellStyle>
                 <DataGridTemplateColumn.CellTemplate>
@@ -249,7 +249,7 @@
                             <TextBlock Foreground="{DynamicResource PlayAch.Brush.Text}"
                                        TextWrapping="Wrap"
                                        TextTrimming="CharacterEllipsis"
-                                       helpers:AchievementNoteInlineFormatter.FormattedText="{Binding AchievementNote}"
+                                       helpers:InlineMarkdownFormatter.FormattedText="{Binding AchievementNote}"
                                        VerticalAlignment="{Binding RelativeSource={RelativeSource AncestorType={x:Type DataGridCell}}, Path=Column.(helpers:DataGridAlignmentBehavior.CellVerticalAlignment)}"
                                        HorizontalAlignment="Stretch">
                                 <TextBlock.Style>
