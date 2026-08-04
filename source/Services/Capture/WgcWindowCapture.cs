@@ -128,9 +128,9 @@ namespace PlayniteAchievements.Services.Capture
 
         /// <summary>
         /// Captures the whole monitor that <paramref name="hwndOnMonitor"/> sits on (via WGC
-        /// CreateForMonitor) — used for the with-notification shot (the toast is a separate window
-        /// z-ordered over the game, so a per-window game capture would not include it) and the
-        /// out-of-game test fire. Same HDR tone-map path. Returns null (never throws) on failure.
+        /// CreateForMonitor) — used only for the out-of-game test fire, where there is no game
+        /// window and the toast is genuinely on the Playnite monitor. Same HDR tone-map path.
+        /// Returns null (never throws) on failure.
         /// </summary>
         public CaptureResult CaptureMonitorForWindow(IntPtr hwndOnMonitor, int warmupMs = 150)
         {
