@@ -36,15 +36,20 @@ namespace PlayniteAchievements.Services.Capture
 
         /// <summary>
         /// Writes the trimmed, concatenated clip (video + optional audio) to <paramref name="outputPath"/>.
-        /// Returns false (with one log line) on any failure so the caller can drop the clip cleanly.
+        /// <paramref name="videoLeadSeconds"/> reports how far before the requested window start
+        /// the output begins (the keyframe snap-back) — the overlay re-encode uses it to place
+        /// the toast and to trim the lead back off. Returns false (with one log line) on any
+        /// failure so the caller can drop the clip cleanly.
         /// </summary>
         // The Media Foundation interop can surface native corrupted-state exceptions (access
         // violations from the source reader / sink writer); catch them so a failure degrades to
         // "no clip" with a log line instead of silently faulting the producer task.
         [HandleProcessCorruptedStateExceptions, System.Security.SecurityCritical]
         public bool Export(
-            SegmentTimeline.ClipPlan videoPlan, SegmentTimeline.ClipPlan audioPlan, string outputPath)
+            SegmentTimeline.ClipPlan videoPlan, SegmentTimeline.ClipPlan audioPlan, string outputPath,
+            out double videoLeadSeconds)
         {
+            videoLeadSeconds = 0;
             if (videoPlan?.Segments == null || videoPlan.Segments.Count == 0 || string.IsNullOrEmpty(outputPath))
             {
                 return false;
@@ -75,6 +80,7 @@ namespace PlayniteAchievements.Services.Capture
                     var clipEnd = clipStart + ToTicks(videoPlan.DurationSeconds);
                     var keyframeStart = FindKeyframeStart(videoPlan.Segments[0].Path, clipStart);
                     var videoLead = clipStart - keyframeStart; // ≥ 0
+                    videoLeadSeconds = videoLead / (double)OneSecond100ns;
                     _logger?.Debug($"[Recording] MF export: keyframeStart={keyframeStart / 10000}ms lead={videoLead / 10000}ms; writing video.");
 
                     WriteInterleaved(sink, videoStream, videoPlan, keyframeStart, clipEnd, audioStream, pcmType, audioPlan, videoLead);
