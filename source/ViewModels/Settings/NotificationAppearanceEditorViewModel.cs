@@ -53,6 +53,8 @@ namespace PlayniteAchievements.ViewModels.Settings
         private bool _hasHeaderFormatError;
         private string _textShadowText;
         private string _textShadowOffsetText;
+        private string _imageShadowText;
+        private string _imageShadowOffsetText;
         private string _cardWidthText = string.Empty;
         private string _cardHeightText = string.Empty;
         private string _iconSizeText = string.Empty;
@@ -656,6 +658,12 @@ namespace PlayniteAchievements.ViewModels.Settings
             SetValue(ref _textShadowOffsetText,
                 surface?.TextShadowOffset?.ToString(CultureInfo.CurrentCulture) ?? string.Empty,
                 nameof(TextShadowOffsetText));
+            SetValue(ref _imageShadowText,
+                surface?.ImageShadowOpacity?.ToString(CultureInfo.CurrentCulture) ?? string.Empty,
+                nameof(ImageShadowText));
+            SetValue(ref _imageShadowOffsetText,
+                surface?.ImageShadowOffset?.ToString(CultureInfo.CurrentCulture) ?? string.Empty,
+                nameof(ImageShadowOffsetText));
 
             // The slider companions are computed straight from the surface; refresh them
             // together with their text mirrors.
@@ -670,6 +678,8 @@ namespace PlayniteAchievements.ViewModels.Settings
             OnPropertyChanged(nameof(CardPaddingRightSlider));
             OnPropertyChanged(nameof(TextShadowSlider));
             OnPropertyChanged(nameof(TextShadowOffsetSlider));
+            OnPropertyChanged(nameof(ImageShadowSlider));
+            OnPropertyChanged(nameof(ImageShadowOffsetSlider));
         }
 
         // Slider/textbox range for the name-line offset; must match the Slider bounds in the view.
@@ -763,6 +773,68 @@ namespace PlayniteAchievements.ViewModels.Settings
         {
             get => Surface?.TextShadowOffset ?? AchievementToastViewModel.DefaultTextShadowOffset;
             set => TextShadowOffsetText = Math.Round(Math.Max(0, Math.Min(100, value)))
+                .ToString(CultureInfo.CurrentCulture);
+        }
+
+        /// <summary>
+        /// Image shadow opacity (0-100; images use a single layer, so 100 is both the
+        /// built-in look and the darkest). Blank clears the override; zero disables.
+        /// </summary>
+        public string ImageShadowText
+        {
+            get => _imageShadowText;
+            set
+            {
+                if (!SetValueAndReturn(ref _imageShadowText, value))
+                {
+                    return;
+                }
+
+                var surface = Surface;
+                if (surface != null && _isEditable)
+                {
+                    surface.ImageShadowOpacity = ParseShadowStrength(value);
+                }
+
+                RefreshCardDimensions();
+            }
+        }
+
+        public double ImageShadowSlider
+        {
+            get => Surface?.ImageShadowOpacity ?? AchievementToastViewModel.DefaultImageShadowOpacity;
+            set => ImageShadowText = Math.Round(Math.Max(0, Math.Min(100, value)))
+                .ToString(CultureInfo.CurrentCulture);
+        }
+
+        /// <summary>
+        /// Image shadow offset (0-100; 25 matches the built-in shadow). Blank clears the
+        /// override; zero is meaningful.
+        /// </summary>
+        public string ImageShadowOffsetText
+        {
+            get => _imageShadowOffsetText;
+            set
+            {
+                if (!SetValueAndReturn(ref _imageShadowOffsetText, value))
+                {
+                    return;
+                }
+
+                var surface = Surface;
+                if (surface != null && _isEditable)
+                {
+                    surface.ImageShadowOffset = ParseShadowStrength(value);
+                }
+
+                RefreshCardDimensions();
+            }
+        }
+
+        public double ImageShadowOffsetSlider
+        {
+            get => Surface?.ImageShadowOffset ?? AchievementToastViewModel.DefaultImageShadowOffset;
+            set => ImageShadowOffsetText = Math.Round(Math.Max(0, Math.Min(100, value)))
                 .ToString(CultureInfo.CurrentCulture);
         }
 

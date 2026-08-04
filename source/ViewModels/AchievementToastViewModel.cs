@@ -660,6 +660,11 @@ namespace PlayniteAchievements.ViewModels
         public const double DefaultTextShadowOpacity = 50;
         public const double DefaultTextShadowOffset = 25;
 
+        // Image shadows are single-layer (artwork has no thin glyph edges to solidify), so
+        // 100 is both the default and the darkest the layer can go.
+        public const double DefaultImageShadowOpacity = 100;
+        public const double DefaultImageShadowOffset = 25;
+
         /// <summary>
         /// The drop shadow behind this surface's text, badges, and logos, shaped by the
         /// surface's shadow opacity and offset settings; null when disabled (opacity 0).
@@ -681,6 +686,36 @@ namespace PlayniteAchievements.ViewModels
 
         public Effect FrameContentShadowInner =>
             BuildInnerContentShadow(_style.Frame.TextShadowOpacity, _style.Frame.TextShadowOffset);
+
+        /// <summary>
+        /// The drop shadow behind this surface's images (badges, provider icons, branding),
+        /// independent of the text shadow; null when disabled (opacity 0).
+        /// </summary>
+        public Effect ToastImageShadow =>
+            BuildImageShadow(_style.Toast.ImageShadowOpacity, _style.Toast.ImageShadowOffset);
+
+        public Effect FrameImageShadow =>
+            BuildImageShadow(_style.Frame.ImageShadowOpacity, _style.Frame.ImageShadowOffset);
+
+        private static Effect BuildImageShadow(double? opacityPercent, double? offsetPercent)
+        {
+            var opacity = NormalizePercent(opacityPercent, DefaultImageShadowOpacity);
+            if (opacity <= 0)
+            {
+                return null;
+            }
+
+            var effect = new DropShadowEffect
+            {
+                BlurRadius = ContentShadowBlur,
+                ShadowDepth = ContentShadowMaxDepth * NormalizePercent(offsetPercent, DefaultImageShadowOffset),
+                Direction = 315,
+                Color = Colors.Black,
+                Opacity = opacity
+            };
+            effect.Freeze();
+            return effect;
+        }
 
         private static double NormalizePercent(double? value, double fallback) =>
             Math.Max(0.0, Math.Min(100.0, value ?? fallback)) / 100.0;

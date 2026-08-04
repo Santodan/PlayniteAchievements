@@ -121,17 +121,18 @@
 
                 <!-- Right column: the provider icon, or (when the rarity badge is placed on the
                      right) a larger badge with an optional percent under it that stands in for the
-                     provider icon. The two are mutually exclusive by their visibility gates; the
-                     shared content shadow sits on the container. -->
+                     provider icon. The two are mutually exclusive by their visibility gates.
+                     Images carry the image shadow; the percent text carries the two text-shadow
+                     layers so it matches the text lines at every strength. -->
                 <Grid Grid.Column="1"
                       Grid.Row="0"
                       Margin="2,0,10,0"
-                      VerticalAlignment="Center"
-                      Effect="{Binding ToastContentShadow}">
+                      VerticalAlignment="Center">
                     <Image Width="{Binding ToastProviderIconSize}"
                            Height="{Binding ToastProviderIconSize}"
                            VerticalAlignment="Center"
                            RenderOptions.BitmapScalingMode="HighQuality"
+                           Effect="{Binding ToastImageShadow}"
                            Visibility="{Binding ShowProviderIcon, Converter={StaticResource BooleanToVisibilityConverter}}">
                         <Image.Source>
                             <MultiBinding Converter="{StaticResource ProviderIconConverter}">
@@ -153,16 +154,20 @@
                                Width="{Binding ToastRightBadgeSize}"
                                Height="{Binding ToastRightBadgeSize}"
                                HorizontalAlignment="Center"
-                               RenderOptions.BitmapScalingMode="HighQuality"/>
-                        <TextBlock x:Name="ToastRightPercent"
-                                   Text="{Binding PercentText}"
-                                   Style="{DynamicResource PlayAch.TextBlock.BaseStyle}"
-                                   Foreground="{DynamicResource PlayAch.Brush.Text}"
-                                   FontSize="{Binding ToastRarityFontSize}"
-                                   FontFamily="{Binding ToastFontFamily}"
-                                   HorizontalAlignment="Center"
-                                   Margin="0,2,0,0"
-                                   Visibility="{Binding ShowRightPercent, Converter={StaticResource BooleanToVisibilityConverter}}"/>
+                               RenderOptions.BitmapScalingMode="HighQuality"
+                               Effect="{Binding ToastImageShadow}"/>
+                        <Grid Effect="{Binding ToastContentShadow}"
+                              HorizontalAlignment="Center"
+                              Margin="0,2,0,0"
+                              Visibility="{Binding ShowRightPercent, Converter={StaticResource BooleanToVisibilityConverter}}">
+                            <TextBlock x:Name="ToastRightPercent"
+                                       Text="{Binding PercentText}"
+                                       Style="{DynamicResource PlayAch.TextBlock.BaseStyle}"
+                                       Foreground="{DynamicResource PlayAch.Brush.Text}"
+                                       FontSize="{Binding ToastRarityFontSize}"
+                                       FontFamily="{Binding ToastFontFamily}"
+                                       Effect="{Binding ToastContentShadowInner}"/>
+                        </Grid>
                     </StackPanel>
                 </Grid>
 
@@ -249,7 +254,6 @@
                     <Border x:Name="ToastIconExtras"
                             Padding="0,4,0,0"
                             HorizontalAlignment="Center"
-                            Effect="{Binding ToastContentShadow}"
                             Visibility="{Binding HasIconFooter, Converter={StaticResource BooleanToVisibilityConverter}}">
                         <StackPanel Orientation="Horizontal"
                                     HorizontalAlignment="Center">
@@ -261,15 +265,21 @@
                                    Height="{Binding ToastBadgeSize}"
                                    VerticalAlignment="Center"
                                    RenderOptions.BitmapScalingMode="HighQuality"
+                                   Effect="{Binding ToastImageShadow}"
                                    Visibility="{Binding ShowBadge, Converter={StaticResource BooleanToVisibilityConverter}}"/>
-                            <TextBlock Text="{Binding PercentText}"
-                                       Style="{DynamicResource PlayAch.TextBlock.BaseStyle}"
-                                       Foreground="{DynamicResource PlayAch.Brush.Text}"
-                                       FontSize="{Binding ToastRarityFontSize}"
-                                       FontFamily="{Binding ToastFontFamily}"
-                                       VerticalAlignment="Center"
-                                       Margin="4,0,0,0"
-                                       Visibility="{Binding ShowPercent, Converter={StaticResource BooleanToVisibilityConverter}}"/>
+                            <!-- The percent carries both text-shadow layers so it matches the
+                                 text lines at every strength. -->
+                            <Grid Effect="{Binding ToastContentShadow}"
+                                  VerticalAlignment="Center"
+                                  Margin="4,0,0,0"
+                                  Visibility="{Binding ShowPercent, Converter={StaticResource BooleanToVisibilityConverter}}">
+                                <TextBlock Text="{Binding PercentText}"
+                                           Style="{DynamicResource PlayAch.TextBlock.BaseStyle}"
+                                           Foreground="{DynamicResource PlayAch.Brush.Text}"
+                                           FontSize="{Binding ToastRarityFontSize}"
+                                           FontFamily="{Binding ToastFontFamily}"
+                                           Effect="{Binding ToastContentShadowInner}"/>
+                            </Grid>
                         </StackPanel>
                     </Border>
                 </StackPanel>

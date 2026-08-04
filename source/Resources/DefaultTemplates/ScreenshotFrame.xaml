@@ -115,8 +115,7 @@
                         </Grid>
                         <StackPanel Orientation="Horizontal"
                                     HorizontalAlignment="Center"
-                                    Margin="0,6,0,0"
-                                    Effect="{Binding FrameContentShadow}">
+                                    Margin="0,6,0,0">
                             <!-- Sync-loaded custom badge image (offscreen render contract);
                                  animated GIF badges contribute their first frame here. -->
                             <Image Source="{Binding FrameBadgeImage}"
@@ -124,15 +123,21 @@
                                    Height="{Binding FrameBadgeSize}"
                                    VerticalAlignment="Center"
                                    RenderOptions.BitmapScalingMode="HighQuality"
+                                   Effect="{Binding FrameImageShadow}"
                                    Visibility="{Binding FrameShowBadge, Converter={StaticResource BooleanToVisibilityConverter}}"/>
-                            <TextBlock Text="{Binding PercentText}"
-                                       Style="{DynamicResource PlayAch.TextBlock.BaseStyle}"
-                                       Foreground="{DynamicResource PlayAch.Brush.Text}"
-                                       FontSize="{Binding FrameRarityFontSize}"
-                                       FontFamily="{Binding FrameFontFamily}"
-                                       VerticalAlignment="Center"
-                                       Margin="6,0,0,0"
-                                       Visibility="{Binding FrameShowPercent, Converter={StaticResource BooleanToVisibilityConverter}}"/>
+                            <!-- The percent carries both text-shadow layers so it matches the
+                                 text lines at every strength. -->
+                            <Grid Effect="{Binding FrameContentShadow}"
+                                  VerticalAlignment="Center"
+                                  Margin="6,0,0,0"
+                                  Visibility="{Binding FrameShowPercent, Converter={StaticResource BooleanToVisibilityConverter}}">
+                                <TextBlock Text="{Binding PercentText}"
+                                           Style="{DynamicResource PlayAch.TextBlock.BaseStyle}"
+                                           Foreground="{DynamicResource PlayAch.Brush.Text}"
+                                           FontSize="{Binding FrameRarityFontSize}"
+                                           FontFamily="{Binding FrameFontFamily}"
+                                           Effect="{Binding FrameContentShadowInner}"/>
+                            </Grid>
                         </StackPanel>
                     </StackPanel>
 
@@ -162,12 +167,12 @@
                          The converter and FrameBadgeImage render synchronously offscreen. -->
                     <Grid Grid.Column="2"
                           Margin="0,0,22,0"
-                          VerticalAlignment="Center"
-                          Effect="{Binding FrameContentShadow}">
+                          VerticalAlignment="Center">
                         <Image Width="{Binding FrameProviderIconSize}"
                                Height="{Binding FrameProviderIconSize}"
                                VerticalAlignment="Center"
                                RenderOptions.BitmapScalingMode="HighQuality"
+                               Effect="{Binding FrameImageShadow}"
                                Visibility="{Binding FrameShowProviderIcon, Converter={StaticResource BooleanToVisibilityConverter}}">
                             <Image.Source>
                                 <MultiBinding Converter="{StaticResource ProviderIconConverter}">
@@ -183,15 +188,21 @@
                                    Width="{Binding FrameRightBadgeSize}"
                                    Height="{Binding FrameRightBadgeSize}"
                                    HorizontalAlignment="Center"
-                                   RenderOptions.BitmapScalingMode="HighQuality"/>
-                            <TextBlock Text="{Binding PercentText}"
-                                       Style="{DynamicResource PlayAch.TextBlock.BaseStyle}"
-                                       Foreground="{DynamicResource PlayAch.Brush.Text}"
-                                       FontSize="{Binding FrameRarityFontSize}"
-                                       FontFamily="{Binding FrameFontFamily}"
-                                       HorizontalAlignment="Center"
-                                       Margin="0,2,0,0"
-                                       Visibility="{Binding FrameShowRightPercent, Converter={StaticResource BooleanToVisibilityConverter}}"/>
+                                   RenderOptions.BitmapScalingMode="HighQuality"
+                                   Effect="{Binding FrameImageShadow}"/>
+                            <!-- The percent carries both text-shadow layers so it matches the
+                                 text lines at every strength. -->
+                            <Grid Effect="{Binding FrameContentShadow}"
+                                  HorizontalAlignment="Center"
+                                  Margin="0,2,0,0"
+                                  Visibility="{Binding FrameShowRightPercent, Converter={StaticResource BooleanToVisibilityConverter}}">
+                                <TextBlock Text="{Binding PercentText}"
+                                           Style="{DynamicResource PlayAch.TextBlock.BaseStyle}"
+                                           Foreground="{DynamicResource PlayAch.Brush.Text}"
+                                           FontSize="{Binding FrameRarityFontSize}"
+                                           FontFamily="{Binding FrameFontFamily}"
+                                           Effect="{Binding FrameContentShadowInner}"/>
+                            </Grid>
                         </StackPanel>
                     </Grid>
 
@@ -201,7 +212,7 @@
                     <StackPanel Grid.Column="3"
                                 Orientation="Horizontal"
                                 VerticalAlignment="Center"
-                                Effect="{Binding FrameContentShadow}">
+                                Effect="{Binding FrameImageShadow}">
                         <Border Width="1"
                                 Margin="0,10,20,10"
                                 Background="{DynamicResource PlayAch.Brush.PopupBorder}"/>

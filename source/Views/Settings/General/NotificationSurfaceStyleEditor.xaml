@@ -597,6 +597,53 @@
                              Width="70"
                              TextAlignment="Right"/>
                 </Grid>
+
+                <!-- Image shadow: independent of the text shadow, applied to badge images,
+                     the platform icon, and the frame branding. Single layer, so 100 is both
+                     the built-in look and the darkest. -->
+                <TextBlock Text="{DynamicResource LOCPlayAch_Settings_Style_ImageShadow}"
+                           Style="{StaticResource EditorSubGroupHeaderStyle}"/>
+                <Grid HorizontalAlignment="Left">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="Auto" MinWidth="90"/>
+                        <ColumnDefinition Width="160"/>
+                        <ColumnDefinition Width="Auto"/>
+                    </Grid.ColumnDefinitions>
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="Auto"/>
+                    </Grid.RowDefinitions>
+
+                    <TextBlock Grid.Row="0" Grid.Column="0"
+                               Text="{DynamicResource LOCPlayAch_Settings_Style_TextShadowOpacity}"
+                               Style="{StaticResource EditorRowLabelStyle}"
+                               Margin="0,0,8,8"/>
+                    <Slider Grid.Row="0" Grid.Column="1"
+                            Minimum="0" Maximum="100"
+                            SmallChange="1" LargeChange="10" TickFrequency="1" IsSnapToTickEnabled="True"
+                            Value="{Binding ImageShadowSlider, Mode=TwoWay}"
+                            VerticalAlignment="Center"
+                            Margin="0,0,8,8"/>
+                    <TextBox Grid.Row="0" Grid.Column="2"
+                             Text="{Binding ImageShadowText, Mode=TwoWay, UpdateSourceTrigger=LostFocus}"
+                             Width="70"
+                             TextAlignment="Right"
+                             Margin="0,0,0,8"/>
+
+                    <TextBlock Grid.Row="1" Grid.Column="0"
+                               Text="{DynamicResource LOCPlayAch_Settings_Style_TextShadowOffset}"
+                               Style="{StaticResource EditorRowLabelStyle}"/>
+                    <Slider Grid.Row="1" Grid.Column="1"
+                            Minimum="0" Maximum="100"
+                            SmallChange="1" LargeChange="10" TickFrequency="1" IsSnapToTickEnabled="True"
+                            Value="{Binding ImageShadowOffsetSlider, Mode=TwoWay}"
+                            VerticalAlignment="Center"
+                            Margin="0,0,8,0"/>
+                    <TextBox Grid.Row="1" Grid.Column="2"
+                             Text="{Binding ImageShadowOffsetText, Mode=TwoWay, UpdateSourceTrigger=LostFocus}"
+                             Width="70"
+                             TextAlignment="Right"/>
+                </Grid>
             </StackPanel>
         </Border>
 

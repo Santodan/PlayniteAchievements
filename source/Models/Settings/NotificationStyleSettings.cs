@@ -120,6 +120,8 @@ namespace PlayniteAchievements.Models.Settings
         private double _titleLineOffset;
         private double? _textShadowOpacity;
         private double? _textShadowOffset;
+        private double? _imageShadowOpacity;
+        private double? _imageShadowOffset;
         private NotificationBadgeImageSet _badgeImages;
         private NotificationHeaderTextSettings _headerTexts;
 
@@ -481,6 +483,29 @@ namespace PlayniteAchievements.Models.Settings
         }
 
         /// <summary>
+        /// Darkness of the drop shadow behind the surface's images (badges, provider icons,
+        /// branding), as a percentage: 100 matches the built-in shadow (images use a single
+        /// layer, so 100 is the darkest), 0 disables it. Null means the built-in default
+        /// (100).
+        /// </summary>
+        public double? ImageShadowOpacity
+        {
+            get => _imageShadowOpacity;
+            set => SetValue(ref _imageShadowOpacity, value);
+        }
+
+        /// <summary>
+        /// How far the image drop shadow sits from the artwork, as a percentage of the
+        /// maximum offset: 25 matches the built-in shadow. Null means the built-in default
+        /// (25).
+        /// </summary>
+        public double? ImageShadowOffset
+        {
+            get => _imageShadowOffset;
+            set => SetValue(ref _imageShadowOffset, value);
+        }
+
+        /// <summary>
         /// User-supplied badge replacement images for this surface. Lazily initialized;
         /// never null.
         /// </summary>
@@ -569,6 +594,8 @@ namespace PlayniteAchievements.Models.Settings
                 TitleLineOffset = TitleLineOffset,
                 TextShadowOpacity = TextShadowOpacity,
                 TextShadowOffset = TextShadowOffset,
+                ImageShadowOpacity = ImageShadowOpacity,
+                ImageShadowOffset = ImageShadowOffset,
                 BadgeImages = BadgeImages.Clone(),
                 HeaderTexts = HeaderTexts.Clone()
             };

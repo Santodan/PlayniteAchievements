@@ -617,6 +617,7 @@
     <sys:String x:Key="LOCPlayAch_Settings_Style_TextLinesHint">Drag to reorder. A blank size uses the theme default.</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_Style_FontFamily">Font family</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_Style_TextShadow">Text shadow</sys:String>
+    <sys:String x:Key="LOCPlayAch_Settings_Style_ImageShadow">Image shadow</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_Style_TextShadowOpacity">Opacity</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_Style_TextShadowOffset">Offset</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_Style_FontThemeDefault">Theme default</sys:String>
