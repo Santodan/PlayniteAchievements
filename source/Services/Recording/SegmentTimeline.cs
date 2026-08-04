@@ -18,15 +18,6 @@ namespace PlayniteAchievements.Services.Recording
         /// <summary>Tolerance (seconds past detection) a trusted unlock timestamp may carry.</summary>
         public const int PreciseLeadSeconds = 5;
 
-        /// <summary>
-        /// Seconds kept after the toast's display duration elapses. Zero ends the clip as the toast
-        /// finishes rather than lingering on post-toast footage.
-        /// </summary>
-        public const int ToastDismissTailSeconds = 0;
-
-        /// <summary>End-anchor fallback (seconds after detection) when no toast ever shows.</summary>
-        public const int NoToastEndFallbackSeconds = 5;
-
         /// <summary>Windows that collapse below this are skipped by the caller.</summary>
         public const int MinimumWindowSeconds = 3;
 
@@ -208,59 +199,6 @@ namespace PlayniteAchievements.Services.Recording
 
             var end = anchor.AddSeconds(Math.Max(0, toastSlotSeconds) + Math.Max(0, tailSeconds));
             return new ClipWindow { StartUtc = start, EndUtc = end, ToastAnchorUtc = anchor };
-        }
-
-        /// <summary>
-        /// Legacy toast-observation-anchored window (end follows the on-screen toast). Superseded
-        /// by the unlock-anchored overload above; removed with the recording pipeline rework.
-        /// </summary>
-        public static (DateTime StartUtc, DateTime EndUtc) ComputeClipWindow(
-            DateTime? unlockTimeUtc,
-            DateTime detectionUtc,
-            DateTime? toastShownUtc,
-            DateTime captureStartUtc,
-            DateTime? oldestSegmentStartUtc,
-            int pollIntervalSeconds,
-            int preRollSeconds,
-            int toastVisibleSeconds)
-        {
-            var end = toastShownUtc.HasValue
-                ? toastShownUtc.Value.AddSeconds(Math.Max(0, toastVisibleSeconds) + ToastDismissTailSeconds)
-                : detectionUtc.AddSeconds(NoToastEndFallbackSeconds);
-
-            var preRoll = Math.Max(0, preRollSeconds);
-            var start = IsPreciseUnlockTime(unlockTimeUtc, captureStartUtc, detectionUtc)
-                ? unlockTimeUtc.Value.AddSeconds(-preRoll)
-                : detectionUtc.AddSeconds(-preRoll);
-
-            // Start floor: never open earlier than the oldest moment a promptly-detected unlock
-            // could have occurred (one poll interval back) plus the pre-roll. This bounds only a
-            // pathological far-back precise timestamp; it never slides the start forward for a
-            // late toast, so the clip always keeps its pre-roll and the unlock moment.
-            var earliest = detectionUtc.AddSeconds(-(Math.Max(0, pollIntervalSeconds) + preRoll));
-            if (start < earliest)
-            {
-                start = earliest;
-            }
-
-            // Clamp to data that actually exists.
-            var floor = captureStartUtc;
-            if (oldestSegmentStartUtc.HasValue && oldestSegmentStartUtc.Value > floor)
-            {
-                floor = oldestSegmentStartUtc.Value;
-            }
-
-            if (start < floor)
-            {
-                start = floor;
-            }
-
-            if (start > end)
-            {
-                start = end;
-            }
-
-            return (start, end);
         }
 
         /// <summary>
