@@ -303,6 +303,69 @@ namespace PlayniteAchievements.Tests.Services
         }
 
         [TestMethod]
+        public void ApplyMergeIdentity_StampsFreshRowsWithoutFriendSummaries()
+        {
+            var settings = CreateMergeSettings(groupNickname: "Alice Unified", avatarProviderKey: null);
+            var group = settings.GetFriendMergeGroups().Single();
+            var gameId = Guid.Parse("66666666-6666-6666-6666-666666666666");
+            var unlockedMember = Achievement("Steam", "steam-alice", 10, gameId, "Steam Game", "SteamA", Utc(2026, 1, 1), RarityTier.Common);
+            unlockedMember.FriendName = "Steam Alice";
+            unlockedMember.FriendAvatarPath = "steam-avatar.png";
+            var lockedMember = Achievement("Steam", "steam-alice", 10, gameId, "Steam Game", "SteamB", Utc(2026, 1, 1), RarityTier.Rare);
+            lockedMember.Unlocked = false;
+            lockedMember.UnlockTimeUtc = null;
+            lockedMember.FriendName = "Steam Alice";
+            lockedMember.FriendAvatarPath = "steam-avatar.png";
+            var nonMember = Achievement("Steam", "bob", 10, gameId, "Steam Game", "SteamA", Utc(2026, 1, 2), RarityTier.Common);
+            nonMember.FriendName = "Bob";
+            // Fresh SQL-load shape: achievements only, no Friends summaries, no FriendGroupId.
+            var data = new FriendsOverviewData
+            {
+                AllAchievements = new List<FriendAchievementDisplayItem> { unlockedMember, lockedMember, nonMember }
+            };
+
+            var rows = FriendOverviewProjection.ApplyMergeIdentity(data, settings);
+
+            Assert.AreSame(unlockedMember, rows[0]);
+            var mergedKey = FriendOverviewProjection.BuildFriendKey(FriendOverviewProjection.MergedProviderKey, group.Id);
+            Assert.AreEqual(group.Id, unlockedMember.FriendGroupId);
+            Assert.AreEqual(group.Id, lockedMember.FriendGroupId);
+            Assert.AreEqual(mergedKey, unlockedMember.FriendScopeKey);
+            Assert.AreEqual(mergedKey, lockedMember.FriendScopeKey);
+            Assert.AreEqual("Alice Unified", unlockedMember.FriendName);
+            Assert.AreEqual("steam-avatar.png", unlockedMember.FriendAvatarPath);
+            Assert.IsNull(nonMember.FriendGroupId);
+            Assert.AreEqual("Bob", nonMember.FriendName);
+        }
+
+        [TestMethod]
+        public void ApplyMergeIdentity_WithoutMergeGroupsAppliesIndividualNicknames()
+        {
+            var settings = new PersistedSettings();
+            settings.AddOrUpdateFriend(
+                "Steam",
+                "steam-alice",
+                "Steam Alice",
+                null,
+                null,
+                FriendSettingsSource.AutoDiscovered);
+            settings.SetFriendNickname("Steam", "steam-alice", "Ally");
+            var gameId = Guid.Parse("77777777-7777-7777-7777-777777777777");
+            var row = Achievement("Steam", "steam-alice", 10, gameId, "Steam Game", "SteamA", Utc(2026, 1, 1), RarityTier.Common);
+            row.FriendName = "Steam Alice";
+            var data = new FriendsOverviewData
+            {
+                AllAchievements = new List<FriendAchievementDisplayItem> { row }
+            };
+
+            var rows = FriendOverviewProjection.ApplyMergeIdentity(data, settings);
+
+            Assert.AreSame(row, rows.Single());
+            Assert.IsNull(row.FriendGroupId);
+            Assert.AreEqual("Ally", row.FriendName);
+        }
+
+        [TestMethod]
         public void ScopeKeys_AreStableAndCaseInsensitive()
         {
             var gameId = Guid.Parse("33333333-3333-3333-3333-333333333333");
