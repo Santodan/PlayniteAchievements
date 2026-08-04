@@ -165,7 +165,9 @@ namespace PlayniteAchievements.ViewModels
                 List<FriendAchievementDisplayItem> rows = null;
                 try
                 {
-                    rows = _friendCache.LoadFriendGameAchievementData(targetGameId)?.AllAchievements;
+                    rows = FriendOverviewProjection.ApplyMergeIdentity(
+                        _friendCache.LoadFriendGameAchievementData(targetGameId),
+                        _settings?.Persisted);
                 }
                 catch (Exception ex)
                 {
