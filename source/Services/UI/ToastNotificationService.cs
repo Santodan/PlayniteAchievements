@@ -1448,7 +1448,10 @@ namespace PlayniteAchievements.Services.UI
                 return;
             }
 
-            ControllerVibrationService.Pulse(persisted.ControllerVibrationStrengthPercent, _logger);
+            ControllerVibrationService.Pulse(
+                persisted.ControllerVibrationStrengthPercent,
+                persisted.ControllerVibrationDurationMs,
+                _logger);
         }
 
         private DateTime? PlayWaveSound(IReadOnlyList<AchievementToastViewModel> wave)
