@@ -356,6 +356,7 @@ namespace PlayniteAchievements.Services.Friends
 
         private static FriendsOverviewData ApplyMergeGroups(FriendsOverviewData data, PersistedSettings settings)
         {
+            var nameMode = settings?.FriendNameDisplayMode ?? FriendNameDisplayMode.PersonaAndNickname;
             var groups = settings?.GetFriendMergeGroups() ?? new List<FriendMergeGroup>();
             if (groups.Count == 0)
             {
@@ -401,17 +402,19 @@ namespace PlayniteAchievements.Services.Friends
                 if (groupByAccount.TryGetValue(accountKey, out var group))
                 {
                     achievement.FriendGroupId = group.Id;
-                    achievement.FriendName = ResolveMergedFriendName(group, friendByAccount, settingsByAccount);
+                    achievement.FriendName = ResolveMergedFriendName(group, friendByAccount, settingsByAccount, nameMode);
                     achievement.FriendAvatarPath = ResolveMergedFriendAvatar(group, friendByAccount);
                     achievement.FriendIsFavorite = IsMergeGroupFavorite(group, settingsByAccount);
                 }
                 else if (settingsByAccount.TryGetValue(accountKey, out var setting))
                 {
                     achievement.FriendIsFavorite = setting.IsFavorite;
-                    if (!string.IsNullOrWhiteSpace(setting.Nickname))
-                    {
-                        achievement.FriendName = setting.Nickname;
-                    }
+                    achievement.FriendName = FriendDisplayNameResolver.Resolve(
+                        setting.Nickname,
+                        !string.IsNullOrWhiteSpace(achievement.FriendName) ? achievement.FriendName : setting.DisplayName,
+                        setting.ProviderNickname,
+                        nameMode,
+                        achievement.FriendExternalUserId);
                 }
             }
 
@@ -446,12 +449,12 @@ namespace PlayniteAchievements.Services.Friends
                     }
                 }
 
-                mergedFriends.Add(BuildMergedFriendSummary(group, members, settingsByAccount));
+                mergedFriends.Add(BuildMergedFriendSummary(group, members, settingsByAccount, nameMode));
             }
 
             var unmergedFriends = originalFriends
                 .Where(friend => friend != null && !groupedAccountKeys.Contains(FriendAccountRef.BuildKey(friend.ProviderKey, friend.ExternalUserId)))
-                .Select(friend => ApplyIndividualNickname(friend, settingsByAccount))
+                .Select(friend => ApplyIndividualNickname(friend, settingsByAccount, nameMode))
                 .ToList();
 
             data.Friends = mergedFriends
@@ -465,28 +468,34 @@ namespace PlayniteAchievements.Services.Friends
 
         private static void ApplyIndividualNicknames(FriendsOverviewData data, PersistedSettings settings)
         {
+            var nameMode = settings?.FriendNameDisplayMode ?? FriendNameDisplayMode.PersonaAndNickname;
             var settingsByAccount = (settings?.GetFriendSettings(includeIgnored: true) ?? new List<FriendSettingsEntry>())
                 .GroupBy(entry => FriendAccountRef.BuildKey(entry.ProviderKey, entry.ExternalUserId), StringComparer.OrdinalIgnoreCase)
                 .ToDictionary(group => group.Key, group => group.First(), StringComparer.OrdinalIgnoreCase);
             data.Friends = (data.Friends ?? new List<FriendSummaryItem>())
-                .Select(friend => ApplyIndividualNickname(friend, settingsByAccount))
+                .Select(friend => ApplyIndividualNickname(friend, settingsByAccount, nameMode))
                 .ToList();
 
             foreach (var achievement in EnumerateAchievements(data))
             {
                 var accountKey = FriendAccountRef.BuildKey(achievement?.ProviderKey, achievement?.FriendExternalUserId);
                 if (!string.IsNullOrWhiteSpace(accountKey) &&
-                    settingsByAccount.TryGetValue(accountKey, out var setting) &&
-                    !string.IsNullOrWhiteSpace(setting.Nickname))
+                    settingsByAccount.TryGetValue(accountKey, out var setting))
                 {
-                    achievement.FriendName = setting.Nickname;
+                    achievement.FriendName = FriendDisplayNameResolver.Resolve(
+                        setting.Nickname,
+                        !string.IsNullOrWhiteSpace(achievement.FriendName) ? achievement.FriendName : setting.DisplayName,
+                        setting.ProviderNickname,
+                        nameMode,
+                        achievement.FriendExternalUserId);
                 }
             }
         }
 
         private static FriendSummaryItem ApplyIndividualNickname(
             FriendSummaryItem friend,
-            Dictionary<string, FriendSettingsEntry> settingsByAccount)
+            Dictionary<string, FriendSettingsEntry> settingsByAccount,
+            FriendNameDisplayMode nameMode)
         {
             if (friend == null)
             {
@@ -498,10 +507,12 @@ namespace PlayniteAchievements.Services.Friends
                 settingsByAccount != null &&
                 settingsByAccount.TryGetValue(accountKey, out var setting))
             {
-                if (!string.IsNullOrWhiteSpace(setting.Nickname))
-                {
-                    friend.DisplayName = setting.Nickname;
-                }
+                friend.DisplayName = FriendDisplayNameResolver.Resolve(
+                    setting.Nickname,
+                    !string.IsNullOrWhiteSpace(friend.DisplayName) ? friend.DisplayName : setting.DisplayName,
+                    setting.ProviderNickname,
+                    nameMode,
+                    friend.ExternalUserId);
 
                 friend.IsFavorite = setting.IsFavorite;
             }
@@ -517,7 +528,8 @@ namespace PlayniteAchievements.Services.Friends
         private static FriendSummaryItem BuildMergedFriendSummary(
             FriendMergeGroup group,
             IReadOnlyList<FriendSummaryItem> members,
-            Dictionary<string, FriendSettingsEntry> settingsByAccount)
+            Dictionary<string, FriendSettingsEntry> settingsByAccount,
+            FriendNameDisplayMode nameMode)
         {
             var avatar = ResolveMergedFriendAvatar(group, members
                 .GroupBy(member => FriendAccountRef.BuildKey(member.ProviderKey, member.ExternalUserId), StringComparer.OrdinalIgnoreCase)
@@ -525,7 +537,8 @@ namespace PlayniteAchievements.Services.Friends
             var displayName = ResolveMergedFriendName(group, members
                 .GroupBy(member => FriendAccountRef.BuildKey(member.ProviderKey, member.ExternalUserId), StringComparer.OrdinalIgnoreCase)
                 .ToDictionary(memberGroup => memberGroup.Key, memberGroup => memberGroup.First(), StringComparer.OrdinalIgnoreCase),
-                settingsByAccount);
+                settingsByAccount,
+                nameMode);
 
             return new FriendSummaryItem
             {
@@ -578,7 +591,8 @@ namespace PlayniteAchievements.Services.Friends
         private static string ResolveMergedFriendName(
             FriendMergeGroup group,
             Dictionary<string, FriendSummaryItem> friendByAccount,
-            Dictionary<string, FriendSettingsEntry> settingsByAccount)
+            Dictionary<string, FriendSettingsEntry> settingsByAccount,
+            FriendNameDisplayMode nameMode)
         {
             if (!string.IsNullOrWhiteSpace(group?.Nickname))
             {
@@ -601,7 +615,14 @@ namespace PlayniteAchievements.Services.Friends
                     friendByAccount.TryGetValue(member.Key, out var friend) &&
                     !string.IsNullOrWhiteSpace(friend.DisplayName))
                 {
-                    return friend.DisplayName;
+                    FriendSettingsEntry setting = null;
+                    settingsByAccount?.TryGetValue(member.Key, out setting);
+                    return FriendDisplayNameResolver.Resolve(
+                        null,
+                        friend.DisplayName,
+                        setting?.ProviderNickname,
+                        nameMode,
+                        member.ExternalUserId);
                 }
             }
 
