@@ -553,7 +553,7 @@
                         <Button Content="&#xE768;"
                                 FontFamily="Segoe MDL2 Assets"
                                 FontSize="13"
-                                Style="{StaticResource PlayAch.Button.BaseStyle}"
+                                Style="{StaticResource PlayAch.Button.CaptureChipStyle}"
                                 Padding="10,3"
                                 HorizontalAlignment="Center"
                                 VerticalAlignment="Center"
