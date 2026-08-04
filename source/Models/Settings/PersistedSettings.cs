@@ -171,6 +171,7 @@ namespace PlayniteAchievements.Models.Settings
         private GridVerticalAlignment _gridCellVerticalAlignment = GridVerticalAlignment.Center;
         private DateDisplayMode _unlockDateDisplayMode = DateDisplayMode.DateAndTime;
         private PlaytimeDisplayMode _playtimeDisplayMode = PlaytimeDisplayMode.HoursAndMinutes;
+        private FriendNameDisplayMode _friendNameDisplayMode = FriendNameDisplayMode.PersonaAndNickname;
         private bool _enableAchievementCompactListControl = true;
         private bool _enableAchievementDataGridControl = true;
         private bool _enableAchievementCompactUnlockedListControl = true;
@@ -1917,6 +1918,16 @@ namespace PlayniteAchievements.Models.Settings
         }
 
         /// <summary>
+        /// How friend names combine the provider profile name and the provider-assigned nickname.
+        /// A manual plugin rename always takes precedence over this mode.
+        /// </summary>
+        public FriendNameDisplayMode FriendNameDisplayMode
+        {
+            get => _friendNameDisplayMode;
+            set => SetValue(ref _friendNameDisplayMode, value);
+        }
+
+        /// <summary>
         /// When true, enables the modern compact list control.
         /// </summary>
         public bool EnableAchievementCompactListControl
@@ -2668,6 +2679,7 @@ namespace PlayniteAchievements.Models.Settings
                 GridCellVerticalAlignment = this.GridCellVerticalAlignment,
                 UnlockDateDisplayMode = this.UnlockDateDisplayMode,
                 PlaytimeDisplayMode = this.PlaytimeDisplayMode,
+                FriendNameDisplayMode = this.FriendNameDisplayMode,
                 EnableAchievementCompactListControl = this.EnableAchievementCompactListControl,
                 EnableAchievementDataGridControl = this.EnableAchievementDataGridControl,
                 EnableAchievementCompactUnlockedListControl = this.EnableAchievementCompactUnlockedListControl,
@@ -2815,6 +2827,7 @@ namespace PlayniteAchievements.Models.Settings
             GridCellVerticalAlignment = defaults.GridCellVerticalAlignment;
             UnlockDateDisplayMode = defaults.UnlockDateDisplayMode;
             PlaytimeDisplayMode = defaults.PlaytimeDisplayMode;
+            FriendNameDisplayMode = defaults.FriendNameDisplayMode;
 
             EnableAchievementCompactListControl = defaults.EnableAchievementCompactListControl;
             EnableAchievementDataGridControl = defaults.EnableAchievementDataGridControl;
