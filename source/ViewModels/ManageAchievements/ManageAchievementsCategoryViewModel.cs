@@ -1419,7 +1419,8 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
                     fileStem,
                     _managedCustomIconService,
                     isSummarySelected: summaryCategory != null &&
-                        string.Equals(summaryCategory.Label, label, StringComparison.OrdinalIgnoreCase)));
+                        string.Equals(summaryCategory.Label, label, StringComparison.OrdinalIgnoreCase),
+                    artFallbackSource: _allRows));
             }
 
             HasCustomCategoryNames = rows.Any(row =>
@@ -2098,11 +2099,15 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
             string gameIdText,
             string fileStem,
             ManagedCustomIconService managedCustomIconService,
-            bool isSummarySelected = false)
+            bool isSummarySelected = false,
+            IReadOnlyList<ManageAchievementsCategoryItem> artFallbackSource = null)
         {
             var normalizedLabel = AchievementCategoryTypeHelper.NormalizeCategoryOrDefault(categoryLabel);
             var normalizedProviderLabel = AchievementCategoryTypeHelper.NormalizeCategoryOrDefault(providerCategoryLabel);
             var playniteGameId = Guid.TryParse(gameIdText, out var parsedGameId) ? parsedGameId : (Guid?)null;
+            // An empty bucket (the always-listed Default row) still resolves game art
+            // from the fallback source so its preview matches the other rows.
+            var artSource = achievements != null && achievements.Count > 0 ? achievements : artFallbackSource;
             var row = new ManageAchievementsCategoryMetadataItem(gameIdText, fileStem, managedCustomIconService)
             {
                 CategoryLabel = normalizedLabel,
@@ -2112,8 +2117,8 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
                 // Provider-supplied defaults are the true revert target, ahead of game art.
                 // They are keyed by the provider label so renamed rows still find them.
                 DefaultArtPath = CategoryDefaultImageResolver.Resolve(playniteGameId, normalizedProviderLabel) ??
-                                 ResolveSharedImage(achievements, item => item?.GameIconPath) ??
-                                 ResolveSharedImage(achievements, item => item?.GameCoverPath)
+                                 ResolveSharedImage(artSource, item => item?.GameIconPath) ??
+                                 ResolveSharedImage(artSource, item => item?.GameCoverPath)
             };
 
             row._renameOverrideText = string.Equals(row.CategoryLabel, row.ProviderCategoryLabel, StringComparison.OrdinalIgnoreCase)
