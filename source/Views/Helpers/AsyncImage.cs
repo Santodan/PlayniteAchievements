@@ -49,6 +49,20 @@ namespace PlayniteAchievements.Views.Helpers
         public static void SetGray(DependencyObject element, bool value) => element.SetValue(GrayProperty, value);
         public static bool GetGray(DependencyObject element) => (bool)element.GetValue(GrayProperty);
 
+        // When true (default), GIF animations phase-lock to the process-wide epoch so recreated
+        // elements (settings mockup rebuilds, grid recycling) resume mid-cycle. Set false on
+        // surfaces that should play the GIF from its first frame each time they are built — the
+        // toast templates opt out so every wave's cards (and their screenshots/clips) start the
+        // GIF at frame one.
+        public static readonly DependencyProperty PhaseLockProperty = DependencyProperty.RegisterAttached(
+            "PhaseLock",
+            typeof(bool),
+            typeof(AsyncImage),
+            new PropertyMetadata(true));
+
+        public static void SetPhaseLock(DependencyObject element, bool value) => element.SetValue(PhaseLockProperty, value);
+        public static bool GetPhaseLock(DependencyObject element) => (bool)element.GetValue(PhaseLockProperty);
+
         // Private attached state
         private static readonly DependencyProperty LoadCtsProperty = DependencyProperty.RegisterAttached(
             "LoadCts",
@@ -537,9 +551,12 @@ namespace PlayniteAchievements.Views.Helpers
             // Stamp the phase-lock at the moment the animation begins (the frozen source
             // animation carries only the iteration duration): computing it earlier would bake
             // the creation-to-begin delay in as a per-instance phase error, visibly desyncing
-            // instances of the same GIF.
+            // instances of the same GIF. Phase-lock opt-outs (toast cards) start at frame one
+            // instead, so freshly built surfaces are deterministic in captures.
             var phased = animation.Clone();
-            phased.BeginTime = GifAnimationHelper.PhaseLockBeginTime(animation.Duration);
+            phased.BeginTime = GetPhaseLock(target)
+                ? GifAnimationHelper.PhaseLockBeginTime(animation.Duration)
+                : TimeSpan.Zero;
             phased.Freeze();
 
             if (target is System.Windows.Controls.Image image)
