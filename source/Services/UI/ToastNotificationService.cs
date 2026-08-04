@@ -1062,6 +1062,7 @@ namespace PlayniteAchievements.Services.UI
             // Play the sound first, then show the toast after a short delay so the audio onset and
             // the slide-in visually align.
             var soundPlayedUtc = PlayWaveSound(toastItems);
+            VibrateControllers();
             await Task.Delay(450).ConfigureAwait(true);
             if (_disposed)
             {
@@ -1434,6 +1435,22 @@ namespace PlayniteAchievements.Services.UI
         /// is unhandled and the call is ignored. Returns the launch moment (null when no sound
         /// fired) so the recording service can locate the chime in its sidecar audio track.
         /// </summary>
+        /// <summary>
+        /// Pulses connected controllers alongside the wave's toast when enabled. Fires for every
+        /// toast wave — own unlocks, friend unlocks, and fire-tests — so the strength setting can
+        /// be tuned live from the settings preview.
+        /// </summary>
+        private void VibrateControllers()
+        {
+            var persisted = _settings?.Persisted;
+            if (persisted == null || !persisted.EnableControllerVibration)
+            {
+                return;
+            }
+
+            ControllerVibrationService.Pulse(persisted.ControllerVibrationStrengthPercent, _logger);
+        }
+
         private DateTime? PlayWaveSound(IReadOnlyList<AchievementToastViewModel> wave)
         {
             var tier = wave?
