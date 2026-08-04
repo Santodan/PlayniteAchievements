@@ -1158,6 +1158,71 @@ namespace PlayniteAchievements.Tests.ViewModels
         }
 
         [TestMethod]
+        public void MergedFriendPairSelectionShowsOnDemandPairRows()
+        {
+            var data = CreateData();
+            var gameOneId = data.Games[0].PlayniteGameId.Value;
+            data.Friends.Add(new FriendSummaryItem
+            {
+                ProviderKey = "Steam",
+                ExternalUserId = "dana-steam",
+                DisplayName = "Dana Steam"
+            });
+            data.Friends.Add(new FriendSummaryItem
+            {
+                ProviderKey = "RetroAchievements",
+                ExternalUserId = "dana-ra",
+                DisplayName = "Dana RA"
+            });
+            data.AllUnlockedAchievements.Add(CreateAchievement(
+                "Steam", "dana-steam", "Dana Steam", 10, gameOneId, "Game One",
+                "Dana Unlocked", "Story", "Main",
+                new DateTime(2026, 1, 5, 0, 0, 0, DateTimeKind.Utc)));
+            data.AllAchievements = data.AllUnlockedAchievements.ToList();
+
+            // The on-demand pair load returns freshly materialized rows, as SQL does; sharing
+            // instances with the snapshot (which the projection stamps in place) would mask a
+            // missing merge-identity pass on the pair path.
+            var freshUnlocked = CreateAchievement(
+                "Steam", "dana-steam", "Dana Steam", 10, gameOneId, "Game One",
+                "Dana Unlocked", "Story", "Main",
+                new DateTime(2026, 1, 5, 0, 0, 0, DateTimeKind.Utc));
+            var freshLocked = CreateAchievement(
+                "Steam", "dana-steam", "Dana Steam", 10, gameOneId, "Game One",
+                "Dana Locked", "Story", "Main",
+                new DateTime(2026, 1, 5, 0, 0, 0, DateTimeKind.Utc));
+            freshLocked.Unlocked = false;
+            freshLocked.UnlockTimeUtc = null;
+            var cache = new StubFriendCache(data)
+            {
+                PairAchievements = new List<FriendAchievementDisplayItem> { freshUnlocked, freshLocked }
+            };
+
+            var viewModel = CreateViewModel(cache, settings =>
+                settings.AddOrUpdateFriendMergeGroup(
+                    new[]
+                    {
+                        FriendAccountRef.From("Steam", "dana-steam"),
+                        FriendAccountRef.From("RetroAchievements", "dana-ra")
+                    },
+                    nickname: "Dana"));
+            viewModel.LoadAsync().GetAwaiter().GetResult();
+
+            viewModel.SelectedFriend = viewModel.FilteredFriends.Single(friend => friend.DisplayName == "Dana");
+            viewModel.SelectedGame = data.Games[0];
+            SettlePairFetch(viewModel);
+
+            Assert.AreEqual(1, cache.PairAchievementLoadCalls);
+            CollectionAssert.AreEquivalent(
+                new[] { "Dana Unlocked", "Dana Locked" },
+                viewModel.DisplayedAchievements.Select(item => item.DisplayName).ToArray());
+            Assert.IsTrue(viewModel.DisplayedAchievements.Any(item =>
+                item.DisplayName == "Dana Locked" && !item.Unlocked));
+            Assert.AreEqual(2, viewModel.SelectedFriendGameAllAchievements.Count);
+            Assert.IsTrue(viewModel.DisplayedAchievements.All(item => item.FriendName == "Dana"));
+        }
+
+        [TestMethod]
         public void OwnershipFilterOffersOptionsOnlyWhenOwnedAndUnownedMix()
         {
             var allOwned = CreateViewModel(CreateData());
