@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using Newtonsoft.Json;
+using PlayniteAchievements.Models.Achievements;
 using PlayniteAchievements.Models.Settings;
 using PlayniteAchievements.Providers.Settings;
 
@@ -364,6 +365,8 @@ namespace PlayniteAchievements.Providers.Local
         private int _screenshotDelayMilliseconds = 750;
         private LocalUnlockScreenshotCaptureMode _screenshotCaptureMode = LocalUnlockScreenshotCaptureMode.FullDesktop;
         private LocalUnlockScreenshotImageFormat _screenshotImageFormat = LocalUnlockScreenshotImageFormat.Png;
+        private RaritySelection _screenshotRarities = RaritySelection.All;
+        private bool _screenshotAlwaysCaptureCompletion = true;
         private bool _enableUnlockRecordings;
         private string _recordingSaveFolder = string.Empty;
         private string _recordingFilenameTemplate = DefaultRecordingFilenameTemplate;
@@ -371,6 +374,10 @@ namespace PlayniteAchievements.Providers.Local
         private int _recordingFps = 30;
         private RecordingResolution _recordingResolution = RecordingResolution.Native;
         private bool _recordingIncludeAudio;
+        private RecordingAudioSource _recordingAudioSource = RecordingAudioSource.FullSystem;
+        private bool _recordingIncludeMicrophone;
+        private RaritySelection _recordingRarities = RaritySelection.All;
+        private bool _recordingAlwaysCaptureCompletion = true;
         private LocalUnlockNotificationDeliveryMode _unlockNotificationDeliveryMode = LocalUnlockNotificationDeliveryMode.Hybrid;
         private LocalUnlockOverlayPosition _unlockOverlayPosition = LocalUnlockOverlayPosition.TopRight;
         private bool _showOverlayOnActiveGameMonitor = false;
@@ -647,6 +654,36 @@ namespace PlayniteAchievements.Providers.Local
             set => SetValue(ref _screenshotImageFormat, value);
         }
 
+        public RaritySelection ScreenshotRarities
+        {
+            get => _screenshotRarities;
+            set
+            {
+                if (SetValue(ref _screenshotRarities, value))
+                {
+                    OnPropertyChanged(nameof(ScreenshotCaptureCommon));
+                    OnPropertyChanged(nameof(ScreenshotCaptureUncommon));
+                    OnPropertyChanged(nameof(ScreenshotCaptureRare));
+                    OnPropertyChanged(nameof(ScreenshotCaptureUltraRare));
+                }
+            }
+        }
+
+        public bool ScreenshotAlwaysCaptureCompletion
+        {
+            get => _screenshotAlwaysCaptureCompletion;
+            set => SetValue(ref _screenshotAlwaysCaptureCompletion, value);
+        }
+
+        [JsonIgnore]
+        public bool ScreenshotCaptureCommon { get => ScreenshotRarities.Contains(RarityTier.Common); set => SetScreenshotRarity(RaritySelection.Common, value); }
+        [JsonIgnore]
+        public bool ScreenshotCaptureUncommon { get => ScreenshotRarities.Contains(RarityTier.Uncommon); set => SetScreenshotRarity(RaritySelection.Uncommon, value); }
+        [JsonIgnore]
+        public bool ScreenshotCaptureRare { get => ScreenshotRarities.Contains(RarityTier.Rare); set => SetScreenshotRarity(RaritySelection.Rare, value); }
+        [JsonIgnore]
+        public bool ScreenshotCaptureUltraRare { get => ScreenshotRarities.Contains(RarityTier.UltraRare); set => SetScreenshotRarity(RaritySelection.UltraRare, value); }
+
         public LocalUnlockNotificationDeliveryMode UnlockNotificationDeliveryMode
         {
             get => _unlockNotificationDeliveryMode;
@@ -701,6 +738,58 @@ namespace PlayniteAchievements.Providers.Local
         {
             get => _recordingIncludeAudio;
             set => SetValue(ref _recordingIncludeAudio, value);
+        }
+
+        public RecordingAudioSource RecordingAudioSource
+        {
+            get => _recordingAudioSource;
+            set => SetValue(ref _recordingAudioSource, value);
+        }
+
+        public bool RecordingIncludeMicrophone
+        {
+            get => _recordingIncludeMicrophone;
+            set => SetValue(ref _recordingIncludeMicrophone, value);
+        }
+
+        public RaritySelection RecordingRarities
+        {
+            get => _recordingRarities;
+            set
+            {
+                if (SetValue(ref _recordingRarities, value))
+                {
+                    OnPropertyChanged(nameof(RecordingCaptureCommon));
+                    OnPropertyChanged(nameof(RecordingCaptureUncommon));
+                    OnPropertyChanged(nameof(RecordingCaptureRare));
+                    OnPropertyChanged(nameof(RecordingCaptureUltraRare));
+                }
+            }
+        }
+
+        public bool RecordingAlwaysCaptureCompletion
+        {
+            get => _recordingAlwaysCaptureCompletion;
+            set => SetValue(ref _recordingAlwaysCaptureCompletion, value);
+        }
+
+        [JsonIgnore]
+        public bool RecordingCaptureCommon { get => RecordingRarities.Contains(RarityTier.Common); set => SetRecordingRarity(RaritySelection.Common, value); }
+        [JsonIgnore]
+        public bool RecordingCaptureUncommon { get => RecordingRarities.Contains(RarityTier.Uncommon); set => SetRecordingRarity(RaritySelection.Uncommon, value); }
+        [JsonIgnore]
+        public bool RecordingCaptureRare { get => RecordingRarities.Contains(RarityTier.Rare); set => SetRecordingRarity(RaritySelection.Rare, value); }
+        [JsonIgnore]
+        public bool RecordingCaptureUltraRare { get => RecordingRarities.Contains(RarityTier.UltraRare); set => SetRecordingRarity(RaritySelection.UltraRare, value); }
+
+        private void SetScreenshotRarity(RaritySelection rarity, bool enabled)
+        {
+            ScreenshotRarities = enabled ? ScreenshotRarities | rarity : ScreenshotRarities & ~rarity;
+        }
+
+        private void SetRecordingRarity(RaritySelection rarity, bool enabled)
+        {
+            RecordingRarities = enabled ? RecordingRarities | rarity : RecordingRarities & ~rarity;
         }
 
         public bool ShowOverlayOnActiveGameMonitor

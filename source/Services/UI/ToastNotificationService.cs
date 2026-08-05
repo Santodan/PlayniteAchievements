@@ -1599,7 +1599,19 @@ namespace PlayniteAchievements.Services.UI
                 };
                 foreach (var vm in wave.Where(vm => !vm.IsPreview && !vm.IsFriendUnlock))
                 {
-                    customPlan.Items.Add((vm, ScreenshotVariants.Clean));
+                    if (UnlockCaptureRarityFilter.ShouldCapture(
+                            vm.Rarity,
+                            vm.IsGameCompleted || vm.IsCompletionAchievement || vm.IsCapstone,
+                            custom.ScreenshotRarities,
+                            custom.ScreenshotAlwaysCaptureCompletion))
+                    {
+                        customPlan.Items.Add((vm, ScreenshotVariants.Clean));
+                    }
+                }
+
+                if (customPlan.Items.Count == 0)
+                {
+                    _logger?.Debug("[Screenshot] Custom screenshot skipped because no unlock cleared the selected rarity policy.");
                 }
 
                 return customPlan.Items.Count > 0 ? customPlan : null;
@@ -1673,6 +1685,11 @@ namespace PlayniteAchievements.Services.UI
                 if (baseCaptureTask != null)
                 {
                     baseBitmap = await baseCaptureTask.ConfigureAwait(true);
+                }
+
+                if (baseBitmap == null)
+                {
+                    _logger?.Warn("[Screenshot] Capture returned no image; no unlock screenshot was saved.");
                 }
 
                 var framedByVm = new Dictionary<AchievementToastViewModel, System.Windows.Media.Imaging.BitmapSource>();

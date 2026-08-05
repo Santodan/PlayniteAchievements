@@ -4067,6 +4067,17 @@
                                                 </ComboBox>
                                             </DockPanel>
 
+                                            <StackPanel Margin="0,4,0,10">
+                                                <TextBlock Text="Capture rarities:" Foreground="{DynamicResource TextBrush}" FontWeight="SemiBold" Margin="0,0,0,4"/>
+                                                <WrapPanel>
+                                                    <CheckBox Content="Common" IsChecked="{Binding ScreenshotCaptureCommon, Mode=TwoWay}" Margin="0,0,12,4"/>
+                                                    <CheckBox Content="Uncommon" IsChecked="{Binding ScreenshotCaptureUncommon, Mode=TwoWay}" Margin="0,0,12,4"/>
+                                                    <CheckBox Content="Rare" IsChecked="{Binding ScreenshotCaptureRare, Mode=TwoWay}" Margin="0,0,12,4"/>
+                                                    <CheckBox Content="Ultra rare" IsChecked="{Binding ScreenshotCaptureUltraRare, Mode=TwoWay}" Margin="0,0,12,4"/>
+                                                </WrapPanel>
+                                                <CheckBox Content="Always capture game completion" IsChecked="{Binding ScreenshotAlwaysCaptureCompletion, Mode=TwoWay}" Margin="0,2,0,0"/>
+                                            </StackPanel>
+
                                             <DockPanel Margin="0,0,0,6">
                                                 <TextBlock Text="Save folder:"
                                                            VerticalAlignment="Center"
@@ -4151,6 +4162,16 @@
                                                   IsChecked="{Binding EnableUnlockRecordings, Mode=TwoWay}"
                                                   Margin="0,0,0,12"/>
                                         <StackPanel Margin="18,0,0,0" IsEnabled="{Binding EnableUnlockRecordings}">
+                                            <StackPanel Margin="0,0,0,10">
+                                                <TextBlock Text="Capture rarities:" FontWeight="SemiBold" Margin="0,0,0,4"/>
+                                                <WrapPanel>
+                                                    <CheckBox Content="Common" IsChecked="{Binding RecordingCaptureCommon, Mode=TwoWay}" Margin="0,0,12,4"/>
+                                                    <CheckBox Content="Uncommon" IsChecked="{Binding RecordingCaptureUncommon, Mode=TwoWay}" Margin="0,0,12,4"/>
+                                                    <CheckBox Content="Rare" IsChecked="{Binding RecordingCaptureRare, Mode=TwoWay}" Margin="0,0,12,4"/>
+                                                    <CheckBox Content="Ultra rare" IsChecked="{Binding RecordingCaptureUltraRare, Mode=TwoWay}" Margin="0,0,12,4"/>
+                                                </WrapPanel>
+                                                <CheckBox Content="Always capture game completion" IsChecked="{Binding RecordingAlwaysCaptureCompletion, Mode=TwoWay}" Margin="0,2,0,0"/>
+                                            </StackPanel>
                                             <DockPanel Margin="0,0,0,6">
                                                 <TextBlock Text="Save folder:" VerticalAlignment="Center" Margin="0,0,8,0" FontWeight="SemiBold"/>
                                                 <Button Content="{DynamicResource LOCPlayAch_Button_Browse}" Width="90" DockPanel.Dock="Right"
@@ -4202,6 +4223,16 @@
                                             <CheckBox Content="Include system audio"
                                                       IsChecked="{Binding RecordingIncludeAudio, Mode=TwoWay}"
                                                       Margin="0,10,0,0"/>
+                                            <StackPanel Margin="18,6,0,0" IsEnabled="{Binding RecordingIncludeAudio}">
+                                                <DockPanel Margin="0,0,0,6">
+                                                    <TextBlock Text="Audio source:" VerticalAlignment="Center" Margin="0,0,8,0"/>
+                                                    <ComboBox SelectedValue="{Binding RecordingAudioSource, Mode=TwoWay}" SelectedValuePath="Tag" MinWidth="180">
+                                                        <ComboBoxItem Content="Full system" Tag="{x:Static settings:RecordingAudioSource.FullSystem}"/>
+                                                        <ComboBoxItem Content="Game only" Tag="{x:Static settings:RecordingAudioSource.GameOnly}"/>
+                                                    </ComboBox>
+                                                </DockPanel>
+                                                <CheckBox Content="Include microphone" IsChecked="{Binding RecordingIncludeMicrophone, Mode=TwoWay}"/>
+                                            </StackPanel>
                                             <TextBlock Text="Recording uses Windows Graphics Capture and Media Foundation. Folder and filename wildcards use this custom notification configuration."
                                                        Style="{StaticResource MutedTextStyle}" TextWrapping="Wrap" Margin="0,6,0,0"/>
                                         </StackPanel>

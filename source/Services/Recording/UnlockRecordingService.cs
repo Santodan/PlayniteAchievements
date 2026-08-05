@@ -223,6 +223,7 @@ namespace PlayniteAchievements.Services.Recording
             var persisted = _settings?.Persisted;
             if (persisted?.EnableUnlockRecordings != true)
             {
+                _logger?.Info($"[Recording] Capture not started for '{game?.Name}': unlock recordings are disabled.");
                 return;
             }
 
@@ -629,8 +630,10 @@ namespace PlayniteAchievements.Services.Recording
                 return;
             }
 
-            if (_settings?.Persisted?.EnableUnlockRecordings != true)
+            var persisted = _settings?.Persisted;
+            if (persisted?.EnableUnlockRecordings != true)
             {
+                _logger?.Debug($"[Recording] Unlock '{e.DisplayName}' ignored; unlock recordings are disabled.");
                 return;
             }
 
@@ -651,10 +654,11 @@ namespace PlayniteAchievements.Services.Recording
 
             if (_isProviderRecordingEnabled?.Invoke(e.ProviderKey) == false)
             {
+                _logger?.Debug(
+                    $"[Recording] Unlock '{e.DisplayName}' ignored; recording is disabled for provider '{e.ProviderKey}'.");
                 return;
             }
 
-            var persisted = _settings.Persisted;
             if (!UnlockCaptureRarityFilter.ShouldCapture(
                     e,
                     persisted.UnlockRecordingRarities,
@@ -709,6 +713,9 @@ namespace PlayniteAchievements.Services.Recording
             {
                 _awaitingTrack.Add(request);
             }
+
+            _logger?.Info(
+                $"[Recording] Queued unlock clip for '{request.AchievementName}' in '{request.GameName}'.");
 
             // Production starts immediately: the clip window is unlock-anchored, so nothing about
             // it depends on when (or whether) the toast displays. Only the overlay composite waits

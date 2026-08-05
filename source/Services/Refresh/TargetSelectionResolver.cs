@@ -3,6 +3,7 @@ using PlayniteAchievements.Providers;
 using PlayniteAchievements.Services.Achievements;
 using PlayniteAchievements.Services.Cache;
 using PlayniteAchievements.Services.GameCustomData;
+using PlayniteAchievements.Services.Logging;
 using Playnite.SDK;
 using Playnite.SDK.Models;
 using System;
@@ -403,8 +404,11 @@ namespace PlayniteAchievements.Services.Refresh
             }
 
             timer.Stop();
-            _logger?.Debug(
-                $"[RefreshPerf] phase=target.selection ms={timer.ElapsedMilliseconds} candidates={candidatesSeen} selected={targets.Count} providers={providers?.Count ?? 0} capabilityChecks={targetSelectionCache?.CapabilityCheckCount ?? 0} skippedNoProvider={skippedNoProvider} skippedNoAchievements={skippedNoAchievements} skippedHidden={skippedHiddenGames}");
+            if (!RealtimePollingLogScope.IsActive)
+            {
+                _logger?.Debug(
+                    $"[RefreshPerf] phase=target.selection ms={timer.ElapsedMilliseconds} candidates={candidatesSeen} selected={targets.Count} providers={providers?.Count ?? 0} capabilityChecks={targetSelectionCache?.CapabilityCheckCount ?? 0} skippedNoProvider={skippedNoProvider} skippedNoAchievements={skippedNoAchievements} skippedHidden={skippedHiddenGames}");
+            }
 
             return targets;
         }

@@ -161,11 +161,13 @@ namespace PlayniteAchievements.ViewModels
 
         public void EndEdit()
         {
+            ReconcileUnlockRecordingSetting();
             _plugin.ProviderRegistry?.CommitEditSession(false);
-            _plugin.ProviderRegistry?.PersistAllProviderSettings(false);
-
-            // Save the settings via the plugin
-            _plugin.SavePluginSettings(Settings);
+            // Persist the committed provider settings and mirror the Achievement Notification
+            // recording options into the runtime master settings before saving. Without this,
+            // enabling recordings in the Local notification editor only takes effect after the
+            // next Playnite restart, when the startup synchronization runs.
+            _plugin.PersistSettingsForUiSilently();
 
             // Sync provider registry from the updated settings
             _plugin.ProviderRegistry?.SyncFromSettings(Settings.Persisted);
@@ -175,6 +177,43 @@ namespace PlayniteAchievements.ViewModels
 
             // Notify listeners that settings have been saved (e.g., to refresh provider status in landing page)
             PlayniteAchievementsPlugin.NotifySettingsSaved();
+        }
+
+        private void ReconcileUnlockRecordingSetting()
+        {
+            var persisted = Settings?.Persisted;
+            if (persisted == null)
+            {
+                return;
+            }
+
+            var editedLocal = _plugin.ProviderRegistry?.GetSettingsForEdit("Local")
+                as Providers.Local.LocalSettings;
+            var liveLocal = _plugin.ProviderRegistry?.GetSettings<Providers.Local.LocalSettings>();
+            if (editedLocal == null || liveLocal == null)
+            {
+                return;
+            }
+
+            var masterChanged = _editingClone?.Persisted != null &&
+                persisted.EnableUnlockRecordings != _editingClone.Persisted.EnableUnlockRecordings;
+            var localChanged = editedLocal.EnableUnlockRecordings != liveLocal.EnableUnlockRecordings;
+
+            if (masterChanged)
+            {
+                // An explicit change on the main Notifications tab wins over a stale duplicate.
+                editedLocal.EnableUnlockRecordings = persisted.EnableUnlockRecordings;
+            }
+            else if (localChanged)
+            {
+                // A change made in Achievement Notifications updates the runtime master.
+                persisted.EnableUnlockRecordings = editedLocal.EnableUnlockRecordings;
+            }
+            else
+            {
+                // Heal settings written by older versions without changing the safe master value.
+                editedLocal.EnableUnlockRecordings = persisted.EnableUnlockRecordings;
+            }
         }
 
         public bool VerifySettings(out List<string> errors)

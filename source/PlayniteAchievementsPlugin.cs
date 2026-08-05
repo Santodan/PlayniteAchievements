@@ -352,8 +352,8 @@ namespace PlayniteAchievements
         {
             try
             {
-                _providerRegistry?.PersistAllProviderSettings(false);
                 ApplyCustomRecordingSettings();
+                _providerRegistry?.PersistAllProviderSettings(false);
                 SavePluginSettings(_settingsViewModel.Settings);
             }
             catch (Exception ex)
@@ -371,12 +371,20 @@ namespace PlayniteAchievements
                 return;
             }
 
-            persisted.EnableUnlockRecordings = custom.EnableUnlockRecordings;
+            // The persisted recording switch is the runtime master and the safe source of truth.
+            // Keep the Local notification editor's duplicate switch aligned with it; copying in
+            // the opposite direction here allowed a stale Local `true` to resurrect recordings at
+            // startup after the user disabled them on the main Notifications tab.
+            custom.EnableUnlockRecordings = persisted.EnableUnlockRecordings;
             persisted.UnlockRecordingDirectory = custom.RecordingSaveFolder;
             persisted.RecordingClipSeconds = custom.RecordingClipSeconds;
             persisted.RecordingFps = custom.RecordingFps;
             persisted.RecordingResolution = custom.RecordingResolution;
             persisted.RecordingIncludeAudio = custom.RecordingIncludeAudio;
+            persisted.RecordingAudioSource = custom.RecordingAudioSource;
+            persisted.RecordingIncludeMicrophone = custom.RecordingIncludeMicrophone;
+            persisted.UnlockRecordingRarities = custom.RecordingRarities;
+            persisted.UnlockRecordingAlwaysCaptureCompletion = custom.RecordingAlwaysCaptureCompletion;
         }
 
         // Public bridge method for external helpers/themes that used to target SuccessStory via reflection.
@@ -1233,6 +1241,11 @@ namespace PlayniteAchievements
                 ReconfigureInGameMonitor();
             }
 
+            if (e.PropertyName == nameof(PersistedSettings.EnableUnlockRecordings))
+            {
+                ReconfigureUnlockRecording();
+            }
+
             if (e.PropertyName == nameof(PersistedSettings.UseUniformRarityBadges) ||
                 e.PropertyName == nameof(PersistedSettings.RarityColors))
             {
@@ -1349,6 +1362,37 @@ namespace PlayniteAchievements
             catch (Exception ex)
             {
                 _logger?.Error(ex, "Failed to reconfigure in-game achievement monitor.");
+            }
+        }
+
+        private void ReconfigureUnlockRecording()
+        {
+            try
+            {
+                if (!_applicationStarted || _unlockRecordings == null)
+                {
+                    return;
+                }
+
+                if (_settingsViewModel?.Settings?.Persisted?.EnableUnlockRecordings == true)
+                {
+                    var game = ResolveRecordingHandoffGame() ?? PlayniteApi?.Database?.Games?
+                        .Where(candidate => candidate?.IsRunning == true)
+                        .OrderByDescending(candidate => candidate.LastActivity)
+                        .FirstOrDefault();
+                    if (game != null)
+                    {
+                        _unlockRecordings.OnGameStarted(game);
+                    }
+                }
+                else
+                {
+                    _unlockRecordings.OnGameStopped(null);
+                }
+            }
+            catch (Exception ex)
+            {
+                _logger?.Debug(ex, "Failed to reconfigure unlock recording.");
             }
         }
 

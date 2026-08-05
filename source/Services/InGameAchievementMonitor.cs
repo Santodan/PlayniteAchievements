@@ -18,6 +18,7 @@ using PlayniteAchievements.Services.Friends;
 using PlayniteAchievements.Services.GameCustomData;
 using PlayniteAchievements.Services.Hydration;
 using PlayniteAchievements.Services.InGameMonitoring;
+using PlayniteAchievements.Services.Logging;
 using PlayniteAchievements.Services.Refresh;
 
 namespace PlayniteAchievements.Services
@@ -56,6 +57,7 @@ namespace PlayniteAchievements.Services
             public Game Game;
             public DateTime SessionStartUtc;
             public DateTime FirstPollUtc;
+            public DateTime LastQuietPollLogUtc = DateTime.UtcNow;
             public DateTime NextFriendDueUtc;
             public DateTime RecoveryCooldownUtc;
             public IDataProvider Provider;
@@ -760,10 +762,13 @@ namespace PlayniteAchievements.Services
                 DisposeSubscriptions(subscriptions);
             }
 
-            _logger?.Debug(
-                $"[InGameMonitor] Configured game={state.Game.Name}, provider={provider.ProviderKey}, " +
-                $"source={(progressSource == null ? "fallback" : registration.IsRemote ? "feed" : "file")}, " +
-                $"targets={nextTargets.Count}.");
+            if (!RealtimePollingLogScope.IsActive)
+            {
+                _logger?.Debug(
+                    $"[InGameMonitor] Configured game={state.Game.Name}, provider={provider.ProviderKey}, " +
+                    $"source={(progressSource == null ? "fallback" : registration.IsRemote ? "feed" : "file")}, " +
+                    $"targets={nextTargets.Count}.");
+            }
             return true;
         }
 
@@ -815,28 +820,33 @@ namespace PlayniteAchievements.Services
                         state => _cacheManager?.LoadGameData(state.Game.Id.ToString()));
                     var gameIds = batch.Select(state => state.Game.Id).ToList();
                     var timer = Stopwatch.StartNew();
-                    await _executeRefreshAsync(
-                        new RefreshRequest
-                        {
-                            GameIds = gameIds,
-                            Options = new RefreshOptions
+                    var localProvider = batch[0].Provider as LocalSavesProvider;
+                    using (RealtimePollingLogScope.Enter())
+                    using (localProvider?.BeginRealtimeLogThrottle())
+                    {
+                        await _executeRefreshAsync(
+                            new RefreshRequest
                             {
-                                Subjects = RefreshSubjects.CurrentUser,
-                                Scope = RefreshGameScope.Explicit,
-                                ProviderKeys = new[] { providerGroup.Key },
-                                PlayniteGameIds = gameIds,
-                                PreferCachedDefinitions = true,
-                                RespectUserExclusions = true
-                            }
-                        },
-                        new RefreshExecutionPolicy
-                        {
-                            ValidateAuthentication = false,
-                            UseProgressWindow = false,
-                            SwallowExceptions = true,
-                            ExternalCancellationToken = token,
-                            ErrorLogMessage = "[InGameMonitor] Provider fallback refresh failed."
-                        }).ConfigureAwait(false);
+                                GameIds = gameIds,
+                                Options = new RefreshOptions
+                                {
+                                    Subjects = RefreshSubjects.CurrentUser,
+                                    Scope = RefreshGameScope.Explicit,
+                                    ProviderKeys = new[] { providerGroup.Key },
+                                    PlayniteGameIds = gameIds,
+                                    PreferCachedDefinitions = true,
+                                    RespectUserExclusions = true
+                                }
+                            },
+                            new RefreshExecutionPolicy
+                            {
+                                ValidateAuthentication = false,
+                                UseProgressWindow = false,
+                                SwallowExceptions = true,
+                                ExternalCancellationToken = token,
+                                ErrorLogMessage = "[InGameMonitor] Provider fallback refresh failed."
+                            }).ConfigureAwait(false);
+                    }
                     timer.Stop();
 
                     foreach (var state in batch)
@@ -868,6 +878,13 @@ namespace PlayniteAchievements.Services
                         var completion = keys.Count == 0
                             ? null
                             : EmitUserUnlocks(state, before, after, keys, timer.ElapsedMilliseconds);
+                        if (keys.Count == 0 &&
+                            DateTime.UtcNow - state.LastQuietPollLogUtc >= TimeSpan.FromMinutes(10))
+                        {
+                            state.LastQuietPollLogUtc = DateTime.UtcNow;
+                            _logger?.Debug(
+                                $"[InGameMonitor] Poll heartbeat: game={state.Game.Name}, provider={state.Provider.ProviderKey}, no new achievements.");
+                        }
                         if (completion != null)
                         {
                             _notifyUnlocked?.Invoke(completion);

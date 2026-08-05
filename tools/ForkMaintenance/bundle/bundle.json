@@ -1,6 +1,6 @@
 {
     "schemaVersion":  1,
-    "generatedUtc":  "2026-08-05T16:33:13.0665226Z",
+    "generatedUtc":  "2026-08-05T17:00:35.5312322Z",
     "baselineRef":  "v3.1.0",
     "baselineCommit":  "8fb84ef5f965919c95fd8a6f1492ccb832bb7c0b",
     "protectedPaths":  [
@@ -10,7 +10,7 @@
                        ],
     "patch":  {
                   "path":  "fork-changes.patch",
-                  "sha256":  "781A002EFB8B1C42E5F590679C9C3331F2A705BAF906468B965219823E4CD4D7"
+                  "sha256":  "7C9F6FC138C70091CE75F5DB2FFED23038326C94C7B385BB576BC766A26F571E"
               },
     "localizationRecipes":  {
                                 "path":  "localization-recipes.json",
@@ -137,7 +137,7 @@
                          },
                          {
                              "path":  "source/Providers/Local/LocalSettings.cs",
-                             "sha256":  "020598C5D085940E0A8AA29EC5E45B002CA8DFCC962E463BA3173B5310ED296B"
+                             "sha256":  "D5B2B1B2464983B2CFFCB72F14122D8D2CF183BA43C48C56C962CB2CBA7CEFC8"
                          },
                          {
                              "path":  "source/Providers/Local/LocalSettingsView.xaml",
@@ -240,6 +240,10 @@
                              "sha256":  "517C77F251C66B287307D8221AEA757A1D8E14D6B96A0312F1DE02D14C036E68"
                          },
                          {
+                             "path":  "source/Services/Logging/RealtimePollingLogScope.cs",
+                             "sha256":  "93C8DD888DCBEB0A4B19D77AC3D828954B760F0494DA21CDE0EF232DA0BFA27E"
+                         },
+                         {
                              "path":  "source/Services/Refresh/CustomRefreshGameMatcher.cs",
                              "sha256":  "83E25307FB58E1D2D60148233666F2DB03862E284EDE8B61A2E5153A39D14EAE"
                          },
@@ -297,7 +301,7 @@
                          },
                          {
                              "path":  "source/Views/LegacyNotificationSettingsControl.xaml",
-                             "sha256":  "53898CEDD29380D248DC8A42B88A438FC9FD3957651A13EA61F35D1F574987C6"
+                             "sha256":  "03BCE899D8D2CAADE8A2291FCEF0157320E0A7A101F84562751489D3BB78966F"
                          },
                          {
                              "path":  "source/Views/LegacyNotificationSettingsControl.xaml.cs",

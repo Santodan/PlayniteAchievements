@@ -16,6 +16,7 @@ using PlayniteAchievements.Providers.Steam.Models;
 using PlayniteAchievements.Services.Cache;
 using PlayniteAchievements.Services.GameCustomData;
 using PlayniteAchievements.Services.Images;
+using PlayniteAchievements.Services.Logging;
 using PlayniteAchievements.Services.ProgressReporting;
 using PlayniteAchievements.Services.Friends;
 using Playnite.SDK.Models;
@@ -404,13 +405,19 @@ namespace PlayniteAchievements.Services.Refresh
                 return false;
             }
 
-            _logger.Info("Starting new refresh.");
+            if (!RealtimePollingLogScope.IsActive)
+            {
+                _logger.Info("Starting new refresh.");
+            }
             return true;
         }
 
         private void EndRun()
         {
-            _logger.Info("Refresh ended.");
+            if (!RealtimePollingLogScope.IsActive)
+            {
+                _logger.Info("Refresh ended.");
+            }
             _refreshStateManager.EndRun();
         }
 
@@ -728,8 +735,11 @@ namespace PlayniteAchievements.Services.Refresh
                     enabledProviders,
                     targetSelectionCache);
                 filterTimer.Stop();
-                _logger?.Debug(
-                    $"[RefreshPerf] phase=auth.preflight.filter enabled={enabledProviders.Count} candidates={probeCandidates.Count} ms={filterTimer.ElapsedMilliseconds}");
+                if (!RealtimePollingLogScope.IsActive)
+                {
+                    _logger?.Debug(
+                        $"[RefreshPerf] phase=auth.preflight.filter enabled={enabledProviders.Count} candidates={probeCandidates.Count} ms={filterTimer.ElapsedMilliseconds}");
+                }
             }
 
             await ProbeProvidersForAuthContextAsync(probeCandidates, context, ct).ConfigureAwait(false);
@@ -746,8 +756,11 @@ namespace PlayniteAchievements.Services.Refresh
                 var remaining = enabledProviders
                     .Where(provider => !probedKeys.Contains(provider.ProviderKey))
                     .ToList();
-                _logger?.Debug(
-                    $"[RefreshPerf] phase=auth.preflight.secondchance remaining={remaining.Count}");
+                if (!RealtimePollingLogScope.IsActive)
+                {
+                    _logger?.Debug(
+                        $"[RefreshPerf] phase=auth.preflight.secondchance remaining={remaining.Count}");
+                }
                 await ProbeProvidersForAuthContextAsync(remaining, context, ct).ConfigureAwait(false);
             }
 
@@ -830,8 +843,11 @@ namespace PlayniteAchievements.Services.Refresh
             {
                 timer.Stop();
                 context.SetProbeResult(provider?.ProviderKey, result, timer.ElapsedMilliseconds, artifact);
-                _logger?.Debug(
-                    $"[RefreshPerf] phase=auth.preflight provider={provider?.ProviderKey ?? "unknown"} ms={timer.ElapsedMilliseconds} outcome={result?.Outcome.ToString() ?? "null"} success={result?.IsSuccess == true}");
+                if (!RealtimePollingLogScope.IsActive)
+                {
+                    _logger?.Debug(
+                        $"[RefreshPerf] phase=auth.preflight provider={provider?.ProviderKey ?? "unknown"} ms={timer.ElapsedMilliseconds} outcome={result?.Outcome.ToString() ?? "null"} success={result?.IsSuccess == true}");
+                }
                 gate.Release();
             }
         }
@@ -880,11 +896,14 @@ namespace PlayniteAchievements.Services.Refresh
                 })
                 .ToList();
 
-            _logger.Debug(string.Format(
-                "Games to refresh: {0}, Platforms: {1}, Grouped platforms: {2}",
-                refreshTargets.Count,
-                _providers.Count,
-                result.ProviderPlans.Count));
+            if (!RealtimePollingLogScope.IsActive)
+            {
+                _logger.Debug(string.Format(
+                    "Games to refresh: {0}, Platforms: {1}, Grouped platforms: {2}",
+                    refreshTargets.Count,
+                    _providers.Count,
+                    result.ProviderPlans.Count));
+            }
 
             return result;
         }
@@ -964,8 +983,11 @@ namespace PlayniteAchievements.Services.Refresh
 
             var runProvidersInParallel = runProvidersInParallelOverride ?? (_settings?.Persisted?.EnableParallelProviderRefresh ?? true);
             var timer = Stopwatch.StartNew();
-            _logger?.Debug(
-                $"[RefreshPerf] phase=current.start mode={mode} providers={plans.Count} games={totalGames} parallel={runProvidersInParallel}");
+            if (!RealtimePollingLogScope.IsActive)
+            {
+                _logger?.Debug(
+                    $"[RefreshPerf] phase=current.start mode={mode} providers={plans.Count} games={totalGames} parallel={runProvidersInParallel}");
+            }
             var providerResults = await ProviderRefreshExecutor.ExecuteProvidersAsync(
                 plans,
                 runProvidersInParallel,
@@ -974,8 +996,11 @@ namespace PlayniteAchievements.Services.Refresh
 
             var payload = CreateCurrentRefreshPayload(providerResults);
             timer.Stop();
-            _logger?.Debug(
-                $"[RefreshPerf] phase=current.total mode={mode} ms={timer.ElapsedMilliseconds} providers={plans.Count} games={totalGames} refreshed={payload.Summary.GamesRefreshed} withAchievements={payload.Summary.GamesWithAchievements} withoutAchievements={payload.Summary.GamesWithoutAchievements}");
+            if (!RealtimePollingLogScope.IsActive)
+            {
+                _logger?.Debug(
+                    $"[RefreshPerf] phase=current.total mode={mode} ms={timer.ElapsedMilliseconds} providers={plans.Count} games={totalGames} refreshed={payload.Summary.GamesRefreshed} withAchievements={payload.Summary.GamesWithAchievements} withoutAchievements={payload.Summary.GamesWithoutAchievements}");
+            }
             return payload;
         }
 
@@ -1009,8 +1034,11 @@ namespace PlayniteAchievements.Services.Refresh
             finally
             {
                 timer.Stop();
-                _logger?.Debug(
-                    $"[RefreshPerf] phase=current.provider provider={plan.Provider.ProviderKey} ms={timer.ElapsedMilliseconds} games={plan.Games.Count}");
+                if (!RealtimePollingLogScope.IsActive)
+                {
+                    _logger?.Debug(
+                        $"[RefreshPerf] phase=current.provider provider={plan.Provider.ProviderKey} ms={timer.ElapsedMilliseconds} games={plan.Games.Count}");
+                }
             }
         }
 

@@ -8,6 +8,7 @@ using PlayniteAchievements.Models.Friends;
 using PlayniteAchievements.Services.Database;
 using PlayniteAchievements.Services.Friends;
 using PlayniteAchievements.Services.Images;
+using PlayniteAchievements.Services.Logging;
 using PlayniteAchievements.Providers;
 using Playnite.SDK;
 using System.Windows;
@@ -187,9 +188,12 @@ namespace PlayniteAchievements.Services.Cache
             try
             {
                 var changedGames = _store.ResyncAllAchievementFilters(entriesByGameId);
-                _logger?.Debug(changedGames > 0
-                    ? $"[Filters] Achievement filter mirror resynced for {changedGames} game(s)."
-                    : "[Filters] Achievement filter mirror unchanged.");
+                if (!RealtimePollingLogScope.IsActive || changedGames > 0)
+                {
+                    _logger?.Debug(changedGames > 0
+                        ? $"[Filters] Achievement filter mirror resynced for {changedGames} game(s)."
+                        : "[Filters] Achievement filter mirror unchanged.");
+                }
             }
             catch (Exception ex)
             {

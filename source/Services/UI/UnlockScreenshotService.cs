@@ -243,7 +243,9 @@ namespace PlayniteAchievements.Services.UI
                     return null;
                 }
 
-                var bitmap = new Bitmap(bounds.Width, bounds.Height, PixelFormat.Format32bppArgb);
+                // CopyFromScreen writes RGB but does not populate alpha. Argb would save a
+                // transparent PNG even though the captured color pixels are valid.
+                var bitmap = new Bitmap(bounds.Width, bounds.Height, PixelFormat.Format32bppRgb);
                 using (var graphics = Graphics.FromImage(bitmap))
                 {
                     graphics.CopyFromScreen(bounds.Location, Point.Empty, bounds.Size);
@@ -304,6 +306,7 @@ namespace PlayniteAchievements.Services.UI
                     settings.ScreenshotImageFormat == LocalUnlockScreenshotImageFormat.Jpeg
                         ? ImageFormat.Jpeg
                         : ImageFormat.Png);
+                _logger?.Info($"[Screenshot] Saved custom unlock screenshot: {path}");
             }
             catch (Exception ex)
             {
