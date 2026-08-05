@@ -1,3 +1,4 @@
+using Playnite.SDK;
 using System;
 using System.Collections.Generic;
 using System.IO;
@@ -16,6 +17,26 @@ namespace PlayniteAchievements.Views.Helpers
         private const int MaxCompositedGifFrames = 120;
         private const int MaxGifPixelArea = 2048 * 2048;
         private const int MaxCachedGifAnimations = 64;
+
+        // Every composited frame is a full-canvas BGRA snapshot, so retained bytes scale with
+        // area x frame count. MaxGifPixelArea only bounds the area, which a wide-but-short GIF
+        // passes while still costing hundreds of megabytes across a few hundred frames. This
+        // budget bounds the product: 16 Mpx is a 64 MB ceiling per animation, high enough that
+        // normally sized notification art still reaches MaxCompositedGifFrames and only oversized
+        // sources get trimmed.
+        private const long MaxCompositedGifPixels = 16L * 1024 * 1024;
+
+        // Aggregate ceiling across every cached animation (~128 MB of BGRA). The entry count alone
+        // let a handful of large animations dominate the process.
+        private const long MaxCachedGifBytes = 128L * 1024 * 1024;
+
+        private const int BytesPerCompositedPixel = 4;
+
+        // Below this an animation is not worth retaining; the caller falls back to the static
+        // image path instead.
+        private const int MinCompositedGifFrames = 2;
+
+        private static readonly ILogger Logger = LogManager.GetLogger();
 
         private static readonly object CacheSync = new object();
         private static readonly Dictionary<string, (List<BitmapSource> Frames, List<int> Delays)> FrameCache =
@@ -418,13 +439,61 @@ namespace PlayniteAchievements.Views.Helpers
 
             lock (CacheSync)
             {
-                if (FrameCache.Count >= MaxCachedGifAnimations && !FrameCache.ContainsKey(cacheKey))
+                FrameCache[cacheKey] = cached;
+                TrimCache(cacheKey);
+            }
+        }
+
+        /// <summary>
+        /// Evicts entries until the cache is inside both the entry-count and the retained-bytes
+        /// budget, never evicting <paramref name="keepKey"/> (the entry just added). Caller holds
+        /// <see cref="CacheSync"/>.
+        /// </summary>
+        private static void TrimCache(string keepKey)
+        {
+            var retainedBytes = 0L;
+            foreach (var entry in FrameCache.Values)
+            {
+                retainedBytes += EstimateRetainedBytes(entry);
+            }
+
+            if (FrameCache.Count <= MaxCachedGifAnimations && retainedBytes <= MaxCachedGifBytes)
+            {
+                return;
+            }
+
+            // Any eviction order is acceptable for a cache; evicting one entry at a time (rather
+            // than clearing wholesale, as this previously did) keeps unrelated animations warm.
+            foreach (var key in new List<string>(FrameCache.Keys))
+            {
+                if (FrameCache.Count <= MaxCachedGifAnimations && retainedBytes <= MaxCachedGifBytes)
                 {
-                    FrameCache.Clear();
+                    return;
                 }
 
-                FrameCache[cacheKey] = cached;
+                if (string.Equals(key, keepKey, StringComparison.OrdinalIgnoreCase))
+                {
+                    continue;
+                }
+
+                if (FrameCache.TryGetValue(key, out var evicted))
+                {
+                    retainedBytes -= EstimateRetainedBytes(evicted);
+                    FrameCache.Remove(key);
+                }
             }
+        }
+
+        /// <summary>
+        /// Bytes held by one cache entry. Every composited frame is a full-canvas BGRA snapshot of
+        /// the same size, so the first frame's dimensions describe them all.
+        /// </summary>
+        private static long EstimateRetainedBytes((List<BitmapSource> Frames, List<int> Delays) cached)
+        {
+            var first = cached.Frames != null && cached.Frames.Count > 0 ? cached.Frames[0] : null;
+            return first == null
+                ? 0L
+                : (long)first.PixelWidth * first.PixelHeight * BytesPerCompositedPixel * cached.Frames.Count;
         }
 
         private static List<BitmapSource> BuildCompositedGifFrames(GifBitmapDecoder decoder, bool applyGray)
@@ -442,9 +511,31 @@ namespace PlayniteAchievements.Views.Helpers
                 return result;
             }
 
-            if ((long)width * height > MaxGifPixelArea)
+            var frameArea = (long)width * height;
+            if (frameArea > MaxGifPixelArea)
             {
+                Logger?.Info(
+                    $"[Gif] Skipping animation for a {width}x{height} source: the frame area exceeds the {MaxGifPixelArea} pixel limit.");
                 return result;
+            }
+
+            // area x frames, not area alone: a modest frame multiplied by hundreds of frames is
+            // what actually exhausts memory.
+            var budgetFrames = (int)Math.Min(int.MaxValue, MaxCompositedGifPixels / frameArea);
+            var frameCount = Math.Min(decoder.Frames.Count, Math.Min(MaxCompositedGifFrames, budgetFrames));
+            if (frameCount < MinCompositedGifFrames)
+            {
+                Logger?.Info(
+                    $"[Gif] Skipping animation for a {width}x{height} source with {decoder.Frames.Count} frames: " +
+                    $"the composited-pixel budget allows only {frameCount} frame(s).");
+                return result;
+            }
+
+            if (frameCount < decoder.Frames.Count)
+            {
+                Logger?.Info(
+                    $"[Gif] Trimming a {width}x{height} animation to {frameCount} of {decoder.Frames.Count} frames " +
+                    $"(~{frameArea * frameCount * BytesPerCompositedPixel / (1024 * 1024)} MB retained).");
             }
 
             var stride = width * 4;
@@ -457,7 +548,6 @@ namespace PlayniteAchievements.Views.Helpers
             int prevDisposal = 0;
             byte[] previousCanvasBackup = null;
 
-            var frameCount = Math.Min(decoder.Frames.Count, MaxCompositedGifFrames);
             for (var i = 0; i < frameCount; i++)
             {
                 ApplyPreviousDisposal(canvas, stride, prevDisposal, prevLeft, prevTop, prevWidth, prevHeight, previousCanvasBackup);
