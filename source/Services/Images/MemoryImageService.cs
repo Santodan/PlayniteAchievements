@@ -89,7 +89,7 @@ namespace PlayniteAchievements.Services.Images
 
             // The GIF animation frame cache is keyed by the token-stripped file path, so it
             // must drop its entries on the same invalidation signals as the bitmap cache.
-            Views.Helpers.GifAnimationHelper.EvictBySegment(segment);
+            Views.Helpers.AnimatedImageHelper.EvictBySegment(segment);
 
             lock (_cacheLock)
             {
@@ -407,7 +407,7 @@ namespace PlayniteAchievements.Services.Images
         {
             try
             {
-                var isGif = IsGifPathOrUri(uri);
+                var isAnimated = ImageFormats.IsAnimatedFile(uri);
                 var bitmap = new BitmapImage();
                 bitmap.BeginInit();
                 bitmap.CacheOption = BitmapCacheOption.OnLoad;
@@ -416,7 +416,7 @@ namespace PlayniteAchievements.Services.Images
                 // This service is the caching layer, so the WPF cache is redundant here.
                 bitmap.CreateOptions = BitmapCreateOptions.IgnoreColorProfile | BitmapCreateOptions.IgnoreImageCache;
 
-                if (!isGif && decodePixel > 0)
+                if (!isAnimated && decodePixel > 0)
                 {
                     bitmap.DecodePixelWidth = decodePixel;
                 }
@@ -438,7 +438,9 @@ namespace PlayniteAchievements.Services.Images
         {
             try
             {
-                var decodeForCache = IsGifPathOrUri(uri) ? 0 : decodePixel;
+                // Extension-based, not content-based: the file may not exist locally yet, and
+                // re-encoding an animation to PNG on the way into the cache would flatten it.
+                var decodeForCache = ImageFormats.IsAnimationCandidate(uri) ? 0 : decodePixel;
                 var cachePath = _diskService.GetIconCachePathFromUri(uri, decodeForCache, gameId: null);
                 if (string.IsNullOrWhiteSpace(cachePath))
                 {
@@ -457,7 +459,9 @@ namespace PlayniteAchievements.Services.Images
                     return null;
                 }
 
-                var isGif = IsGifPathOrUri(cachePath);
+                // Content-based here: the file exists, so a still WebP keeps its decode-time
+                // downscale instead of paying full resolution for a format that merely could animate.
+                var isAnimated = ImageFormats.IsAnimatedFile(cachePath);
 
                 return await Task.Run(() =>
                 {
@@ -465,7 +469,7 @@ namespace PlayniteAchievements.Services.Images
                     bitmap.BeginInit();
                     bitmap.CacheOption = BitmapCacheOption.OnLoad;
                     bitmap.CreateOptions = BitmapCreateOptions.IgnoreColorProfile | BitmapCreateOptions.IgnoreImageCache;
-                    if (!isGif && decodePixel > 0)
+                    if (!isAnimated && decodePixel > 0)
                     {
                         bitmap.DecodePixelWidth = decodePixel;
                     }
@@ -487,26 +491,6 @@ namespace PlayniteAchievements.Services.Images
                    url.StartsWith("https://", StringComparison.OrdinalIgnoreCase);
         }
 
-        private static bool IsGifPathOrUri(string value)
-        {
-            if (string.IsNullOrWhiteSpace(value))
-            {
-                return false;
-            }
-
-            try
-            {
-                if (Uri.TryCreate(value, UriKind.Absolute, out var uri))
-                {
-                    return uri.AbsolutePath.EndsWith(".gif", StringComparison.OrdinalIgnoreCase);
-                }
-            }
-            catch
-            {
-            }
-
-            return value.EndsWith(".gif", StringComparison.OrdinalIgnoreCase);
-        }
     }
 
     internal static class TaskCancellationExtensions
