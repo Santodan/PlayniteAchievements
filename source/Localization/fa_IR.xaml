@@ -14,7 +14,6 @@
     <sys:String x:Key="LOCPlayAch_Common_Actions">فعالیت‌ها</sys:String>
     <sys:String x:Key="LOCPlayAch_Common_Action_ExcludeFromSummaries">عدم نمایش در خلاصه‌ها</sys:String>
     <sys:String x:Key="LOCPlayAch_Common_Action_IncludeInSummaries">قرار دادن در خلاصه‌ها</sys:String>
-    <sys:String x:Key="LOCPlayAch_Common_AddType">افزودن نوع</sys:String>
     <sys:String x:Key="LOCPlayAch_Common_ApplyToSelected">اجرا روی انتخاب‌شده‌ها</sys:String>
     <sys:String x:Key="LOCPlayAch_Common_Ascending">از کم به زیاد</sys:String>
     <sys:String x:Key="LOCPlayAch_Common_All">همه</sys:String>
