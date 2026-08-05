@@ -1000,7 +1000,8 @@ namespace PlayniteAchievements.ViewModels
                         onAccountChanged?.Invoke(account);
                     },
                     SelectAvatarSource,
-                    nameMode)));
+                    nameMode,
+                    isMergedRow: !string.IsNullOrWhiteSpace(group?.Id))));
             SeedAvatarSource(group?.AvatarAccount);
             if (!IsMerged && Accounts.Count == 1)
             {
@@ -1017,6 +1018,13 @@ namespace PlayniteAchievements.ViewModels
         public bool IsMerged => !string.IsNullOrWhiteSpace(MergeGroupId);
 
         public bool CanUnmerge => IsMerged;
+
+        // Row-level removal target for the shared actions column. Unmerged rows hold exactly
+        // one account, and merged accounts are never removable, so this is null or that account.
+        public FriendSettingsAccountItem RemovableAccount =>
+            IsMerged ? null : Accounts.FirstOrDefault(account => account.CanRemove);
+
+        public bool CanRemoveAccount => RemovableAccount != null;
 
         public ObservableCollection<FriendSettingsAccountItem> Accounts { get; }
 
@@ -1200,11 +1208,13 @@ namespace PlayniteAchievements.ViewModels
             HashSet<string> disabledExophasePlatformTokens,
             Action<FriendSettingsAccountItem> onChanged,
             Action<FriendSettingsAccountItem> onAvatarSourceSelected = null,
-            FriendNameDisplayMode nameMode = FriendNameDisplayMode.PersonaAndNickname)
+            FriendNameDisplayMode nameMode = FriendNameDisplayMode.PersonaAndNickname,
+            bool isMergedRow = false)
         {
             Entry = entry ?? throw new ArgumentNullException(nameof(entry));
             _onChanged = onChanged;
             _onAvatarSourceSelected = onAvatarSourceSelected;
+            IsInMergedRow = isMergedRow;
             ProviderKey = entry.ProviderKey;
             ExternalUserId = entry.ExternalUserId;
             // Manual nickname deliberately excluded: the nickname text box shows it, and the
@@ -1245,7 +1255,11 @@ namespace PlayniteAchievements.ViewModels
 
         public bool SupportsPlatformSelection => IsExophase;
 
-        public bool CanRemove => Source == FriendSettingsSource.Manual;
+        public bool IsInMergedRow { get; }
+
+        // Accounts inside a merge group cannot be removed directly; the person must be
+        // unmerged first so the removal target is unambiguous.
+        public bool CanRemove => !IsInMergedRow && Source == FriendSettingsSource.Manual;
 
         public string ProviderDisplayName => ProviderRegistry.GetLocalizedName(ProviderKey);
 

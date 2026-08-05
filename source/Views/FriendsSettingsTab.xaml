@@ -476,43 +476,29 @@
                                 </DataGridTemplateColumn.CellTemplate>
                             </DataGridTemplateColumn>
 
-                            <DataGridTemplateColumn Header="{DynamicResource LOCPlayAch_Button_Remove}"
-                                                    Width="Auto"
+                            <!-- Shared actions column: Unmerge for merged rows, Remove for manual
+                                 unmerged rows, blank otherwise. The two are mutually exclusive
+                                 (merged accounts are never removable), so they overlay in one cell. -->
+                            <DataGridTemplateColumn Width="Auto"
                                                     MinWidth="84">
                                 <DataGridTemplateColumn.CellTemplate>
                                     <DataTemplate>
-                                        <ItemsControl ItemsSource="{Binding Accounts}"
-                                                      HorizontalAlignment="Center">
-                                            <ItemsControl.ItemTemplate>
-                                                <DataTemplate>
-                                                    <Grid Height="{StaticResource FriendAccountItemHeight}"
-                                                          Margin="0,2">
-                                                        <Button Content="{DynamicResource LOCPlayAch_Button_Remove}"
-                                                                Command="{Binding DataContext.RemoveFriendCommand, RelativeSource={RelativeSource AncestorType={x:Type DataGrid}}}"
-                                                                CommandParameter="{Binding}"
-                                                                Visibility="{Binding CanRemove, Converter={StaticResource BoolToVis}}"
-                                                                VerticalAlignment="Center"
-                                                                Padding="8,3"/>
-                                                    </Grid>
-                                                </DataTemplate>
-                                            </ItemsControl.ItemTemplate>
-                                        </ItemsControl>
-                                    </DataTemplate>
-                                </DataGridTemplateColumn.CellTemplate>
-                            </DataGridTemplateColumn>
-
-                            <DataGridTemplateColumn Header="{DynamicResource LOCPlayAch_FriendsSettings_Unmerge}"
-                                                    Width="Auto"
-                                                    MinWidth="84">
-                                <DataGridTemplateColumn.CellTemplate>
-                                    <DataTemplate>
-                                        <Button Content="{DynamicResource LOCPlayAch_FriendsSettings_Unmerge}"
-                                                Command="{Binding DataContext.UnmergeFriendCommand, RelativeSource={RelativeSource AncestorType={x:Type DataGrid}}}"
-                                                CommandParameter="{Binding}"
-                                                Visibility="{Binding CanUnmerge, Converter={StaticResource BoolToVis}}"
-                                                HorizontalAlignment="Center"
-                                                VerticalAlignment="Center"
-                                                Padding="8,3"/>
+                                        <Grid>
+                                            <Button Content="{DynamicResource LOCPlayAch_FriendsSettings_Unmerge}"
+                                                    Command="{Binding DataContext.UnmergeFriendCommand, RelativeSource={RelativeSource AncestorType={x:Type DataGrid}}}"
+                                                    CommandParameter="{Binding}"
+                                                    Visibility="{Binding CanUnmerge, Converter={StaticResource BoolToVis}}"
+                                                    HorizontalAlignment="Center"
+                                                    VerticalAlignment="Center"
+                                                    Padding="8,3"/>
+                                            <Button Content="{DynamicResource LOCPlayAch_Button_Remove}"
+                                                    Command="{Binding DataContext.RemoveFriendCommand, RelativeSource={RelativeSource AncestorType={x:Type DataGrid}}}"
+                                                    CommandParameter="{Binding RemovableAccount}"
+                                                    Visibility="{Binding CanRemoveAccount, Converter={StaticResource BoolToVis}}"
+                                                    HorizontalAlignment="Center"
+                                                    VerticalAlignment="Center"
+                                                    Padding="8,3"/>
+                                        </Grid>
                                     </DataTemplate>
                                 </DataGridTemplateColumn.CellTemplate>
                             </DataGridTemplateColumn>
