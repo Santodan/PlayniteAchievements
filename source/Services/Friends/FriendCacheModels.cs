@@ -443,6 +443,13 @@ namespace PlayniteAchievements.Services.Friends
         FriendsOverviewData LoadFriendGameAchievementData(Guid playniteGameId);
 
         /// <summary>
+        /// Distinct PlayniteGameIds any active friend has cached progress for. Cheap
+        /// availability index consumed by the compare-friend dropdown so it can show
+        /// synchronously with the control bar instead of waiting on the per-game row load.
+        /// </summary>
+        IReadOnlyCollection<Guid> LoadFriendDataPlayniteGameIds();
+
+        /// <summary>
         /// Loads every friend's achievement rows (locked included) for one game identified by
         /// provider scope, supporting provider-only games without a PlayniteGameId. Used by the
         /// friend+game pair comparison to materialize locked rows on demand; the overview

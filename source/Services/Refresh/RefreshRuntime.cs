@@ -126,6 +126,32 @@ namespace PlayniteAchievements.Services.Refresh
         public IReadOnlyList<IDataProvider> Providers => _providers;
 
         /// <summary>
+        /// Resolves the single provider that would service a running game using the same enabled,
+        /// authenticated, forced-override, and configured-priority rules as a normal refresh.
+        /// This is intentionally synchronous and side-effect free so game start never opens an
+        /// authentication dialog.
+        /// </summary>
+        internal IDataProvider ResolveInGameProvider(Game game)
+        {
+            if (game == null)
+            {
+                return null;
+            }
+
+            var candidates = _providers
+                .Where(provider =>
+                    provider != null &&
+                    _providerRegistry.IsProviderEnabled(provider.ProviderKey) &&
+                    provider.IsAuthenticated)
+                .ToList();
+
+            return _targetSelectionResolver.ResolveProviderForGame(
+                game,
+                candidates,
+                new TargetSelectionCache());
+        }
+
+        /// <summary>
         /// Gets the list of available refresh modes with localized display names.
         /// </summary>
         public IReadOnlyList<RefreshMode> GetRefreshModes()
@@ -578,7 +604,7 @@ namespace PlayniteAchievements.Services.Refresh
 
                 if (hasSavedGames)
                 {
-                    // Scoped when the run knows which games it refreshed (a poller tick names
+                    // Scoped when the run knows which games it refreshed (a monitor refresh names
                     // exactly one); null or an over-large list degrades to a full invalidation.
                     _cacheService.NotifyCacheInvalidated(payload?.Summary?.RefreshedGameIds);
                 }
@@ -726,8 +752,23 @@ namespace PlayniteAchievements.Services.Refresh
             }
 
             context.SetAuthenticatedProviders(
-                enabledProviders.Where(provider => context.IsProviderAuthenticated(provider.ProviderKey)));
+                enabledProviders.Where(provider =>
+                    context.IsProviderAuthenticated(provider.ProviderKey) ||
+                    CanAttemptOfflineRefresh(provider)));
             return context;
+        }
+
+        private static bool CanAttemptOfflineRefresh(IDataProvider provider)
+        {
+            try
+            {
+                return provider is IOfflineRefreshFallbackProvider fallback &&
+                       fallback.CanAttemptOfflineRefresh;
+            }
+            catch
+            {
+                return false;
+            }
         }
 
         private List<IDataProvider> GetEnabledProviders()
@@ -1790,7 +1831,14 @@ namespace PlayniteAchievements.Services.Refresh
 
                 if (!string.IsNullOrWhiteSpace(resolved.UserMessage))
                 {
-                    if (HasSteamTransientAuthFailure(effectiveAuthContext))
+                    if (request?.ShowEmptyTargetNotice != true)
+                    {
+                        // Only user-initiated, targeted single-game refreshes opt in to the
+                        // no-capable-provider modal. Background, import, and bulk refreshes leave
+                        // the flag false and fail silently rather than interrupting the user.
+                        _logger.Info("Refresh selection produced no targets; suppressing no-target modal for non-targeted refresh.");
+                    }
+                    else if (HasSteamTransientAuthFailure(effectiveAuthContext))
                     {
                         _logger.Warn("Refresh selection produced no targets because Steam web authentication could not be verified; suppressing generic no-target modal.");
                     }

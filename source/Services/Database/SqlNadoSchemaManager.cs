@@ -45,6 +45,7 @@ namespace PlayniteAchievements.Services.Database
                 ProviderKey TEXT NOT NULL COLLATE NOCASE,
                 ExternalUserId TEXT NOT NULL COLLATE NOCASE,
                 DisplayName TEXT NULL,
+                ProviderNickname TEXT NULL,
                 IsCurrentUser INTEGER NOT NULL DEFAULT 0,
                 FriendSource TEXT NULL,
                 AvatarUrl TEXT NULL,
@@ -685,6 +686,7 @@ namespace PlayniteAchievements.Services.Database
             EnsureColumn(db, "Users", "AvatarPath", "TEXT NULL", usersColumns, ref backupPath);
             EnsureColumn(db, "Users", "LastRefreshedUtc", "TEXT NULL", usersColumns, ref backupPath);
             EnsureColumn(db, "Users", "IsActiveFriend", "INTEGER NOT NULL DEFAULT 1", usersColumns, ref backupPath);
+            EnsureColumn(db, "Users", "ProviderNickname", "TEXT NULL", usersColumns, ref backupPath);
 
             EnsureFriendOwnershipTable(db);
             ReconcileFriendOwnershipColumns(db, ref backupPath);
@@ -923,6 +925,7 @@ namespace PlayniteAchievements.Services.Database
             EnsureRequiredColumn(usersColumns, "AvatarPath", "Users", missing);
             EnsureRequiredColumn(usersColumns, "LastRefreshedUtc", "Users", missing);
             EnsureRequiredColumn(usersColumns, "IsActiveFriend", "Users", missing);
+            EnsureRequiredColumn(usersColumns, "ProviderNickname", "Users", missing);
 
             var friendOwnershipColumns = GetColumnNames(db, "FriendOwnership");
             EnsureRequiredColumn(friendOwnershipColumns, "UserId", "FriendOwnership", missing);

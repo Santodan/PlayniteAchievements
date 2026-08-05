@@ -42,7 +42,7 @@
                 </Grid.RowDefinitions>
 
                 <GroupBox Grid.Row="0"
-                          Header="{DynamicResource LOCPlayAch_CustomRefresh_PresetsHeader}"
+                          Header="{DynamicResource LOCPlayAch_Presets_Header}"
                           Foreground="{DynamicResource PlayAch.Brush.Text}"
                           BorderBrush="{DynamicResource PlayAch.Brush.Border}"
                           Margin="0,0,0,10">
@@ -88,7 +88,7 @@
                                 Margin="{StaticResource PlayAch.Thickness.Right.Compact}" />
 
                         <Button Grid.Column="4"
-                                Content="{DynamicResource LOCPlayAch_CustomRefresh_Presets_Delete}"
+                                Content="{DynamicResource LOCPlayAch_Button_Delete}"
                                 Click="DeletePresetButton_Click"
                                 IsEnabled="{Binding CanDeletePreset}"
                                 Padding="{StaticResource PlayAch.Thickness.ButtonPadding}"

@@ -32,6 +32,11 @@ namespace PlayniteAchievements.Providers
         void ApplySettings(IProviderSettings settings);
         ProviderSettingsViewBase CreateSettingsView();
     }
+
+    internal interface IOfflineRefreshFallbackProvider
+    {
+        bool CanAttemptOfflineRefresh { get; }
+    }
 }
 
 namespace PlayniteAchievements.Providers.Epic

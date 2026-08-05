@@ -11,6 +11,7 @@ using PlayniteAchievements.ViewModels.Items;
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Reflection;
 using System.Threading;
 
 namespace PlayniteAchievements.Tests.ViewModels
@@ -392,6 +393,180 @@ namespace PlayniteAchievements.Tests.ViewModels
         }
 
         [TestMethod]
+        public void UnlockStateTogglesFilterPairAchievementsByFriendUnlockState()
+        {
+            var data = CreateData();
+            var locked = CreateAchievement(
+                "Steam",
+                "alice",
+                "Alice",
+                "https://cdn.example/alice.png",
+                10,
+                data.Games[0].PlayniteGameId.Value,
+                "Game One",
+                "Alice Locked",
+                "Story",
+                "Main",
+                new DateTime(2026, 1, 1, 0, 0, 0, DateTimeKind.Utc));
+            locked.Unlocked = false;
+            locked.UnlockTimeUtc = null;
+            var hiddenLocked = CreateAchievement(
+                "Steam",
+                "alice",
+                "Alice",
+                "https://cdn.example/alice.png",
+                10,
+                data.Games[0].PlayniteGameId.Value,
+                "Game One",
+                "Alice Hidden Locked",
+                "Story",
+                "Main",
+                new DateTime(2026, 1, 1, 0, 0, 0, DateTimeKind.Utc));
+            hiddenLocked.Unlocked = false;
+            hiddenLocked.UnlockTimeUtc = null;
+            hiddenLocked.Hidden = true;
+            data.AllAchievements = data.AllUnlockedAchievements.ToList();
+            var cache = new StubFriendCache(data)
+            {
+                PairAchievements = data.AllUnlockedAchievements.Concat(new[] { locked, hiddenLocked }).ToList()
+            };
+
+            var viewModel = CreateViewModel(cache);
+            viewModel.LoadAsync().GetAwaiter().GetResult();
+
+            viewModel.SelectedFriend = data.Friends[0];
+            viewModel.SelectedGame = data.Games[0];
+            SettlePairFetch(viewModel);
+
+            CollectionAssert.AreEquivalent(
+                new[] { "Recent Only", "Alice Locked", "Alice Hidden Locked" },
+                viewModel.DisplayedAchievements.Select(item => item.DisplayName).ToArray());
+
+            // Unlocked/Locked filter by the friend's unlock state.
+            viewModel.ShowLockedAchievements = false;
+            CollectionAssert.AreEquivalent(
+                new[] { "Recent Only" },
+                viewModel.DisplayedAchievements.Select(item => item.DisplayName).ToArray());
+
+            viewModel.ShowLockedAchievements = true;
+            viewModel.ShowUnlockedAchievements = false;
+            CollectionAssert.AreEquivalent(
+                new[] { "Alice Locked", "Alice Hidden Locked" },
+                viewModel.DisplayedAchievements.Select(item => item.DisplayName).ToArray());
+
+            // Hidden removes only rows hidden-and-locked for the friend.
+            viewModel.ShowUnlockedAchievements = true;
+            viewModel.ShowHiddenAchievements = false;
+            CollectionAssert.AreEquivalent(
+                new[] { "Recent Only", "Alice Locked" },
+                viewModel.DisplayedAchievements.Select(item => item.DisplayName).ToArray());
+        }
+
+        [TestMethod]
+        public void UnlockStateTogglesAvailableImmediatelyWhilePairFetchInFlight()
+        {
+            var data = CreateData();
+            var locked = CreateAchievement(
+                "Steam",
+                "alice",
+                "Alice",
+                "https://cdn.example/alice.png",
+                10,
+                data.Games[0].PlayniteGameId.Value,
+                "Game One",
+                "Alice Locked",
+                "Story",
+                "Main",
+                new DateTime(2026, 1, 1, 0, 0, 0, DateTimeKind.Utc));
+            locked.Unlocked = false;
+            locked.UnlockTimeUtc = null;
+            data.AllAchievements = data.AllUnlockedAchievements.ToList();
+            using (var gate = new ManualResetEventSlim(false))
+            {
+                var cache = new StubFriendCache(data)
+                {
+                    PairAchievements = data.AllUnlockedAchievements.Concat(new[] { locked }).ToList(),
+                    PairLoadGate = gate
+                };
+
+                var viewModel = CreateViewModel(cache);
+                viewModel.LoadAsync().GetAwaiter().GetResult();
+
+                var toggles = viewModel.AchievementsControlBar.Items.OfType<GridToggleFilter>().ToList();
+                Assert.AreEqual(3, toggles.Count);
+                Assert.IsFalse(toggles.Any(toggle => toggle.EffectiveIsVisible));
+
+                // Pair selection: the row fetch is gated (still in flight), so availability must
+                // come from the friend-scoped game summary counts (1 of 4 unlocked) instead of
+                // lagging behind the rest of the control bar until the rows land.
+                viewModel.SelectedFriend = data.Friends[0];
+                viewModel.SelectedGame = data.Games[0];
+                Assert.IsTrue(toggles.All(toggle => toggle.EffectiveIsVisible));
+
+                gate.Set();
+                viewModel.PairAchievementsFetchTask?.GetAwaiter().GetResult();
+
+                // The exact row-based pass settles availability: unlocked and locked rows both
+                // exist, but this pair has no hidden-locked row, so the optimistic Hidden
+                // estimate resolves to hidden.
+                Assert.IsTrue(toggles
+                    .Where(toggle => toggle.Icon != GridToggleFilterIcon.Hidden)
+                    .All(toggle => toggle.EffectiveIsVisible));
+                Assert.IsFalse(toggles
+                    .Single(toggle => toggle.Icon == GridToggleFilterIcon.Hidden)
+                    .EffectiveIsVisible);
+            }
+        }
+
+        [TestMethod]
+        public void UnlockStateTogglesResetWhenLeavingPairState()
+        {
+            var data = CreateData();
+            var locked = CreateAchievement(
+                "Steam",
+                "alice",
+                "Alice",
+                "https://cdn.example/alice.png",
+                10,
+                data.Games[0].PlayniteGameId.Value,
+                "Game One",
+                "Alice Locked",
+                "Story",
+                "Main",
+                new DateTime(2026, 1, 1, 0, 0, 0, DateTimeKind.Utc));
+            locked.Unlocked = false;
+            locked.UnlockTimeUtc = null;
+            data.AllAchievements = data.AllUnlockedAchievements.ToList();
+            var cache = new StubFriendCache(data)
+            {
+                PairAchievements = data.AllUnlockedAchievements.Concat(new[] { locked }).ToList()
+            };
+
+            var viewModel = CreateViewModel(cache);
+            viewModel.LoadAsync().GetAwaiter().GetResult();
+
+            viewModel.SelectedFriend = data.Friends[0];
+            viewModel.SelectedGame = data.Games[0];
+            viewModel.PairAchievementsFetchTask?.GetAwaiter().GetResult();
+
+            viewModel.ShowUnlockedAchievements = false;
+            viewModel.ShowHiddenAchievements = false;
+            CollectionAssert.AreEquivalent(
+                new[] { "Alice Locked" },
+                viewModel.DisplayedAchievements.Select(item => item.DisplayName).ToArray());
+
+            // Leaving the pair state resets the toggles so the aggregated friend-only view is
+            // unaffected by stale unlock-state filtering.
+            viewModel.ClearGameSelection();
+            Assert.IsTrue(viewModel.ShowUnlockedAchievements);
+            Assert.IsTrue(viewModel.ShowLockedAchievements);
+            Assert.IsTrue(viewModel.ShowHiddenAchievements);
+            CollectionAssert.AreEquivalent(
+                new[] { "Recent Only", "Alice Game Two" },
+                viewModel.DisplayedAchievements.Select(item => item.DisplayName).ToArray());
+        }
+
+        [TestMethod]
         public void SelectedFriendGamesUseFriendScopedSummaryRows()
         {
             var data = CreateData();
@@ -515,7 +690,7 @@ namespace PlayniteAchievements.Tests.ViewModels
 
             viewModel.SelectedFriend = data.Friends[0];
             viewModel.SelectedGame = data.Games[0];
-            viewModel.PairAchievementsFetchTask?.GetAwaiter().GetResult();
+            SettlePairFetch(viewModel);
 
             // The displayed grid follows the configured default sort (unlock time descending), but
             // the category-summary source preserves the definition-ordered pair load.
@@ -940,14 +1115,30 @@ namespace PlayniteAchievements.Tests.ViewModels
         public void FriendProviderFilterMatchesMergedMembership()
         {
             var data = CreateData();
+            // Dana is a genuinely merged friend: two real per-provider accounts (Steam +
+            // RetroAchievements) that the merge pipeline folds into one merged summary carrying both
+            // member providers. This exercises the same path production uses instead of injecting a
+            // synthetic pre-merged row (which the projection re-individualizes when no group exists).
             data.Friends.Add(new FriendSummaryItem
             {
-                ProviderKey = FriendOverviewProjection.MergedProviderKey,
-                ExternalUserId = "dana",
-                DisplayName = "Dana",
-                MemberProviderKeys = new List<string> { "Steam", "RetroAchievements" }
+                ProviderKey = "Steam",
+                ExternalUserId = "dana-steam",
+                DisplayName = "Dana"
             });
-            var viewModel = CreateViewModel(data);
+            data.Friends.Add(new FriendSummaryItem
+            {
+                ProviderKey = "RetroAchievements",
+                ExternalUserId = "dana-ra",
+                DisplayName = "Dana"
+            });
+            var viewModel = CreateViewModel(data, settings =>
+                settings.AddOrUpdateFriendMergeGroup(
+                    new[]
+                    {
+                        FriendAccountRef.From("Steam", "dana-steam"),
+                        FriendAccountRef.From("RetroAchievements", "dana-ra")
+                    },
+                    nickname: "Dana"));
             viewModel.LoadAsync().GetAwaiter().GetResult();
 
             // Options carry the raw service keys, including merged members.
@@ -964,6 +1155,71 @@ namespace PlayniteAchievements.Tests.ViewModels
             CollectionAssert.AreEquivalent(
                 new[] { "Cora", "Dana" },
                 viewModel.FilteredFriends.Select(item => item.DisplayName).ToArray());
+        }
+
+        [TestMethod]
+        public void MergedFriendPairSelectionShowsOnDemandPairRows()
+        {
+            var data = CreateData();
+            var gameOneId = data.Games[0].PlayniteGameId.Value;
+            data.Friends.Add(new FriendSummaryItem
+            {
+                ProviderKey = "Steam",
+                ExternalUserId = "dana-steam",
+                DisplayName = "Dana Steam"
+            });
+            data.Friends.Add(new FriendSummaryItem
+            {
+                ProviderKey = "RetroAchievements",
+                ExternalUserId = "dana-ra",
+                DisplayName = "Dana RA"
+            });
+            data.AllUnlockedAchievements.Add(CreateAchievement(
+                "Steam", "dana-steam", "Dana Steam", 10, gameOneId, "Game One",
+                "Dana Unlocked", "Story", "Main",
+                new DateTime(2026, 1, 5, 0, 0, 0, DateTimeKind.Utc)));
+            data.AllAchievements = data.AllUnlockedAchievements.ToList();
+
+            // The on-demand pair load returns freshly materialized rows, as SQL does; sharing
+            // instances with the snapshot (which the projection stamps in place) would mask a
+            // missing merge-identity pass on the pair path.
+            var freshUnlocked = CreateAchievement(
+                "Steam", "dana-steam", "Dana Steam", 10, gameOneId, "Game One",
+                "Dana Unlocked", "Story", "Main",
+                new DateTime(2026, 1, 5, 0, 0, 0, DateTimeKind.Utc));
+            var freshLocked = CreateAchievement(
+                "Steam", "dana-steam", "Dana Steam", 10, gameOneId, "Game One",
+                "Dana Locked", "Story", "Main",
+                new DateTime(2026, 1, 5, 0, 0, 0, DateTimeKind.Utc));
+            freshLocked.Unlocked = false;
+            freshLocked.UnlockTimeUtc = null;
+            var cache = new StubFriendCache(data)
+            {
+                PairAchievements = new List<FriendAchievementDisplayItem> { freshUnlocked, freshLocked }
+            };
+
+            var viewModel = CreateViewModel(cache, settings =>
+                settings.AddOrUpdateFriendMergeGroup(
+                    new[]
+                    {
+                        FriendAccountRef.From("Steam", "dana-steam"),
+                        FriendAccountRef.From("RetroAchievements", "dana-ra")
+                    },
+                    nickname: "Dana"));
+            viewModel.LoadAsync().GetAwaiter().GetResult();
+
+            viewModel.SelectedFriend = viewModel.FilteredFriends.Single(friend => friend.DisplayName == "Dana");
+            viewModel.SelectedGame = data.Games[0];
+            SettlePairFetch(viewModel);
+
+            Assert.AreEqual(1, cache.PairAchievementLoadCalls);
+            CollectionAssert.AreEquivalent(
+                new[] { "Dana Unlocked", "Dana Locked" },
+                viewModel.DisplayedAchievements.Select(item => item.DisplayName).ToArray());
+            Assert.IsTrue(viewModel.DisplayedAchievements.Any(item =>
+                item.DisplayName == "Dana Locked" && !item.Unlocked));
+            Assert.AreEqual(2, viewModel.SelectedFriendGameAllAchievements.Count);
+            Assert.IsTrue(viewModel.DisplayedAchievements.All(item => item.FriendName == "Dana"));
         }
 
         [TestMethod]
@@ -1247,6 +1503,26 @@ namespace PlayniteAchievements.Tests.ViewModels
             CollectionAssert.AreEqual(
                 new[] { 999 },
                 request.Options.ProviderAppIds.ToList());
+        }
+
+        private static readonly MethodInfo ApplyFiltersMethod =
+            typeof(FriendsOverviewViewModel).GetMethod(
+                "ApplyFilters",
+                BindingFlags.Instance | BindingFlags.NonPublic,
+                null,
+                new[] { typeof(bool) },
+                null);
+
+        // Awaits the on-demand pair fetch, then forces one more filter pass so the loaded rows are
+        // rendered deterministically. The view model applies pair rows through ApplyFilters; without
+        // a WPF dispatcher in the test host the fetch continuation can run inline within an in-flight
+        // ApplyFilters and be dropped by its re-entrancy guard. Under a real Playnite Application the
+        // apply is marshalled as a separate dispatcher operation and renders on its own; this barrier
+        // reaches the same settled state here without depending on thread-pool timing.
+        private static void SettlePairFetch(FriendsOverviewViewModel viewModel)
+        {
+            viewModel.PairAchievementsFetchTask?.GetAwaiter().GetResult();
+            ApplyFiltersMethod.Invoke(viewModel, new object[] { true });
         }
 
         private static FriendsOverviewViewModel CreateViewModel(
@@ -1625,12 +1901,20 @@ namespace PlayniteAchievements.Tests.ViewModels
             public FriendsOverviewData LoadFriendGameAchievementData(Guid playniteGameId) =>
                 Data;
 
+            public IReadOnlyCollection<Guid> LoadFriendDataPlayniteGameIds() =>
+                Array.Empty<Guid>();
+
             public int PairAchievementLoadCalls { get; private set; }
+
+            // When set, blocks the on-demand pair load until released so tests can observe
+            // the in-flight (summary-estimated) state deterministically.
+            public ManualResetEventSlim PairLoadGate { get; set; }
 
             // On-demand pair rows (locked included): serves the game-scoped subset of
             // PairAchievements when set, else of Data.AllAchievements.
             public FriendsOverviewData LoadFriendGameAchievementData(FriendCacheChange gameScope)
             {
+                PairLoadGate?.Wait(TimeSpan.FromSeconds(5));
                 PairAchievementLoadCalls++;
                 var source = PairAchievements ?? Data?.AllAchievements ?? new List<FriendAchievementDisplayItem>();
                 var rows = source

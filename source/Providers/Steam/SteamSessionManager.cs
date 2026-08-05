@@ -354,7 +354,7 @@ namespace PlayniteAchievements.Providers.Steam
                             SteamWebAuthSession session = null;
                             try
                             {
-                                session = ResolveWebAuthSessionFromView(view);
+                                session = await ResolveWebAuthSessionFromViewAsync(view).ConfigureAwait(true);
                             }
                             catch (Exception inspectEx)
                             {
@@ -375,7 +375,7 @@ namespace PlayniteAchievements.Providers.Steam
                         }
 
                         await Task.Delay(500, ct).ConfigureAwait(true);
-                        return ResolveWebAuthSessionFromView(view);
+                        return await ResolveWebAuthSessionFromViewAsync(view).ConfigureAwait(true);
                     }, ct).ConfigureAwait(true);
                 }
                 catch (OperationCanceledException)
@@ -395,7 +395,7 @@ namespace PlayniteAchievements.Providers.Steam
             });
         }
 
-        private SteamWebAuthSession ResolveWebAuthSessionFromView(IWebView view)
+        private async Task<SteamWebAuthSession> ResolveWebAuthSessionFromViewAsync(IWebView view)
         {
             if (view == null)
             {
@@ -409,7 +409,7 @@ namespace PlayniteAchievements.Providers.Steam
 
             try
             {
-                source = view.GetPageSource();
+                source = await view.GetPageSourceAsync().ConfigureAwait(true);
             }
             catch (Exception ex)
             {
@@ -527,7 +527,7 @@ namespace PlayniteAchievements.Providers.Steam
                     return;
 
                 await Task.Delay(250).ConfigureAwait(true);
-                var session = ResolveWebAuthSessionFromView(view);
+                var session = await ResolveWebAuthSessionFromViewAsync(view).ConfigureAwait(true);
                 if (session.IsComplete)
                 {
                     _authResult = session;

@@ -16,17 +16,18 @@
         </ResourceDictionary>
     </base:ThemeControlBase.Resources>
 
+    <base:ThemeControlBase.Style>
+        <Style TargetType="base:ThemeControlBase">
+            <Style.Triggers>
+                <DataTrigger Binding="{Binding Persisted.EnableAchievementButtonControl}"
+                             Value="False">
+                    <Setter Property="Visibility" Value="Collapsed"/>
+                </DataTrigger>
+            </Style.Triggers>
+        </Style>
+    </base:ThemeControlBase.Style>
+
     <Button x:Name="PART_PluginButton" Click="PART_PluginButton_Click">
-        <Button.Style>
-            <Style TargetType="Button" BasedOn="{StaticResource {x:Type Button}}">
-                <Style.Triggers>
-                    <DataTrigger Binding="{Binding DataContext.Persisted.EnableAchievementButtonControl, RelativeSource={RelativeSource AncestorType=base:ThemeControlBase}}"
-                                 Value="False">
-                        <Setter Property="Visibility" Value="Collapsed"/>
-                    </DataTrigger>
-                </Style.Triggers>
-            </Style>
-        </Button.Style>
         <Grid>
             <Grid.ColumnDefinitions>
                 <ColumnDefinition Width="Auto"/>
@@ -34,11 +35,14 @@
             </Grid.ColumnDefinitions>
 
             <!-- Trophy icon (shown when DisplayDetails=False) -->
-            <TextBlock Grid.Column="0"
-                       Text="&#xedd7;" FontFamily="{DynamicResource PlayAch.FontFamily.Icon}"
-                       VerticalAlignment="Center"
-                       Visibility="{Binding DisplayDetails, RelativeSource={RelativeSource AncestorType=base:ThemeControlBase}, Converter={StaticResource InverseBoolToVisConverter}}"
-                       FontSize="{Binding FontSize, RelativeSource={RelativeSource AncestorType=base:ThemeControlBase}, FallbackValue=14}"/>
+            <Path Grid.Column="0"
+                  Data="{StaticResource PlayAch.Geometry.TrophyIcon}"
+                  Stretch="Uniform"
+                  Fill="{Binding (TextElement.Foreground), RelativeSource={RelativeSource Self}}"
+                  VerticalAlignment="Center"
+                  Visibility="{Binding DisplayDetails, RelativeSource={RelativeSource AncestorType=base:ThemeControlBase}, Converter={StaticResource InverseBoolToVisConverter}}"
+                  Width="{Binding FontSize, RelativeSource={RelativeSource AncestorType=base:ThemeControlBase}, FallbackValue=14}"
+                  Height="{Binding FontSize, RelativeSource={RelativeSource AncestorType=base:ThemeControlBase}, FallbackValue=14}"/>
 
             <!-- Details grid (shown when DisplayDetails=True) -->
             <Grid Grid.Column="1" HorizontalAlignment="Stretch"

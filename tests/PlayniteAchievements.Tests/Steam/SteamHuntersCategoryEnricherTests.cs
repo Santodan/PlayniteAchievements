@@ -531,7 +531,7 @@ namespace PlayniteAchievements.Steam.Tests
 
             SteamHuntersCategoryEnricher.ApplyGroups(achievements, groups);
 
-            Assert.AreEqual("Base", achievements[0].CategoryType);
+            Assert.AreEqual("Base|Update", achievements[0].CategoryType);
             Assert.AreEqual("Base Label", achievements[0].Category);
         }
     }

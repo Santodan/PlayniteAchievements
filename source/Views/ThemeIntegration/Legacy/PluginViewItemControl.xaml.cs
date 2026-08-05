@@ -71,6 +71,15 @@ namespace PlayniteAchievements.Views.ThemeIntegration.Legacy
             set => SetValue(AchievementCountProperty, value);
         }
 
+        public static readonly DependencyProperty HasDataProperty =
+            DependencyProperty.Register(nameof(HasData), typeof(bool), typeof(PluginViewItemControl), new PropertyMetadata(false));
+
+        public bool HasData
+        {
+            get => (bool)GetValue(HasDataProperty);
+            set => SetValue(HasDataProperty, value);
+        }
+
         public PluginViewItemControl()
         {
             InitializeComponent();
@@ -379,7 +388,7 @@ namespace PlayniteAchievements.Views.ThemeIntegration.Legacy
 
             UnlockedCount = gameData.UnlockedCount;
             AchievementCount = gameData.AchievementCount;
-            Visibility = Visibility.Visible;
+            HasData = true;
 
             // Force visual tree update so WPF re-evaluates bindings
             InvalidateVisual();
@@ -389,7 +398,7 @@ namespace PlayniteAchievements.Views.ThemeIntegration.Legacy
         {
             UnlockedCount = 0;
             AchievementCount = 0;
-            Visibility = Visibility.Collapsed;
+            HasData = false;
         }
     }
 }

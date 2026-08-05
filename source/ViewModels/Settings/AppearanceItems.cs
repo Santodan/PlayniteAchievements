@@ -5,10 +5,113 @@ using System.Windows.Media;
 using Playnite.SDK;
 using PlayniteAchievements.Models.Achievements;
 using PlayniteAchievements.Models.Settings;
+using PlayniteAchievements.Providers;
 using PlayniteAchievements.Services.UI;
 
 namespace PlayniteAchievements.ViewModels.Settings
 {
+    public sealed class ProviderAppearanceItem : PlayniteAchievements.Common.ObservableObject
+    {
+        private readonly IDataProvider _provider;
+        private readonly PersistedSettings _settings;
+        private readonly Action _applyAppearance;
+
+        public ProviderAppearanceItem(
+            IDataProvider provider,
+            PersistedSettings settings,
+            Action applyAppearance)
+        {
+            _provider = provider ?? throw new ArgumentNullException(nameof(provider));
+            _settings = settings ?? throw new ArgumentNullException(nameof(settings));
+            _applyAppearance = applyAppearance;
+        }
+
+        public string ProviderKey => _provider.ProviderKey;
+
+        public string DisplayName => ProviderRegistry.GetLocalizedName(ProviderKey);
+
+        public string ProviderIconKey => _provider.ProviderIconKey;
+
+        public string DefaultColor => _provider.ProviderColorHex;
+
+        public string BaseColor
+        {
+            get
+            {
+                var overrides = _settings.ProviderColorOverrides;
+                return overrides != null &&
+                       overrides.TryGetValue(ProviderKey, out var color)
+                    ? color
+                    : DefaultColor;
+            }
+            set
+            {
+                var overrides = _settings.ProviderColorOverrides != null
+                    ? new Dictionary<string, string>(
+                        _settings.ProviderColorOverrides,
+                        StringComparer.OrdinalIgnoreCase)
+                    : new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+                var normalized = value?.Trim();
+
+                if (string.IsNullOrWhiteSpace(normalized) ||
+                    string.Equals(normalized, DefaultColor, StringComparison.OrdinalIgnoreCase))
+                {
+                    overrides.Remove(ProviderKey);
+                }
+                else
+                {
+                    overrides[ProviderKey] = normalized;
+                }
+
+                _settings.ProviderColorOverrides = overrides;
+                _applyAppearance?.Invoke();
+                Refresh();
+            }
+        }
+
+        public string EffectiveColor => ProviderRegistry.GetProviderColorHex(ProviderKey, DefaultColor);
+
+        public Brush PreviewBrush => CreateBrush(EffectiveColor);
+
+        public void Reset()
+        {
+            var overrides = _settings.ProviderColorOverrides != null
+                ? new Dictionary<string, string>(
+                    _settings.ProviderColorOverrides,
+                    StringComparer.OrdinalIgnoreCase)
+                : new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+            overrides.Remove(ProviderKey);
+            _settings.ProviderColorOverrides = overrides;
+            _applyAppearance?.Invoke();
+            Refresh();
+        }
+
+        public void Refresh()
+        {
+            OnPropertyChanged(nameof(BaseColor));
+            OnPropertyChanged(nameof(EffectiveColor));
+            OnPropertyChanged(nameof(PreviewBrush));
+        }
+
+        private static Brush CreateBrush(string colorText)
+        {
+            try
+            {
+                var brush = new SolidColorBrush((Color)ColorConverter.ConvertFromString(colorText));
+                if (brush.CanFreeze)
+                {
+                    brush.Freeze();
+                }
+
+                return brush;
+            }
+            catch
+            {
+                return Brushes.Transparent;
+            }
+        }
+    }
+
     public sealed class ResourceAppearanceItem : PlayniteAchievements.Common.ObservableObject
     {
         private readonly PersistedSettings _settings;

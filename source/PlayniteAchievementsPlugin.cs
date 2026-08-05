@@ -30,6 +30,7 @@ using Playnite.SDK.Plugins;
 using PlayniteAchievements.Common;
 using PlayniteAchievements.Services.Images;
 using PlayniteAchievements.Services.Logging;
+using PlayniteAchievements.Services.Notifications;
 using PlayniteAchievements.Services.Summaries;
 using PlayniteAchievements.Services.Library;
 using PlayniteAchievements.Services.Friends;
@@ -60,12 +61,12 @@ namespace PlayniteAchievements
 
         private static readonly string[] ProviderDisplayOrder =
         {
-            "Steam", "Epic", "GOG", "BattleNet", "EA", "Ubisoft", "PSN", "Xbox", "GooglePlay", "Apple", "FFXIV", "RetroAchievements", "RPCS3", "ShadPS4", "Xenia", "Manual", "Exophase", "Hoyoverse"
+            "Steam", "Epic", "GOG", "BattleNet", "EA", "Ubisoft", "GameJolt", "PSN", "Xbox", "GooglePlay", "Apple", "FFXIV", "RetroAchievements", "RPCS3", "ShadPS4", "Xenia", "Manual", "Exophase", "Hoyoverse"
         };
 
         private static readonly string[] ProviderRefreshOrder =
         {
-            "Manual", "FFXIV", "Exophase", "Steam", "Epic", "GOG", "BattleNet", "EA", "Hoyoverse", "RPCS3", "ShadPS4", "PSN", "Xenia", "Xbox", "RetroAchievements"
+            "Manual", "FFXIV", "Exophase", "Steam", "Epic", "GOG", "BattleNet", "EA", "GameJolt", "Hoyoverse", "RPCS3", "ShadPS4", "PSN", "Xenia", "Xbox", "RetroAchievements"
         };
 
         private readonly PlayniteAchievementsSettingsViewModel _settingsViewModel;
@@ -81,6 +82,9 @@ namespace PlayniteAchievements
         private readonly MemoryImageService _imageService;
         private readonly DiskImageService _diskImageService;
         private readonly ManagedCustomIconService _managedCustomIconService;
+        private readonly NotificationImageStore _notificationImageStore;
+        private NotificationStylePortableStore _notificationStylePortableStore;
+        private NotificationStylePresetStore _notificationStylePresetStore;
         private readonly NotificationPublisher _notifications;
         private readonly ProviderRegistry _providerRegistry;
         private readonly GameCustomDataStore _gameCustomDataStore;
@@ -88,10 +92,11 @@ namespace PlayniteAchievements
         private readonly SubscriptionCollection _eventSubscriptions = new SubscriptionCollection();
 
         private readonly BackgroundUpdater _backgroundUpdates;
-        private readonly InGameAchievementPoller _inGamePoller;
+        private readonly InGameAchievementMonitor _inGameMonitor;
         private readonly ActiveGameWindowTracker _windowTracker;
         private readonly ToastNotificationService _toastNotifications;
         private readonly Services.Recording.UnlockRecordingService _unlockRecordings;
+        private readonly Services.Captures.CaptureLibraryService _captureLibraryService;
 
         /// <summary>
         /// Started process ids of currently running games (from OnGameStarted), used to identify
@@ -136,11 +141,21 @@ namespace PlayniteAchievements
         public AchievementDataService AchievementDataService => _achievementDataService;
         public MemoryImageService ImageService => _imageService;
         public DiskImageService DiskImageService => _diskImageService;
+        internal Services.Captures.CaptureLibraryService CaptureLibraryService => _captureLibraryService;
         public ManagedCustomIconService ManagedCustomIconService => _managedCustomIconService;
+        public ICacheManager CacheManager => _cacheManager;
+        public NotificationImageStore NotificationImageStore => _notificationImageStore;
+        public NotificationStylePortableStore NotificationStylePortableStore =>
+            _notificationStylePortableStore ?? (_notificationStylePortableStore =
+                new NotificationStylePortableStore(_notificationImageStore, _logger));
+        public NotificationStylePresetStore NotificationStylePresetStore =>
+            _notificationStylePresetStore ?? (_notificationStylePresetStore =
+                new NotificationStylePresetStore(NotificationStylePortableStore, GetPluginUserDataPath()));
         public ThemeIntegrationService ThemeIntegrationService => _themeIntegrationService;
         public ThemeIntegrationService ThemeUpdateService => _themeIntegrationService;
         public TagSyncService TagSyncService => _tagSyncService;
         internal RefreshEntryPoint RefreshEntryPoint => _refreshCoordinator;
+        internal Services.Friends.IFriendCacheManager FriendCacheManager => _friendCacheManager;
         public static PlayniteAchievementsPlugin Instance { get; private set; }
 
         /// <summary>
@@ -267,7 +282,8 @@ namespace PlayniteAchievements
             return _refreshCoordinator?.ExecuteAsync(new RefreshRequest
             {
                 Mode = RefreshModeType.Single,
-                SingleGameId = playniteGameId
+                SingleGameId = playniteGameId,
+                ShowEmptyTargetNotice = true
             }) ?? Task.CompletedTask;
         }
 
@@ -278,39 +294,50 @@ namespace PlayniteAchievements
         // F5 library update.
         private bool TryRefreshActivePluginView()
         {
-            var window = Application.Current?.Windows
-                .OfType<Window>()
-                .FirstOrDefault(w => w.IsActive)
-                ?? Application.Current?.MainWindow;
-            if (window == null)
+            // Invoked synchronously from the hotkey input filter, which must never see a throw.
+            // The window/visual-tree walk below can fault while the tree is partially built during
+            // startup; fail closed (key not handled) and log rather than escaping into the pipeline.
+            try
             {
+                var window = Application.Current?.Windows
+                    .OfType<Window>()
+                    .FirstOrDefault(w => w.IsActive)
+                    ?? Application.Current?.MainWindow;
+                if (window == null)
+                {
+                    return false;
+                }
+
+                // View Achievements is always its own window; the Overview is either its own window
+                // or hosted inside Playnite's main window as the sidebar view.
+                var singleGame = VisualTreeHelpers.FindVisualChild<ViewAchievementsControl>(window);
+                if (singleGame != null && singleGame.IsVisible)
+                {
+                    singleGame.TriggerHotkeyRefresh();
+                    return true;
+                }
+
+                var friendsSingleGame = VisualTreeHelpers.FindVisualChild<ViewFriendsAchievementsControl>(window);
+                if (friendsSingleGame != null && friendsSingleGame.IsVisible)
+                {
+                    friendsSingleGame.TriggerHotkeyRefresh();
+                    return true;
+                }
+
+                var overview = VisualTreeHelpers.FindVisualChild<OverviewControl>(window);
+                if (overview != null && overview.IsVisible)
+                {
+                    overview.TriggerHotkeyRefresh();
+                    return true;
+                }
+
                 return false;
             }
-
-            // View Achievements is always its own window; the Overview is either its own window
-            // or hosted inside Playnite's main window as the sidebar view.
-            var singleGame = VisualTreeHelpers.FindVisualChild<ViewAchievementsControl>(window);
-            if (singleGame != null && singleGame.IsVisible)
+            catch (Exception ex)
             {
-                singleGame.TriggerHotkeyRefresh();
-                return true;
+                _logger?.Debug(ex, "Failed to refresh active plugin view from hotkey.");
+                return false;
             }
-
-            var friendsSingleGame = VisualTreeHelpers.FindVisualChild<ViewFriendsAchievementsControl>(window);
-            if (friendsSingleGame != null && friendsSingleGame.IsVisible)
-            {
-                friendsSingleGame.TriggerHotkeyRefresh();
-                return true;
-            }
-
-            var overview = VisualTreeHelpers.FindVisualChild<OverviewControl>(window);
-            if (overview != null && overview.IsVisible)
-            {
-                overview.TriggerHotkeyRefresh();
-                return true;
-            }
-
-            return false;
         }
 
         // Invoked by AchievementHotkeyService on the category-mode hotkey. Flips category mode on
@@ -322,26 +349,37 @@ namespace PlayniteAchievements
         // the key passes through.
         private bool TryFlipCategoryModeInActiveView()
         {
-            var window = Application.Current?.Windows
-                .OfType<Window>()
-                .FirstOrDefault(w => w.IsActive)
-                ?? Application.Current?.MainWindow;
-            if (window == null)
+            // Invoked synchronously from the hotkey input filter, which must never see a throw.
+            // The window/visual-tree walk below can fault while the tree is partially built during
+            // startup; fail closed (key not handled) and log rather than escaping into the pipeline.
+            try
             {
+                var window = Application.Current?.Windows
+                    .OfType<Window>()
+                    .FirstOrDefault(w => w.IsActive)
+                    ?? Application.Current?.MainWindow;
+                if (window == null)
+                {
+                    return false;
+                }
+
+                var grids = VisualTreeHelpers.FindVisualChildren<Views.Controls.AchievementDataGridControl>(window)
+                    .OrderByDescending(grid => grid.IsKeyboardFocusWithin);
+                foreach (var grid in grids)
+                {
+                    if (grid.TryFlipCategoryModeFromHotkey())
+                    {
+                        return true;
+                    }
+                }
+
                 return false;
             }
-
-            var grids = VisualTreeHelpers.FindVisualChildren<Views.Controls.AchievementDataGridControl>(window)
-                .OrderByDescending(grid => grid.IsKeyboardFocusWithin);
-            foreach (var grid in grids)
+            catch (Exception ex)
             {
-                if (grid.TryFlipCategoryModeFromHotkey())
-                {
-                    return true;
-                }
+                _logger?.Debug(ex, "Failed to flip category mode from hotkey.");
+                return false;
             }
-
-            return false;
         }
 
         public PlayniteAchievementsPlugin(IPlayniteAPI api) : base(api)
@@ -405,8 +443,10 @@ namespace PlayniteAchievements
                     CategoryDefaultImageResolver.DiskImageServiceAccessor = () => _diskImageService;
                     _managedCustomIconService = new ManagedCustomIconService(_diskImageService, _logger);
                     GameSummaryArtResolver.ManagedCustomIconServiceAccessor = () => _managedCustomIconService;
+                    _notificationImageStore = new NotificationImageStore(_diskImageService, _logger);
                     _imageService = new MemoryImageService(_logger, _diskImageService);
                     _gameCustomDataStore.AttachManagedCustomIconService(_managedCustomIconService);
+                    _gameCustomDataStore.AttachNotificationImageStore(_notificationImageStore);
 
                     _refreshService = new RefreshRuntime(api, settings, _logger, this, providers, _diskImageService, _managedCustomIconService, _providerRegistry, ProviderRefreshOrder, onRefreshCompleted: payload => HandleRefreshAuthNotifications(payload));
                     _cacheManager = _refreshService.Cache;
@@ -497,7 +537,8 @@ namespace PlayniteAchievements
                         _logger,
                         () => _resourceService.EnsureAchievementResourcesLoaded(_settingsViewModel.Settings),
                         GetProcessIdForGame,
-                        _windowTracker);
+                        _windowTracker,
+                        _gameCustomDataStore);
                     _unlockRecordings = new Services.Recording.UnlockRecordingService(
                         PlayniteApi,
                         settings,
@@ -507,13 +548,15 @@ namespace PlayniteAchievements
                         _toastNotifications,
                         key => Services.UI.ProviderNotificationPolicy.Resolve(settings?.Persisted, key).Recordings,
                         _windowTracker);
-                    _inGamePoller = new InGameAchievementPoller(
+                    _captureLibraryService = new Services.Captures.CaptureLibraryService(
+                        () => _settingsViewModel?.Settings?.Persisted,
+                        _logger);
+                    _inGameMonitor = new InGameAchievementMonitor(
                         PlayniteApi,
                         settings,
                         _logger,
                         _cacheManager,
                         _refreshService,
-                        providers,
                         (request, policy) => _refreshCoordinator.ExecuteAsync(request, policy),
                         NotifyAchievementUnlocked);
                     _backgroundUpdates = new BackgroundUpdater(_refreshCoordinator, _refreshService, _cacheManager, settings, _logger, _notifications, null);
@@ -557,9 +600,10 @@ namespace PlayniteAchievements
                         gameId => _windowService.ToggleViewAchievementsWindowFromHotkey(gameId),
                         gameId => _windowService.ToggleManageAchievementsViewFromHotkey(gameId),
                         ToggleOverviewWindowFromHotkey,
-                        () => OpenSettingsView(),
+                        OpenSettingsViewFromHotkey,
                         TryFlipCategoryModeInActiveView,
-                        TryRefreshActivePluginView);
+                        TryRefreshActivePluginView,
+                        runningGameId => _inGameMonitor?.FireTestNotification(runningGameId));
 
                     _themeAutoMigrationService = new ThemeAutoMigrationService(
                         _logger,
@@ -641,6 +685,10 @@ namespace PlayniteAchievements
             try
             {
                 _logger.Info($"GetSettingsView called, firstRunView={firstRunView}");
+                // Pre-build the system font-family list off the UI thread so the first open of the
+                // notification appearance tab doesn't block on the (slow) font enumeration.
+                System.Threading.Tasks.Task.Run(
+                    () => ViewModels.Settings.NotificationAppearanceEditorViewModel.PrewarmFontOptions());
                 var control = new SettingsControl(
                     _settingsViewModel,
                     _logger,
@@ -770,7 +818,7 @@ namespace PlayniteAchievements
                 _windowTracker?.OnGameStarted(args?.Game, args?.StartedProcessId);
                 _libraryProjectionService?.SetGameSessionActive(true);
                 _achievementHotkeyTargetResolver?.NotifyGameStarted(args?.Game);
-                _inGamePoller?.Start(args?.Game);
+                _inGameMonitor?.Start(args?.Game);
                 _unlockRecordings?.OnGameStarted(args?.Game);
             }
             catch (Exception ex)
@@ -781,6 +829,17 @@ namespace PlayniteAchievements
 
         public override void OnGameStopped(OnGameStoppedEventArgs args)
         {
+            try
+            {
+                // Detach exact-path watchers and cancel queued progress reads before clearing
+                // session toasts or handing recording ownership to another running game.
+                _inGameMonitor?.Stop(args?.Game);
+            }
+            catch (Exception ex)
+            {
+                _logger?.Debug(ex, $"Failed to stop in-game monitor for {args?.Game?.Name}.");
+            }
+
             try
             {
                 UntrackStoppedGame(args?.Game);
@@ -808,7 +867,7 @@ namespace PlayniteAchievements
                 _logger?.Debug(ex, "Failed to track stopped game for achievement hotkeys.");
             }
 
-            _ = StopPollingAndRefreshStoppedGameAsync(args?.Game);
+            _ = RefreshStoppedGameAsync(args?.Game);
         }
 
         /// <summary>
@@ -846,20 +905,11 @@ namespace PlayniteAchievements
             return null;
         }
 
-        private async Task StopPollingAndRefreshStoppedGameAsync(Game game)
+        private async Task RefreshStoppedGameAsync(Game game)
         {
             if (game == null)
             {
                 return;
-            }
-
-            try
-            {
-                _inGamePoller?.Stop(game);
-            }
-            catch (Exception ex)
-            {
-                _logger?.Debug(ex, $"Failed to stop in-game poller for {game.Name}.");
             }
 
             // The game-close refresh runs a Single request, which bypasses user exclusions so a
@@ -886,7 +936,7 @@ namespace PlayniteAchievements
                 return;
             }
 
-            // With other games still running the poller may have a tick in flight; wait for it
+            // With other games still running the monitor may have a refresh in flight; wait for it
             // (bounded) because RefreshRuntime rejects concurrent runs rather than queueing them —
             // a blind execute would silently drop this game's final refresh.
             for (var waited = 0; waited < 60 && _refreshService?.IsRebuilding == true; waited += 5)
@@ -1003,6 +1053,27 @@ namespace PlayniteAchievements
                     _logger?.Error(ex, "Failed to re-localize default tag names.");
                 }
 
+                // Normalize un-customized notification header texts back to null so they
+                // follow the current Playnite language.
+                try
+                {
+                    var headerTextService = new NotificationHeaderTextService(
+                        GetPluginLocalizationDirectory(),
+                        _logger);
+                    if (headerTextService.RelocalizeDefaultHeaderTexts(_settingsViewModel?.Settings?.Persisted))
+                    {
+                        PersistSettingsForUi();
+                    }
+                }
+                catch (Exception ex)
+                {
+                    _logger?.Error(ex, "Failed to re-localize notification header texts.");
+                }
+
+                _notificationImageStore?.PruneOrphans(
+                    _settingsViewModel?.Settings?.Persisted,
+                    _gameCustomDataStore?.LoadAll());
+
                 // Auto-migrate themes that have been updated since the last migration.
                 _themeAutoMigrationService?.ScheduleAutoMigration();
 
@@ -1032,7 +1103,7 @@ namespace PlayniteAchievements
                 e.PropertyName == nameof(PersistedSettings.InGameFriendRefreshMultiplier) ||
                 e.PropertyName == nameof(PersistedSettings.InGameFriendBatchSize))
             {
-                RestartInGamePollerForRunningGames();
+                ReconfigureInGameMonitor();
             }
 
             if (e.PropertyName == nameof(PersistedSettings.UseUniformRarityBadges) ||
@@ -1098,6 +1169,7 @@ namespace PlayniteAchievements
         private static bool ShouldInvalidateFriendDataForSetting(string propertyName)
         {
             return propertyName == nameof(PersistedSettings.ShowFriendSpoilers) ||
+                   propertyName == nameof(PersistedSettings.FriendNameDisplayMode) ||
                    propertyName == nameof(PersistedSettings.Friends) ||
                    propertyName == nameof(PersistedSettings.FriendMergeGroups) ||
                    propertyName == nameof(PersistedSettings.ShowHiddenIcon) ||
@@ -1125,11 +1197,11 @@ namespace PlayniteAchievements
             }
         }
 
-        private void RestartInGamePollerForRunningGames()
+        private void ReconfigureInGameMonitor()
         {
             try
             {
-                var running = _inGamePoller?.RunningGames?.ToList() ?? new List<Game>();
+                var running = _inGameMonitor?.RunningGames?.ToList() ?? new List<Game>();
                 if (running.Count == 0)
                 {
                     running = PlayniteApi?.Database?.Games?
@@ -1138,18 +1210,18 @@ namespace PlayniteAchievements
                         .ToList() ?? new List<Game>();
                 }
 
-                _inGamePoller?.StopAll();
+                _inGameMonitor?.Reconfigure();
                 if (_applicationStarted)
                 {
                     foreach (var game in running)
                     {
-                        _inGamePoller?.Start(game);
+                        _inGameMonitor?.Start(game);
                     }
                 }
             }
             catch (Exception ex)
             {
-                _logger?.Error(ex, "Failed to restart in-game achievement poller.");
+                _logger?.Error(ex, "Failed to reconfigure in-game achievement monitor.");
             }
         }
 
@@ -1169,7 +1241,7 @@ namespace PlayniteAchievements
             }
 
             _backgroundUpdates.Stop();
-            try { _inGamePoller?.Dispose(); } catch (Exception ex) { _logger?.Debug(ex, "Failed to dispose inGamePoller"); }
+            try { _inGameMonitor?.Dispose(); } catch (Exception ex) { _logger?.Debug(ex, "Failed to dispose inGameMonitor"); }
             try { _toastNotifications?.Dispose(); } catch (Exception ex) { _logger?.Debug(ex, "Failed to dispose toastNotifications"); }
             try { _unlockRecordings?.Dispose(); } catch (Exception ex) { _logger?.Debug(ex, "Failed to dispose unlockRecordings"); }
             try { _windowTracker?.Dispose(); } catch (Exception ex) { _logger?.Debug(ex, "Failed to dispose windowTracker"); }
@@ -1273,6 +1345,8 @@ namespace PlayniteAchievements
         {
             _refreshService.GameRefreshed += OnAchievementGameRefreshed;
             _eventSubscriptions.Add(() => _refreshService.GameRefreshed -= OnAchievementGameRefreshed);
+            _inGameMonitor.ProgressApplied += OnAchievementGameRefreshed;
+            _eventSubscriptions.Add(() => _inGameMonitor.ProgressApplied -= OnAchievementGameRefreshed);
 
             try
             {

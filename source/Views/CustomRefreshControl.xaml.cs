@@ -708,11 +708,11 @@ namespace PlayniteAchievements.Views
             presetName = null;
 
             var inputDialog = new TextInputDialog(
-                L("LOCPlayAch_CustomRefresh_Presets_NameDialogHint"),
+                L("LOCPlayAch_Presets_NameDialogHint"),
                 defaultName ?? string.Empty);
 
             var window = PlayniteUiProvider.CreateExtensionWindow(
-                L("LOCPlayAch_CustomRefresh_Presets_NameDialogTitle"),
+                L("LOCPlayAch_Presets_NameDialogTitle"),
                 inputDialog,
                 new WindowOptions
                 {
@@ -748,7 +748,7 @@ namespace PlayniteAchievements.Views
             {
                 _api.Dialogs.ShowMessage(
                     string.Format(
-                        L("LOCPlayAch_CustomRefresh_Presets_NameInvalid"),
+                        L("LOCPlayAch_Presets_NameInvalid"),
                         CustomRefreshPreset.MaxNameLength),
                     ResourceProvider.GetString("LOCPlayAch_Title_PluginName"),
                     MessageBoxButton.OK,
@@ -1401,7 +1401,7 @@ namespace PlayniteAchievements.Views
 
             if (!ConfirmDialog(
                 string.Format(
-                    L("LOCPlayAch_CustomRefresh_Presets_OverwriteConfirm"),
+                    L("LOCPlayAch_Presets_OverwriteConfirm"),
                     SelectedPreset.Name)))
             {
                 return;
@@ -1431,7 +1431,7 @@ namespace PlayniteAchievements.Views
             {
                 _api.Dialogs.ShowMessage(
                     string.Format(
-                        L("LOCPlayAch_CustomRefresh_Presets_MaxReached"),
+                        L("LOCPlayAch_Presets_MaxReached"),
                         CustomRefreshPreset.MaxPresetCount),
                     ResourceProvider.GetString("LOCPlayAch_Title_PluginName"),
                     MessageBoxButton.OK,
@@ -1441,7 +1441,7 @@ namespace PlayniteAchievements.Views
 
             if (existingPreset != null && !ConfirmDialog(
                 string.Format(
-                    L("LOCPlayAch_CustomRefresh_Presets_OverwriteConfirm"),
+                    L("LOCPlayAch_Presets_OverwriteConfirm"),
                     presetName)))
             {
                 return;
@@ -1459,7 +1459,7 @@ namespace PlayniteAchievements.Views
 
             if (!ConfirmDialog(
                 string.Format(
-                    L("LOCPlayAch_CustomRefresh_Presets_DeleteConfirm"),
+                    L("LOCPlayAch_Presets_DeleteConfirm"),
                     SelectedPreset.Name)))
             {
                 return;

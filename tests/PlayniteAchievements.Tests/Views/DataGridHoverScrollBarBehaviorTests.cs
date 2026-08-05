@@ -46,7 +46,7 @@ namespace PlayniteAchievements.Tests.Views
         }
 
         [TestMethod]
-        public void RightmostColumnHover_ShowsEnabledScrollBarsWithoutChangingLayout()
+        public void BodyHover_ShowsEnabledScrollBarsWithoutChangingLayout()
         {
             RunOnStaThread(() =>
             {
@@ -62,16 +62,16 @@ namespace PlayniteAchievements.Tests.Views
                     var scrollBar = GetVerticalScrollBar(grid);
                     var originalVisibility = scrollBar.Visibility;
                     var originalViewportWidth = scrollViewer.ViewportWidth;
-                    var leftCell = GetCell(grid, displayIndex: 0);
-                    var rightmostCell = GetCell(grid, displayIndex: 1);
+                    var header = GetColumnHeader(grid, displayIndex: 0);
+                    var bodyCell = GetCell(grid, displayIndex: 0);
 
-                    RaiseMouseMove(leftCell);
+                    RaiseMouseMove(header);
                     DrainDispatcher();
 
                     Assert.AreEqual(0d, scrollBar.Opacity, 0.001d);
                     Assert.IsFalse(scrollBar.IsHitTestVisible);
 
-                    RaiseMouseMove(rightmostCell);
+                    RaiseMouseMove(bodyCell);
                     DrainDispatcher();
 
                     Assert.AreEqual(originalVisibility, scrollBar.Visibility);
@@ -95,7 +95,84 @@ namespace PlayniteAchievements.Tests.Views
         }
 
         [TestMethod]
-        public void ScrollingGrid_ShowsScrollbarAwayFromRightmostColumn()
+        public void HeaderHover_KeepsScrollBarsHidden()
+        {
+            RunOnStaThread(() =>
+            {
+                var grid = CreateScrollableGrid();
+                Window window = null;
+
+                try
+                {
+                    DataGridHoverScrollBarBehavior.SetIsEnabled(grid, true);
+                    window = ShowGrid(grid);
+
+                    var scrollBar = GetVerticalScrollBar(grid);
+                    var header = GetColumnHeader(grid, displayIndex: 1);
+
+                    RaiseMouseMove(header);
+                    DrainDispatcher();
+
+                    Assert.AreEqual(0d, scrollBar.Opacity, 0.001d);
+                    Assert.IsFalse(scrollBar.IsHitTestVisible);
+                }
+                finally
+                {
+                    window?.Close();
+                }
+            });
+        }
+
+        [TestMethod]
+        public void KeyboardFocusWithin_ShowsScrollBars()
+        {
+            RunOnStaThread(() =>
+            {
+                var grid = CreateScrollableGrid();
+                Window window = null;
+
+                try
+                {
+                    DataGridHoverScrollBarBehavior.SetIsEnabled(grid, true);
+                    window = new Window
+                    {
+                        Width = 340,
+                        Height = 240,
+                        Content = grid,
+                        ShowActivated = true
+                    };
+                    window.Show();
+                    window.Activate();
+                    grid.UpdateLayout();
+                    DrainDispatcher();
+
+                    var scrollBar = GetVerticalScrollBar(grid);
+                    var cell = GetCell(grid, displayIndex: 0);
+
+                    cell.Focus();
+                    Keyboard.Focus(cell);
+                    DrainDispatcher();
+
+                    if (!grid.IsKeyboardFocusWithin)
+                    {
+                        // A non-activated / headless test host cannot always grant real
+                        // keyboard focus; the hover and scroll tests carry the load-bearing
+                        // coverage, and the focus path is verified manually.
+                        Assert.Inconclusive("Keyboard focus could not be established in this environment.");
+                    }
+
+                    Assert.IsTrue(scrollBar.Opacity > 0d);
+                    Assert.IsTrue(scrollBar.IsHitTestVisible);
+                }
+                finally
+                {
+                    window?.Close();
+                }
+            });
+        }
+
+        [TestMethod]
+        public void ScrollingGrid_ShowsScrollbarWithoutBodyHover()
         {
             RunOnStaThread(() =>
             {
@@ -109,9 +186,9 @@ namespace PlayniteAchievements.Tests.Views
 
                     var scrollViewer = GetScrollViewer(grid);
                     var scrollBar = GetVerticalScrollBar(grid);
-                    var leftCell = GetCell(grid, displayIndex: 0);
+                    var header = GetColumnHeader(grid, displayIndex: 0);
 
-                    RaiseMouseMove(leftCell);
+                    RaiseMouseMove(header);
                     DrainDispatcher();
 
                     Assert.AreEqual(0d, scrollBar.Opacity, 0.001d);
@@ -131,7 +208,7 @@ namespace PlayniteAchievements.Tests.Views
         }
 
         [TestMethod]
-        public void MouseWheel_FullyShowsScrollbarAwayFromRightmostColumn()
+        public void MouseWheel_FullyShowsScrollbarWithoutBodyHover()
         {
             RunOnStaThread(() =>
             {
@@ -144,15 +221,15 @@ namespace PlayniteAchievements.Tests.Views
                     window = ShowGrid(grid);
 
                     var scrollBar = GetVerticalScrollBar(grid);
-                    var leftCell = GetCell(grid, displayIndex: 0);
+                    var header = GetColumnHeader(grid, displayIndex: 0);
 
-                    RaiseMouseMove(leftCell);
+                    RaiseMouseMove(header);
                     DrainDispatcher();
 
                     Assert.AreEqual(0d, scrollBar.Opacity, 0.001d);
                     Assert.IsFalse(scrollBar.IsHitTestVisible);
 
-                    RaisePreviewMouseWheel(leftCell, delta: -120);
+                    RaisePreviewMouseWheel(header, delta: -120);
                     DrainDispatcher();
 
                     Assert.AreEqual(1d, scrollBar.Opacity, 0.001d);
@@ -483,6 +560,19 @@ namespace PlayniteAchievements.Tests.Views
                     candidate.Column.DisplayIndex == displayIndex);
             Assert.IsNotNull(cell);
             return cell;
+        }
+
+        private static DataGridColumnHeader GetColumnHeader(DataGrid grid, int displayIndex)
+        {
+            grid.UpdateLayout();
+            DrainDispatcher();
+
+            var header = EnumerateVisualDescendants<DataGridColumnHeader>(grid)
+                .FirstOrDefault(candidate =>
+                    candidate.Column != null &&
+                    candidate.Column.DisplayIndex == displayIndex);
+            Assert.IsNotNull(header);
+            return header;
         }
 
         private static List<ScrollBar> GetTemplateScrollBars(DataGrid grid)

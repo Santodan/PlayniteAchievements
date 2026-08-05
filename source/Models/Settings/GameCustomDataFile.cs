@@ -1,8 +1,35 @@
 using System;
 using System.Collections.Generic;
+using Newtonsoft.Json;
 
 namespace PlayniteAchievements.Models.Settings
 {
+    /// <summary>
+    /// A game's complete notification appearance snapshot. A null instance on
+    /// <see cref="GameCustomDataFile"/> means the game continues to follow its provider/global
+    /// appearance live.
+    /// </summary>
+    public sealed class GameNotificationAppearanceOverride
+    {
+        public NotificationStyleSettings Style { get; set; }
+
+        [JsonProperty(DefaultValueHandling = DefaultValueHandling.Include)]
+        public bool ToastUseThemeStyling { get; set; } = true;
+
+        [JsonProperty(DefaultValueHandling = DefaultValueHandling.Include)]
+        public bool FrameUseThemeStyling { get; set; } = true;
+
+        public GameNotificationAppearanceOverride Clone()
+        {
+            return new GameNotificationAppearanceOverride
+            {
+                Style = Style?.Clone(),
+                ToastUseThemeStyling = ToastUseThemeStyling,
+                FrameUseThemeStyling = FrameUseThemeStyling
+            };
+        }
+    }
+
     public sealed class ProviderOverrideData
     {
         public string ProviderKey { get; set; }
@@ -58,7 +85,7 @@ namespace PlayniteAchievements.Models.Settings
     /// </summary>
     public sealed class GameCustomDataFile
     {
-        public int SchemaVersion { get; set; } = 5;
+        public int SchemaVersion { get; set; } = 7;
 
         public Guid PlayniteGameId { get; set; }
 
@@ -101,6 +128,8 @@ namespace PlayniteAchievements.Models.Settings
         public bool? ForceUseExophase { get; set; }
 
         public string ExophaseSlugOverride { get; set; }
+
+        public GameNotificationAppearanceOverride NotificationAppearanceOverride { get; set; }
 
         public ProviderOverrideData ProviderOverride { get; set; }
 
@@ -150,6 +179,7 @@ namespace PlayniteAchievements.Models.Settings
                 ShadPS4MatchIdOverride = ShadPS4MatchIdOverride,
                 ForceUseExophase = ForceUseExophase,
                 ExophaseSlugOverride = ExophaseSlugOverride,
+                NotificationAppearanceOverride = NotificationAppearanceOverride?.Clone(),
                 ProviderOverride = ProviderOverride?.Clone(),
                 ManualLink = ManualLink?.Clone()
             };
@@ -197,6 +227,7 @@ namespace PlayniteAchievements.Models.Settings
                 ShadPS4MatchIdOverride = ShadPS4MatchIdOverride,
                 ForceUseExophase = ForceUseExophase,
                 ExophaseSlugOverride = ExophaseSlugOverride,
+                NotificationAppearanceOverride = NotificationAppearanceOverride?.Clone(),
                 ProviderOverride = ProviderOverride?.Clone(),
                 ManualLink = ManualLink?.Clone()
             };
@@ -210,7 +241,7 @@ namespace PlayniteAchievements.Models.Settings
         {
             return new GameCustomDataFile
             {
-                SchemaVersion = portable?.SchemaVersion > 0 ? portable.SchemaVersion : 5,
+                SchemaVersion = portable?.SchemaVersion > 0 ? portable.SchemaVersion : 7,
                 PlayniteGameId = playniteGameId,
                 ExcludedFromRefreshes = excludedFromRefreshes,
                 ExcludedFromSummaries = excludedFromSummaries,
@@ -250,6 +281,7 @@ namespace PlayniteAchievements.Models.Settings
                 ShadPS4MatchIdOverride = portable?.ShadPS4MatchIdOverride,
                 ForceUseExophase = portable?.ForceUseExophase,
                 ExophaseSlugOverride = portable?.ExophaseSlugOverride,
+                NotificationAppearanceOverride = portable?.NotificationAppearanceOverride?.Clone(),
                 ProviderOverride = portable?.ProviderOverride?.Clone(),
                 ManualLink = portable?.ManualLink?.Clone()
             };

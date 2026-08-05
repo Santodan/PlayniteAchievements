@@ -5,6 +5,7 @@ using System.Windows;
 using System.Windows.Media;
 using System.Windows.Media.Animation;
 using System.Windows.Media.Imaging;
+using Playnite.SDK;
 
 namespace PlayniteAchievements.Views.Helpers
 {
@@ -14,6 +15,8 @@ namespace PlayniteAchievements.Views.Helpers
     /// </summary>
     public static class AsyncImage
     {
+        private static readonly ILogger Logger = LogManager.GetLogger();
+
         private const string GrayPrefix = "gray:";
         private const int DefaultDecodePixel = 64;
         private const double DecodeOverscan = 1.25;
@@ -45,6 +48,20 @@ namespace PlayniteAchievements.Views.Helpers
 
         public static void SetGray(DependencyObject element, bool value) => element.SetValue(GrayProperty, value);
         public static bool GetGray(DependencyObject element) => (bool)element.GetValue(GrayProperty);
+
+        // When true (default), GIF animations phase-lock to the process-wide epoch so recreated
+        // elements (settings mockup rebuilds, grid recycling) resume mid-cycle. Set false on
+        // surfaces that should play the GIF from its first frame each time they are built — the
+        // toast templates opt out so every wave's cards (and their screenshots/clips) start the
+        // GIF at frame one.
+        public static readonly DependencyProperty PhaseLockProperty = DependencyProperty.RegisterAttached(
+            "PhaseLock",
+            typeof(bool),
+            typeof(AsyncImage),
+            new PropertyMetadata(true));
+
+        public static void SetPhaseLock(DependencyObject element, bool value) => element.SetValue(PhaseLockProperty, value);
+        public static bool GetPhaseLock(DependencyObject element) => (bool)element.GetValue(PhaseLockProperty);
 
         // Private attached state
         private static readonly DependencyProperty LoadCtsProperty = DependencyProperty.RegisterAttached(
@@ -225,11 +242,24 @@ namespace PlayniteAchievements.Views.Helpers
 
             if (fe.IsVisible)
             {
+                // A GIF animation kept alive across the hide is still attached to the element,
+                // so re-loading would needlessly tear it down (and the async rebuild can race a
+                // subsequent hide, leaving a static frame). Only (re)start when nothing is running.
+                if (GetActiveAnimatedGifSource(fe) != null)
+                {
+                    return;
+                }
+
                 _ = StartLoadAsync(fe);
                 return;
             }
 
-            CancelExisting(fe);
+            // The element (or its window) was hidden — e.g. the toast's focus-hiding loop toggling
+            // window visibility while a game is foreground. Cancel a pending async load so a late
+            // static frame cannot overwrite the animation, but leave any running GIF animation in
+            // place: its timeline keeps advancing and resumes rendering when the element reappears,
+            // instead of restarting from scratch on every focus flip.
+            CancelPendingLoad(fe);
         }
 
         private static void CancelExisting(DependencyObject d)
@@ -238,6 +268,29 @@ namespace PlayniteAchievements.Views.Helpers
             {
                 StopAnimation(d);
 
+                var existing = GetLoadCts(d);
+                if (existing != null)
+                {
+                    existing.Cancel();
+                    existing.Dispose();
+                }
+            }
+            catch
+            {
+            }
+            finally
+            {
+                SetLoadCts(d, null);
+            }
+        }
+
+        // Cancels only a pending async load (leaving any running GIF animation untouched), used
+        // when an element is merely hidden rather than having its logical source change. Keeping
+        // the animation attached lets it resume on re-show without an async rebuild.
+        private static void CancelPendingLoad(DependencyObject d)
+        {
+            try
+            {
                 var existing = GetLoadCts(d);
                 if (existing != null)
                 {
@@ -305,39 +358,30 @@ namespace PlayniteAchievements.Views.Helpers
                 var decode = ResolveDecodePixel(d);
                 SetLastRequestedDecodePixel(d, decode);
 
-                BitmapSource bmp = await service.GetAsync(uriString, decode, cts.Token).ConfigureAwait(false);
+                // Resume on the UI thread: StartLoadAsync is only entered from dispatcher
+                // contexts, and the whole tail below (ApplySource, GIF start, finally
+                // bookkeeping) touches thread-affine DependencyObjects.
+                BitmapSource bmp = await service.GetAsync(uriString, decode, cts.Token);
                 if (cts.IsCancellationRequested)
                 {
                     return;
                 }
 
-                // Apply on UI thread if needed.
-                var dispatcher = Application.Current?.Dispatcher;
-                if (dispatcher != null && !dispatcher.CheckAccess())
-                {
-                    _ = dispatcher.BeginInvoke(new Action(() =>
-                    {
-                        if (!cts.IsCancellationRequested)
-                        {
-                            ApplySource(d, bmp);
-                        }
-                    }));
-                }
-                else
-                {
-                    ApplySource(d, bmp);
-                }
+                ApplySource(d, bmp);
 
-                // Start GIF animation asynchronously after the first static frame is already visible.
+                // Start GIF animation asynchronously after the first static frame is already
+                // visible. Runs synchronously up to its first await, so Task.Run registers
+                // with cts.Token before the finally below disposes cts.
                 _ = StartGifAnimationAsync(d, uriString, cts.Token);
             }
             catch (OperationCanceledException)
             {
                 // ignore
             }
-            catch
+            catch (Exception ex)
             {
-                // ignore; keep blank
+                // Keep blank on failure.
+                Logger?.Debug(ex, $"AsyncImage load failed for '{uriString}'.");
             }
             finally
             {
@@ -361,6 +405,19 @@ namespace PlayniteAchievements.Views.Helpers
             try
             {
                 var applyGray = GetGray(d);
+
+                // Fast path: with the composited frames already cached (e.g. a settings mockup
+                // rebuilt during a slider drag), building the animation is cheap — attach it
+                // synchronously, in the same dispatcher pass as the static bitmap, so the
+                // element never renders an out-of-phase frame.
+                if (GifAnimationHelper.TryCreateAnimationFromCache(
+                        uriString, applyGray,
+                        out var cachedNormalized, out var cachedFirstFrame, out var cachedAnimation))
+                {
+                    ApplyAnimatedFrames(d, cachedNormalized, cachedFirstFrame, cachedAnimation);
+                    return;
+                }
+
                 var created = await Task.Run(() =>
                 {
                     if (cancellationToken.IsCancellationRequested)
@@ -401,8 +458,9 @@ namespace PlayniteAchievements.Views.Helpers
             catch (OperationCanceledException)
             {
             }
-            catch
+            catch (Exception ex)
             {
+                Logger?.Debug(ex, $"GIF animation setup failed for '{uriString}'.");
             }
         }
 
@@ -490,17 +548,28 @@ namespace PlayniteAchievements.Views.Helpers
             StopAnimation(target);
             SetActiveAnimatedGifSource(target, normalizedSource);
 
+            // Stamp the phase-lock at the moment the animation begins (the frozen source
+            // animation carries only the iteration duration): computing it earlier would bake
+            // the creation-to-begin delay in as a per-instance phase error, visibly desyncing
+            // instances of the same GIF. Phase-lock opt-outs (toast cards) start at frame one
+            // instead, so freshly built surfaces are deterministic in captures.
+            var phased = animation.Clone();
+            phased.BeginTime = GetPhaseLock(target)
+                ? GifAnimationHelper.PhaseLockBeginTime(animation.Duration)
+                : TimeSpan.Zero;
+            phased.Freeze();
+
             if (target is System.Windows.Controls.Image image)
             {
                 image.Source = firstFrame;
-                image.BeginAnimation(System.Windows.Controls.Image.SourceProperty, animation, HandoffBehavior.SnapshotAndReplace);
+                image.BeginAnimation(System.Windows.Controls.Image.SourceProperty, phased, HandoffBehavior.SnapshotAndReplace);
                 return;
             }
 
             if (target is System.Windows.Media.ImageBrush brush)
             {
                 brush.ImageSource = firstFrame;
-                brush.BeginAnimation(System.Windows.Media.ImageBrush.ImageSourceProperty, animation, HandoffBehavior.SnapshotAndReplace);
+                brush.BeginAnimation(System.Windows.Media.ImageBrush.ImageSourceProperty, phased, HandoffBehavior.SnapshotAndReplace);
             }
         }
 

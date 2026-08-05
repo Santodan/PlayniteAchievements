@@ -80,6 +80,19 @@ namespace PlayniteAchievements.Views.Settings.General
             set => SetValue(CategoryModeHotkeyButtonTextProperty, value);
         }
 
+        public static readonly DependencyProperty TestUnlockHotkeyButtonTextProperty =
+            DependencyProperty.Register(
+                nameof(TestUnlockHotkeyButtonText),
+                typeof(string),
+                typeof(HotkeySettingsSection),
+                new PropertyMetadata(string.Empty));
+
+        public string TestUnlockHotkeyButtonText
+        {
+            get => (string)GetValue(TestUnlockHotkeyButtonTextProperty);
+            set => SetValue(TestUnlockHotkeyButtonTextProperty, value);
+        }
+
         public static readonly DependencyProperty HotkeyCaptureStatusTextProperty =
             DependencyProperty.Register(
                 nameof(HotkeyCaptureStatusText),
@@ -99,7 +112,8 @@ namespace PlayniteAchievements.Views.Settings.General
             ManageAchievements,
             Overview,
             OpenSettings,
-            CategoryMode
+            CategoryMode,
+            TestUnlock
         }
 
         private static readonly HotkeyCaptureTarget[] AllTargets =
@@ -133,7 +147,8 @@ namespace PlayniteAchievements.Views.Settings.General
                 e.PropertyName == nameof(PersistedSettings.ManageAchievementsHotkey) ||
                 e.PropertyName == nameof(PersistedSettings.OverviewHotkey) ||
                 e.PropertyName == nameof(PersistedSettings.OpenSettingsHotkey) ||
-                e.PropertyName == nameof(PersistedSettings.CategoryModeHotkey))
+                e.PropertyName == nameof(PersistedSettings.CategoryModeHotkey) ||
+                e.PropertyName == nameof(PersistedSettings.TestUnlockHotkey))
             {
                 UpdateHotkeyButtonTexts();
             }
@@ -242,6 +257,7 @@ namespace PlayniteAchievements.Views.Settings.General
                 case HotkeyCaptureTarget.Overview: return persisted?.OverviewHotkey;
                 case HotkeyCaptureTarget.OpenSettings: return persisted?.OpenSettingsHotkey;
                 case HotkeyCaptureTarget.CategoryMode: return persisted?.CategoryModeHotkey;
+                case HotkeyCaptureTarget.TestUnlock: return persisted?.TestUnlockHotkey;
                 default: return null;
             }
         }
@@ -261,6 +277,7 @@ namespace PlayniteAchievements.Views.Settings.General
                 case HotkeyCaptureTarget.Overview: persisted.OverviewHotkey = hotkey; break;
                 case HotkeyCaptureTarget.OpenSettings: persisted.OpenSettingsHotkey = hotkey; break;
                 case HotkeyCaptureTarget.CategoryMode: persisted.CategoryModeHotkey = hotkey; break;
+                case HotkeyCaptureTarget.TestUnlock: persisted.TestUnlockHotkey = hotkey; break;
             }
         }
 
@@ -273,6 +290,7 @@ namespace PlayniteAchievements.Views.Settings.General
                 case HotkeyCaptureTarget.Overview: return PersistedSettings.DefaultOverviewHotkey;
                 case HotkeyCaptureTarget.OpenSettings: return PersistedSettings.DefaultOpenSettingsHotkey;
                 case HotkeyCaptureTarget.CategoryMode: return PersistedSettings.DefaultCategoryModeHotkey;
+                case HotkeyCaptureTarget.TestUnlock: return PersistedSettings.DefaultTestUnlockHotkey;
                 default: return string.Empty;
             }
         }
@@ -286,6 +304,7 @@ namespace PlayniteAchievements.Views.Settings.General
                 case HotkeyCaptureTarget.Overview: return OverviewHotkeyCaptureButton;
                 case HotkeyCaptureTarget.OpenSettings: return OpenSettingsHotkeyCaptureButton;
                 case HotkeyCaptureTarget.CategoryMode: return CategoryModeHotkeyCaptureButton;
+                case HotkeyCaptureTarget.TestUnlock: return TestUnlockHotkeyCaptureButton;
                 default: return null;
             }
         }
@@ -299,6 +318,7 @@ namespace PlayniteAchievements.Views.Settings.General
                 case HotkeyCaptureTarget.Overview: OverviewHotkeyButtonText = text; break;
                 case HotkeyCaptureTarget.OpenSettings: OpenSettingsHotkeyButtonText = text; break;
                 case HotkeyCaptureTarget.CategoryMode: CategoryModeHotkeyButtonText = text; break;
+                case HotkeyCaptureTarget.TestUnlock: TestUnlockHotkeyButtonText = text; break;
             }
         }
 

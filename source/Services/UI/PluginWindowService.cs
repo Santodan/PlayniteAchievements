@@ -16,12 +16,15 @@ using PlayniteAchievements.Models.Settings;
 using PlayniteAchievements.Providers.Manual;
 using PlayniteAchievements.Services.Achievements;
 using PlayniteAchievements.Services.Cache;
+using PlayniteAchievements.Services.Captures;
+using PlayniteAchievements.Services.Images;
 using PlayniteAchievements.Services.GameCustomData;
 using PlayniteAchievements.Services.Library;
 using PlayniteAchievements.Services.Logging;
 using PlayniteAchievements.Services.Friends;
 using PlayniteAchievements.Services.Refresh;
 using PlayniteAchievements.ViewModels;
+using PlayniteAchievements.ViewModels.Items;
 using PlayniteAchievements.ViewModels.ManageAchievements;
 using PlayniteAchievements.Views;
 using PlayniteAchievements.Views.Dialogs;
@@ -324,7 +327,33 @@ namespace PlayniteAchievements.Services.UI
                 return;
             }
 
-            _softCloseCoordinator.Register(window, EnsureOwner(window));
+            // The owner is resolved at click time, not captured here: hotkey-opened windows can
+            // register before any Playnite window is resolvable as owner.
+            _softCloseCoordinator.Register(window, () => ResolveSoftCloseOwner(window));
+        }
+
+        private Window ResolveSoftCloseOwner(Window window)
+        {
+            try
+            {
+                if (window.Owner != null)
+                {
+                    return window.Owner;
+                }
+
+                var current = _api?.Dialogs?.GetCurrentAppWindow();
+                if (current != null && !ReferenceEquals(current, window))
+                {
+                    return current;
+                }
+
+                var main = Application.Current?.MainWindow;
+                return ReferenceEquals(main, window) ? null : main;
+            }
+            catch
+            {
+                return null;
+            }
         }
 
         public void ShowRefreshProgressControlAndRun(Func<Task> refreshTask, Action<Guid> openViewAchievementsWindow, Guid? singleGameRefreshId = null)
@@ -734,6 +763,144 @@ namespace PlayniteAchievements.Services.UI
                     $"Failed to open achievements overview: {ex.Message}",
                     ResourceProvider.GetString("LOCPlayAch_Title_PluginName"));
             }
+        }
+
+        /// <summary>
+        /// Hosts an arbitrary plugin control in a managed popout window (fullscreen-capable, so
+        /// it works where Playnite's native plugin settings dialog is unavailable). Soft-close
+        /// is disabled so a stray click does not dismiss it. The <paramref name="closed"/>
+        /// callback runs when the window closes.
+        /// </summary>
+        public void OpenManagedPopout(
+            string title,
+            UserControl view,
+            WindowOptions windowOptions,
+            string placementKey,
+            Action closed)
+        {
+            InvokeOnUiThread(() =>
+            {
+                try
+                {
+                    var isFullscreen = DetectFullscreenMode();
+                    var window = CreateManagedPopoutWindow(
+                        title,
+                        view,
+                        windowOptions,
+                        isFullscreen,
+                        placementKey,
+                        closed: closed,
+                        enableSoftClose: false);
+                    ShowWindow(window, isFullscreen);
+                }
+                catch (Exception ex)
+                {
+                    _logger.Error(ex, $"Failed to open managed popout window '{title}'.");
+                    _api?.Dialogs?.ShowErrorMessage(
+                        ex.Message,
+                        ResourceProvider.GetString("LOCPlayAch_Title_PluginName"));
+                }
+            });
+        }
+
+        /// <summary>Opens the capture gallery for a whole game (arrows move between achievements).</summary>
+        public void OpenCapturesViewer(GameSummaryItem game)
+        {
+            if (game == null)
+            {
+                return;
+            }
+
+            var service = PlayniteAchievementsPlugin.Instance?.CaptureLibraryService;
+            var set = service?.RefreshGame(game.GameName);
+            if (set == null || !set.HasAny)
+            {
+                return;
+            }
+
+            OpenCapturesViewerCore(CaptureGalleryViewModel.ForGame(set, game.GameName));
+        }
+
+        /// <summary>Opens the whole-game capture gallery by game name (used by the Playnite library menu).</summary>
+        public void OpenCapturesViewerForGame(string gameName)
+        {
+            if (string.IsNullOrWhiteSpace(gameName))
+            {
+                return;
+            }
+
+            var service = PlayniteAchievementsPlugin.Instance?.CaptureLibraryService;
+            var set = service?.RefreshGame(gameName);
+            if (set == null || !set.HasAny)
+            {
+                return;
+            }
+
+            OpenCapturesViewerCore(CaptureGalleryViewModel.ForGame(set, gameName));
+        }
+
+        /// <summary>Opens the capture gallery for a single achievement (type selector only, no arrows).</summary>
+        public void OpenCapturesViewer(AchievementDisplayItem achievement)
+        {
+            if (achievement == null)
+            {
+                return;
+            }
+
+            var service = PlayniteAchievementsPlugin.Instance?.CaptureLibraryService;
+            var set = service?.RefreshGame(achievement.GameName);
+            if (set == null || !set.HasAny)
+            {
+                return;
+            }
+
+            var stem = AchievementIconCachePathBuilder.SanitizeSegment(achievement.DisplayName);
+            var vm = CaptureGalleryViewModel.ForAchievement(set, achievement.DisplayName, stem);
+            if (!vm.HasAny)
+            {
+                return;
+            }
+
+            OpenCapturesViewerCore(vm);
+        }
+
+        private void OpenCapturesViewerCore(CaptureGalleryViewModel viewModel)
+        {
+            InvokeOnUiThread(() =>
+            {
+                try
+                {
+                    var isFullscreen = DetectFullscreenMode();
+                    var view = new CaptureGalleryViewer(viewModel);
+                    var window = CreateManagedPopoutWindow(
+                        ResourceProvider.GetString("LOCPlayAch_Column_Captures"),
+                        view,
+                        new WindowOptions
+                        {
+                            ShowMinimizeButton = false,
+                            ShowMaximizeButton = true,
+                            ShowCloseButton = true,
+                            CanBeResizable = true,
+                            Width = 960,
+                            Height = 640
+                        },
+                        isFullscreen,
+                        placementKey: "CaptureGalleryViewer",
+                        closed: () => view.StopMedia(),
+                        fullscreenController: view,
+                        enableSoftClose: false);
+                    window.MinWidth = 480;
+                    window.MinHeight = 360;
+                    ShowWindow(window, isFullscreen);
+                }
+                catch (Exception ex)
+                {
+                    _logger.Error(ex, "Failed to open captures viewer window.");
+                    _api?.Dialogs?.ShowErrorMessage(
+                        ex.Message,
+                        ResourceProvider.GetString("LOCPlayAch_Title_PluginName"));
+                }
+            });
         }
 
         private bool TryActivateOverviewWindow(bool closeIfActive)

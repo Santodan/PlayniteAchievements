@@ -63,5 +63,29 @@ namespace PlayniteAchievements.Models
         /// the toast always shows on screen regardless of the user's enable toggles.
         /// </summary>
         public bool IsPreview { get; set; }
+
+        /// <summary>
+        /// Set for the real-but-manual fire behind the test-notification hotkey. Unlike
+        /// <see cref="IsPreview"/> the full flow still runs (screenshot and recording included), but
+        /// the captured screenshot and clip are routed to a separate "Test" capture subfolder so
+        /// they do not mix with a game's genuine unlock captures.
+        /// </summary>
+        public bool IsTestFire { get; set; }
+
+        /// <summary>
+        /// For fire-test previews only: forces which template renders this notification (the
+        /// plugin's own template, or a specific theme mode's override). Null for real unlocks,
+        /// which resolve the template normally.
+        /// </summary>
+        public Services.UI.NotificationTemplatePreviewSource? PreviewTemplateSource { get; set; }
+
+        /// <summary>
+        /// For fire-test previews only: the exact style the settings editor is showing. When set,
+        /// the notification renders this style verbatim instead of re-resolving from
+        /// <see cref="ProviderKey"/> / <see cref="PlayniteGameId"/>, so a fired test matches the
+        /// inline mockup exactly (re-resolution could otherwise pick up a different scope's
+        /// override — e.g. the sample provider's per-provider style). Null for real unlocks.
+        /// </summary>
+        public Settings.NotificationStyleSettings PreviewStyleOverride { get; set; }
     }
 }

@@ -120,7 +120,8 @@ namespace PlayniteAchievements.Views
                 api,
                 logger,
                 settings,
-                launchContext);
+                launchContext,
+                _friendCache);
             DataContext = _viewModel;
             _viewModel.PropertyChanged += ViewModel_PropertyChanged;
             _viewModel.SetActive(false);
@@ -1549,7 +1550,8 @@ namespace PlayniteAchievements.Views
                 _playniteApi,
                 _achievementOverridesService,
                 _cacheManager,
-                _logger);
+                _logger,
+                includeViewCaptures: true);
         }
 
         private ContextMenu BuildAchievementMenu(object data)
@@ -1571,7 +1573,8 @@ namespace PlayniteAchievements.Views
                 menu,
                 data,
                 this,
-                RefreshView);
+                RefreshView,
+                includeViewCaptures: true);
             return menu;
         }
 

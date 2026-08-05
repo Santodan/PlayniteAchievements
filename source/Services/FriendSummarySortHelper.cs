@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.ComponentModel;
+using System.Linq;
 using PlayniteAchievements.Models.Settings;
 using PlayniteAchievements.ViewModels.Items;
 
@@ -212,6 +213,13 @@ namespace PlayniteAchievements.Services
                 return false;
             }
 
+            // Favorites are pinned first in both directions, so descending is not a pure reversal of
+            // ascending; fall back to a full re-sort when any favorite is present.
+            if (items.Any(item => item?.IsFavorite == true))
+            {
+                return false;
+            }
+
             items.Reverse();
             currentSortDirection = direction;
             return true;
@@ -302,6 +310,13 @@ namespace PlayniteAchievements.Services
             if (b == null)
             {
                 return -1;
+            }
+
+            // Favorites are pinned ahead of non-favorites regardless of the active sort column.
+            var favoriteComparison = b.IsFavorite.CompareTo(a.IsFavorite);
+            if (favoriteComparison != 0)
+            {
+                return favoriteComparison;
             }
 
             if (primaryComparison != 0)

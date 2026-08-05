@@ -181,6 +181,46 @@
                                Visibility="{Binding ShowNoThemesMessage, Converter={StaticResource BooleanToVisibilityConverter}}"/>
                 </StackPanel>
             </Border>
+
+            <!-- Revert Theme -->
+            <Border Style="{StaticResource SectionBorderStyle}"
+                    Margin="{StaticResource PlayAch.Thickness.Top.Md}">
+                <StackPanel>
+                    <TextBlock Text="{DynamicResource LOCPlayAch_ThemeMigration_Revert}"
+                               Style="{StaticResource SectionHeaderStyle}"
+                               Margin="{StaticResource PlayAch.Thickness.Bottom.Md}"/>
+
+                    <!-- Revertable Theme Dropdown and Revert Button -->
+                    <Grid Style="{StaticResource SettingRowStyle}">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*"/>
+                            <ColumnDefinition Width="Auto"/>
+                        </Grid.ColumnDefinitions>
+
+                        <ComboBox Grid.Column="0"
+                                  ItemsSource="{Binding RevertableThemes}"
+                                  DisplayMemberPath="BestDisplayName"
+                                  SelectedValuePath="Path"
+                                  SelectedValue="{Binding SelectedRevertThemePath}"
+                                  VerticalContentAlignment="Center"
+                                  IsEnabled="{Binding HasRevertableThemes}"/>
+
+                        <Button Grid.Column="1"
+                                Content="{DynamicResource LOCPlayAch_ThemeMigration_RevertButton}"
+                                Click="RevertTheme_Click"
+                                Padding="{StaticResource PlayAch.Thickness.ButtonPadding.Wide}"
+                                Margin="16,0,0,0"
+                                MinWidth="100"
+                                IsEnabled="{Binding HasRevertableThemes}"/>
+                    </Grid>
+
+                    <!-- No revertable themes message -->
+                    <TextBlock Text="{DynamicResource LOCPlayAch_ThemeMigration_NoRevertableThemes}"
+                               Style="{StaticResource MutedTextStyle}"
+                               Margin="{StaticResource PlayAch.Thickness.Top.Sm}"
+                               Visibility="{Binding ShowNoRevertableThemesMessage, Converter={StaticResource BooleanToVisibilityConverter}}"/>
+                </StackPanel>
+            </Border>
         </StackPanel>
     </ScrollViewer>
 </UserControl>

@@ -89,7 +89,7 @@ namespace PlayniteAchievements.Tests.Providers
             Assert.AreEqual("https://i.retroachievements.org/Badge/12345_lock.png", soft.LockedIconPath);
 
             var hard = achievements.Single(item => item.ApiName == "102");
-            Assert.AreEqual("Hardcore", hard.CategoryType);
+            Assert.AreEqual("Base|Hardcore", hard.CategoryType);
             Assert.AreEqual(new DateTime(2025, 6, 12, 2, 0, 0, DateTimeKind.Utc), hard.UnlockTimeUtc);
             Assert.IsTrue(hard.IsCapstone);
 

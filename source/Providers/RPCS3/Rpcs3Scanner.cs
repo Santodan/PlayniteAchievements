@@ -3,7 +3,7 @@ using PlayniteAchievements.Models;
 using PlayniteAchievements.Models.Achievements;
 using PlayniteAchievements.Providers.EmuLibrary;
 using PlayniteAchievements.Providers.Exophase;
-using PlayniteAchievements.Providers.RetroAchievements.Hashing;
+using PlayniteAchievements.Common.Disc;
 using PlayniteAchievements.Providers.RPCS3.Models;
 using PlayniteAchievements.Services;
 using PlayniteAchievements.Services.GameCustomData;
@@ -49,6 +49,23 @@ namespace PlayniteAchievements.Providers.RPCS3
     }
 
     /// <summary>
+    /// Per-refresh memo for one concrete RPCS3 installation and one user profile.
+    /// The cache must never be shared across profiles or emulator installations.
+    /// </summary>
+    internal sealed class Rpcs3RefreshContext
+    {
+        public Rpcs3InstallationContext Installation { get; set; }
+        public Dictionary<string, string> TrophyFolderCache { get; set; }
+        public Rpcs3SerialNpwrBridge SerialBridge { get; set; }
+    }
+
+    internal sealed class SourceAchievements
+    {
+        public List<AchievementDetail> Achievements { get; set; } = new List<AchievementDetail>();
+        public bool PreserveExisting { get; set; }
+    }
+
+    /// <summary>
     /// Scanner for RPCS3 PlayStation 3 emulator trophy data.
     /// Orchestrates trophy folder discovery and game matching.
     /// </summary>
@@ -82,27 +99,8 @@ namespace PlayniteAchievements.Providers.RPCS3
                 return new RebuildPayload { Summary = new RebuildSummary() };
             }
 
-            // Use the provider's cache if available, otherwise build our own
-            Dictionary<string, string> trophyFolderCache;
-            if (_provider != null)
-            {
-                trophyFolderCache = _provider.RebuildTrophyFolderCache();
-            }
-            else
-            {
-                trophyFolderCache = await BuildTrophyFolderCacheAsync(cancel).ConfigureAwait(false);
-            }
+            var refreshContexts = new Dictionary<string, Rpcs3RefreshContext>(StringComparer.OrdinalIgnoreCase);
 
-            trophyFolderCache = trophyFolderCache ?? new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
-
-            if (trophyFolderCache.Count == 0)
-            {
-                _logger?.Warn("[RPCS3] No cached trophy folders found; scanning game paths for TROPHY.TRP fallback.");
-            }
-
-            _logger?.Info($"[RPCS3] Scanning {trophyFolderCache.Count} cached trophy folders.");
-
-            var serialBridge = CreateSerialBridge();
             var rarityEnricher = await CreateRarityEnricherAsync(cancel).ConfigureAwait(false);
 
             RebuildPayload payload;
@@ -116,7 +114,7 @@ namespace PlayniteAchievements.Providers.RPCS3
                     },
                     async (game, token) =>
                     {
-                        var data = await FetchGameDataAsync(game, trophyFolderCache, serialBridge, token).ConfigureAwait(false);
+                        var data = await FetchGameDataAsync(game, refreshContexts, token).ConfigureAwait(false);
                         await EnrichRarityAsync(game, data, rarityEnricher, token).ConfigureAwait(false);
                         return new ProviderRefreshExecutor.ProviderGameResult
                         {
@@ -167,79 +165,19 @@ namespace PlayniteAchievements.Providers.RPCS3
             await rarityEnricher.EnrichAsync(game, data.Achievements, "ps3", "PSN", cancel).ConfigureAwait(false);
         }
 
-        /// <summary>
-        /// Builds a cache mapping npcommid to trophy folder path.
-        /// Trophy folder structure: rpcs3_install/trophy/npcommid/
-        /// </summary>
-        private async Task<Dictionary<string, string>> BuildTrophyFolderCacheAsync(CancellationToken cancel)
-        {
-            var cache = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
-
-            var exePath = _providerSettings?.ExecutablePath;
-            if (string.IsNullOrWhiteSpace(exePath))
-            {
-                return cache;
-            }
-
-            // Derive installation folder from executable path
-            var installFolder = Path.GetDirectoryName(exePath);
-            if (string.IsNullOrWhiteSpace(installFolder))
-            {
-                return cache;
-            }
-
-            var trophyPath = Path.Combine(installFolder, "trophy");
-
-            if (!Directory.Exists(trophyPath))
-            {
-                _logger?.Warn($"[RPCS3] Trophy folder not found at '{trophyPath}'");
-                return cache;
-            }
-
-            try
-            {
-                var npcommidDirectories = Directory.GetDirectories(trophyPath);
-
-                foreach (var npcommidDir in npcommidDirectories)
-                {
-                    cancel.ThrowIfCancellationRequested();
-
-                    var npcommid = Path.GetFileName(npcommidDir);
-                    if (string.IsNullOrWhiteSpace(npcommid))
-                    {
-                        continue;
-                    }
-
-                    // Verify TROPCONF.SFM exists
-                    var tropconfPath = Path.Combine(npcommidDir, "TROPCONF.SFM");
-                    if (File.Exists(tropconfPath))
-                    {
-                        cache[npcommid] = npcommidDir;
-                    }
-                }
-            }
-            catch (OperationCanceledException)
-            {
-                throw;
-            }
-            catch (Exception ex)
-            {
-                _logger?.Error(ex, $"[RPCS3] Failed to enumerate trophy directories at '{trophyPath}'");
-            }
-
-            return await Task.FromResult(cache).ConfigureAwait(false);
-        }
-
         private Task<GameAchievementData> FetchGameDataAsync(
             Game game,
-            Dictionary<string, string> trophyFolderCache,
-            Rpcs3SerialNpwrBridge serialBridge,
+            Dictionary<string, Rpcs3RefreshContext> refreshContexts,
             CancellationToken cancel)
         {
             if (game == null)
             {
                 return Task.FromResult<GameAchievementData>(null);
             }
+
+            var refreshContext = GetOrCreateRefreshContext(game, refreshContexts, cancel);
+            var trophyFolderCache = refreshContext?.TrophyFolderCache ?? new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+            var serialBridge = refreshContext?.SerialBridge ?? new Rpcs3SerialNpwrBridge((Rpcs3InstallationContext)null, _logger);
 
             var sources = ResolveTrophySourcesForGame(game, trophyFolderCache, cancel, serialBridge: serialBridge)
                 .Where(source => source != null && !string.IsNullOrWhiteSpace(source.NpCommId))
@@ -249,6 +187,7 @@ namespace PlayniteAchievements.Providers.RPCS3
             // persistence for null results so previously cached achievements are preserved.
             if (sources.Count == 0)
             {
+                _logger?.Info($"[RPCS3] '{game.Name}': no trophy sources resolved; cached achievements preserved.");
                 return Task.FromResult<GameAchievementData>(null);
             }
 
@@ -256,12 +195,17 @@ namespace PlayniteAchievements.Providers.RPCS3
 
             var isCollection = sources.Count > 1;
             var achievements = new List<AchievementDetail>();
-
             foreach (var source in sources)
             {
                 cancel.ThrowIfCancellationRequested();
                 var sourceAchievements = BuildAchievementsForSource(source, trophyFolderCache, isCollection);
-                achievements.AddRange(sourceAchievements);
+                if (sourceAchievements.PreserveExisting)
+                {
+                    _logger?.Warn($"[RPCS3] '{game.Name}': progress for '{source.NpCommId}' was not trustworthy; cached achievements preserved.");
+                    return Task.FromResult<GameAchievementData>(null);
+                }
+
+                achievements.AddRange(sourceAchievements.Achievements);
             }
 
             if (achievements.Count == 0)
@@ -276,6 +220,11 @@ namespace PlayniteAchievements.Providers.RPCS3
                 "+",
                 sources.Select(source => source.NpCommId).OrderBy(id => id, StringComparer.OrdinalIgnoreCase));
 
+            var unlockedCount = achievements.Count(achievement => achievement?.Unlocked == true);
+            _logger?.Info(
+                $"[RPCS3] '{game.Name}': produced {achievements.Count} trophies " +
+                $"({unlockedCount} unlocked) from [{providerGameKey}].");
+
             return Task.FromResult(new GameAchievementData
             {
                 ProviderKey = "RPCS3",
@@ -289,14 +238,81 @@ namespace PlayniteAchievements.Providers.RPCS3
             });
         }
 
-        private List<AchievementDetail> BuildAchievementsForSource(
+        private Rpcs3RefreshContext GetOrCreateRefreshContext(
+            Game game,
+            Dictionary<string, Rpcs3RefreshContext> refreshContexts,
+            CancellationToken cancel)
+        {
+            var installation = _provider?.GetInstallationContext(game) ??
+                Rpcs3InstallationResolver.Resolve(game, _providerSettings, _playniteApi, _logger);
+            if (installation == null)
+            {
+                return null;
+            }
+
+            if (refreshContexts.TryGetValue(installation.CacheKey, out var existing))
+            {
+                return existing;
+            }
+
+            var cache = BuildTrophyFolderCache(installation.TrophyFolder, cancel);
+            var context = new Rpcs3RefreshContext
+            {
+                Installation = installation,
+                TrophyFolderCache = cache,
+                SerialBridge = new Rpcs3SerialNpwrBridge(installation, _logger)
+            };
+            refreshContexts[installation.CacheKey] = context;
+
+            _logger?.Info(
+                $"[RPCS3] Context: emulator '{installation.EmulatorRoot}', config '{installation.ConfigurationRoot}', " +
+                $"dev_hdd0 '{installation.DevHdd0Root}', user '{installation.UserId}' ({installation.UserIdSource}), " +
+                $"trophy folder '{installation.TrophyFolder}', sets [{string.Join(", ", cache.Keys.OrderBy(key => key, StringComparer.OrdinalIgnoreCase))}].");
+            return context;
+        }
+
+        private Dictionary<string, string> BuildTrophyFolderCache(string trophyFolder, CancellationToken cancel)
+        {
+            var cache = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+            if (string.IsNullOrWhiteSpace(trophyFolder) || !Directory.Exists(trophyFolder))
+            {
+                return cache;
+            }
+
+            try
+            {
+                foreach (var directory in Directory.GetDirectories(trophyFolder).OrderBy(path => path, StringComparer.OrdinalIgnoreCase))
+                {
+                    cancel.ThrowIfCancellationRequested();
+                    var npCommId = Rpcs3MatchIdHelper.Normalize(Path.GetFileName(directory));
+                    if (!string.IsNullOrWhiteSpace(npCommId) && File.Exists(Path.Combine(directory, "TROPCONF.SFM")))
+                    {
+                        cache[npCommId] = directory;
+                    }
+                }
+            }
+            catch (Exception ex) when (!(ex is OperationCanceledException))
+            {
+                _logger?.Error(ex, $"[RPCS3] Failed to enumerate active-user trophy directories at '{trophyFolder}'");
+            }
+
+            return cache;
+        }
+
+        /// <summary>
+        /// Emits the exact source that this refresh will use. This deliberately runs
+        /// after all deterministic resolution stages so a support log can distinguish
+        /// a wrong-source/profile problem from a valid TROPUSR.DAT that reports no
+        /// unlocked trophies.
+        /// </summary>
+        private SourceAchievements BuildAchievementsForSource(
             GameTrophySource source,
             Dictionary<string, string> trophyFolderCache,
             bool isCollection)
         {
             if (source == null || string.IsNullOrWhiteSpace(source.NpCommId))
             {
-                return new List<AchievementDetail>();
+                return new SourceAchievements { PreserveExisting = true };
             }
 
             if (trophyFolderCache != null &&
@@ -307,7 +323,7 @@ namespace PlayniteAchievements.Providers.RPCS3
 
                 if (!File.Exists(tropconfPath))
                 {
-                    return new List<AchievementDetail>();
+                    return new SourceAchievements { PreserveExisting = true };
                 }
 
                 try
@@ -317,12 +333,19 @@ namespace PlayniteAchievements.Providers.RPCS3
 
                     if (File.Exists(tropusrPath))
                     {
-                        Rpcs3TrophyParser.ParseTrophyUnlockData(tropusrPath, trophies, _logger);
+                        if (!Rpcs3TrophyParser.TryParseTrophyUnlockData(tropusrPath, trophies, _logger))
+                        {
+                            return new SourceAchievements { PreserveExisting = true };
+                        }
+                    }
+                    else
+                    {
+                        _logger?.Info($"[RPCS3] '{source.NpCommId}': no TROPUSR.DAT at '{tropusrPath}'; using trophy definitions with no local progress record.");
                     }
 
                     if (trophies.Count == 0)
                     {
-                        return new List<AchievementDetail>();
+                        return new SourceAchievements { PreserveExisting = true };
                     }
 
                     var sourceTitle = ExtractTitleNameFromTropconf(trophyFolderPath);
@@ -331,18 +354,21 @@ namespace PlayniteAchievements.Providers.RPCS3
                         sourceTitle = source.SourceTitle;
                     }
 
-                    return ConvertTrophiesToAchievements(
-                        trophies,
-                        source,
-                        trophyFolderPath,
-                        sourceTitle,
-                        isCollection,
-                        forceLocked: false);
+                    return new SourceAchievements
+                    {
+                        Achievements = ConvertTrophiesToAchievements(
+                            trophies,
+                            source,
+                            trophyFolderPath,
+                            sourceTitle,
+                            isCollection,
+                            forceLocked: false),
+                    };
                 }
                 catch (Exception ex)
                 {
                     _logger?.Error(ex, $"[RPCS3] Failed to parse trophy data for '{source.NpCommId}'");
-                    return new List<AchievementDetail>();
+                    return new SourceAchievements { PreserveExisting = true };
                 }
             }
 
@@ -351,14 +377,14 @@ namespace PlayniteAchievements.Providers.RPCS3
                 return BuildAchievementsFromTrp(source, isCollection);
             }
 
-            return new List<AchievementDetail>();
+            return new SourceAchievements { PreserveExisting = true };
         }
 
-        private List<AchievementDetail> BuildAchievementsFromTrp(GameTrophySource source, bool isCollection)
+        private SourceAchievements BuildAchievementsFromTrp(GameTrophySource source, bool isCollection)
         {
             if (source == null || string.IsNullOrWhiteSpace(source.TrpPath) || !File.Exists(source.TrpPath))
             {
-                return new List<AchievementDetail>();
+                return new SourceAchievements { PreserveExisting = true };
             }
 
             try
@@ -368,21 +394,83 @@ namespace PlayniteAchievements.Providers.RPCS3
 
                 if (trophies.Count == 0)
                 {
-                    return new List<AchievementDetail>();
+                    return new SourceAchievements { PreserveExisting = true };
                 }
 
-                return ConvertTrophiesToAchievements(
-                    trophies,
-                    source,
-                    trophyFolderPath: null,
-                    sourceTitle: source.SourceTitle,
-                    isCollection: isCollection,
-                    forceLocked: true);
+                return new SourceAchievements
+                {
+                    Achievements = ConvertTrophiesToAchievements(
+                        trophies,
+                        source,
+                        trophyFolderPath: ExtractTrpIcons(source.TrpPath, source.NpCommId),
+                        sourceTitle: source.SourceTitle,
+                        isCollection: isCollection,
+                        forceLocked: true),
+                };
             }
             catch (Exception ex)
             {
                 _logger?.Error(ex, $"[RPCS3] Failed to parse TROPHY.TRP for '{source.NpCommId}'");
-                return new List<AchievementDetail>();
+                return new SourceAchievements { PreserveExisting = true };
+            }
+        }
+
+        /// <summary>
+        /// Extracts the TROP###.PNG entries from a TROPHY.TRP into the plugin's
+        /// icon cache so TRP-sourced trophies get icons like trophy-folder ones.
+        /// Returns the directory laid out like an RPCS3 trophy folder (probed by
+        /// GetTrophyIconPath), or null when nothing could be extracted. Extraction
+        /// runs once per trophy set; an already-populated directory is reused.
+        /// </summary>
+        private string ExtractTrpIcons(string trpPath, string npCommId)
+        {
+            if (string.IsNullOrWhiteSpace(_pluginUserDataPath) ||
+                string.IsNullOrWhiteSpace(trpPath) ||
+                string.IsNullOrWhiteSpace(npCommId))
+            {
+                return null;
+            }
+
+            try
+            {
+                var iconDirectory = Path.Combine(_pluginUserDataPath, "icon_cache", "rpcs3", npCommId);
+                if (Directory.Exists(iconDirectory) &&
+                    Directory.EnumerateFiles(iconDirectory, "TROP*.PNG").Any())
+                {
+                    return iconDirectory;
+                }
+
+                var trpBytes = File.ReadAllBytes(trpPath);
+                var entries = Rpcs3TrpArchiveReader.ReadEntries(trpBytes, _logger);
+                if (entries == null)
+                {
+                    return null;
+                }
+
+                var pngEntries = entries
+                    .Where(entry => entry.Name.EndsWith(".PNG", StringComparison.OrdinalIgnoreCase))
+                    .ToList();
+                if (pngEntries.Count == 0)
+                {
+                    return null;
+                }
+
+                Directory.CreateDirectory(iconDirectory);
+                foreach (var entry in pngEntries)
+                {
+                    var data = Rpcs3TrpArchiveReader.ExtractEntry(trpBytes, entries, entry.Name);
+                    if (data != null)
+                    {
+                        File.WriteAllBytes(Path.Combine(iconDirectory, entry.Name.ToUpperInvariant()), data);
+                    }
+                }
+
+                return iconDirectory;
+            }
+            catch (Exception ex)
+            {
+                _logger?.Debug(ex, $"[RPCS3] Failed to extract icons from '{trpPath}'");
+                return null;
             }
         }
 
@@ -532,17 +620,17 @@ namespace PlayniteAchievements.Providers.RPCS3
 
                 foreach (var source in FindFolderCollectionSources(candidate.Path))
                 {
-                    AddStrictTrophySource(sources, seen, source, trophyFolderCache);
+                    AddStrictTrophySource(sources, seen, source, trophyFolderCache, game?.Name);
                 }
 
                 foreach (var source in FindTropdirCollectionSources(candidate.Path, trophyFolderCache))
                 {
-                    AddStrictTrophySource(sources, seen, source, trophyFolderCache);
+                    AddStrictTrophySource(sources, seen, source, trophyFolderCache, game?.Name);
                 }
 
                 foreach (var source in FindIsoCollectionSourcesForCandidate(candidate, game?.Name, trophyFolderCache, allowRawIsoScan))
                 {
-                    AddStrictTrophySource(sources, seen, source, trophyFolderCache);
+                    AddStrictTrophySource(sources, seen, source, trophyFolderCache, game?.Name);
                 }
             }
 
@@ -552,13 +640,13 @@ namespace PlayniteAchievements.Providers.RPCS3
 
                 foreach (var source in FindIsoTrophySources(isoPath, trophyFolderCache, allowRawIsoScan))
                 {
-                    AddStrictTrophySource(sources, seen, source, trophyFolderCache);
+                    AddStrictTrophySource(sources, seen, source, trophyFolderCache, game?.Name);
                 }
             }
 
             // Renamed multi-set collection ISOs registered in games.yml: resolve the
             // game's serials and feed multi-NPWR results through the same strict gates.
-            foreach (var serialCandidate in DiscoverSerialCandidates(candidates))
+            foreach (var serialCandidate in DiscoverSerialCandidates(candidates, serialBridge))
             {
                 cancel.ThrowIfCancellationRequested();
 
@@ -571,19 +659,20 @@ namespace PlayniteAchievements.Providers.RPCS3
                 {
                     foreach (var source in serialSources)
                     {
-                        AddStrictTrophySource(sources, seen, source, trophyFolderCache);
+                        AddStrictTrophySource(sources, seen, source, trophyFolderCache, game?.Name);
                     }
                 }
             }
 
-            return sources;
+            return ApplySourceTitleAmbiguityGuard(sources, trophyFolderCache, game?.Name, "game path");
         }
 
         private void AddStrictTrophySource(
             List<GameTrophySource> sources,
             HashSet<string> seen,
             GameTrophySource source,
-            Dictionary<string, string> trophyFolderCache)
+            Dictionary<string, string> trophyFolderCache,
+            string gameName)
         {
             if (source == null)
             {
@@ -600,6 +689,7 @@ namespace PlayniteAchievements.Providers.RPCS3
             var hasTrpFallback = !string.IsNullOrWhiteSpace(source.TrpPath) && File.Exists(source.TrpPath);
             if (!hasCachedTrophyData && !hasTrpFallback)
             {
+                _logger?.Info($"[RPCS3] '{gameName}': trophy set '{normalized}' has no trophy folder or TRP fallback; dropped.");
                 return;
             }
 
@@ -610,6 +700,52 @@ namespace PlayniteAchievements.Providers.RPCS3
 
             source.NpCommId = normalized;
             sources.Add(source);
+        }
+
+        private List<GameTrophySource> ApplySourceTitleAmbiguityGuard(
+            List<GameTrophySource> sources,
+            Dictionary<string, string> trophyFolderCache,
+            string gameName,
+            string origin)
+        {
+            if (sources == null || sources.Count <= 1)
+            {
+                return sources ?? new List<GameTrophySource>();
+            }
+
+            var kept = new List<GameTrophySource>();
+            foreach (var group in sources.GroupBy(source =>
+            {
+                var title = source.SourceTitle;
+                if (string.IsNullOrWhiteSpace(title) && trophyFolderCache != null && trophyFolderCache.TryGetValue(source.NpCommId, out var folder))
+                {
+                    title = ExtractTitleNameFromTropconf(folder);
+                }
+
+                return string.IsNullOrWhiteSpace(title)
+                    ? source.NpCommId
+                    : NormalizeGameName(title);
+            }, StringComparer.OrdinalIgnoreCase))
+            {
+                var members = group.OrderBy(source => source.NpCommId, StringComparer.OrdinalIgnoreCase).ToList();
+                if (members.Count == 1)
+                {
+                    kept.Add(members[0]);
+                    continue;
+                }
+
+                var profileBacked = members.Where(source =>
+                    trophyFolderCache != null && trophyFolderCache.ContainsKey(source.NpCommId)).ToList();
+                if (profileBacked.Count == 1)
+                {
+                    kept.Add(profileBacked[0]);
+                    continue;
+                }
+
+                _logger?.Info($"[RPCS3] {origin} resolution for '{gameName}' found same-title trophy sets [{string.Join(", ", members.Select(source => source.NpCommId))}]; ambiguous, none selected.");
+            }
+
+            return kept;
         }
 
         private IEnumerable<GameTrophySource> FindFolderCollectionSources(string candidatePath)
@@ -801,35 +937,60 @@ namespace PlayniteAchievements.Providers.RPCS3
             }
 
             var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            var dropped = new List<string>();
 
             try
             {
-                using (var disc = new DiscUtilsFacade(isoPath))
+                using (var disc = new DiscFileSystemReader(isoPath))
                 {
-                    foreach (var subgameDirectory in GetIsoSubgameDirectoryNames())
+                    var rootDirectoryNames = disc.GetRootDirectoryNames();
+
+                    foreach (var trpImagePath in GetIsoTrophyTrpPaths(rootDirectoryNames))
                     {
-                        var npCommId = ExtractNpCommIdFromDisc(disc, $"{subgameDirectory}/TROPHY/TROPHY.TRP");
+                        var trpBytes = disc.ReadAllBytesOrNull(trpImagePath);
+                        if (trpBytes == null ||
+                            !Rpcs3TrophyParser.TryReadTrpIdentity(trpBytes, out var npCommId, out var titleName, _logger))
+                        {
+                            continue;
+                        }
+
                         var normalized = Rpcs3MatchIdHelper.Normalize(npCommId);
                         if (string.IsNullOrWhiteSpace(normalized) || !seen.Add(normalized))
                         {
                             continue;
                         }
 
-                        if (trophyFolderCache?.ContainsKey(normalized) != true)
+                        if (trophyFolderCache?.ContainsKey(normalized) == true)
                         {
+                            sources.Add(new GameTrophySource { NpCommId = normalized, TrpPath = null, SourceTitle = titleName });
                             continue;
                         }
 
-                        sources.Add(new GameTrophySource { NpCommId = normalized, TrpPath = null });
+                        // Never booted in RPCS3: keep the set readable by caching the
+                        // embedded TRP locally, so the game still gets a locked list.
+                        var materialized = MaterializeTrpSource(trpBytes, normalized, titleName, isoPath);
+                        if (materialized != null)
+                        {
+                            sources.Add(materialized);
+                        }
+                        else
+                        {
+                            dropped.Add(normalized);
+                        }
                     }
+
                 }
             }
-            catch
+            catch (Exception ex)
             {
-                // DiscUtils cannot read UDF PS3 images; raw NPWR scanning below handles those.
+                // Unreadable disc image; the raw scan below is the only option left.
+                _logger?.Debug(ex, $"[RPCS3] Could not read ISO '{isoPath}' as a filesystem; falling back to raw scan.");
             }
 
-            if (allowRawIsoScan)
+            // The structured read is authoritative; raw scanning is the fallback for
+            // images no filesystem reader handles, and can only match already-booted
+            // sets since it yields ids without TRP data.
+            if (allowRawIsoScan && seen.Count == 0)
             {
                 foreach (var npCommId in Rpcs3NpCommIdExtractor.ExtractNpCommIdsFromRawFile(isoPath, _logger))
                 {
@@ -841,6 +1002,7 @@ namespace PlayniteAchievements.Providers.RPCS3
 
                     if (trophyFolderCache?.ContainsKey(normalized) != true)
                     {
+                        dropped.Add(normalized);
                         continue;
                     }
 
@@ -848,7 +1010,147 @@ namespace PlayniteAchievements.Providers.RPCS3
                 }
             }
 
+            sources = ApplyTitleAmbiguityGuard(sources, dropped, isoPath);
+
+            if (dropped.Count > 0)
+            {
+                _logger?.Info($"[RPCS3] ISO '{isoPath}' holds trophy sets that could not be used: [{string.Join(", ", dropped)}]; dropped.");
+            }
+
             return sources;
+        }
+
+        /// <summary>
+        /// TROPHY.TRP locations inside a PS3 disc image: the standard PS3_GAME,
+        /// multi-game collection PS3_GMxx sub-games, and the bare TROPHY root
+        /// some structures use. Probes only directories present in the image root
+        /// so the per-image cost stays at the sets that actually exist.
+        /// </summary>
+        private static IEnumerable<string> GetIsoTrophyTrpPaths(IReadOnlyCollection<string> rootDirectoryNames)
+        {
+            var rootDirs = new HashSet<string>(rootDirectoryNames, StringComparer.OrdinalIgnoreCase);
+
+            foreach (var subgameDirectory in GetIsoSubgameDirectoryNames())
+            {
+                if (rootDirs.Contains(subgameDirectory))
+                {
+                    yield return $"{subgameDirectory}/TROPHY/TROPHY.TRP";
+                }
+            }
+
+            if (rootDirs.Contains("TROPHY"))
+            {
+                yield return "TROPHY/TROPHY.TRP";
+            }
+        }
+
+        /// <summary>
+        /// Persists an ISO-embedded TROPHY.TRP into the set's icon_cache folder so
+        /// the standard TrpPath pipeline (pre-launch parsing, icon extraction)
+        /// applies to sets RPCS3 has never created a trophy folder for. Living in
+        /// icon_cache means the standard cache clearing covers it, and the next
+        /// refresh re-materializes it from the ISO. Returns null when no plugin
+        /// data path is configured or the write fails.
+        /// </summary>
+        private GameTrophySource MaterializeTrpSource(byte[] trpBytes, string normalizedNpCommId, string titleName, string isoPath)
+        {
+            if (string.IsNullOrWhiteSpace(_pluginUserDataPath))
+            {
+                return null;
+            }
+
+            try
+            {
+                var cacheDirectory = Path.Combine(_pluginUserDataPath, "icon_cache", "rpcs3", normalizedNpCommId);
+                var cachedTrpPath = Path.Combine(cacheDirectory, "TROPHY.TRP");
+                var changed = !File.Exists(cachedTrpPath) || !File.ReadAllBytes(cachedTrpPath).SequenceEqual(trpBytes ?? Array.Empty<byte>());
+                if (changed)
+                {
+                    Directory.CreateDirectory(cacheDirectory);
+                    var temporaryPath = cachedTrpPath + ".tmp-" + Guid.NewGuid().ToString("N");
+                    try
+                    {
+                        File.WriteAllBytes(temporaryPath, trpBytes);
+                        if (File.Exists(cachedTrpPath))
+                        {
+                            File.Replace(temporaryPath, cachedTrpPath, null);
+                        }
+                        else
+                        {
+                            File.Move(temporaryPath, cachedTrpPath);
+                        }
+                    }
+                    finally
+                    {
+                        if (File.Exists(temporaryPath))
+                        {
+                            File.Delete(temporaryPath);
+                        }
+                    }
+
+                    foreach (var staleIcon in Directory.EnumerateFiles(cacheDirectory, "TROP*.PNG"))
+                    {
+                        File.Delete(staleIcon);
+                    }
+
+                    _logger?.Info($"[RPCS3] Refreshed cached trophy set '{normalizedNpCommId}' ('{titleName}') from ISO '{isoPath}'.");
+                }
+
+                return new GameTrophySource
+                {
+                    NpCommId = normalizedNpCommId,
+                    TrpPath = cachedTrpPath,
+                    SourceTitle = titleName
+                };
+            }
+            catch (Exception ex)
+            {
+                _logger?.Debug(ex, $"[RPCS3] Failed to cache trophy set '{normalizedNpCommId}' from '{isoPath}'");
+                return null;
+            }
+        }
+
+        /// <summary>
+        /// Rejects same-title trophy sets surfaced from one ISO. Distinct titles are
+        /// a genuine multi-game collection; identical titles are region variants of
+        /// one game, where picking a set would risk wrong trophy data. A set RPCS3
+        /// itself created a trophy folder for (TrpPath null here) wins over cached
+        /// duplicates; otherwise every duplicate is dropped.
+        /// </summary>
+        private List<GameTrophySource> ApplyTitleAmbiguityGuard(List<GameTrophySource> sources, List<string> dropped, string isoPath)
+        {
+            if (sources.Count <= 1)
+            {
+                return sources;
+            }
+
+            var kept = new List<GameTrophySource>();
+            foreach (var group in sources.GroupBy(
+                source => string.IsNullOrWhiteSpace(source.SourceTitle)
+                    ? source.NpCommId
+                    : NormalizeGameName(source.SourceTitle),
+                StringComparer.OrdinalIgnoreCase))
+            {
+                var members = group.ToList();
+                if (members.Count == 1)
+                {
+                    kept.Add(members[0]);
+                    continue;
+                }
+
+                var trophyFolderBacked = members.Where(member => member.TrpPath == null).ToList();
+                if (trophyFolderBacked.Count == 1)
+                {
+                    kept.Add(trophyFolderBacked[0]);
+                    dropped.AddRange(members.Where(member => member.TrpPath != null).Select(member => member.NpCommId));
+                    continue;
+                }
+
+                _logger?.Info($"[RPCS3] ISO '{isoPath}' holds same-title trophy sets [{string.Join(", ", members.Select(member => member.NpCommId))}]; ambiguous, none selected.");
+                dropped.AddRange(members.Select(member => member.NpCommId));
+            }
+
+            return kept;
         }
 
         private IEnumerable<string> ResolveSharedIsoPathsFromGamesYml(
@@ -1241,8 +1543,6 @@ namespace PlayniteAchievements.Providers.RPCS3
                 _logger?.Info($"[RPCS3] Directory '{directory}' contains {isoFiles.Count} ISOs and none uniquely matches '{gameName}' (best score {bestScore}, unique={bestIsUnique}); skipping directory ISO scan.");
                 return null;
             }
-
-            _logger?.Info($"[RPCS3] Directory '{directory}' contains {isoFiles.Count} ISOs; selected '{Path.GetFileName(bestIso)}' for '{gameName}' (score {bestScore}).");
             return bestIso;
         }
 
@@ -1387,16 +1687,16 @@ namespace PlayniteAchievements.Providers.RPCS3
                     }
                 }
 
-                // Strategy 2: Extract npcommid from PS3 ISO file
-                var npcommidFromIso = FindNpCommIdFromIso(
+                // Strategy 2: Extract the trophy set from a PS3 ISO file
+                var sourceFromIso = FindTrophySourceFromIso(
                     game,
                     gameDirectory,
                     trophyFolderCache,
                     allowRawIsoScan,
                     candidate.AllowDirectoryIsoEnumeration);
-                if (!string.IsNullOrWhiteSpace(npcommidFromIso))
+                if (sourceFromIso != null)
                 {
-                    return new GameTrophySource { NpCommId = npcommidFromIso, TrpPath = null };
+                    return sourceFromIso;
                 }
             }
 
@@ -1418,9 +1718,11 @@ namespace PlayniteAchievements.Providers.RPCS3
         }
 
         /// <summary>
-        /// Extracts the npcommid from a PS3 ISO file by reading the embedded TROPHY.TRP.
+        /// Resolves a single trophy source from a game's PS3 ISO files. ISOs whose
+        /// usable sets number anything other than one are skipped here; multi-set
+        /// ISOs are collection territory.
         /// </summary>
-        private string FindNpCommIdFromIso(Game game, string gameDirectory,
+        private GameTrophySource FindTrophySourceFromIso(Game game, string gameDirectory,
             Dictionary<string, string> trophyFolderCache,
             bool allowRawIsoScan,
             bool allowDirectoryIsoEnumeration = true)
@@ -1432,46 +1734,12 @@ namespace PlayniteAchievements.Providers.RPCS3
 
             try
             {
-                var isoFiles = ResolveIsoFilesForCandidate(gameDirectory, game?.Name, allowDirectoryIsoEnumeration).ToList();
-                if (isoFiles.Count == 0)
+                foreach (var isoPath in ResolveIsoFilesForCandidate(gameDirectory, game?.Name, allowDirectoryIsoEnumeration))
                 {
-                    return null;
-                }
-
-                foreach (var isoPath in isoFiles)
-                {
-                    string npcommid = null;
-
-                    // First try DiscUtils (works for ISO9660)
-                    try
+                    var isoSources = FindIsoTrophySources(isoPath, trophyFolderCache, allowRawIsoScan);
+                    if (isoSources.Count == 1)
                     {
-                        using (var disc = new DiscUtilsFacade(isoPath))
-                        {
-                            // Try PS3_GAME/TROPHY/TROPHY.TRP (standard PS3 structure)
-                            npcommid = ExtractNpCommIdFromDisc(disc, "PS3_GAME/TROPHY/TROPHY.TRP");
-
-                            // If not found, try just TROPHY/TROPHY.TRP (some structures)
-                            if (string.IsNullOrWhiteSpace(npcommid))
-                            {
-                                npcommid = ExtractNpCommIdFromDisc(disc, "TROPHY/TROPHY.TRP");
-                            }
-                        }
-                    }
-                    catch
-                    {
-                        // DiscUtils failed, likely UDF format
-                    }
-
-                    // If DiscUtils failed, try raw byte scanning (works for UDF ISOs)
-                    if (string.IsNullOrWhiteSpace(npcommid) && allowRawIsoScan)
-                    {
-                        npcommid = Rpcs3NpCommIdExtractor.ExtractFirstNpCommIdFromRawFile(isoPath, _logger);
-                    }
-
-                    var normalized = Rpcs3MatchIdHelper.Normalize(npcommid);
-                    if (!string.IsNullOrWhiteSpace(normalized) && trophyFolderCache.ContainsKey(normalized))
-                    {
-                        return normalized;
+                        return isoSources[0];
                     }
                 }
             }
@@ -1485,8 +1753,9 @@ namespace PlayniteAchievements.Providers.RPCS3
 
         private Rpcs3SerialNpwrBridge CreateSerialBridge(Game game = null)
         {
-            var root = _provider?.GetEmulatorRoot(game) ?? GetRpcs3Root();
-            return new Rpcs3SerialNpwrBridge(root, _logger);
+            var context = _provider?.GetInstallationContext(game) ??
+                Rpcs3InstallationResolver.Resolve(game, _providerSettings, _playniteApi, _logger);
+            return new Rpcs3SerialNpwrBridge(context, _logger);
         }
 
         /// <summary>
@@ -1503,13 +1772,11 @@ namespace PlayniteAchievements.Providers.RPCS3
             Dictionary<string, string> trophyFolderCache,
             bool allowRawIsoScan)
         {
-            var serials = DiscoverSerialCandidates(candidates);
+            var serials = DiscoverSerialCandidates(candidates, serialBridge);
             if (serials.Count == 0)
             {
                 return null;
             }
-
-            _logger?.Info($"[RPCS3] Serial bridge: game='{game?.Name}' discovered serials [{string.Join(", ", serials.Select(entry => $"{entry.Serial} ({entry.Origin})"))}]");
 
             var resolved = new List<(string Serial, GameTrophySource Source)>();
             foreach (var serialCandidate in serials)
@@ -1544,12 +1811,14 @@ namespace PlayniteAchievements.Providers.RPCS3
         }
 
         /// <summary>
-        /// Extracts candidate PS3 serials for a game, PARAM.SFO TITLE_ID entries
+        /// Extracts candidate PS3 serials for a game: PARAM.SFO TITLE_ID entries
         /// first (the game's own metadata), then serial-shaped tokens from each
-        /// candidate path string.
+        /// candidate path string, then reverse games.yml lookup (entries whose
+        /// registered path equals a candidate path).
         /// </summary>
         private IReadOnlyList<(string Serial, string Origin)> DiscoverSerialCandidates(
-            IReadOnlyList<GamePathCandidate> candidates)
+            IReadOnlyList<GamePathCandidate> candidates,
+            Rpcs3SerialNpwrBridge serialBridge)
         {
             var results = new List<(string Serial, string Origin)>();
             var seenSerials = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
@@ -1584,6 +1853,36 @@ namespace PlayniteAchievements.Providers.RPCS3
                     if (seenSerials.Add(serial))
                     {
                         results.Add((serial, $"path '{candidate.Path}'"));
+                    }
+                }
+            }
+
+            if (serialBridge != null)
+            {
+                List<(string Serial, string ResolvedPath)> registeredGames = null;
+
+                foreach (var candidate in candidates)
+                {
+                    if (string.IsNullOrWhiteSpace(candidate?.Path))
+                    {
+                        continue;
+                    }
+
+                    if (registeredGames == null)
+                    {
+                        registeredGames = serialBridge.GamesYmlMap
+                            .Select(entry => (Serial: entry.Key, ResolvedPath: ResolvePathAgainstRoot(entry.Value, serialBridge.Root)))
+                            .ToList();
+                    }
+
+                    foreach (var entry in registeredGames)
+                    {
+                        if (PathsEqual(candidate.Path, entry.ResolvedPath) &&
+                            Rpcs3SerialNpwrBridge.TryNormalizeSerial(entry.Serial, out var serial) &&
+                            seenSerials.Add(serial))
+                        {
+                            results.Add((serial, $"games.yml '{entry.ResolvedPath}'"));
+                        }
                     }
                 }
             }
@@ -1656,15 +1955,14 @@ namespace PlayniteAchievements.Providers.RPCS3
             bool allowRawIsoScan)
         {
             // PKG installs live under the emulator's own dev_hdd0/game/{serial}.
-            if (!string.IsNullOrWhiteSpace(serialBridge.Root))
+            if (!string.IsNullOrWhiteSpace(serialBridge.DevHdd0Root))
             {
-                var installedDir = Path.Combine(serialBridge.Root, "dev_hdd0", "game", serial);
+                var installedDir = Path.Combine(serialBridge.DevHdd0Root, "game", serial);
                 if (Directory.Exists(installedDir))
                 {
                     var (npcommid, trpPath) = FindNpCommIdAndTrpFromInstalledGame(installedDir, trophyFolderCache);
                     if (!string.IsNullOrWhiteSpace(npcommid))
                     {
-                        _logger?.Info($"[RPCS3] Serial bridge: '{serial}' -> '{npcommid}' via dev_hdd0\\game install (TrpPath='{trpPath}')");
                         return new[] { new GameTrophySource { NpCommId = npcommid, TrpPath = trpPath } };
                     }
                 }
@@ -1672,7 +1970,6 @@ namespace PlayniteAchievements.Providers.RPCS3
 
             if (!serialBridge.GamesYmlMap.TryGetValue(serial, out var registeredPath))
             {
-                _logger?.Info($"[RPCS3] Serial bridge: '{serial}' is not installed under dev_hdd0\\game and has no games.yml entry.");
                 return Array.Empty<GameTrophySource>();
             }
 
@@ -1687,7 +1984,6 @@ namespace PlayniteAchievements.Providers.RPCS3
                 var (npcommid, trpPath) = FindNpCommIdAndTrpFromInstalledGame(resolvedPath, trophyFolderCache);
                 if (!string.IsNullOrWhiteSpace(npcommid))
                 {
-                    _logger?.Info($"[RPCS3] Serial bridge: '{serial}' -> '{npcommid}' via games.yml directory '{resolvedPath}' (TrpPath='{trpPath}')");
                     return new[] { new GameTrophySource { NpCommId = npcommid, TrpPath = trpPath } };
                 }
 
@@ -1698,13 +1994,7 @@ namespace PlayniteAchievements.Providers.RPCS3
             if (File.Exists(resolvedPath) &&
                 resolvedPath.EndsWith(".iso", StringComparison.OrdinalIgnoreCase))
             {
-                var isoSources = FindIsoTrophySources(resolvedPath, trophyFolderCache, allowRawIsoScan);
-                if (isoSources.Count > 0)
-                {
-                    _logger?.Info($"[RPCS3] Serial bridge: '{serial}' -> [{string.Join(", ", isoSources.Select(source => source.NpCommId))}] via games.yml ISO '{resolvedPath}'");
-                }
-
-                return isoSources;
+                return FindIsoTrophySources(resolvedPath, trophyFolderCache, allowRawIsoScan);
             }
 
             _logger?.Info($"[RPCS3] Serial bridge: '{serial}' games.yml path '{resolvedPath}' does not exist.");
@@ -1773,7 +2063,7 @@ namespace PlayniteAchievements.Providers.RPCS3
                 {
                     try
                     {
-                        foreach (var subDir in Directory.GetDirectories(tropdir))
+                        foreach (var subDir in Directory.GetDirectories(tropdir).OrderBy(path => path, StringComparer.OrdinalIgnoreCase))
                         {
                             var trpPath = Path.Combine(subDir, "TROPHY.TRP");
                             if (File.Exists(trpPath))
@@ -1793,19 +2083,12 @@ namespace PlayniteAchievements.Providers.RPCS3
                 trpPaths.Add(Path.Combine(dir, "PS3_GAME", "TROPHY", "TROPHY.TRP"));
             }
 
-            // Multi-region dumps carry several trophy sets (e.g. TROPDIR/NPWR_EUR, NPWR_US, NPWR_JAP).
-            // Prefer the set RPCS3 actually created a trophy folder for; only fall back to the
-            // first valid TRP when none match the cache (pre-launch case).
-            string fallbackNpcommid = null;
-            string fallbackTrpPath = null;
-
-            foreach (var trpPath in trpPaths)
+            var candidates = new List<(string NpCommId, string TrpPath)>();
+            foreach (var trpPath in trpPaths
+                .Where(File.Exists)
+                .Distinct(StringComparer.OrdinalIgnoreCase)
+                .OrderBy(path => path, StringComparer.OrdinalIgnoreCase))
             {
-                if (!File.Exists(trpPath))
-                {
-                    continue;
-                }
-
                 try
                 {
                     var npcommid = ExtractNpCommIdFromTrpFile(trpPath);
@@ -1815,16 +2098,7 @@ namespace PlayniteAchievements.Providers.RPCS3
                     }
 
                     var normalized = Rpcs3MatchIdHelper.Normalize(npcommid) ?? npcommid;
-                    if (trophyFolderCache?.ContainsKey(normalized) == true)
-                    {
-                        return (normalized, trpPath);
-                    }
-
-                    if (fallbackNpcommid == null)
-                    {
-                        fallbackNpcommid = normalized;
-                        fallbackTrpPath = trpPath;
-                    }
+                    candidates.Add((normalized, trpPath));
                 }
                 catch
                 {
@@ -1832,7 +2106,33 @@ namespace PlayniteAchievements.Providers.RPCS3
                 }
             }
 
-            return (fallbackNpcommid, fallbackTrpPath);
+            var profileBacked = candidates
+                .Where(candidate => trophyFolderCache?.ContainsKey(candidate.NpCommId) == true)
+                .GroupBy(candidate => candidate.NpCommId, StringComparer.OrdinalIgnoreCase)
+                .Select(group => group.First())
+                .OrderBy(candidate => candidate.NpCommId, StringComparer.OrdinalIgnoreCase)
+                .ToList();
+            if (profileBacked.Count == 1)
+            {
+                return (profileBacked[0].NpCommId, profileBacked[0].TrpPath);
+            }
+
+            var uniqueCandidates = candidates
+                .GroupBy(candidate => candidate.NpCommId, StringComparer.OrdinalIgnoreCase)
+                .Select(group => group.First())
+                .OrderBy(candidate => candidate.NpCommId, StringComparer.OrdinalIgnoreCase)
+                .ToList();
+            if (uniqueCandidates.Count == 1)
+            {
+                return (uniqueCandidates[0].NpCommId, uniqueCandidates[0].TrpPath);
+            }
+
+            if (uniqueCandidates.Count > 1)
+            {
+                _logger?.Info($"[RPCS3] Installed game '{gameDirectory}' contains ambiguous trophy sets [{string.Join(", ", uniqueCandidates.Select(candidate => candidate.NpCommId))}]; no set selected.");
+            }
+
+            return (null, null);
         }
 
         /// <summary>
@@ -1930,29 +2230,6 @@ namespace PlayniteAchievements.Providers.RPCS3
         }
 
         /// <summary>
-        /// Extracts the npcommid from a TROPHY.TRP file inside a disc image.
-        /// </summary>
-        private string ExtractNpCommIdFromDisc(DiscUtilsFacade disc, string trpPath)
-        {
-            if (!disc.FileExists(trpPath))
-            {
-                return null;
-            }
-
-            using (var stream = disc.OpenFileOrNull(trpPath))
-            {
-                if (stream == null)
-                {
-                    return null;
-                }
-
-                // Bounded byte scan: the npcommid XML sits in plaintext near the
-                // start of the TRP container, after the binary header/entry table.
-                return Rpcs3NpCommIdExtractor.ExtractFirstNpCommIdFromStream(stream, _logger);
-            }
-        }
-
-        /// <summary>
         /// Finds ISO files in the specified directory.
         /// </summary>
         private List<string> FindIsoFiles(string directory)
@@ -1982,9 +2259,9 @@ namespace PlayniteAchievements.Providers.RPCS3
         /// Attempts to match a game by name against the titles in TROPCONF.SFM files.
         /// This is useful for ISO-based games where the trophy set cannot be resolved
         /// from the path. Only exact (100) and prefix (80) score tiers are accepted;
-        /// a best score shared by two distinct titles is treated as ambiguous and
-        /// yields no match. Ties among identical titles (regional duplicates) resolve
-        /// to the ordinal-smallest NPWR id so results are deterministic.
+        /// any best-score tie is treated as ambiguous and yields no match. This
+        /// includes identical-title regional variants: deterministic selection is
+        /// still unsafe when it can choose the wrong trophy set.
         /// </summary>
         private string FindNpCommIdByName(Game game, Dictionary<string, string> trophyFolderCache)
         {
@@ -2029,11 +2306,7 @@ namespace PlayniteAchievements.Providers.RPCS3
 
             var bestScore = scored.Max(candidate => candidate.Score);
             var best = scored.Where(candidate => candidate.Score == bestScore).ToList();
-            var distinctTitles = best
-                .Select(candidate => candidate.NormalizedTitle)
-                .Distinct(StringComparer.OrdinalIgnoreCase)
-                .Count();
-            if (distinctTitles > 1)
+            if (best.Count > 1)
             {
                 _logger?.Info($"[RPCS3] Name fallback for '{game.Name}' is ambiguous at score {bestScore}: [{string.Join(", ", best.Select(candidate => $"{candidate.NpCommId} '{candidate.NormalizedTitle}'"))}]; no match selected.");
                 return null;

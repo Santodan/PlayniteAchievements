@@ -142,6 +142,13 @@ namespace PlayniteAchievements.ViewModels
             {
                 if (SetValueAndReturn(ref _selectedFriend, value))
                 {
+                    if (value == null)
+                    {
+                        // The aggregated all-friends view shows unlocked rows only; a stale
+                        // unchecked Unlocked toggle would empty it, so restore the defaults.
+                        _achievementControlBar.ResetVisibilityToggles();
+                    }
+
                     OnPropertyChanged(nameof(HasFriendSelection));
                     OnPropertyChanged(nameof(AchievementColumnSettingsKey));
                     OnPropertyChanged(nameof(AchievementSectionTitle));
@@ -444,7 +451,8 @@ namespace PlayniteAchievements.ViewModels
             _allFriends.Clear();
             _allFriends.AddRange((snapshot?.Friends ?? new List<FriendSummaryItem>())
                 .Where(friend => friend != null)
-                .OrderByDescending(friend => friend.LastUnlockUtc ?? DateTime.MinValue)
+                .OrderByDescending(friend => friend.IsFavorite)
+                .ThenByDescending(friend => friend.LastUnlockUtc ?? DateTime.MinValue)
                 .ThenBy(friend => friend.DisplayName, StringComparer.CurrentCultureIgnoreCase));
 
             _allAchievements.Clear();
@@ -469,7 +477,6 @@ namespace PlayniteAchievements.ViewModels
             UpdateSummaryItems();
 
             _friendSearchIndex.Rebuild(_allFriends);
-            _achievementControlBar.UpdateOptions(_allAchievements);
             OnPropertyChanged(nameof(HasAchievements));
             ApplyFilters();
         }
@@ -508,10 +515,16 @@ namespace PlayniteAchievements.ViewModels
             // The game is fixed here, so a selected friend forms a single friend+game pair: show the
             // full comparison list including the friend's locked achievements. The all-friends view is
             // aggregated and shows unlocked rows only.
-            IEnumerable<FriendAchievementDisplayItem> source = SelectedFriend != null
+            var source = (SelectedFriend != null
                 ? _allAchievements.Where(achievement =>
                     FriendOverviewProjection.IsSameFriend(achievement, SelectedFriend))
-                : _allAchievements.Where(achievement => achievement?.Unlocked == true);
+                : _allAchievements.Where(achievement => achievement?.Unlocked == true))
+                .ToList();
+
+            // Rescope control-bar options (and the unlocked/locked/hidden toggle availability) to
+            // the current source: the aggregated view carries no locked rows, so the unlock-state
+            // toggles only show in the friend+game pair state.
+            _achievementControlBar.UpdateOptions(source);
 
             var filtered = _achievementControlBar
                 .Apply(source)
@@ -712,6 +725,20 @@ namespace PlayniteAchievements.ViewModels
         private void OnPersistedSettingsChanged(object sender, PropertyChangedEventArgs e)
         {
             NotifySettingProperties();
+            if (string.IsNullOrEmpty(e?.PropertyName) ||
+                e.PropertyName == nameof(PersistedSettings.ProviderColorOverrides))
+            {
+                foreach (var friend in _allFriends)
+                {
+                    friend?.RefreshProviderAppearance();
+                }
+
+                foreach (var game in SummaryItems)
+                {
+                    game?.RefreshProviderAppearance();
+                }
+            }
+
             if (e?.PropertyName == nameof(PersistedSettings.ShowFriendSpoilers) ||
                 e?.PropertyName == nameof(PersistedSettings.Friends) ||
                 e?.PropertyName == nameof(PersistedSettings.FriendMergeGroups))

@@ -6,6 +6,7 @@ using System.Net;
 using System.Net.Http;
 using System.Threading;
 using System.Threading.Tasks;
+using System.Collections.Generic;
 
 namespace PlayniteAchievements.Providers.RetroAchievements
 {
@@ -96,6 +97,16 @@ namespace PlayniteAchievements.Providers.RetroAchievements
             var user = string.IsNullOrWhiteSpace(usernameOrUlid) ? _username : usernameOrUlid.Trim();
             var uri = new Uri(ApiBase, $"API_GetUserCompletionProgress.php?y={Uri.EscapeDataString(_apiKey)}&u={Uri.EscapeDataString(user)}&o={Math.Max(0, offset)}&c={Math.Max(1, count)}");
             return GetJsonAsync<RaUserCompletionProgressResponse>(uri, cancel);
+        }
+
+        public Task<List<RaRecentAchievement>> GetUserRecentAchievementsAsync(
+            int lookbackMinutes,
+            CancellationToken cancel)
+        {
+            var uri = new Uri(
+                ApiBase,
+                $"API_GetUserRecentAchievements.php?y={Uri.EscapeDataString(_apiKey)}&u={Uri.EscapeDataString(_username)}&m={Math.Max(1, lookbackMinutes)}");
+            return GetJsonAsync<List<RaRecentAchievement>>(uri, cancel);
         }
 
         private async Task<T> GetJsonAsync<T>(Uri uri, CancellationToken cancel)

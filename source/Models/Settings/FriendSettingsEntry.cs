@@ -21,6 +21,8 @@ namespace PlayniteAchievements.Models.Settings
 
         public string Nickname { get; set; }
 
+        public string ProviderNickname { get; set; }
+
         public string AvatarUrl { get; set; }
 
         public string AvatarPath { get; set; }
@@ -28,6 +30,8 @@ namespace PlayniteAchievements.Models.Settings
         public FriendSettingsSource Source { get; set; } = FriendSettingsSource.AutoDiscovered;
 
         public bool IsIgnored { get; set; }
+
+        public bool IsFavorite { get; set; }
 
         public List<string> SelectedPlatforms { get; set; } = new List<string>();
 
@@ -52,10 +56,12 @@ namespace PlayniteAchievements.Models.Settings
                 ExternalUserId = ExternalUserId,
                 DisplayName = DisplayName,
                 Nickname = Nickname,
+                ProviderNickname = ProviderNickname,
                 AvatarUrl = AvatarUrl,
                 AvatarPath = AvatarPath,
                 Source = Source,
                 IsIgnored = IsIgnored,
+                IsFavorite = IsFavorite,
                 SelectedPlatforms = SelectedPlatforms?.ToList() ?? new List<string>(),
                 AddedUtc = AddedUtc,
                 LastRefreshedUtc = LastRefreshedUtc,
@@ -71,6 +77,7 @@ namespace PlayniteAchievements.Models.Settings
             ExternalUserId = NormalizeToken(ExternalUserId);
             DisplayName = string.IsNullOrWhiteSpace(DisplayName) ? ExternalUserId : DisplayName.Trim();
             Nickname = NormalizeNullable(Nickname);
+            ProviderNickname = NormalizeNullable(ProviderNickname);
             AvatarUrl = NormalizeNullable(AvatarUrl);
             AvatarPath = NormalizeNullable(AvatarPath);
             SelectedPlatforms = NormalizePlatformList(SelectedPlatforms);

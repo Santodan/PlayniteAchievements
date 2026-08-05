@@ -16,17 +16,18 @@
         </ResourceDictionary>
     </base:ThemeControlBase.Resources>
 
+    <base:ThemeControlBase.Style>
+        <Style TargetType="base:ThemeControlBase">
+            <Style.Triggers>
+                <DataTrigger Binding="{Binding Persisted.EnableAchievementStatsControl}"
+                             Value="False">
+                    <Setter Property="Visibility" Value="Collapsed"/>
+                </DataTrigger>
+            </Style.Triggers>
+        </Style>
+    </base:ThemeControlBase.Style>
+
     <StackPanel>
-        <StackPanel.Style>
-            <Style TargetType="StackPanel">
-                <Style.Triggers>
-                    <DataTrigger Binding="{Binding DataContext.Persisted.EnableAchievementStatsControl, RelativeSource={RelativeSource AncestorType=base:ThemeControlBase}}"
-                                 Value="False">
-                        <Setter Property="Visibility" Value="Collapsed"/>
-                    </DataTrigger>
-                </Style.Triggers>
-            </Style>
-        </StackPanel.Style>
         <!-- UltraRare Row -->
         <Grid>
             <Grid.ColumnDefinitions>

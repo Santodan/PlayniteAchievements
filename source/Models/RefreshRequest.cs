@@ -32,5 +32,13 @@ namespace PlayniteAchievements.Models
         /// Unified refresh options for current-user and friend refreshes.
         /// </summary>
         public RefreshOptions Options { get; set; }
+
+        /// <summary>
+        /// When true, an empty-target result (no enabled, authenticated provider services the
+        /// requested game) surfaces the "no capable provider" modal to the user. Opt-in so the
+        /// notice appears only for user-initiated, targeted single-game refreshes; background,
+        /// import, and bulk refreshes leave it false and fail silently.
+        /// </summary>
+        public bool ShowEmptyTargetNotice { get; set; }
     }
 }

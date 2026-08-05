@@ -1,6 +1,30 @@
 AddonId: PlayniteAchievements
 Packages:
 
+  - Version: 3.1.0
+    RequiredApiVersion: 6.14.0
+    ReleaseDate: 2026-08-04
+    PackageUrl: https://github.com/justin-delano/PlayniteAchievements/releases/download/v3.1.0/PlayniteAchievements_3_1_0.pext
+    Changelog:
+    - "Notifications 2.0!"
+    - "[New] Many new customization options for Notifications and Screenshot Frames."
+    - "[New] You can now choose which rarities should be captured by screenshhots/videos."
+    - "[New] Notifications and Screenshot Frame configurations can be exported and imported, allowing for easy sharing."
+    - "[New] Notifications and Screenshot Frames can be customized per game."
+    - "[New] The screenshot and video capture engine has been completely rewritten, and will be able to capture obscured windows and windows that are not in focus. FFMPEG is no longer required."
+    - "[New] Captures viewer in achievement grids, and via context menus."
+    - "[New] Vibration setting for controllers, which fire when you get an achievement notification."
+    - "[New] New GameJolt provider support, with full authentication and achievement tracking."
+    - "[New] Steam and RetroAchievements will now instantly detect achievement unlocks while in game."
+    - "[New] Dropdown to compare against your friends in achievement grids."
+    - "[New] More controls in Friends settings, and the ability to differentiate between Steam Display names and Nicknames."
+    - "[New] Option to mark Favorite friends."
+    - "[Fixed] Xbox icons will return to a square aspect ratio following a refresh."
+    - "[Fixed] Removed many cases where a no provider found error would pop up."
+    - "[Fixed] Many RPCS3 improvements."
+    - "As always, many additional improvements and fixes behind the scenes."
+
+
   - Version: 3.0.0
     RequiredApiVersion: 6.14.0
     ReleaseDate: 2026-07-26

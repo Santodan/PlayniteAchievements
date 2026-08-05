@@ -43,6 +43,7 @@ namespace PlayniteAchievements.Models.Settings
         public const string DefaultOverviewHotkey = "Ctrl+Alt+O";
         public const string DefaultOpenSettingsHotkey = "Ctrl+Alt+P";
         public const string DefaultCategoryModeHotkey = "C";
+        public const string DefaultTestUnlockHotkey = "Ctrl+Alt+T";
 
         /// <summary>
         /// Column key of the Progress column in game-summaries grids (matches the XAML ColumnKey and
@@ -74,18 +75,15 @@ namespace PlayniteAchievements.Models.Settings
         private bool _notifyOnRebuild = true;
         private bool _enableUnlockToasts = true;
         private bool _enableFriendUnlockToasts = true;
-        private bool _toastShowHeader = true;
-        private bool _toastShowName = true;
-        private bool _toastShowRarityGlow = true;
-        private bool _toastShowRarityBadge = true;
-        private bool _toastRarityColoredName = true;
-        private bool _toastShowRarityPercent = true;
-        private bool _toastShowDescription = true;
-        private bool _toastShowCategory = true;
-        private bool _toastShowGameName = true;
-        private bool _toastShowUnlockTime = false;
+        private NotificationStyleSettings _notificationStyle;
+        private bool _toastUseThemeStyling = true;
+        private bool _frameUseThemeStyling = true;
+        private Dictionary<string, NotificationStyleSettings> _providerNotificationStyles;
         private int _toastDurationSeconds = 6;
         private int _maxConcurrentToasts = 3;
+        private bool _enableControllerVibration = false;
+        private int _controllerVibrationStrengthPercent = 50;
+        private int _controllerVibrationDurationMs = 650;
         private bool _enableUnlockScreenshots = false;
         private bool _unlockScreenshotClean = false;
         private bool _unlockScreenshotWithToast = true;
@@ -93,26 +91,23 @@ namespace PlayniteAchievements.Models.Settings
         private string _unlockScreenshotSuffixClean = "clean";
         private string _unlockScreenshotSuffixWithToast = "notification";
         private string _unlockScreenshotSuffixFramed = "framed";
-        private bool _frameShowHeader = true;
-        private bool _frameShowName = true;
-        private bool _frameShowDescription = true;
-        private bool _frameShowCategory = true;
-        private bool _frameShowGameName = true;
-        private bool _frameShowRarityBadge = true;
-        private bool _frameShowRarityPercent = true;
-        private bool _frameShowRarityGlow = true;
-        private bool _frameRarityColoredName = true;
-        private bool _frameShowUnlockTime = true;
         private string _unlockScreenshotDirectory;
+        private RaritySelection _unlockScreenshotCleanRarities = RaritySelection.All;
+        private bool _unlockScreenshotCleanAlwaysCaptureCompletion = true;
+        private RaritySelection _unlockScreenshotWithToastRarities = RaritySelection.All;
+        private bool _unlockScreenshotWithToastAlwaysCaptureCompletion = true;
+        private RaritySelection _unlockScreenshotFramedRarities = RaritySelection.All;
+        private bool _unlockScreenshotFramedAlwaysCaptureCompletion = true;
         private bool _enableUnlockRecordings = false;
-        private string _ffmpegPath;
         private string _unlockRecordingDirectory;
         private int _recordingClipSeconds = 15;
         private int _recordingFps = 30;
         private RecordingResolution _recordingResolution = RecordingResolution.Native;
-        private RecordingEncoder _recordingEncoder = RecordingEncoder.Auto;
-        private RecordingCaptureBackend _recordingCaptureBackend = RecordingCaptureBackend.Auto;
         private bool _recordingIncludeAudio = false;
+        private RecordingAudioSource _recordingAudioSource = RecordingAudioSource.FullSystem;
+        private bool _recordingIncludeMicrophone = false;
+        private RaritySelection _unlockRecordingRarities = RaritySelection.All;
+        private bool _unlockRecordingAlwaysCaptureCompletion = true;
         private Dictionary<string, ProviderNotificationOverride> _providerNotificationOverrides =
             new Dictionary<string, ProviderNotificationOverride>(StringComparer.OrdinalIgnoreCase);
         private ToastScreenCorner _toastPosition = ToastScreenCorner.BottomRight;
@@ -120,11 +115,18 @@ namespace PlayniteAchievements.Models.Settings
         private RefreshModeType _defaultOverviewRefreshMode = RefreshModeType.Installed;
         private bool _enableAchievementHotkeys = true;
         private bool _enableGlobalAchievementHotkeys = false;
+        private bool _enableViewAchievementsHotkey = true;
+        private bool _enableManageAchievementsHotkey = true;
+        private bool _enableOverviewHotkey = true;
+        private bool _enableOpenSettingsHotkey = true;
+        private bool _enableCategoryModeHotkey = true;
+        private bool _enableTestUnlockHotkey = true;
         private string _viewAchievementsHotkey = DefaultViewAchievementsHotkey;
         private string _manageAchievementsHotkey = DefaultManageAchievementsHotkey;
         private string _overviewHotkey = DefaultOverviewHotkey;
         private string _openSettingsHotkey = DefaultOpenSettingsHotkey;
         private string _categoryModeHotkey = DefaultCategoryModeHotkey;
+        private string _testUnlockHotkey = DefaultTestUnlockHotkey;
         private bool _showHiddenIcon = false;
         private bool _showHiddenTitle = false;
         private bool _showHiddenDescription = false;
@@ -134,10 +136,16 @@ namespace PlayniteAchievements.Models.Settings
         private HashSet<Guid> _separateLockedIconEnabledGameIds = new HashSet<Guid>();
         private bool _modernCompactListShowRarityGlow = true;
         private bool _modernUnlockedListShowRarityGlow = true;
+        private bool _animateRarityGlows = true;
+        private double _rarityGlowPulseMinOpacity = 0.6;
+        private double _rarityGlowPulseMaxOpacity = 1.0;
+        private double _rarityGlowPulseSpeed = 0.5;
         private bool _useUniformRarityBadges = false;
         private bool _useTrophiesForRarity = false;
         private bool _roundRarityPercentages = false;
         private RarityColorSettings _rarityColors = RarityColorSettings.CreateDefault();
+        private Dictionary<string, string> _providerColorOverrides =
+            new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
         private bool _includeUnplayedGames = true;
         private bool _showOverviewCollectionScoreCard = true;
         private bool _showOverviewPrestigeScoreCard = true;
@@ -155,7 +163,7 @@ namespace PlayniteAchievements.Models.Settings
         private bool _showTopMenuBarButton = true;
         private bool _showCompletedProgressColoring = true;
         private bool _showCompactListRarityBar = true;
-        private bool _progressColumnAlignmentDefaulted = true;
+        private bool _progressColumnAlignmentDefaulted = false;
         private bool _inlineSurfaceTransparencySeeded = true;
 
         private GridAlignment _gridColumnHeaderAlignment = GridAlignment.Center;
@@ -163,6 +171,7 @@ namespace PlayniteAchievements.Models.Settings
         private GridVerticalAlignment _gridCellVerticalAlignment = GridVerticalAlignment.Center;
         private DateDisplayMode _unlockDateDisplayMode = DateDisplayMode.DateAndTime;
         private PlaytimeDisplayMode _playtimeDisplayMode = PlaytimeDisplayMode.HoursAndMinutes;
+        private FriendNameDisplayMode _friendNameDisplayMode = FriendNameDisplayMode.PersonaAndNickname;
         private bool _enableAchievementCompactListControl = true;
         private bool _enableAchievementDataGridControl = true;
         private bool _enableAchievementCompactUnlockedListControl = true;
@@ -341,7 +350,9 @@ namespace PlayniteAchievements.Models.Settings
                 null,
                 identity.LastRefreshedUtc,
                 null,
-                null);
+                null,
+                identity.ProviderNickname,
+                applyProviderNickname: true);
         }
 
         public FriendSettingsEntry AddOrUpdateFriend(
@@ -354,7 +365,9 @@ namespace PlayniteAchievements.Models.Settings
             IEnumerable<string> selectedPlatforms = null,
             DateTime? lastRefreshedUtc = null,
             DateTime? lastProbedUtc = null,
-            string lastError = null)
+            string lastError = null,
+            string providerNickname = null,
+            bool applyProviderNickname = false)
         {
             providerKey = NormalizeProviderKeyToken(providerKey);
             externalUserId = NormalizeProviderKeyToken(externalUserId);
@@ -396,6 +409,15 @@ namespace PlayniteAchievements.Models.Settings
             if (!string.IsNullOrWhiteSpace(displayName))
             {
                 existing.DisplayName = displayName.Trim();
+            }
+
+            // Overwrite (including to null) only when the caller carries roster data; other
+            // callers (manual add, probe updates) preserve the stored provider nickname.
+            if (applyProviderNickname)
+            {
+                existing.ProviderNickname = string.IsNullOrWhiteSpace(providerNickname)
+                    ? null
+                    : providerNickname.Trim();
             }
 
             if (!string.IsNullOrWhiteSpace(avatarUrl))
@@ -480,6 +502,7 @@ namespace PlayniteAchievements.Models.Settings
                     ProviderKey = entry.ProviderKey,
                     ExternalUserId = entry.ExternalUserId,
                     DisplayName = entry.DisplayName,
+                    ProviderNickname = entry.ProviderNickname,
                     AvatarUrl = entry.AvatarUrl,
                     AvatarPath = entry.AvatarPath,
                     LastRefreshedUtc = entry.LastRefreshedUtc
@@ -506,6 +529,29 @@ namespace PlayniteAchievements.Models.Settings
             }
 
             entry.IsIgnored = ignored;
+            Friends = Friends;
+            return true;
+        }
+
+        public HashSet<string> GetFavoriteFriendIds(string providerKey)
+        {
+            return new HashSet<string>(
+                GetFriendSettings(providerKey)
+                    .Where(entry => entry.IsFavorite)
+                    .Select(entry => entry.ExternalUserId)
+                    .Where(id => !string.IsNullOrWhiteSpace(id)),
+                StringComparer.OrdinalIgnoreCase);
+        }
+
+        public bool SetFriendFavorite(string providerKey, string externalUserId, bool favorite)
+        {
+            var entry = GetFriendSetting(providerKey, externalUserId);
+            if (entry == null || entry.IsFavorite == favorite)
+            {
+                return false;
+            }
+
+            entry.IsFavorite = favorite;
             Friends = Friends;
             return true;
         }
@@ -859,6 +905,61 @@ namespace PlayniteAchievements.Models.Settings
         }
 
         /// <summary>
+        /// Enables the View Achievements shortcut individually. Gated by <see cref="EnableAchievementHotkeys"/>.
+        /// </summary>
+        public bool EnableViewAchievementsHotkey
+        {
+            get => _enableViewAchievementsHotkey;
+            set => SetValue(ref _enableViewAchievementsHotkey, value);
+        }
+
+        /// <summary>
+        /// Enables the Manage Achievements shortcut individually. Gated by <see cref="EnableAchievementHotkeys"/>.
+        /// </summary>
+        public bool EnableManageAchievementsHotkey
+        {
+            get => _enableManageAchievementsHotkey;
+            set => SetValue(ref _enableManageAchievementsHotkey, value);
+        }
+
+        /// <summary>
+        /// Enables the Achievements Overview shortcut individually. Gated by <see cref="EnableAchievementHotkeys"/>.
+        /// </summary>
+        public bool EnableOverviewHotkey
+        {
+            get => _enableOverviewHotkey;
+            set => SetValue(ref _enableOverviewHotkey, value);
+        }
+
+        /// <summary>
+        /// Enables the Open Settings shortcut individually. Gated by <see cref="EnableAchievementHotkeys"/>.
+        /// </summary>
+        public bool EnableOpenSettingsHotkey
+        {
+            get => _enableOpenSettingsHotkey;
+            set => SetValue(ref _enableOpenSettingsHotkey, value);
+        }
+
+        /// <summary>
+        /// Enables the category-mode shortcut individually. Gated by <see cref="EnableAchievementHotkeys"/>.
+        /// </summary>
+        public bool EnableCategoryModeHotkey
+        {
+            get => _enableCategoryModeHotkey;
+            set => SetValue(ref _enableCategoryModeHotkey, value);
+        }
+
+        /// <summary>
+        /// Enables the shortcut that fires a notification for the running game's last-earned
+        /// achievement. Gated by <see cref="EnableAchievementHotkeys"/>.
+        /// </summary>
+        public bool EnableTestUnlockHotkey
+        {
+            get => _enableTestUnlockHotkey;
+            set => SetValue(ref _enableTestUnlockHotkey, value);
+        }
+
+        /// <summary>
         /// Shortcut that opens, focuses, or toggles the View Achievements window.
         /// </summary>
         public string ViewAchievementsHotkey
@@ -904,6 +1005,16 @@ namespace PlayniteAchievements.Models.Settings
             set => SetValue(ref _categoryModeHotkey, NormalizeHotkeyText(value));
         }
 
+        /// <summary>
+        /// Shortcut that fires the full notification flow (notification, screenshot, recording)
+        /// for the running game's last-earned achievement.
+        /// </summary>
+        public string TestUnlockHotkey
+        {
+            get => _testUnlockHotkey;
+            set => SetValue(ref _testUnlockHotkey, NormalizeHotkeyText(value));
+        }
+
         #endregion
 
         #region Notification Settings
@@ -947,68 +1058,36 @@ namespace PlayniteAchievements.Models.Settings
             set => SetValue(ref _enableFriendUnlockToasts, value);
         }
 
-        public bool ToastShowHeader
+        /// <summary>
+        /// Global default appearance style for the toast and frame surfaces. Per-provider
+        /// whole-style copies live in <see cref="ProviderNotificationStyles"/>. Lazily
+        /// initialized; never null.
+        /// </summary>
+        public NotificationStyleSettings NotificationStyle
         {
-            get => _toastShowHeader;
-            set => SetValue(ref _toastShowHeader, value);
-        }
-
-        public bool ToastShowName
-        {
-            get => _toastShowName;
-            set => SetValue(ref _toastShowName, value);
-        }
-
-        public bool ToastShowRarityBadge
-        {
-            get => _toastShowRarityBadge;
-            set => SetValue(ref _toastShowRarityBadge, value);
-        }
-
-        public bool ToastShowRarityGlow
-        {
-            get => _toastShowRarityGlow;
-            set => SetValue(ref _toastShowRarityGlow, value);
-        }
-
-        public bool ToastRarityColoredName
-        {
-            get => _toastRarityColoredName;
-            set => SetValue(ref _toastRarityColoredName, value);
-        }
-
-        public bool ToastShowRarityPercent
-        {
-            get => _toastShowRarityPercent;
-            set => SetValue(ref _toastShowRarityPercent, value);
-        }
-
-        public bool ToastShowDescription
-        {
-            get => _toastShowDescription;
-            set => SetValue(ref _toastShowDescription, value);
-        }
-
-        public bool ToastShowCategory
-        {
-            get => _toastShowCategory;
-            set => SetValue(ref _toastShowCategory, value);
-        }
-
-        public bool ToastShowGameName
-        {
-            get => _toastShowGameName;
-            set => SetValue(ref _toastShowGameName, value);
+            get => _notificationStyle ?? (_notificationStyle = NotificationStyleSettings.CreateDefault());
+            set => SetValue(ref _notificationStyle, value);
         }
 
         /// <summary>
-        /// Shows the unlock datetime on the toast's header line. Off by default; the frame has
-        /// its own always-on datetime row.
+        /// When true, the active theme may override the on-screen toast surface (template,
+        /// storyboards, position, duration). When false, the bundled toast template and the
+        /// plugin's own settings always apply.
         /// </summary>
-        public bool ToastShowUnlockTime
+        public bool ToastUseThemeStyling
         {
-            get => _toastShowUnlockTime;
-            set => SetValue(ref _toastShowUnlockTime, value);
+            get => _toastUseThemeStyling;
+            set => SetValue(ref _toastUseThemeStyling, value);
+        }
+
+        /// <summary>
+        /// When true, the active theme may override the screenshot frame template. When
+        /// false, the bundled frame template always applies.
+        /// </summary>
+        public bool FrameUseThemeStyling
+        {
+            get => _frameUseThemeStyling;
+            set => SetValue(ref _frameUseThemeStyling, value);
         }
 
         public int ToastDurationSeconds
@@ -1027,6 +1106,33 @@ namespace PlayniteAchievements.Models.Settings
         {
             get => _toastPosition;
             set => SetValue(ref _toastPosition, value);
+        }
+
+        /// <summary>
+        /// Pulse connected game controllers when a notification shows.
+        /// </summary>
+        public bool EnableControllerVibration
+        {
+            get => _enableControllerVibration;
+            set => SetValue(ref _enableControllerVibration, value);
+        }
+
+        /// <summary>
+        /// Controller vibration strength as a percentage of full motor speed (0-100).
+        /// </summary>
+        public int ControllerVibrationStrengthPercent
+        {
+            get => _controllerVibrationStrengthPercent;
+            set => SetValue(ref _controllerVibrationStrengthPercent, Math.Max(0, Math.Min(100, value)));
+        }
+
+        /// <summary>
+        /// Controller vibration pulse length in milliseconds (100-5000).
+        /// </summary>
+        public int ControllerVibrationDurationMs
+        {
+            get => _controllerVibrationDurationMs;
+            set => SetValue(ref _controllerVibrationDurationMs, Math.Max(100, Math.Min(5000, value)));
         }
 
         /// <summary>
@@ -1095,71 +1201,6 @@ namespace PlayniteAchievements.Models.Settings
             set => SetValue(ref _unlockScreenshotSuffixFramed, value);
         }
 
-        // Frame appearance toggles: which fields the screenshot frame renders. Independent of
-        // the ToastShow* toggles so the saved image can differ from the on-screen toast.
-        public bool FrameShowHeader
-        {
-            get => _frameShowHeader;
-            set => SetValue(ref _frameShowHeader, value);
-        }
-
-        public bool FrameShowName
-        {
-            get => _frameShowName;
-            set => SetValue(ref _frameShowName, value);
-        }
-
-        public bool FrameShowDescription
-        {
-            get => _frameShowDescription;
-            set => SetValue(ref _frameShowDescription, value);
-        }
-
-        public bool FrameShowCategory
-        {
-            get => _frameShowCategory;
-            set => SetValue(ref _frameShowCategory, value);
-        }
-
-        public bool FrameShowGameName
-        {
-            get => _frameShowGameName;
-            set => SetValue(ref _frameShowGameName, value);
-        }
-
-        public bool FrameShowRarityBadge
-        {
-            get => _frameShowRarityBadge;
-            set => SetValue(ref _frameShowRarityBadge, value);
-        }
-
-        public bool FrameShowRarityPercent
-        {
-            get => _frameShowRarityPercent;
-            set => SetValue(ref _frameShowRarityPercent, value);
-        }
-
-        public bool FrameShowRarityGlow
-        {
-            get => _frameShowRarityGlow;
-            set => SetValue(ref _frameShowRarityGlow, value);
-        }
-
-        public bool FrameRarityColoredName
-        {
-            get => _frameRarityColoredName;
-            set => SetValue(ref _frameRarityColoredName, value);
-        }
-
-        /// <summary>
-        /// Shows the localized unlock datetime on the frame's header line.
-        /// </summary>
-        public bool FrameShowUnlockTime
-        {
-            get => _frameShowUnlockTime;
-            set => SetValue(ref _frameShowUnlockTime, value);
-        }
-
         /// <summary>
         /// Base directory for unlock screenshots. Files are written to
         /// &lt;dir&gt;\Game\NNN_AchievementName_&lt;variant&gt;.png.
@@ -1171,23 +1212,71 @@ namespace PlayniteAchievements.Models.Settings
         }
 
         /// <summary>
-        /// When true, a video clip of the game's monitor is saved for each of your own unlocks
-        /// while a game is running, via a rolling ffmpeg screen capture. Requires a valid
-        /// <see cref="FfmpegPath"/>; the plugin never downloads ffmpeg.
+        /// The set of achievement rarity tiers that produce clean-variant unlock screenshots.
+        /// </summary>
+        public RaritySelection UnlockScreenshotCleanRarities
+        {
+            get => _unlockScreenshotCleanRarities;
+            set => SetValue(ref _unlockScreenshotCleanRarities, value);
+        }
+
+        /// <summary>
+        /// When true, completing achievements, capstones, and standalone game-complete events
+        /// bypass the clean-variant screenshot rarity threshold.
+        /// </summary>
+        public bool UnlockScreenshotCleanAlwaysCaptureCompletion
+        {
+            get => _unlockScreenshotCleanAlwaysCaptureCompletion;
+            set => SetValue(ref _unlockScreenshotCleanAlwaysCaptureCompletion, value);
+        }
+
+        /// <summary>
+        /// The set of achievement rarity tiers that produce with-notification-variant unlock screenshots.
+        /// </summary>
+        public RaritySelection UnlockScreenshotWithToastRarities
+        {
+            get => _unlockScreenshotWithToastRarities;
+            set => SetValue(ref _unlockScreenshotWithToastRarities, value);
+        }
+
+        /// <summary>
+        /// When true, completing achievements, capstones, and standalone game-complete events
+        /// bypass the with-notification-variant screenshot rarity threshold.
+        /// </summary>
+        public bool UnlockScreenshotWithToastAlwaysCaptureCompletion
+        {
+            get => _unlockScreenshotWithToastAlwaysCaptureCompletion;
+            set => SetValue(ref _unlockScreenshotWithToastAlwaysCaptureCompletion, value);
+        }
+
+        /// <summary>
+        /// The set of achievement rarity tiers that produce framed-variant unlock screenshots.
+        /// </summary>
+        public RaritySelection UnlockScreenshotFramedRarities
+        {
+            get => _unlockScreenshotFramedRarities;
+            set => SetValue(ref _unlockScreenshotFramedRarities, value);
+        }
+
+        /// <summary>
+        /// When true, completing achievements, capstones, and standalone game-complete events
+        /// bypass the framed-variant screenshot rarity threshold.
+        /// </summary>
+        public bool UnlockScreenshotFramedAlwaysCaptureCompletion
+        {
+            get => _unlockScreenshotFramedAlwaysCaptureCompletion;
+            set => SetValue(ref _unlockScreenshotFramedAlwaysCaptureCompletion, value);
+        }
+
+        /// <summary>
+        /// When true, a video clip of the game window is saved for each of your own unlocks while a
+        /// game is running, via an in-process Windows.Graphics.Capture + Media Foundation rolling
+        /// capture (occlusion-independent, HDR-correct; no external tools).
         /// </summary>
         public bool EnableUnlockRecordings
         {
             get => _enableUnlockRecordings;
             set => SetValue(ref _enableUnlockRecordings, value);
-        }
-
-        /// <summary>
-        /// Full path to a user-supplied ffmpeg.exe used for unlock recordings.
-        /// </summary>
-        public string FfmpegPath
-        {
-            get => _ffmpegPath;
-            set => SetValue(ref _ffmpegPath, value);
         }
 
         /// <summary>
@@ -1202,8 +1291,8 @@ namespace PlayniteAchievements.Models.Settings
         }
 
         /// <summary>
-        /// Seconds recorded before the unlock moment (pre-roll). The clip end is anchored past
-        /// the toast's dismissal, so total length = pre-roll + detection gap + toast time.
+        /// Seconds recorded before the unlock/detection moment (pre-roll). The clip end follows
+        /// the observed toast's dismissal, so total length = pre-roll + the gap until that toast.
         /// </summary>
         public int RecordingClipSeconds
         {
@@ -1223,27 +1312,56 @@ namespace PlayniteAchievements.Models.Settings
             set => SetValue(ref _recordingResolution, value);
         }
 
-        public RecordingEncoder RecordingEncoder
-        {
-            get => _recordingEncoder;
-            set => SetValue(ref _recordingEncoder, value);
-        }
-
-        public RecordingCaptureBackend RecordingCaptureBackend
-        {
-            get => _recordingCaptureBackend;
-            set => SetValue(ref _recordingCaptureBackend, value);
-        }
-
         /// <summary>
-        /// When true, unlock clips include system audio (everything the PC is playing) captured
-        /// alongside the rolling screen capture. Off by default; audio capture is best-effort
-        /// and never blocks the video pipeline.
+        /// When true, unlock clips include audio captured alongside the rolling video. Off by
+        /// default; audio capture is best-effort and never blocks the video pipeline. The source
+        /// (all system audio vs. game only) is <see cref="RecordingAudioSource"/>, and the
+        /// microphone can be mixed in via <see cref="RecordingIncludeMicrophone"/>.
         /// </summary>
         public bool RecordingIncludeAudio
         {
             get => _recordingIncludeAudio;
             set => SetValue(ref _recordingIncludeAudio, value);
+        }
+
+        /// <summary>
+        /// Which audio is recorded when <see cref="RecordingIncludeAudio"/> is on: all system audio
+        /// or just the game process's. GameOnly needs Windows 10 build 19041+; older builds fall
+        /// back to full system audio.
+        /// </summary>
+        public RecordingAudioSource RecordingAudioSource
+        {
+            get => _recordingAudioSource;
+            set => SetValue(ref _recordingAudioSource, value);
+        }
+
+        /// <summary>
+        /// When true (and <see cref="RecordingIncludeAudio"/> is on), the default microphone is mixed
+        /// into the clip on top of the chosen system/game audio.
+        /// </summary>
+        public bool RecordingIncludeMicrophone
+        {
+            get => _recordingIncludeMicrophone;
+            set => SetValue(ref _recordingIncludeMicrophone, value);
+        }
+
+        /// <summary>
+        /// The set of achievement rarity tiers that produce unlock recording clips.
+        /// </summary>
+        public RaritySelection UnlockRecordingRarities
+        {
+            get => _unlockRecordingRarities;
+            set => SetValue(ref _unlockRecordingRarities, value);
+        }
+
+        /// <summary>
+        /// When true, completing achievements, capstones, and standalone game-complete events
+        /// bypass the recording rarity threshold.
+        /// </summary>
+        public bool UnlockRecordingAlwaysCaptureCompletion
+        {
+            get => _unlockRecordingAlwaysCaptureCompletion;
+            set => SetValue(ref _unlockRecordingAlwaysCaptureCompletion, value);
         }
 
         /// <summary>
@@ -1300,6 +1418,64 @@ namespace PlayniteAchievements.Models.Settings
             }
 
             ProviderNotificationOverrides = overrides;
+        }
+
+        /// <summary>
+        /// Per-provider whole-style appearance copies keyed by provider key. Only customized
+        /// providers are stored; absent providers follow <see cref="NotificationStyle"/>.
+        /// Unlike <see cref="ProviderNotificationOverrides"/> there is no field-level inherit:
+        /// presence in this dictionary means the provider owns a full style copy.
+        /// </summary>
+        public Dictionary<string, NotificationStyleSettings> ProviderNotificationStyles
+        {
+            get => _providerNotificationStyles ??
+                   (_providerNotificationStyles =
+                       new Dictionary<string, NotificationStyleSettings>(StringComparer.OrdinalIgnoreCase));
+            set => SetValue(ref _providerNotificationStyles, NormalizeProviderNotificationStyles(value));
+        }
+
+        /// <summary>
+        /// The stored style copy for a provider, or null when the provider is not customized
+        /// and follows the global <see cref="NotificationStyle"/>.
+        /// </summary>
+        public NotificationStyleSettings GetProviderNotificationStyle(string providerKey)
+        {
+            providerKey = NormalizeProviderKeyToken(providerKey);
+            return providerKey != null &&
+                   ProviderNotificationStyles.TryGetValue(providerKey, out var value)
+                ? value
+                : null;
+        }
+
+        /// <summary>
+        /// Stores a clone of the style copy for a provider, removing the entry when the value
+        /// is null (revert to the global default). Reassigns the dictionary so PropertyChanged
+        /// is raised.
+        /// </summary>
+        public void SetProviderNotificationStyle(string providerKey, NotificationStyleSettings value)
+        {
+            providerKey = NormalizeProviderKeyToken(providerKey);
+            if (string.IsNullOrWhiteSpace(providerKey))
+            {
+                return;
+            }
+
+            var styles = new Dictionary<string, NotificationStyleSettings>(
+                ProviderNotificationStyles,
+                StringComparer.OrdinalIgnoreCase);
+            if (value == null)
+            {
+                if (!styles.Remove(providerKey))
+                {
+                    return;
+                }
+            }
+            else
+            {
+                styles[providerKey] = value.Clone();
+            }
+
+            ProviderNotificationStyles = styles;
         }
 
         #endregion
@@ -1410,6 +1586,48 @@ namespace PlayniteAchievements.Models.Settings
         }
 
         /// <summary>
+        /// When true, rarity glows gently fade in and out (a subtle opacity pulse) wherever they
+        /// appear. When false, glows render at static full opacity. Applies globally.
+        /// </summary>
+        public bool AnimateRarityGlows
+        {
+            get => _animateRarityGlows;
+            set => SetValue(ref _animateRarityGlows, value);
+        }
+
+        /// <summary>
+        /// Low endpoint of the rarity-glow pulse, 0-1 (clamped). The glow fades between this and
+        /// <see cref="RarityGlowPulseMaxOpacity"/>. Higher = subtler pulse.
+        /// </summary>
+        public double RarityGlowPulseMinOpacity
+        {
+            get => _rarityGlowPulseMinOpacity;
+            set => SetValue(ref _rarityGlowPulseMinOpacity, Clamp01(value));
+        }
+
+        /// <summary>
+        /// High endpoint of the rarity-glow pulse, 0-1 (clamped). Usually 1.0 (full brightness);
+        /// lower values keep the glow from ever reaching full.
+        /// </summary>
+        public double RarityGlowPulseMaxOpacity
+        {
+            get => _rarityGlowPulseMaxOpacity;
+            set => SetValue(ref _rarityGlowPulseMaxOpacity, Clamp01(value));
+        }
+
+        /// <summary>
+        /// Pulse speed as a normalized 0-1 value (clamped): 0 = slowest, 1 = fastest. Mapped to a
+        /// concrete fade duration where the pulse is applied.
+        /// </summary>
+        public double RarityGlowPulseSpeed
+        {
+            get => _rarityGlowPulseSpeed;
+            set => SetValue(ref _rarityGlowPulseSpeed, Clamp01(value));
+        }
+
+        private static double Clamp01(double value) => value < 0.0 ? 0.0 : (value > 1.0 ? 1.0 : value);
+
+        /// <summary>
         /// When true, all rarity badges use the hexagon shape while keeping rarity colors.
         /// </summary>
         public bool UseUniformRarityBadges
@@ -1444,6 +1662,20 @@ namespace PlayniteAchievements.Models.Settings
         {
             get => _rarityColors;
             set => SetValue(ref _rarityColors, value?.Clone() ?? RarityColorSettings.CreateDefault());
+        }
+
+        /// <summary>
+        /// User-selected provider colors keyed by provider key. Providers without an entry use
+        /// the brand color supplied by their IDataProvider implementation.
+        /// </summary>
+        public Dictionary<string, string> ProviderColorOverrides
+        {
+            get => _providerColorOverrides;
+            set => SetValue(
+                ref _providerColorOverrides,
+                value != null
+                    ? new Dictionary<string, string>(value, StringComparer.OrdinalIgnoreCase)
+                    : new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase));
         }
 
         public bool IncludeUnplayedGames
@@ -1627,9 +1859,11 @@ namespace PlayniteAchievements.Models.Settings
 
         /// <summary>
         /// One-time bookkeeping flag: true once the Progress summary column has been seeded to Right
-        /// alignment. Migration forces Right for existing configs where this is absent/false (so an
-        /// updating user keeps the legacy footer layout) and then sets it true, after which a user's
-        /// own alignment choice is respected. Defaults to true for fresh installs (seeded in the ctor).
+        /// alignment. Defaults to false everywhere (like <see cref="FirstTimeSetupCompleted"/>) with
+        /// no fresh-install special-casing: the seeding migration is the sole thing that flips it
+        /// true, after forcing Right for a config where it is absent/false. A false or absent value
+        /// therefore always means "not yet seeded", so a config loaded without the migration ever
+        /// running stays eligible for seeding instead of permanently blocking it.
         /// </summary>
         public bool ProgressColumnAlignmentDefaulted
         {
@@ -1695,6 +1929,16 @@ namespace PlayniteAchievements.Models.Settings
         {
             get => _playtimeDisplayMode;
             set => SetValue(ref _playtimeDisplayMode, value);
+        }
+
+        /// <summary>
+        /// How friend names combine the provider profile name and the provider-assigned nickname.
+        /// A manual plugin rename always takes precedence over this mode.
+        /// </summary>
+        public FriendNameDisplayMode FriendNameDisplayMode
+        {
+            get => _friendNameDisplayMode;
+            set => SetValue(ref _friendNameDisplayMode, value);
         }
 
         /// <summary>
@@ -2339,11 +2583,18 @@ namespace PlayniteAchievements.Models.Settings
                 // Hotkey Settings
                 EnableAchievementHotkeys = this.EnableAchievementHotkeys,
                 EnableGlobalAchievementHotkeys = this.EnableGlobalAchievementHotkeys,
+                EnableViewAchievementsHotkey = this.EnableViewAchievementsHotkey,
+                EnableManageAchievementsHotkey = this.EnableManageAchievementsHotkey,
+                EnableOverviewHotkey = this.EnableOverviewHotkey,
+                EnableOpenSettingsHotkey = this.EnableOpenSettingsHotkey,
+                EnableCategoryModeHotkey = this.EnableCategoryModeHotkey,
+                EnableTestUnlockHotkey = this.EnableTestUnlockHotkey,
                 ViewAchievementsHotkey = this.ViewAchievementsHotkey,
                 ManageAchievementsHotkey = this.ManageAchievementsHotkey,
                 OverviewHotkey = this.OverviewHotkey,
                 OpenSettingsHotkey = this.OpenSettingsHotkey,
                 CategoryModeHotkey = this.CategoryModeHotkey,
+                TestUnlockHotkey = this.TestUnlockHotkey,
 
                 // Notification Settings
                 EnableNotifications = this.EnableNotifications,
@@ -2351,19 +2602,21 @@ namespace PlayniteAchievements.Models.Settings
                 NotifyOnRebuild = this.NotifyOnRebuild,
                 EnableUnlockToasts = this.EnableUnlockToasts,
                 EnableFriendUnlockToasts = this.EnableFriendUnlockToasts,
-                ToastShowHeader = this.ToastShowHeader,
-                ToastShowName = this.ToastShowName,
-                ToastShowRarityBadge = this.ToastShowRarityBadge,
-                ToastShowRarityGlow = this.ToastShowRarityGlow,
-                ToastRarityColoredName = this.ToastRarityColoredName,
-                ToastShowRarityPercent = this.ToastShowRarityPercent,
-                ToastShowDescription = this.ToastShowDescription,
-                ToastShowCategory = this.ToastShowCategory,
-                ToastShowGameName = this.ToastShowGameName,
-                ToastShowUnlockTime = this.ToastShowUnlockTime,
+                NotificationStyle = this.NotificationStyle?.Clone() ?? NotificationStyleSettings.CreateDefault(),
+                ToastUseThemeStyling = this.ToastUseThemeStyling,
+                FrameUseThemeStyling = this.FrameUseThemeStyling,
+                ProviderNotificationStyles = this.ProviderNotificationStyles != null
+                    ? this.ProviderNotificationStyles.ToDictionary(
+                        kvp => kvp.Key,
+                        kvp => kvp.Value?.Clone(),
+                        StringComparer.OrdinalIgnoreCase)
+                    : new Dictionary<string, NotificationStyleSettings>(StringComparer.OrdinalIgnoreCase),
                 ToastDurationSeconds = this.ToastDurationSeconds,
                 MaxConcurrentToasts = this.MaxConcurrentToasts,
                 ToastPosition = this.ToastPosition,
+                EnableControllerVibration = this.EnableControllerVibration,
+                ControllerVibrationStrengthPercent = this.ControllerVibrationStrengthPercent,
+                ControllerVibrationDurationMs = this.ControllerVibrationDurationMs,
                 EnableUnlockScreenshots = this.EnableUnlockScreenshots,
                 UnlockScreenshotClean = this.UnlockScreenshotClean,
                 UnlockScreenshotWithToast = this.UnlockScreenshotWithToast,
@@ -2371,26 +2624,23 @@ namespace PlayniteAchievements.Models.Settings
                 UnlockScreenshotSuffixClean = this.UnlockScreenshotSuffixClean,
                 UnlockScreenshotSuffixWithToast = this.UnlockScreenshotSuffixWithToast,
                 UnlockScreenshotSuffixFramed = this.UnlockScreenshotSuffixFramed,
-                FrameShowHeader = this.FrameShowHeader,
-                FrameShowName = this.FrameShowName,
-                FrameShowDescription = this.FrameShowDescription,
-                FrameShowCategory = this.FrameShowCategory,
-                FrameShowGameName = this.FrameShowGameName,
-                FrameShowRarityBadge = this.FrameShowRarityBadge,
-                FrameShowRarityPercent = this.FrameShowRarityPercent,
-                FrameShowRarityGlow = this.FrameShowRarityGlow,
-                FrameRarityColoredName = this.FrameRarityColoredName,
-                FrameShowUnlockTime = this.FrameShowUnlockTime,
                 UnlockScreenshotDirectory = this.UnlockScreenshotDirectory,
+                UnlockScreenshotCleanRarities = this.UnlockScreenshotCleanRarities,
+                UnlockScreenshotCleanAlwaysCaptureCompletion = this.UnlockScreenshotCleanAlwaysCaptureCompletion,
+                UnlockScreenshotWithToastRarities = this.UnlockScreenshotWithToastRarities,
+                UnlockScreenshotWithToastAlwaysCaptureCompletion = this.UnlockScreenshotWithToastAlwaysCaptureCompletion,
+                UnlockScreenshotFramedRarities = this.UnlockScreenshotFramedRarities,
+                UnlockScreenshotFramedAlwaysCaptureCompletion = this.UnlockScreenshotFramedAlwaysCaptureCompletion,
                 EnableUnlockRecordings = this.EnableUnlockRecordings,
-                FfmpegPath = this.FfmpegPath,
                 UnlockRecordingDirectory = this.UnlockRecordingDirectory,
                 RecordingClipSeconds = this.RecordingClipSeconds,
                 RecordingFps = this.RecordingFps,
                 RecordingResolution = this.RecordingResolution,
-                RecordingEncoder = this.RecordingEncoder,
-                RecordingCaptureBackend = this.RecordingCaptureBackend,
                 RecordingIncludeAudio = this.RecordingIncludeAudio,
+                RecordingAudioSource = this.RecordingAudioSource,
+                RecordingIncludeMicrophone = this.RecordingIncludeMicrophone,
+                UnlockRecordingRarities = this.UnlockRecordingRarities,
+                UnlockRecordingAlwaysCaptureCompletion = this.UnlockRecordingAlwaysCaptureCompletion,
                 ProviderNotificationOverrides = this.ProviderNotificationOverrides != null
                     ? this.ProviderNotificationOverrides.ToDictionary(
                         kvp => kvp.Key,
@@ -2407,10 +2657,19 @@ namespace PlayniteAchievements.Models.Settings
                 UseSeparateLockedIconsWhenAvailable = this.UseSeparateLockedIconsWhenAvailable,
                 ModernCompactListShowRarityGlow = this.ModernCompactListShowRarityGlow,
                 ModernUnlockedListShowRarityGlow = this.ModernUnlockedListShowRarityGlow,
+                AnimateRarityGlows = this.AnimateRarityGlows,
+                RarityGlowPulseMinOpacity = this.RarityGlowPulseMinOpacity,
+                RarityGlowPulseMaxOpacity = this.RarityGlowPulseMaxOpacity,
+                RarityGlowPulseSpeed = this.RarityGlowPulseSpeed,
                 UseUniformRarityBadges = this.UseUniformRarityBadges,
                 UseTrophiesForRarity = this.UseTrophiesForRarity,
                 RoundRarityPercentages = this.RoundRarityPercentages,
                 RarityColors = this.RarityColors?.Clone() ?? RarityColorSettings.CreateDefault(),
+                ProviderColorOverrides = this.ProviderColorOverrides != null
+                    ? new Dictionary<string, string>(
+                        this.ProviderColorOverrides,
+                        StringComparer.OrdinalIgnoreCase)
+                    : new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase),
                 IncludeUnplayedGames = this.IncludeUnplayedGames,
                 ShowOverviewCollectionScoreCard = this.ShowOverviewCollectionScoreCard,
                 ShowOverviewPrestigeScoreCard = this.ShowOverviewPrestigeScoreCard,
@@ -2434,6 +2693,7 @@ namespace PlayniteAchievements.Models.Settings
                 GridCellVerticalAlignment = this.GridCellVerticalAlignment,
                 UnlockDateDisplayMode = this.UnlockDateDisplayMode,
                 PlaytimeDisplayMode = this.PlaytimeDisplayMode,
+                FriendNameDisplayMode = this.FriendNameDisplayMode,
                 EnableAchievementCompactListControl = this.EnableAchievementCompactListControl,
                 EnableAchievementDataGridControl = this.EnableAchievementDataGridControl,
                 EnableAchievementCompactUnlockedListControl = this.EnableAchievementCompactUnlockedListControl,
@@ -2551,10 +2811,15 @@ namespace PlayniteAchievements.Models.Settings
             SeparateLockedIconEnabledGameIds = new HashSet<Guid>();
             ModernCompactListShowRarityGlow = defaults.ModernCompactListShowRarityGlow;
             ModernUnlockedListShowRarityGlow = defaults.ModernUnlockedListShowRarityGlow;
+            AnimateRarityGlows = defaults.AnimateRarityGlows;
+            RarityGlowPulseMinOpacity = defaults.RarityGlowPulseMinOpacity;
+            RarityGlowPulseMaxOpacity = defaults.RarityGlowPulseMaxOpacity;
+            RarityGlowPulseSpeed = defaults.RarityGlowPulseSpeed;
             UseUniformRarityBadges = defaults.UseUniformRarityBadges;
             UseTrophiesForRarity = defaults.UseTrophiesForRarity;
             RoundRarityPercentages = defaults.RoundRarityPercentages;
             RarityColors = RarityColorSettings.CreateDefault();
+            ProviderColorOverrides = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
             ResourceOverrides = CreateDefaultResourceOverrides();
 
             ShowOverviewCollectionScoreCard = defaults.ShowOverviewCollectionScoreCard;
@@ -2576,6 +2841,7 @@ namespace PlayniteAchievements.Models.Settings
             GridCellVerticalAlignment = defaults.GridCellVerticalAlignment;
             UnlockDateDisplayMode = defaults.UnlockDateDisplayMode;
             PlaytimeDisplayMode = defaults.PlaytimeDisplayMode;
+            FriendNameDisplayMode = defaults.FriendNameDisplayMode;
 
             EnableAchievementCompactListControl = defaults.EnableAchievementCompactListControl;
             EnableAchievementDataGridControl = defaults.EnableAchievementDataGridControl;
@@ -2749,6 +3015,24 @@ namespace PlayniteAchievements.Models.Settings
             {
                 var key = NormalizeProviderKeyToken(pair.Key);
                 if (key == null || pair.Value == null || pair.Value.IsAllInherit)
+                {
+                    continue;
+                }
+
+                normalized[key] = pair.Value;
+            }
+
+            return normalized;
+        }
+
+        private static Dictionary<string, NotificationStyleSettings> NormalizeProviderNotificationStyles(
+            IEnumerable<KeyValuePair<string, NotificationStyleSettings>> value)
+        {
+            var normalized = new Dictionary<string, NotificationStyleSettings>(StringComparer.OrdinalIgnoreCase);
+            foreach (var pair in value ?? Enumerable.Empty<KeyValuePair<string, NotificationStyleSettings>>())
+            {
+                var key = NormalizeProviderKeyToken(pair.Key);
+                if (key == null || pair.Value == null)
                 {
                     continue;
                 }

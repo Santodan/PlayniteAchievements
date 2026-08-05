@@ -2546,6 +2546,9 @@ namespace PlayniteAchievements.Services.Tests
             public FriendsOverviewData LoadFriendGameAchievementData(Guid playniteGameId) =>
                 new FriendsOverviewData();
 
+            public IReadOnlyCollection<Guid> LoadFriendDataPlayniteGameIds() =>
+                Array.Empty<Guid>();
+
             public FriendsOverviewData LoadFriendGameAchievementData(FriendCacheChange gameScope) =>
                 new FriendsOverviewData();
 

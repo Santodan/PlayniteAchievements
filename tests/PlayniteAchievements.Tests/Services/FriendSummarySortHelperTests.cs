@@ -116,6 +116,64 @@ namespace PlayniteAchievements.Services.Tests
         }
 
         [TestMethod]
+        public void SortByConfiguredDefault_PinsFavoritesFirstRegardlessOfPrimaryKey()
+        {
+            var items = new List<FriendSummaryItem>
+            {
+                CreateItem("Beta", sharedGamesCount: 40),
+                CreateItem("Alpha", sharedGamesCount: 12, isFavorite: true),
+                CreateItem("Gamma", sharedGamesCount: 24)
+            };
+
+            FriendSummarySortHelper.SortByConfiguredDefault(
+                items,
+                new PersistedSettings
+                {
+                    FriendsOverviewFriendSummariesGridSortMode = FriendSummariesSortMode.SharedGames,
+                    FriendsOverviewFriendSummariesGridSortDescending = true
+                });
+
+            // Alpha is favorited so it leads even though its shared-games count is lowest; the rest keep
+            // the descending shared-games order.
+            CollectionAssert.AreEqual(
+                new[] { "Alpha", "Beta", "Gamma" },
+                items.Select(item => item.DisplayName).ToArray());
+        }
+
+        [TestMethod]
+        public void TrySortItems_WithFavorites_KeepsFavoritesFirstOnDirectionFlip()
+        {
+            var items = new List<FriendSummaryItem>
+            {
+                CreateItem("Alpha", unlockedAchievementsCount: 120, isFavorite: true),
+                CreateItem("Beta", unlockedAchievementsCount: 420),
+                CreateItem("Gamma", unlockedAchievementsCount: 240)
+            };
+            string currentSortPath = null;
+            var currentSortDirection = ListSortDirection.Descending;
+
+            // Ascending first, then flip to descending to exercise the reverse-optimization guard.
+            FriendSummarySortHelper.TrySortItems(
+                items,
+                nameof(FriendSummaryItem.UnlockedAchievementsCount),
+                ListSortDirection.Ascending,
+                ref currentSortPath,
+                ref currentSortDirection);
+            FriendSummarySortHelper.TrySortItems(
+                items,
+                nameof(FriendSummaryItem.UnlockedAchievementsCount),
+                ListSortDirection.Descending,
+                ref currentSortPath,
+                ref currentSortDirection);
+
+            // Favorite Alpha stays first; the non-favorites hold descending order rather than being
+            // reversed to the bottom.
+            CollectionAssert.AreEqual(
+                new[] { "Alpha", "Beta", "Gamma" },
+                items.Select(item => item.DisplayName).ToArray());
+        }
+
+        [TestMethod]
         public void ApplySortIndicator_RecentUnlockDefault_DoesNotReturnVisibleColumn()
         {
             string indicatorPath = "seed";
@@ -145,7 +203,8 @@ namespace PlayniteAchievements.Services.Tests
             int sharedGamesCount = 0,
             int unlockedAchievementsCount = 0,
             int prestigeScore = 0,
-            int collectionScore = 0)
+            int collectionScore = 0,
+            bool isFavorite = false)
         {
             return new FriendSummaryItem
             {
@@ -156,7 +215,8 @@ namespace PlayniteAchievements.Services.Tests
                 SharedGamesCount = sharedGamesCount,
                 UnlockedAchievementsCount = unlockedAchievementsCount,
                 PrestigeScore = prestigeScore,
-                CollectionScore = collectionScore
+                CollectionScore = collectionScore,
+                IsFavorite = isFavorite
             };
         }
 

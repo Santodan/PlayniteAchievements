@@ -122,8 +122,8 @@ namespace PlayniteAchievements.Views.Dialogs
                 ClearButton.IsEnabled = !string.IsNullOrWhiteSpace(NoteText);
             }
 
-            AchievementNoteInlineFormatter.ApplyFormattedText(PreviewTextBlock, NoteText);
-            AchievementNoteInlineFormatter.ApplyFormattedText(ViewTextBlock, NoteText);
+            InlineMarkdownFormatter.ApplyFormattedText(PreviewTextBlock, NoteText);
+            InlineMarkdownFormatter.ApplyFormattedText(ViewTextBlock, NoteText);
         }
 
         private void BoldButton_Click(object sender, RoutedEventArgs e)

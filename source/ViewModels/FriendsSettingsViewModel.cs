@@ -15,6 +15,7 @@ using System.ComponentModel;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
+using System.Windows.Data;
 using System.Windows.Input;
 using System.Windows.Threading;
 using ObservableObject = PlayniteAchievements.Common.ObservableObject;
@@ -36,9 +37,11 @@ namespace PlayniteAchievements.ViewModels
         private readonly DispatcherTimer _persistDebounceTimer;
         private ExophaseSettings _exophaseSettings;
         private string _manualExophaseUsername;
+        private string _friendSearchText;
         private string _statusText;
         private bool _isBusy;
         private bool _hasPendingPersist;
+        private bool _suppressSelectAllSync;
         private string _pendingPersistProviderKey;
 
         public FriendsSettingsViewModel(
@@ -55,6 +58,8 @@ namespace PlayniteAchievements.ViewModels
 
             AutoDiscoverProviders = new ObservableCollection<FriendAutoDiscoverProviderItem>();
             Friends = new ObservableCollection<FriendSettingsPersonRowItem>();
+            FriendsView = CollectionViewSource.GetDefaultView(Friends);
+            FriendsView.Filter = FriendMatchesSearch;
             RefreshAutoDiscoverCommand = new AsyncCommand(_ => RefreshAutoDiscoverAsync(), _ => !IsBusy);
             AddManualFriendCommand = new AsyncCommand(_ => AddManualExophaseFriendAsync(), _ => !IsBusy && !string.IsNullOrWhiteSpace(ManualExophaseUsername));
             MergeSelectedCommand = new RelayCommand(_ => MergeSelectedFriends(), _ => CanMergeSelectedFriends());
@@ -65,6 +70,7 @@ namespace PlayniteAchievements.ViewModels
             // the button would stay disabled. Both execute methods guard their parameter internally.
             UnmergeFriendCommand = new RelayCommand(UnmergeFriend);
             RemoveFriendCommand = new RelayCommand(RemoveFriend);
+            IgnoreSelectedCommand = new RelayCommand(_ => IgnoreSelectedFriends(), _ => CanIgnoreSelected());
 
             _persistDebounceTimer = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(500) };
             _persistDebounceTimer.Tick += OnPersistDebounceTimerTick;
@@ -77,6 +83,10 @@ namespace PlayniteAchievements.ViewModels
 
         public ObservableCollection<FriendSettingsPersonRowItem> Friends { get; }
 
+        // Filtered projection over Friends driven by FriendSearchText. The DataGrid binds to this
+        // view so the search box narrows the grid without disturbing the ordering set in RebuildFriends.
+        public ICollectionView FriendsView { get; }
+
         public ICommand RefreshAutoDiscoverCommand { get; }
 
         public ICommand AddManualFriendCommand { get; }
@@ -86,6 +96,54 @@ namespace PlayniteAchievements.ViewModels
         public ICommand UnmergeFriendCommand { get; }
 
         public ICommand RemoveFriendCommand { get; }
+
+        public ICommand IgnoreSelectedCommand { get; }
+
+        public string FriendSearchText
+        {
+            get => _friendSearchText;
+            set
+            {
+                if (SetValueAndReturn(ref _friendSearchText, value))
+                {
+                    FriendsView?.Refresh();
+                    OnPropertyChanged(nameof(AreAllVisibleFriendsSelected));
+                    OnPropertyChanged(nameof(IgnoreSelectedLabel));
+                    (IgnoreSelectedCommand as RelayCommand)?.RaiseCanExecuteChanged();
+                }
+            }
+        }
+
+        // Header "select all" checkbox for the grid. Reflects/sets IsSelected on the currently
+        // visible (search-filtered) rows.
+        public bool AreAllVisibleFriendsSelected
+        {
+            get
+            {
+                var visible = GetVisibleRows();
+                return visible.Count > 0 && visible.All(row => row.IsSelected);
+            }
+            set
+            {
+                _suppressSelectAllSync = true;
+                foreach (var row in GetVisibleRows())
+                {
+                    row.IsSelected = value;
+                }
+
+                _suppressSelectAllSync = false;
+                OnPropertyChanged();
+                OnPropertyChanged(nameof(IgnoreSelectedLabel));
+                (IgnoreSelectedCommand as RelayCommand)?.RaiseCanExecuteChanged();
+                (MergeSelectedCommand as RelayCommand)?.RaiseCanExecuteChanged();
+            }
+        }
+
+        // Label for the single ignore/un-ignore button. Flips to un-ignore when the majority of the
+        // selected rows are already ignored, so the button reverses whichever state dominates.
+        public string IgnoreSelectedLabel => ShouldUnignoreSelected()
+            ? ResourceProvider.GetString("LOCPlayAch_FriendsSettings_UnignoreSelected")
+            : ResourceProvider.GetString("LOCPlayAch_FriendsSettings_IgnoreSelected");
 
         public bool UseExophaseForSteamFriendOwnership
         {
@@ -120,6 +178,24 @@ namespace PlayniteAchievements.ViewModels
                 // Debounce the persist/sync fan-out (settings serialization, cache sync, theme
                 // refresh) so rapid checkbox toggles stay responsive.
                 SchedulePersistAndNotify(null);
+            }
+        }
+
+        public FriendNameDisplayMode FriendNameDisplayMode
+        {
+            get => _settings?.Persisted?.FriendNameDisplayMode ?? FriendNameDisplayMode.PersonaAndNickname;
+            set
+            {
+                var persisted = _settings?.Persisted;
+                if (persisted == null || persisted.FriendNameDisplayMode == value)
+                {
+                    return;
+                }
+
+                persisted.FriendNameDisplayMode = value;
+                OnPropertyChanged();
+                RebuildFriends();
+                PersistAndNotify(null);
             }
         }
 
@@ -161,6 +237,7 @@ namespace PlayniteAchievements.ViewModels
                     (RefreshAutoDiscoverCommand as AsyncCommand)?.RaiseCanExecuteChanged();
                     (AddManualFriendCommand as AsyncCommand)?.RaiseCanExecuteChanged();
                     (MergeSelectedCommand as RelayCommand)?.RaiseCanExecuteChanged();
+                    (IgnoreSelectedCommand as RelayCommand)?.RaiseCanExecuteChanged();
                 }
             }
         }
@@ -289,7 +366,8 @@ namespace PlayniteAchievements.ViewModels
                     ResolveDisabledExophasePlatformTokens(groupEntries),
                     OnPersonRowChanged,
                     OnAccountRowChanged,
-                    OnPersonSelectionChanged));
+                    OnPersonSelectionChanged,
+                    persisted.FriendNameDisplayMode));
             }
 
             foreach (var entry in entries.Where(entry => !groupedKeys.Contains(FriendAccountRef.BuildKey(entry.ProviderKey, entry.ExternalUserId))))
@@ -300,11 +378,13 @@ namespace PlayniteAchievements.ViewModels
                     ResolveDisabledExophasePlatformTokens(new[] { entry }),
                     OnPersonRowChanged,
                     OnAccountRowChanged,
-                    OnPersonSelectionChanged));
+                    OnPersonSelectionChanged,
+                    persisted.FriendNameDisplayMode));
             }
 
             foreach (var row in rows
                 .OrderBy(row => row.IsIgnored)
+                .ThenByDescending(row => row.IsFavorite)
                 .ThenBy(row => row.SortProviderName, StringComparer.CurrentCultureIgnoreCase)
                 .ThenBy(row => row.DisplayName, StringComparer.CurrentCultureIgnoreCase))
             {
@@ -314,6 +394,9 @@ namespace PlayniteAchievements.ViewModels
             (MergeSelectedCommand as RelayCommand)?.RaiseCanExecuteChanged();
             (UnmergeFriendCommand as RelayCommand)?.RaiseCanExecuteChanged();
             (RemoveFriendCommand as RelayCommand)?.RaiseCanExecuteChanged();
+            (IgnoreSelectedCommand as RelayCommand)?.RaiseCanExecuteChanged();
+            OnPropertyChanged(nameof(AreAllVisibleFriendsSelected));
+            OnPropertyChanged(nameof(IgnoreSelectedLabel));
         }
 
         private void OnAutoDiscoverProviderChanged(FriendAutoDiscoverProviderItem item)
@@ -330,6 +413,12 @@ namespace PlayniteAchievements.ViewModels
         private void OnPersonSelectionChanged(FriendSettingsPersonRowItem row)
         {
             (MergeSelectedCommand as RelayCommand)?.RaiseCanExecuteChanged();
+            (IgnoreSelectedCommand as RelayCommand)?.RaiseCanExecuteChanged();
+            OnPropertyChanged(nameof(IgnoreSelectedLabel));
+            if (!_suppressSelectAllSync)
+            {
+                OnPropertyChanged(nameof(AreAllVisibleFriendsSelected));
+            }
         }
 
         private void OnPersonRowChanged(FriendSettingsPersonRowItem row)
@@ -360,6 +449,94 @@ namespace PlayniteAchievements.ViewModels
 
             ApplyExophasePlatformConflicts();
             SchedulePersistAndNotify(account.ProviderKey);
+        }
+
+        // Filter predicate for FriendsView. Matches the row's names and each linked account's
+        // provider/display/id against the search box (case-insensitive); empty query shows all.
+        private bool FriendMatchesSearch(object item)
+        {
+            if (!(item is FriendSettingsPersonRowItem row))
+            {
+                return false;
+            }
+
+            var query = _friendSearchText?.Trim();
+            if (string.IsNullOrEmpty(query))
+            {
+                return true;
+            }
+
+            if (ContainsQuery(row.DisplayName, query) ||
+                ContainsQuery(row.Nickname, query) ||
+                ContainsQuery(row.DefaultDisplayName, query))
+            {
+                return true;
+            }
+
+            return row.Accounts.Any(account =>
+                ContainsQuery(account.ProviderDisplayName, query) ||
+                ContainsQuery(account.DisplayName, query) ||
+                ContainsQuery(account.ExternalUserId, query));
+        }
+
+        private static bool ContainsQuery(string value, string query) =>
+            !string.IsNullOrEmpty(value) &&
+            value.IndexOf(query, StringComparison.CurrentCultureIgnoreCase) >= 0;
+
+        private List<FriendSettingsPersonRowItem> GetVisibleRows() =>
+            FriendsView?.Cast<FriendSettingsPersonRowItem>().ToList()
+            ?? new List<FriendSettingsPersonRowItem>();
+
+        private bool CanIgnoreSelected() => !IsBusy && Friends.Any(row => row.IsSelected);
+
+        // True when the majority of selected rows are already ignored, so the single button reverses
+        // the dominant state (un-ignore) instead of ignoring.
+        private bool ShouldUnignoreSelected()
+        {
+            var selected = Friends.Where(row => row.IsSelected).ToList();
+            if (selected.Count == 0)
+            {
+                return false;
+            }
+
+            var ignored = selected.Count(row => row.IsIgnored);
+            return ignored > selected.Count - ignored;
+        }
+
+        // Ignores (or un-ignores, per the majority) every account of the selected rows, mirroring the
+        // per-account ignore side effects (cache delete on ignore) then persisting once.
+        private void IgnoreSelectedFriends()
+        {
+            var persisted = _settings?.Persisted;
+            if (persisted == null)
+            {
+                return;
+            }
+
+            var ignore = !ShouldUnignoreSelected();
+            var accounts = Friends
+                .Where(row => row.IsSelected)
+                .SelectMany(row => row.Accounts)
+                .Where(account => account?.Entry != null && account.Entry.IsIgnored != ignore)
+                .ToList();
+            if (accounts.Count == 0)
+            {
+                return;
+            }
+
+            foreach (var account in accounts)
+            {
+                account.Entry.IsIgnored = ignore;
+                if (ignore)
+                {
+                    QueueFriendCacheDelete(account.ProviderKey, account.ExternalUserId);
+                }
+            }
+
+            persisted.Friends = persisted.Friends;
+            ApplyExophasePlatformConflicts();
+            RebuildFriends();
+            PersistAndNotify(null);
         }
 
         private bool CanMergeSelectedFriends()
@@ -795,6 +972,7 @@ namespace PlayniteAchievements.ViewModels
         private readonly Action<FriendSettingsPersonRowItem> _onChanged;
         private readonly Action<FriendSettingsPersonRowItem> _onSelectionChanged;
         private bool _isSelected;
+        private bool _isFavorite;
         private string _nickname;
 
         public FriendSettingsPersonRowItem(
@@ -803,7 +981,8 @@ namespace PlayniteAchievements.ViewModels
             HashSet<string> disabledExophasePlatformTokens,
             Action<FriendSettingsPersonRowItem> onChanged,
             Action<FriendSettingsAccountItem> onAccountChanged,
-            Action<FriendSettingsPersonRowItem> onSelectionChanged)
+            Action<FriendSettingsPersonRowItem> onSelectionChanged,
+            FriendNameDisplayMode nameMode = FriendNameDisplayMode.PersonaAndNickname)
         {
             MergeGroupId = group?.Id;
             _nickname = group?.Nickname;
@@ -820,12 +999,16 @@ namespace PlayniteAchievements.ViewModels
                         RefreshDerivedProperties();
                         onAccountChanged?.Invoke(account);
                     },
-                    SelectAvatarSource)));
+                    SelectAvatarSource,
+                    nameMode,
+                    isMergedRow: !string.IsNullOrWhiteSpace(group?.Id))));
             SeedAvatarSource(group?.AvatarAccount);
             if (!IsMerged && Accounts.Count == 1)
             {
                 _nickname = Accounts[0].Entry.Nickname;
             }
+
+            _isFavorite = Accounts.Any(account => account.Entry.IsFavorite);
 
             RefreshDerivedProperties();
         }
@@ -835,6 +1018,13 @@ namespace PlayniteAchievements.ViewModels
         public bool IsMerged => !string.IsNullOrWhiteSpace(MergeGroupId);
 
         public bool CanUnmerge => IsMerged;
+
+        // Row-level removal target for the shared actions column. Unmerged rows hold exactly
+        // one account, and merged accounts are never removable, so this is null or that account.
+        public FriendSettingsAccountItem RemovableAccount =>
+            IsMerged ? null : Accounts.FirstOrDefault(account => account.CanRemove);
+
+        public bool CanRemoveAccount => RemovableAccount != null;
 
         public ObservableCollection<FriendSettingsAccountItem> Accounts { get; }
 
@@ -846,6 +1036,20 @@ namespace PlayniteAchievements.ViewModels
                 if (SetValueAndReturn(ref _isSelected, value))
                 {
                     _onSelectionChanged?.Invoke(this);
+                }
+            }
+        }
+
+        // Person-level favorite toggle. Persisted onto every underlying account entry via
+        // WritePersonSettings so merged people favorite as a unit.
+        public bool IsFavorite
+        {
+            get => _isFavorite;
+            set
+            {
+                if (SetValueAndReturn(ref _isFavorite, value))
+                {
+                    _onChanged?.Invoke(this);
                 }
             }
         }
@@ -867,9 +1071,10 @@ namespace PlayniteAchievements.ViewModels
             Nickname,
             DefaultDisplayName);
 
-        // The name shown when no nickname is set: the underlying account's display name (or id).
+        // The name shown when no nickname is set, preferring the primary (avatar-source) account.
         // Used as the faint placeholder inside the nickname text box.
         public string DefaultDisplayName => FirstNonEmpty(
+            Accounts.FirstOrDefault(account => account.IsAvatarSource)?.DisplayName,
             Accounts.Select(account => account.DisplayName).FirstOrDefault(value => !string.IsNullOrWhiteSpace(value)),
             Accounts.Select(account => account.ExternalUserId).FirstOrDefault(value => !string.IsNullOrWhiteSpace(value)));
 
@@ -917,9 +1122,15 @@ namespace PlayniteAchievements.ViewModels
                 if (account != null)
                 {
                     account.Entry.Nickname = string.IsNullOrWhiteSpace(Nickname) ? null : Nickname.Trim();
-                    settings.Friends = settings.Friends;
                 }
             }
+
+            foreach (var account in Accounts)
+            {
+                account.Entry.IsFavorite = IsFavorite;
+            }
+
+            settings.Friends = settings.Friends;
         }
 
         public void RefreshPlatformConflicts(HashSet<string> disabledExophasePlatformTokens)
@@ -938,6 +1149,7 @@ namespace PlayniteAchievements.ViewModels
             }
 
             OnPropertyChanged(nameof(DisplayName));
+            OnPropertyChanged(nameof(DefaultDisplayName));
             OnPropertyChanged(nameof(AvatarSource));
             OnPropertyChanged(nameof(AccountsText));
             OnPropertyChanged(nameof(IsIgnored));
@@ -960,8 +1172,8 @@ namespace PlayniteAchievements.ViewModels
             }
         }
 
-        // Radio-style handler: making one account the avatar source clears the rest, then
-        // refreshes the row avatar and persists the choice.
+        // Radio-style handler: making one account the primary clears the rest, then refreshes
+        // the row's avatar and default name and persists the choice.
         private void SelectAvatarSource(FriendSettingsAccountItem chosen)
         {
             foreach (var account in Accounts)
@@ -973,6 +1185,8 @@ namespace PlayniteAchievements.ViewModels
             }
 
             OnPropertyChanged(nameof(AvatarSource));
+            OnPropertyChanged(nameof(DisplayName));
+            OnPropertyChanged(nameof(DefaultDisplayName));
             _onChanged?.Invoke(this);
         }
 
@@ -993,14 +1207,24 @@ namespace PlayniteAchievements.ViewModels
             FriendSettingsEntry entry,
             HashSet<string> disabledExophasePlatformTokens,
             Action<FriendSettingsAccountItem> onChanged,
-            Action<FriendSettingsAccountItem> onAvatarSourceSelected = null)
+            Action<FriendSettingsAccountItem> onAvatarSourceSelected = null,
+            FriendNameDisplayMode nameMode = FriendNameDisplayMode.PersonaAndNickname,
+            bool isMergedRow = false)
         {
             Entry = entry ?? throw new ArgumentNullException(nameof(entry));
             _onChanged = onChanged;
             _onAvatarSourceSelected = onAvatarSourceSelected;
+            IsInMergedRow = isMergedRow;
             ProviderKey = entry.ProviderKey;
             ExternalUserId = entry.ExternalUserId;
-            DisplayName = string.IsNullOrWhiteSpace(entry.DisplayName) ? entry.ExternalUserId : entry.DisplayName;
+            // Manual nickname deliberately excluded: the nickname text box shows it, and the
+            // person row's DefaultDisplayName is the placeholder behind it.
+            DisplayName = FriendDisplayNameResolver.Resolve(
+                null,
+                entry.DisplayName,
+                entry.ProviderNickname,
+                nameMode,
+                entry.ExternalUserId);
             AvatarSource = !string.IsNullOrWhiteSpace(entry.AvatarPath) ? entry.AvatarPath : entry.AvatarUrl;
             Source = entry.Source;
             _isIgnored = entry.IsIgnored;
@@ -1031,7 +1255,11 @@ namespace PlayniteAchievements.ViewModels
 
         public bool SupportsPlatformSelection => IsExophase;
 
-        public bool CanRemove => Source == FriendSettingsSource.Manual;
+        public bool IsInMergedRow { get; }
+
+        // Accounts inside a merge group cannot be removed directly; the person must be
+        // unmerged first so the removal target is unambiguous.
+        public bool CanRemove => !IsInMergedRow && Source == FriendSettingsSource.Manual;
 
         public string ProviderDisplayName => ProviderRegistry.GetLocalizedName(ProviderKey);
 

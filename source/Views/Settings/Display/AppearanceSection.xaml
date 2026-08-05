@@ -317,6 +317,95 @@
                         </StackPanel>
                     </Border>
 
+                    <TextBlock Text="{DynamicResource LOCPlayAch_Settings_Appearance_ProviderColors}"
+                               Style="{StaticResource SectionHeaderStyle}"
+                               Margin="0,16,0,0"/>
+                    <Border Style="{StaticResource SectionAccentRuleStyle}"/>
+
+                    <Border Style="{StaticResource SettingGroupCardStyle}">
+                        <StackPanel>
+                            <DockPanel Margin="{StaticResource PlayAch.Thickness.Bottom.Md}">
+                                <Button DockPanel.Dock="Right"
+                                        Content="{DynamicResource LOCPlayAch_Button_ResetAll}"
+                                        MinWidth="78"
+                                        Click="ResetAllProviderColors_Click"/>
+                                <TextBlock Text="{DynamicResource LOCPlayAch_Settings_Appearance_ProviderColorsDescription}"
+                                           Style="{StaticResource MutedTextStyle}"
+                                           VerticalAlignment="Center"
+                                           TextWrapping="Wrap"/>
+                            </DockPanel>
+
+                            <ItemsControl ItemsSource="{Binding ProviderAppearanceItems, RelativeSource={RelativeSource AncestorType=UserControl}}">
+                                <ItemsControl.ItemTemplate>
+                                    <DataTemplate>
+                                        <Grid Margin="{StaticResource PlayAch.Thickness.Bottom.Sm}">
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="2*"/>
+                                                <ColumnDefinition Width="Auto"/>
+                                                <ColumnDefinition Width="2*"/>
+                                            </Grid.ColumnDefinitions>
+
+                                            <StackPanel Grid.Column="0"
+                                                        Orientation="Horizontal"
+                                                        VerticalAlignment="Center">
+                                                <Image Width="24"
+                                                       Height="24"
+                                                       Margin="0,0,10,0"
+                                                       SnapsToDevicePixels="True"
+                                                       RenderOptions.BitmapScalingMode="NearestNeighbor">
+                                                    <Image.Source>
+                                                        <MultiBinding Converter="{StaticResource ProviderIconConverter}">
+                                                            <Binding Path="ProviderIconKey"/>
+                                                            <Binding Path="EffectiveColor"/>
+                                                        </MultiBinding>
+                                                    </Image.Source>
+                                                </Image>
+                                                <TextBlock Text="{Binding DisplayName}"
+                                                           Foreground="{DynamicResource PlayAch.Brush.Text}"
+                                                           FontWeight="SemiBold"
+                                                           VerticalAlignment="Center"
+                                                           TextTrimming="CharacterEllipsis"/>
+                                            </StackPanel>
+
+                                            <Border Grid.Column="1"
+                                                    Width="26"
+                                                    Height="26"
+                                                    Margin="14,0"
+                                                    BorderBrush="{DynamicResource PlayAch.Brush.Border}"
+                                                    BorderThickness="{StaticResource PlayAch.Thickness.Border}"
+                                                    Background="{Binding PreviewBrush}"
+                                                    VerticalAlignment="Center"/>
+
+                                            <Grid Grid.Column="2" VerticalAlignment="Center">
+                                                <Grid.ColumnDefinitions>
+                                                    <ColumnDefinition Width="*"/>
+                                                    <ColumnDefinition Width="Auto"/>
+                                                    <ColumnDefinition Width="Auto"/>
+                                                </Grid.ColumnDefinitions>
+
+                                                <TextBox Grid.Column="0"
+                                                         MinWidth="120"
+                                                         Text="{Binding BaseColor, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"/>
+
+                                                <Button Grid.Column="1"
+                                                        Content="{DynamicResource LOCPlayAch_Button_Pick}"
+                                                        Margin="8,0,0,0"
+                                                        MinWidth="58"
+                                                        Click="PickProviderColor_Click"/>
+
+                                                <Button Grid.Column="2"
+                                                        Content="{DynamicResource LOCPlayAch_Button_Reset}"
+                                                        Margin="8,0,0,0"
+                                                        MinWidth="58"
+                                                        Click="ResetProviderColor_Click"/>
+                                            </Grid>
+                                        </Grid>
+                                    </DataTemplate>
+                                </ItemsControl.ItemTemplate>
+                            </ItemsControl>
+                        </StackPanel>
+                    </Border>
+
                     <!-- Advanced -->
                     <Expander IsExpanded="False"
                               Background="{StaticResource PlayAch.Brush.Overlay.Shade.12}"

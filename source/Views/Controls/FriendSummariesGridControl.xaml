@@ -124,12 +124,46 @@
                 </DataGridTemplateColumn.CellTemplate>
             </DataGridTemplateColumn>
 
-            <DataGridTextColumn Width="1.4*" MinWidth="88" CanUserResize="True"
-                                Header="{DynamicResource LOCPlayAch_Column_Friend}"
-                                Binding="{Binding DisplayName}"
-                                SortMemberPath="DisplayName"
-                                ElementStyle="{StaticResource FriendSummaryTextStyle}"
-                                helpers:ColumnVisibilityHelper.ColumnKey="FriendSummaryFriend"/>
+            <DataGridTemplateColumn Width="1.4*" MinWidth="88" CanUserResize="True"
+                                    Header="{DynamicResource LOCPlayAch_Column_Friend}"
+                                    SortMemberPath="DisplayName"
+                                    helpers:ColumnVisibilityHelper.ColumnKey="FriendSummaryFriend">
+                <DataGridTemplateColumn.CellTemplate>
+                    <DataTemplate>
+                        <DockPanel LastChildFill="True">
+                            <!-- Fixed-width star gutter keeps friend names aligned whether or not
+                                 the friend is favorited (star is transparent when not a favorite).
+                                 The whole gutter collapses when no friend in the list is favorited. -->
+                            <!-- Match the name's font metrics and column vertical alignment so the
+                                 star sits on the same visual centerline as the text beside it. -->
+                            <TextBlock DockPanel.Dock="Left"
+                                       Text="&#x2605;"
+                                       Width="14"
+                                       TextAlignment="Center"
+                                       VerticalAlignment="{Binding RelativeSource={RelativeSource AncestorType={x:Type DataGridCell}}, Path=Column.(helpers:DataGridAlignmentBehavior.CellVerticalAlignment)}"
+                                       Foreground="{DynamicResource PlayAch.Brush.Text}"
+                                       ToolTip="{DynamicResource LOCPlayAch_Column_Favorite}">
+                                <TextBlock.Style>
+                                    <Style TargetType="TextBlock" BasedOn="{StaticResource PlayAch.TextBlock.BaseStyle}">
+                                        <Setter Property="Opacity" Value="0"/>
+                                        <Setter Property="Visibility" Value="Collapsed"/>
+                                        <Style.Triggers>
+                                            <DataTrigger Binding="{Binding HasAnyFavorites, RelativeSource={RelativeSource AncestorType={x:Type controls:FriendSummariesGridControl}}}" Value="True">
+                                                <Setter Property="Visibility" Value="Visible"/>
+                                            </DataTrigger>
+                                            <DataTrigger Binding="{Binding IsFavorite}" Value="True">
+                                                <Setter Property="Opacity" Value="1"/>
+                                            </DataTrigger>
+                                        </Style.Triggers>
+                                    </Style>
+                                </TextBlock.Style>
+                            </TextBlock>
+                            <TextBlock Text="{Binding DisplayName}"
+                                       Style="{StaticResource FriendSummaryTextStyle}"/>
+                        </DockPanel>
+                    </DataTemplate>
+                </DataGridTemplateColumn.CellTemplate>
+            </DataGridTemplateColumn>
 
             <DataGridTextColumn Width="*" MinWidth="56" CanUserResize="True"
                                 Header="{DynamicResource LOCPlayAch_Column_SharedGames}"

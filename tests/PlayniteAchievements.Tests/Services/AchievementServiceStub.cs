@@ -239,6 +239,7 @@ namespace PlayniteAchievements.Services.Refresh
             public FriendsOverviewData LoadFriendsOverviewData(int recentLimit) => new FriendsOverviewData();
             public FriendsOverviewData LoadFriendsOverviewPatchData(IReadOnlyList<FriendCacheChange> reloadScopes) => new FriendsOverviewData();
             public FriendsOverviewData LoadFriendGameAchievementData(Guid playniteGameId) => new FriendsOverviewData();
+            public IReadOnlyCollection<Guid> LoadFriendDataPlayniteGameIds() => Array.Empty<Guid>();
             public FriendsOverviewData LoadFriendGameAchievementData(FriendCacheChange gameScope) => new FriendsOverviewData();
             public FriendsOverviewData LoadFriendRecentUnlocksData(int recentLimit) => new FriendsOverviewData();
             public IReadOnlyList<CurrentUserGameLabel> LoadCurrentUserGameLabels() => new List<CurrentUserGameLabel>();

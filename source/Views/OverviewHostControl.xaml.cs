@@ -32,6 +32,16 @@ namespace PlayniteAchievements.Views
         private OverviewControl _overview;
         private FirstTimeLandingPage _landingPage;
         private bool _createScheduled;
+        private DispatcherTimer _createTimer;
+        private bool _settingsSavedHooked;
+
+        // Each open builds the heavy OverviewControl on a short settle timer rather than
+        // synchronously. Flicking through the sidebar without landing on the view leaves before
+        // the timer fires, so the build is cancelled (OverviewHostControl_Unloaded / RecreateContent
+        // stop the timer) and nothing is allocated. A genuine open lets the timer fire and builds
+        // once. Retained memory across successive opens is bounded by OverviewViewModel.Dispose
+        // releasing its collections eagerly, so no wall-clock cooldown between builds is needed.
+        private static readonly TimeSpan CreateSettleDelay = TimeSpan.FromMilliseconds(150);
 
         public OverviewHostControl(
             Func<UserControl> createView,
@@ -51,14 +61,22 @@ namespace PlayniteAchievements.Views
 
             Loaded += OverviewHostControl_Loaded;
             Unloaded += OverviewHostControl_Unloaded;
-
-            // Subscribe to settings saved event to refresh provider status
-            PlayniteAchievementsPlugin.SettingsSaved += Plugin_SettingsSaved;
         }
 
         private void OverviewHostControl_Loaded(object sender, RoutedEventArgs e)
         {
             _logger.Info("OverviewHostControl_Loaded called");
+            // Subscribe to the static settings-saved event here rather than in the constructor so
+            // the subscription tracks the visual-tree lifecycle. WPF does not guarantee Unloaded
+            // fires; hooking in the constructor and unhooking only in Unloaded would permanently
+            // root this host (and its overview tree) via the static event whenever Unloaded is
+            // skipped. The guard makes a second Loaded without an intervening Unloaded idempotent.
+            if (!_settingsSavedHooked)
+            {
+                PlayniteAchievementsPlugin.SettingsSaved += Plugin_SettingsSaved;
+                _settingsSavedHooked = true;
+            }
+
             // Always recreate content when loaded (handles overview reopen)
             RecreateContent();
             _overview?.Activate();
@@ -97,6 +115,8 @@ namespace PlayniteAchievements.Views
             }
             finally
             {
+                _createTimer?.Stop();
+                _createTimer = null;
                 _overview = null;
                 _landingPage = null;
                 _createScheduled = false;
@@ -104,7 +124,11 @@ namespace PlayniteAchievements.Views
                 PART_Content.Content = null;
 
                 // Unsubscribe from settings saved event
-                PlayniteAchievementsPlugin.SettingsSaved -= Plugin_SettingsSaved;
+                if (_settingsSavedHooked)
+                {
+                    PlayniteAchievementsPlugin.SettingsSaved -= Plugin_SettingsSaved;
+                    _settingsSavedHooked = false;
+                }
             }
         }
 
@@ -135,6 +159,7 @@ namespace PlayniteAchievements.Views
             _overview = null;
             _landingPage = null;
             PART_Content.Content = null;
+            PART_Loading.Visibility = Visibility.Visible;
 
             // Reset the flag to allow recreation
             _createScheduled = false;
@@ -152,61 +177,70 @@ namespace PlayniteAchievements.Views
             }
 
             _createScheduled = true;
-            Dispatcher.BeginInvoke(new Action(() =>
+
+            _createTimer?.Stop();
+            _createTimer = new DispatcherTimer(DispatcherPriority.Background) { Interval = CreateSettleDelay };
+            _createTimer.Tick += CreateTimer_Tick;
+            _createTimer.Start();
+        }
+
+        private void CreateTimer_Tick(object sender, EventArgs e)
+        {
+            _createTimer?.Stop();
+            _createTimer = null;
+
+            if (!IsLoaded)
             {
-                if (!IsLoaded)
+                _createScheduled = false;
+                _logger.Info("EnsureContentCreate: not loaded, canceling");
+                return;
+            }
+
+            try
+            {
+                // Use the shared settings object from the plugin (same instance used by providers)
+                // This ensures settings changes in landing page are immediately visible to providers
+                var settings = _plugin.Settings;
+                if (settings != null)
                 {
-                    _createScheduled = false;
-                    _logger.Info("EnsureContentCreate: not loaded, canceling");
-                    return;
+                    // Ensure plugin reference is set for ISettings methods (SavePluginSettings)
+                    settings._plugin = _plugin;
                 }
 
-                try
+                var firstTimeCompleted = settings?.Persisted?.FirstTimeSetupCompleted ?? true;
+                var seenThemeMigration = settings?.Persisted?.SeenThemeMigration ?? false;
+                var dataService = _plugin?.AchievementDataService;
+                var hasCachedData = dataService?.HasCachedGameData() == true;
+                _logger.Info($"Overview opening: FirstTimeSetupCompleted={firstTimeCompleted}, SeenThemeMigration={seenThemeMigration}, HasCachedData={hasCachedData}, HasSteamAuth={!string.IsNullOrEmpty(ProviderRegistry.Settings<SteamSettings>().SteamUserId)}, HasEpicAuth={!string.IsNullOrEmpty(ProviderRegistry.Settings<EpicSettings>().AccountId)}, HasRaAuth={!string.IsNullOrEmpty(ProviderRegistry.Settings<RetroAchievementsSettings>().RaUsername)}");
+
+                // Show landing page if:
+                // 1. Haven't seen the theme migration page yet (!seenThemeMigration)
+                // 2. Haven't seen landing page before (!firstTimeCompleted)
+                // 3. No data in achievements_cache (NO MATTER WHAT)
+                bool showLandingPage = !seenThemeMigration || !firstTimeCompleted || !hasCachedData;
+
+                if (settings != null && showLandingPage)
                 {
-                    // Use the shared settings object from the plugin (same instance used by providers)
-                    // This ensures settings changes in landing page are immediately visible to providers
-                    var settings = _plugin.Settings;
-                    if (settings != null)
-                    {
-                        // Ensure plugin reference is set for ISettings methods (SavePluginSettings)
-                        settings._plugin = _plugin;
-                    }
-
-                    var firstTimeCompleted = settings?.Persisted?.FirstTimeSetupCompleted ?? true;
-                    var seenThemeMigration = settings?.Persisted?.SeenThemeMigration ?? false;
-                    var dataService = _plugin?.AchievementDataService;
-                    var hasCachedData = dataService?.HasCachedGameData() == true;
-                    _logger.Info($"Overview opening: FirstTimeSetupCompleted={firstTimeCompleted}, SeenThemeMigration={seenThemeMigration}, HasCachedData={hasCachedData}, HasSteamAuth={!string.IsNullOrEmpty(ProviderRegistry.Settings<SteamSettings>().SteamUserId)}, HasEpicAuth={!string.IsNullOrEmpty(ProviderRegistry.Settings<EpicSettings>().AccountId)}, HasRaAuth={!string.IsNullOrEmpty(ProviderRegistry.Settings<RetroAchievementsSettings>().RaUsername)}");
-
-                    // Show landing page if:
-                    // 1. Haven't seen the theme migration page yet (!seenThemeMigration)
-                    // 2. Haven't seen landing page before (!firstTimeCompleted)
-                    // 3. No data in achievements_cache (NO MATTER WHAT)
-                    bool showLandingPage = !seenThemeMigration || !firstTimeCompleted || !hasCachedData;
-
-                    if (settings != null && showLandingPage)
-                    {
-                        _logger.Info("Creating landing page");
-                        CreateLandingPage(settings);
-                    }
-                    else
-                    {
-                        _logger.Info("Creating overview directly");
-                        CreateOverview();
-                    }
-
-                    PART_Loading.Visibility = Visibility.Collapsed;
+                    _logger.Info("Creating landing page");
+                    CreateLandingPage(settings);
                 }
-                catch (Exception ex)
+                else
                 {
-                    _logger?.Error(ex, "Failed to create overview content.");
-                    PART_Loading.Visibility = Visibility.Visible;
+                    _logger.Info("Creating overview directly");
+                    CreateOverview();
                 }
-                finally
-                {
-                    _createScheduled = false;
-                }
-            }), DispatcherPriority.Background);
+
+                PART_Loading.Visibility = Visibility.Collapsed;
+            }
+            catch (Exception ex)
+            {
+                _logger?.Error(ex, "Failed to create overview content.");
+                PART_Loading.Visibility = Visibility.Visible;
+            }
+            finally
+            {
+                _createScheduled = false;
+            }
         }
 
         private void CreateLandingPage(PlayniteAchievementsSettings settings)

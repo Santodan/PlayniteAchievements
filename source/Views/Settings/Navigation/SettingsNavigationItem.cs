@@ -11,6 +11,7 @@ namespace PlayniteAchievements.Views.Settings.Navigation
     {
         private readonly Func<UserControl> _viewFactory;
         private UserControl _view;
+        private string _providerColorHex;
 
         public SettingsNavigationItem(
             string key,
@@ -31,7 +32,7 @@ namespace PlayniteAchievements.Views.Settings.Navigation
             Subtitle = subtitle;
             IconGlyph = iconGlyph;
             ProviderIconKey = providerIconKey;
-            ProviderColorHex = providerColorHex;
+            _providerColorHex = providerColorHex;
         }
 
         public string Key { get; }
@@ -46,8 +47,20 @@ namespace PlayniteAchievements.Views.Settings.Navigation
 
         /// <summary>Resource key for a provider icon, rendered via ProviderIconConverter.</summary>
         public string ProviderIconKey { get; }
-        public string ProviderColorHex { get; }
+        public string ProviderColorHex
+        {
+            get => _providerColorHex;
+            private set => SetValue(ref _providerColorHex, value);
+        }
         public bool HasProviderIcon => !string.IsNullOrWhiteSpace(ProviderIconKey);
+
+        public void RefreshProviderAppearance()
+        {
+            if (HasProviderIcon)
+            {
+                ProviderColorHex = Providers.ProviderRegistry.GetProviderColorHex(Key, _providerColorHex);
+            }
+        }
 
         /// <summary>Key of another item this entry forwards selection to instead of showing a view.</summary>
         public string RedirectKey { get; }

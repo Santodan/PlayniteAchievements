@@ -1,0 +1,81 @@
+<settings:ProviderSettingsViewBase x:Class="PlayniteAchievements.Providers.GameJolt.GameJoltSettingsView"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+             xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+             xmlns:settings="clr-namespace:PlayniteAchievements.Providers.Settings"
+             mc:Ignorable="d" d:DesignHeight="600" d:DesignWidth="700">
+
+    <UserControl.Resources>
+        <ResourceDictionary>
+            <ResourceDictionary.MergedDictionaries>
+                <ResourceDictionary Source="pack://application:,,,/PlayniteAchievements;component/Providers/ProviderSettingsScopedControlStyles.xaml"/>
+            </ResourceDictionary.MergedDictionaries>
+        </ResourceDictionary>
+    </UserControl.Resources>
+
+    <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
+        <StackPanel Margin="20">
+
+            <!-- Provider Header -->
+            <StackPanel Style="{StaticResource ProviderHeaderPanelStyle}">
+                <Viewbox Style="{StaticResource ProviderHeaderIconStyle}">
+                    <Path Data="{StaticResource GeoGameJolt}" Fill="{StaticResource PlayAch.Brush.ProviderGameJolt}"/>
+                </Viewbox>
+                <TextBlock Text="{DynamicResource LOCPlayAch_Provider_GameJolt}" Style="{StaticResource ProviderTitleTextStyle}"/>
+            </StackPanel>
+
+            <Border Style="{StaticResource ProviderEnableToggleBorderStyle}">
+                <CheckBox Content="{DynamicResource LOCPlayAch_Settings_ProviderEnabled}"
+                          IsChecked="{Binding Settings.IsEnabled, Mode=TwoWay}"
+                          FontWeight="SemiBold" FontSize="{DynamicResource PlayAch.FontSize.Body}"/>
+            </Border>
+
+            <TextBlock Text="{DynamicResource LOCPlayAch_Settings_ProviderDisabledMessage}" Style="{StaticResource ProviderDisabledMessageStyle}"/>
+
+            <Border Style="{StaticResource SectionBorderStyle}" IsEnabled="{Binding Settings.IsEnabled}">
+                <StackPanel>
+                    <TextBlock x:Name="ConnectionLabel"
+                               Style="{StaticResource SectionHeaderStyle}"/>
+                    <TextBlock Text="{DynamicResource LOCPlayAch_Settings_GameJolt_Help}"
+                               Style="{StaticResource MutedTextStyle}"
+                               Margin="{StaticResource PlayAch.Thickness.Bottom.Md}"
+                               TextWrapping="Wrap"/>
+
+                    <Grid>
+                        <Grid.ColumnDefinitions><ColumnDefinition Width="180"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions>
+                        <TextBlock Grid.Column="0" x:Name="AuthLabel"
+                                   Foreground="{DynamicResource PlayAch.Brush.Text}" VerticalAlignment="Top" Margin="{StaticResource PlayAch.Thickness.Top.Sm}"/>
+
+                        <Border Grid.Column="1"
+                                Style="{StaticResource AuthStatusBorderStyle}">
+                            <StackPanel>
+                                <Grid Margin="0,0,0,10">
+                                    <Grid.ColumnDefinitions><ColumnDefinition Width="Auto"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions>
+                                    <TextBlock Grid.Column="0"
+                                               Style="{StaticResource AuthStatusIconStyle}"/>
+                                    <TextBlock Grid.Column="1" Text="{Binding AuthStatus, RelativeSource={RelativeSource AncestorType=UserControl}}"
+                                               VerticalAlignment="Center" TextWrapping="Wrap"/>
+                                </Grid>
+
+                                <StackPanel Orientation="Horizontal">
+                                    <Button Content="{DynamicResource LOCPlayAch_Button_Login}" Click="LoginWeb_Click"
+                                            Style="{StaticResource AuthActionButtonStyle}" Margin="{StaticResource PlayAch.Thickness.Right.Sm}"/>
+                                    <Button Content="{DynamicResource LOCPlayAch_Common_Check}" Click="Auth_Check_Click"
+                                            Style="{StaticResource AuthActionButtonStyle}" Margin="{StaticResource PlayAch.Thickness.Right.Sm}"/>
+                                    <Button Content="{DynamicResource LOCPlayAch_Button_SignOut}" Click="Logout_Click"
+                                            Style="{StaticResource AuthActionButtonStyle}"/>
+                                </StackPanel>
+                            </StackPanel>
+                        </Border>
+                    </Grid>
+
+                    <TextBlock Text="{DynamicResource LOCPlayAch_Settings_GameJolt_Note}"
+                               Style="{StaticResource MutedTextStyle}"
+                               Margin="0,12,0,0"
+                               TextWrapping="Wrap"/>
+                </StackPanel>
+            </Border>
+        </StackPanel>
+    </ScrollViewer>
+</settings:ProviderSettingsViewBase>

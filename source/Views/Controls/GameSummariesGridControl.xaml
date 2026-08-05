@@ -152,6 +152,15 @@
                                                 </MultiDataTrigger.Conditions>
                                                 <Setter Property="Visibility" Value="Visible"/>
                                             </MultiDataTrigger>
+                                            <!-- Fade the completion glow in and out when AnimateRarityGlows is on. -->
+                                            <MultiDataTrigger>
+                                                <MultiDataTrigger.Conditions>
+                                                    <Condition Binding="{Binding IsCompleted}" Value="True"/>
+                                                    <Condition Binding="{Binding ShowCompletionGlow, RelativeSource={RelativeSource AncestorType=controls:GameSummariesGridControl}}" Value="True"/>
+                                                    <Condition Binding="{Binding AnimateRarityGlows, RelativeSource={RelativeSource AncestorType=controls:GameSummariesGridControl}}" Value="True"/>
+                                                </MultiDataTrigger.Conditions>
+                                                <Setter Property="helpers:RarityGlowPulse.IsActive" Value="True"/>
+                                            </MultiDataTrigger>
                                         </Style.Triggers>
                                     </Style>
                                 </Border.Style>
@@ -521,6 +530,25 @@
                                 </TextBlock>
                             </Grid>
                         </ContentControl>
+                    </DataTemplate>
+                </DataGridTemplateColumn.CellTemplate>
+            </DataGridTemplateColumn>
+            <DataGridTemplateColumn Width="56" MinWidth="40" MaxWidth="120" CanUserResize="True" CanUserSort="False"
+                                    Header="{DynamicResource LOCPlayAch_Column_Captures}"
+                                    helpers:ColumnVisibilityHelper.ColumnKey="Captures">
+                <DataGridTemplateColumn.CellTemplate>
+                    <DataTemplate>
+                        <Button Content="&#xF5B0;"
+                                FontFamily="Segoe MDL2 Assets"
+                                FontSize="13"
+                                Style="{StaticResource PlayAch.Button.BaseStyle}"
+                                Foreground="{DynamicResource PlayAch.Brush.Accent}"
+                                Padding="10,3"
+                                HorizontalAlignment="Center"
+                                VerticalAlignment="Center"
+                                ToolTip="{DynamicResource LOCPlayAch_Column_Captures}"
+                                Visibility="{Binding HasCaptures, Converter={StaticResource BooleanToVisibilityConverter}}"
+                                Click="CapturesButton_Click"/>
                     </DataTemplate>
                 </DataGridTemplateColumn.CellTemplate>
             </DataGridTemplateColumn>

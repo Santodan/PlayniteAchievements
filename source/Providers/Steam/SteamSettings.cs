@@ -12,6 +12,7 @@ namespace PlayniteAchievements.Providers.Steam
     public class SteamSettings : ProviderSettingsBase
     {
         private string _steamUserId;
+        private string _steamInstallPathOverride;
         private bool _useSteamHuntersForCategories;
         private ObservableCollection<SteamIgnoredFriend> _ignoredFriends =
             new ObservableCollection<SteamIgnoredFriend>();
@@ -27,6 +28,15 @@ namespace PlayniteAchievements.Providers.Steam
         {
             get => _steamUserId;
             set => SetValue(ref _steamUserId, value);
+        }
+
+        /// <summary>
+        /// Optional Steam installation directory. Empty uses the current-user registry value.
+        /// </summary>
+        public string SteamInstallPathOverride
+        {
+            get => _steamInstallPathOverride;
+            set => SetValue(ref _steamInstallPathOverride, value);
         }
 
         public bool UseSteamHuntersForCategories

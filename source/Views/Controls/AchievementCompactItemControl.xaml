@@ -114,6 +114,7 @@
                    Width="{Binding IconSize, RelativeSource={RelativeSource AncestorType=UserControl}}"
                    Height="{Binding IconSize, RelativeSource={RelativeSource AncestorType=UserControl}}"
                    IsHitTestVisible="False"
+                   CacheMode="BitmapCache"
                    helpers:AsyncImage.Uri="{Binding DisplayIcon, Mode=OneWay}"
                    helpers:AsyncImage.DecodePixel="256">
                 <Image.Style>
@@ -138,6 +139,15 @@
                                 </MultiDataTrigger.Conditions>
                                 <Setter Property="Visibility" Value="Collapsed"/>
                                 <Setter Property="Effect" Value="{x:Null}"/>
+                            </MultiDataTrigger>
+                            <!-- Fade in/out pulse on the cached glow layer when AnimateRarityGlows is on. -->
+                            <MultiDataTrigger>
+                                <MultiDataTrigger.Conditions>
+                                    <Condition Binding="{Binding Unlocked}" Value="True"/>
+                                    <Condition Binding="{Binding ShowRarityGlow, RelativeSource={RelativeSource AncestorType=modern:AchievementCompactListControlBase}}" Value="True"/>
+                                    <Condition Binding="{Binding AnimateRarityGlows, RelativeSource={RelativeSource AncestorType=modern:AchievementCompactListControlBase}}" Value="True"/>
+                                </MultiDataTrigger.Conditions>
+                                <Setter Property="helpers:RarityGlowPulse.IsActive" Value="True"/>
                             </MultiDataTrigger>
                         </Style.Triggers>
                     </Style>

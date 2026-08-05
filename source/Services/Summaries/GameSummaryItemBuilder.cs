@@ -150,7 +150,13 @@ namespace PlayniteAchievements.Services.Summaries
                         continue;
                     }
 
-                    lookup[provider.ProviderKey] = (provider.ProviderIconKey, provider.ProviderColorHex);
+                    if (PlayniteAchievements.Providers.ProviderRegistry.TryResolveProviderVisuals(
+                        provider.ProviderKey,
+                        out var iconKey,
+                        out var colorHex))
+                    {
+                        lookup[provider.ProviderKey] = (iconKey, colorHex);
+                    }
                 }
             }
 

@@ -68,6 +68,23 @@ namespace PlayniteAchievements.Views.ThemeIntegration.Modern
             set => SetValue(ShowRarityGlowProperty, value);
         }
 
+        /// <summary>
+        /// Identifies the AnimateRarityGlows dependency property. When true, rarity glows in this
+        /// list gently fade in and out. Self-bound to the global setting in the constructor.
+        /// </summary>
+        public static readonly DependencyProperty AnimateRarityGlowsProperty =
+            DependencyProperty.Register(nameof(AnimateRarityGlows), typeof(bool),
+                typeof(AchievementCompactListControlBase), new PropertyMetadata(true));
+
+        /// <summary>
+        /// Gets or sets whether rarity glows in this list fade in and out.
+        /// </summary>
+        public bool AnimateRarityGlows
+        {
+            get => (bool)GetValue(AnimateRarityGlowsProperty);
+            set => SetValue(AnimateRarityGlowsProperty, value);
+        }
+
         #endregion
 
         #region VisibleCount Property
@@ -167,6 +184,7 @@ namespace PlayniteAchievements.Views.ThemeIntegration.Modern
         protected AchievementCompactListControlBase()
         {
             DataContext = this;
+            RarityAppearanceHelper.BindAnimateRarityGlows(this, AnimateRarityGlowsProperty);
             Loaded += OnLoaded;
             Unloaded += OnUnloaded;
         }

@@ -1,112 +1,328 @@
 using System;
-using System.Diagnostics;
 using System.Globalization;
 using System.IO;
 using System.Threading;
+using NAudio.CoreAudioApi;
 using NAudio.Wave;
+using NAudio.Wave.SampleProviders;
 using Playnite.SDK;
+using PlayniteAchievements.Models.Settings;
 
 namespace PlayniteAchievements.Services.Recording
 {
     /// <summary>
-    /// Best-effort rolling capture of system audio (WASAPI loopback via NAudio) into short WAV
-    /// chunks written next to the video segments, so clip export can mux matching sound. Chunk
-    /// names mirror the video convention (aud_yyyyMMdd-HHmmss.wav, local wall-clock time) and
-    /// rotate every <see cref="UnlockRecordingService.SegmentSeconds"/> seconds. WASAPI loopback
-    /// delivers no callbacks during digital silence, so chunks are kept time-accurate by
-    /// zero-padding up to the wall-clock elapsed length (before each append and on every close),
-    /// with a timer driving rotation so silence alone still rotates and pads. Any failure logs
-    /// one warning and leaves the video pipeline untouched; NAudio types are confined to this
-    /// file so the rest of the feature stays testable without NAudio.
+    /// Best-effort rolling capture of audio into short WAV chunks written next to the video segments,
+    /// so clip export can mux matching sound. The source is chosen by settings: all system audio
+    /// (WASAPI loopback on the default render endpoint) or just the game process's audio (per-process
+    /// loopback, <see cref="ProcessLoopbackCapture"/>, degrading to full system on failure or older
+    /// Windows), optionally with the default microphone mixed in. Chunk names mirror the video
+    /// convention (aud_yyyyMMdd-HHmmss.wav, local wall-clock) and rotate every
+    /// <see cref="UnlockRecordingService.SegmentSeconds"/> seconds.
+    ///
+    /// A single pump thread reads the (optionally mixed) audio at a wall-clock pace and writes it,
+    /// so silence — WASAPI loopback delivers no buffers during digital silence — still advances the
+    /// chunk in real time (the buffers zero-fill). Any failure logs one warning and leaves the video
+    /// pipeline untouched; NAudio types are confined to this file and ProcessLoopbackCapture.
     /// </summary>
     internal sealed class AudioLoopbackRecorder : IDisposable
     {
-        private const int RotationTimerMs = 1000;
-
-        /// <summary>
-        /// Wall-clock shortfall tolerated before zero-padding, so normal callback jitter
-        /// (~100 ms WASAPI event cadence) never injects silence into continuous audio.
-        /// </summary>
-        private const double PadToleranceSeconds = 0.2;
+        // Wall-clock pump cadence and buffered-provider depth.
+        private const int PumpIntervalMs = 50;
+        private const int BufferSeconds = 5;
 
         private readonly string _bufferDirectory;
         private readonly ILogger _logger;
+        private readonly RecordingAudioSource _source;
+        private readonly bool _includeMicrophone;
+        private readonly Func<int?> _gameProcessId;
         private readonly object _gate = new object();
 
-        private WasapiLoopbackCapture _capture;
+        private IWaveIn _systemCapture;
+        private IWaveIn _micCapture;
+        private BufferedWaveProvider _systemBuffer;
+        private BufferedWaveProvider _micBuffer;
+        private ISampleProvider _mix;
+        private WaveFormat _outputFormat;
+
         private WaveFileWriter _writer;
-        private Stopwatch _chunkClock;
-        private long _chunkBytesWritten;
-        private Timer _rotationTimer;
+        private long _chunkSamplesWritten;
+        private double _chunkStartWallClockSamples;
+        private DateTime _pumpStartUtc;
+        private Thread _pumpThread;
+        private volatile bool _running;
         private bool _failed;
         private bool _stopped;
 
-        public AudioLoopbackRecorder(string bufferDirectory, ILogger logger)
+        public AudioLoopbackRecorder(
+            string bufferDirectory,
+            ILogger logger,
+            RecordingAudioSource source = RecordingAudioSource.FullSystem,
+            bool includeMicrophone = false,
+            Func<int?> gameProcessId = null,
+            bool capturePlayniteChimes = false)
         {
             _bufferDirectory = bufferDirectory;
             _logger = logger;
+            _source = source;
+            _includeMicrophone = includeMicrophone;
+            _gameProcessId = gameProcessId;
+            _capturePlayniteChimes = capturePlayniteChimes;
         }
 
+        // When true this instance is the chime sidecar: it records ONLY Playnite's process tree
+        // (where UniPlaySong plays the unlock chimes) into chm_*.wav chunks. The main track
+        // excludes that same tree, so the clip re-encode can mix exactly this wave's chime back
+        // in at the composited toast without other waves' chimes or any game-audio damage.
+        private readonly bool _capturePlayniteChimes;
+
         /// <summary>
-        /// Starts the loopback capture and the first chunk. Returns false (after one Warn log)
-        /// when audio capture is unavailable — no audio device, missing NAudio, COM errors —
-        /// leaving the caller's video pipeline untouched.
+        /// Whether the chime sidecar track can exist on this machine (per-process loopback,
+        /// Windows 10 19041+).
+        /// </summary>
+        public static bool IsChimeCaptureSupported => ProcessLoopbackCapture.IsSupported;
+
+        /// <summary>
+        /// Builds the capture graph and starts the pump. Returns false (after one Warn log) when audio
+        /// capture is unavailable, leaving the caller's video pipeline untouched.
         /// </summary>
         public bool Start()
         {
             lock (_gate)
             {
-                if (_stopped || _capture != null)
+                if (_stopped || _systemCapture != null)
                 {
                     return false;
                 }
 
                 try
                 {
-                    _capture = new WasapiLoopbackCapture();
-                    _capture.DataAvailable += OnDataAvailable;
+                    _systemCapture = CreateSystemCapture();
+                    _systemBuffer = NewBuffer(_systemCapture.WaveFormat);
+                    _systemCapture.DataAvailable += (s, e) => Append(_systemBuffer, e);
+
+                    ISampleProvider systemSamples = _systemBuffer.ToSampleProvider();
+
+                    if (_includeMicrophone)
+                    {
+                        try
+                        {
+                            _micCapture = new WasapiCapture(); // default capture endpoint (microphone)
+                            _micBuffer = NewBuffer(_micCapture.WaveFormat);
+                            _micCapture.DataAvailable += (s, e) => Append(_micBuffer, e);
+
+                            var micSamples = MatchFormat(_micBuffer.ToSampleProvider(), systemSamples.WaveFormat);
+                            var mixer = new MixingSampleProvider(new[] { systemSamples, micSamples })
+                            {
+                                ReadFully = true,
+                            };
+                            _mix = mixer;
+                        }
+                        catch (Exception ex)
+                        {
+                            _logger?.Warn(ex, "[Recording] Microphone capture could not start; recording system audio only.");
+                            DisposeCapture(ref _micCapture);
+                            _micBuffer = null;
+                            _mix = systemSamples;
+                        }
+                    }
+                    else
+                    {
+                        _mix = systemSamples;
+                    }
+
+                    _outputFormat = _mix.WaveFormat;
+
                     OpenChunkLocked();
-                    _capture.StartRecording();
-                    _rotationTimer = new Timer(_ => RotationTick(), null, RotationTimerMs, RotationTimerMs);
-                    _logger?.Info($"[Recording] Audio loopback capture started ({_capture.WaveFormat}).");
+                    _systemCapture.StartRecording();
+                    _micCapture?.StartRecording();
+
+                    _pumpStartUtc = DateTime.UtcNow;
+                    _running = true;
+                    _pumpThread = new Thread(PumpLoop) { IsBackground = true, Name = "PA-AudioPump" };
+                    _pumpThread.Start();
+
+                    _logger?.Info(
+                        $"[Recording] Audio capture started (source={(_capturePlayniteChimes ? "PlayniteChimes" : _source.ToString())}, mic={_includeMicrophone}, {_outputFormat}).");
                     return true;
                 }
                 catch (Exception ex)
                 {
                     _logger?.Warn(ex, "[Recording] Audio capture could not start; this session's clips will have no sound.");
                     _failed = true;
-                    try
-                    {
-                        _writer?.Dispose();
-                    }
-                    catch
-                    {
-                    }
-
-                    _writer = null;
-                    try
-                    {
-                        // Safe to dispose under the gate here: the capture thread never ran, so
-                        // it cannot be blocked in OnDataAvailable.
-                        _capture?.Dispose();
-                    }
-                    catch
-                    {
-                    }
-
-                    _capture = null;
+                    CleanupLocked();
                     return false;
                 }
             }
         }
 
         /// <summary>
-        /// Stops the capture and closes the current chunk cleanly (padded to its wall-clock
-        /// length) so pending clip exports can read it. Idempotent.
+        /// Builds the system-audio source from the configured mode. Game-only uses per-process
+        /// loopback scoped to the resolved game pid, degrading to full-system loopback (with one log
+        /// line) when the pid is unknown, the OS is too old, or activation fails.
         /// </summary>
+        private IWaveIn CreateSystemCapture()
+        {
+            if (_capturePlayniteChimes)
+            {
+                // No fallback: a full-system fallback here would duplicate the main track.
+                return new ProcessLoopbackCapture(
+                    System.Diagnostics.Process.GetCurrentProcess().Id, includeProcessTree: true);
+            }
+
+            if (_source == RecordingAudioSource.GameOnly)
+            {
+                var pid = _gameProcessId?.Invoke();
+                if (pid.HasValue && pid.Value > 0 && ProcessLoopbackCapture.IsSupported)
+                {
+                    try
+                    {
+                        return new ProcessLoopbackCapture(pid.Value, includeProcessTree: true);
+                    }
+                    catch (Exception ex)
+                    {
+                        _logger?.Warn(ex, "[Recording] Per-process (game-only) audio capture failed; using full system audio.");
+                    }
+                }
+                else
+                {
+                    _logger?.Info("[Recording] Game-only audio unavailable (no pid or OS < 19041); using full system audio.");
+                }
+            }
+
+            // Full system audio minus Playnite's own process tree: the plugin's unlock chimes
+            // (UniPlaySong plays inside Playnite) never land in clip audio — clips composite
+            // their toast at the unlock moment, so the real chime rarely aligns with the card
+            // and other waves' chimes would pollute the clip. Game and desktop audio are
+            // untouched. Degrades to plain loopback on older Windows or activation failure.
+            if (ProcessLoopbackCapture.IsSupported)
+            {
+                try
+                {
+                    return new ProcessLoopbackCapture(
+                        System.Diagnostics.Process.GetCurrentProcess().Id, includeProcessTree: false);
+                }
+                catch (Exception ex)
+                {
+                    _logger?.Warn(ex, "[Recording] Playnite-excluded audio capture failed; using full system audio.");
+                }
+            }
+
+            return new WasapiLoopbackCapture();
+        }
+
+        private static BufferedWaveProvider NewBuffer(WaveFormat format)
+        {
+            return new BufferedWaveProvider(format)
+            {
+                BufferDuration = TimeSpan.FromSeconds(BufferSeconds),
+                DiscardOnBufferOverflow = true,
+                ReadFully = true, // zero-fill on underrun so the mix stays continuous in real time
+            };
+        }
+
+        /// <summary>Resamples/rechannels a source to match the target format (both IEEE float here).</summary>
+        private static ISampleProvider MatchFormat(ISampleProvider source, WaveFormat target)
+        {
+            if (source.WaveFormat.SampleRate != target.SampleRate)
+            {
+                source = new WdlResamplingSampleProvider(source, target.SampleRate);
+            }
+
+            if (source.WaveFormat.Channels == 1 && target.Channels == 2)
+            {
+                source = new MonoToStereoSampleProvider(source);
+            }
+            else if (source.WaveFormat.Channels == 2 && target.Channels == 1)
+            {
+                source = new StereoToMonoSampleProvider(source);
+            }
+
+            return source;
+        }
+
+        private void Append(BufferedWaveProvider buffer, WaveInEventArgs e)
+        {
+            if (e == null || e.BytesRecorded <= 0)
+            {
+                return;
+            }
+
+            try
+            {
+                buffer?.AddSamples(e.Buffer, 0, e.BytesRecorded);
+            }
+            catch
+            {
+                // Overflow is discarded by configuration; ignore transient add failures.
+            }
+        }
+
+        /// <summary>
+        /// Reads the (optionally mixed) audio at a wall-clock pace and writes it, rotating chunks on
+        /// the segment interval. Pacing to elapsed wall time keeps chunks time-accurate through
+        /// silence, so their filenames' timestamps match their true span for clip windowing.
+        /// </summary>
+        private void PumpLoop()
+        {
+            var channels = _outputFormat.Channels;
+            var sampleRate = _outputFormat.SampleRate;
+            var buffer = new float[sampleRate * channels]; // up to 1s per read
+
+            try
+            {
+                while (_running)
+                {
+                    lock (_gate)
+                    {
+                        if (_writer == null)
+                        {
+                            break;
+                        }
+
+                        // Frames (per channel) that should have been written by now, wall-clock paced.
+                        var elapsed = (DateTime.UtcNow - _pumpStartUtc).TotalSeconds;
+                        var targetFrames = (long)(elapsed * sampleRate);
+                        var writtenFrames = TotalFramesWritten();
+                        var frames = (int)Math.Min(buffer.Length / channels, Math.Max(0, targetFrames - writtenFrames));
+                        if (frames > 0)
+                        {
+                            var read = _mix.Read(buffer, 0, frames * channels);
+                            if (read > 0)
+                            {
+                                _writer.WriteSamples(buffer, 0, read);
+                                _chunkSamplesWritten += read;
+                            }
+
+                            if (_chunkSamplesWritten / channels >= (long)UnlockRecordingService.SegmentSeconds * sampleRate)
+                            {
+                                CloseChunkLocked();
+                                OpenChunkLocked();
+                            }
+                        }
+                    }
+
+                    Thread.Sleep(PumpIntervalMs);
+                }
+            }
+            catch (Exception ex)
+            {
+                lock (_gate)
+                {
+                    FailLocked(ex, "[Recording] Audio pump failed; audio capture stopped for this session.");
+                }
+            }
+        }
+
+        // Total per-channel frames written across the whole session (chunk base + current chunk).
+        private long TotalFramesWritten()
+        {
+            return (long)_chunkStartWallClockSamples + _chunkSamplesWritten / Math.Max(1, _outputFormat.Channels);
+        }
+
+        /// <summary>Stops capture and closes the current chunk cleanly. Idempotent.</summary>
         public void Stop()
         {
-            WasapiLoopbackCapture capture;
+            IWaveIn system, mic;
             lock (_gate)
             {
                 if (_stopped)
@@ -115,40 +331,20 @@ namespace PlayniteAchievements.Services.Recording
                 }
 
                 _stopped = true;
-                _rotationTimer?.Dispose();
-                _rotationTimer = null;
-                capture = _capture;
-                _capture = null;
-                CloseChunkLocked();
+                _running = false;
+                system = _systemCapture;
+                mic = _micCapture;
             }
 
-            // Outside the gate: WasapiCapture.Dispose joins the capture thread, which may itself
-            // be waiting on the gate in OnDataAvailable.
-            if (capture != null)
+            // Outside the gate: capture Dispose joins its thread, which may be delivering data.
+            StopCapture(system);
+            StopCapture(mic);
+
+            lock (_gate)
             {
-                try
-                {
-                    capture.DataAvailable -= OnDataAvailable;
-                }
-                catch
-                {
-                }
-
-                try
-                {
-                    capture.StopRecording();
-                }
-                catch
-                {
-                }
-
-                try
-                {
-                    capture.Dispose();
-                }
-                catch
-                {
-                }
+                CloseChunkLocked();
+                _systemCapture = null;
+                _micCapture = null;
             }
         }
 
@@ -157,65 +353,34 @@ namespace PlayniteAchievements.Services.Recording
             Stop();
         }
 
-        private void OnDataAvailable(object sender, WaveInEventArgs e)
+        private static void StopCapture(IWaveIn capture)
         {
-            lock (_gate)
+            if (capture == null)
             {
-                if (_writer == null || e == null || e.BytesRecorded <= 0)
-                {
-                    return;
-                }
-
-                try
-                {
-                    PadToWallClockLocked();
-                    _writer.Write(e.Buffer, 0, e.BytesRecorded);
-                    _chunkBytesWritten += e.BytesRecorded;
-                }
-                catch (Exception ex)
-                {
-                    FailLocked(ex, "[Recording] Audio chunk write failed; audio capture stopped for this session.");
-                }
+                return;
             }
+
+            try { capture.StopRecording(); } catch { }
+            try { capture.Dispose(); } catch { }
         }
 
-        /// <summary>
-        /// Timer tick (1s): pads silence up to now so a fully silent chunk still grows, and
-        /// rotates to a fresh chunk once the current one covers a full segment length.
-        /// </summary>
-        private void RotationTick()
+        private static void DisposeCapture(ref IWaveIn capture)
         {
-            lock (_gate)
-            {
-                if (_writer == null)
-                {
-                    return;
-                }
-
-                try
-                {
-                    PadToWallClockLocked();
-                    if (_chunkClock.Elapsed.TotalSeconds >= UnlockRecordingService.SegmentSeconds)
-                    {
-                        CloseChunkLocked();
-                        OpenChunkLocked();
-                    }
-                }
-                catch (Exception ex)
-                {
-                    FailLocked(ex, "[Recording] Audio chunk rotation failed; audio capture stopped for this session.");
-                }
-            }
+            try { capture?.Dispose(); } catch { }
+            capture = null;
         }
 
         private void OpenChunkLocked()
         {
-            var name = RecordingCommandBuilder.AudioChunkFilePrefix +
+            var prefix = _capturePlayniteChimes
+                ? RecordingPaths.ChimeChunkFilePrefix
+                : RecordingPaths.AudioChunkFilePrefix;
+            var name = prefix +
                        DateTime.Now.ToString("yyyyMMdd-HHmmss", CultureInfo.InvariantCulture) +
-                       RecordingCommandBuilder.AudioChunkFileExtension;
-            _writer = new WaveFileWriter(Path.Combine(_bufferDirectory, name), _capture.WaveFormat);
-            _chunkBytesWritten = 0;
-            _chunkClock = Stopwatch.StartNew();
+                       RecordingPaths.AudioChunkFileExtension;
+            _chunkStartWallClockSamples = TotalFramesWritten();
+            _writer = new WaveFileWriter(Path.Combine(_bufferDirectory, name), _outputFormat);
+            _chunkSamplesWritten = 0;
         }
 
         private void CloseChunkLocked()
@@ -225,56 +390,10 @@ namespace PlayniteAchievements.Services.Recording
                 return;
             }
 
-            try
-            {
-                PadToWallClockLocked();
-            }
-            catch
-            {
-            }
-
-            try
-            {
-                _writer.Dispose();
-            }
-            catch
-            {
-            }
-
+            try { _writer.Dispose(); } catch { }
             _writer = null;
         }
 
-        /// <summary>
-        /// Zero-pads the current chunk up to its wall-clock elapsed length (block-aligned) when
-        /// it has fallen more than the tolerance behind — WASAPI loopback simply stops delivering
-        /// buffers during digital silence, and without padding the chunk would play back shorter
-        /// than the time span its filename claims. Zero bytes are silence in both integer PCM and
-        /// IEEE-float formats.
-        /// </summary>
-        private void PadToWallClockLocked()
-        {
-            var format = _writer.WaveFormat;
-            var blockAlign = Math.Max(1, format.BlockAlign);
-            var expectedBytes = (long)(_chunkClock.Elapsed.TotalSeconds * format.AverageBytesPerSecond);
-            expectedBytes -= expectedBytes % blockAlign;
-            var missing = expectedBytes - _chunkBytesWritten;
-            if (missing <= (long)(PadToleranceSeconds * format.AverageBytesPerSecond))
-            {
-                return;
-            }
-
-            missing -= missing % blockAlign;
-            var zeros = new byte[8192];
-            while (missing > 0)
-            {
-                var count = (int)Math.Min(zeros.Length, missing);
-                _writer.Write(zeros, 0, count);
-                _chunkBytesWritten += count;
-                missing -= count;
-            }
-        }
-
-        /// <summary>One Warn per session for operational failures, then the recorder goes inert.</summary>
         private void FailLocked(Exception ex, string message)
         {
             if (!_failed)
@@ -283,17 +402,19 @@ namespace PlayniteAchievements.Services.Recording
                 _logger?.Warn(ex, message);
             }
 
-            _rotationTimer?.Dispose();
-            _rotationTimer = null;
-            try
-            {
-                _writer?.Dispose();
-            }
-            catch
-            {
-            }
+            _running = false;
+            CloseChunkLocked();
+        }
 
-            _writer = null;
+        private void CleanupLocked()
+        {
+            _running = false;
+            CloseChunkLocked();
+            DisposeCapture(ref _systemCapture);
+            DisposeCapture(ref _micCapture);
+            _systemBuffer = null;
+            _micBuffer = null;
+            _mix = null;
         }
     }
 }

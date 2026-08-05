@@ -11,6 +11,7 @@ using System.Windows.Input;
 using Playnite.SDK;
 using PlayniteAchievements.Common;
 using PlayniteAchievements.Models;
+using PlayniteAchievements.Models.Achievements;
 using PlayniteAchievements.Models.Settings;
 using PlayniteAchievements.Services;
 using PlayniteAchievements.Services.Achievements;
@@ -40,6 +41,7 @@ namespace PlayniteAchievements.Views.Controls
         private const double DefaultFriendAvatarColumnWidth = 44;
         private const double DefaultFriendColumnWidth = 140;
         private const double DefaultTrophyIconColumnWidth = 72;
+        private const double DefaultCapturesColumnWidth = 56;
         private const double MinimumStatusColumnWidth = 28;
         private const double MinimumGameImageColumnWidth = 32;
         private const double MinimumFriendAvatarColumnWidth = 32;
@@ -62,7 +64,8 @@ namespace PlayniteAchievements.Views.Controls
                 ["Avatar"] = DefaultFriendAvatarColumnWidth,
                 ["CategoryIcon"] = DefaultGameImageColumnWidth,
                 ["Trophy"] = DefaultTrophyIconColumnWidth,
-                ["RarityTier"] = DefaultTrophyIconColumnWidth
+                ["RarityTier"] = DefaultTrophyIconColumnWidth,
+                ["Captures"] = DefaultCapturesColumnWidth
             };
 
         private static readonly IReadOnlyDictionary<string, double> LegacyImageColumnRuntimeDefaults =
@@ -77,12 +80,12 @@ namespace PlayniteAchievements.Views.Controls
         private static readonly IReadOnlyDictionary<string, IReadOnlyDictionary<string, bool>> DefaultVisibilityByColumnSettingsKey =
             new Dictionary<string, IReadOnlyDictionary<string, bool>>(StringComparer.OrdinalIgnoreCase)
             {
-                ["Default"] = CreateAchievementVisibility(),
-                ["SingleGame"] = CreateAchievementVisibility(),
-                ["DesktopTheme"] = CreateAchievementVisibility(),
-                ["OverviewSelectedGameAchievements"] = CreateAchievementVisibility(),
-                ["OverviewGame"] = CreateAchievementVisibility(),
-                ["OverviewRecentAchievements"] = CreateAchievementVisibility(status: false, game: true),
+                ["Default"] = CreateAchievementVisibility(captures: true),
+                ["SingleGame"] = CreateAchievementVisibility(captures: true),
+                ["DesktopTheme"] = CreateAchievementVisibility(captures: true),
+                ["OverviewSelectedGameAchievements"] = CreateAchievementVisibility(captures: true),
+                ["OverviewGame"] = CreateAchievementVisibility(captures: true),
+                ["OverviewRecentAchievements"] = CreateAchievementVisibility(status: false, game: true, captures: true),
                 ["FriendsOverviewRecentAchievements"] = CreateAchievementVisibility(
                     status: false,
                     game: true,
@@ -119,7 +122,7 @@ namespace PlayniteAchievements.Views.Controls
                     friendAvatar: false,
                     friend: false,
                     unlockDate: true),
-                ["Overview"] = CreateAchievementVisibility(status: false, game: true),
+                ["Overview"] = CreateAchievementVisibility(status: false, game: true, captures: true),
                 ["StartPageAchievements"] = CreateAchievementVisibility(
                     status: false,
                     game: false,
@@ -159,7 +162,8 @@ namespace PlayniteAchievements.Views.Controls
             bool rarityPercent = false,
             bool collectionScore = false,
             bool prestigeScore = false,
-            bool points = false)
+            bool points = false,
+            bool captures = false)
         {
             return new Dictionary<string, bool>(StringComparer.OrdinalIgnoreCase)
             {
@@ -181,7 +185,8 @@ namespace PlayniteAchievements.Views.Controls
                 ["RarityPercent"] = rarityPercent,
                 ["CollectionScore"] = collectionScore,
                 ["PrestigeScore"] = prestigeScore,
-                ["Points"] = points
+                ["Points"] = points,
+                ["Captures"] = captures
             };
         }
 
@@ -232,6 +237,24 @@ namespace PlayniteAchievements.Views.Controls
         {
             get => (IEnumerable<AchievementDisplayItem>)GetValue(ItemsSourceProperty);
             set => SetValue(ItemsSourceProperty, value);
+        }
+
+        private static readonly DependencyPropertyKey HasAnyFavoritesPropertyKey =
+            DependencyProperty.RegisterReadOnly(nameof(HasAnyFavorites), typeof(bool),
+                typeof(AchievementDataGridControl), new PropertyMetadata(false));
+
+        /// <summary>
+        /// True when any row belongs to a favorited friend. The Friend column's favorite-star gutter
+        /// collapses when this is false (also always false for self-achievement grids).
+        /// </summary>
+        public static readonly DependencyProperty HasAnyFavoritesProperty = HasAnyFavoritesPropertyKey.DependencyProperty;
+
+        public bool HasAnyFavorites => (bool)GetValue(HasAnyFavoritesProperty);
+
+        private void RecomputeHasAnyFavorites()
+        {
+            var hasAny = ItemsSource?.Any(item => item?.FriendIsFavorite == true) ?? false;
+            SetValue(HasAnyFavoritesPropertyKey, hasAny);
         }
 
         private static void OnItemsSourceChanged(DependencyObject d, DependencyPropertyChangedEventArgs e)
@@ -413,6 +436,23 @@ namespace PlayniteAchievements.Views.Controls
         {
             get => (bool)GetValue(ShowRarityGlowProperty);
             set => SetValue(ShowRarityGlowProperty, value);
+        }
+
+        /// <summary>
+        /// Identifies the AnimateRarityGlows dependency property. When true, rarity glows in this
+        /// grid gently fade in and out. Self-bound to the global setting in the constructor.
+        /// </summary>
+        public static readonly DependencyProperty AnimateRarityGlowsProperty =
+            DependencyProperty.Register(nameof(AnimateRarityGlows), typeof(bool),
+                typeof(AchievementDataGridControl), new PropertyMetadata(true));
+
+        /// <summary>
+        /// Gets or sets whether unlocked achievement icons in this grid pulse their rarity glow.
+        /// </summary>
+        public bool AnimateRarityGlows
+        {
+            get => (bool)GetValue(AnimateRarityGlowsProperty);
+            set => SetValue(AnimateRarityGlowsProperty, value);
         }
 
         /// <summary>
@@ -993,11 +1033,18 @@ namespace PlayniteAchievements.Views.Controls
 
             if (!ReferenceEquals(_controlBarWithToggle, ControlBar))
             {
-                // The last multi-select filter is the category-label dropdown (Type is added first);
-                // it becomes the right half of the segmented unit in flat mode.
+                // The category-label dropdown is the last multi-select filter BEFORE the
+                // unlock-state toggles (Type is added first; dropdowns after the toggles,
+                // like Compare, are unrelated). It becomes the right half of the segmented
+                // unit in flat mode.
                 GridMultiSelectFilter labelFilter = null;
                 for (var i = 0; i < ControlBar.Items.Count; i++)
                 {
+                    if (ControlBar.Items[i] is GridToggleFilter)
+                    {
+                        break;
+                    }
+
                     if (ControlBar.Items[i] is GridMultiSelectFilter filter)
                     {
                         labelFilter = filter;
@@ -1073,9 +1120,17 @@ namespace PlayniteAchievements.Views.Controls
 
             if (!bar.Items.Contains(_modeToggle))
             {
+                // Splice the toggle immediately before the category-label dropdown: the last
+                // multi-select filter before the unlock-state toggles (dropdowns after the
+                // toggles, like Compare, must not attract the segmented unit).
                 var insertIndex = bar.Items.Count;
                 for (var i = 0; i < bar.Items.Count; i++)
                 {
+                    if (bar.Items[i] is GridToggleFilter)
+                    {
+                        break;
+                    }
+
                     if (bar.Items[i] is GridMultiSelectFilter)
                     {
                         insertIndex = i;
@@ -1405,6 +1460,8 @@ namespace PlayniteAchievements.Views.Controls
 
         private void OnItemsSourceContentChanged()
         {
+            RecomputeHasAnyFavorites();
+
             // Re-evaluate toggle availability first: a game switch or a newly loaded multi-game feed
             // may add or remove the category toggle (and drop us out of category mode) before the
             // rest of this method reads _isCategoryMode.
@@ -1775,6 +1832,7 @@ namespace PlayniteAchievements.Views.Controls
         public AchievementDataGridControl()
         {
             InitializeComponent();
+            RarityAppearanceHelper.BindAnimateRarityGlows(this, AnimateRarityGlowsProperty);
             DataContextChanged += OnDataContextChanged;
             Unloaded += OnUnloaded;
             UpdateColumnHeadersVisibility();
@@ -2633,6 +2691,13 @@ namespace PlayniteAchievements.Views.Controls
                 return;
             }
 
+            // A click on an in-cell button (e.g. the Captures button) must not also toggle the row's
+            // reveal/selection.
+            if (IsButtonClick(e?.OriginalSource))
+            {
+                return;
+            }
+
             if (ForwardRowMouseEvent(e, RowPreviewMouseLeftButtonDownEvent, sender))
             {
                 return;
@@ -2651,6 +2716,22 @@ namespace PlayniteAchievements.Views.Controls
         {
             return source is DependencyObject dependencyObject &&
                    VisualTreeHelpers.FindVisualParent<Hyperlink>(dependencyObject) != null;
+        }
+
+        private static bool IsButtonClick(object source)
+        {
+            return source is DependencyObject dependencyObject &&
+                   VisualTreeHelpers.FindVisualParent<ButtonBase>(dependencyObject) != null;
+        }
+
+        private void CapturesButton_Click(object sender, RoutedEventArgs e)
+        {
+            if ((sender as FrameworkElement)?.DataContext is AchievementDisplayItem item)
+            {
+                PlayniteAchievementsPlugin.Instance?.OpenCapturesViewer(item);
+            }
+
+            e.Handled = true;
         }
 
         private bool TryActivateAchievementItem(AchievementDisplayItem item, bool consumeWhenNoAction)

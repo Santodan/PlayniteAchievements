@@ -18,6 +18,7 @@ using PlayniteAchievements.Models.Achievements.Scoring;
 using PlayniteAchievements.Models.Settings;
 using PlayniteAchievements.Providers;
 using PlayniteAchievements.Services.Achievements;
+using PlayniteAchievements.Services.Friends;
 using PlayniteAchievements.Services.GameCustomData;
 using PlayniteAchievements.Services.Library;
 using PlayniteAchievements.Services.Overview;
@@ -104,6 +105,10 @@ namespace PlayniteAchievements.ViewModels
         private string _selectedGameSortPath;
         private ListSortDirection _selectedGameSortDirection;
 
+        // Compare-friend selection for the selected-game grid: enriches the self rows with a
+        // friend's unlock state. Selection clears whenever the selected game changes.
+        public FriendCompareController FriendCompare { get; }
+
 
         internal OverviewViewModel(
             RefreshRuntime refreshRuntime,
@@ -115,8 +120,11 @@ namespace PlayniteAchievements.ViewModels
             IPlayniteAPI playniteApi,
             ILogger logger,
             PlayniteAchievementsSettings settings,
-            OverviewLaunchContext launchContext = OverviewLaunchContext.Sidebar)
+            OverviewLaunchContext launchContext = OverviewLaunchContext.Sidebar,
+            IFriendCacheManager friendCache = null)
         {
+            FriendCompare = new FriendCompareController(friendCache, settings, logger);
+            _selectedGameControlBar.AttachFriendCompare(FriendCompare);
             _refreshService = refreshRuntime ?? throw new ArgumentNullException(nameof(refreshRuntime));
             _persistSettingsForUi = persistSettingsForUi ?? throw new ArgumentNullException(nameof(persistSettingsForUi));
             _achievementDataService = achievementDataService ?? throw new ArgumentNullException(nameof(achievementDataService));
@@ -1603,7 +1611,9 @@ namespace PlayniteAchievements.ViewModels
             return new RefreshRequest
             {
                 ModeKey = SelectedRefreshMode,
-                SingleGameId = singleGameId
+                SingleGameId = singleGameId,
+                // Only the single-game mode is a targeted refresh; bulk modes fail silently.
+                ShowEmptyTargetNotice = singleGameId.HasValue
             };
         }
 
@@ -1635,7 +1645,8 @@ namespace PlayniteAchievements.ViewModels
                     new RefreshRequest
                     {
                         Mode = RefreshModeType.Single,
-                        SingleGameId = gameId
+                        SingleGameId = gameId,
+                        ShowEmptyTargetNotice = true
                     },
                     new RefreshExecutionPolicy
                     {
@@ -1767,6 +1778,8 @@ namespace PlayniteAchievements.ViewModels
             CollectionHelper.Replace(AllAchievements, _allAchievements);
 
             _allGameSummaries = snapshot.GameSummaries ?? new List<GameSummaryItem>();
+            Services.Captures.CapturePresenceMarker.MarkSummaries(
+                _allGameSummaries, PlayniteAchievementsPlugin.Instance?.CaptureLibraryService);
             if (gameSummarySearchEntries != null)
             {
                 _gameSummarySearchIndex.LoadEntries(gameSummarySearchEntries);
@@ -1818,6 +1831,8 @@ namespace PlayniteAchievements.ViewModels
             Dictionary<AchievementDisplayItem, string> recentSearchEntries = null)
         {
             _allRecentAchievements = recentAchievements ?? new List<AchievementDisplayItem>();
+            Services.Captures.CapturePresenceMarker.MarkAchievements(
+                _allRecentAchievements, PlayniteAchievementsPlugin.Instance?.CaptureLibraryService);
             _filteredRecentAchievements = new List<AchievementDisplayItem>(_allRecentAchievements);
             if (recentSearchEntries != null)
             {
@@ -2523,6 +2538,15 @@ namespace PlayniteAchievements.ViewModels
             {
                 SyncSelectedGameAchievementsDisplay();
             }
+            else if (propertyName == nameof(PersistedSettings.ProviderColorOverrides))
+            {
+                foreach (var item in _allGameSummaries)
+                {
+                    item?.RefreshProviderAppearance();
+                }
+
+                UpdateAggregatePieCharts();
+            }
             else if (RarityAppearanceHelper.IsAppearanceSettingPropertyName(propertyName))
             {
                 OnPropertyChanged(nameof(UseUniformRarityBadges));
@@ -3218,7 +3242,13 @@ namespace PlayniteAchievements.ViewModels
             var providerLookup = new Dictionary<string, (string iconKey, string colorHex)>(StringComparer.OrdinalIgnoreCase);
             foreach (var provider in _refreshService.Providers)
             {
-                providerLookup[provider.ProviderKey] = (provider.ProviderIconKey, provider.ProviderColorHex);
+                if (ProviderRegistry.TryResolveProviderVisuals(
+                    provider.ProviderKey,
+                    out var iconKey,
+                    out var colorHex))
+                {
+                    providerLookup[provider.ProviderKey] = (iconKey, colorHex);
+                }
             }
             return providerLookup;
         }
@@ -3651,6 +3681,11 @@ namespace PlayniteAchievements.ViewModels
         /// </summary>
         private async Task LoadSelectedGameAchievementsAndNotifyAsync(Guid? targetGameId, CancellationToken cancellationToken)
         {
+            // Kick the compare-friend rows load immediately so the control bar's Compare
+            // dropdown is available together with the rest of the bar instead of trailing
+            // the achievements load; the loaded items are retargeted onto it below.
+            FriendCompare?.SetGame(targetGameId, null);
+
             var loadApplied = await LoadSelectedGameAchievementsAsync(targetGameId, cancellationToken).ConfigureAwait(true);
             if (cancellationToken.IsCancellationRequested)
             {
@@ -3739,7 +3774,10 @@ namespace PlayniteAchievements.ViewModels
                 SelectedGameHasCustomAchievementOrder = hasCustomOrder;
 
                 _allSelectedGameAchievements = items;
+                Services.Captures.CapturePresenceMarker.MarkAchievements(
+                    items, PlayniteAchievementsPlugin.Instance?.CaptureLibraryService);
                 _selectedGameDefaultOrderedAchievements = new List<AchievementDisplayItem>(items);
+                FriendCompare?.SetTargetItems(items);
                 UpdateSelectedGameAchievementFilterOptions(_allSelectedGameAchievements);
                 ApplyRightFilters();
 
@@ -4000,6 +4038,38 @@ namespace PlayniteAchievements.ViewModels
             {
                 _deltaBatchTimer.Tick -= OnDeltaBatchTimerTick;
             }
+
+            ReleaseRetainedData();
+        }
+
+        // Eagerly drop the large per-open data set instead of waiting for GC. Playnite is a 32-bit
+        // process, so under rapid open/close of the overview several full VM graphs (thousands of
+        // GameSummaryItem/AchievementDisplayItem plus the search indexes) could coexist awaiting
+        // collection and exhaust the address space. Releasing here bounds the retained set to one
+        // live overview. Runs after _disposed and CancelPendingRefresh, so no in-flight apply can
+        // repopulate these (ApplySnapshot early-returns on _disposed).
+        private void ReleaseRetainedData()
+        {
+            AllAchievements.Clear();
+            GameSummaries.Clear();
+            RecentAchievements.Clear();
+            SelectedGameAchievements.Clear();
+            SelectedGameAllAchievements.Clear();
+
+            _allAchievements = new List<AchievementDisplayItem>();
+            _allGameSummaries = new List<GameSummaryItem>();
+            _allRecentAchievements = new List<AchievementDisplayItem>();
+            _allSelectedGameAchievements = new List<AchievementDisplayItem>();
+            _filteredGameSummaries = new List<GameSummaryItem>();
+            _filteredRecentAchievements = new List<AchievementDisplayItem>();
+            _filteredSelectedGameAchievements = new List<AchievementDisplayItem>();
+            _selectedGameDefaultOrderedAchievements = new List<AchievementDisplayItem>();
+
+            _latestSnapshot = null;
+
+            _globalAchievementSearchIndex.Clear();
+            _gameSummarySearchIndex.Clear();
+            _recentAchievementSearchIndex.Clear();
         }
     }
 }

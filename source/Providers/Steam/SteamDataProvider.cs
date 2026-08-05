@@ -7,9 +7,12 @@ using PlayniteAchievements.Providers.Settings;
 using PlayniteAchievements.Services;
 using PlayniteAchievements.Services.GameCustomData;
 using PlayniteAchievements.Services.Refresh;
+using PlayniteAchievements.Providers.Steam.Local;
 using System;
 using System.Collections.Generic;
 using System.Globalization;
+using System.IO;
+using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using Playnite.SDK;
@@ -17,8 +20,14 @@ using Playnite.SDK.Models;
 
 namespace PlayniteAchievements.Providers.Steam
 {
-    internal sealed class SteamDataProvider : DataProviderBase<SteamSettings>, IDataProvider, IAchievementPageLinkProvider, IProviderOverride, IRefreshAuthContextReceiver, IDisposable
+    internal sealed class SteamDataProvider : DataProviderBase<SteamSettings>, IDataProvider, IAchievementPageLinkProvider, IProviderOverride, IRefreshAuthContextReceiver, IInGameProgressSource, IOfflineRefreshFallbackProvider, IDisposable
     {
+        private sealed class SteamInGameState
+        {
+            public string StatsPath { get; set; }
+            public string SchemaPath { get; set; }
+        }
+
         internal static readonly Guid SteamPluginId = SteamGameIdentity.SteamPluginId;
 
         public ProviderOverrideDescriptor OverrideDescriptor { get; } = ProviderOverrideDescriptor.Text(
@@ -40,6 +49,7 @@ namespace PlayniteAchievements.Providers.Steam
         private readonly SteamWebApiTokenResolver _tokenResolver;
         private readonly SteamHuntersCategoryEnricher _steamHuntersCategoryEnricher;
         private readonly IFriendsProvider _friendsProvider;
+        private readonly SteamLocalStatsReader _localStatsReader = new SteamLocalStatsReader();
 
         public SteamDataProvider(
             ILogger logger,
@@ -82,6 +92,24 @@ namespace PlayniteAchievements.Providers.Steam
         /// </summary>
         public bool IsAuthenticated =>
             !string.IsNullOrWhiteSpace(ProviderSettings.SteamUserId);
+
+        bool IOfflineRefreshFallbackProvider.CanAttemptOfflineRefresh
+        {
+            get
+            {
+                if (!SteamIdHelper.TryGetAccountId3(
+                    ProviderSettings?.SteamUserId,
+                    out _))
+                {
+                    return false;
+                }
+
+                var steamPath = SteamInstallLocator.ResolveSteamPath(
+                    ProviderSettings?.SteamInstallPathOverride);
+                return !string.IsNullOrWhiteSpace(steamPath) &&
+                       Directory.Exists(Path.Combine(steamPath, "appcache", "stats"));
+            }
+        }
 
         public ISessionManager AuthSession => _sessionManager;
 
@@ -178,6 +206,89 @@ namespace PlayniteAchievements.Providers.Steam
             {
                 return await _scanner.RefreshAsync(gamesToRefresh, onGameStarting, onGameCompleted, cancel).ConfigureAwait(false);
             }
+        }
+
+        InGameProgressRegistration IInGameProgressSource.TryRegister(
+            Game game,
+            GameAchievementData cachedSchema)
+        {
+            if (game == null ||
+                cachedSchema?.Achievements == null ||
+                cachedSchema.Achievements.Count == 0 ||
+                !string.Equals(cachedSchema.ProviderKey, ProviderKey, StringComparison.OrdinalIgnoreCase) ||
+                !SteamIdHelper.TryGetAccountId3(ProviderSettings?.SteamUserId, out var accountId3))
+            {
+                return null;
+            }
+
+            var appId = cachedSchema.AppId;
+            if (appId <= 0 && !TryGetSteamAppId(game, out appId))
+            {
+                return null;
+            }
+
+            var steamPath = SteamInstallLocator.ResolveSteamPath(
+                ProviderSettings?.SteamInstallPathOverride);
+            var statsPath = SteamInstallLocator.BuildUserGameStatsPath(steamPath, accountId3, appId);
+            var schemaPath = SteamInstallLocator.BuildSchemaPath(steamPath, appId);
+            var statsDirectory = string.IsNullOrWhiteSpace(statsPath)
+                ? null
+                : Path.GetDirectoryName(statsPath);
+            if (string.IsNullOrWhiteSpace(statsDirectory) ||
+                !Directory.Exists(statsDirectory) ||
+                !File.Exists(schemaPath))
+            {
+                return null;
+            }
+
+            return new InGameProgressRegistration
+            {
+                ProviderKey = ProviderKey,
+                WatchTargets = new[] { statsPath },
+                PollInterval = InGameProgressRegistration.FileWatchSafetyPollInterval,
+                State = new SteamInGameState
+                {
+                    StatsPath = statsPath,
+                    SchemaPath = schemaPath
+                }
+            };
+        }
+
+        Task<IReadOnlyList<InGameProgressQueryResult>> IInGameProgressSource.QueryAsync(
+            IReadOnlyList<InGameTrackingContext> games,
+            CancellationToken cancellationToken)
+        {
+            var results = new List<InGameProgressQueryResult>();
+            foreach (var context in games ?? Array.Empty<InGameTrackingContext>())
+            {
+                cancellationToken.ThrowIfCancellationRequested();
+                var gameId = context?.Game?.Id ?? Guid.Empty;
+                var state = context?.Registration?.State as SteamInGameState;
+                if (state == null)
+                {
+                    results.Add(InGameProgressQueryResult.Failed(gameId, "registration_missing"));
+                    continue;
+                }
+
+                var read = _localStatsReader.TryRead(state.StatsPath, state.SchemaPath);
+                if (!read.Success)
+                {
+                    results.Add(InGameProgressQueryResult.Failed(gameId, "file_unstable"));
+                    continue;
+                }
+
+                var observations = read.UnlockByApiName
+                    .Select(pair => new AchievementProgressObservation
+                    {
+                        ApiName = pair.Key,
+                        Unlocked = true,
+                        UnlockTimeUtc = pair.Value
+                    })
+                    .ToList();
+                results.Add(InGameProgressQueryResult.Succeeded(gameId, observations));
+            }
+
+            return Task.FromResult<IReadOnlyList<InGameProgressQueryResult>>(results);
         }
 
         /// <inheritdoc />

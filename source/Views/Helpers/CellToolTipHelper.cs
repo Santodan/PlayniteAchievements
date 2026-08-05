@@ -6,7 +6,7 @@ namespace PlayniteAchievements.Views.Helpers
     /// <summary>
     /// Attaches a tooltip showing the full header/body text of a cell, with an optional
     /// formatted note section appended. Like
-    /// <see cref="AchievementNoteInlineFormatter.NoteToolTipProperty"/>, the tooltip content is
+    /// <see cref="InlineMarkdownFormatter.NoteToolTipProperty"/>, the tooltip content is
     /// built lazily on open to keep per-cell cost low in virtualized grids.
     /// </summary>
     public static class CellToolTipHelper
@@ -105,7 +105,7 @@ namespace PlayniteAchievements.Views.Helpers
             if (!string.IsNullOrWhiteSpace(note))
             {
                 var noteBlock = CreateTextBlock(FontWeights.Normal, topMargin: panel.Children.Count > 0 ? 6 : 0);
-                AchievementNoteInlineFormatter.ApplyFormattedText(noteBlock, note);
+                InlineMarkdownFormatter.ApplyFormattedText(noteBlock, note);
                 panel.Children.Add(noteBlock);
             }
 

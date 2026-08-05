@@ -219,6 +219,8 @@ namespace PlayniteAchievements.ViewModels.Items
         private readonly Func<string, bool> _isSelected;
         private readonly Action<string, bool> _setSelection;
         private readonly Func<string, string> _getDisplayLabel;
+        private readonly Func<bool> _hasAvailableAction;
+        private readonly Func<string, bool> _isMarked;
 
         public GridMultiSelectFilter(
             INotifyPropertyChanged source,
@@ -227,13 +229,17 @@ namespace PlayniteAchievements.ViewModels.Items
             IEnumerable<string> options,
             Func<string, bool> isSelected,
             Action<string, bool> setSelection,
-            Func<string, string> getDisplayLabel = null)
+            Func<string, string> getDisplayLabel = null,
+            Func<bool> hasAvailableAction = null,
+            Func<string, bool> isMarked = null)
         {
             _getDisplayText = getDisplayText;
             _options = options;
             _isSelected = isSelected;
             _setSelection = setSelection;
             _getDisplayLabel = getDisplayLabel;
+            _hasAvailableAction = hasAvailableAction;
+            _isMarked = isMarked;
             Subscribe(source, sourcePropertyName);
         }
 
@@ -244,13 +250,17 @@ namespace PlayniteAchievements.ViewModels.Items
             Func<IEnumerable<string>> getOptions,
             Func<string, bool> isSelected,
             Action<string, bool> setSelection,
-            Func<string, string> getDisplayLabel = null)
+            Func<string, string> getDisplayLabel = null,
+            Func<bool> hasAvailableAction = null,
+            Func<string, bool> isMarked = null)
         {
             _getDisplayText = getDisplayText;
             _getOptions = getOptions;
             _isSelected = isSelected;
             _setSelection = setSelection;
             _getDisplayLabel = getDisplayLabel;
+            _hasAvailableAction = hasAvailableAction;
+            _isMarked = isMarked;
             Subscribe(source, sourcePropertyName);
         }
 
@@ -268,7 +278,11 @@ namespace PlayniteAchievements.ViewModels.Items
             set => SetValue(ref _connectedLeft, value);
         }
 
-        protected override bool HasAvailableAction => CountUsableOptions() > 1 || HasSelectedOption();
+        // Default availability requires a real choice (2+ options) or an active selection;
+        // callers with different semantics (e.g. the single-select compare dropdown, useful
+        // with one option) supply their own predicate.
+        protected override bool HasAvailableAction =>
+            _hasAvailableAction?.Invoke() ?? (CountUsableOptions() > 1 || HasSelectedOption());
 
         public bool IsSelected(string option)
         {
@@ -285,6 +299,16 @@ namespace PlayniteAchievements.ViewModels.Items
         {
             var label = _getDisplayLabel?.Invoke(option);
             return string.IsNullOrWhiteSpace(label) ? option : label;
+        }
+
+        // When true, options render with a leading marker gutter (e.g. a favorite star) so a
+        // per-option flag can be shown while keeping labels aligned. Filters without a marker
+        // predicate render plain string labels unchanged.
+        public bool HasMarker => _isMarked != null;
+
+        public bool IsMarked(string option)
+        {
+            return _isMarked?.Invoke(option) == true;
         }
 
         public override void Refresh()

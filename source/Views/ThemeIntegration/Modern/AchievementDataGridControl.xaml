@@ -17,6 +17,17 @@
         </ResourceDictionary>
     </base:ThemeControlBase.Resources>
 
+    <base:ThemeControlBase.Style>
+        <Style TargetType="base:ThemeControlBase">
+            <Style.Triggers>
+                <DataTrigger Binding="{Binding Persisted.EnableAchievementDataGridControl}"
+                             Value="False">
+                    <Setter Property="Visibility" Value="Collapsed"/>
+                </DataTrigger>
+            </Style.Triggers>
+        </Style>
+    </base:ThemeControlBase.Style>
+
     <Grid>
         <Grid.RowDefinitions>
             <RowDefinition Height="Auto"/>
@@ -37,15 +48,13 @@
                                            ShowColumnHeaders="{Binding DataContext.Persisted.ShowDesktopThemeGameSummariesGridColumnHeaders, RelativeSource={RelativeSource AncestorType=base:ThemeControlBase}}"
                                            FixedRowHeight="{Binding DataContext.Persisted.DesktopThemeGameSummariesGridRowHeight, RelativeSource={RelativeSource AncestorType=base:ThemeControlBase}}"
                                            DelayInitialRenderUntilNormalized="True"
-                                           DisableRowSelection="True">
+                                           DisableRowSelection="True"
+                                           RowPreviewMouseRightButtonDown="SummaryGrid_RowPreviewMouseRightButtonDown"
+                                           RowPreviewMouseRightButtonUp="SummaryGrid_RowPreviewMouseRightButtonUp">
             <controls:GameSummariesGridControl.Style>
                 <Style TargetType="controls:GameSummariesGridControl">
                     <Setter Property="Margin" Value="0,0,0,8"/>
                     <Style.Triggers>
-                        <DataTrigger Binding="{Binding DataContext.Persisted.EnableAchievementDataGridControl, RelativeSource={RelativeSource AncestorType=base:ThemeControlBase}}"
-                                     Value="False">
-                            <Setter Property="Visibility" Value="Collapsed"/>
-                        </DataTrigger>
                         <DataTrigger Binding="{Binding HasSummaryItem, RelativeSource={RelativeSource AncestorType=modern:AchievementDataGridControl}}"
                                      Value="False">
                             <Setter Property="Visibility" Value="Collapsed"/>
@@ -104,18 +113,7 @@
                                              UseExternalSorting="True"
                                              Sorting="AchievementsGrid_Sorting"
                                              RowPreviewMouseRightButtonDown="AchievementsGrid_RowPreviewMouseRightButtonDown"
-                                             RowPreviewMouseRightButtonUp="AchievementsGrid_RowPreviewMouseRightButtonUp">
-            <controls:AchievementDataGridControl.Style>
-                <Style TargetType="controls:AchievementDataGridControl">
-                    <Style.Triggers>
-                        <DataTrigger Binding="{Binding DataContext.Persisted.EnableAchievementDataGridControl, RelativeSource={RelativeSource AncestorType=base:ThemeControlBase}}"
-                                     Value="False">
-                            <Setter Property="Visibility" Value="Collapsed"/>
-                        </DataTrigger>
-                    </Style.Triggers>
-                </Style>
-            </controls:AchievementDataGridControl.Style>
-        </controls:AchievementDataGridControl>
+                                             RowPreviewMouseRightButtonUp="AchievementsGrid_RowPreviewMouseRightButtonUp"/>
     </Grid>
 </base:ThemeControlBase>
 

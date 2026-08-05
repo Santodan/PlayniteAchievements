@@ -96,8 +96,8 @@ namespace PlayniteAchievements.Tests.Services.UI
 
             AssertBrush(resources, "PlayAch.Brush.Chart.Separator", Color.FromRgb(0x30, 0x40, 0x50));
             AssertBrush(resources, "PlayAch.Brush.Progress.Track", Color.FromRgb(0x10, 0x18, 0x20));
-            AssertBrush(resources, "PlayAch.Brush.Progress.Fill", Color.FromArgb(0xB8, 0x70, 0x80, 0x90));
-            AssertBrush(resources, "PlayAch.Brush.Progress.Border", Color.FromArgb(0xB8, 0x70, 0x80, 0x90));
+            AssertBrush(resources, "PlayAch.Brush.Progress.Fill", Color.FromRgb(0x70, 0x80, 0x90));
+            AssertBrush(resources, "PlayAch.Brush.Progress.Border", Color.FromRgb(0x70, 0x80, 0x90));
         }
 
         [TestMethod]

@@ -182,6 +182,7 @@ namespace PlayniteAchievements.Models.Friends
         public string ProviderKey { get; set; }
         public string ExternalUserId { get; set; }
         public string DisplayName { get; set; }
+        public string ProviderNickname { get; set; }
         public string AvatarUrl { get; set; }
         public string AvatarPath { get; set; }
         public DateTime? LastRefreshedUtc { get; set; }

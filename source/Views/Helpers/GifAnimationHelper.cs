@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.IO;
+using System.Windows;
 using System.Windows.Media;
 using System.Windows.Media.Animation;
 using System.Windows.Media.Imaging;
@@ -20,7 +21,31 @@ namespace PlayniteAchievements.Views.Helpers
         private static readonly Dictionary<string, (List<BitmapSource> Frames, List<int> Delays)> FrameCache =
             new Dictionary<string, (List<BitmapSource> Frames, List<int> Delays)>(StringComparer.OrdinalIgnoreCase);
 
+        // Wall-clock epoch used to phase-lock every animation instance: a recreated element
+        // (e.g. the settings mockup rebuilding during a slider drag) resumes the GIF mid-cycle
+        // instead of restarting it from the first frame.
+        private static readonly System.Diagnostics.Stopwatch AnimationEpoch =
+            System.Diagnostics.Stopwatch.StartNew();
+
         public static bool TryCreateAnimation(string uri, bool applyGray, out string normalizedSource, out ImageSource firstFrame, out ObjectAnimationUsingKeyFrames animation)
+        {
+            return TryCreateAnimationCore(uri, applyGray, decodeIfMissing: true,
+                out normalizedSource, out firstFrame, out animation);
+        }
+
+        /// <summary>
+        /// Like <see cref="TryCreateAnimation"/> but never decodes: succeeds only when the
+        /// composited frames are already cached. Cheap enough to run synchronously on the UI
+        /// thread, so a recreated element can attach its animation in the same layout pass and
+        /// never flash a static frame.
+        /// </summary>
+        public static bool TryCreateAnimationFromCache(string uri, bool applyGray, out string normalizedSource, out ImageSource firstFrame, out ObjectAnimationUsingKeyFrames animation)
+        {
+            return TryCreateAnimationCore(uri, applyGray, decodeIfMissing: false,
+                out normalizedSource, out firstFrame, out animation);
+        }
+
+        private static bool TryCreateAnimationCore(string uri, bool applyGray, bool decodeIfMissing, out string normalizedSource, out ImageSource firstFrame, out ObjectAnimationUsingKeyFrames animation)
         {
             normalizedSource = NormalizeGifSourceUri(uri);
             firstFrame = null;
@@ -44,7 +69,18 @@ namespace PlayniteAchievements.Views.Helpers
                 var cached = TryGetCachedAnimation(cacheKey);
                 if (cached == null)
                 {
-                    var decoder = new GifBitmapDecoder(new Uri(normalizedSource, UriKind.Absolute), BitmapCreateOptions.PreservePixelFormat, BitmapCacheOption.OnLoad);
+                    if (!decodeIfMissing)
+                    {
+                        return false;
+                    }
+
+                    // IgnoreImageCache bypasses WPF's URI-keyed decode cache: the managed image
+                    // slots reuse fixed file names, so an overwritten GIF at the same path must
+                    // decode fresh bytes.
+                    var decoder = new GifBitmapDecoder(
+                        new Uri(normalizedSource, UriKind.Absolute),
+                        BitmapCreateOptions.PreservePixelFormat | BitmapCreateOptions.IgnoreImageCache,
+                        BitmapCacheOption.OnLoad);
                     if (decoder.Frames == null || decoder.Frames.Count == 0)
                     {
                         return false;
@@ -96,18 +132,65 @@ namespace PlayniteAchievements.Views.Helpers
                     return false;
                 }
 
+                // One iteration = the full frame sequence; the phase-lock BeginTime is stamped
+                // by the caller at the moment the animation actually begins (see
+                // PhaseLockBeginTime) — computing it here would bake in the creation-to-begin
+                // delay as a per-instance phase error.
+                keyFrames.Duration = new Duration(current);
+
                 if (keyFrames.CanFreeze)
                 {
                     keyFrames.Freeze();
                 }
 
-                firstFrame = cached.Value.Frames[0];
+                // The static frame shown until the animation takes over is the frame at the
+                // current phase (not frame zero), so the handoff is seamless.
+                var phaseMilliseconds = current.TotalMilliseconds > 0
+                    ? AnimationEpoch.ElapsedMilliseconds % current.TotalMilliseconds
+                    : 0.0;
+                firstFrame = FrameAtPhase(cached.Value, phaseMilliseconds);
                 animation = keyFrames;
                 return true;
             }
             catch
             {
                 return false;
+            }
+        }
+
+        /// <summary>
+        /// Removes cached composited frames for every source whose key contains the given
+        /// segment (case-insensitive). Called through the image service's eviction chokepoint
+        /// so an overwritten or cleared GIF at a fixed managed path never re-serves the old
+        /// animation.
+        /// </summary>
+        internal static void EvictBySegment(string segment)
+        {
+            if (string.IsNullOrWhiteSpace(segment))
+            {
+                return;
+            }
+
+            lock (CacheSync)
+            {
+                List<string> keysToEvict = null;
+                foreach (var key in FrameCache.Keys)
+                {
+                    if (key.IndexOf(segment, StringComparison.OrdinalIgnoreCase) >= 0)
+                    {
+                        (keysToEvict ?? (keysToEvict = new List<string>())).Add(key);
+                    }
+                }
+
+                if (keysToEvict == null)
+                {
+                    return;
+                }
+
+                foreach (var key in keysToEvict)
+                {
+                    FrameCache.Remove(key);
+                }
             }
         }
 
@@ -226,6 +309,38 @@ namespace PlayniteAchievements.Views.Helpers
             }
 
             return delays;
+        }
+
+        /// <summary>
+        /// The negative BeginTime that aligns an animation with the shared epoch when begun
+        /// right now. Call immediately before BeginAnimation so no creation-to-begin delay
+        /// leaks into the phase.
+        /// </summary>
+        internal static TimeSpan PhaseLockBeginTime(Duration iterationDuration)
+        {
+            var totalMilliseconds = iterationDuration.HasTimeSpan
+                ? iterationDuration.TimeSpan.TotalMilliseconds
+                : 0.0;
+            return totalMilliseconds <= 0
+                ? TimeSpan.Zero
+                : TimeSpan.FromMilliseconds(-(AnimationEpoch.ElapsedMilliseconds % totalMilliseconds));
+        }
+
+        private static BitmapSource FrameAtPhase(
+            (List<BitmapSource> Frames, List<int> Delays) cached,
+            double phaseMilliseconds)
+        {
+            var elapsed = 0.0;
+            for (var i = 0; i < cached.Frames.Count && i < cached.Delays.Count; i++)
+            {
+                elapsed += cached.Delays[i];
+                if (phaseMilliseconds < elapsed)
+                {
+                    return cached.Frames[i];
+                }
+            }
+
+            return cached.Frames[0];
         }
 
         private static string GetFrameCacheKey(string normalizedSource, bool applyGray)

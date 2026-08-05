@@ -58,7 +58,7 @@ namespace PlayniteAchievements.Services.Tests
                 number: 7,
                 total: 123);
 
-            Assert.AreEqual("Game_ Name", relative.Folder);
+            Assert.AreEqual("Game Name", relative.Folder);
             Assert.AreEqual("007_First Win.png", relative.FileName);
             Assert.IsFalse(relative.Folder.Contains("["));
             Assert.IsFalse(relative.Folder.Contains("Steam"));

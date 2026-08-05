@@ -85,7 +85,8 @@ namespace PlayniteAchievements.Views.Helpers
             private readonly List<TrackedScrollBar> _scrollBars = new List<TrackedScrollBar>();
             private ScrollViewer _scrollViewer;
             private bool _isAttached;
-            private bool _isMouseOverRightmostColumn;
+            private bool _isMouseOverBody;
+            private bool _isKeyboardFocusWithin;
             private bool _isScrollRevealActive;
             private bool _refreshQueued;
 
@@ -117,9 +118,11 @@ namespace PlayniteAchievements.Views.Helpers
                 _grid.PreviewMouseMove += OnMouseMove;
                 _grid.MouseLeave += OnMouseLeave;
                 _grid.PreviewMouseWheel += OnPreviewMouseWheel;
+                _grid.IsKeyboardFocusWithinChanged += OnKeyboardFocusWithinChanged;
 
                 _isAttached = true;
-                _isMouseOverRightmostColumn = false;
+                _isMouseOverBody = false;
+                _isKeyboardFocusWithin = _grid.IsKeyboardFocusWithin;
 
                 if (_grid.IsLoaded)
                 {
@@ -140,18 +143,21 @@ namespace PlayniteAchievements.Views.Helpers
                 _grid.PreviewMouseMove -= OnMouseMove;
                 _grid.MouseLeave -= OnMouseLeave;
                 _grid.PreviewMouseWheel -= OnPreviewMouseWheel;
+                _grid.IsKeyboardFocusWithinChanged -= OnKeyboardFocusWithinChanged;
 
                 ClearTrackedScrollBars();
                 DetachScrollViewer();
                 StopScrollReveal();
-                _isMouseOverRightmostColumn = false;
+                _isMouseOverBody = false;
+                _isKeyboardFocusWithin = false;
                 _refreshQueued = false;
                 _isAttached = false;
             }
 
             private void OnLoaded(object sender, RoutedEventArgs e)
             {
-                _isMouseOverRightmostColumn = false;
+                _isMouseOverBody = false;
+                _isKeyboardFocusWithin = _grid.IsKeyboardFocusWithin;
                 QueueRefreshScrollBars();
             }
 
@@ -160,23 +166,30 @@ namespace PlayniteAchievements.Views.Helpers
                 ClearTrackedScrollBars();
                 DetachScrollViewer();
                 StopScrollReveal();
-                _isMouseOverRightmostColumn = false;
+                _isMouseOverBody = false;
+                _isKeyboardFocusWithin = false;
                 _refreshQueued = false;
             }
 
             private void OnMouseEnter(object sender, System.Windows.Input.MouseEventArgs e)
             {
-                UpdateRightmostColumnHover(e);
+                UpdateBodyHover(e);
             }
 
             private void OnMouseMove(object sender, System.Windows.Input.MouseEventArgs e)
             {
-                UpdateRightmostColumnHover(e);
+                UpdateBodyHover(e);
             }
 
             private void OnMouseLeave(object sender, System.Windows.Input.MouseEventArgs e)
             {
-                _isMouseOverRightmostColumn = false;
+                _isMouseOverBody = false;
+                ApplyScrollBarState();
+            }
+
+            private void OnKeyboardFocusWithinChanged(object sender, DependencyPropertyChangedEventArgs e)
+            {
+                _isKeyboardFocusWithin = e.NewValue is bool value && value;
                 ApplyScrollBarState();
             }
 
@@ -297,7 +310,8 @@ namespace PlayniteAchievements.Views.Helpers
             private void ApplyScrollBarState()
             {
                 var shouldShow = _isAttached &&
-                                  (_isMouseOverRightmostColumn ||
+                                  (_isMouseOverBody ||
+                                   _isKeyboardFocusWithin ||
                                    _isScrollRevealActive ||
                                    _scrollBars.Any(scrollBar => scrollBar.IsInteractionActive));
 
@@ -307,125 +321,26 @@ namespace PlayniteAchievements.Views.Helpers
                 }
             }
 
-            private void UpdateRightmostColumnHover(System.Windows.Input.MouseEventArgs e)
+            private void UpdateBodyHover(System.Windows.Input.MouseEventArgs e)
             {
-                var isOverRightmostColumn = IsMouseOverRightmostVisibleColumn(e);
-                if (_isMouseOverRightmostColumn == isOverRightmostColumn)
+                var isOverBody = IsMouseOverBody(e);
+                if (_isMouseOverBody == isOverBody)
                 {
                     return;
                 }
 
-                _isMouseOverRightmostColumn = isOverRightmostColumn;
+                _isMouseOverBody = isOverBody;
                 ApplyScrollBarState();
             }
 
-            private bool IsMouseOverRightmostVisibleColumn(System.Windows.Input.MouseEventArgs e)
+            private static bool IsMouseOverBody(System.Windows.Input.MouseEventArgs e)
             {
-                var rightmostColumn = GetRightmostVisibleColumn();
-                if (rightmostColumn == null || e == null)
-                {
-                    return false;
-                }
-
-                if (IsSourceWithinColumn(e.OriginalSource as DependencyObject, rightmostColumn))
-                {
-                    return true;
-                }
-
-                return IsPointWithinColumnBounds(rightmostColumn, e.GetPosition(_grid));
-            }
-
-            private DataGridColumn GetRightmostVisibleColumn()
-            {
-                DataGridColumn rightmostColumn = null;
-                var rightmostDisplayIndex = int.MinValue;
-
-                foreach (var column in _grid.Columns)
-                {
-                    if (column == null ||
-                        column.Visibility != Visibility.Visible ||
-                        column.DisplayIndex < rightmostDisplayIndex)
-                    {
-                        continue;
-                    }
-
-                    rightmostColumn = column;
-                    rightmostDisplayIndex = column.DisplayIndex;
-                }
-
-                return rightmostColumn;
-            }
-
-            private static bool IsSourceWithinColumn(DependencyObject source, DataGridColumn column)
-            {
-                if (source == null || column == null)
-                {
-                    return false;
-                }
-
-                // Only body cells count; a header hover (including its resize grippers)
-                // must not reveal the scrollbar.
-                var cell = VisualTreeHelpers.FindVisualParent<DataGridCell>(source);
-                return ReferenceEquals(cell?.Column, column);
-            }
-
-            private bool IsPointWithinColumnBounds(DataGridColumn column, Point point)
-            {
-                if (column == null ||
-                    !IsFinite(point.X) ||
-                    !IsFinite(point.Y) ||
-                    point.X < 0 ||
-                    point.Y < 0 ||
-                    point.Y > _grid.ActualHeight)
-                {
-                    return false;
-                }
-
-                // Points within the header band are not part of the column body.
-                if (point.Y < GetColumnBodyTop())
-                {
-                    return false;
-                }
-
-                foreach (var cell in EnumerateVisualDescendants<DataGridCell>(_grid))
-                {
-                    if (!ReferenceEquals(cell.Column, column) ||
-                        cell.ActualWidth <= 0)
-                    {
-                        continue;
-                    }
-
-                    var cellOrigin = cell.TranslatePoint(new Point(0, 0), _grid);
-                    if (point.X >= cellOrigin.X &&
-                        point.X <= cellOrigin.X + cell.ActualWidth)
-                    {
-                        return true;
-                    }
-                }
-
-                return false;
-            }
-
-            /// <summary>
-            /// Returns the Y coordinate (in grid space) of the bottom of the column headers
-            /// region, i.e. the top of the column body. Falls back to 0 when the headers
-            /// presenter is not yet realized.
-            /// </summary>
-            private double GetColumnBodyTop()
-            {
-                var presenter = VisualTreeHelpers.FindVisualChild<DataGridColumnHeadersPresenter>(_grid);
-                if (presenter == null || presenter.ActualHeight <= 0)
-                {
-                    return 0d;
-                }
-
-                var origin = presenter.TranslatePoint(new Point(0, 0), _grid);
-                return origin.Y + presenter.ActualHeight;
-            }
-
-            private static bool IsFinite(double value)
-            {
-                return !double.IsNaN(value) && !double.IsInfinity(value);
+                // The grid only raises MouseEnter/MouseMove while the cursor is within it, so
+                // any hover counts as "body" except the column-header row: its header cells,
+                // reorder visuals, and resize grippers all live under the
+                // DataGridColumnHeadersPresenter.
+                return e?.OriginalSource is DependencyObject source &&
+                       VisualTreeHelpers.FindVisualParent<DataGridColumnHeadersPresenter>(source) == null;
             }
 
             private static IEnumerable<ScrollBar> FindDataGridScrollBars(ScrollViewer scrollViewer)

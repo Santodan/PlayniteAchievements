@@ -17,7 +17,6 @@ namespace PlayniteAchievements.Views.Settings.General
 
         private GeneralOverviewSection _overviewSection;
         private SyncUpdatesSection _syncUpdatesSection;
-        private NotificationsSection _notificationsSection;
         private HotkeySettingsSection _hotkeySection;
         private TaggingSettingsSection _taggingSection;
         private MaintenanceSettingsSection _maintenanceSection;
@@ -43,37 +42,31 @@ namespace PlayniteAchievements.Views.Settings.General
                 new SettingsNavigationItem(
                     "General",
                     ResourceProvider.GetString("LOCPlayAch_Common_General"),
-                    iconGlyph: "",
+                    iconGlyph: "",
                     viewFactory: () => _overviewSection =
                         new GeneralOverviewSection(jumpToTab)),
                 new SettingsNavigationItem(
                     "SyncUpdates",
                     ResourceProvider.GetString("LOCPlayAch_Section_SyncUpdates"),
-                    iconGlyph: "",
+                    iconGlyph: "",
                     viewFactory: () => _syncUpdatesSection =
                         new SyncUpdatesSection()),
                 new SettingsNavigationItem(
-                    "Notifications",
-                    ResourceProvider.GetString("LOCPlayAch_Settings_TabNotifications"),
-                    iconGlyph: "",
-                    viewFactory: () => _notificationsSection =
-                        new NotificationsSection(settings, plugin, logger)),
-                new SettingsNavigationItem(
                     "Hotkeys",
                     ResourceProvider.GetString("LOCPlayAch_Hotkeys_Title"),
-                    iconGlyph: "",
+                    iconGlyph: "",
                     viewFactory: () => _hotkeySection =
                         new HotkeySettingsSection(settings)),
                 new SettingsNavigationItem(
                     "Tagging",
                     ResourceProvider.GetString("LOCPlayAch_Settings_TaggingHeader"),
-                    iconGlyph: "",
+                    iconGlyph: "",
                     viewFactory: () => _taggingSection =
                         new TaggingSettingsSection(plugin, logger)),
                 new SettingsNavigationItem(
                     "Maintenance",
                     ResourceProvider.GetString("LOCPlayAch_Settings_Maintenance_Title"),
-                    iconGlyph: "",
+                    iconGlyph: "",
                     viewFactory: () => _maintenanceSection =
                         new MaintenanceSettingsSection(settings, plugin, logger))
             };
@@ -84,7 +77,6 @@ namespace PlayniteAchievements.Views.Settings.General
 
         public void Dispose()
         {
-            _notificationsSection?.Dispose();
             _hotkeySection?.Dispose();
         }
     }

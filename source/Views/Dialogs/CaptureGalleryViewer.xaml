@@ -1,0 +1,346 @@
+<UserControl x:Class="PlayniteAchievements.Views.Dialogs.CaptureGalleryViewer"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+             xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+             xmlns:helpers="clr-namespace:PlayniteAchievements.Views.Helpers"
+             xmlns:captures="clr-namespace:PlayniteAchievements.Services.Captures"
+             mc:Ignorable="d"
+             d:DesignHeight="640"
+             d:DesignWidth="960"
+             Focusable="True">
+
+    <UserControl.Resources>
+        <ResourceDictionary>
+            <ResourceDictionary.MergedDictionaries>
+                <ResourceDictionary Source="pack://application:,,,/PlayniteAchievements;component/Resources/PlayAchImplicitControlStyles.xaml"/>
+                <ResourceDictionary Source="pack://application:,,,/PlayniteAchievements;component/Resources/CommonResources.xaml"/>
+            </ResourceDictionary.MergedDictionaries>
+
+            <!-- Type selector buttons: each button binds Tag to its VM selection flag; the
+                 template's Tag trigger is declared after the hover trigger so the accent
+                 fill wins on the selected button even while hovered. Non-focusable like the
+                 popout's other buttons, so no keyboard-focus tint can linger. -->
+            <Style x:Key="CaptureTypeButtonStyle" TargetType="Button" BasedOn="{StaticResource PlayAch.Button.BaseStyle}">
+                <Setter Property="MinWidth" Value="88"/>
+                <Setter Property="Margin" Value="0,0,6,0"/>
+                <Setter Property="Focusable" Value="False"/>
+                <Setter Property="Template">
+                    <Setter.Value>
+                        <ControlTemplate TargetType="Button">
+                            <Border x:Name="Chrome"
+                                    Background="{TemplateBinding Background}"
+                                    BorderBrush="{TemplateBinding BorderBrush}"
+                                    BorderThickness="{TemplateBinding BorderThickness}"
+                                    CornerRadius="{StaticResource PlayAch.Radius.Small}"
+                                    SnapsToDevicePixels="True">
+                                <ContentPresenter Margin="{TemplateBinding Padding}"
+                                                  HorizontalAlignment="{TemplateBinding HorizontalContentAlignment}"
+                                                  VerticalAlignment="{TemplateBinding VerticalContentAlignment}"
+                                                  RecognizesAccessKey="True"/>
+                            </Border>
+                            <ControlTemplate.Triggers>
+                                <Trigger Property="IsMouseOver" Value="True">
+                                    <Setter TargetName="Chrome" Property="Background" Value="{DynamicResource PlayAch.Brush.Button.Background.Hover}"/>
+                                    <Setter TargetName="Chrome" Property="BorderBrush" Value="{DynamicResource PlayAch.Brush.Accent}"/>
+                                </Trigger>
+                                <DataTrigger Binding="{Binding Tag, RelativeSource={RelativeSource TemplatedParent}}" Value="True">
+                                    <Setter TargetName="Chrome" Property="Background" Value="{DynamicResource PlayAch.Brush.Accent}"/>
+                                    <Setter TargetName="Chrome" Property="BorderBrush" Value="{DynamicResource PlayAch.Brush.Accent}"/>
+                                    <Setter Property="FontWeight" Value="SemiBold"/>
+                                </DataTrigger>
+                                <Trigger Property="IsPressed" Value="True">
+                                    <Setter TargetName="Chrome" Property="Background" Value="{DynamicResource PlayAch.Brush.Button.Background.Pressed}"/>
+                                </Trigger>
+                            </ControlTemplate.Triggers>
+                        </ControlTemplate>
+                    </Setter.Value>
+                </Setter>
+                <Style.Triggers>
+                    <Trigger Property="IsEnabled" Value="False">
+                        <Setter Property="Opacity" Value="0.4"/>
+                    </Trigger>
+                </Style.Triggers>
+            </Style>
+
+            <!-- Circular chevron nav buttons that sit beside the media, not over it. -->
+            <Style x:Key="CaptureNavArrowStyle" TargetType="Button">
+                <Setter Property="Width" Value="42"/>
+                <Setter Property="Height" Value="42"/>
+                <Setter Property="VerticalAlignment" Value="Center"/>
+                <Setter Property="FontFamily" Value="Segoe MDL2 Assets"/>
+                <Setter Property="FontSize" Value="15"/>
+                <Setter Property="Foreground" Value="{DynamicResource PlayAch.Brush.Text}"/>
+                <Setter Property="Cursor" Value="Hand"/>
+                <Setter Property="Focusable" Value="False"/>
+                <Setter Property="Template">
+                    <Setter.Value>
+                        <ControlTemplate TargetType="Button">
+                            <Border x:Name="Bd"
+                                    CornerRadius="21"
+                                    Background="{DynamicResource PlayAch.Brush.Panel}"
+                                    BorderBrush="{DynamicResource PlayAch.Brush.Border}"
+                                    BorderThickness="1">
+                                <TextBlock Text="{TemplateBinding Content}"
+                                           FontFamily="{TemplateBinding FontFamily}"
+                                           FontSize="{TemplateBinding FontSize}"
+                                           Foreground="{TemplateBinding Foreground}"
+                                           HorizontalAlignment="Center"
+                                           VerticalAlignment="Center"/>
+                            </Border>
+                            <ControlTemplate.Triggers>
+                                <Trigger Property="IsMouseOver" Value="True">
+                                    <Setter TargetName="Bd" Property="Background" Value="{DynamicResource PlayAch.Brush.Accent}"/>
+                                    <Setter TargetName="Bd" Property="BorderBrush" Value="{DynamicResource PlayAch.Brush.Accent}"/>
+                                </Trigger>
+                                <Trigger Property="IsEnabled" Value="False">
+                                    <Setter TargetName="Bd" Property="Opacity" Value="0.3"/>
+                                </Trigger>
+                            </ControlTemplate.Triggers>
+                        </ControlTemplate>
+                    </Setter.Value>
+                </Setter>
+            </Style>
+
+            <!-- Flat glyph buttons for the media transport (play/pause/stop/mute). -->
+            <Style x:Key="CaptureGlyphButtonStyle" TargetType="Button">
+                <Setter Property="Width" Value="34"/>
+                <Setter Property="Height" Value="30"/>
+                <Setter Property="FontFamily" Value="Segoe MDL2 Assets"/>
+                <Setter Property="FontSize" Value="13"/>
+                <Setter Property="Foreground" Value="{DynamicResource PlayAch.Brush.Text}"/>
+                <Setter Property="Cursor" Value="Hand"/>
+                <Setter Property="Focusable" Value="False"/>
+                <Setter Property="Template">
+                    <Setter.Value>
+                        <ControlTemplate TargetType="Button">
+                            <Border x:Name="Bd" CornerRadius="4" Background="Transparent">
+                                <TextBlock Text="{TemplateBinding Content}"
+                                           FontFamily="{TemplateBinding FontFamily}"
+                                           FontSize="{TemplateBinding FontSize}"
+                                           Foreground="{TemplateBinding Foreground}"
+                                           HorizontalAlignment="Center"
+                                           VerticalAlignment="Center"/>
+                            </Border>
+                            <ControlTemplate.Triggers>
+                                <Trigger Property="IsMouseOver" Value="True">
+                                    <Setter TargetName="Bd" Property="Background" Value="{DynamicResource PlayAch.Brush.Border}"/>
+                                </Trigger>
+                                <Trigger Property="IsEnabled" Value="False">
+                                    <Setter Property="Opacity" Value="0.4"/>
+                                </Trigger>
+                            </ControlTemplate.Triggers>
+                        </ControlTemplate>
+                    </Setter.Value>
+                </Setter>
+            </Style>
+        </ResourceDictionary>
+    </UserControl.Resources>
+
+    <Border Background="{DynamicResource PlayAch.Brush.Window.Background}" Padding="12">
+        <Grid>
+            <Grid.RowDefinitions>
+                <RowDefinition Height="Auto"/>
+                <RowDefinition Height="*"/>
+                <RowDefinition Height="Auto"/>
+            </Grid.RowDefinitions>
+
+            <!-- Top bar: header + type selector -->
+            <Grid Grid.Row="0" Margin="{StaticResource PlayAch.Thickness.Bottom.Md}">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*"/>
+                    <ColumnDefinition Width="Auto"/>
+                    <ColumnDefinition Width="Auto"/>
+                </Grid.ColumnDefinitions>
+
+                <TextBlock Grid.Column="0"
+                           VerticalAlignment="Center"
+                           Text="{Binding HeaderTitle}"
+                           FontWeight="SemiBold"
+                           TextTrimming="CharacterEllipsis"
+                           Foreground="{DynamicResource PlayAch.Brush.Text}"/>
+
+                <StackPanel Grid.Column="1" Orientation="Horizontal">
+                    <Button Content="{DynamicResource LOCPlayAch_Settings_ScreenshotVariantClean}"
+                            IsEnabled="{Binding HasClean}"
+                            Style="{StaticResource CaptureTypeButtonStyle}"
+                            Tag="{Binding IsCleanSelected}"
+                            Command="{Binding SelectVariantCommand}"
+                            CommandParameter="{x:Static captures:CaptureVariant.Clean}"/>
+                    <Button Content="{DynamicResource LOCPlayAch_Settings_Style_ToastTab}"
+                            IsEnabled="{Binding HasNotification}"
+                            Style="{StaticResource CaptureTypeButtonStyle}"
+                            Tag="{Binding IsNotificationSelected}"
+                            Command="{Binding SelectVariantCommand}"
+                            CommandParameter="{x:Static captures:CaptureVariant.Notification}"/>
+                    <Button Content="{DynamicResource LOCPlayAch_Settings_ScreenshotVariantFramed}"
+                            IsEnabled="{Binding HasFramed}"
+                            Style="{StaticResource CaptureTypeButtonStyle}"
+                            Tag="{Binding IsFramedSelected}"
+                            Command="{Binding SelectVariantCommand}"
+                            CommandParameter="{x:Static captures:CaptureVariant.Framed}"/>
+                    <Button Content="{DynamicResource LOCPlayAch_Captures_VariantVideo}"
+                            Margin="0"
+                            IsEnabled="{Binding HasVideo}"
+                            Style="{StaticResource CaptureTypeButtonStyle}"
+                            Tag="{Binding IsVideoSelected}"
+                            Command="{Binding SelectVariantCommand}"
+                            CommandParameter="{x:Static captures:CaptureVariant.Video}"/>
+                </StackPanel>
+
+                <Button Grid.Column="2"
+                        Margin="14,0,0,0"
+                        VerticalAlignment="Center"
+                        Content="&#xE740;"
+                        ToolTip="{DynamicResource LOCPlayAch_Captures_Fullscreen}"
+                        IsEnabled="{Binding HasCurrent}"
+                        Style="{StaticResource CaptureGlyphButtonStyle}"
+                        Click="FullscreenButton_Click"/>
+            </Grid>
+
+            <!-- Media row: chevron nav buttons flank the letterboxed media -->
+            <Grid Grid.Row="1">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="Auto"/>
+                    <ColumnDefinition Width="*"/>
+                    <ColumnDefinition Width="Auto"/>
+                </Grid.ColumnDefinitions>
+
+                <Button Grid.Column="0"
+                        Margin="0,0,10,0"
+                        Content="&#xE76B;"
+                        Style="{StaticResource CaptureNavArrowStyle}"
+                        Visibility="{Binding CanNavigate, Converter={StaticResource BoolToVis}}"
+                        Command="{Binding PreviousCommand}"/>
+
+                <Border Grid.Column="1"
+                        Background="#FF101010"
+                        BorderBrush="{DynamicResource PlayAch.Brush.Border}"
+                        BorderThickness="{StaticResource PlayAch.Thickness.Border}"
+                        CornerRadius="4"
+                        ClipToBounds="True">
+                    <Grid>
+                        <!-- Screenshot -->
+                        <Image x:Name="CaptureImage"
+                               Margin="8"
+                               Stretch="Uniform"
+                               RenderOptions.BitmapScalingMode="HighQuality"
+                               Visibility="{Binding ShowImage, Converter={StaticResource BoolToVis}}"
+                               helpers:AsyncImage.Uri="{Binding CurrentImagePath}"
+                               helpers:AsyncImage.DecodePixel="0"/>
+
+                        <!-- Video + transport -->
+                        <Grid Visibility="{Binding ShowVideo, Converter={StaticResource BoolToVis}}">
+                            <Grid.RowDefinitions>
+                                <RowDefinition Height="*"/>
+                                <RowDefinition Height="Auto"/>
+                            </Grid.RowDefinitions>
+
+                            <MediaElement x:Name="VideoPlayer"
+                                          Grid.Row="0"
+                                          Margin="8"
+                                          Stretch="Uniform"
+                                          LoadedBehavior="Manual"
+                                          UnloadedBehavior="Stop"
+                                          ScrubbingEnabled="True"
+                                          MediaOpened="VideoPlayer_MediaOpened"
+                                          MediaEnded="VideoPlayer_MediaEnded"
+                                          MediaFailed="VideoPlayer_MediaFailed"/>
+
+                            <TextBlock x:Name="VideoErrorText"
+                                       Grid.Row="0"
+                                       HorizontalAlignment="Center"
+                                       VerticalAlignment="Center"
+                                       TextWrapping="Wrap"
+                                       TextAlignment="Center"
+                                       Visibility="Collapsed"
+                                       Foreground="{DynamicResource PlayAch.Brush.Text}"
+                                       Text="{DynamicResource LOCPlayAch_Captures_VideoError}"/>
+
+                            <Border Grid.Row="1"
+                                    Background="#B0000000"
+                                    CornerRadius="6"
+                                    Padding="6,3"
+                                    Margin="12,0,12,12">
+                                <Grid>
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="Auto"/>
+                                        <ColumnDefinition Width="Auto"/>
+                                        <ColumnDefinition Width="*"/>
+                                        <ColumnDefinition Width="Auto"/>
+                                        <ColumnDefinition Width="Auto"/>
+                                    </Grid.ColumnDefinitions>
+
+                                    <Button x:Name="PlayPauseButton"
+                                            Grid.Column="0"
+                                            Content="&#xE768;"
+                                            Style="{StaticResource CaptureGlyphButtonStyle}"
+                                            Click="PlayPauseButton_Click"/>
+                                    <Button x:Name="StopButton"
+                                            Grid.Column="1"
+                                            Content="&#xE71A;"
+                                            Style="{StaticResource CaptureGlyphButtonStyle}"
+                                            Click="StopButton_Click"/>
+                                    <Slider x:Name="PositionSlider"
+                                            Grid.Column="2"
+                                            Margin="10,0"
+                                            VerticalAlignment="Center"
+                                            Minimum="0"
+                                            Maximum="1"
+                                            IsMoveToPointEnabled="True"
+                                            Thumb.DragStarted="PositionSlider_DragStarted"
+                                            Thumb.DragCompleted="PositionSlider_DragCompleted"/>
+                                    <TextBlock x:Name="TimeText"
+                                               Grid.Column="3"
+                                               VerticalAlignment="Center"
+                                               Margin="4,0,8,0"
+                                               Foreground="White"/>
+                                    <Button x:Name="MuteButton"
+                                            Grid.Column="4"
+                                            Content="&#xE767;"
+                                            Style="{StaticResource CaptureGlyphButtonStyle}"
+                                            Click="MuteButton_Click"/>
+                                </Grid>
+                            </Border>
+                        </Grid>
+
+                        <!-- Empty state for a variant with no capture -->
+                        <TextBlock HorizontalAlignment="Center"
+                                   VerticalAlignment="Center"
+                                   TextWrapping="Wrap"
+                                   TextAlignment="Center"
+                                   Foreground="{DynamicResource PlayAch.Brush.Text}"
+                                   Opacity="{StaticResource PlayAch.Opacity.Muted}"
+                                   Visibility="{Binding NoContentForVariant, Converter={StaticResource BoolToVis}}"
+                                   Text="{DynamicResource LOCPlayAch_Captures_Empty}"/>
+                    </Grid>
+                </Border>
+
+                <Button Grid.Column="2"
+                        Margin="10,0,0,0"
+                        Content="&#xE76C;"
+                        Style="{StaticResource CaptureNavArrowStyle}"
+                        Visibility="{Binding CanNavigate, Converter={StaticResource BoolToVis}}"
+                        Command="{Binding NextCommand}"/>
+            </Grid>
+
+            <!-- Caption bar -->
+            <Grid Grid.Row="2" Margin="{StaticResource PlayAch.Thickness.Top.Md}">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*"/>
+                    <ColumnDefinition Width="Auto"/>
+                </Grid.ColumnDefinitions>
+                <TextBlock Grid.Column="0"
+                           VerticalAlignment="Center"
+                           TextTrimming="CharacterEllipsis"
+                           Foreground="{DynamicResource PlayAch.Brush.Text}"
+                           Text="{Binding CurrentAchievementLabel}"/>
+                <TextBlock Grid.Column="1"
+                           VerticalAlignment="Center"
+                           Foreground="{DynamicResource PlayAch.Brush.Text}"
+                           Opacity="{StaticResource PlayAch.Opacity.Muted}"
+                           Text="{Binding PositionText}"/>
+            </Grid>
+        </Grid>
+    </Border>
+</UserControl>

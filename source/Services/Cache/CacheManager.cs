@@ -8,6 +8,7 @@ using PlayniteAchievements.Models.Friends;
 using PlayniteAchievements.Services.Database;
 using PlayniteAchievements.Services.Friends;
 using PlayniteAchievements.Services.Images;
+using PlayniteAchievements.Providers;
 using Playnite.SDK;
 using System.Windows;
 
@@ -29,7 +30,7 @@ namespace PlayniteAchievements.Services.Cache
         void ResyncAllAchievementFilters(IReadOnlyDictionary<Guid, IReadOnlyList<(string ApiName, string Kind)>> entriesByGameId);
     }
 
-    public sealed class CacheManager : ICacheManager, ICacheReadOptimizations, IAchievementFilterMirror, IFriendCacheManager, IDisposable
+    public sealed class CacheManager : ICacheManager, ICacheReadOptimizations, IAchievementFilterMirror, IFriendCacheManager, IInGameProgressCacheWriter, IDisposable
     {
         private const int MaxInMemoryGames = 256;
 
@@ -99,6 +100,9 @@ namespace PlayniteAchievements.Services.Cache
         // drained on every flush so scope travels with the event, not the batch lifetime.
         private readonly FriendCacheInvalidationScopeAccumulator _friendCacheInvalidationScope =
             new FriendCacheInvalidationScopeAccumulator();
+        private readonly object _friendDataGameIdIndexSync = new object();
+        private IReadOnlyCollection<Guid> _friendDataPlayniteGameIds;
+        private int _friendDataGameIdIndexVersion;
 
         // Bumped under _sync on every in-memory mutation. LoadAllGameDataFast reads the
         // whole-library snapshot off _sync, so it uses this to detect writes that landed during
@@ -276,6 +280,12 @@ namespace PlayniteAchievements.Services.Cache
         private void RaiseFriendCacheInvalidatedEvent(FriendCacheInvalidatedEventArgs args)
         {
             args = args ?? FriendCacheInvalidatedEventArgs.FullInvalidation;
+            lock (_sync)
+            {
+                _friendDataPlayniteGameIds = null;
+                _friendDataGameIdIndexVersion++;
+            }
+
             _logger?.Debug(
                 $"[RefreshPerf] kind=friends phase=invalidation.raise full={args.IsFull} changes={args.Changes.Count}");
             try { FriendCacheInvalidated?.Invoke(this, args); }
@@ -938,6 +948,70 @@ namespace PlayniteAchievements.Services.Cache
             }
         }
 
+        InGameProgressWriteResult IInGameProgressCacheWriter.ApplyInGameProgress(
+            string cacheKey,
+            string providerKey,
+            IReadOnlyList<AchievementProgressObservation> observations)
+        {
+            var normalizedKey = UserKey(cacheKey);
+            if (string.IsNullOrWhiteSpace(normalizedKey))
+            {
+                return InGameProgressWriteResult.Failed("invalid_key");
+            }
+
+            InGameProgressWriteResult result;
+            var scopeChanged = false;
+            try
+            {
+                lock (_sync)
+                {
+                    EnsureReady_Locked("ApplyInGameProgress");
+                    result = _store.ApplyInGameProgress(normalizedKey, providerKey, observations);
+                    if (result?.Success == true && result.Changed)
+                    {
+                        var reloaded = _store.LoadCurrentUserGameData(normalizedKey);
+                        if (reloaded != null)
+                        {
+                            NormalizeLoadedData(normalizedKey, reloaded);
+                            SetMemoryGameData_Locked(normalizedKey, reloaded);
+                        }
+
+                        scopeChanged = RefreshScopeToken_Locked(clearMemoryOnChange: false);
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                _logger?.Error(
+                    ex,
+                    $"In-game cache progress write failed. key={normalizedKey}, provider={providerKey ?? "unknown"}");
+                return InGameProgressWriteResult.Failed("sql_write_failed");
+            }
+
+            if (result?.Success != true || !result.Changed)
+            {
+                return result ?? InGameProgressWriteResult.Failed("write_failed");
+            }
+
+            if (scopeChanged)
+            {
+                RaiseCacheDeltaUpdatedEvent(string.Empty, CacheDeltaOperationType.FullReset);
+            }
+
+            RaiseGameCacheUpdatedEvent(normalizedKey);
+            RaiseCacheDeltaUpdatedEvent(normalizedKey, CacheDeltaOperationType.Upsert);
+            if (Guid.TryParse(normalizedKey, out var gameId) && gameId != Guid.Empty)
+            {
+                RaiseCacheInvalidatedEvent(CacheInvalidatedEventArgs.Scoped(new[] { gameId }));
+            }
+            else
+            {
+                RaiseCacheInvalidatedEvent(CacheInvalidatedEventArgs.FullInvalidation);
+            }
+
+            return result;
+        }
+
         public void RemoveGameData(Guid playniteGameId)
         {
             if (playniteGameId == Guid.Empty)
@@ -1317,6 +1391,51 @@ namespace PlayniteAchievements.Services.Cache
             EnsureReadyForRead("LoadFriendGameAchievementData");
             return _store.LoadFriendGameAchievementData(playniteGameId) ??
                    new FriendsOverviewData();
+        }
+
+        IReadOnlyCollection<Guid> IFriendCacheManager.LoadFriendDataPlayniteGameIds()
+        {
+            EnsureReadyForRead("LoadFriendDataPlayniteGameIds");
+            lock (_sync)
+            {
+                if (_friendDataPlayniteGameIds != null)
+                {
+                    return _friendDataPlayniteGameIds;
+                }
+            }
+
+            // Multiple compare surfaces can select a game during the same layout pass. Coalesce
+            // their cold-start reads while keeping the database call off the general cache lock.
+            lock (_friendDataGameIdIndexSync)
+            {
+                while (true)
+                {
+                    int version;
+                    lock (_sync)
+                    {
+                        if (_friendDataPlayniteGameIds != null)
+                        {
+                            return _friendDataPlayniteGameIds;
+                        }
+
+                        version = _friendDataGameIdIndexVersion;
+                    }
+
+                    var loaded = _store.LoadFriendDataPlayniteGameIds() ?? Array.Empty<Guid>();
+                    lock (_sync)
+                    {
+                        // A write landed during the query, so retry rather than publishing or
+                        // returning a stale availability answer to the active compare surface.
+                        if (version != _friendDataGameIdIndexVersion)
+                        {
+                            continue;
+                        }
+
+                        _friendDataPlayniteGameIds = loaded;
+                        return _friendDataPlayniteGameIds;
+                    }
+                }
+            }
         }
 
         FriendsOverviewData IFriendCacheManager.LoadFriendGameAchievementData(FriendCacheChange gameScope)

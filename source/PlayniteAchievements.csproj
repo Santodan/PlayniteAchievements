@@ -11,6 +11,8 @@
     <RootNamespace>PlayniteAchievements</RootNamespace>
     <AssemblyName>PlayniteAchievements</AssemblyName>
     <TargetFrameworkVersion>v4.6.2</TargetFrameworkVersion>
+    <!-- Enables consuming the WinRT winmd references (Windows.Graphics.Capture) at net462. -->
+    <TargetPlatformVersion>10.0.19041.0</TargetPlatformVersion>
     <FileAlignment>512</FileAlignment>
     <Deterministic>true</Deterministic>
     <PathMap>$(MSBuildProjectDirectory)=/PlayniteAchievements/source</PathMap>
@@ -48,6 +50,10 @@
       <HintPath>packages\DiscUtils.Iso9660.0.16.13\lib\net45\DiscUtils.Iso9660.dll</HintPath>
       <Private>True</Private>
     </Reference>
+    <Reference Include="DiscUtils.Udf">
+      <HintPath>packages\DiscUtils.Udf.0.16.13\lib\net45\DiscUtils.Udf.dll</HintPath>
+      <Private>True</Private>
+    </Reference>
     <Reference Include="DiscUtils.Streams">
       <HintPath>packages\DiscUtils.Streams.0.16.13\lib\net45\DiscUtils.Streams.dll</HintPath>
       <Private>True</Private>
@@ -80,6 +86,46 @@
       <HintPath>packages\SharpCompress.0.26.0\lib\net46\SharpCompress.dll</HintPath>
       <Private>True</Private>
     </Reference>
+    <!-- D3D11 device + texture read-back for WGC HDR capture (Services\Capture). -->
+    <Reference Include="SharpDX">
+      <HintPath>packages\SharpDX.4.2.0\lib\net45\SharpDX.dll</HintPath>
+      <Private>True</Private>
+    </Reference>
+    <Reference Include="SharpDX.Direct3D11">
+      <HintPath>packages\SharpDX.Direct3D11.4.2.0\lib\net45\SharpDX.Direct3D11.dll</HintPath>
+      <Private>True</Private>
+    </Reference>
+    <Reference Include="SharpDX.DXGI">
+      <HintPath>packages\SharpDX.DXGI.4.2.0\lib\net45\SharpDX.DXGI.dll</HintPath>
+      <Private>True</Private>
+    </Reference>
+    <Reference Include="SharpDX.D3DCompiler">
+      <HintPath>packages\SharpDX.D3DCompiler.4.2.0\lib\net45\SharpDX.D3DCompiler.dll</HintPath>
+      <Private>True</Private>
+    </Reference>
+    <!-- Media Foundation H.264 encode (GPU-resident) for WGC unlock video. -->
+    <Reference Include="SharpDX.Mathematics">
+      <HintPath>packages\SharpDX.Mathematics.4.2.0\lib\net45\SharpDX.Mathematics.dll</HintPath>
+      <Private>True</Private>
+    </Reference>
+    <Reference Include="SharpDX.MediaFoundation">
+      <HintPath>packages\SharpDX.MediaFoundation.4.2.0\lib\net45\SharpDX.MediaFoundation.dll</HintPath>
+      <Private>True</Private>
+    </Reference>
+    <!-- WinRT projections for Windows.Graphics.Capture (WGC). The winmds are compile-time metadata
+         (Private=False: the OS provides the types at runtime); System.Runtime.WindowsRuntime carries
+         the projection glue (IAsyncOperation/AsTask, WinRT events). Requires TargetPlatformVersion. -->
+    <Reference Include="Windows.Foundation.FoundationContract">
+      <HintPath>packages\Microsoft.Windows.SDK.Contracts.10.0.19041.1\ref\netstandard2.0\Windows.Foundation.FoundationContract.winmd</HintPath>
+      <IsWinMDFile>true</IsWinMDFile>
+      <Private>False</Private>
+    </Reference>
+    <Reference Include="Windows.Foundation.UniversalApiContract">
+      <HintPath>packages\Microsoft.Windows.SDK.Contracts.10.0.19041.1\ref\netstandard2.0\Windows.Foundation.UniversalApiContract.winmd</HintPath>
+      <IsWinMDFile>true</IsWinMDFile>
+      <Private>False</Private>
+    </Reference>
+    <Reference Include="System.Runtime.WindowsRuntime" />
     <Reference Include="System.Numerics" />
     <Reference Include="System.ValueTuple">
       <HintPath>packages\System.ValueTuple.4.5.0\lib\net461\System.ValueTuple.dll</HintPath>
@@ -123,7 +169,7 @@
     <Compile Include="**\*.cs" Exclude="bin\**;obj\**;**\*.g.cs;**\*.g.i.cs" />
   </ItemGroup>
   <ItemGroup>
-    <Page Include="**\*.xaml" Exclude="bin\**;obj\**;Localization\**\*.xaml">
+    <Page Include="**\*.xaml" Exclude="bin\**;obj\**;Localization\**\*.xaml;Resources\DefaultTemplates\**\*.xaml">
       <Generator>MSBuild:Compile</Generator>
       <SubType>Designer</SubType>
     </Page>
@@ -160,6 +206,15 @@
     <EmbeddedResource Include="Providers\RetroAchievements\PlatformMapping\console-mappings.json" />
     <EmbeddedResource Include="Providers\Hoyoverse\Data\starrailstation.json">
       <LogicalName>PlayniteAchievements.Providers.Hoyoverse.Data.starrailstation.json</LogicalName>
+    </EmbeddedResource>
+    <!-- Single-source default notification templates: rendered at runtime AND returned by the
+         "Export default template" action. Embedded (not Page) so the resolver can read the raw
+         XAML text; excluded from the Page glob above. -->
+    <EmbeddedResource Include="Resources\DefaultTemplates\AchievementToast.xaml">
+      <LogicalName>PlayniteAchievements.Resources.DefaultTemplates.AchievementToast.xaml</LogicalName>
+    </EmbeddedResource>
+    <EmbeddedResource Include="Resources\DefaultTemplates\ScreenshotFrame.xaml">
+      <LogicalName>PlayniteAchievements.Resources.DefaultTemplates.ScreenshotFrame.xaml</LogicalName>
     </EmbeddedResource>
   </ItemGroup>
   <PropertyGroup>
