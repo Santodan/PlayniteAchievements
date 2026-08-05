@@ -39,17 +39,9 @@ namespace PlayniteAchievements.Services.Images
             "images-eds-ssl.xboxlive.com"
         };
 
-        private static readonly string[] SupportedImageExtensions =
-        {
-            ".png",
-            ".jpg",
-            ".jpeg",
-            ".gif",
-            ".bmp",
-            ".tif",
-            ".tiff",
-            ".webp"
-        };
+        // Every recognized format, not only the ones this machine can decode: a cached file must
+        // stay visible to path probing, size accounting, and clearing regardless of codec state.
+        private static string[] SupportedImageExtensions => ImageFormats.All;
 
         private readonly ILogger _logger;
         private readonly HttpClientHandler _httpHandler;
@@ -1718,12 +1710,7 @@ namespace PlayniteAchievements.Services.Images
 
         private static bool IsSupportedImageExtension(string extension)
         {
-            if (string.IsNullOrWhiteSpace(extension))
-            {
-                return false;
-            }
-
-            return SupportedImageExtensions.Contains(extension, StringComparer.OrdinalIgnoreCase);
+            return ImageFormats.IsSupportedExtension(extension);
         }
 
         private static bool IsSupportedCacheImageFile(string path)
