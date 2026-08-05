@@ -84,6 +84,20 @@ namespace PlayniteAchievements.Services.Notifications
 
         private const string ImagesFolderName = "images";
 
+        // Ordered longest-first so ".pastyle.zip" is matched whole instead of being read as
+        // ".pastyle" followed by a stray ".zip".
+        private static readonly string[] RecognizedFileSuffixes =
+        {
+            PackageFileExtension + ".zip",
+            ToastPackageFileExtension + ".zip",
+            FramePackageFileExtension + ".zip",
+            PackageFileExtension,
+            ToastPackageFileExtension,
+            FramePackageFileExtension,
+            ".zip",
+            ".json"
+        };
+
         /// <summary>
         /// The package entry stem each slot is bundled under (path accessors come from
         /// <see cref="NotificationImageSlotMap"/>). Toast badges keep the legacy unprefixed
@@ -402,27 +416,34 @@ namespace PlayniteAchievements.Services.Notifications
                 return path;
             }
 
-            var trimmed = path.Trim();
-            foreach (var suffix in new[]
-                     {
-                         PackageFileExtension + ".zip",
-                         ToastPackageFileExtension + ".zip",
-                         FramePackageFileExtension + ".zip",
-                         PackageFileExtension,
-                         ToastPackageFileExtension,
-                         FramePackageFileExtension,
-                         ".zip",
-                         ".json"
-                     })
+            return StripRecognizedSuffix(path.Trim()) + extension;
+        }
+
+        /// <summary>
+        /// Strips whichever recognized style or container suffix <paramref name="value"/> actually
+        /// ends with, leaving it unchanged when none matches. Shared by export-path normalization
+        /// and preset-name derivation so a legacy <c>.pastyle.zip</c> name is handled identically
+        /// by both instead of being truncated to a partial stem.
+        /// </summary>
+        public static string StripRecognizedSuffix(string value)
+        {
+            if (string.IsNullOrEmpty(value))
             {
-                if (trimmed.EndsWith(suffix, StringComparison.OrdinalIgnoreCase))
+                return value;
+            }
+
+            foreach (var suffix in RecognizedFileSuffixes)
+            {
+                // Longer than the suffix, so a file named after nothing but an extension keeps a
+                // usable stem rather than collapsing to an empty string.
+                if (value.Length > suffix.Length &&
+                    value.EndsWith(suffix, StringComparison.OrdinalIgnoreCase))
                 {
-                    trimmed = trimmed.Substring(0, trimmed.Length - suffix.Length);
-                    break;
+                    return value.Substring(0, value.Length - suffix.Length);
                 }
             }
 
-            return trimmed + extension;
+            return value;
         }
 
         private async Task<NotificationStyleSettings> ImportPackageAsync(
