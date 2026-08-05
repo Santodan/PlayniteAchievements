@@ -404,16 +404,14 @@ namespace PlayniteAchievements.Views.Helpers
 
             try
             {
-                // Both attached properties are read here, on the UI thread, so the background
-                // decode below never touches the target.
+                // Read on the UI thread so the background decode below never touches the target.
                 var applyGray = GetGray(d);
-                var phaseLock = GetPhaseLock(d);
 
                 // Fast path: with the composited frames already cached (e.g. a settings mockup
                 // rebuilt during a slider drag), building the animation is cheap — attach it
                 // synchronously, in the same dispatcher pass as the static bitmap, so the
                 // element never renders an out-of-phase frame.
-                if (TryApplyCachedAnimation(d, uriString, applyGray, phaseLock))
+                if (TryApplyCachedAnimation(d, uriString, applyGray))
                 {
                     return;
                 }
@@ -438,13 +436,13 @@ namespace PlayniteAchievements.Views.Helpers
                     {
                         if (!cancellationToken.IsCancellationRequested)
                         {
-                            TryApplyCachedAnimation(d, uriString, applyGray, phaseLock);
+                            TryApplyCachedAnimation(d, uriString, applyGray);
                         }
                     }));
                 }
                 else if (!cancellationToken.IsCancellationRequested)
                 {
-                    TryApplyCachedAnimation(d, uriString, applyGray, phaseLock);
+                    TryApplyCachedAnimation(d, uriString, applyGray);
                 }
             }
             catch (OperationCanceledException)
@@ -458,18 +456,18 @@ namespace PlayniteAchievements.Views.Helpers
 
         /// <summary>
         /// Builds the animation over the cached frames and attaches it. Returns false when the GIF
-        /// is not decoded yet, leaving the target untouched.
+        /// is not decoded yet, leaving the target untouched. UI thread only: the phase-lock flag is
+        /// read off the target here, at attach time, so a late-set PhaseLock still takes effect.
         /// </summary>
         private static bool TryApplyCachedAnimation(
             DependencyObject target,
             string uriString,
-            bool applyGray,
-            bool phaseLock)
+            bool applyGray)
         {
             if (!GifAnimationHelper.TryCreateAnimationFromCache(
                     uriString,
                     applyGray,
-                    phaseLock,
+                    GetPhaseLock(target),
                     out var normalizedSource,
                     out var firstFrame,
                     out var animation))
