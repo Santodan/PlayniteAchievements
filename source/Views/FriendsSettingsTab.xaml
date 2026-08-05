@@ -13,6 +13,7 @@
         <ResourceDictionary>
             <ResourceDictionary.MergedDictionaries>
                 <ResourceDictionary Source="pack://application:,,,/PlayniteAchievements;component/Resources/SettingsScopedControlStyles.xaml"/>
+                <ResourceDictionary Source="pack://application:,,,/PlayniteAchievements;component/Resources/CommonResources.xaml"/>
             </ResourceDictionary.MergedDictionaries>
 
             <!-- Uniform height for a single account entry, shared by every per-account column so
@@ -372,14 +373,21 @@
                                 </DataGridTemplateColumn.CellTemplate>
                             </DataGridTemplateColumn>
 
-                            <DataGridTemplateColumn Header="{DynamicResource LOCPlayAch_Column_Avatar}"
-                                                    Width="Auto"
+                            <!-- Primary account picker: the selected account supplies both the merged
+                                 friend's avatar and its default display name. Only meaningful for
+                                 merged rows, so the radios collapse everywhere else. -->
+                            <DataGridTemplateColumn Width="Auto"
                                                     MinWidth="110"
                                                     MaxWidth="150">
+                                <DataGridTemplateColumn.Header>
+                                    <TextBlock Text="{DynamicResource LOCPlayAch_Column_Primary}"
+                                               ToolTip="{DynamicResource LOCPlayAch_Column_PrimaryHint}"/>
+                                </DataGridTemplateColumn.Header>
                                 <DataGridTemplateColumn.CellTemplate>
                                     <DataTemplate>
                                         <ItemsControl ItemsSource="{Binding Accounts}"
-                                                      HorizontalAlignment="Center">
+                                                      HorizontalAlignment="Center"
+                                                      Visibility="{Binding IsMerged, Converter={StaticResource BoolToVis}}">
                                             <ItemsControl.ItemTemplate>
                                                 <DataTemplate>
                                                     <Grid Height="{StaticResource FriendAccountItemHeight}"
@@ -482,7 +490,7 @@
                                                         <Button Content="{DynamicResource LOCPlayAch_Button_Remove}"
                                                                 Command="{Binding DataContext.RemoveFriendCommand, RelativeSource={RelativeSource AncestorType={x:Type DataGrid}}}"
                                                                 CommandParameter="{Binding}"
-                                                                IsEnabled="{Binding CanRemove}"
+                                                                Visibility="{Binding CanRemove, Converter={StaticResource BoolToVis}}"
                                                                 VerticalAlignment="Center"
                                                                 Padding="8,3"/>
                                                     </Grid>
@@ -501,7 +509,7 @@
                                         <Button Content="{DynamicResource LOCPlayAch_FriendsSettings_Unmerge}"
                                                 Command="{Binding DataContext.UnmergeFriendCommand, RelativeSource={RelativeSource AncestorType={x:Type DataGrid}}}"
                                                 CommandParameter="{Binding}"
-                                                IsEnabled="{Binding CanUnmerge}"
+                                                Visibility="{Binding CanUnmerge, Converter={StaticResource BoolToVis}}"
                                                 HorizontalAlignment="Center"
                                                 VerticalAlignment="Center"
                                                 Padding="8,3"/>
