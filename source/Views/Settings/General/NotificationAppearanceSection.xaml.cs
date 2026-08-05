@@ -128,9 +128,18 @@ namespace PlayniteAchievements.Views.Settings.General
             ApplySelection();
             Loaded += (s, e) =>
             {
-                UpdateMockups();
-                RefreshFireButtons();
-                RefreshPresetOptions();
+                // Nothing sits behind this handler but the dispatcher, so it absorbs its own
+                // failures; each step is independent and already logs its own detail.
+                try
+                {
+                    UpdateMockups();
+                    RefreshFireButtons();
+                    RefreshPresetOptions();
+                }
+                catch (Exception ex)
+                {
+                    _logger?.Error(ex, "Failed initializing the notification appearance section.");
+                }
             };
         }
 
@@ -204,6 +213,21 @@ namespace PlayniteAchievements.Views.Settings.General
         /// provider is not customized yet.
         /// </summary>
         private void ApplySelection()
+        {
+            try
+            {
+                ApplySelectionCore();
+            }
+            catch (Exception ex)
+            {
+                // Reached from the ctor, the platform selector, and the persisted-settings
+                // subscription; leaving the editors on the previous style beats taking Playnite
+                // down with an unhandled dispatcher exception.
+                _logger?.Error(ex, "Failed applying the notification appearance selection.");
+            }
+        }
+
+        private void ApplySelectionCore()
         {
             if (IsGameMode)
             {
@@ -521,7 +545,8 @@ namespace PlayniteAchievements.Views.Settings.General
             {
                 if (CustomizeGameCheckBox.IsChecked != true)
                 {
-                    ApplyGameSelection();
+                    // Equivalent to ApplyGameSelection in game mode, but guarded.
+                    ApplySelection();
                     return;
                 }
 
@@ -655,7 +680,47 @@ namespace PlayniteAchievements.Views.Settings.General
 
         private Guid ScopeGameId => IsGameMode ? _gameId : Guid.Empty;
 
+        /// <summary>
+        /// Rebuilds the inline mockups, degrading to empty hosts instead of letting a failure reach
+        /// the WPF dispatcher: an imported style can carry values the preview pipeline rejects, and
+        /// there is no application-level exception handler behind this.
+        /// </summary>
+        /// <remarks>
+        /// This cannot catch a template that fails to realize: the content tree is built during the
+        /// following layout pass, after this method returns. Install-time validation
+        /// (AchievementToastTemplateResolver.TryValidateTemplateXaml) is what covers that.
+        /// </remarks>
         private void UpdateMockups()
+        {
+            try
+            {
+                UpdateMockupsCore();
+            }
+            catch (Exception ex)
+            {
+                _logger?.Error(ex, "Failed building the notification appearance mockups.");
+                try
+                {
+                    if (ToastMockupHost != null)
+                    {
+                        ToastMockupHost.ContentTemplate = null;
+                        ToastMockupHost.Content = null;
+                    }
+
+                    if (FrameMockupHost != null)
+                    {
+                        FrameMockupHost.ContentTemplate = null;
+                        FrameMockupHost.Content = null;
+                    }
+                }
+                catch (Exception clearEx)
+                {
+                    _logger?.Debug(clearEx, "Failed clearing the notification appearance mockups.");
+                }
+            }
+        }
+
+        private void UpdateMockupsCore()
         {
             // Mockups (and the source summary) are visual-only; while the control is not in the
             // visual tree, the Loaded handler's rebuild covers every change made in the meantime.
