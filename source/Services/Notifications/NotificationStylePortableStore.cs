@@ -279,7 +279,13 @@ namespace PlayniteAchievements.Services.Notifications
             if (!IsPackagePath(sourcePath))
             {
                 throw new InvalidOperationException(
-                    "Only .PASTYLE, .PANOTIF, and .PAFRAME files are supported.");
+                    ResourceProvider.GetString("LOCPlayAch_Settings_Style_ImportUnsupportedFile"));
+            }
+
+            if (!IsZipContent(sourcePath))
+            {
+                throw new InvalidOperationException(
+                    ResourceProvider.GetString("LOCPlayAch_Settings_Style_ImportNotPackage"));
             }
 
             using (var archive = ZipFile.OpenRead(sourcePath))
@@ -294,7 +300,7 @@ namespace PlayniteAchievements.Services.Notifications
                 if (manifestEntry == null)
                 {
                     throw new InvalidOperationException(
-                        "The package does not contain a notification style manifest.");
+                        ResourceProvider.GetString("LOCPlayAch_Settings_Style_ImportMissingManifest"));
                 }
 
                 // Read the manifest for the surface flags (and to validate the Kind up front).
@@ -325,7 +331,7 @@ namespace PlayniteAchievements.Services.Notifications
         /// </summary>
         public string ReadTemplateXaml(string sourcePath, bool isFrame)
         {
-            if (!IsPackagePath(sourcePath) || !File.Exists(sourcePath))
+            if (!IsPackagePath(sourcePath) || !File.Exists(sourcePath) || !IsZipContent(sourcePath))
             {
                 return null;
             }
@@ -377,13 +383,37 @@ namespace PlayniteAchievements.Services.Notifications
             if (!IsPackagePath(sourcePath))
             {
                 throw new InvalidOperationException(
-                    "Only .PASTYLE, .PANOTIF, and .PAFRAME files are supported.");
+                    ResourceProvider.GetString("LOCPlayAch_Settings_Style_ImportUnsupportedFile"));
             }
 
             return await ImportPackageAsync(
                 sourcePath,
                 targetOwner ?? NotificationImageOwner.Global,
                 cancel).ConfigureAwait(false);
+        }
+
+        /// <summary>
+        /// True when the file actually starts with the zip magic ("PK"). The style extensions are
+        /// bare (zip inside, like Playnite's .pext), so the extension alone does not prove the
+        /// container: a plain-JSON style from an older build, or the
+        /// <see cref="ManifestEntryName"/> manifest a user extracted out of a package, carries a
+        /// recognized extension while being unreadable as an archive. Checking here keeps
+        /// System.IO.Compression's raw "End of Central Directory record could not be found" out of
+        /// the user-facing error.
+        /// </summary>
+        private static bool IsZipContent(string path)
+        {
+            try
+            {
+                using (var stream = File.OpenRead(path))
+                {
+                    return stream.ReadByte() == 0x50 && stream.ReadByte() == 0x4B;
+                }
+            }
+            catch (Exception)
+            {
+                return false;
+            }
         }
 
         public static bool IsPackagePath(string path)
@@ -456,6 +486,13 @@ namespace PlayniteAchievements.Services.Notifications
                 throw new FileNotFoundException("Package file not found.", sourcePath);
             }
 
+            // The single chokepoint every import goes through, presets included.
+            if (!IsZipContent(sourcePath))
+            {
+                throw new InvalidOperationException(
+                    ResourceProvider.GetString("LOCPlayAch_Settings_Style_ImportNotPackage"));
+            }
+
             using (var archive = ZipFile.OpenRead(sourcePath))
             {
                 var entriesByName = archive.Entries
@@ -468,7 +505,7 @@ namespace PlayniteAchievements.Services.Notifications
                 if (!entriesByName.TryGetValue(ManifestEntryName, out var manifestEntry))
                 {
                     throw new InvalidOperationException(
-                        "The package does not contain a notification style manifest.");
+                        ResourceProvider.GetString("LOCPlayAch_Settings_Style_ImportMissingManifest"));
                 }
 
                 NotificationStylePortableFile portable;
