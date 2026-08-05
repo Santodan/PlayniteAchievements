@@ -2848,7 +2848,13 @@ namespace PlayniteAchievements.Services.Refresh
                 return mergeGroup.Nickname.Trim();
             }
 
-            foreach (var member in mergeGroup?.Members ?? Enumerable.Empty<FriendAccountRef>())
+            // The group's primary (avatar) account also supplies the merged name, so it is
+            // consulted before the remaining members in stored order.
+            var primaryKey = mergeGroup?.AvatarAccount?.Key;
+            var members = (mergeGroup?.Members ?? Enumerable.Empty<FriendAccountRef>())
+                .OrderByDescending(member => !string.IsNullOrWhiteSpace(primaryKey) &&
+                                             string.Equals(member?.Key, primaryKey, StringComparison.OrdinalIgnoreCase));
+            foreach (var member in members)
             {
                 if (!string.IsNullOrWhiteSpace(member?.Key) &&
                     accountLookup != null &&

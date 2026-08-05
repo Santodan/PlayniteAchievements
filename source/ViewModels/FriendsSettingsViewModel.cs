@@ -1063,9 +1063,10 @@ namespace PlayniteAchievements.ViewModels
             Nickname,
             DefaultDisplayName);
 
-        // The name shown when no nickname is set: the underlying account's display name (or id).
+        // The name shown when no nickname is set, preferring the primary (avatar-source) account.
         // Used as the faint placeholder inside the nickname text box.
         public string DefaultDisplayName => FirstNonEmpty(
+            Accounts.FirstOrDefault(account => account.IsAvatarSource)?.DisplayName,
             Accounts.Select(account => account.DisplayName).FirstOrDefault(value => !string.IsNullOrWhiteSpace(value)),
             Accounts.Select(account => account.ExternalUserId).FirstOrDefault(value => !string.IsNullOrWhiteSpace(value)));
 
@@ -1140,6 +1141,7 @@ namespace PlayniteAchievements.ViewModels
             }
 
             OnPropertyChanged(nameof(DisplayName));
+            OnPropertyChanged(nameof(DefaultDisplayName));
             OnPropertyChanged(nameof(AvatarSource));
             OnPropertyChanged(nameof(AccountsText));
             OnPropertyChanged(nameof(IsIgnored));
@@ -1162,8 +1164,8 @@ namespace PlayniteAchievements.ViewModels
             }
         }
 
-        // Radio-style handler: making one account the avatar source clears the rest, then
-        // refreshes the row avatar and persists the choice.
+        // Radio-style handler: making one account the primary clears the rest, then refreshes
+        // the row's avatar and default name and persists the choice.
         private void SelectAvatarSource(FriendSettingsAccountItem chosen)
         {
             foreach (var account in Accounts)
@@ -1175,6 +1177,8 @@ namespace PlayniteAchievements.ViewModels
             }
 
             OnPropertyChanged(nameof(AvatarSource));
+            OnPropertyChanged(nameof(DisplayName));
+            OnPropertyChanged(nameof(DefaultDisplayName));
             _onChanged?.Invoke(this);
         }
 

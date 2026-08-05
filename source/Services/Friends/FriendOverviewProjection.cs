@@ -599,7 +599,8 @@ namespace PlayniteAchievements.Services.Friends
                 return group.Nickname;
             }
 
-            foreach (var member in group?.Members ?? new List<FriendAccountRef>())
+            var members = MembersPrimaryFirst(group);
+            foreach (var member in members)
             {
                 if (settingsByAccount != null &&
                     settingsByAccount.TryGetValue(member.Key, out var setting) &&
@@ -609,7 +610,7 @@ namespace PlayniteAchievements.Services.Friends
                 }
             }
 
-            foreach (var member in group?.Members ?? new List<FriendAccountRef>())
+            foreach (var member in members)
             {
                 if (friendByAccount != null &&
                     friendByAccount.TryGetValue(member.Key, out var friend) &&
@@ -627,6 +628,22 @@ namespace PlayniteAchievements.Services.Friends
             }
 
             return group?.Members?.FirstOrDefault()?.ExternalUserId ?? "Merged Friend";
+        }
+
+        // The group's primary (avatar) account also supplies the merged display name, so name
+        // resolution walks it first; the stored member order breaks ties.
+        private static List<FriendAccountRef> MembersPrimaryFirst(FriendMergeGroup group)
+        {
+            var members = group?.Members ?? new List<FriendAccountRef>();
+            var primaryKey = group?.AvatarAccount?.Key;
+            if (string.IsNullOrWhiteSpace(primaryKey))
+            {
+                return members;
+            }
+
+            return members
+                .OrderByDescending(member => string.Equals(member?.Key, primaryKey, StringComparison.OrdinalIgnoreCase))
+                .ToList();
         }
 
         private static string ResolveMergedFriendAvatar(
