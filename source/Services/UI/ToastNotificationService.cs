@@ -408,6 +408,18 @@ namespace PlayniteAchievements.Services.UI
         }
 
         /// <summary>
+        /// Whether the wave's game is running, with its resolved window handle and process id.
+        /// The single source for the in-game/out-of-game split shared by the base capture and
+        /// the composite geometry. UI thread only.
+        /// </summary>
+        private bool TryResolveWaveGame(out IntPtr waveHwnd, out int? processId)
+        {
+            waveHwnd = ResolveWaveWindowHandle();
+            processId = _getGameProcessId?.Invoke(_activeWaveGameId);
+            return waveHwnd != IntPtr.Zero || (processId.HasValue && processId.Value > 0);
+        }
+
+        /// <summary>
         /// Starts the screen capture for the current wave. The running game's window is captured
         /// when one is resolvable. Out of game a real unlock keeps the foreground-window fallback
         /// (inside <see cref="UnlockScreenshotService.CaptureGameWindow(IntPtr, int?)"/>), but a
@@ -417,9 +429,7 @@ namespace PlayniteAchievements.Services.UI
         /// </summary>
         private Task<System.Drawing.Bitmap> StartWaveSurfaceCapture(bool isTestFire)
         {
-            var waveHwnd = ResolveWaveWindowHandle();
-            var processId = _getGameProcessId?.Invoke(_activeWaveGameId);
-            var gameRunning = waveHwnd != IntPtr.Zero || (processId.HasValue && processId.Value > 0);
+            var gameRunning = TryResolveWaveGame(out var waveHwnd, out var processId);
             if (!gameRunning && isTestFire)
             {
                 var appHwnd = ResolveAppWindowHandle();
@@ -471,9 +481,7 @@ namespace PlayniteAchievements.Services.UI
             // anchor rect (game client rect, or the work area for the out-of-game test fire) and
             // the composite maps through the rect the capture covers (client rect, or the full
             // monitor bounds — a monitor capture includes the taskbar area the work area excludes).
-            var waveHwnd = ResolveWaveWindowHandle();
-            var processId = _getGameProcessId?.Invoke(_activeWaveGameId);
-            var gameRunning = waveHwnd != IntPtr.Zero || (processId.HasValue && processId.Value > 0);
+            var gameRunning = TryResolveWaveGame(out _, out _);
             var anchorPhys = System.Drawing.Rectangle.Empty;
             var capturePhys = System.Drawing.Rectangle.Empty;
             var haveGeometry = false;
