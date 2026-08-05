@@ -71,20 +71,7 @@ namespace PlayniteAchievements.Services.Recording
         private const double ChimeTailBeyondToastSeconds = 0.5;
         private const double ChimeFadeOutSeconds = 0.15;
         private const double ChimeLeadBeforeToastSeconds = 0.75;
-        private const int MaxCaptureRestarts = 3;
-        private const int RestartBackoffSeconds = 5;
-        // Freeze recovery (distinct from crash restarts): a frozen-but-alive capture is detected by
-        // the health watchdog / clip freeze probe, which kill the capture to route it through the
-        // restart path. The fast (GPU-resident) path is retried in place first so a transient device
-        // hiccup costs nothing; only after ResidentFreezeRetryMax does it drop to the copy-through
-        // path. FreezeRestartCount is budgeted separately from crash restarts so spaced-out freezes
-        // never disable recording, and both freeze counters reset after HealthyResetMinutes of health.
-        private const int ResidentFreezeRetryMax = 2;
-        private const int MaxFreezeRestarts = 6;
-        private const int FreezeRecoveryCooldownSeconds = 20;
-        private const int HealthyResetMinutes = 5;
         private const int PruneIntervalSeconds = 30;
-        private const int StopGraceSeconds = 3;
         private const int DrainTimeoutSeconds = 45;
         // Fallbacks matching the PersistedSettings defaults, used when settings are unavailable.
         private const int DefaultPollIntervalSeconds = 15;
