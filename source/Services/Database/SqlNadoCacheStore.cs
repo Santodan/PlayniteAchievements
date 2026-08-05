@@ -81,6 +81,7 @@ namespace PlayniteAchievements.Services.Database
                         u.ProviderKey AS ProviderKey,
                         u.ExternalUserId AS ExternalUserId,
                         u.DisplayName AS DisplayName,
+                        u.ProviderNickname AS ProviderNickname,
                         u.AvatarUrl AS AvatarUrl,
                         u.LastRefreshedUtc AS LastRefreshedUtc,
                         g.ProviderGameId AS ProviderGameId,
@@ -106,6 +107,11 @@ namespace PlayniteAchievements.Services.Database
         private sealed class CacheKeyRow
         {
             public string CacheKey { get; set; }
+        }
+
+        private sealed class FriendDataGameIdRow
+        {
+            public string PlayniteGameId { get; set; }
         }
 
         private sealed class ProgressGameJoinRow
@@ -215,6 +221,7 @@ namespace PlayniteAchievements.Services.Database
             public string ProviderKey { get; set; }
             public string ExternalUserId { get; set; }
             public string DisplayName { get; set; }
+            public string ProviderNickname { get; set; }
             public string AvatarUrl { get; set; }
             public string LastRefreshedUtc { get; set; }
             public long? ProviderGameId { get; set; }
@@ -2764,6 +2771,7 @@ namespace PlayniteAchievements.Services.Database
                         ProviderKey = row.ProviderKey,
                         ExternalUserId = row.ExternalUserId,
                         DisplayName = row.DisplayName,
+                        ProviderNickname = row.ProviderNickname,
                         AvatarUrl = row.AvatarUrl,
                         LastRefreshedUtc = ParseUtc(row.LastRefreshedUtc)
                     },
@@ -2805,6 +2813,43 @@ namespace PlayniteAchievements.Services.Database
                 using (PerfScope.Start(_logger, "Friends.ApplySummaryScores", thresholdMs: 15))
                 FriendsOverviewDerivations.Apply(data, recentLimit);
                 return data;
+            });
+        }
+
+        /// <summary>
+        /// Distinct PlayniteGameIds any active friend has cached progress for. Cheap availability
+        /// index for the compare-friend dropdown: membership means the per-game friend row load
+        /// will yield at least one friend, so the dropdown can show without waiting on that load.
+        /// </summary>
+        public IReadOnlyCollection<Guid> LoadFriendDataPlayniteGameIds()
+        {
+            return WithReadDb(db =>
+            {
+                var result = new HashSet<Guid>();
+                var rows = db.Load<FriendDataGameIdRow>(
+                    @"SELECT DISTINCT g.PlayniteGameId AS PlayniteGameId
+                      FROM Users u
+                      INNER JOIN UserGameProgress ugp ON ugp.UserId = u.Id
+                      INNER JOIN Games g ON g.Id = ugp.GameId
+                      INNER JOIN FriendOwnership fo ON fo.UserId = u.Id AND fo.GameId = g.Id
+                      WHERE " + ActiveFriendPredicateSql + @"
+                        AND g.PlayniteGameId IS NOT NULL
+                        AND TRIM(g.PlayniteGameId) <> ''
+                        AND EXISTS (
+                            SELECT 1
+                            FROM AchievementDefinitions ad
+                            WHERE ad.GameId = g.Id
+                        );");
+                foreach (var row in rows)
+                {
+                    var gameId = ParseGuid(row?.PlayniteGameId);
+                    if (gameId.HasValue)
+                    {
+                        result.Add(gameId.Value);
+                    }
+                }
+
+                return (IReadOnlyCollection<Guid>)result;
             });
         }
 
@@ -3027,17 +3072,21 @@ namespace PlayniteAchievements.Services.Database
                 ? externalUserId
                 : friend.DisplayName.Trim();
             var lastRefreshedIso = ToIso(friend.LastRefreshedUtc ?? DateTime.UtcNow);
+            var providerNickname = string.IsNullOrWhiteSpace(friend.ProviderNickname)
+                ? null
+                : friend.ProviderNickname.Trim();
 
             var avatarPath = MakeRelativePath(friend.AvatarPath);
 
             db.ExecuteNonQuery(
                 @"INSERT OR IGNORE INTO Users
-                    (ProviderKey, ExternalUserId, DisplayName, IsCurrentUser, FriendSource, AvatarUrl, AvatarPath, LastRefreshedUtc, IsActiveFriend, CreatedUtc, UpdatedUtc)
+                    (ProviderKey, ExternalUserId, DisplayName, ProviderNickname, IsCurrentUser, FriendSource, AvatarUrl, AvatarPath, LastRefreshedUtc, IsActiveFriend, CreatedUtc, UpdatedUtc)
                   VALUES
-                    (?, ?, ?, 0, ?, ?, ?, ?, 1, ?, ?);",
+                    (?, ?, ?, ?, 0, ?, ?, ?, ?, 1, ?, ?);",
                 providerKey,
                 externalUserId,
                 DbValue(displayName),
+                DbValue(providerNickname),
                 DbValue(friendSource),
                 DbValue(friend.AvatarUrl),
                 DbValue(avatarPath),
@@ -3062,6 +3111,7 @@ namespace PlayniteAchievements.Services.Database
             db.ExecuteNonQuery(
                 @"UPDATE Users
                   SET DisplayName = ?,
+                      ProviderNickname = ?,
                       FriendSource = ?,
                       AvatarUrl = ?,
                       AvatarPath = COALESCE(?, AvatarPath),
@@ -3070,6 +3120,7 @@ namespace PlayniteAchievements.Services.Database
                       UpdatedUtc = ?
                   WHERE Id = ?;",
                 DbValue(displayName),
+                DbValue(providerNickname),
                 DbValue(friendSource),
                 DbValue(friend.AvatarUrl),
                 DbValue(avatarPath),
@@ -4359,6 +4410,7 @@ namespace PlayniteAchievements.Services.Database
                             u.ProviderKey AS ProviderKey,
                             u.ExternalUserId AS ExternalUserId,
                             u.DisplayName AS DisplayName,
+                            u.ProviderNickname AS ProviderNickname,
                             u.AvatarUrl AS AvatarUrl,
                             u.AvatarPath AS AvatarPath
                           FROM Users u
@@ -4371,6 +4423,7 @@ namespace PlayniteAchievements.Services.Database
                         ProviderKey = row.ProviderKey,
                         ExternalUserId = row.ExternalUserId,
                         DisplayName = row.DisplayName,
+                        ProviderNickname = row.ProviderNickname,
                         AvatarUrl = row.AvatarUrl,
                         AvatarPath = !string.IsNullOrWhiteSpace(row.AvatarPath)
                             ? MakeAbsolutePath(row.AvatarPath)
@@ -4390,6 +4443,7 @@ namespace PlayniteAchievements.Services.Database
             public string ProviderKey { get; set; }
             public string ExternalUserId { get; set; }
             public string DisplayName { get; set; }
+            public string ProviderNickname { get; set; }
             public string AvatarUrl { get; set; }
             public string AvatarPath { get; set; }
         }
@@ -5247,6 +5301,20 @@ namespace PlayniteAchievements.Services.Database
             }
 
             return iconUrl.Substring(lastSlash + 1);
+        }
+
+        /// <summary>
+        /// Applies a live-session progress delta against an existing current-user schema. This
+        /// deliberately does not call any of the definition upsert/removal paths used by a normal
+        /// refresh.
+        /// </summary>
+        internal InGameProgressWriteResult ApplyInGameProgress(
+            string key,
+            string providerKey,
+            IReadOnlyList<AchievementProgressObservation> observations)
+        {
+            return WithDb(db =>
+                InGameProgressSqlWriter.Apply(db, key, providerKey, observations));
         }
 
         // Returns the ApiName renames applied while upserting definitions (old -> new), so the

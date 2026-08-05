@@ -22,6 +22,7 @@ using PlayniteAchievements.ViewModels;
 using PlayniteAchievements.ViewModels.Items;
 using PlayniteAchievements.ViewModels.ManageAchievements;
 using PlayniteAchievements.Views.Helpers;
+using PlayniteAchievements.Views.Settings.General;
 
 namespace PlayniteAchievements.Views.ManageAchievements
 {
@@ -38,6 +39,7 @@ namespace PlayniteAchievements.Views.ManageAchievements
             ManageAchievementsTab.Notes,
             ManageAchievementsTab.AchievementOrder,
             ManageAchievementsTab.CustomIcons,
+            ManageAchievementsTab.Notifications,
             ManageAchievementsTab.Overrides
         };
 
@@ -60,6 +62,7 @@ namespace PlayniteAchievements.Views.ManageAchievements
         private ManageAchievementsFiltersTab _filtersControl;
         private ManageAchievementsNotesTab _notesControl;
         private ManageAchievementsAchievementIconsTab _achievementIconsControl;
+        private NotificationAppearanceSection _notificationsControl;
         private System.Windows.Threading.DispatcherTimer _iconOverridesChangedDebounce;
         private readonly HashSet<string> _pendingIconOverrideApiNames = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
         private ManualAchievementsViewModel _manualViewModel;
@@ -76,6 +79,8 @@ namespace PlayniteAchievements.Views.ManageAchievements
         private bool _filtersRefreshPending;
         private bool _notesRefreshPending;
         private bool _achievementIconsRefreshPending;
+        private bool _notificationsRefreshPending;
+        private bool _notificationsRefreshDiscardPending;
         private bool _selectManageCategoriesSubTab;
         private bool _ensureTabContentQueued;
 
@@ -198,6 +203,7 @@ namespace PlayniteAchievements.Views.ManageAchievements
             CleanupFilters();
             CleanupNotes();
             CleanupAchievementIcons();
+            CleanupNotifications();
         }
 
         private void ViewModel_PropertyChanged(object sender, PropertyChangedEventArgs e)
@@ -415,6 +421,21 @@ namespace PlayniteAchievements.Views.ManageAchievements
                     _achievementIconsRefreshPending = false;
                 }
             }
+            else if (_viewModel.SelectedTab == ManageAchievementsTab.Notifications)
+            {
+                var hadNotificationsControl = _notificationsControl != null;
+                EnsureNotificationsControl(forceRecreate: false);
+                if (_notificationsRefreshPending)
+                {
+                    if (hadNotificationsControl)
+                    {
+                        _notificationsControl?.RefreshData(_notificationsRefreshDiscardPending);
+                    }
+
+                    _notificationsRefreshPending = false;
+                    _notificationsRefreshDiscardPending = false;
+                }
+            }
         }
 
         public bool HandleFullscreenControllerInput(ControllerInput input)
@@ -577,6 +598,7 @@ namespace PlayniteAchievements.Views.ManageAchievements
                     NotesTabButton,
                     AchievementOrderTabButton,
                     CustomIconsTabButton,
+                    NotificationsTabButton,
                     OverridesTabButton
                 }
                 .Where(button => button != null && button.IsVisible && button.IsEnabled)
@@ -631,6 +653,9 @@ namespace PlayniteAchievements.Views.ManageAchievements
                     return _achievementOrderControl?.GetControllerElements() ?? new List<UIElement>();
                 case ManageAchievementsTab.CustomIcons:
                     return _achievementIconsControl?.GetControllerElements() ?? new List<UIElement>();
+                case ManageAchievementsTab.Notifications:
+                    root = _notificationsControl ?? (DependencyObject)NotificationsHost;
+                    break;
                 default:
                     root = ManageAchievementsContentHost;
                     break;
@@ -1123,6 +1148,23 @@ namespace PlayniteAchievements.Views.ManageAchievements
             }
         }
 
+        private void EnsureNotificationsControl(bool forceRecreate)
+        {
+            if (_notificationsControl != null && !forceRecreate)
+            {
+                return;
+            }
+
+            CleanupNotifications();
+            _notificationsControl = new NotificationAppearanceSection(
+                _settings,
+                PlayniteAchievementsPlugin.Instance,
+                _logger,
+                _viewModel.GameId,
+                _viewModel.EffectiveProviderKey);
+            NotificationsHost.Content = _notificationsControl;
+        }
+
         private void ManualViewModel_ManualLinkSaved(object sender, EventArgs e)
         {
             HandleStateChanged(refreshCapstone: true);
@@ -1220,6 +1262,7 @@ namespace PlayniteAchievements.Views.ManageAchievements
             _filtersRefreshPending = true;
             _notesRefreshPending = true;
             _achievementIconsRefreshPending = true;
+            _notificationsRefreshPending = true;
 
             if (refreshCapstone)
             {
@@ -1239,6 +1282,8 @@ namespace PlayniteAchievements.Views.ManageAchievements
             _filtersRefreshPending = true;
             _notesRefreshPending = true;
             _achievementIconsRefreshPending = true;
+            _notificationsRefreshPending = true;
+            _notificationsRefreshDiscardPending = true;
             EnsureSelectedTabContent();
         }
 
@@ -1364,6 +1409,27 @@ namespace PlayniteAchievements.Views.ManageAchievements
             if (CustomSchemaAchievementIconsHost != null)
             {
                 CustomSchemaAchievementIconsHost.Content = null;
+            }
+        }
+
+        private void CleanupNotifications()
+        {
+            if (_notificationsControl != null)
+            {
+                try
+                {
+                    _notificationsControl.Dispose();
+                }
+                catch (Exception ex)
+                {
+                    _logger?.Debug(ex, "Failed to cleanup notifications tab control.");
+                }
+            }
+
+            _notificationsControl = null;
+            if (NotificationsHost != null)
+            {
+                NotificationsHost.Content = null;
             }
         }
 

@@ -98,6 +98,10 @@ namespace PlayniteAchievements.ViewModels.Items
 
         public List<string> MemberProviderKeys { get; set; } = new List<string>();
 
+        // Projected from the persisted friend settings (FriendSettingsEntry.IsFavorite). Favorites are
+        // pinned ahead of non-favorites in every friend list regardless of the active sort.
+        public bool IsFavorite { get; set; }
+
         [DontSerialize]
         [IgnoreDataMember]
         public bool IsMergedFriend => !string.IsNullOrWhiteSpace(MergedFriendId);
@@ -159,6 +163,12 @@ namespace PlayniteAchievements.ViewModels.Items
         public string ProviderIconKey => IsMergedFriend || string.IsNullOrWhiteSpace(ProviderKey) ? null : "ProviderIcon" + ProviderKey;
         public string ProviderColorHex =>
             IsMergedFriend ? null : PlayniteAchievements.Providers.ProviderRegistry.GetProviderColorHex(ProviderKey);
+
+        public void RefreshProviderAppearance()
+        {
+            OnPropertyChanged(nameof(ProviderIconKey));
+            OnPropertyChanged(nameof(ProviderColorHex));
+        }
 
         public string DisplayName
         {

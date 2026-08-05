@@ -119,6 +119,15 @@ namespace PlayniteAchievements.Services.Tests
                 },
                 new GameCustomDataFile
                 {
+                    NotificationAppearanceOverride = new GameNotificationAppearanceOverride
+                    {
+                        Style = NotificationStyleSettings.CreateDefault(),
+                        ToastUseThemeStyling = false,
+                        FrameUseThemeStyling = false
+                    }
+                },
+                new GameCustomDataFile
+                {
                     ManualLink = new ManualAchievementLink
                     {
                         SourceKey = "Steam",
@@ -131,6 +140,56 @@ namespace PlayniteAchievements.Services.Tests
             {
                 Assert.IsTrue(GameCustomDataNormalizer.HasVisibleCustomization(item));
             }
+        }
+
+        [TestMethod]
+        public void NormalizeInternal_Schema5DataWithoutAppearance_RemainsValid()
+        {
+            var gameId = Guid.NewGuid();
+            var normalized = GameCustomDataNormalizer.NormalizeInternal(
+                new GameCustomDataFile
+                {
+                    SchemaVersion = 5,
+                    PlayniteGameId = gameId,
+                    ManualCapstoneApiName = " capstone "
+                },
+                gameId);
+
+            Assert.AreEqual(7, normalized.SchemaVersion);
+            Assert.AreEqual("capstone", normalized.ManualCapstoneApiName);
+            Assert.IsNull(normalized.NotificationAppearanceOverride);
+        }
+
+        [TestMethod]
+        public void NotificationAppearanceOverride_CloneAndPortableRoundTrip_AreIndependent()
+        {
+            var data = new GameCustomDataFile
+            {
+                PlayniteGameId = Guid.NewGuid(),
+                NotificationAppearanceOverride = new GameNotificationAppearanceOverride
+                {
+                    Style = NotificationStyleSettings.CreateDefault(),
+                    ToastUseThemeStyling = false,
+                    FrameUseThemeStyling = false
+                }
+            };
+            data.NotificationAppearanceOverride.Style.Toast.ShowHeader = false;
+
+            var clone = data.Clone();
+            var portable = data.ToPortable();
+            var roundTrip = GameCustomDataFile.FromPortable(
+                portable,
+                data.PlayniteGameId,
+                excludedFromRefreshes: false,
+                excludedFromSummaries: false);
+
+            clone.NotificationAppearanceOverride.Style.Toast.ShowHeader = true;
+            portable.NotificationAppearanceOverride.Style.Toast.ShowHeader = true;
+
+            Assert.IsFalse(data.NotificationAppearanceOverride.Style.Toast.ShowHeader);
+            Assert.IsFalse(roundTrip.NotificationAppearanceOverride.Style.Toast.ShowHeader);
+            Assert.IsFalse(roundTrip.NotificationAppearanceOverride.ToastUseThemeStyling);
+            Assert.IsFalse(roundTrip.NotificationAppearanceOverride.FrameUseThemeStyling);
         }
 
         [TestMethod]
@@ -154,9 +213,30 @@ namespace PlayniteAchievements.Services.Tests
                 },
                 gameId);
 
-            Assert.AreEqual(5, normalized.SchemaVersion);
+            Assert.AreEqual(7, normalized.SchemaVersion);
             AssertProviderOverride(normalized, "Steam", "480");
             AssertLegacyProviderFieldsCleared(normalized);
+        }
+
+        [TestMethod]
+        public void NormalizeInternal_GameJoltProviderOverride_SurvivesAsPositiveInteger()
+        {
+            var gameId = Guid.NewGuid();
+            var normalized = GameCustomDataNormalizer.NormalizeInternal(
+                new GameCustomDataFile
+                {
+                    PlayniteGameId = gameId,
+                    ProviderOverride = new ProviderOverrideData
+                    {
+                        ProviderKey = "gamejolt",
+                        Value = " 532194 "
+                    }
+                },
+                gameId);
+
+            // The GameJolt manual game-id override must round-trip through normalization (persist path),
+            // otherwise the per-game override is silently dropped on save.
+            AssertProviderOverride(normalized, "GameJolt", "532194");
         }
 
         [TestMethod]

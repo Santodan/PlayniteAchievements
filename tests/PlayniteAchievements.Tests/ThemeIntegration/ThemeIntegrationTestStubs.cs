@@ -25,6 +25,8 @@ namespace PlayniteAchievements
 
         public Services.GameCustomData.GameCustomDataStore GameCustomDataStore { get; set; }
 
+        public Services.Images.DiskImageService DiskImageService { get; set; }
+
         public Services.ThemeIntegration.ThemeIntegrationService ThemeIntegrationService { get; set; }
 
         public IPlayniteAPI PlayniteApi { get; set; }
@@ -183,6 +185,8 @@ namespace PlayniteAchievements.Models.Achievements
 
         public bool HasAchievements { get; set; } = true;
 
+        public bool ExcludedFromSummaries { get; set; }
+
         public string GameName { get; set; }
 
         public int AppId { get; set; }
@@ -288,11 +292,15 @@ namespace PlayniteAchievements.ViewModels
 
         public string SortingName { get; set; }
 
+        public int DisplayOrder { get; set; }
+
         public string GameName { get; set; }
 
         public string ProviderKey { get; set; }
 
         public string FriendName { get; set; }
+
+        public bool FriendIsFavorite { get; set; }
 
         public string FriendExternalUserId { get; set; }
 
@@ -389,6 +397,34 @@ namespace PlayniteAchievements.ViewModels
         public virtual bool UnlockedForVisibility => Unlocked;
 
         public bool IsRevealed { get; set; }
+
+        public bool HasComparison { get; private set; }
+
+        public string ComparisonFriendName { get; private set; }
+
+        public string ComparisonFriendAvatarPath { get; private set; }
+
+        public DateTime? ComparisonUnlockTimeUtc { get; private set; }
+
+        public bool ComparisonUnlocked { get; private set; }
+
+        public void ApplyComparison(string friendName, string friendAvatarPath, DateTime? unlockTimeUtc, bool unlocked)
+        {
+            ComparisonFriendName = friendName;
+            ComparisonFriendAvatarPath = friendAvatarPath;
+            ComparisonUnlockTimeUtc = unlockTimeUtc;
+            ComparisonUnlocked = unlocked;
+            HasComparison = true;
+        }
+
+        public void ClearComparison()
+        {
+            HasComparison = false;
+            ComparisonFriendName = null;
+            ComparisonFriendAvatarPath = null;
+            ComparisonUnlockTimeUtc = null;
+            ComparisonUnlocked = false;
+        }
 
         public static AchievementDisplayItem Create(
             PlayniteAchievements.Models.Achievements.GameAchievementData gameData,

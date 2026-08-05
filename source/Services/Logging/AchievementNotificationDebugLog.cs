@@ -227,7 +227,6 @@ namespace PlayniteAchievements.Services.Logging
                    name == nameof(LocalSettings.ExtraUnlockSoundPaths) ||
                    name == nameof(LocalSettings.EffectiveBundledUnlockSoundPath) ||
                    name == nameof(LocalSettings.EffectiveScreenshotSaveFolder) ||
-                   name == nameof(LocalSettings.FfmpegPath) ||
                    name == nameof(LocalSettings.SelectedCustomStyleSlot) ||
                    name == nameof(LocalSettings.CollectionProgressNotifications) ||
                    name == nameof(LocalSettings.PrestigeProgressNotifications);

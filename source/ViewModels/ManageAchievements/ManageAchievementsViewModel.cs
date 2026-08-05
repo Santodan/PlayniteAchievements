@@ -6,7 +6,10 @@ using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using System.Windows;
-using Microsoft.Win32;
+// WinForms dialogs: the WPF Microsoft.Win32 pickers render legacy-style on .NET Framework.
+using DialogResult = System.Windows.Forms.DialogResult;
+using OpenFileDialog = System.Windows.Forms.OpenFileDialog;
+using SaveFileDialog = System.Windows.Forms.SaveFileDialog;
 using Playnite.SDK;
 using PlayniteAchievements.Common;
 using PlayniteAchievements.Models;
@@ -98,8 +101,7 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
         public RelayCommand RefreshStateCommand { get; }
         public AsyncCommand RefreshGameCommand { get; }
         public RelayCommand ClearGameDataCommand { get; }
-        public RelayCommand ExportCustomJsonCommand { get; }
-        public RelayCommand ExportCustomPackageCommand { get; }
+        public RelayCommand ExportCustomCommand { get; }
         public RelayCommand ImportCustomJsonCommand { get; }
         public RelayCommand ClearCustomDataCommand { get; }
 
@@ -138,8 +140,7 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
             RefreshStateCommand = new RelayCommand(_ => Reload());
             RefreshGameCommand = new AsyncCommand(_ => RefreshGameAsync(), _ => HasGame && !IsRefreshing && !(_refreshService?.IsRebuilding ?? false));
             ClearGameDataCommand = new RelayCommand(_ => ClearGameData(), _ => HasGame);
-            ExportCustomJsonCommand = new RelayCommand(_ => ExportCustomJson(), _ => HasGame && CanExportCustomJson);
-            ExportCustomPackageCommand = new RelayCommand(_ => ExportCustomPackage(), _ => HasGame && CanExportCustomJson);
+            ExportCustomCommand = new RelayCommand(_ => ExportCustom(), _ => HasGame && CanExportCustomJson);
             ImportCustomJsonCommand = new RelayCommand(_ => ImportCustomJson(), _ => HasGame);
             ClearCustomDataCommand = new RelayCommand(_ => ClearCustomData(), _ => HasGame && CanClearCustomData);
 
@@ -149,6 +150,11 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
         public Guid GameId => _gameId;
 
         public string GameIdText => _gameId.ToString();
+
+        public string EffectiveProviderKey =>
+            _gameDataSnapshotProvider?.GetHydratedGameData()?.EffectiveProviderKey ??
+            _plugin?.AchievementDataService?.GetGameAchievementData(_gameId)?.EffectiveProviderKey ??
+            _cachedProviderKey;
 
         public ManageAchievementsTab SelectedTab
         {
@@ -843,7 +849,7 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
             }
         }
 
-        private void ExportCustomJson()
+        private void ExportCustom()
         {
             if (!HasGame)
             {
@@ -863,10 +869,10 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
                     Filter = "Playnite Achievements Portable (*.pa)|*.pa",
                     AddExtension = true,
                     DefaultExt = GameCustomDataStore.PortableFileExtension,
-                    FileName = BuildDefaultPortablePaFileName()
+                    FileName = BuildDefaultPortableFileBaseName()
                 };
 
-                if (dialog.ShowDialog() != true)
+                if (dialog.ShowDialog() != DialogResult.OK)
                 {
                     return;
                 }
@@ -874,14 +880,8 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
                 var destinationPath = NormalizePortableExportPath(
                     dialog.FileName,
                     GameCustomDataStore.PortableFileExtension);
-                var result = store.ExportPortablePa(_gameId, destinationPath);
-                var successMessage = L("LOCPlayAch_Status_Succeeded") + "\n" + result.DestinationPath;
-                if (result.HasOmittedLocalIconOverrides)
-                {
-                    successMessage += "\n\n" + string.Format(
-                        L("LOCPlayAch_ManageAchievements_Overrides_ExportPaOmittedLocalIcons"),
-                        result.OmittedLocalIconOverrideCount);
-                }
+                store.ExportPortablePackage(_gameId, destinationPath);
+                var successMessage = L("LOCPlayAch_Status_Succeeded") + "\n" + destinationPath;
 
                 _playniteApi?.Dialogs?.ShowMessage(
                     successMessage,
@@ -892,55 +892,6 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
             catch (Exception ex)
             {
                 _logger?.Error(ex, $"Failed exporting custom game data for gameId={_gameId}");
-                _playniteApi?.Dialogs?.ShowMessage(
-                    string.Format(L("LOCPlayAch_Status_Failed"), ex.Message),
-                    L("LOCPlayAch_Title_PluginName"),
-                    MessageBoxButton.OK,
-                    MessageBoxImage.Error);
-            }
-        }
-
-        private void ExportCustomPackage()
-        {
-            if (!HasGame)
-            {
-                return;
-            }
-
-            try
-            {
-                var store = _plugin?.GameCustomDataStore;
-                if (store == null)
-                {
-                    throw new InvalidOperationException("Game custom data store is not available.");
-                }
-
-                var dialog = new SaveFileDialog
-                {
-                    Filter = "Playnite Achievements Package (*.pa.zip)|*.pa.zip",
-                    AddExtension = true,
-                    DefaultExt = ".zip",
-                    FileName = BuildDefaultPortablePackageFileName()
-                };
-
-                if (dialog.ShowDialog() != true)
-                {
-                    return;
-                }
-
-                var destinationPath = NormalizePortableExportPath(
-                    dialog.FileName,
-                    GameCustomDataStore.PortablePackageFileExtension);
-                store.ExportPortablePackage(_gameId, destinationPath);
-                _playniteApi?.Dialogs?.ShowMessage(
-                    L("LOCPlayAch_Status_Succeeded") + "\n" + destinationPath,
-                    L("LOCPlayAch_Title_PluginName"),
-                    MessageBoxButton.OK,
-                    MessageBoxImage.Information);
-            }
-            catch (Exception ex)
-            {
-                _logger?.Error(ex, $"Failed exporting custom game package for gameId={_gameId}");
                 _playniteApi?.Dialogs?.ShowMessage(
                     string.Format(L("LOCPlayAch_Status_Failed"), ex.Message),
                     L("LOCPlayAch_Title_PluginName"),
@@ -960,12 +911,12 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
             {
                 var dialog = new OpenFileDialog
                 {
-                    Filter = "Playnite Achievements Files (*.pa;*.pa.zip)|*.pa;*.pa.zip|Playnite Achievements Portable (*.pa)|*.pa|Playnite Achievements Package (*.pa.zip)|*.pa.zip",
+                    Filter = "Playnite Achievements Portable (*.pa)|*.pa;*.pa.zip",
                     CheckFileExists = true,
                     Multiselect = false
                 };
 
-                if (dialog.ShowDialog() != true)
+                if (dialog.ShowDialog() != DialogResult.OK)
                 {
                     return;
                 }
@@ -1135,6 +1086,7 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
                 {
                     Mode = RefreshModeType.Single,
                     SingleGameId = _gameId,
+                    ShowEmptyTargetNotice = true,
                     Options = new RefreshOptions
                     {
                         Subjects = RefreshSubjects.CurrentUser,
@@ -1186,7 +1138,8 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
                         new RefreshRequest
                         {
                             Mode = RefreshModeType.Single,
-                            SingleGameId = _gameId
+                            SingleGameId = _gameId,
+                            ShowEmptyTargetNotice = true
                         },
                         RefreshExecutionPolicy.ProgressWindow(_gameId)).ConfigureAwait(false);
                 }
@@ -1277,8 +1230,7 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
             RefreshStateCommand?.RaiseCanExecuteChanged();
             RefreshGameCommand?.RaiseCanExecuteChanged();
             ClearGameDataCommand?.RaiseCanExecuteChanged();
-            ExportCustomJsonCommand?.RaiseCanExecuteChanged();
-            ExportCustomPackageCommand?.RaiseCanExecuteChanged();
+            ExportCustomCommand?.RaiseCanExecuteChanged();
             ImportCustomJsonCommand?.RaiseCanExecuteChanged();
             ClearCustomDataCommand?.RaiseCanExecuteChanged();
         }

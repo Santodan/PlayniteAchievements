@@ -9,7 +9,7 @@ namespace PlayniteAchievements.Models.Settings
     /// </summary>
     public sealed class GameCustomDataPortableFile
     {
-        public int SchemaVersion { get; set; } = 5;
+        public int SchemaVersion { get; set; } = 7;
 
         public Guid PlayniteGameId { get; set; }
 
@@ -48,6 +48,8 @@ namespace PlayniteAchievements.Models.Settings
         public bool? ForceUseExophase { get; set; }
 
         public string ExophaseSlugOverride { get; set; }
+
+        public GameNotificationAppearanceOverride NotificationAppearanceOverride { get; set; }
 
         public ProviderOverrideData ProviderOverride { get; set; }
 
@@ -95,6 +97,7 @@ namespace PlayniteAchievements.Models.Settings
                 ShadPS4MatchIdOverride = ShadPS4MatchIdOverride,
                 ForceUseExophase = ForceUseExophase,
                 ExophaseSlugOverride = ExophaseSlugOverride,
+                NotificationAppearanceOverride = NotificationAppearanceOverride?.Clone(),
                 ProviderOverride = ProviderOverride?.Clone(),
                 ManualLink = ManualLink?.Clone()
             };

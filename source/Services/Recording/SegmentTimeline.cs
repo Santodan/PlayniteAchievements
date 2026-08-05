@@ -8,20 +8,15 @@ namespace PlayniteAchievements.Services.Recording
 {
     /// <summary>
     /// Pure clip-window and buffer math over the rolling segment recording, all in UTC. The
-    /// invariant every window upholds: a clip contains BOTH the unlock moment and the toast
-    /// appearing on screen, targeting the configured clip length but stretching past it when the
-    /// unlock-to-toast gap requires it. No filesystem access — fully unit-testable.
+    /// invariant every window upholds: a clip contains the unlock moment (with its pre-roll)
+    /// plus a toast-duration slot after it — the toast itself is composited into the clip at
+    /// export, so the window never depends on when the toast actually displayed on screen.
+    /// Clamped only to recorded data. No filesystem access — fully unit-testable.
     /// </summary>
     internal static class SegmentTimeline
     {
         /// <summary>Tolerance (seconds past detection) a trusted unlock timestamp may carry.</summary>
         public const int PreciseLeadSeconds = 5;
-
-        /// <summary>Seconds kept after the toast is expected to have fully dismissed.</summary>
-        public const int ToastDismissTailSeconds = 1;
-
-        /// <summary>End-anchor fallback (seconds after detection) when no toast ever shows.</summary>
-        public const int NoToastEndFallbackSeconds = 5;
 
         /// <summary>Windows that collapse below this are skipped by the caller.</summary>
         public const int MinimumWindowSeconds = 3;
@@ -43,6 +38,20 @@ namespace PlayniteAchievements.Services.Recording
             public double StartOffsetSeconds { get; set; }
 
             public double DurationSeconds { get; set; }
+        }
+
+        /// <summary>
+        /// A computed clip window plus the moment the toast should appear inside it: the trusted
+        /// unlock time when available, else detection. The toast is composited at export, so the
+        /// anchor is a choice, not an observation — it mimics a zero-latency notification.
+        /// </summary>
+        public sealed class ClipWindow
+        {
+            public DateTime StartUtc { get; set; }
+
+            public DateTime EndUtc { get; set; }
+
+            public DateTime ToastAnchorUtc { get; set; }
         }
 
         /// <summary>
@@ -83,8 +92,8 @@ namespace PlayniteAchievements.Services.Recording
             string fileExtension = null)
         {
             startUtc = default;
-            var prefix = filePrefix ?? RecordingCommandBuilder.SegmentFilePrefix;
-            var extension = fileExtension ?? RecordingCommandBuilder.SegmentFileExtension;
+            var prefix = filePrefix ?? RecordingPaths.SegmentFilePrefix;
+            var extension = fileExtension ?? RecordingPaths.SegmentFileExtension;
             var name = Path.GetFileName(path ?? string.Empty);
             if (!name.StartsWith(prefix, StringComparison.OrdinalIgnoreCase) ||
                 !name.EndsWith(extension, StringComparison.OrdinalIgnoreCase))
@@ -136,39 +145,38 @@ namespace PlayniteAchievements.Services.Recording
         }
 
         /// <summary>
-        /// Computes the clip window in UTC.
-        /// Start anchor: preRollSeconds (the user's setting) before the unlock moment — the
-        /// precise timestamp when trusted, else the worst case within the last poll interval.
-        /// End anchor: guaranteed past the toast's dismissal (shown + display duration + tail);
-        /// when no toast ever shows, detection plus a short fallback tail. Clip length emerges
-        /// from the two anchors (pre-roll + detection gap + toast time), hard-capped at the
-        /// rolling buffer depth and clamped to recorded data.
+        /// Computes the clip window in UTC, anchored purely on the unlock — the on-screen toast
+        /// never moves the window because the toast is composited into the clip at export.
+        /// Start: preRollSeconds (the user's setting) before the unlock moment — the precise
+        /// timestamp when trusted, else pre-roll before detection. A floor keeps the start no
+        /// earlier than one poll interval + pre-roll before detection, so a far-back but
+        /// in-session precise timestamp can't open a runaway clip; the start is also clamped to
+        /// recorded data. End: the toast anchor (raised to the clip start when the pre-roll got
+        /// clamped away) plus the toast slot and tail.
         /// </summary>
-        public static (DateTime StartUtc, DateTime EndUtc) ComputeClipWindow(
+        public static ClipWindow ComputeClipWindow(
             DateTime? unlockTimeUtc,
             DateTime detectionUtc,
-            DateTime? toastShownUtc,
             DateTime captureStartUtc,
             DateTime? oldestSegmentStartUtc,
             int pollIntervalSeconds,
             int preRollSeconds,
-            int toastVisibleSeconds)
+            double toastSlotSeconds,
+            double tailSeconds)
         {
-            var end = toastShownUtc.HasValue
-                ? toastShownUtc.Value.AddSeconds(Math.Max(0, toastVisibleSeconds) + ToastDismissTailSeconds)
-                : detectionUtc.AddSeconds(NoToastEndFallbackSeconds);
+            var anchor = IsPreciseUnlockTime(unlockTimeUtc, captureStartUtc, detectionUtc)
+                ? unlockTimeUtc.Value
+                : detectionUtc;
 
             var preRoll = Math.Max(0, preRollSeconds);
-            var start = IsPreciseUnlockTime(unlockTimeUtc, captureStartUtc, detectionUtc)
-                ? unlockTimeUtc.Value.AddSeconds(-preRoll)
-                : detectionUtc.AddSeconds(-(Math.Max(0, pollIntervalSeconds) + preRoll));
+            var start = anchor.AddSeconds(-preRoll);
 
-            // Hard cap: the rolling buffer can never serve more than its depth. The end anchor
-            // (toast dismissal) wins; the start slides forward.
-            var depth = BufferDepthSeconds(pollIntervalSeconds, preRollSeconds);
-            if ((end - start).TotalSeconds > depth)
+            // Start floor: never open earlier than the oldest moment a promptly-detected unlock
+            // could have occurred (one poll interval back) plus the pre-roll.
+            var earliest = detectionUtc.AddSeconds(-(Math.Max(0, pollIntervalSeconds) + preRoll));
+            if (start < earliest)
             {
-                start = end.AddSeconds(-depth);
+                start = earliest;
             }
 
             // Clamp to data that actually exists.
@@ -183,12 +191,14 @@ namespace PlayniteAchievements.Services.Recording
                 start = floor;
             }
 
-            if (start > end)
+            // The toast begins at the clip start when the pre-roll got clamped away entirely.
+            if (anchor < start)
             {
-                start = end;
+                anchor = start;
             }
 
-            return (start, end);
+            var end = anchor.AddSeconds(Math.Max(0, toastSlotSeconds) + Math.Max(0, tailSeconds));
+            return new ClipWindow { StartUtc = start, EndUtc = end, ToastAnchorUtc = anchor };
         }
 
         /// <summary>

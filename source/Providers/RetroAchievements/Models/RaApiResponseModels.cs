@@ -267,4 +267,22 @@ namespace PlayniteAchievements.Providers.RetroAchievements.Models
         [JsonProperty("MemAddr")]
         public string MemAddr { get; set; }
     }
+
+    internal sealed class RaRecentAchievement
+    {
+        [JsonProperty("Date")]
+        public string Date { get; set; }
+
+        [JsonProperty("HardcoreMode")]
+        public int HardcoreMode { get; set; }
+
+        [JsonProperty("AchievementID")]
+        public int AchievementId { get; set; }
+
+        [JsonProperty("GameID")]
+        public int GameId { get; set; }
+
+        [JsonProperty("TrueRatio")]
+        public int TrueRatio { get; set; }
+    }
 }

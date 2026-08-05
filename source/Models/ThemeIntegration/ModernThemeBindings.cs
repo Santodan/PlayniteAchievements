@@ -425,6 +425,10 @@ namespace PlayniteAchievements.Models.ThemeIntegration
         [DontSerialize]
         private readonly BulkObservableCollection<GameAchievementSummary> _shadPS4Games = new BulkObservableCollection<GameAchievementSummary>();
         [DontSerialize]
+        private readonly BulkObservableCollection<GameAchievementSummary> _gameJoltGames = new BulkObservableCollection<GameAchievementSummary>();
+        [DontSerialize]
+        private readonly BulkObservableCollection<GameAchievementSummary> _ffxivGames = new BulkObservableCollection<GameAchievementSummary>();
+        [DontSerialize]
         private readonly BulkObservableCollection<GameAchievementSummary> _manualGames = new BulkObservableCollection<GameAchievementSummary>();
 
         [DontSerialize]
@@ -1999,6 +2003,20 @@ namespace PlayniteAchievements.Models.ThemeIntegration
         {
             get => _shadPS4Games;
             set => ReplaceCollection(_shadPS4Games, value, nameof(ShadPS4Games));
+        }
+
+        [DontSerialize]
+        public ObservableCollection<GameAchievementSummary> GameJoltGames
+        {
+            get => _gameJoltGames;
+            set => ReplaceCollection(_gameJoltGames, value, nameof(GameJoltGames));
+        }
+
+        [DontSerialize]
+        public ObservableCollection<GameAchievementSummary> FFXIVGames
+        {
+            get => _ffxivGames;
+            set => ReplaceCollection(_ffxivGames, value, nameof(FFXIVGames));
         }
 
         [DontSerialize]

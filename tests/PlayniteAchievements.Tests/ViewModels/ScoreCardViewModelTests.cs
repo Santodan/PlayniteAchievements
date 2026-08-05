@@ -1,4 +1,5 @@
 using Microsoft.VisualStudio.TestTools.UnitTesting;
+using PlayniteAchievements.Common;
 using PlayniteAchievements.Models.Achievements.Scoring;
 using PlayniteAchievements.ViewModels;
 
@@ -24,11 +25,12 @@ namespace PlayniteAchievements.Tests.ViewModels
 
             card.Apply(12345, 42, 67, "Gold3", useUniformRarityBadges: false);
 
-            Assert.AreEqual("12,345", card.ScoreText);
-            Assert.AreEqual("12,345 pts", card.PointsText);
+            var formattedScore = 12345.ToString("N0", FormattingCulture.Current);
+            Assert.AreEqual(formattedScore, card.ScoreText);
+            Assert.AreEqual($"{formattedScore} pts", card.PointsText);
             Assert.AreEqual("Lv 42", card.LevelText);
             Assert.AreEqual("Gold III", card.TierText);
-            Assert.AreEqual("Gold III | Lv 42 | 12,345 pts", card.DetailText);
+            Assert.AreEqual($"Gold III | Lv 42 | {formattedScore} pts", card.DetailText);
             Assert.AreEqual(67, card.LevelProgress);
         }
 
@@ -55,16 +57,16 @@ namespace PlayniteAchievements.Tests.ViewModels
 
             StringAssert.Contains(
                 card.CurrentLevelPointsText,
-                $"{snapshot.CurrentLevelPoints:N0}/{snapshot.CurrentLevelTotalPoints:N0}");
+                $"{snapshot.CurrentLevelPoints.ToString("N0", FormattingCulture.Current)}/{snapshot.CurrentLevelTotalPoints.ToString("N0", FormattingCulture.Current)}");
             StringAssert.Contains(
                 card.PointsUntilNextLevelText,
-                snapshot.PointsUntilNextLevel.ToString("N0"));
+                snapshot.PointsUntilNextLevel.ToString("N0", FormattingCulture.Current));
             StringAssert.Contains(
                 card.PointsUntilNextLevelText,
                 $"Lv {snapshot.DisplayLevel + 1}");
             StringAssert.Contains(
                 card.NextTierThresholdText,
-                snapshot.PointsUntilNextRank.ToString("N0"));
+                snapshot.PointsUntilNextRank.ToString("N0", FormattingCulture.Current));
             StringAssert.Contains(
                 card.NextTierThresholdText,
                 AchievementRankPresentation.FormatRank(snapshot.NextRank));

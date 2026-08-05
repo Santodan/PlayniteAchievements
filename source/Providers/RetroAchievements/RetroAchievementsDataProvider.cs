@@ -3,6 +3,7 @@ using PlayniteAchievements.Models.Achievements;
 using PlayniteAchievements.Models.Settings;
 using PlayniteAchievements.Providers;
 using PlayniteAchievements.Providers.Overrides;
+using PlayniteAchievements.Providers.RetroAchievements.EmulatorLog;
 using PlayniteAchievements.Providers.RetroAchievements.Hashing;
 using PlayniteAchievements.Providers.Settings;
 using PlayniteAchievements.Services;
@@ -19,7 +20,7 @@ using System.Threading.Tasks;
 
 namespace PlayniteAchievements.Providers.RetroAchievements
 {
-    internal sealed class RetroAchievementsDataProvider : DataProviderBase<RetroAchievementsSettings>, IDataProvider, IAchievementPageLinkProvider, IProviderOverride, IDisposable
+    internal sealed class RetroAchievementsDataProvider : DataProviderBase<RetroAchievementsSettings>, IDataProvider, IAchievementPageLinkProvider, IProviderOverride, IInGameProgressSource, IDisposable
     {
         public ProviderOverrideDescriptor OverrideDescriptor { get; } = ProviderOverrideDescriptor.Text(
             "LOCPlayAch_ManageAchievements_Overrides_ProviderValueLabel_RetroAchievements",
@@ -36,6 +37,7 @@ namespace PlayniteAchievements.Providers.RetroAchievements
 
         private readonly ILogger _logger;
         private readonly PlayniteAchievementsSettings _settings;
+        private readonly IPlayniteAPI _playniteApi;
         private readonly string _pluginUserDataPath;
         private readonly RetroAchievementsPathResolver _pathResolver;
 
@@ -49,11 +51,15 @@ namespace PlayniteAchievements.Providers.RetroAchievements
         private string _clientUsername;
         private string _clientApiKey;
         private string _clientLanguage;
+        private readonly object _recentLock = new object();
+        private readonly Dictionary<string, DateTime> _recentSeen =
+            new Dictionary<string, DateTime>(StringComparer.Ordinal);
 
         public RetroAchievementsDataProvider(ILogger logger, PlayniteAchievementsSettings settings, IPlayniteAPI playniteApi, string pluginUserDataPath)
         {
             _logger = logger ?? throw new ArgumentNullException(nameof(logger));
             _settings = settings ?? throw new ArgumentNullException(nameof(settings));
+            _playniteApi = playniteApi;
             _pluginUserDataPath = pluginUserDataPath ?? string.Empty;
             _pathResolver = new RetroAchievementsPathResolver(playniteApi);
         }
@@ -218,6 +224,160 @@ namespace PlayniteAchievements.Providers.RetroAchievements
         {
             EnsureInitialized();
             return _scanner.RefreshAsync(gamesToRefresh, onGameStarting, onGameCompleted, cancel);
+        }
+
+        InGameProgressRegistration IInGameProgressSource.TryRegister(
+            Game game,
+            GameAchievementData cachedSchema)
+        {
+            if (game == null ||
+                cachedSchema?.Achievements == null ||
+                cachedSchema.Achievements.Count == 0 ||
+                !string.Equals(cachedSchema.ProviderKey, ProviderKey, StringComparison.OrdinalIgnoreCase))
+            {
+                return null;
+            }
+
+            // Prefer instant, offline unlocks by tailing the emulator's own log when one is usable;
+            // otherwise fall back to the remote "recent achievements" feed for this game.
+            var logRegistration = TryBuildLogRegistration(game, cachedSchema);
+            if (logRegistration != null)
+            {
+                return logRegistration;
+            }
+
+            return new InGameProgressRegistration
+            {
+                ProviderKey = ProviderKey,
+                IsRemote = true,
+                PollInterval = TimeSpan.FromSeconds(5)
+            };
+        }
+
+        private InGameProgressRegistration TryBuildLogRegistration(
+            Game game,
+            GameAchievementData cachedSchema)
+        {
+            var entry = RaEmulatorLogRegistry.ResolveForGame(_playniteApi, game, out var emulator);
+            if (entry == null)
+            {
+                return null;
+            }
+
+            var overrides = ProviderRegistry.Settings<RetroAchievementsSettings>()?.EmulatorLogPathOverrides;
+            var logPath = RaEmulatorLogRegistry.ResolveEffectiveLogPath(entry, emulator, overrides);
+            if (string.IsNullOrWhiteSpace(logPath))
+            {
+                return null;
+            }
+
+            var directory = Path.GetDirectoryName(logPath);
+            if (string.IsNullOrWhiteSpace(directory) || !Directory.Exists(directory))
+            {
+                return null;
+            }
+
+            var hasOverride = overrides != null &&
+                overrides.TryGetValue(entry.Key, out var overridePath) &&
+                !string.IsNullOrWhiteSpace(overridePath);
+
+            // Without an explicit override, only take over from the remote feed once the log actually
+            // exists, so a user who has not enabled emulator logging keeps live web-API notifications.
+            if (!hasOverride && !File.Exists(logPath))
+            {
+                return null;
+            }
+
+            var achievementIds = cachedSchema.Achievements
+                .Select(achievement => achievement?.ApiName)
+                .Where(apiName => !string.IsNullOrWhiteSpace(apiName))
+                .ToList();
+            if (achievementIds.Count == 0)
+            {
+                return null;
+            }
+
+            _logger?.Info(
+                $"[RetroAchievements] In-game log tracking for '{game.Name}' via {entry.DisplayName}: {logPath}");
+
+            return new InGameProgressRegistration
+            {
+                ProviderKey = ProviderKey,
+                WatchTargets = new[] { logPath },
+                PollInterval = InGameProgressRegistration.FileWatchSafetyPollInterval,
+                State = new RaEmulatorLogSession(logPath, entry.Profile, achievementIds)
+            };
+        }
+
+        async Task<IReadOnlyList<InGameProgressQueryResult>> IInGameProgressSource.QueryAsync(
+            IReadOnlyList<InGameTrackingContext> games,
+            CancellationToken cancellationToken)
+        {
+            var contexts = (games ?? Array.Empty<InGameTrackingContext>())
+                .Where(context => context?.Game != null && context.CachedSchema?.Achievements != null)
+                .ToList();
+            if (contexts.Count == 0)
+            {
+                return Array.Empty<InGameProgressQueryResult>();
+            }
+
+            var results = new List<InGameProgressQueryResult>(contexts.Count);
+            var remoteContexts = new List<InGameTrackingContext>();
+
+            foreach (var context in contexts)
+            {
+                cancellationToken.ThrowIfCancellationRequested();
+                if (context.Registration?.State is RaEmulatorLogSession session)
+                {
+                    var gameId = context.Game.Id;
+                    results.Add(RaEmulatorLogReader.TryRead(session, out var observations)
+                        ? InGameProgressQueryResult.Succeeded(gameId, observations, isDelta: true)
+                        : InGameProgressQueryResult.Failed(gameId, "file_unstable"));
+                }
+                else
+                {
+                    remoteContexts.Add(context);
+                }
+            }
+
+            if (remoteContexts.Count > 0)
+            {
+                EnsureInitialized();
+                var recent = await _apiClient
+                    .GetUserRecentAchievementsAsync(lookbackMinutes: 2, cancellationToken)
+                    .ConfigureAwait(false) ?? new List<Models.RaRecentAchievement>();
+
+                cancellationToken.ThrowIfCancellationRequested();
+                results.AddRange(RetroAchievementsRecentProgressMapper.Map(
+                    recent,
+                    remoteContexts,
+                    MarkRecentSeen));
+            }
+
+            return results;
+        }
+
+        private bool MarkRecentSeen(string key, DateTime unlockUtc)
+        {
+            lock (_recentLock)
+            {
+                var cutoff = DateTime.UtcNow.AddMinutes(-10);
+                foreach (var stale in _recentSeen
+                    .Where(pair => pair.Value < cutoff)
+                    .Select(pair => pair.Key)
+                    .ToList())
+                {
+                    _recentSeen.Remove(stale);
+                }
+
+                if (_recentSeen.ContainsKey(key))
+                {
+                    return false;
+                }
+
+                _recentSeen[key] = unlockUtc;
+                return true;
+            }
         }
 
         private void EnsureInitialized()

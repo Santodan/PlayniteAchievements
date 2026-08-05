@@ -5,8 +5,10 @@ using System.Drawing.Imaging;
 using System.Globalization;
 using System.IO;
 using System.Runtime.InteropServices;
+using System.Text;
 using System.Windows.Forms;
 using Playnite.SDK;
+using PlayniteAchievements.Services.Capture;
 using PlayniteAchievements.Services.Images;
 using PlayniteAchievements.Providers.Local;
 using PlayniteAchievements.Services.Local;
@@ -15,13 +17,21 @@ using Playnite.SDK.Models;
 namespace PlayniteAchievements.Services.UI
 {
     /// <summary>
-    /// Captures a screenshot of the monitor the running game is on and saves it under a
-    /// user-chosen base directory as &lt;base&gt;\Game\NNN_AchievementName_&lt;variant&gt;.png.
-    /// Used by the unlock-toast pipeline to record images per own-unlock wave. All failures are
-    /// swallowed (logged at debug) so screenshotting never disrupts toasts.
+    /// Captures a screenshot of the running game's window (monitor capture for the out-of-game
+    /// test fire) and saves it under a user-chosen base directory as
+    /// &lt;base&gt;\Game\NNN_AchievementName_&lt;variant&gt;.png. Used by the unlock-toast
+    /// pipeline to record images per own-unlock wave. All failures are swallowed (logged at
+    /// debug) so screenshotting never disrupts toasts.
     /// </summary>
     internal sealed class UnlockScreenshotService
     {
+        /// <summary>
+        /// Subfolder under the configured screenshot/recording root that receives captures from the
+        /// manual test-notification fire, keeping them apart from genuine per-game unlock captures.
+        /// Shared by the screenshot planner and the clip output-path builder.
+        /// </summary>
+        public const string TestFolderName = "Test";
+
         private readonly ILogger _logger;
 
         public UnlockScreenshotService(ILogger logger)
@@ -165,15 +175,34 @@ namespace PlayniteAchievements.Services.UI
         {
             try
             {
-                var bounds = TryResolveGameWindowBounds(knownHwnd, startedProcessId, out var rect, out var hwnd)
-                    ? rect
-                    : ResolveMonitorBounds(hwnd);
+                var resolved = TryResolveGameWindowBounds(knownHwnd, startedProcessId, out var rect, out var hwnd);
+
+                // WGC per-window capture: HDR-correct (tone-maps an HDR desktop to SDR) and captures
+                // the game window even when it is unfocused or occluded. Falls back to the GDI region
+                // copy below when WGC can't deliver (minimized, no window, pre-1903 Windows, or a
+                // transient device failure) — that path is SDR-only and blows out on HDR.
+                if (resolved && hwnd != IntPtr.Zero && WgcWindowCapture.IsSupported)
+                {
+                    using (var wgc = new WgcWindowCapture())
+                    {
+                        var captured = wgc.CaptureWindow(hwnd);
+                        if (captured?.Bitmap != null)
+                        {
+                            return captured.Bitmap;
+                        }
+                    }
+                }
+
+                var bounds = resolved ? rect : ResolveMonitorBounds(hwnd);
                 if (bounds.Width <= 0 || bounds.Height <= 0)
                 {
                     return null;
                 }
 
-                var bitmap = new Bitmap(bounds.Width, bounds.Height, PixelFormat.Format32bppArgb);
+                // Rgb (not Argb): CopyFromScreen writes RGB only and never sets alpha, so an Argb
+                // buffer would carry alpha=0 and save transparent PNGs. On an Rgb bitmap the alpha
+                // is treated as opaque, so every saved variant is fully opaque.
+                var bitmap = new Bitmap(bounds.Width, bounds.Height, PixelFormat.Format32bppRgb);
                 using (var graphics = Graphics.FromImage(bitmap))
                 {
                     graphics.CopyFromScreen(bounds.Location, Point.Empty, bounds.Size);
@@ -283,6 +312,53 @@ namespace PlayniteAchievements.Services.UI
         }
 
         /// <summary>
+        /// Captures the entire monitor that <paramref name="windowOnMonitor"/> sits on (the
+        /// Playnite window when no game is running), so a notification fired out of game captures
+        /// the whole screen where it appears rather than just the Playnite window. Falls back to the
+        /// primary monitor when the handle is zero. Returns null on failure.
+        /// </summary>
+        public Bitmap CaptureMonitor(IntPtr windowOnMonitor)
+        {
+            try
+            {
+                // WGC monitor capture (HDR-correct) for the out-of-game test fire, where there is
+                // no game window to capture — taken once at wave start, before the toast shows;
+                // the card is composited on per item like the in-game path. GDI fallback below is
+                // SDR-only.
+                if (windowOnMonitor != IntPtr.Zero && WgcWindowCapture.IsSupported)
+                {
+                    using (var wgc = new WgcWindowCapture())
+                    {
+                        var captured = wgc.CaptureMonitorForWindow(windowOnMonitor);
+                        if (captured?.Bitmap != null)
+                        {
+                            return captured.Bitmap;
+                        }
+                    }
+                }
+
+                var bounds = ResolveMonitorBounds(windowOnMonitor);
+                if (bounds.Width <= 0 || bounds.Height <= 0)
+                {
+                    return null;
+                }
+
+                var bitmap = new Bitmap(bounds.Width, bounds.Height, PixelFormat.Format32bppRgb);
+                using (var graphics = Graphics.FromImage(bitmap))
+                {
+                    graphics.CopyFromScreen(bounds.Location, Point.Empty, bounds.Size);
+                }
+
+                return bitmap;
+            }
+            catch (Exception ex)
+            {
+                _logger?.Debug(ex, "Unlock monitor capture failed.");
+                return null;
+            }
+        }
+
+        /// <summary>
         /// Saves an already-captured bitmap to
         /// &lt;baseDir&gt;\Game\NNN_AchievementName_&lt;variant&gt;.png. Creates directories as
         /// needed and avoids clobbering an existing file by appending " (2)", " (3)"...
@@ -382,7 +458,7 @@ namespace PlayniteAchievements.Services.UI
             string variantSuffix = null,
             string extension = ".png")
         {
-            var game = AchievementIconCachePathBuilder.SanitizeSegment(gameName);
+            var game = SanitizeCaptureGameName(gameName);
             var name = AchievementIconCachePathBuilder.SanitizeSegment(achievementName);
 
             var width = Math.Max(3, Math.Max(1, total).ToString(CultureInfo.InvariantCulture).Length);
@@ -395,6 +471,24 @@ namespace PlayniteAchievements.Services.UI
                 ? string.Empty
                 : $"_{AchievementIconCachePathBuilder.SanitizeSegment(variantSuffix)}";
             return (game, $"{prefix}_{name}{suffix}{extension}");
+        }
+
+        internal static string SanitizeCaptureGameName(string gameName)
+        {
+            var invalidChars = Path.GetInvalidFileNameChars();
+            var builder = new StringBuilder(gameName?.Length ?? 0);
+
+            foreach (var c in gameName ?? string.Empty)
+            {
+                if (char.IsControl(c) || Array.IndexOf(invalidChars, c) >= 0)
+                {
+                    continue;
+                }
+
+                builder.Append(c);
+            }
+
+            return AchievementIconCachePathBuilder.SanitizeSegment(builder.ToString());
         }
 
         /// <summary>
@@ -426,9 +520,8 @@ namespace PlayniteAchievements.Services.UI
 
         /// <summary>
         /// Bounds of the monitor hosting the game window (started-process main window, else
-        /// foreground), in physical pixels. Used by the unlock-recording service to scope the
-        /// ffmpeg screen capture: ffmpeg can't follow a moving window, so the whole monitor is
-        /// recorded. Returns null when no window or monitor can be resolved.
+        /// foreground), in physical pixels. Used by capture services that need the game monitor.
+        /// Returns null when no window or monitor can be resolved.
         /// </summary>
         public Rectangle? TryGetGameMonitorBounds(int? startedProcessId)
         {

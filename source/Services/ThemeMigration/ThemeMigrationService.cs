@@ -803,7 +803,7 @@ namespace PlayniteAchievements.Services.ThemeMigration
             {
                 result = DuplicateMatchingBlock(
                     result,
-                    @"(?m)^[ \t]*<!-- Hoyoverse -->\r?\n[ \t]*<ButtonEx Content=""Hoyoverse""[\s\S]*?^[ \t]*</ButtonEx>",
+                    @"(?m)^(?:[ \t]*<!-- Hoyoverse -->\r?\n)?[ \t]*<ButtonEx Content=""Hoyoverse""[\s\S]*?^[ \t]*</ButtonEx>",
                     block => block
                         .Replace("<!-- Hoyoverse -->", "<!-- Local -->")
                         .Replace("Content=\"Hoyoverse\"", "Content=\"Local\"")

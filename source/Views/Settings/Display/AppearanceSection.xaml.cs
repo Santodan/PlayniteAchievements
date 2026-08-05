@@ -9,6 +9,7 @@ using Playnite.SDK;
 using PlayniteAchievements.Models;
 using PlayniteAchievements.Models.Achievements;
 using PlayniteAchievements.Models.Settings;
+using PlayniteAchievements.Providers;
 using PlayniteAchievements.Services.UI;
 using PlayniteAchievements.ViewModels.Settings;
 
@@ -21,6 +22,7 @@ namespace PlayniteAchievements.Views.Settings.Display
     public partial class AppearanceSection : UserControl, IDisposable
     {
         private readonly PlayniteAchievementsSettings _settings;
+        private readonly ProviderRegistry _providerRegistry;
         private readonly Func<Window, string, string> _pickColor;
         private readonly PersistedSettingsSubscription _persistedSubscription;
 
@@ -28,6 +30,7 @@ namespace PlayniteAchievements.Views.Settings.Display
         private ObservableCollection<RarityAppearanceItem> _rarityAppearanceItems;
         private ObservableCollection<CompletedBadgeAppearanceItem> _completedBadgeAppearanceItems;
         private ObservableCollection<TrophyAppearanceItem> _trophyAppearanceItems;
+        private ObservableCollection<ProviderAppearanceItem> _providerAppearanceItems;
         private ObservableCollection<RarityPalettePreset> _rarityPalettePresets;
 
         public AppearanceSection()
@@ -37,10 +40,12 @@ namespace PlayniteAchievements.Views.Settings.Display
 
         internal AppearanceSection(
             PlayniteAchievementsSettings settings,
+            ProviderRegistry providerRegistry,
             Func<Window, string, string> pickColor)
             : this()
         {
             _settings = settings ?? throw new ArgumentNullException(nameof(settings));
+            _providerRegistry = providerRegistry ?? throw new ArgumentNullException(nameof(providerRegistry));
             _pickColor = pickColor ?? throw new ArgumentNullException(nameof(pickColor));
 
             _persistedSubscription = new PersistedSettingsSubscription(
@@ -118,11 +123,30 @@ namespace PlayniteAchievements.Views.Settings.Display
             }
         }
 
+        public ObservableCollection<ProviderAppearanceItem> ProviderAppearanceItems
+        {
+            get
+            {
+                if (_providerAppearanceItems == null)
+                {
+                    _providerAppearanceItems = new ObservableCollection<ProviderAppearanceItem>();
+                    RebuildProviderAppearanceItems();
+                }
+
+                return _providerAppearanceItems;
+            }
+        }
+
         private void OnPersistedPropertyChanged(object sender, PropertyChangedEventArgs e)
         {
             if (RarityAppearanceHelper.IsAppearanceSettingPropertyName(e.PropertyName))
             {
                 ApplyRarityAppearanceOverrides();
+            }
+
+            if (e.PropertyName == nameof(PersistedSettings.ProviderColorOverrides))
+            {
+                RefreshProviderAppearanceItems();
             }
         }
 
@@ -195,6 +219,35 @@ namespace PlayniteAchievements.Views.Settings.Display
             {
                 trophyItem.Reset();
             }
+        }
+
+        private void PickProviderColor_Click(object sender, RoutedEventArgs e)
+        {
+            if ((sender as FrameworkElement)?.DataContext is ProviderAppearanceItem item)
+            {
+                PickPaletteColor(item.BaseColor, color => item.BaseColor = color);
+            }
+        }
+
+        private void ResetProviderColor_Click(object sender, RoutedEventArgs e)
+        {
+            if ((sender as FrameworkElement)?.DataContext is ProviderAppearanceItem item)
+            {
+                item.Reset();
+            }
+        }
+
+        private void ResetAllProviderColors_Click(object sender, RoutedEventArgs e)
+        {
+            var persisted = _settings?.Persisted;
+            if (persisted == null)
+            {
+                return;
+            }
+
+            persisted.ProviderColorOverrides =
+                new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+            RefreshProviderAppearanceItems();
         }
 
         private void ApplySelectedRarityPalettePreset_Click(object sender, RoutedEventArgs e)
@@ -477,6 +530,25 @@ namespace PlayniteAchievements.Views.Settings.Display
             items.Add(new TrophyAppearanceItem(ResourceProvider.GetString("LOCPlayAch_Trophy_Platinum"), "TrophyPlatinum", persisted, ApplyRarityAppearanceOverrides));
         }
 
+        private void RebuildProviderAppearanceItems()
+        {
+            var persisted = _settings?.Persisted;
+            if (persisted == null || _providerRegistry == null)
+            {
+                return;
+            }
+
+            var items = ProviderAppearanceItems;
+            items.Clear();
+            foreach (var provider in _providerRegistry.GetAllProviders())
+            {
+                items.Add(new ProviderAppearanceItem(
+                    provider,
+                    persisted,
+                    RefreshProviderAppearanceItems));
+            }
+        }
+
         /// <summary>
         /// Rebuilds all appearance editor items from the current persisted settings and reapplies
         /// resource and rarity overrides to the application resources.
@@ -487,8 +559,10 @@ namespace PlayniteAchievements.Views.Settings.Display
             RebuildRarityAppearanceItems();
             RebuildCompletedBadgeAppearanceItems();
             RebuildTrophyAppearanceItems();
+            RebuildProviderAppearanceItems();
             ApplyResourceAppearanceOverrides();
             ApplyRarityAppearanceOverrides();
+            RefreshProviderAppearanceItems();
         }
 
         private void ApplyResourceAppearanceOverrides()
@@ -534,6 +608,19 @@ namespace PlayniteAchievements.Views.Settings.Display
                 {
                     item.Refresh();
                 }
+            }
+        }
+
+        private void RefreshProviderAppearanceItems()
+        {
+            if (_providerAppearanceItems == null)
+            {
+                return;
+            }
+
+            foreach (var item in _providerAppearanceItems)
+            {
+                item.Refresh();
             }
         }
 

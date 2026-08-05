@@ -86,10 +86,6 @@
                                                    Margin="{StaticResource PlayAch.Thickness.Bottom.Sm}"/>
                                         <TextBox Text="{Binding Settings.RaUsername, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
                                                  Padding="4"/>
-                                        <TextBlock Text="{DynamicResource LOCPlayAch_Settings_RaUsername_Help}"
-                                                   Style="{StaticResource MutedTextStyle}"
-                                                   Margin="{StaticResource PlayAch.Thickness.Top.Sm}"
-                                                   TextWrapping="Wrap"/>
 
                                         <TextBlock Text="{DynamicResource LOCPlayAch_Settings_RaWebApiKey}"
                                                    Margin="0,12,0,8"/>
@@ -227,6 +223,61 @@
                                 Margin="16,0,0,0"
                                 MinWidth="90"/>
                     </Grid>
+                </StackPanel>
+            </Border>
+
+            <!-- Instant in-game notifications via emulator log tracking -->
+            <Border Style="{StaticResource SectionBorderStyle}"
+                    IsEnabled="{Binding Settings.IsEnabled}">
+                <StackPanel>
+                    <TextBlock Text="{DynamicResource LOCPlayAch_Settings_RaEmulatorLogTracking}"
+                               Style="{StaticResource SectionHeaderStyle}"/>
+                    <TextBlock Text="{DynamicResource LOCPlayAch_Settings_RaEmulatorLogTracking_Help}"
+                               Style="{StaticResource MutedTextStyle}"
+                               TextWrapping="Wrap"
+                               Margin="{StaticResource PlayAch.Thickness.Bottom.Lg}"/>
+
+                    <ItemsControl ItemsSource="{Binding EmulatorLogRows, RelativeSource={RelativeSource AncestorType=UserControl}}">
+                        <ItemsControl.ItemTemplate>
+                            <DataTemplate>
+                                <Grid Margin="{StaticResource PlayAch.Thickness.Bottom.Lg}">
+                                    <Grid.RowDefinitions>
+                                        <RowDefinition Height="Auto"/>
+                                        <RowDefinition Height="Auto"/>
+                                        <RowDefinition Height="Auto"/>
+                                    </Grid.RowDefinitions>
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*"/>
+                                        <ColumnDefinition Width="Auto"/>
+                                    </Grid.ColumnDefinitions>
+
+                                    <TextBlock Grid.Row="0" Grid.Column="0" Grid.ColumnSpan="2"
+                                               Text="{Binding DisplayName}"
+                                               FontWeight="SemiBold"
+                                               Foreground="{DynamicResource PlayAch.Brush.Text}"/>
+
+                                    <TextBox Grid.Row="1" Grid.Column="0"
+                                             Text="{Binding OverridePath, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                             Padding="4"
+                                             Margin="0,4,8,0"
+                                             VerticalAlignment="Center"/>
+
+                                    <Button Grid.Row="1" Grid.Column="1"
+                                            Content="{DynamicResource LOCPlayAch_Button_Browse}"
+                                            Click="EmulatorLogBrowse_Click"
+                                            VerticalAlignment="Center"
+                                            Margin="0,4,0,0"
+                                            Padding="{StaticResource PlayAch.Thickness.ButtonPadding.Compact}"/>
+
+                                    <TextBlock Grid.Row="2" Grid.Column="0" Grid.ColumnSpan="2"
+                                               Text="{Binding DefaultPathDisplay}"
+                                               Style="{StaticResource MutedTextStyle}"
+                                               TextWrapping="Wrap"
+                                               Margin="{StaticResource PlayAch.Thickness.Top.Sm}"/>
+                                </Grid>
+                            </DataTemplate>
+                        </ItemsControl.ItemTemplate>
+                    </ItemsControl>
                 </StackPanel>
             </Border>
         </StackPanel>

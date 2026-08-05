@@ -40,6 +40,8 @@ namespace PlayniteAchievements.Services.ThemeIntegration
             new ProviderBucket("RPCS3", (state, items) => state.RPCS3Games = items),
             new ProviderBucket("Xenia", (state, items) => state.XeniaGames = items),
             new ProviderBucket("ShadPS4", (state, items) => state.ShadPS4Games = items),
+            new ProviderBucket("GameJolt", (state, items) => state.GameJoltGames = items),
+            new ProviderBucket("FFXIV", (state, items) => state.FFXIVGames = items),
             new ProviderBucket("Manual", (state, items) => state.ManualGames = items)
         };
 

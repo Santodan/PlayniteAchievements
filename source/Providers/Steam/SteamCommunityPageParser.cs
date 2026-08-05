@@ -16,6 +16,7 @@ namespace PlayniteAchievements.Providers.Steam
     {
         public string SteamId { get; set; }
         public string DisplayName { get; set; }
+        public string ProviderNickname { get; set; }
         public string AvatarUrl { get; set; }
     }
 
@@ -72,10 +73,14 @@ namespace PlayniteAchievements.Providers.Steam
                     continue;
                 }
 
+                ExtractFriendNames(node, out var personaName, out var providerNickname);
                 result.Add(new SteamCommunityFriend
                 {
                     SteamId = steamId,
-                    DisplayName = FirstNonEmpty(ExtractFriendName(node), steamId),
+                    // When a nickname exists the persona name is absent from the block; leave
+                    // DisplayName null so the provider knows to recover it from the profile XML.
+                    DisplayName = personaName ?? (providerNickname == null ? steamId : null),
+                    ProviderNickname = providerNickname,
                     AvatarUrl = NormalizeText(node.SelectSingleNode(".//img")?.GetAttributeValue("src", null))
                 });
             }
@@ -314,31 +319,86 @@ namespace PlayniteAchievements.Providers.Steam
                 : null;
         }
 
-        private static string ExtractFriendName(HtmlNode node)
+        // When the logged-in user has assigned a friend a nickname, the friend block's primary
+        // text is the nickname (followed by a player_nickname_hint element) and the persona name
+        // is absent from the block entirely; data-search and the avatar alt also carry the
+        // nickname, so the fallback chain must not run in that case.
+        private static void ExtractFriendNames(HtmlNode node, out string personaName, out string providerNickname)
         {
+            personaName = null;
+            providerNickname = null;
+
             var contentNode = node.SelectSingleNode(
                 ".//*[contains(concat(' ', normalize-space(@class), ' '), ' friend_block_content ')]");
             var directText = contentNode?.ChildNodes?
                 .FirstOrDefault(child => child.NodeType == HtmlNodeType.Text && !string.IsNullOrWhiteSpace(child.InnerText));
-            var fromDirectText = FirstTextLine(directText?.InnerText);
-            if (!string.IsNullOrWhiteSpace(fromDirectText))
+
+            var nicknameHint = contentNode?.SelectSingleNode(
+                ".//*[contains(concat(' ', normalize-space(@class), ' '), ' player_nickname_hint ')]");
+            if (nicknameHint != null)
             {
-                return fromDirectText;
+                providerNickname = FirstTextLine(PreviousNonEmptyTextSibling(nicknameHint)?.InnerText) ??
+                                   FirstTextLine(directText?.InnerText);
+                return;
             }
 
-            var fromContent = FirstTextLine(contentNode?.InnerText);
-            if (!string.IsNullOrWhiteSpace(fromContent))
+            personaName = FirstTextLine(directText?.InnerText);
+            if (!string.IsNullOrWhiteSpace(personaName))
             {
-                return fromContent;
+                return;
             }
 
-            var dataSearch = FirstTextLine(node.GetAttributeValue("data-search", null));
-            if (!string.IsNullOrWhiteSpace(dataSearch))
+            personaName = FirstTextLine(contentNode?.InnerText);
+            if (!string.IsNullOrWhiteSpace(personaName))
             {
-                return dataSearch;
+                return;
             }
 
-            return FirstTextLine(node.SelectSingleNode(".//img")?.GetAttributeValue("alt", null));
+            personaName = FirstTextLine(node.GetAttributeValue("data-search", null));
+            if (!string.IsNullOrWhiteSpace(personaName))
+            {
+                return;
+            }
+
+            personaName = FirstTextLine(node.SelectSingleNode(".//img")?.GetAttributeValue("alt", null));
+        }
+
+        private static HtmlNode PreviousNonEmptyTextSibling(HtmlNode node)
+        {
+            for (var sibling = node?.PreviousSibling; sibling != null; sibling = sibling.PreviousSibling)
+            {
+                if (sibling.NodeType == HtmlNodeType.Text && !string.IsNullOrWhiteSpace(sibling.InnerText))
+                {
+                    return sibling;
+                }
+
+                if (sibling.NodeType == HtmlNodeType.Element)
+                {
+                    return null;
+                }
+            }
+
+            return null;
+        }
+
+        // Reads the persona name from a profile ?xml=1 payload (<steamID> element; the regex in
+        // TryExtractXmlPayloadFromText does not match <steamID64>). Returns null on any failure.
+        public static string TryExtractProfilePersonaName(string html)
+        {
+            var payload = TryExtractXmlPayload(html, "steamID");
+            if (string.IsNullOrWhiteSpace(payload))
+            {
+                return null;
+            }
+
+            try
+            {
+                return NormalizeText(XDocument.Parse(payload).Root?.Value);
+            }
+            catch
+            {
+                return null;
+            }
         }
 
         private static List<SteamOwnedGame> TryParseOwnedGamesXml(string html)

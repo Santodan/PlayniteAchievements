@@ -1,21 +1,22 @@
 {
     "schemaVersion":  1,
-    "generatedUtc":  "2026-08-04T08:21:39.8104573Z",
-    "baselineRef":  "upstream/main",
-    "baselineCommit":  "21f3b22393c99a80aee0f49b9bdca1aa80686f23",
+    "generatedUtc":  "2026-08-05T16:33:13.0665226Z",
+    "baselineRef":  "v3.1.0",
+    "baselineCommit":  "8fb84ef5f965919c95fd8a6f1492ccb832bb7c0b",
     "protectedPaths":  [
+                           "README.md",
                            "source/extension.yaml",
                            "InstallerManifest.yaml"
                        ],
     "patch":  {
                   "path":  "fork-changes.patch",
-                  "sha256":  "595BE200967218BF08E690C3F6BDA7E1C5628E524B0345A020FA04761F009560"
+                  "sha256":  "781A002EFB8B1C42E5F590679C9C3331F2A705BAF906468B965219823E4CD4D7"
               },
     "localizationRecipes":  {
                                 "path":  "localization-recipes.json",
-                                "sha256":  "E7F190EC5399E6279E20A12EF67E85A18058A62EBD4AD9341C142EBDADBCC7E5",
+                                "sha256":  "F6526B7B8853F883EBAA540CAF778F3D5110071F0692A5D5CC71C26D7A3ACDF4",
                                 "fileCount":  1,
-                                "entryCount":  365
+                                "entryCount":  376
                             },
     "overlayFiles":  [
                          {
@@ -136,7 +137,7 @@
                          },
                          {
                              "path":  "source/Providers/Local/LocalSettings.cs",
-                             "sha256":  "45517037C5E8C21A35B8007D22295285DD5ED1EE6D9B7B45134F0336921B36E7"
+                             "sha256":  "020598C5D085940E0A8AA29EC5E45B002CA8DFCC962E463BA3173B5310ED296B"
                          },
                          {
                              "path":  "source/Providers/Local/LocalSettingsView.xaml",
@@ -236,7 +237,7 @@
                          },
                          {
                              "path":  "source/Services/Logging/AchievementNotificationDebugLog.cs",
-                             "sha256":  "87D0D822F999E75FA09090846FC01F860D116FF1EA1D326E4C08876050C0AF68"
+                             "sha256":  "517C77F251C66B287307D8221AEA757A1D8E14D6B96A0312F1DE02D14C036E68"
                          },
                          {
                              "path":  "source/Services/Refresh/CustomRefreshGameMatcher.cs",
@@ -296,11 +297,11 @@
                          },
                          {
                              "path":  "source/Views/LegacyNotificationSettingsControl.xaml",
-                             "sha256":  "D60F9DA03BE27269898966F6065F15171D6CB575AB200BDD849EA45675AF59C1"
+                             "sha256":  "53898CEDD29380D248DC8A42B88A438FC9FD3957651A13EA61F35D1F574987C6"
                          },
                          {
                              "path":  "source/Views/LegacyNotificationSettingsControl.xaml.cs",
-                             "sha256":  "05999D506EFCA147413CC479C7DE14B861F48B5F17AFE3369B6657690909885E"
+                             "sha256":  "9370FF5ED1D24A386A8E7279AB9414FF9F820A31466AD509E0EC204BE87A64B9"
                          },
                          {
                              "path":  "source/Views/LocalAchievementEditorControl.xaml",
@@ -325,6 +326,10 @@
                          {
                              "path":  "tests/PlayniteAchievements.Tests/TestSupport/LocalSavesProviderStub.cs",
                              "sha256":  "89155B28C860334C0D342A72ADBD9CFBCEA7082F1C034A78FD380C4500C6CB6D"
+                         },
+                         {
+                             "path":  "tests/PlayniteAchievements.Tests/TestSupport/WgcWindowCaptureStub.cs",
+                             "sha256":  "D35A5A572CB16325DA592AC7688836F4429273C7B6B1A099004C67B3716F0DFF"
                          },
                          {
                              "path":  "tools/notification-template-builder.html",

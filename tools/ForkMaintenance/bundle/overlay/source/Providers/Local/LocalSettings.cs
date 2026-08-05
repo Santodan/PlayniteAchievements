@@ -365,14 +365,11 @@ namespace PlayniteAchievements.Providers.Local
         private LocalUnlockScreenshotCaptureMode _screenshotCaptureMode = LocalUnlockScreenshotCaptureMode.FullDesktop;
         private LocalUnlockScreenshotImageFormat _screenshotImageFormat = LocalUnlockScreenshotImageFormat.Png;
         private bool _enableUnlockRecordings;
-        private string _ffmpegPath = string.Empty;
         private string _recordingSaveFolder = string.Empty;
         private string _recordingFilenameTemplate = DefaultRecordingFilenameTemplate;
         private int _recordingClipSeconds = 15;
         private int _recordingFps = 30;
         private RecordingResolution _recordingResolution = RecordingResolution.Native;
-        private RecordingEncoder _recordingEncoder = RecordingEncoder.Auto;
-        private RecordingCaptureBackend _recordingCaptureBackend = RecordingCaptureBackend.Auto;
         private bool _recordingIncludeAudio;
         private LocalUnlockNotificationDeliveryMode _unlockNotificationDeliveryMode = LocalUnlockNotificationDeliveryMode.Hybrid;
         private LocalUnlockOverlayPosition _unlockOverlayPosition = LocalUnlockOverlayPosition.TopRight;
@@ -668,12 +665,6 @@ namespace PlayniteAchievements.Providers.Local
             set => SetValue(ref _enableUnlockRecordings, value);
         }
 
-        public string FfmpegPath
-        {
-            get => _ffmpegPath;
-            set => SetValue(ref _ffmpegPath, value ?? string.Empty);
-        }
-
         public string RecordingSaveFolder
         {
             get => _recordingSaveFolder;
@@ -704,18 +695,6 @@ namespace PlayniteAchievements.Providers.Local
         {
             get => _recordingResolution;
             set => SetValue(ref _recordingResolution, value);
-        }
-
-        public RecordingEncoder RecordingEncoder
-        {
-            get => _recordingEncoder;
-            set => SetValue(ref _recordingEncoder, value);
-        }
-
-        public RecordingCaptureBackend RecordingCaptureBackend
-        {
-            get => _recordingCaptureBackend;
-            set => SetValue(ref _recordingCaptureBackend, value);
         }
 
         public bool RecordingIncludeAudio

@@ -125,26 +125,87 @@ namespace PlayniteAchievements.Views.Controls
 
             menu.Items.Clear();
             var itemStyle = button.TryFindResource("AchievementMultiSelectMenuItemStyle") as Style;
+            // Only reserve the marker gutter when at least one option is actually marked; with none
+            // marked the dropdown drops the gutter entirely and labels sit flush left.
+            var showMarkerGutter = filter.HasMarker &&
+                (filter.Options?.Any(value => !string.IsNullOrWhiteSpace(value) && filter.IsMarked(value)) ?? false);
             foreach (var option in filter.Options?.Where(value => !string.IsNullOrWhiteSpace(value)) ?? Enumerable.Empty<string>())
             {
                 var value = option;
+                var header = BuildMultiSelectHeader(filter, value, showMarkerGutter);
                 var item = new MenuItem
                 {
-                    Header = filter.GetDisplayLabel(value),
+                    Header = header,
                     IsCheckable = true,
                     StaysOpenOnClick = true,
-                    IsChecked = filter.IsSelected(value)
+                    IsChecked = filter.IsSelected(value),
+                    Tag = value
                 };
                 if (itemStyle != null)
                 {
                     item.Style = itemStyle;
                 }
 
-                item.Click += (_, __) => filter.SetSelected(value, item.IsChecked);
+                // The shared menu-item style forces a string HeaderTemplate (TextBlock Text={Binding}),
+                // which would ToString() a UIElement header. Clear it locally so the star-gutter panel
+                // renders directly (a directly-set property beats the style setter).
+                if (!(header is string))
+                {
+                    item.HeaderTemplate = null;
+                }
+
+                item.Click += (_, __) =>
+                {
+                    filter.SetSelected(value, item.IsChecked);
+
+                    // Re-sync every sibling checkmark from the filter while the menu stays
+                    // open: single-select-style filters (e.g. Compare) uncheck the previous
+                    // option when a new one is selected. No-op for plain multi-selects.
+                    foreach (var sibling in menu.Items.OfType<MenuItem>())
+                    {
+                        if (sibling.Tag is string optionValue)
+                        {
+                            sibling.IsChecked = filter.IsSelected(optionValue);
+                        }
+                    }
+                };
                 menu.Items.Add(item);
             }
 
             OpenSelectorContextMenu(button, menu);
+        }
+
+        // Plain string header for ordinary dropdowns; for a marker-aware filter (e.g. the friend
+        // Compare dropdown) render a fixed-width star gutter before the label so marked options show
+        // a star while every label stays aligned (unmarked options keep a transparent star). The
+        // gutter is only shown when the dropdown has at least one marked option.
+        private static object BuildMultiSelectHeader(GridMultiSelectFilter filter, string value, bool showMarkerGutter)
+        {
+            var label = filter.GetDisplayLabel(value);
+            if (!showMarkerGutter)
+            {
+                return label;
+            }
+
+            var panel = new DockPanel { LastChildFill = true };
+            var star = new TextBlock
+            {
+                Text = "★",
+                Width = 14,
+                TextAlignment = TextAlignment.Center,
+                VerticalAlignment = VerticalAlignment.Center,
+                Opacity = filter.IsMarked(value) ? 1d : 0d
+            };
+            DockPanel.SetDock(star, Dock.Left);
+            panel.Children.Add(star);
+            panel.Children.Add(new TextBlock
+            {
+                Text = label,
+                VerticalAlignment = VerticalAlignment.Center,
+                TextTrimming = TextTrimming.CharacterEllipsis,
+                TextWrapping = TextWrapping.NoWrap
+            });
+            return panel;
         }
 
         private void ProviderFilter_Click(object sender, RoutedEventArgs e)

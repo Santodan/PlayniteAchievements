@@ -94,6 +94,17 @@
                 <ContentControl x:Name="DisplaySettingsContent"/>
             </TabItem>
 
+            <!-- ================== TAB: NOTIFICATIONS ================== -->
+            <TabItem x:Name="NotificationsTab" AutomationProperties.Name="{DynamicResource LOCPlayAch_Settings_TabNotifications}">
+                <TabItem.Header>
+                    <StackPanel Style="{StaticResource TabHeaderWithIconStyle}">
+                        <TextBlock Style="{StaticResource HeaderIconStyle}" Text="&#xEFAC;"/>
+                        <TextBlock Text="{DynamicResource LOCPlayAch_Settings_TabNotifications}" VerticalAlignment="Center"/>
+                    </StackPanel>
+                </TabItem.Header>
+                <ContentControl x:Name="NotificationsSettingsContent"/>
+            </TabItem>
+
         </TabControl>
     </Grid>
 </UserControl>

@@ -124,12 +124,10 @@
                                     </Image.Source>
                                 </Image>
 
-                                <TextBlock Text="{Binding IconGlyph}"
-                                           FontFamily="Segoe MDL2 Assets"
-                                           FontSize="14"
-                                           Foreground="{DynamicResource PlayAch.Brush.Text}"
-                                           Margin="{StaticResource PlayAch.Thickness.Right.Sm}"
-                                           VerticalAlignment="Center"
+                                <!-- Match the main settings tab headers exactly (HeaderIconStyle):
+                                     IcoFont at FontSize 14 with no rendering-mode overrides. -->
+                                <TextBlock Style="{StaticResource HeaderIconStyle}"
+                                           Text="{Binding IconGlyph}"
                                            Visibility="{Binding HasIconGlyph, Converter={StaticResource BoolToVis}}"/>
 
                                 <StackPanel Grid.Column="1"

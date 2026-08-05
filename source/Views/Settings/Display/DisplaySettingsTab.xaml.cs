@@ -78,7 +78,7 @@ namespace PlayniteAchievements.Views.Settings.Display
                     ResourceProvider.GetString("LOCPlayAch_Settings_Appearance"),
                     iconGlyph: "",
                     viewFactory: () => _appearanceSection =
-                        new AppearanceSection(settings, pickColor)),
+                        new AppearanceSection(settings, plugin.ProviderRegistry, pickColor)),
                 new SettingsNavigationItem(
                     "Overview",
                     ResourceProvider.GetString("LOCPlayAch_ManageAchievements_Tab_Overview"),
@@ -160,13 +160,7 @@ namespace PlayniteAchievements.Views.Settings.Display
                     ResourceProvider.GetString("LOCPlayAch_ThemeMigration_Title"),
                     groupName: themeMigrationGroup,
                     iconGlyph: "",
-                    viewFactory: () => new MigrationThemePage(_themeMigrationController)),
-                new SettingsNavigationItem(
-                    "Revert",
-                    ResourceProvider.GetString("LOCPlayAch_ThemeMigration_Revert"),
-                    groupName: themeMigrationGroup,
-                    iconGlyph: "",
-                    viewFactory: () => new RevertThemePage(_themeMigrationController))
+                    viewFactory: () => new MigrationThemePage(_themeMigrationController))
             };
 
             if (settings.Persisted.EnableFriendsFeatures)

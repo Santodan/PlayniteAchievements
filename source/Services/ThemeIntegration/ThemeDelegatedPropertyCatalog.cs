@@ -73,6 +73,8 @@ namespace PlayniteAchievements.Services.ThemeIntegration
             nameof(PlayniteAchievementsSettings.RPCS3Games),
             nameof(PlayniteAchievementsSettings.XeniaGames),
             nameof(PlayniteAchievementsSettings.ShadPS4Games),
+            nameof(PlayniteAchievementsSettings.GameJoltGames),
+            nameof(PlayniteAchievementsSettings.FFXIVGames),
             nameof(PlayniteAchievementsSettings.ManualGames)
         };
 

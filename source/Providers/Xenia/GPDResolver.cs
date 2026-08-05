@@ -7,6 +7,13 @@ using System.Text;
 
 namespace PlayniteAchievements.Providers.Xenia
 {
+    internal sealed class XeniaAchievementProgress
+    {
+        public uint Id { get; set; }
+        public bool Unlocked { get; set; }
+        public ulong UnlockTime { get; set; }
+    }
+
     internal class GPDResolver
     {
         byte[] gpdFile;
@@ -219,6 +226,146 @@ namespace PlayniteAchievements.Providers.Xenia
             }
 
             return file;
+        }
+
+        /// <summary>
+        /// Reads only section-1 progress records from an XDBF/GPD. No strings, settings, icons,
+        /// or title metadata are materialized.
+        /// </summary>
+        internal static bool TryLoadAchievementProgress(
+            string path,
+            out List<XeniaAchievementProgress> achievements)
+        {
+            achievements = new List<XeniaAchievementProgress>();
+            if (string.IsNullOrWhiteSpace(path) || !File.Exists(path))
+            {
+                return false;
+            }
+
+            try
+            {
+                using (var stream = new FileStream(
+                    path,
+                    FileMode.Open,
+                    FileAccess.Read,
+                    FileShare.ReadWrite | FileShare.Delete,
+                    4096,
+                    FileOptions.RandomAccess))
+                using (var reader = new BinaryReader(stream))
+                {
+                    if (stream.Length < 24)
+                    {
+                        return false;
+                    }
+
+                    var magic = ReadUInt32BigEndian(reader);
+                    if (magic != 0x58444246U)
+                    {
+                        return false;
+                    }
+
+                    ReadUInt32BigEndian(reader); // version
+                    var entryCapacity = ReadUInt32BigEndian(reader);
+                    var entryUsed = ReadUInt32BigEndian(reader);
+                    var freeCapacity = ReadUInt32BigEndian(reader);
+                    ReadUInt32BigEndian(reader); // free used
+
+                    if (entryCapacity > 1_000_000 ||
+                        entryUsed > entryCapacity ||
+                        freeCapacity > 1_000_000)
+                    {
+                        return false;
+                    }
+
+                    var dataOffset = checked(
+                        24L +
+                        (18L * entryCapacity) +
+                        (8L * freeCapacity));
+                    if (dataOffset < 24 || dataOffset > stream.Length)
+                    {
+                        return false;
+                    }
+
+                    for (var index = 0U; index < entryUsed; index++)
+                    {
+                        stream.Position = 24L + (18L * index);
+                        var section = ReadUInt16BigEndian(reader);
+                        ReadUInt64BigEndian(reader); // entry id
+                        var offset = ReadUInt32BigEndian(reader);
+                        var size = ReadUInt32BigEndian(reader);
+                        if (section != 1 || size < 28)
+                        {
+                            continue;
+                        }
+
+                        var absoluteOffset = checked(dataOffset + offset);
+                        if (absoluteOffset < dataOffset ||
+                            absoluteOffset > stream.Length ||
+                            size > stream.Length - absoluteOffset)
+                        {
+                            return false;
+                        }
+
+                        stream.Position = absoluteOffset;
+                        ReadUInt32BigEndian(reader); // achievement magic
+                        var achievementId = ReadUInt32BigEndian(reader);
+                        ReadUInt32BigEndian(reader); // icon id
+                        ReadUInt32BigEndian(reader); // gamerscore
+                        var flags = ReadUInt32BigEndian(reader);
+                        var unlockTime = ReadUInt64BigEndian(reader);
+                        if (flags == 0)
+                        {
+                            continue;
+                        }
+
+                        achievements.Add(new XeniaAchievementProgress
+                        {
+                            Id = achievementId,
+                            Unlocked = (flags & 131072U) == 131072U,
+                            UnlockTime = unlockTime
+                        });
+                    }
+
+                    return true;
+                }
+            }
+            catch
+            {
+                achievements.Clear();
+                return false;
+            }
+        }
+
+        private static ushort ReadUInt16BigEndian(BinaryReader reader)
+        {
+            var bytes = reader.ReadBytes(2);
+            if (bytes.Length != 2)
+            {
+                throw new EndOfStreamException();
+            }
+
+            return (ushort)((bytes[0] << 8) | bytes[1]);
+        }
+
+        private static uint ReadUInt32BigEndian(BinaryReader reader)
+        {
+            var bytes = reader.ReadBytes(4);
+            if (bytes.Length != 4)
+            {
+                throw new EndOfStreamException();
+            }
+
+            return ((uint)bytes[0] << 24) |
+                   ((uint)bytes[1] << 16) |
+                   ((uint)bytes[2] << 8) |
+                   bytes[3];
+        }
+
+        private static ulong ReadUInt64BigEndian(BinaryReader reader)
+        {
+            var high = ReadUInt32BigEndian(reader);
+            var low = ReadUInt32BigEndian(reader);
+            return ((ulong)high << 32) | low;
         }
     }
 }

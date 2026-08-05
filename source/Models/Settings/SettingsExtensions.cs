@@ -76,11 +76,18 @@ namespace PlayniteAchievements.Models.Settings
             // Hotkey Settings
             target.EnableAchievementHotkeys = source.EnableAchievementHotkeys;
             target.EnableGlobalAchievementHotkeys = source.EnableGlobalAchievementHotkeys;
+            target.EnableViewAchievementsHotkey = source.EnableViewAchievementsHotkey;
+            target.EnableManageAchievementsHotkey = source.EnableManageAchievementsHotkey;
+            target.EnableOverviewHotkey = source.EnableOverviewHotkey;
+            target.EnableOpenSettingsHotkey = source.EnableOpenSettingsHotkey;
+            target.EnableCategoryModeHotkey = source.EnableCategoryModeHotkey;
+            target.EnableTestUnlockHotkey = source.EnableTestUnlockHotkey;
             target.ViewAchievementsHotkey = source.ViewAchievementsHotkey;
             target.ManageAchievementsHotkey = source.ManageAchievementsHotkey;
             target.OverviewHotkey = source.OverviewHotkey;
             target.OpenSettingsHotkey = source.OpenSettingsHotkey;
             target.CategoryModeHotkey = source.CategoryModeHotkey;
+            target.TestUnlockHotkey = source.TestUnlockHotkey;
 
             // Notification Settings
             target.EnableNotifications = source.EnableNotifications;
@@ -88,19 +95,21 @@ namespace PlayniteAchievements.Models.Settings
             target.NotifyOnRebuild = source.NotifyOnRebuild;
             target.EnableUnlockToasts = source.EnableUnlockToasts;
             target.EnableFriendUnlockToasts = source.EnableFriendUnlockToasts;
-            target.ToastShowHeader = source.ToastShowHeader;
-            target.ToastShowName = source.ToastShowName;
-            target.ToastShowRarityBadge = source.ToastShowRarityBadge;
-            target.ToastShowRarityGlow = source.ToastShowRarityGlow;
-            target.ToastRarityColoredName = source.ToastRarityColoredName;
-            target.ToastShowRarityPercent = source.ToastShowRarityPercent;
-            target.ToastShowDescription = source.ToastShowDescription;
-            target.ToastShowCategory = source.ToastShowCategory;
-            target.ToastShowGameName = source.ToastShowGameName;
-            target.ToastShowUnlockTime = source.ToastShowUnlockTime;
+            target.NotificationStyle = source.NotificationStyle?.Clone() ?? NotificationStyleSettings.CreateDefault();
+            target.ToastUseThemeStyling = source.ToastUseThemeStyling;
+            target.FrameUseThemeStyling = source.FrameUseThemeStyling;
+            target.ProviderNotificationStyles = source.ProviderNotificationStyles != null
+                ? source.ProviderNotificationStyles.ToDictionary(
+                    kvp => kvp.Key,
+                    kvp => kvp.Value?.Clone(),
+                    StringComparer.OrdinalIgnoreCase)
+                : new Dictionary<string, NotificationStyleSettings>(StringComparer.OrdinalIgnoreCase);
             target.ToastDurationSeconds = source.ToastDurationSeconds;
             target.MaxConcurrentToasts = source.MaxConcurrentToasts;
             target.ToastPosition = source.ToastPosition;
+            target.EnableControllerVibration = source.EnableControllerVibration;
+            target.ControllerVibrationStrengthPercent = source.ControllerVibrationStrengthPercent;
+            target.ControllerVibrationDurationMs = source.ControllerVibrationDurationMs;
             target.EnableUnlockScreenshots = source.EnableUnlockScreenshots;
             target.UnlockScreenshotClean = source.UnlockScreenshotClean;
             target.UnlockScreenshotWithToast = source.UnlockScreenshotWithToast;
@@ -108,26 +117,23 @@ namespace PlayniteAchievements.Models.Settings
             target.UnlockScreenshotSuffixClean = source.UnlockScreenshotSuffixClean;
             target.UnlockScreenshotSuffixWithToast = source.UnlockScreenshotSuffixWithToast;
             target.UnlockScreenshotSuffixFramed = source.UnlockScreenshotSuffixFramed;
-            target.FrameShowHeader = source.FrameShowHeader;
-            target.FrameShowName = source.FrameShowName;
-            target.FrameShowDescription = source.FrameShowDescription;
-            target.FrameShowCategory = source.FrameShowCategory;
-            target.FrameShowGameName = source.FrameShowGameName;
-            target.FrameShowRarityBadge = source.FrameShowRarityBadge;
-            target.FrameShowRarityPercent = source.FrameShowRarityPercent;
-            target.FrameShowRarityGlow = source.FrameShowRarityGlow;
-            target.FrameRarityColoredName = source.FrameRarityColoredName;
-            target.FrameShowUnlockTime = source.FrameShowUnlockTime;
             target.UnlockScreenshotDirectory = source.UnlockScreenshotDirectory;
+            target.UnlockScreenshotCleanRarities = source.UnlockScreenshotCleanRarities;
+            target.UnlockScreenshotCleanAlwaysCaptureCompletion = source.UnlockScreenshotCleanAlwaysCaptureCompletion;
+            target.UnlockScreenshotWithToastRarities = source.UnlockScreenshotWithToastRarities;
+            target.UnlockScreenshotWithToastAlwaysCaptureCompletion = source.UnlockScreenshotWithToastAlwaysCaptureCompletion;
+            target.UnlockScreenshotFramedRarities = source.UnlockScreenshotFramedRarities;
+            target.UnlockScreenshotFramedAlwaysCaptureCompletion = source.UnlockScreenshotFramedAlwaysCaptureCompletion;
             target.EnableUnlockRecordings = source.EnableUnlockRecordings;
-            target.FfmpegPath = source.FfmpegPath;
             target.UnlockRecordingDirectory = source.UnlockRecordingDirectory;
             target.RecordingClipSeconds = source.RecordingClipSeconds;
             target.RecordingFps = source.RecordingFps;
             target.RecordingResolution = source.RecordingResolution;
-            target.RecordingEncoder = source.RecordingEncoder;
-            target.RecordingCaptureBackend = source.RecordingCaptureBackend;
             target.RecordingIncludeAudio = source.RecordingIncludeAudio;
+            target.RecordingAudioSource = source.RecordingAudioSource;
+            target.RecordingIncludeMicrophone = source.RecordingIncludeMicrophone;
+            target.UnlockRecordingRarities = source.UnlockRecordingRarities;
+            target.UnlockRecordingAlwaysCaptureCompletion = source.UnlockRecordingAlwaysCaptureCompletion;
             target.ProviderNotificationOverrides = source.ProviderNotificationOverrides != null
                 ? source.ProviderNotificationOverrides.ToDictionary(
                     kvp => kvp.Key,
@@ -147,10 +153,19 @@ namespace PlayniteAchievements.Models.Settings
                 : new HashSet<Guid>();
             target.ModernCompactListShowRarityGlow = source.ModernCompactListShowRarityGlow;
             target.ModernUnlockedListShowRarityGlow = source.ModernUnlockedListShowRarityGlow;
+            target.AnimateRarityGlows = source.AnimateRarityGlows;
+            target.RarityGlowPulseMinOpacity = source.RarityGlowPulseMinOpacity;
+            target.RarityGlowPulseMaxOpacity = source.RarityGlowPulseMaxOpacity;
+            target.RarityGlowPulseSpeed = source.RarityGlowPulseSpeed;
             target.UseUniformRarityBadges = source.UseUniformRarityBadges;
             target.UseTrophiesForRarity = source.UseTrophiesForRarity;
             target.RoundRarityPercentages = source.RoundRarityPercentages;
             target.RarityColors = source.RarityColors?.Clone() ?? RarityColorSettings.CreateDefault();
+            target.ProviderColorOverrides = source.ProviderColorOverrides != null
+                ? new Dictionary<string, string>(
+                    source.ProviderColorOverrides,
+                    StringComparer.OrdinalIgnoreCase)
+                : new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
             target.IncludeUnplayedGames = source.IncludeUnplayedGames;
             target.ShowOverviewCollectionScoreCard = source.ShowOverviewCollectionScoreCard;
             target.ShowOverviewPrestigeScoreCard = source.ShowOverviewPrestigeScoreCard;
@@ -175,6 +190,7 @@ namespace PlayniteAchievements.Models.Settings
             target.GridCellVerticalAlignment = source.GridCellVerticalAlignment;
             target.UnlockDateDisplayMode = source.UnlockDateDisplayMode;
             target.PlaytimeDisplayMode = source.PlaytimeDisplayMode;
+            target.FriendNameDisplayMode = source.FriendNameDisplayMode;
             target.EnableAchievementCompactListControl = source.EnableAchievementCompactListControl;
             target.EnableAchievementDataGridControl = source.EnableAchievementDataGridControl;
             target.EnableAchievementCompactUnlockedListControl = source.EnableAchievementCompactUnlockedListControl;
@@ -273,6 +289,62 @@ namespace PlayniteAchievements.Models.Settings
 
             // Tagging Settings
             target.TaggingSettings = source.TaggingSettings?.Clone() ?? new TaggingSettings();
+
+            // Fork compatibility settings
+            target.ShowRarityGlow = source.ShowRarityGlow;
+            target.DisabledRealtimeNotificationGameIds = source.DisabledRealtimeNotificationGameIds != null
+                ? new HashSet<Guid>(source.DisabledRealtimeNotificationGameIds)
+                : new HashSet<Guid>();
+            target.PreferredProviderOverrides = source.PreferredProviderOverrides != null
+                ? new Dictionary<Guid, string>(source.PreferredProviderOverrides)
+                : new Dictionary<Guid, string>();
+            target.ExtraLocalPaths = source.ExtraLocalPaths;
+            target.ExcludedLocalPaths = source.ExcludedLocalPaths;
+            target.LastAllGamesCollectorScore = source.LastAllGamesCollectorScore;
+            target.LastAllGamesCollectorLevel = source.LastAllGamesCollectorLevel;
+            target.LastAllGamesCollectorLevelProgress = source.LastAllGamesCollectorLevelProgress;
+            target.LastAllGamesCollectorRank = source.LastAllGamesCollectorRank;
+            target.LastAllGamesPrestigeScore = source.LastAllGamesPrestigeScore;
+            target.LastAllGamesPrestigeLevel = source.LastAllGamesPrestigeLevel;
+            target.LastAllGamesPrestigeLevelProgress = source.LastAllGamesPrestigeLevelProgress;
+            target.LastAllGamesPrestigeRank = source.LastAllGamesPrestigeRank;
+            target.DefaultAchievementSortMode = source.DefaultAchievementSortMode;
+            target.DefaultAchievementSortDescending = source.DefaultAchievementSortDescending;
+            target.CustomSortPath = source.CustomSortPath;
+            target.CustomSortDescending = source.CustomSortDescending;
+            target.GamesOverviewCustomSortPath = source.GamesOverviewCustomSortPath;
+            target.GamesOverviewCustomSortDescending = source.GamesOverviewCustomSortDescending;
+            target.GamesOverviewCustomSecondarySorts = source.GamesOverviewCustomSecondarySorts;
+            target.GamesOverviewCustomSortUsesSourceOrder = source.GamesOverviewCustomSortUsesSourceOrder;
+            target.RecentAchievementsCustomSortPath = source.RecentAchievementsCustomSortPath;
+            target.RecentAchievementsCustomSortDescending = source.RecentAchievementsCustomSortDescending;
+            target.RecentAchievementsCustomSecondarySorts = source.RecentAchievementsCustomSecondarySorts;
+            target.RecentAchievementsCustomSortUsesSourceOrder = source.RecentAchievementsCustomSortUsesSourceOrder;
+            target.SidebarAllAchievementsCustomSortPath = source.SidebarAllAchievementsCustomSortPath;
+            target.SidebarAllAchievementsCustomSortDescending = source.SidebarAllAchievementsCustomSortDescending;
+            target.SidebarAllAchievementsCustomSecondarySorts = source.SidebarAllAchievementsCustomSecondarySorts;
+            target.SidebarAllAchievementsCustomSortUsesSourceOrder = source.SidebarAllAchievementsCustomSortUsesSourceOrder;
+            target.SidebarSelectedGameCustomSortPath = source.SidebarSelectedGameCustomSortPath;
+            target.SidebarSelectedGameCustomSortDescending = source.SidebarSelectedGameCustomSortDescending;
+            target.SidebarSelectedGameCustomSecondarySorts = source.SidebarSelectedGameCustomSecondarySorts;
+            target.SidebarSelectedGameCustomSortUsesSourceOrder = source.SidebarSelectedGameCustomSortUsesSourceOrder;
+            target.DefaultUnlockNotificationStyle = source.DefaultUnlockNotificationStyle;
+            target.ProviderUnlockNotificationStyles = source.ProviderUnlockNotificationStyles != null
+                ? new Dictionary<string, string>(source.ProviderUnlockNotificationStyles, StringComparer.OrdinalIgnoreCase)
+                : new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+            target.LastUpstreamReleaseNotificationVersion = source.LastUpstreamReleaseNotificationVersion;
+            target.LastForkReleaseNotificationVersion = source.LastForkReleaseNotificationVersion;
+            target.EnableGridTextWrapping = source.EnableGridTextWrapping;
+            target.EnableCompactGridMode = source.EnableCompactGridMode;
+            target.SidebarDefaultRefreshModeKey = source.SidebarDefaultRefreshModeKey;
+            target.SidebarDefaultPlayStatusFilter = source.SidebarDefaultPlayStatusFilter;
+            target.OverviewProviderFilterKeys = source.OverviewProviderFilterKeys;
+            target.OverviewCompletenessFilterKeys = source.OverviewCompletenessFilterKeys;
+            target.OverviewPlayStatusFilterKeys = source.OverviewPlayStatusFilterKeys;
+            target.GamesOverviewGridSortMode = source.GamesOverviewGridSortMode;
+            target.GamesOverviewGridSortDescending = source.GamesOverviewGridSortDescending;
+            target.SidebarSelectedGameGridSortMode = source.SidebarSelectedGameGridSortMode;
+            target.SidebarSelectedGameGridSortDescending = source.SidebarSelectedGameGridSortDescending;
         }
 
         /// <summary>

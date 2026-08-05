@@ -7,11 +7,24 @@
                    xmlns:lvc="clr-namespace:LiveCharts.Wpf;assembly=LiveCharts.Wpf"
                    xmlns:converters="clr-namespace:PlayniteAchievements.Views.Converters"
                    xmlns:local="clr-namespace:PlayniteAchievements.Views.ThemeIntegration.Base"
+                   xmlns:ach="clr-namespace:PlayniteAchievements"
                    mc:Ignorable="d"
                    d:DesignHeight="200" d:DesignWidth="300"
                    MinHeight="{Binding RelativeSource={RelativeSource AncestorType=ContentControl}, Path=MinHeight, FallbackValue=200}"
                    Height="200"
                    MaxHeight="{Binding RelativeSource={RelativeSource AncestorType=ContentControl}, Path=MaxHeight}">
+
+    <local:ThemeControlBase.Style>
+        <Style TargetType="local:ThemeControlBase">
+            <Style.Triggers>
+                <!-- Source-anchored: this control's DataContext is its chart view model. -->
+                <DataTrigger Binding="{Binding Settings.Persisted.EnableAchievementBarChartControl, Source={x:Static ach:PlayniteAchievementsPlugin.Instance}}"
+                             Value="False">
+                    <Setter Property="Visibility" Value="Collapsed"/>
+                </DataTrigger>
+            </Style.Triggers>
+        </Style>
+    </local:ThemeControlBase.Style>
 
     <local:ThemeControlBase.Resources>
         <ResourceDictionary>

@@ -8,7 +8,9 @@ using System.Threading;
 using System.Threading.Tasks;
 using Playnite.SDK;
 using PlayniteAchievements.Models;
+using PlayniteAchievements.Models.Achievements;
 using PlayniteAchievements.Models.Settings;
+using PlayniteAchievements.Services.Capture;
 using PlayniteAchievements.Services.UI;
 using PlayniteAchievements.Providers;
 using PlayniteAchievements.Providers.Local;
@@ -17,14 +19,20 @@ using PlayniteAchievements.Services.Local;
 namespace PlayniteAchievements.Services.Recording
 {
     /// <summary>
-    /// Records unlock video clips via a user-supplied ffmpeg. While a game runs, ffmpeg captures
-    /// the game's monitor into a rolling buffer of short MPEG-TS segments under the plugin's user
-    /// data path; on each own-unlock a clip covering BOTH the unlock moment and the toast
-    /// appearing on screen is trimmed out of the buffer (see <see cref="SegmentTimeline"/>).
+    /// Records unlock video clips. While a game runs, WGC + Media Foundation captures the game
+    /// window into a rolling buffer of short .mp4 segments (clean game footage — no toast) under
+    /// the plugin's user data path; on each own-unlock a clip window anchored purely on the
+    /// unlock moment is trimmed out of the buffer (see <see cref="SegmentTimeline"/>), and that
+    /// achievement's recorded toast animation (<see cref="Capture.ToastOverlayTrack"/>) is
+    /// composited into the clip by an export-time re-encode — so every clip shows exactly its own
+    /// toast, at the unlock moment, regardless of how the on-screen wave stacked or queued.
     /// Subscribes to <see cref="PlayniteAchievementsPlugin.AchievementUnlocked"/> in parallel to
-    /// the toast service, and to <see cref="ToastNotificationService.WaveDisplayed"/> for the
-    /// clip end anchor. Per-unlock failures are silent-but-logged; configuration failures
-    /// (invalid ffmpeg, low disk, repeated capture crashes) raise one notification per session.
+    /// the toast service, and to <see cref="ToastNotificationService.TracksCompleted"/> for the
+    /// overlay tracks (<see cref="ToastNotificationService.WaveDisplayed"/> is only a liveness
+    /// bump for the track wait). The toastless base clip always exists before the re-encode runs,
+    /// so a re-encode failure degrades to a toastless clip, never a lost one. Per-unlock failures
+    /// are silent-but-logged; configuration failures (low disk, repeated capture crashes) raise
+    /// one notification per session.
     /// </summary>
     internal sealed class UnlockRecordingService : IDisposable
     {
@@ -44,16 +52,36 @@ namespace PlayniteAchievements.Services.Recording
         // correct later if the game window appears somewhere else.
         private const int WindowResolveGraceSeconds = 15;
         private const int WindowResolvePollMs = 2000;
+        // The overlay-track wait gives up after this much toast SILENCE (no wave shown, no track
+        // completed) — not this long after detection, so a burst of queued waves keeps later
+        // requests waiting for their own toast. A give-up saves the toastless base clip.
         private const int ToastWaitTimeoutSeconds = 30;
         private const int ToastWaitPollSeconds = 5;
-        // Longest detection-to-toast gap a clip's end anchor may honor; later toasts fall back to
-        // the detection anchor so queued/held toast waves can't stretch clips indefinitely.
-        private const int MaxToastAnchorDelaySeconds = 30;
-        private const int MaxCaptureRestarts = 3;
-        private const int RestartBackoffSeconds = 5;
+        // The clip's toast slot: the effective display duration plus an allowance for the
+        // slide-in delay (~0.75s to the snap) and the slide-out, plus a short tail after it.
+        // The slot sizes the base window (worst case, before the track exists); the composited
+        // clip is then cut PostFadeTailSeconds after the recorded fade, so the audio tail never
+        // reaches into the next wave's unlock sound.
+        private const double SlideAllowanceSeconds = 2.0;
+        private const double ToastTailSeconds = 1.0;
+        private const double PostFadeTailSeconds = 0.5;
+        // The chime mix: the sidecar read spans the toast display duration plus this tail — long
+        // chimes ring for as long as their toast shows. Bounded (with a fade-out) because the
+        // NEXT sequential wave's chime fires ~duration+1s after this one and must never bleed
+        // into the window. ChimeLeadBeforeToastSeconds is how far the chime onset precedes the
+        // toast reveal in the clip (sound fires, then the 450ms sound-align delay plus ~300ms of
+        // slide-in precede the settled card).
+        private const double ChimeTailBeyondToastSeconds = 0.5;
+        private const double ChimeFadeOutSeconds = 0.15;
+        private const double ChimeLeadBeforeToastSeconds = 0.75;
         private const int PruneIntervalSeconds = 30;
-        private const int StopGraceSeconds = 3;
         private const int DrainTimeoutSeconds = 45;
+        // Fallbacks matching the PersistedSettings defaults, used when settings are unavailable.
+        private const int DefaultPollIntervalSeconds = 15;
+        private const int DefaultPreRollSeconds = 15;
+        // Sentinel poll interval handed to SelectPrunable to suspend age-based pruning while clips
+        // are outstanding; large enough that the retention depth keeps every buffered segment.
+        private const int AgePruneSuspendedInterval = 3600;
         private const string UnavailableNotificationId = "PlayAch-RecordingUnavailable";
 
         private readonly IPlayniteAPI _api;
@@ -68,25 +96,30 @@ namespace PlayniteAchievements.Services.Recording
         // ownership switches when the user moves between running games.
         private readonly ActiveGameWindowTracker _windowTracker;
         private readonly UnlockScreenshotService _screenshotService;
-        private readonly FfmpegValidationService _validation;
 
         private readonly object _gate = new object();
-        private readonly List<ClipRequest> _pending = new List<ClipRequest>();
-        private readonly Dictionary<string, Task<string>> _inFlightByWindow =
-            new Dictionary<string, Task<string>>(StringComparer.Ordinal);
+        // Requests whose overlay track hasn't arrived yet (guarded by _gate). Matched by
+        // OnToastTracksCompleted; resolved null on timeout/shutdown for a toastless clip.
+        private readonly List<ClipRequest> _awaitingTrack = new List<ClipRequest>();
         private readonly HashSet<Task> _inFlightTasks = new HashSet<Task>();
+        // One overlay re-encode at a time so a burst wave doesn't saturate the encoder while the
+        // game is running.
+        private readonly SemaphoreSlim _reencodeGate = new SemaphoreSlim(1, 1);
         // Buffer directories owned by a live or still-draining session (guarded by _gate). A new
         // session's stale-buffer cleanup must not delete a previous session's buffer while its
         // pending clips are still being produced.
         private readonly HashSet<string> _liveBufferDirs = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
 
         private CaptureSession _session;
-        private WindowsJobObject _jobObject;
         private bool _sessionNotified;
         private bool _disposed;
-        // Last time any toast wave went on screen (guarded by _gate). Extends the toast-wait
-        // fallback so queued waves far beyond the base timeout still anchor their clips.
-        private DateTime _lastWaveDisplayedUtc;
+        // Last time the toast pipeline showed a wave or completed a track (guarded by _gate).
+        // Extends the track wait so queued waves far beyond the base timeout still get their
+        // toast composited.
+        private DateTime _lastToastActivityUtc;
+        // Requests between window computation and base-clip extraction: while any exist, the
+        // buffered segments they need must survive age-based pruning.
+        private int _requestsAwaitingBase;
 
         public UnlockRecordingService(
             IPlayniteAPI api,
@@ -107,12 +140,12 @@ namespace PlayniteAchievements.Services.Recording
             _isProviderRecordingEnabled = isProviderRecordingEnabled;
             _windowTracker = windowTracker;
             _screenshotService = new UnlockScreenshotService(logger);
-            _validation = new FfmpegValidationService(logger);
 
             PlayniteAchievementsPlugin.AchievementUnlocked += OnAchievementUnlocked;
             if (_toastNotifications != null)
             {
                 _toastNotifications.WaveDisplayed += OnToastWaveDisplayed;
+                _toastNotifications.TracksCompleted += OnToastTracksCompleted;
             }
 
             if (_windowTracker != null)
@@ -124,23 +157,28 @@ namespace PlayniteAchievements.Services.Recording
         private sealed class CaptureSession
         {
             public string BufferDirectory;
-            public string FfmpegPath;
-            public string CaptureArguments;
-            public string EncoderArguments;
-            public RecordingCaptureBackend Backend;
-            /// <summary>True when Backend came from the Auto setting, allowing the ddagrab
-            /// crash path to downgrade to gdigrab instead of retrying an explicit choice.</summary>
-            public bool BackendAutoResolved;
-            public System.Drawing.Rectangle MonitorBounds;
             public Guid OwnerGameId;
             public string GameName;
             public DateTime CaptureStartUtc;
-            public FfmpegProcessHost CaptureHost;
+            // The WGC + Media Foundation capture engine: occlusion-independent, HDR-correct,
+            // GPU-resident. Writes .mp4 segments the Media Foundation export/prune consume.
+            public WgcVideoRecorder WgcRecorder;
+            // Segment file extension for the capture engine (.mp4 for WGC-MF). Threaded into segment
+            // discovery/prune/export.
+            public string SegmentExtension = RecordingPaths.SegmentFileExtension;
             public AudioLoopbackRecorder AudioRecorder;
+            // The Playnite-only sidecar track (chm_*.wav): the main track excludes Playnite's
+            // process tree, so unlock chimes exist only here for the per-clip chime mix.
+            public AudioLoopbackRecorder ChimeRecorder;
             public CancellationTokenSource Cts;
             public Timer PruneTimer;
-            public int RestartCount;
             public volatile bool Stopping;
+            // Capture-health watchdog state (diagnostic): the newest segment file seen and when it
+            // last advanced (to detect a capture that stops opening segments), plus the largest
+            // closed segment seen this session as a healthy-size reference in the log.
+            public string LastSegmentPath;
+            public DateTime LastSegmentAdvanceUtc;
+            public long MaxSegmentBytes;
         }
 
         private sealed class ClipRequest
@@ -154,6 +192,19 @@ namespace PlayniteAchievements.Services.Recording
             public int TotalCount;
             public DateTime? UnlockTimeUtc;
             public DateTime DetectionUtc;
+            public bool IsTestFire;
+
+            /// <summary>Toast display duration snapshotted at unlock (theme override included).</summary>
+            public int EffectiveToastSeconds;
+
+            /// <summary>When this request's own wave chime played — where the chime mix reads from.</summary>
+            public DateTime? OwnSoundUtc;
+
+            /// <summary>
+            /// Completed with this achievement's overlay track when its wave finishes, or null
+            /// (toastless clip) on timeout/shutdown.
+            /// </summary>
+            public TaskCompletionSource<ToastOverlayTrack> TrackTcs;
         }
 
         // === Session lifecycle ===
@@ -175,11 +226,10 @@ namespace PlayniteAchievements.Services.Recording
                 return;
             }
 
-            var ffmpegPath = persisted.FfmpegPath?.Trim();
             var outputDir = ResolveOutputDirectory(persisted);
-            if (string.IsNullOrEmpty(ffmpegPath) || !SafeFileExists(ffmpegPath) || string.IsNullOrWhiteSpace(outputDir))
+            if (string.IsNullOrWhiteSpace(outputDir))
             {
-                _logger?.Warn("[Recording] Unlock recordings are enabled but the ffmpeg path or output folder is missing/invalid; skipping this session.");
+                _logger?.Warn("[Recording] Unlock recordings are enabled but the output folder is missing/invalid; skipping this session.");
                 NotifyRecordingUnavailableOnce();
                 return;
             }
@@ -200,7 +250,6 @@ namespace PlayniteAchievements.Services.Recording
                     bufferRoot,
                     DateTime.Now.ToString("yyyyMMdd-HHmmss", CultureInfo.InvariantCulture) +
                         "-" + Guid.NewGuid().ToString("N").Substring(0, 8)),
-                FfmpegPath = ffmpegPath,
                 OwnerGameId = game?.Id ?? Guid.Empty,
                 GameName = game?.Name,
                 Cts = new CancellationTokenSource()
@@ -254,11 +303,11 @@ namespace PlayniteAchievements.Services.Recording
         }
 
         /// <summary>
-        /// Follows the user's attention between running games. Same monitor as the current
-        /// capture: cheap switch — the ffmpeg process and rolling buffer are kept and only the
-        /// session's owner flips, so clip gating and cropping immediately target the new game.
-        /// Different monitor: full handoff (fresh session and buffer) since the buffer footage
-        /// shows the wrong screen. The tracker debounces, so alt-tab flicker never lands here.
+        /// Follows the user's attention between running games. WGC captures per-window and the
+        /// recorder resolves the session's live owner each tick, so switching to another running
+        /// game is a cheap owner flip — no restart, works across monitors — after which clip gating
+        /// and the capture both target the new game. The tracker debounces, so alt-tab flicker never
+        /// lands here.
         /// </summary>
         private void OnStableForegroundGameChanged(object sender, StableForegroundGameChangedEventArgs e)
         {
@@ -280,31 +329,6 @@ namespace PlayniteAchievements.Services.Recording
                     return;
                 }
 
-                var hwnd = _windowTracker?.TryGetWindowHandle(e.Game.Id) ?? IntPtr.Zero;
-                var newBounds = _screenshotService.TryGetGameMonitorBounds(
-                    hwnd,
-                    _getGameProcessId?.Invoke(e.Game.Id));
-
-                if (session.CaptureHost != null &&
-                    newBounds.HasValue &&
-                    newBounds.Value != session.MonitorBounds)
-                {
-                    lock (_gate)
-                    {
-                        // A concurrent start/stop may have replaced the session since it was
-                        // observed; restarting on top of the replacement would kill it.
-                        if (!ReferenceEquals(_session, session) || session.Stopping)
-                        {
-                            return;
-                        }
-                    }
-
-                    _logger?.Info(
-                        $"[Recording] Foreground moved to '{e.Game.Name}' on monitor {newBounds.Value}; restarting capture there.");
-                    OnGameStarted(e.Game);
-                    return;
-                }
-
                 lock (_gate)
                 {
                     if (!ReferenceEquals(_session, session) || session.Stopping)
@@ -316,7 +340,7 @@ namespace PlayniteAchievements.Services.Recording
                     session.GameName = e.Game.Name;
                 }
 
-                _logger?.Info($"[Recording] Capture owner switched to '{e.Game.Name}' (same monitor, no restart).");
+                _logger?.Info($"[Recording] Capture owner switched to '{e.Game.Name}' (WGC follows the window, no restart).");
             }
             catch (Exception ex)
             {
@@ -358,9 +382,9 @@ namespace PlayniteAchievements.Services.Recording
         }
 
         /// <summary>
-        /// Waits (2s polls, up to 60s) for the game window to become resolvable so the capture is
-        /// scoped to the game's monitor, then spawns the rolling ffmpeg capture. Monitor capture
-        /// (not window) is deliberate: ffmpeg can't follow a moving window.
+        /// Waits (2s polls, up to 60s) for the game window to become resolvable, then starts the
+        /// rolling WGC per-window capture (the recorder re-resolves the owner's window each tick,
+        /// so it follows moves and foreground switches without a restart).
         /// </summary>
         private async Task StartCaptureWhenWindowResolvesAsync(CaptureSession session)
         {
@@ -417,28 +441,35 @@ namespace PlayniteAchievements.Services.Recording
                     return;
                 }
 
-                var encoderArgs = await ResolveEncoderArgumentsAsync(session.FfmpegPath, persisted.RecordingEncoder)
-                    .ConfigureAwait(false);
-                var backend = await ResolveBackendAsync(session.FfmpegPath, persisted.RecordingCaptureBackend)
-                    .ConfigureAwait(false);
-
-                session.EncoderArguments = encoderArgs;
-                session.Backend = backend;
-                session.BackendAutoResolved = persisted.RecordingCaptureBackend == RecordingCaptureBackend.Auto;
-                session.MonitorBounds = bounds.Value;
-                session.CaptureArguments = BuildCaptureArgumentsFor(session, persisted, bounds.Value);
-
                 Directory.CreateDirectory(session.BufferDirectory);
-                if (session.Stopping || !SpawnCapture(session))
+
+                // WGC + Media Foundation capture: occlusion-independent, HDR-correct, GPU-resident,
+                // no external binary. Unavailable only on Windows N/KN without the H.264 MFT or
+                // pre-1903; there is no fallback, so recording is skipped with one notification.
+                if (!TryStartWgcCapture(session, persisted))
                 {
+                    _logger?.Warn("[Recording] WGC + Media Foundation capture is unavailable on this machine; recording skipped for this session.");
+                    NotifyRecordingUnavailableOnce();
+                    return;
+                }
+
+                if (session.Stopping)
+                {
+                    session.WgcRecorder?.Stop();
                     return;
                 }
 
                 if (persisted.RecordingIncludeAudio)
                 {
                     // Best-effort: a recorder that fails to start is dropped and the clips stay
-                    // video-only (the recorder logs its own warning).
-                    var recorder = new AudioLoopbackRecorder(session.BufferDirectory, _logger);
+                    // video-only (the recorder logs its own warning). Game-only audio resolves the
+                    // session's live owner pid so a foreground switch retargets on the next session.
+                    var recorder = new AudioLoopbackRecorder(
+                        session.BufferDirectory,
+                        _logger,
+                        persisted.RecordingAudioSource,
+                        persisted.RecordingIncludeMicrophone,
+                        () => _getGameProcessId?.Invoke(session.OwnerGameId));
                     if (recorder.Start())
                     {
                         session.AudioRecorder = recorder;
@@ -446,6 +477,24 @@ namespace PlayniteAchievements.Services.Recording
                     else
                     {
                         recorder.Dispose();
+                    }
+
+                    // The chime sidecar (Playnite-only) rides alongside so each clip can mix in
+                    // exactly its own wave's chime. Best-effort like the main track.
+                    if (session.AudioRecorder != null && AudioLoopbackRecorder.IsChimeCaptureSupported)
+                    {
+                        var chimeRecorder = new AudioLoopbackRecorder(
+                            session.BufferDirectory,
+                            _logger,
+                            capturePlayniteChimes: true);
+                        if (chimeRecorder.Start())
+                        {
+                            session.ChimeRecorder = chimeRecorder;
+                        }
+                        else
+                        {
+                            chimeRecorder.Dispose();
+                        }
                     }
                 }
 
@@ -455,15 +504,7 @@ namespace PlayniteAchievements.Services.Recording
                     TimeSpan.FromSeconds(PruneIntervalSeconds),
                     TimeSpan.FromSeconds(PruneIntervalSeconds));
                 _logger?.Info(
-                    $"[Recording] Capture started for '{session.GameName}' on monitor {bounds.Value} ({backend}, {encoderArgs}), buffer={session.BufferDirectory}.");
-
-                // Capture started from the fallback (foreground) monitor before the game window
-                // existed: keep watching, and if the game window appears on a different monitor,
-                // restart the capture there.
-                if (!mainWindowResolved)
-                {
-                    _ = Task.Run(() => CorrectMonitorWhenWindowAppearsAsync(session, bounds.Value, deadline));
-                }
+                    $"[Recording] Capture started for '{session.GameName}' (WGC+MediaFoundation), buffer={session.BufferDirectory}.");
             }
             catch (OperationCanceledException)
             {
@@ -475,202 +516,74 @@ namespace PlayniteAchievements.Services.Recording
             }
         }
 
-        private string BuildCaptureArgumentsFor(
-            CaptureSession session,
-            PersistedSettings persisted,
-            System.Drawing.Rectangle bounds)
-        {
-            return RecordingCommandBuilder.BuildCaptureArguments(
-                new RecordingCommandBuilder.CaptureOptions
-                {
-                    Backend = session.Backend,
-                    Fps = persisted.RecordingFps,
-                    MonitorX = bounds.X,
-                    MonitorY = bounds.Y,
-                    MonitorWidth = bounds.Width,
-                    MonitorHeight = bounds.Height,
-                    MonitorIndex = ResolveMonitorIndex(bounds),
-                    Resolution = persisted.RecordingResolution,
-                    EncoderArguments = session.EncoderArguments,
-                    SegmentSeconds = SegmentSeconds,
-                    BufferDirectory = session.BufferDirectory
-                });
-        }
-
         /// <summary>
-        /// Runs after a capture that started before the game window existed. If the game's main
-        /// window appears (within the resolve deadline) on a different monitor than the one being
-        /// captured, the ffmpeg capture is restarted on the correct monitor. Segments recorded on
-        /// the wrong monitor age out of the buffer naturally.
+        /// Starts the WGC + Media Foundation capture (occlusion-independent, HDR-correct, GPU-resident)
+        /// for the session's game window, writing .mp4 segments into the buffer directory. Returns
+        /// false — leaving nothing running — when WGC-MF isn't usable (pre-1903, Windows N/KN without
+        /// the H.264 MFT), so the caller skips recording for the session.
         /// </summary>
-        private async Task CorrectMonitorWhenWindowAppearsAsync(
-            CaptureSession session,
-            System.Drawing.Rectangle capturedBounds,
-            DateTime deadlineUtc)
+        private bool TryStartWgcCapture(CaptureSession session, PersistedSettings persisted)
         {
             try
             {
-                var token = session.Cts.Token;
-                while (!token.IsCancellationRequested && DateTime.UtcNow < deadlineUtc)
+                if (!WgcVideoRecorder.IsSupported || !MediaFoundationH264Encoder.IsAvailable())
                 {
-                    await Task.Delay(WindowResolvePollMs, token).ConfigureAwait(false);
-
-                    var trackedHwnd = _windowTracker?.TryGetWindowHandle(session.OwnerGameId) ?? IntPtr.Zero;
-                    var processId = _getGameProcessId?.Invoke(session.OwnerGameId);
-                    if (trackedHwnd == IntPtr.Zero &&
-                        (!processId.HasValue || !ProcessHasMainWindow(processId.Value)))
-                    {
-                        continue;
-                    }
-
-                    var resolved = _screenshotService.TryGetGameMonitorBounds(trackedHwnd, processId);
-                    if (!resolved.HasValue || resolved.Value == capturedBounds)
-                    {
-                        return;
-                    }
-
-                    var persisted = _settings?.Persisted;
-                    if (persisted == null || session.Stopping)
-                    {
-                        return;
-                    }
-
-                    _logger?.Info(
-                        $"[Recording] Game window appeared on {resolved.Value}; restarting capture from fallback monitor {capturedBounds}.");
-
-                    // Detach the old host first so its Exited handler doesn't count the swap as a
-                    // crash, then kill it and spawn on the correct monitor.
-                    var oldHost = session.CaptureHost;
-                    session.CaptureHost = null;
-                    try
-                    {
-                        oldHost?.Dispose();
-                    }
-                    catch
-                    {
-                    }
-
-                    session.MonitorBounds = resolved.Value;
-                    session.CaptureArguments = BuildCaptureArgumentsFor(session, persisted, resolved.Value);
-                    if (!session.Stopping)
-                    {
-                        SpawnCapture(session);
-                    }
-
-                    return;
+                    return false;
                 }
-            }
-            catch (OperationCanceledException)
-            {
-                // Game stopped while watching.
+
+                // Resolve the LEARNED window of the session's CURRENT owner each tick (read live, not
+                // a captured snapshot, so a foreground switch to another running game redirects the
+                // per-window capture without a restart) — never a foreground fallback, so it follows
+                // the actual game once known instead of whatever window is on top at capture start.
+                Func<IntPtr> resolveHwnd = () => _windowTracker?.TryGetWindowHandle(session.OwnerGameId) ?? IntPtr.Zero;
+
+                var recorder = new WgcVideoRecorder(
+                    resolveHwnd, session.BufferDirectory, persisted.RecordingFps, SegmentSeconds,
+                    persisted.RecordingResolution, _logger);
+                if (!recorder.Start())
+                {
+                    recorder.Dispose();
+                    return false;
+                }
+
+                session.WgcRecorder = recorder;
+                session.SegmentExtension = RecordingPaths.SegmentFileExtension;
+                session.CaptureStartUtc = DateTime.UtcNow;
+                return true;
             }
             catch (Exception ex)
             {
-                _logger?.Debug(ex, "[Recording] Monitor correction watcher failed.");
-            }
-        }
-
-        private bool SpawnCapture(CaptureSession session)
-        {
-            var host = new FfmpegProcessHost(session.FfmpegPath, session.CaptureArguments, _logger);
-            host.Exited += (s, e) => OnCaptureExited(session, host);
-            if (!host.Start(EnsureJobObject()))
-            {
-                host.Dispose();
-                _logger?.Warn("[Recording] ffmpeg capture process failed to start.");
+                _logger?.Debug(ex, "[Recording] WGC + Media Foundation capture could not start.");
                 return false;
             }
-
-            session.CaptureStartUtc = DateTime.UtcNow;
-            session.CaptureHost = host;
-            return true;
         }
 
-        /// <summary>
-        /// Capture crash recovery: up to 3 restarts with a 5s backoff, then the session is
-        /// disabled with one notification. The stderr tail is logged for diagnosis.
-        /// </summary>
-        private void OnCaptureExited(CaptureSession session, FfmpegProcessHost host)
-        {
-            if (_disposed || session.Stopping || !ReferenceEquals(session.CaptureHost, host))
-            {
-                return;
-            }
-
-            var tail = host.StdErrTail;
-            session.RestartCount++;
-            if (session.RestartCount > MaxCaptureRestarts)
-            {
-                _logger?.Warn(
-                    $"[Recording] ffmpeg capture exited {session.RestartCount} times; disabling recording for this session. stderr tail:\n{tail}");
-                session.Stopping = true;
-                NotifyRecordingUnavailableOnce();
-                return;
-            }
-
-            // An Auto-resolved ddagrab capture that dies (RDP session, hybrid GPU, driver
-            // quirks) restarts as gdigrab instead of retrying the same failing backend; an
-            // explicit Ddagrab selection keeps retrying the user's choice.
-            if (session.Backend == RecordingCaptureBackend.Ddagrab && session.BackendAutoResolved)
-            {
-                var persisted = _settings?.Persisted;
-                if (persisted != null)
-                {
-                    session.Backend = RecordingCaptureBackend.Gdigrab;
-                    session.CaptureArguments = BuildCaptureArgumentsFor(session, persisted, session.MonitorBounds);
-                    _logger?.Info("[Recording] ddagrab capture failed; falling back to gdigrab for this session.");
-                }
-            }
-
-            _logger?.Warn(
-                $"[Recording] ffmpeg capture exited unexpectedly (exit={host.ExitCode}); restart {session.RestartCount}/{MaxCaptureRestarts} in {RestartBackoffSeconds}s. stderr tail:\n{tail}");
-            _ = Task.Run(async () =>
-            {
-                try
-                {
-                    await Task.Delay(TimeSpan.FromSeconds(RestartBackoffSeconds), session.Cts.Token).ConfigureAwait(false);
-                    if (!_disposed && !session.Stopping)
-                    {
-                        host.Dispose();
-                        SpawnCapture(session);
-                    }
-                }
-                catch (OperationCanceledException)
-                {
-                }
-                catch (Exception ex)
-                {
-                    _logger?.Debug(ex, "[Recording] Capture restart failed.");
-                }
-            });
-        }
 
         private async Task ShutdownSessionAsync(CaptureSession session)
         {
             try
             {
-                var host = session.CaptureHost;
-                if (host != null)
-                {
-                    await host.StopGracefullyAsync(TimeSpan.FromSeconds(StopGraceSeconds)).ConfigureAwait(false);
-                }
+                // Stop the WGC-MF capture and finalize its current segment before pending clips read
+                // the buffer (an unfinalized mp4 segment is not decodable).
+                session.WgcRecorder?.Stop();
 
-                // Close the current audio chunk before pending clips read the buffer.
+                // Close the current audio chunks before pending clips read the buffer.
                 session.AudioRecorder?.Stop();
+                session.ChimeRecorder?.Stop();
 
-                // Toasts queued for this session were just cleared; produce any still-pending
-                // clips with the no-toast end anchor before the buffer goes away.
-                List<ClipRequest> pending;
+                // Toasts queued for this session were just cleared; resolve the still-waiting
+                // track waits null so their clips save toastless before the buffer goes away.
+                List<ClipRequest> awaiting;
                 lock (_gate)
                 {
-                    pending = _pending.Where(r => ReferenceEquals(r.Session, session)).ToList();
-                    _pending.RemoveAll(r => ReferenceEquals(r.Session, session));
+                    awaiting = _awaitingTrack.Where(r => ReferenceEquals(r.Session, session)).ToList();
+                    _awaitingTrack.RemoveAll(r => ReferenceEquals(r.Session, session));
                 }
 
-                foreach (var request in pending)
+                foreach (var request in awaiting)
                 {
-                    _logger?.Debug($"[Recording] Game stopped before a toast for '{request.AchievementName}'; using the detection-anchored clip end.");
-                    StartClipProduction(request, toastShownUtc: null);
+                    _logger?.Debug($"[Recording] Game stopped before a toast for '{request.AchievementName}'; saving the clip without a toast.");
+                    request.TrackTcs?.TrySetResult(null);
                 }
 
                 Task[] inFlight;
@@ -685,22 +598,12 @@ namespace PlayniteAchievements.Services.Recording
                         .ConfigureAwait(false);
                 }
 
-                host?.Dispose();
-                session.CaptureHost = null;
+                session.WgcRecorder?.Dispose();
+                session.WgcRecorder = null;
                 session.AudioRecorder?.Dispose();
                 session.AudioRecorder = null;
-                lock (_gate)
-                {
-                    // Only this session's dedup entries (keys are prefixed with the session's
-                    // buffer dir): a handoff session may already be producing its own clips.
-                    var stale = _inFlightByWindow.Keys
-                        .Where(key => key.StartsWith(session.BufferDirectory + "|", StringComparison.OrdinalIgnoreCase))
-                        .ToList();
-                    foreach (var key in stale)
-                    {
-                        _inFlightByWindow.Remove(key);
-                    }
-                }
+                session.ChimeRecorder?.Dispose();
+                session.ChimeRecorder = null;
 
                 TryDeleteDirectory(session.BufferDirectory);
             }
@@ -737,15 +640,28 @@ namespace PlayniteAchievements.Services.Recording
                 session = _session;
             }
 
-            if (session == null || session.Stopping || session.CaptureHost == null || session.CaptureHost.HasExited)
+            // Active means the WGC-MF recorder is running for this session.
+            var captureActive = session != null && !session.Stopping && session.WgcRecorder != null;
+            if (!captureActive)
             {
                 _logger?.Debug(
-                    $"[Recording] Unlock '{e.DisplayName}' ignored; capture is not active (session={(session == null ? "none" : session.Stopping ? "stopping" : "no capture process")}).");
+                    $"[Recording] Unlock '{e.DisplayName}' ignored; capture is not active (session={(session == null ? "none" : session.Stopping ? "stopping" : "no capture")}).");
                 return;
             }
 
             if (_isProviderRecordingEnabled?.Invoke(e.ProviderKey) == false)
             {
+                return;
+            }
+
+            var persisted = _settings.Persisted;
+            if (!UnlockCaptureRarityFilter.ShouldCapture(
+                    e,
+                    persisted.UnlockRecordingRarities,
+                    persisted.UnlockRecordingAlwaysCaptureCompletion))
+            {
+                _logger?.Debug(
+                    $"[Recording] Unlock '{e.DisplayName}' is below the minimum recording rarity; no clip.");
                 return;
             }
 
@@ -776,78 +692,37 @@ namespace PlayniteAchievements.Services.Recording
                 GameName = e.GameName,
                 // Resolved through the shared helper so completion notifications (no
                 // DisplayName) get the same name the toast wave reports, letting the clip
-                // match its wave and carry a sensible filename.
+                // match its wave's overlay track and carry a sensible filename.
                 AchievementName = ViewModels.AchievementToastViewModel.ResolveAchievementName(e),
                 AchievementNumber = e.AchievementNumber,
                 TotalCount = e.TotalCount,
                 UnlockTimeUtc = e.UnlockTimeUtc,
-                DetectionUtc = DateTime.UtcNow
+                DetectionUtc = DateTime.UtcNow,
+                IsTestFire = e.IsTestFire,
+                EffectiveToastSeconds = _toastNotifications?.GetEffectiveToastDurationSecondsSafe()
+                    ?? Math.Max(2, persisted.ToastDurationSeconds),
+                TrackTcs = new TaskCompletionSource<ToastOverlayTrack>(
+                    TaskCreationOptions.RunContinuationsAsynchronously),
             };
 
             lock (_gate)
             {
-                _pending.Add(request);
+                _awaitingTrack.Add(request);
             }
 
-            _ = Task.Run(() => ToastWaitFallbackAsync(request));
+            // Production starts immediately: the clip window is unlock-anchored, so nothing about
+            // it depends on when (or whether) the toast displays. Only the overlay composite waits
+            // for the track, after the toastless base clip is already safe.
+            StartClipProduction(request);
         }
 
         /// <summary>
-        /// End-anchor fallback: the clip is produced detection-anchored only after 30s of toast
-        /// SILENCE (no wave displayed at all), not 30s after detection. A burst of unlocks queues
-        /// many waves that display far beyond 30s; as long as waves keep appearing, later
-        /// requests keep waiting so their clip tail stretches to include their own toast popping.
+        /// A wave going on screen proves the toast queue is draining; bump the activity clock so
+        /// requests queued behind long waves keep waiting for their own track instead of timing
+        /// out (track completions alone can be a full display duration apart). Also stamps the
+        /// wave's chime time on its still-waiting requests so the re-encode can read the chime
+        /// from the sidecar track.
         /// </summary>
-        private async Task ToastWaitFallbackAsync(ClipRequest request)
-        {
-            try
-            {
-                while (true)
-                {
-                    await Task.Delay(TimeSpan.FromSeconds(ToastWaitPollSeconds), request.Session.Cts.Token)
-                        .ConfigureAwait(false);
-
-                    bool pending;
-                    DateTime lastWaveUtc;
-                    lock (_gate)
-                    {
-                        pending = _pending.Contains(request);
-                        lastWaveUtc = _lastWaveDisplayedUtc;
-                    }
-
-                    if (!pending)
-                    {
-                        return;
-                    }
-
-                    var silenceAnchor = lastWaveUtc > request.DetectionUtc ? lastWaveUtc : request.DetectionUtc;
-                    if ((DateTime.UtcNow - silenceAnchor).TotalSeconds >= ToastWaitTimeoutSeconds)
-                    {
-                        break;
-                    }
-                }
-            }
-            catch (OperationCanceledException)
-            {
-                // Session shut down; ShutdownSessionAsync already drained pending requests.
-            }
-
-            bool stillPending;
-            lock (_gate)
-            {
-                stillPending = _pending.Remove(request);
-            }
-
-            if (!stillPending)
-            {
-                return;
-            }
-
-            _logger?.Debug(
-                $"[Recording] No toast after {ToastWaitTimeoutSeconds}s of toast silence for '{request.AchievementName}'; using the detection-anchored clip end.");
-            StartClipProduction(request, toastShownUtc: null);
-        }
-
         private void OnToastWaveDisplayed(object sender, ToastWaveDisplayedEventArgs e)
         {
             if (_disposed || e?.Wave == null || e.Wave.Count == 0)
@@ -855,46 +730,67 @@ namespace PlayniteAchievements.Services.Recording
                 return;
             }
 
-            var matches = new List<ClipRequest>();
             lock (_gate)
             {
-                _lastWaveDisplayedUtc = DateTime.UtcNow;
-                foreach (var vm in e.Wave)
+                _lastToastActivityUtc = DateTime.UtcNow;
+                if (e.SoundPlayedUtc.HasValue)
                 {
-                    var match = _pending.FirstOrDefault(r =>
-                        string.Equals(r.ProviderKey, vm.ProviderKey, StringComparison.OrdinalIgnoreCase) &&
-                        string.Equals(r.AchievementName, vm.AchievementName, StringComparison.Ordinal));
+                    foreach (var vm in e.Wave)
+                    {
+                        var match = _awaitingTrack.FirstOrDefault(r =>
+                            !r.OwnSoundUtc.HasValue &&
+                            string.Equals(r.ProviderKey, vm.ProviderKey, StringComparison.OrdinalIgnoreCase) &&
+                            string.Equals(r.AchievementName, vm.AchievementName, StringComparison.Ordinal));
+                        if (match != null)
+                        {
+                            match.OwnSoundUtc = e.SoundPlayedUtc;
+                        }
+                    }
+                }
+            }
+        }
+
+        /// <summary>
+        /// Hands each completed overlay track to the first waiting request with the same provider
+        /// and achievement name (first-match preserves duplicate-name semantics). Unmatched
+        /// tracks are dropped — the item toasted but requested no clip (rarity filter, provider
+        /// gating, wrong game, or recording disabled).
+        /// </summary>
+        private void OnToastTracksCompleted(object sender, ToastTracksCompletedEventArgs e)
+        {
+            if (_disposed || e?.Tracks == null || e.Tracks.Count == 0)
+            {
+                return;
+            }
+
+            var matches = new List<(ClipRequest Request, ToastOverlayTrack Track)>();
+            lock (_gate)
+            {
+                _lastToastActivityUtc = DateTime.UtcNow;
+                foreach (var track in e.Tracks)
+                {
+                    var match = _awaitingTrack.FirstOrDefault(r =>
+                        string.Equals(r.ProviderKey, track.ProviderKey, StringComparison.OrdinalIgnoreCase) &&
+                        string.Equals(r.AchievementName, track.AchievementName, StringComparison.Ordinal));
                     if (match != null)
                     {
-                        _pending.Remove(match);
-                        matches.Add(match);
+                        _awaitingTrack.Remove(match);
+                        matches.Add((match, track));
                     }
                 }
             }
 
-            foreach (var request in matches)
+            foreach (var (request, track) in matches)
             {
-                StartClipProduction(request, e.ShownUtc);
+                request.TrackTcs?.TrySetResult(track);
             }
         }
 
         // === Clip production ===
 
-        private void StartClipProduction(ClipRequest request, DateTime? toastShownUtc)
+        private void StartClipProduction(ClipRequest request)
         {
-            // A toast can display long after detection (queued behind a burst of other waves, or
-            // held until the game regains focus). Footage between detection and such a late toast
-            // is unrelated gameplay that only bloats the clip, so a too-late toast falls back to
-            // the detection anchor instead of stretching the clip to a minute or more.
-            if (toastShownUtc.HasValue &&
-                (toastShownUtc.Value - request.DetectionUtc).TotalSeconds > MaxToastAnchorDelaySeconds)
-            {
-                _logger?.Debug(
-                    $"[Recording] Toast for '{request.AchievementName}' displayed {(toastShownUtc.Value - request.DetectionUtc).TotalSeconds:F0}s after detection; anchoring the clip on detection instead.");
-                toastShownUtc = null;
-            }
-
-            var task = Task.Run(() => ProduceClipAsync(request, toastShownUtc));
+            var task = Task.Run(() => ProduceClipAsync(request));
             lock (_gate)
             {
                 _inFlightTasks.Add(task);
@@ -903,6 +799,13 @@ namespace PlayniteAchievements.Services.Recording
             task.ContinueWith(
                 t =>
                 {
+                    // Surface a faulted producer (e.g. a native corrupted-state exception from the
+                    // Media Foundation exporter that ProduceClipAsync's managed catch never sees).
+                    if (t.IsFaulted)
+                    {
+                        _logger?.Warn(t.Exception, $"[Recording] Clip production task faulted for '{request?.AchievementName}'.");
+                    }
+
                     lock (_gate)
                     {
                         _inFlightTasks.Remove(t);
@@ -911,7 +814,14 @@ namespace PlayniteAchievements.Services.Recording
                 TaskContinuationOptions.ExecuteSynchronously);
         }
 
-        private async Task ProduceClipAsync(ClipRequest request, DateTime? toastShownUtc)
+        /// <summary>
+        /// The full per-request pipeline, base-first: compute the unlock-anchored window, extract
+        /// the toastless base clip from the buffer (after which the segments are prune-safe and
+        /// the clip can no longer be lost), then wait for this achievement's overlay track and
+        /// re-encode the toast in. Track missing or re-encode failed → the toastless base is
+        /// saved instead.
+        /// </summary>
+        private async Task ProduceClipAsync(ClipRequest request)
         {
             try
             {
@@ -919,87 +829,256 @@ namespace PlayniteAchievements.Services.Recording
                 var persisted = _settings?.Persisted;
                 if (persisted == null)
                 {
+                    AbandonTrackWait(request);
                     return;
                 }
 
                 var pollInterval = Math.Max(10, persisted.InGamePollIntervalSeconds);
-                var (windowStart, windowEnd) = SegmentTimeline.ComputeClipWindow(
+                var toastSlotSeconds = request.EffectiveToastSeconds + SlideAllowanceSeconds;
+                var window = SegmentTimeline.ComputeClipWindow(
                     request.UnlockTimeUtc,
                     request.DetectionUtc,
-                    toastShownUtc,
                     session.CaptureStartUtc,
                     oldestSegmentStartUtc: null,
                     pollIntervalSeconds: pollInterval,
                     preRollSeconds: persisted.RecordingClipSeconds,
-                    toastVisibleSeconds: Math.Max(2, persisted.ToastDurationSeconds));
+                    toastSlotSeconds: toastSlotSeconds,
+                    tailSeconds: ToastTailSeconds);
 
-                if ((windowEnd - windowStart).TotalSeconds < SegmentTimeline.MinimumWindowSeconds)
+                if ((window.EndUtc - window.StartUtc).TotalSeconds < SegmentTimeline.MinimumWindowSeconds)
                 {
                     _logger?.Debug(
                         $"[Recording] Clip window for '{request.AchievementName}' collapsed below {SegmentTimeline.MinimumWindowSeconds}s; skipping.");
+                    AbandonTrackWait(request);
                     return;
                 }
 
                 var outputPath = BuildOutputPath(persisted, request);
                 if (outputPath == null)
                 {
+                    AbandonTrackWait(request);
                     return;
                 }
 
-                // One encode per distinct clip window: a burst of unlocks in one wave shares one
-                // ffmpeg run and the duplicates copy the finished file.
-                var key = BuildWindowKey(session, windowStart, windowEnd);
-                Task<string> producer = null;
-                TaskCompletionSource<string> owner = null;
-                lock (_gate)
-                {
-                    if (!_inFlightByWindow.TryGetValue(key, out producer))
-                    {
-                        owner = new TaskCompletionSource<string>(TaskCreationOptions.RunContinuationsAsynchronously);
-                        _inFlightByWindow[key] = owner.Task;
-                    }
-                }
-
-                if (owner == null)
-                {
-                    var producedPath = await producer.ConfigureAwait(false);
-                    if (producedPath != null && SafeFileExists(producedPath))
-                    {
-                        File.Copy(producedPath, outputPath);
-                        _logger?.Info($"[Recording] Saved unlock clip (shared window copy): {outputPath}");
-                    }
-
-                    return;
-                }
-
-                string result = null;
+                // Base extraction: prune suspension covers only this span — once the base exists,
+                // the buffer no longer owes this clip anything, even if its toast is queued far
+                // behind other waves.
+                string basePath;
+                double videoLeadSeconds;
+                Interlocked.Increment(ref _requestsAwaitingBase);
                 try
                 {
-                    result = await EncodeClipAsync(session, request, toastShownUtc, windowStart, windowEnd, outputPath)
+                    (basePath, videoLeadSeconds) = await ExportBaseClipAsync(session, request, window)
                         .ConfigureAwait(false);
                 }
                 finally
                 {
-                    owner.TrySetResult(result);
+                    Interlocked.Decrement(ref _requestsAwaitingBase);
+                }
+
+                if (basePath == null)
+                {
+                    AbandonTrackWait(request);
+                    return;
+                }
+
+                try
+                {
+                    var track = await WaitForTrackAsync(request).ConfigureAwait(false);
+                    var finalPath = basePath;
+                    if (track != null)
+                    {
+                        var composited = await ReencodeWithTrackAsync(
+                                session, request, basePath, track, window, toastSlotSeconds, videoLeadSeconds)
+                            .ConfigureAwait(false);
+                        if (composited != null)
+                        {
+                            finalPath = composited;
+                        }
+                        else
+                        {
+                            _logger?.Warn(
+                                $"[Recording] Toast composite failed for '{request.AchievementName}'; saving the clip without a toast.");
+                        }
+                    }
+
+                    var savedPath = SaveClipToUniquePath(finalPath, outputPath, copy: false);
+                    if (savedPath == null)
+                    {
+                        _logger?.Warn($"[Recording] Could not place unlock clip for '{request.AchievementName}' (destination in use).");
+                        TryDeleteFile(finalPath);
+                        return;
+                    }
+
+                    _logger?.Info($"[Recording] Saved unlock clip: {savedPath}");
+                    // Drop the cached capture scan for this game so an already-open grid picks up
+                    // the new clip on its next rebuild.
+                    PlayniteAchievementsPlugin.Instance?.CaptureLibraryService?.Invalidate(request.GameName);
+                }
+                finally
+                {
+                    TryDeleteFile(basePath);
                 }
             }
             catch (Exception ex)
             {
+                AbandonTrackWait(request);
                 _logger?.Debug(ex, $"[Recording] Clip production failed for '{request?.AchievementName}'.");
             }
         }
 
-        private async Task<string> EncodeClipAsync(
+        /// <summary>
+        /// Removes the request from the track-wait list and resolves its waiter null, so an
+        /// abandoned production can't strand the wave matcher or a later WaitForTrackAsync.
+        /// </summary>
+        private void AbandonTrackWait(ClipRequest request)
+        {
+            if (request == null)
+            {
+                return;
+            }
+
+            lock (_gate)
+            {
+                _awaitingTrack.Remove(request);
+            }
+
+            request.TrackTcs?.TrySetResult(null);
+        }
+
+        /// <summary>
+        /// Waits for this achievement's overlay track, giving up (null → toastless clip) only
+        /// after <see cref="ToastWaitTimeoutSeconds"/> of toast SILENCE — measured from the last
+        /// wave shown or track completed, not from detection — so a toast queued minutes behind
+        /// other waves still gets composited. Returns whatever won a give-up/late-track race.
+        /// </summary>
+        private async Task<ToastOverlayTrack> WaitForTrackAsync(ClipRequest request)
+        {
+            while (true)
+            {
+                var completed = await Task.WhenAny(
+                        request.TrackTcs.Task,
+                        Task.Delay(TimeSpan.FromSeconds(ToastWaitPollSeconds)))
+                    .ConfigureAwait(false);
+                if (completed == request.TrackTcs.Task)
+                {
+                    return await request.TrackTcs.Task.ConfigureAwait(false);
+                }
+
+                DateTime lastActivity;
+                lock (_gate)
+                {
+                    lastActivity = _lastToastActivityUtc;
+                }
+
+                var silenceAnchor = lastActivity > request.DetectionUtc ? lastActivity : request.DetectionUtc;
+                if (_disposed || (DateTime.UtcNow - silenceAnchor).TotalSeconds >= ToastWaitTimeoutSeconds)
+                {
+                    _logger?.Debug(
+                        $"[Recording] No toast after {ToastWaitTimeoutSeconds}s of toast silence for '{request.AchievementName}'; saving the clip without a toast.");
+                    AbandonTrackWait(request);
+                    return await request.TrackTcs.Task.ConfigureAwait(false);
+                }
+            }
+        }
+
+        /// <summary>
+        /// Re-encodes the base clip with the overlay track composited in, one at a time across
+        /// the service. The output is cut shortly after the recorded fade — the base window is
+        /// sized for the worst case before the track exists, and running it out would put the
+        /// next wave's unlock sound in the audio tail. Returns the composited temp path, or null
+        /// on failure (base clip stands).
+        /// </summary>
+        private async Task<string> ReencodeWithTrackAsync(
+            CaptureSession session, ClipRequest request, string basePath, ToastOverlayTrack track,
+            SegmentTimeline.ClipWindow window, double toastSlotSeconds, double videoLeadSeconds)
+        {
+            // Toast position within the BASE clip's timeline: the base starts `videoLeadSeconds`
+            // before the window start (keyframe snap), and the anchor sits inside the window.
+            var toastStartSeconds = videoLeadSeconds + (window.ToastAnchorUtc - window.StartUtc).TotalSeconds;
+            var endSeconds = toastStartSeconds
+                + Math.Min(toastSlotSeconds, track.DurationSeconds)
+                + PostFadeTailSeconds;
+            // The wave's own chime, read from the Playnite-only sidecar at its real time, mixed
+            // in slightly before the composited toast (matching the live sound-to-reveal lead).
+            var chimePcm = TryReadChimePcm(session, request);
+            var chimeStartSeconds = toastStartSeconds - ChimeLeadBeforeToastSeconds;
+            var tempPath = Path.Combine(session.BufferDirectory, $"clipovl_{Guid.NewGuid():N}.mp4");
+            await _reencodeGate.WaitAsync().ConfigureAwait(false);
+            try
+            {
+                var reencoder = new MediaFoundationOverlayReencoder(_logger);
+                var ok = await Task.Run(() => reencoder.Export(
+                        basePath, track, toastStartSeconds, toastSlotSeconds, videoLeadSeconds,
+                        endSeconds, chimePcm, chimeStartSeconds, tempPath))
+                    .ConfigureAwait(false);
+                if (ok)
+                {
+                    return tempPath;
+                }
+            }
+            catch (Exception ex)
+            {
+                _logger?.Debug(ex, "[Recording] Overlay re-encode task failed.");
+            }
+            finally
+            {
+                _reencodeGate.Release();
+            }
+
+            TryDeleteFile(tempPath);
+            return null;
+        }
+
+        /// <summary>
+        /// Moves (or copies) the produced clip to a unique path under <paramref name="desiredPath"/>,
+        /// re-resolving uniqueness immediately before each attempt and retrying on a collision.
+        /// <see cref="BuildOutputPath"/> resolves a unique name when the clip is requested, but the
+        /// write happens much later — concurrent productions (e.g. a rapid test-fire burst) can each
+        /// resolve the same free name before either writes it, so File.Move/Copy would throw
+        /// "file already exists". Returns the final path, or null if it can't be placed.
+        /// </summary>
+        private static string SaveClipToUniquePath(string sourcePath, string desiredPath, bool copy)
+        {
+            for (var attempt = 0; attempt < 8; attempt++)
+            {
+                var candidate = UnlockScreenshotService.EnsureUniquePath(desiredPath);
+                try
+                {
+                    if (copy)
+                    {
+                        File.Copy(sourcePath, candidate);
+                    }
+                    else
+                    {
+                        File.Move(sourcePath, candidate);
+                    }
+
+                    return candidate;
+                }
+                catch (IOException) when (File.Exists(candidate))
+                {
+                    // Another clip production won the race for this name; resolve a fresh one.
+                }
+            }
+
+            return null;
+        }
+
+        /// <summary>
+        /// Extracts the toastless base clip: waits for the segment covering the window end to
+        /// close, plans video + audio over the window, and stream-copy exports to a temp file in
+        /// the buffer directory. Returns the temp path plus the keyframe lead (seconds the base
+        /// starts before the window; the re-encode trims it back off), or (null, 0) on failure.
+        /// </summary>
+        private async Task<(string TempPath, double VideoLeadSeconds)> ExportBaseClipAsync(
             CaptureSession session,
             ClipRequest request,
-            DateTime? toastShownUtc,
-            DateTime windowStart,
-            DateTime windowEnd,
-            string outputPath)
+            SegmentTimeline.ClipWindow window)
         {
             // Wait until the segment covering the window end has closed (K + margin) so the
             // concat never reads a half-written segment.
-            var readyAtUtc = windowEnd.AddSeconds(SegmentSeconds + 2);
+            var readyAtUtc = window.EndUtc.AddSeconds(SegmentSeconds + 2);
             var wait = readyAtUtc - DateTime.UtcNow;
             if (wait > TimeSpan.Zero)
             {
@@ -1009,14 +1088,16 @@ namespace PlayniteAchievements.Services.Recording
             var segments = SegmentTimeline.ParseSegments(
                 ListBufferFiles(
                     session.BufferDirectory,
-                    RecordingCommandBuilder.SegmentFilePrefix,
-                    RecordingCommandBuilder.SegmentFileExtension),
-                TimeZoneInfo.Local);
-            var plan = SegmentTimeline.PlanClip(segments, windowStart, windowEnd, SegmentSeconds);
+                    RecordingPaths.SegmentFilePrefix,
+                    session.SegmentExtension),
+                TimeZoneInfo.Local,
+                RecordingPaths.SegmentFilePrefix,
+                session.SegmentExtension);
+            var plan = SegmentTimeline.PlanClip(segments, window.StartUtc, window.EndUtc, SegmentSeconds);
             if (plan == null)
             {
                 _logger?.Debug($"[Recording] No buffered segments overlap the clip window for '{request.AchievementName}'; skipping.");
-                return null;
+                return (null, 0);
             }
 
             // Audio rides the same window: plan the loopback WAV chunks over it and fall back to
@@ -1027,186 +1108,81 @@ namespace PlayniteAchievements.Services.Recording
                 var audioChunks = SegmentTimeline.ParseSegments(
                     ListBufferFiles(
                         session.BufferDirectory,
-                        RecordingCommandBuilder.AudioChunkFilePrefix,
-                        RecordingCommandBuilder.AudioChunkFileExtension),
+                        RecordingPaths.AudioChunkFilePrefix,
+                        RecordingPaths.AudioChunkFileExtension),
                     TimeZoneInfo.Local,
-                    RecordingCommandBuilder.AudioChunkFilePrefix,
-                    RecordingCommandBuilder.AudioChunkFileExtension);
-                audioPlan = SegmentTimeline.PlanClip(audioChunks, windowStart, windowEnd, SegmentSeconds);
+                    RecordingPaths.AudioChunkFilePrefix,
+                    RecordingPaths.AudioChunkFileExtension);
+                audioPlan = SegmentTimeline.PlanClip(audioChunks, window.StartUtc, window.EndUtc, SegmentSeconds);
             }
 
-            LogRecordingTiming(session, request, toastShownUtc, windowStart, windowEnd, plan.Segments.Count, audioPlan != null);
+            LogRecordingTiming(session, request, window, plan.Segments.Count, audioPlan != null);
 
-            var listPath = Path.Combine(session.BufferDirectory, $"clip_{Guid.NewGuid():N}.txt");
-            var audioListPath = audioPlan != null
-                ? Path.Combine(session.BufferDirectory, $"clipaud_{Guid.NewGuid():N}.txt")
-                : null;
             var tempPath = Path.Combine(session.BufferDirectory, $"clip_{Guid.NewGuid():N}.mp4");
-            try
+            // Concatenate + trim the buffered segments and mux the loopback audio with Media
+            // Foundation (stream-copy video, PCM->AAC audio). WGC already captures the client
+            // area at the target resolution, so no crop is needed here; the toast composite (if
+            // any) re-encodes in a separate pass.
+            var exporter = new MediaFoundationClipExporter(_logger);
+            double videoLeadSeconds = 0;
+            var ok = await Task.Run(() => exporter.Export(plan, audioPlan, tempPath, out videoLeadSeconds))
+                .ConfigureAwait(false);
+            if (!ok)
             {
-                File.WriteAllText(
-                    listPath,
-                    RecordingCommandBuilder.BuildConcatListContent(plan.Segments.Select(s => s.Path)));
-                if (audioPlan != null)
-                {
-                    File.WriteAllText(
-                        audioListPath,
-                        RecordingCommandBuilder.BuildConcatListContent(audioPlan.Segments.Select(s => s.Path)));
-                }
-
-                // Crop the export to the game window's client area (like screenshots) when the
-                // window doesn't already fill the monitor. Cropping forces a re-encode, so a
-                // fullscreen game keeps the cheap stream copy.
-                var crop = ResolveCropRectangle(session);
-
-                // Ladder: preferred form first, then degrade — re-encode retry, then uncropped,
-                // then (below) audio-less. A worse clip always beats no clip.
-                var ok = await RunTrimAsync(session, listPath, plan, audioListPath, audioPlan, tempPath, reencode: false, crop)
-                    .ConfigureAwait(false);
-                if (!ok)
-                {
-                    TryDeleteFile(tempPath);
-                    ok = await RunTrimAsync(session, listPath, plan, audioListPath, audioPlan, tempPath, reencode: true, crop)
-                        .ConfigureAwait(false);
-                }
-
-                if (!ok && crop.HasValue)
-                {
-                    _logger?.Debug($"[Recording] Cropped export failed for '{request.AchievementName}'; retrying uncropped.");
-                    TryDeleteFile(tempPath);
-                    crop = null;
-                    ok = await RunTrimAsync(session, listPath, plan, audioListPath, audioPlan, tempPath, reencode: false, crop)
-                        .ConfigureAwait(false);
-                    if (!ok)
-                    {
-                        TryDeleteFile(tempPath);
-                        ok = await RunTrimAsync(session, listPath, plan, audioListPath, audioPlan, tempPath, reencode: true, crop)
-                            .ConfigureAwait(false);
-                    }
-                }
-
-                if (!ok && audioPlan != null)
-                {
-                    // Audio must never cost the clip: retry the whole ladder without it.
-                    _logger?.Debug($"[Recording] Clip export with audio failed for '{request.AchievementName}'; retrying video-only.");
-                    TryDeleteFile(tempPath);
-                    ok = await RunTrimAsync(session, listPath, plan, null, null, tempPath, reencode: false, crop)
-                        .ConfigureAwait(false);
-                    if (!ok)
-                    {
-                        TryDeleteFile(tempPath);
-                        ok = await RunTrimAsync(session, listPath, plan, null, null, tempPath, reencode: true, crop)
-                            .ConfigureAwait(false);
-                    }
-                }
-
-                if (!ok)
-                {
-                    _logger?.Warn($"[Recording] Clip export failed for '{request.AchievementName}' (copy and re-encode).");
-                    return null;
-                }
-
-                File.Move(tempPath, outputPath);
-                _logger?.Info($"[Recording] Saved unlock clip: {outputPath}");
-                return outputPath;
-            }
-            finally
-            {
-                TryDeleteFile(listPath);
-                if (audioListPath != null)
-                {
-                    TryDeleteFile(audioListPath);
-                }
-
+                _logger?.Warn($"[Recording] Clip export failed for '{request.AchievementName}'.");
                 TryDeleteFile(tempPath);
+                return (null, 0);
             }
+
+            return (tempPath, videoLeadSeconds);
         }
 
         /// <summary>
-        /// Crop region for exports: the game window's client rect (same Win32 resolution the
-        /// screenshots use) mapped into the captured video's pixel space. Null when the window
-        /// can't be resolved, fills the monitor, or the game already exited.
+        /// Reads this request's chime from the Playnite-only sidecar chunks at the moment its
+        /// wave sound actually played. Null (clip audio ships without a chime) when the sidecar
+        /// isn't running, the wave never sounded, or the chunks are gone.
         /// </summary>
-        private System.Drawing.Rectangle? ResolveCropRectangle(CaptureSession session)
+        private byte[] TryReadChimePcm(CaptureSession session, ClipRequest request)
         {
-            try
+            DateTime? ownSound;
+            lock (_gate)
             {
-                var trackedHwnd = _windowTracker?.TryGetWindowHandle(session.OwnerGameId) ?? IntPtr.Zero;
-                var processId = _getGameProcessId?.Invoke(session.OwnerGameId);
-                var client = _screenshotService.TryGetGameWindowBounds(trackedHwnd, processId);
-                if (client == null)
-                {
-                    return null;
-                }
-
-                return RecordingCommandBuilder.ComputeCropRectangle(
-                    session.MonitorBounds,
-                    client.Value,
-                    _settings?.Persisted?.RecordingResolution ?? RecordingResolution.Native);
+                ownSound = request.OwnSoundUtc;
             }
-            catch
+
+            if (!ownSound.HasValue || session.ChimeRecorder == null)
             {
                 return null;
             }
-        }
 
-        private async Task<bool> RunTrimAsync(
-            CaptureSession session,
-            string listPath,
-            SegmentTimeline.ClipPlan plan,
-            string audioListPath,
-            SegmentTimeline.ClipPlan audioPlan,
-            string tempPath,
-            bool reencode,
-            System.Drawing.Rectangle? crop = null)
-        {
-            var arguments = RecordingCommandBuilder.BuildTrimArguments(
-                listPath,
-                plan.StartOffsetSeconds,
-                plan.DurationSeconds,
-                tempPath,
-                reencode,
-                audioListPath,
-                audioPlan?.StartOffsetSeconds ?? 0,
-                crop,
-                session.EncoderArguments);
-            using (var host = new FfmpegProcessHost(session.FfmpegPath, arguments, _logger))
+            var chunks = SegmentTimeline.ParseSegments(
+                ListBufferFiles(
+                    session.BufferDirectory,
+                    RecordingPaths.ChimeChunkFilePrefix,
+                    RecordingPaths.AudioChunkFileExtension),
+                TimeZoneInfo.Local,
+                RecordingPaths.ChimeChunkFilePrefix,
+                RecordingPaths.AudioChunkFileExtension);
+            var chimeSpanSeconds = request.EffectiveToastSeconds + ChimeTailBeyondToastSeconds;
+            var plan = SegmentTimeline.PlanClip(
+                chunks, ownSound.Value, ownSound.Value.AddSeconds(chimeSpanSeconds), SegmentSeconds);
+            var pcm = plan == null ? null : MediaFoundationClipExporter.TryReadPcmWindow(plan, _logger);
+            if (pcm != null)
             {
-                if (!host.Start(EnsureJobObject()))
-                {
-                    return false;
-                }
-
-                var timeout = TimeSpan.FromSeconds(Math.Max(30, plan.DurationSeconds) + 60);
-                var exitCode = await host.WaitForExitAsync(timeout).ConfigureAwait(false);
-                if (exitCode != 0)
-                {
-                    _logger?.Debug($"[Recording] ffmpeg trim exited with {exitCode} (reencode={reencode}): {host.StdErrTail}");
-                    return false;
-                }
+                PcmAudio.FadeOutTail(pcm, ChimeFadeOutSeconds);
             }
 
-            try
-            {
-                var info = new FileInfo(tempPath);
-                return info.Exists && info.Length > 0;
-            }
-            catch
-            {
-                return false;
-            }
+            return pcm;
         }
 
         /// <summary>
-        /// The per-clip timing line (Info) that makes refresh-latency-driven clip stretching
+        /// The per-clip timing line (Info) that makes refresh-latency-driven clip anchoring
         /// visible in the plugin log.
         /// </summary>
         private void LogRecordingTiming(
             CaptureSession session,
             ClipRequest request,
-            DateTime? toastShownUtc,
-            DateTime windowStart,
-            DateTime windowEnd,
+            SegmentTimeline.ClipWindow window,
             int segmentCount,
             bool hasAudio)
         {
@@ -1218,22 +1194,11 @@ namespace PlayniteAchievements.Services.Recording
                 var unlockToDetect = precise
                     ? (request.DetectionUtc - request.UnlockTimeUtc.Value).TotalSeconds.ToString("F1", CultureInfo.InvariantCulture)
                     : "?";
-                var toastText = toastShownUtc.HasValue ? Stamp(toastShownUtc.Value) : "none";
-                var detectToToast = toastShownUtc.HasValue
-                    ? (toastShownUtc.Value - request.DetectionUtc).TotalSeconds.ToString("F1", CultureInfo.InvariantCulture)
-                    : "?";
                 _logger?.Info(
                     $"[RecordingTiming] unlock={unlockText} detected={Stamp(request.DetectionUtc)} " +
-                    $"(unlock→detect {unlockToDetect}s) toastShown={toastText} (detect→toast {detectToToast}s) " +
-                    $"window=[{Stamp(windowStart)}..{Stamp(windowEnd)}] ({(windowEnd - windowStart).TotalSeconds.ToString("F1", CultureInfo.InvariantCulture)}s) " +
+                    $"(unlock→detect {unlockToDetect}s) toastAnchor={Stamp(window.ToastAnchorUtc)} " +
+                    $"window=[{Stamp(window.StartUtc)}..{Stamp(window.EndUtc)}] ({(window.EndUtc - window.StartUtc).TotalSeconds.ToString("F1", CultureInfo.InvariantCulture)}s) " +
                     $"segments={segmentCount} audio={(hasAudio ? "yes" : "no")}");
-
-                // Verification: the toast's full display time must sit inside the clip window.
-                var toastVisible = Math.Max(2, _settings?.Persisted?.ToastDurationSeconds ?? 6);
-                if (toastShownUtc.HasValue && toastShownUtc.Value.AddSeconds(toastVisible) > windowEnd)
-                {
-                    _logger?.Debug("[RecordingTiming] toast display extends past the window end; the toast may be cut off in the clip.");
-                }
             }
             catch
             {
@@ -1243,15 +1208,6 @@ namespace PlayniteAchievements.Services.Recording
         private static string Stamp(DateTime utc)
         {
             return utc.ToString("HH:mm:ss.f", CultureInfo.InvariantCulture);
-        }
-
-        private static string BuildWindowKey(CaptureSession session, DateTime start, DateTime end)
-        {
-            // Rounded to 2s so a burst of unlocks detected milliseconds apart shares one encode.
-            const long twoSeconds = 2 * TimeSpan.TicksPerSecond;
-            var s = (long)Math.Round(start.Ticks / (double)twoSeconds);
-            var e = (long)Math.Round(end.Ticks / (double)twoSeconds);
-            return $"{session.BufferDirectory}|{s}|{e}";
         }
 
         private string BuildOutputPath(PersistedSettings persisted, ClipRequest request)
@@ -1300,6 +1256,13 @@ namespace PlayniteAchievements.Services.Recording
                     return null;
                 }
 
+                // A manual test fire lands in a separate "Test" subfolder, matching the screenshot
+                // planner, so test clips never mix with a game's genuine unlock captures.
+                if (request.IsTestFire)
+                {
+                    baseDir = Path.Combine(baseDir, UnlockScreenshotService.TestFolderName);
+                }
+
                 var relative = UnlockScreenshotService.BuildRelativePath(
                     request.ProviderKey,
                     request.GameName,
@@ -1334,55 +1297,53 @@ namespace PlayniteAchievements.Services.Recording
 
             try
             {
-                // While clip requests are waiting (e.g. many toast waves queued) or encodes are
-                // running, age-based pruning would delete the very segments those clips need —
-                // a late wave's window reaches back to its detection time. Pause the age policy
-                // and keep only the byte cap until the pipeline is idle again.
-                bool clipsOutstanding;
-                lock (_gate)
-                {
-                    clipsOutstanding = _pending.Count > 0 || _inFlightByWindow.Count > 0;
-                }
+                // While clip requests are still between window computation and base extraction,
+                // age-based pruning would delete the very segments those clips need. Pause the
+                // age policy (byte cap still applies) only for that short span — once a base clip
+                // exists, its request no longer reads the buffer, even if its toast is queued far
+                // behind other waves.
+                var clipsOutstanding = Volatile.Read(ref _requestsAwaitingBase) > 0;
 
                 var persisted = _settings?.Persisted;
-                var pollInterval = Math.Max(10, persisted?.InGamePollIntervalSeconds ?? 15);
+                var pollInterval = Math.Max(10, persisted?.InGamePollIntervalSeconds ?? DefaultPollIntervalSeconds);
+                var preRoll = persisted?.RecordingClipSeconds ?? DefaultPreRollSeconds;
+                // Suspend age-based pruning while clips are outstanding: a clip waiting for a late
+                // toast reaches back to its pre-roll and forward to that toast, so the segments it
+                // needs must survive. The byte cap still applies. Video and audio share the policy.
+                var retentionInterval = clipsOutstanding ? AgePruneSuspendedInterval : pollInterval;
+
                 var segments = SegmentTimeline.ParseSegments(
                     ListBufferFiles(
                         session.BufferDirectory,
-                        RecordingCommandBuilder.SegmentFilePrefix,
-                        RecordingCommandBuilder.SegmentFileExtension),
-                    TimeZoneInfo.Local);
-                // 3600 stands in for "don't age-prune" without overflowing the 3x depth math;
-                // the byte cap below still applies.
-                var prunable = SegmentTimeline.SelectPrunable(
-                    segments,
-                    clipsOutstanding ? 3600 : pollInterval,
-                    persisted?.RecordingClipSeconds ?? 15,
-                    SegmentSeconds,
-                    MaxBufferBytes);
-                foreach (var segment in prunable)
+                        RecordingPaths.SegmentFilePrefix,
+                        session.SegmentExtension),
+                    TimeZoneInfo.Local,
+                    RecordingPaths.SegmentFilePrefix,
+                    session.SegmentExtension);
+                LogCaptureHealth(session, segments);
+                foreach (var segment in SegmentTimeline.SelectPrunable(
+                             segments, retentionInterval, preRoll, SegmentSeconds, MaxBufferBytes))
                 {
                     TryDeleteFile(segment.Path);
                 }
 
-                // Audio chunks share the retention policy (their bytes are negligible next to
-                // the video's, so reusing the same cap is safe).
-                var audioChunks = SegmentTimeline.ParseSegments(
-                    ListBufferFiles(
-                        session.BufferDirectory,
-                        RecordingCommandBuilder.AudioChunkFilePrefix,
-                        RecordingCommandBuilder.AudioChunkFileExtension),
-                    TimeZoneInfo.Local,
-                    RecordingCommandBuilder.AudioChunkFilePrefix,
-                    RecordingCommandBuilder.AudioChunkFileExtension);
-                foreach (var chunk in SegmentTimeline.SelectPrunable(
-                             audioChunks,
-                             pollInterval,
-                             persisted?.RecordingClipSeconds ?? 15,
-                             SegmentSeconds,
-                             MaxBufferBytes))
+                // Audio chunks share the retention policy (their bytes are negligible next to the
+                // video's, so reusing the same cap is safe). The chime sidecar follows suit.
+                foreach (var prefix in new[] { RecordingPaths.AudioChunkFilePrefix, RecordingPaths.ChimeChunkFilePrefix })
                 {
-                    TryDeleteFile(chunk.Path);
+                    var audioChunks = SegmentTimeline.ParseSegments(
+                        ListBufferFiles(
+                            session.BufferDirectory,
+                            prefix,
+                            RecordingPaths.AudioChunkFileExtension),
+                        TimeZoneInfo.Local,
+                        prefix,
+                        RecordingPaths.AudioChunkFileExtension);
+                    foreach (var chunk in SegmentTimeline.SelectPrunable(
+                                 audioChunks, retentionInterval, preRoll, SegmentSeconds, MaxBufferBytes))
+                    {
+                        TryDeleteFile(chunk.Path);
+                    }
                 }
 
                 if (!HasFreeSpace(session.BufferDirectory, MinFreeBytesToContinue))
@@ -1392,16 +1353,80 @@ namespace PlayniteAchievements.Services.Recording
                     session.PruneTimer?.Dispose();
                     session.PruneTimer = null;
                     NotifyRecordingUnavailableOnce();
-                    var host = session.CaptureHost;
-                    if (host != null)
-                    {
-                        _ = Task.Run(() => host.StopGracefullyAsync(TimeSpan.FromSeconds(StopGraceSeconds)));
-                    }
+                    session.WgcRecorder?.Stop();
                 }
             }
             catch (Exception ex)
             {
                 _logger?.Debug(ex, "[Recording] Prune tick failed.");
+            }
+        }
+
+        /// <summary>
+        /// Diagnostic only: a per-prune-tick capture-health line. Warns when the recorder has stopped
+        /// opening new segments — a stalled capture that leaves an unlock with no footage ("no
+        /// buffered segments overlap the clip window"). The WGC recorder duplicates the last frame at
+        /// a constant rate, so segments should always advance; a stall here means the recorder itself
+        /// wedged. Never throws.
+        /// </summary>
+        private void LogCaptureHealth(CaptureSession session, IReadOnlyList<SegmentTimeline.SegmentInfo> segments)
+        {
+            try
+            {
+                if (session == null || session.Stopping || session.WgcRecorder == null)
+                {
+                    return;
+                }
+
+                var now = DateTime.UtcNow;
+                if (segments == null || segments.Count == 0)
+                {
+                    if ((now - session.CaptureStartUtc).TotalSeconds > SegmentSeconds * 3)
+                    {
+                        _logger?.Warn(
+                            $"[RecordingHealth] '{session.GameName}': capture alive but no segments on disk " +
+                            $"{(now - session.CaptureStartUtc).TotalSeconds:F0}s after start.");
+                    }
+
+                    return;
+                }
+
+                var newest = segments[segments.Count - 1];
+                if (!string.Equals(newest.Path, session.LastSegmentPath, StringComparison.OrdinalIgnoreCase))
+                {
+                    session.LastSegmentPath = newest.Path;
+                    session.LastSegmentAdvanceUtc = now;
+                }
+
+                var sinceNewSegment = (now - session.LastSegmentAdvanceUtc).TotalSeconds;
+                // The still-open newest segment grows as it records; the one before it is the most
+                // recent closed segment and the fair size sample.
+                var lastClosed = segments.Count >= 2 ? segments[segments.Count - 2] : null;
+                if (lastClosed != null && lastClosed.SizeBytes > session.MaxSegmentBytes)
+                {
+                    session.MaxSegmentBytes = lastClosed.SizeBytes;
+                }
+
+                var line =
+                    $"[RecordingHealth] '{session.GameName}': segments={segments.Count} " +
+                    $"newestAge={(now - newest.StartUtc).TotalSeconds:F0}s sinceNewSegment={sinceNewSegment:F0}s " +
+                    $"lastClosed={(lastClosed?.SizeBytes ?? 0) / 1024}KB peak={session.MaxSegmentBytes / 1024}KB";
+
+                // A new segment should open every SegmentSeconds; several periods without one means
+                // the capture has stalled.
+                if (sinceNewSegment > SegmentSeconds * 3 + 2)
+                {
+                    _logger?.Warn(
+                        $"{line} -- STALLED: no new segment for {sinceNewSegment:F0}s (capture wedged).");
+                }
+                else
+                {
+                    _logger?.Debug(line);
+                }
+            }
+            catch (Exception ex)
+            {
+                _logger?.Debug(ex, "[RecordingHealth] Health check failed.");
             }
         }
 
@@ -1474,45 +1499,6 @@ namespace PlayniteAchievements.Services.Recording
 
         // === Helpers ===
 
-        private async Task<string> ResolveEncoderArgumentsAsync(string ffmpegPath, RecordingEncoder encoder)
-        {
-            if (encoder != RecordingEncoder.Auto)
-            {
-                return RecordingCommandBuilder.BuildEncoderArguments(encoder, null);
-            }
-
-            try
-            {
-                var result = await _validation.ValidateAsync(ffmpegPath).ConfigureAwait(false);
-                return RecordingCommandBuilder.BuildEncoderArguments(RecordingEncoder.Auto, result?.AvailableEncoders);
-            }
-            catch (Exception ex)
-            {
-                _logger?.Debug(ex, "[Recording] Encoder probe failed; defaulting to libx264.");
-                return RecordingCommandBuilder.BuildEncoderArguments(RecordingEncoder.Auto, null);
-            }
-        }
-
-        private async Task<RecordingCaptureBackend> ResolveBackendAsync(string ffmpegPath, RecordingCaptureBackend configured)
-        {
-            if (configured != RecordingCaptureBackend.Auto)
-            {
-                return configured;
-            }
-
-            try
-            {
-                // Cached per path, so this shares the probe run by the encoder resolution.
-                var result = await _validation.ValidateAsync(ffmpegPath).ConfigureAwait(false);
-                return RecordingCommandBuilder.ResolveBackend(configured, result?.SupportsDdagrab == true);
-            }
-            catch (Exception ex)
-            {
-                _logger?.Debug(ex, "[Recording] Capture backend probe failed; defaulting to gdigrab.");
-                return RecordingCaptureBackend.Gdigrab;
-            }
-        }
-
         private static string ResolveOutputDirectory(PersistedSettings persisted)
         {
             var directory = persisted?.UnlockRecordingDirectory;
@@ -1522,14 +1508,6 @@ namespace PlayniteAchievements.Services.Recording
             }
 
             return string.IsNullOrWhiteSpace(directory) ? null : directory.Trim();
-        }
-
-        private WindowsJobObject EnsureJobObject()
-        {
-            lock (_gate)
-            {
-                return _jobObject ?? (_jobObject = new WindowsJobObject());
-            }
         }
 
         private static bool ProcessHasMainWindow(int processId)
@@ -1545,26 +1523,6 @@ namespace PlayniteAchievements.Services.Recording
             {
                 return false;
             }
-        }
-
-        private static int ResolveMonitorIndex(System.Drawing.Rectangle monitorBounds)
-        {
-            try
-            {
-                var screens = System.Windows.Forms.Screen.AllScreens;
-                for (var i = 0; i < screens.Length; i++)
-                {
-                    if (screens[i].Bounds == monitorBounds)
-                    {
-                        return i;
-                    }
-                }
-            }
-            catch
-            {
-            }
-
-            return 0;
         }
 
         private bool HasFreeSpace(string path, long minimumBytes)
@@ -1587,7 +1545,7 @@ namespace PlayniteAchievements.Services.Recording
             }
         }
 
-        private void NotifyRecordingUnavailableOnce()
+        private void NotifyRecordingUnavailableOnce(string stderrTail = null)
         {
             if (_sessionNotified)
             {
@@ -1599,6 +1557,13 @@ namespace PlayniteAchievements.Services.Recording
             {
                 var title = ResourceProvider.GetString("LOCPlayAch_Title_PluginName");
                 var message = ResourceProvider.GetString("LOCPlayAch_Notification_RecordingUnavailable");
+                // Include the recorder detail so the cause is visible in the notification instead
+                // of only in the plugin log.
+                if (!string.IsNullOrWhiteSpace(stderrTail))
+                {
+                    message = $"{message}\n{stderrTail.Trim()}";
+                }
+
                 _api?.Notifications?.Add(new NotificationMessage(
                     UnavailableNotificationId,
                     $"{title}\n{message}",
@@ -1607,18 +1572,6 @@ namespace PlayniteAchievements.Services.Recording
             catch (Exception ex)
             {
                 _logger?.Debug(ex, "[Recording] Failed to show the recording-unavailable notification.");
-            }
-        }
-
-        private static bool SafeFileExists(string path)
-        {
-            try
-            {
-                return File.Exists(path);
-            }
-            catch
-            {
-                return false;
             }
         }
 
@@ -1662,6 +1615,7 @@ namespace PlayniteAchievements.Services.Recording
             if (_toastNotifications != null)
             {
                 _toastNotifications.WaveDisplayed -= OnToastWaveDisplayed;
+                _toastNotifications.TracksCompleted -= OnToastTracksCompleted;
             }
 
             if (_windowTracker != null)
@@ -1670,12 +1624,18 @@ namespace PlayniteAchievements.Services.Recording
             }
 
             CaptureSession session;
+            List<ClipRequest> awaiting;
             lock (_gate)
             {
                 session = _session;
                 _session = null;
-                _pending.Clear();
-                _inFlightByWindow.Clear();
+                awaiting = _awaitingTrack.ToList();
+                _awaitingTrack.Clear();
+            }
+
+            foreach (var request in awaiting)
+            {
+                request.TrackTcs?.TrySetResult(null);
             }
 
             if (session != null)
@@ -1690,13 +1650,10 @@ namespace PlayniteAchievements.Services.Recording
                 }
 
                 session.PruneTimer?.Dispose();
-                session.CaptureHost?.Dispose();
+                session.WgcRecorder?.Dispose();
                 session.AudioRecorder?.Dispose();
+                session.ChimeRecorder?.Dispose();
             }
-
-            // Closing the job object kills any ffmpeg process that somehow survived disposal.
-            _jobObject?.Dispose();
-            _jobObject = null;
         }
     }
 }

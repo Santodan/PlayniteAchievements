@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
 using Newtonsoft.Json.Linq;
 using PlayniteAchievements.Models;
+using PlayniteAchievements.Models.Achievements;
 using PlayniteAchievements.Models.Settings;
 using PlayniteAchievements.Models.Tagging;
 
@@ -11,6 +12,51 @@ namespace PlayniteAchievements.Models.Tests
     [TestClass]
     public class PersistedSettingsDefaultsTests
     {
+        [TestMethod]
+        public void Constructor_DefaultsCaptureRaritiesToAll()
+        {
+            var settings = new PersistedSettings();
+
+            Assert.AreEqual(RaritySelection.All, settings.UnlockScreenshotCleanRarities);
+            Assert.IsTrue(settings.UnlockScreenshotCleanAlwaysCaptureCompletion);
+            Assert.AreEqual(RaritySelection.All, settings.UnlockScreenshotWithToastRarities);
+            Assert.IsTrue(settings.UnlockScreenshotWithToastAlwaysCaptureCompletion);
+            Assert.AreEqual(RaritySelection.All, settings.UnlockScreenshotFramedRarities);
+            Assert.IsTrue(settings.UnlockScreenshotFramedAlwaysCaptureCompletion);
+            Assert.AreEqual(RaritySelection.All, settings.UnlockRecordingRarities);
+            Assert.IsTrue(settings.UnlockRecordingAlwaysCaptureCompletion);
+        }
+
+        [TestMethod]
+        public void CloneAndCopyFrom_PreservePerSectionCaptureRarities()
+        {
+            var source = new PersistedSettings
+            {
+                UnlockScreenshotCleanRarities = RaritySelection.Uncommon | RaritySelection.Rare,
+                UnlockScreenshotCleanAlwaysCaptureCompletion = false,
+                UnlockScreenshotWithToastRarities = RaritySelection.None,
+                UnlockScreenshotWithToastAlwaysCaptureCompletion = false,
+                UnlockScreenshotFramedRarities = RaritySelection.UltraRare,
+                UnlockScreenshotFramedAlwaysCaptureCompletion = false,
+                UnlockRecordingRarities = RaritySelection.Common
+            };
+
+            var clone = source.Clone();
+            var target = new PersistedSettings();
+            target.CopyFrom(source);
+
+            foreach (var copy in new[] { clone, target })
+            {
+                Assert.AreEqual(RaritySelection.Uncommon | RaritySelection.Rare, copy.UnlockScreenshotCleanRarities);
+                Assert.IsFalse(copy.UnlockScreenshotCleanAlwaysCaptureCompletion);
+                Assert.AreEqual(RaritySelection.None, copy.UnlockScreenshotWithToastRarities);
+                Assert.IsFalse(copy.UnlockScreenshotWithToastAlwaysCaptureCompletion);
+                Assert.AreEqual(RaritySelection.UltraRare, copy.UnlockScreenshotFramedRarities);
+                Assert.IsFalse(copy.UnlockScreenshotFramedAlwaysCaptureCompletion);
+                Assert.AreEqual(RaritySelection.Common, copy.UnlockRecordingRarities);
+            }
+        }
+
         [TestMethod]
         public void Constructor_DefaultsAchievementDataGridMaxHeight()
         {
@@ -26,7 +72,10 @@ namespace PlayniteAchievements.Models.Tests
         {
             var settings = new PersistedSettings();
 
-            Assert.IsTrue(settings.ProgressColumnAlignmentDefaulted);
+            // The parameterless ctor is the deserialization target: it must leave the seed flag
+            // false so an upgrading config stays eligible for the seeding migration. The Right
+            // alignment itself comes from the grid-options defaults, independent of the flag.
+            Assert.IsFalse(settings.ProgressColumnAlignmentDefaulted);
             Assert.AreEqual(
                 GridAlignment.Right,
                 settings.OverviewGameSummariesColumnAlignments[PersistedSettings.ProgressColumnKey]);
@@ -67,6 +116,28 @@ namespace PlayniteAchievements.Models.Tests
             var settings = new PersistedSettings();
 
             Assert.IsTrue(settings.EnableFriendsFeatures);
+        }
+
+        [TestMethod]
+        public void FriendNameDisplayMode_DefaultsToPersonaAndNickname()
+        {
+            Assert.AreEqual(FriendNameDisplayMode.PersonaAndNickname, new PersistedSettings().FriendNameDisplayMode);
+        }
+
+        [TestMethod]
+        public void CloneAndCopyFrom_PreserveFriendNameDisplayMode()
+        {
+            var source = new PersistedSettings
+            {
+                FriendNameDisplayMode = FriendNameDisplayMode.Nickname
+            };
+
+            var clone = source.Clone();
+            var target = new PersistedSettings();
+            target.CopyFrom(source);
+
+            Assert.AreEqual(FriendNameDisplayMode.Nickname, clone.FriendNameDisplayMode);
+            Assert.AreEqual(FriendNameDisplayMode.Nickname, target.FriendNameDisplayMode);
         }
 
         [TestMethod]
@@ -184,12 +255,20 @@ namespace PlayniteAchievements.Models.Tests
                 InGameFriendBatchSize = 7,
                 EnableUnlockToasts = false,
                 EnableFriendUnlockToasts = false,
-                ToastShowRarityGlow = false,
-                ToastRarityColoredName = false,
-                ToastShowRarityPercent = false,
-                ToastShowDescription = false,
-                ToastShowCategory = false,
-                ToastShowGameName = false,
+                NotificationStyle = new NotificationStyleSettings
+                {
+                    Toast = new NotificationSurfaceStyle
+                    {
+                        ShowRarityGlow = false,
+                        RarityColoredName = false,
+                        ShowRarityPercent = false,
+                        ShowDescription = false,
+                        ShowCategory = false,
+                        ShowGameName = false
+                    }
+                },
+                ToastUseThemeStyling = false,
+                FrameUseThemeStyling = false,
                 ToastDurationSeconds = 8,
                 MaxConcurrentToasts = 4,
                 ToastPosition = ToastScreenCorner.TopLeft
@@ -375,11 +454,18 @@ namespace PlayniteAchievements.Models.Tests
 
             Assert.IsTrue(settings.EnableAchievementHotkeys);
             Assert.IsFalse(settings.EnableGlobalAchievementHotkeys);
+            Assert.IsTrue(settings.EnableViewAchievementsHotkey);
+            Assert.IsTrue(settings.EnableManageAchievementsHotkey);
+            Assert.IsTrue(settings.EnableOverviewHotkey);
+            Assert.IsTrue(settings.EnableOpenSettingsHotkey);
+            Assert.IsTrue(settings.EnableCategoryModeHotkey);
+            Assert.IsTrue(settings.EnableTestUnlockHotkey);
             Assert.AreEqual(PersistedSettings.DefaultViewAchievementsHotkey, settings.ViewAchievementsHotkey);
             Assert.AreEqual(PersistedSettings.DefaultManageAchievementsHotkey, settings.ManageAchievementsHotkey);
             Assert.AreEqual(PersistedSettings.DefaultOverviewHotkey, settings.OverviewHotkey);
             Assert.AreEqual(PersistedSettings.DefaultOpenSettingsHotkey, settings.OpenSettingsHotkey);
             Assert.AreEqual(PersistedSettings.DefaultCategoryModeHotkey, settings.CategoryModeHotkey);
+            Assert.AreEqual(PersistedSettings.DefaultTestUnlockHotkey, settings.TestUnlockHotkey);
         }
 
         [TestMethod]
@@ -779,11 +865,18 @@ namespace PlayniteAchievements.Models.Tests
             {
                 EnableAchievementHotkeys = false,
                 EnableGlobalAchievementHotkeys = true,
+                EnableViewAchievementsHotkey = false,
+                EnableManageAchievementsHotkey = false,
+                EnableOverviewHotkey = false,
+                EnableOpenSettingsHotkey = false,
+                EnableCategoryModeHotkey = false,
+                EnableTestUnlockHotkey = false,
                 ViewAchievementsHotkey = "F8",
                 ManageAchievementsHotkey = "Shift+F9",
                 OverviewHotkey = "F10",
                 OpenSettingsHotkey = "F11",
-                CategoryModeHotkey = "Shift+G"
+                CategoryModeHotkey = "Shift+G",
+                TestUnlockHotkey = "Ctrl+Alt+K"
             };
 
             var clone = source.Clone();
@@ -792,19 +885,33 @@ namespace PlayniteAchievements.Models.Tests
 
             Assert.IsFalse(clone.EnableAchievementHotkeys);
             Assert.IsTrue(clone.EnableGlobalAchievementHotkeys);
+            Assert.IsFalse(clone.EnableViewAchievementsHotkey);
+            Assert.IsFalse(clone.EnableManageAchievementsHotkey);
+            Assert.IsFalse(clone.EnableOverviewHotkey);
+            Assert.IsFalse(clone.EnableOpenSettingsHotkey);
+            Assert.IsFalse(clone.EnableCategoryModeHotkey);
+            Assert.IsFalse(clone.EnableTestUnlockHotkey);
             Assert.AreEqual("F8", clone.ViewAchievementsHotkey);
             Assert.AreEqual("Shift+F9", clone.ManageAchievementsHotkey);
             Assert.AreEqual("F10", clone.OverviewHotkey);
             Assert.AreEqual("F11", clone.OpenSettingsHotkey);
             Assert.AreEqual("Shift+G", clone.CategoryModeHotkey);
+            Assert.AreEqual("Ctrl+Alt+K", clone.TestUnlockHotkey);
 
             Assert.IsFalse(target.EnableAchievementHotkeys);
             Assert.IsTrue(target.EnableGlobalAchievementHotkeys);
+            Assert.IsFalse(target.EnableViewAchievementsHotkey);
+            Assert.IsFalse(target.EnableManageAchievementsHotkey);
+            Assert.IsFalse(target.EnableOverviewHotkey);
+            Assert.IsFalse(target.EnableOpenSettingsHotkey);
+            Assert.IsFalse(target.EnableCategoryModeHotkey);
+            Assert.IsFalse(target.EnableTestUnlockHotkey);
             Assert.AreEqual("F8", target.ViewAchievementsHotkey);
             Assert.AreEqual("Shift+F9", target.ManageAchievementsHotkey);
             Assert.AreEqual("F10", target.OverviewHotkey);
             Assert.AreEqual("F11", target.OpenSettingsHotkey);
             Assert.AreEqual("Shift+G", target.CategoryModeHotkey);
+            Assert.AreEqual("Ctrl+Alt+K", target.TestUnlockHotkey);
         }
 
         [TestMethod]
@@ -1432,12 +1539,15 @@ namespace PlayniteAchievements.Models.Tests
             Assert.AreEqual(expected.InGameFriendBatchSize, actual.InGameFriendBatchSize);
             Assert.AreEqual(expected.EnableUnlockToasts, actual.EnableUnlockToasts);
             Assert.AreEqual(expected.EnableFriendUnlockToasts, actual.EnableFriendUnlockToasts);
-            Assert.AreEqual(expected.ToastShowRarityGlow, actual.ToastShowRarityGlow);
-            Assert.AreEqual(expected.ToastRarityColoredName, actual.ToastRarityColoredName);
-            Assert.AreEqual(expected.ToastShowRarityPercent, actual.ToastShowRarityPercent);
-            Assert.AreEqual(expected.ToastShowDescription, actual.ToastShowDescription);
-            Assert.AreEqual(expected.ToastShowCategory, actual.ToastShowCategory);
-            Assert.AreEqual(expected.ToastShowGameName, actual.ToastShowGameName);
+            Assert.AreEqual(expected.NotificationStyle.Toast.ShowRarityGlow, actual.NotificationStyle.Toast.ShowRarityGlow);
+            Assert.AreEqual(expected.NotificationStyle.Toast.RarityColoredName, actual.NotificationStyle.Toast.RarityColoredName);
+            Assert.AreEqual(expected.NotificationStyle.Toast.ShowRarityPercent, actual.NotificationStyle.Toast.ShowRarityPercent);
+            Assert.AreEqual(expected.NotificationStyle.Toast.ShowDescription, actual.NotificationStyle.Toast.ShowDescription);
+            Assert.AreEqual(expected.NotificationStyle.Toast.ShowCategory, actual.NotificationStyle.Toast.ShowCategory);
+            Assert.AreEqual(expected.NotificationStyle.Toast.ShowGameName, actual.NotificationStyle.Toast.ShowGameName);
+            Assert.AreNotSame(expected.NotificationStyle, actual.NotificationStyle);
+            Assert.AreEqual(expected.ToastUseThemeStyling, actual.ToastUseThemeStyling);
+            Assert.AreEqual(expected.FrameUseThemeStyling, actual.FrameUseThemeStyling);
             Assert.AreEqual(expected.ToastDurationSeconds, actual.ToastDurationSeconds);
             Assert.AreEqual(expected.MaxConcurrentToasts, actual.MaxConcurrentToasts);
             Assert.AreEqual(expected.ToastPosition, actual.ToastPosition);

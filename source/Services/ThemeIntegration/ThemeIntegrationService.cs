@@ -1667,6 +1667,8 @@ namespace PlayniteAchievements.Services.ThemeIntegration
             _settings.ModernTheme.RPCS3Games = ProjectGameSummaries(library.RPCS3Games);
             _settings.ModernTheme.XeniaGames = ProjectGameSummaries(library.XeniaGames);
             _settings.ModernTheme.ShadPS4Games = ProjectGameSummaries(library.ShadPS4Games);
+            _settings.ModernTheme.GameJoltGames = ProjectGameSummaries(library.GameJoltGames);
+            _settings.ModernTheme.FFXIVGames = ProjectGameSummaries(library.FFXIVGames);
             _settings.ModernTheme.ManualGames = ProjectGameSummaries(library.ManualGames);
             _settings.ModernTheme.MostRecentUnlocksTop3 = library.MostRecentUnlocksTop3;
             _settings.ModernTheme.MostRecentUnlocksTop5 = library.MostRecentUnlocksTop5;
@@ -4023,7 +4025,13 @@ namespace PlayniteAchievements.Services.ThemeIntegration
             }
 
             source = ApplyDynamicFilterPredicates(source, viewState.FilterKey, FriendSummaryFilterPredicates);
-            return FriendSummarySortTable.Sort(source, viewState).ToList();
+            var sorted = FriendSummarySortTable.Sort(source, viewState).ToList();
+            // Pin favorites ahead of non-favorites while preserving the sorted order within each group
+            // (Where is stable), so favorites lead regardless of the theme's active sort key.
+            return sorted
+                .Where(friend => friend?.IsFavorite == true)
+                .Concat(sorted.Where(friend => friend?.IsFavorite != true))
+                .ToList();
         }
 
         private List<FriendGameSummaryItem> BuildDynamicFriendGameSummaries(
@@ -4146,7 +4154,9 @@ namespace PlayniteAchievements.Services.ThemeIntegration
             try
             {
                 rows = await Task
-                    .Run(() => _friendCache.LoadFriendGameAchievementData(gameScope)?.AllAchievements)
+                    .Run(() => FriendOverviewProjection.ApplyMergeIdentity(
+                        _friendCache.LoadFriendGameAchievementData(gameScope),
+                        _settings?.Persisted))
                     .ConfigureAwait(false);
             }
             catch (Exception ex)

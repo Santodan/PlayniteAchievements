@@ -362,6 +362,21 @@
                 <Border.CacheMode>
                     <BitmapCache/>
                 </Border.CacheMode>
+                <!-- Fade in/out pulse on the cached glow layer when AnimateRarityGlows is on. -->
+                <Border.Style>
+                    <Style TargetType="Border">
+                        <Style.Triggers>
+                            <MultiDataTrigger>
+                                <MultiDataTrigger.Conditions>
+                                    <Condition Binding="{Binding Unlocked}" Value="True"/>
+                                    <Condition Binding="{Binding ShowRarityGlow, RelativeSource={RelativeSource AncestorType=controls:AchievementDataGridControl}}" Value="True"/>
+                                    <Condition Binding="{Binding AnimateRarityGlows, RelativeSource={RelativeSource AncestorType=controls:AchievementDataGridControl}}" Value="True"/>
+                                </MultiDataTrigger.Conditions>
+                                <Setter Property="helpers:RarityGlowPulse.IsActive" Value="True"/>
+                            </MultiDataTrigger>
+                        </Style.Triggers>
+                    </Style>
+                </Border.Style>
                 <Image Stretch="Uniform"
                        Margin="2"
                        RenderOptions.BitmapScalingMode="HighQuality"
@@ -494,6 +509,10 @@
     <!-- Unlock Date / Progress Template -->
     <DataTemplate x:Key="AchievementUnlockDateTemplate">
         <Grid HorizontalAlignment="Stretch">
+            <Grid.RowDefinitions>
+                <RowDefinition Height="Auto"/>
+                <RowDefinition Height="Auto"/>
+            </Grid.RowDefinitions>
             <TextBlock HorizontalAlignment="{Binding RelativeSource={RelativeSource AncestorType={x:Type DataGridCell}}, Path=Column.(helpers:DataGridAlignmentBehavior.CellHorizontalAlignment)}"
                     VerticalAlignment="{Binding RelativeSource={RelativeSource AncestorType={x:Type DataGridCell}}, Path=Column.(helpers:DataGridAlignmentBehavior.CellVerticalAlignment)}"
                     Style="{DynamicResource PlayAch.TextBlock.BaseStyle}"
@@ -527,6 +546,47 @@
                         Foreground="{DynamicResource PlayAch.Brush.Text}"
                         Visibility="{Binding HasProgress, Converter={StaticResource BoolToVis}}"/>
             </Grid>
+
+            <!-- Comparison row: the compare friend's avatar + unlock date (or Locked) -->
+            <StackPanel Grid.Row="1"
+                        Orientation="Horizontal"
+                        Margin="0,2,0,0"
+                        HorizontalAlignment="{Binding RelativeSource={RelativeSource AncestorType={x:Type DataGridCell}}, Path=Column.(helpers:DataGridAlignmentBehavior.CellHorizontalAlignment)}"
+                        ToolTip="{Binding ComparisonToolTip, Mode=OneWay}"
+                        Visibility="{Binding HasComparison, Converter={StaticResource BoolToVis}}">
+                <Border Width="16"
+                        Height="16"
+                        CornerRadius="8"
+                        Margin="0,0,5,0"
+                        ClipToBounds="True"
+                        VerticalAlignment="Center">
+                    <Image Stretch="Uniform"
+                           helpers:AsyncImage.Uri="{Binding ComparisonFriendAvatarPath}"
+                           helpers:AsyncImage.DecodePixel="32"/>
+                </Border>
+                <TextBlock VerticalAlignment="Center"
+                        Style="{DynamicResource PlayAch.TextBlock.BaseStyle}"
+                        Foreground="{DynamicResource PlayAch.Brush.Text}"
+                        Opacity="{StaticResource PlayAch.Opacity.Subtle}"
+                        TextTrimming="CharacterEllipsis"
+                        Visibility="{Binding ComparisonUnlocked, Converter={StaticResource BoolToVis}}">
+                    <TextBlock.Text>
+                        <MultiBinding Converter="{StaticResource DateDisplayMode}">
+                            <Binding Path="ComparisonUnlockTimeLocal"/>
+                            <Binding Path="UnlockDateMode" RelativeSource="{RelativeSource AncestorType=controls:AchievementDataGridControl}"/>
+                        </MultiBinding>
+                    </TextBlock.Text>
+                </TextBlock>
+                <TextBlock Text="{DynamicResource LOCPlayAch_Common_Locked}"
+                        VerticalAlignment="Center"
+                        Style="{DynamicResource PlayAch.TextBlock.BaseStyle}"
+                        Foreground="{DynamicResource PlayAch.Brush.Text}"
+                        Opacity="{StaticResource PlayAch.Opacity.Placeholder}">
+                    <TextBlock.Visibility>
+                        <Binding Path="ComparisonUnlocked" Converter="{StaticResource InverseBoolToVis}"/>
+                    </TextBlock.Visibility>
+                </TextBlock>
+            </StackPanel>
         </Grid>
     </DataTemplate>
 

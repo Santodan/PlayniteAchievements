@@ -19,6 +19,9 @@ namespace PlayniteAchievements.Providers.Steam
     /// </summary>
     public sealed class SteamAccountSettings : PlayniteAchievements.Common.ObservableObject
     {
+        private bool _useSteamHuntersForCategories;
+        private ObservableCollection<SteamIgnoredFriend> _ignoredFriends =
+            new ObservableCollection<SteamIgnoredFriend>();
         private string _accountId = Guid.NewGuid().ToString("N");
         private string _displayName = string.Empty;
         private string _steamUserId = string.Empty;
@@ -107,6 +110,7 @@ namespace PlayniteAchievements.Providers.Steam
     public class SteamSettings : ProviderSettingsBase
     {
         private string _steamUserId;
+        private string _steamInstallPathOverride;
         private string _defaultSteamAccountId = string.Empty;
         private List<SteamAccountSettings> _steamAccounts = new List<SteamAccountSettings>();
         private bool _includeFamilySharedGames = true;
@@ -117,6 +121,12 @@ namespace PlayniteAchievements.Providers.Steam
 
         /// <inheritdoc />
         public override string ProviderKey => "Steam";
+
+        public string SteamInstallPathOverride
+        {
+            get => _steamInstallPathOverride;
+            set => SetValue(ref _steamInstallPathOverride, value);
+        }
 
         public bool UseSteamHuntersForCategories
         {

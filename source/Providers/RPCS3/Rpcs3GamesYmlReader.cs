@@ -49,7 +49,7 @@ namespace PlayniteAchievements.Providers.RPCS3
             return map;
         }
 
-        private static string StripYamlStringTag(string value)
+        internal static string StripYamlStringTag(string value)
         {
             const string stringTag = "!!str";
             return value.StartsWith(stringTag, StringComparison.OrdinalIgnoreCase)
@@ -57,7 +57,7 @@ namespace PlayniteAchievements.Providers.RPCS3
                 : value;
         }
 
-        private static string StripComment(string value)
+        internal static string StripComment(string value)
         {
             if (string.IsNullOrWhiteSpace(value))
             {
@@ -91,7 +91,7 @@ namespace PlayniteAchievements.Providers.RPCS3
             return value;
         }
 
-        private static string Unquote(string value)
+        internal static string Unquote(string value)
         {
             var trimmed = (value ?? string.Empty).Trim();
             if (trimmed.Length < 2)

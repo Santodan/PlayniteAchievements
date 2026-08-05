@@ -174,7 +174,7 @@
                                         <ScrollViewer VerticalScrollBarVisibility="Auto"
                                                     HorizontalScrollBarVisibility="Disabled"
                                                     PanningMode="VerticalOnly">
-                                            <TextBlock helpers:AchievementNoteInlineFormatter.FormattedText="{Binding AchievementNote}"
+                                            <TextBlock helpers:InlineMarkdownFormatter.FormattedText="{Binding AchievementNote}"
                                                     Style="{StaticResource PlayAch.TextBlock.BaseStyle}"
                                                     Foreground="{DynamicResource PlayAch.Brush.Text}"
                                                     Opacity="0.68"

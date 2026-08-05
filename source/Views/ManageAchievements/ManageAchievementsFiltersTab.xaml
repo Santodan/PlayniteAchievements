@@ -234,12 +234,13 @@
                                     Header="{DynamicResource LOCPlayAch_Common_Label_Type}"
                                     Binding="{Binding CategoryTypeDisplay}">
                     <DataGridTextColumn.ElementStyle>
-                        <Style TargetType="TextBlock" BasedOn="{StaticResource WrappedCenteredDataGridTextStyle}">
+                        <Style TargetType="TextBlock" BasedOn="{StaticResource EllipsisWrappedCenteredDataGridTextStyle}">
                             <Setter Property="HorizontalAlignment" Value="Center" />
                             <Setter Property="VerticalAlignment" Value="Center" />
                             <Setter Property="TextAlignment" Value="Center" />
                             <Setter Property="Foreground" Value="{DynamicResource PlayAch.Brush.Text}" />
                             <Setter Property="Opacity" Value="0.85" />
+                            <Setter Property="ToolTip" Value="{Binding CategoryTypeDisplay}" />
                         </Style>
                     </DataGridTextColumn.ElementStyle>
                 </DataGridTextColumn>
@@ -249,12 +250,13 @@
                                     Header="{DynamicResource LOCPlayAch_Common_Label_Category}"
                                     Binding="{Binding CategoryLabelDisplay}">
                     <DataGridTextColumn.ElementStyle>
-                        <Style TargetType="TextBlock" BasedOn="{StaticResource WrappedCenteredDataGridTextStyle}">
+                        <Style TargetType="TextBlock" BasedOn="{StaticResource EllipsisWrappedCenteredDataGridTextStyle}">
                             <Setter Property="HorizontalAlignment" Value="Center" />
                             <Setter Property="VerticalAlignment" Value="Center" />
                             <Setter Property="TextAlignment" Value="Center" />
                             <Setter Property="Foreground" Value="{DynamicResource PlayAch.Brush.Text}" />
                             <Setter Property="Opacity" Value="0.85" />
+                            <Setter Property="ToolTip" Value="{Binding CategoryLabelDisplay}" />
                         </Style>
                     </DataGridTextColumn.ElementStyle>
                 </DataGridTextColumn>

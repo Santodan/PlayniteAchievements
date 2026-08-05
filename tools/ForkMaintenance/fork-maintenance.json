@@ -2,6 +2,7 @@
   "schemaVersion": 1,
   "defaultBaseline": "upstream/main",
   "protectedPaths": [
+    "README.md",
     "source/extension.yaml",
     "InstallerManifest.yaml"
   ],

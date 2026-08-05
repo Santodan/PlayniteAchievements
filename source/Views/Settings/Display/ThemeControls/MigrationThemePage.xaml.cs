@@ -8,8 +8,8 @@ namespace PlayniteAchievements.Views.Settings.Display.ThemeControls
 {
     /// <summary>
     /// Display settings: theme migration page. Migrates SuccessStory-based themes to the
-    /// plugin's Legacy/Modern controls. Shares state with <see cref="RevertThemePage"/> via a
-    /// <see cref="ThemeMigrationController"/> bound as DataContext.
+    /// plugin's Legacy/Modern controls and reverts them from the backup created by a migration,
+    /// driven by a <see cref="ThemeMigrationController"/> bound as DataContext.
     /// </summary>
     public partial class MigrationThemePage : UserControl
     {
@@ -64,6 +64,12 @@ namespace PlayniteAchievements.Views.Settings.Display.ThemeControls
             if (_controller == null) return;
             CommitMigrationControls();
             await _controller.MigrateCustomAsync();
+        }
+
+        private async void RevertTheme_Click(object sender, RoutedEventArgs e)
+        {
+            if (_controller == null) return;
+            await _controller.RevertAsync();
         }
 
         private void ThemeMigrationThemeComboBox_SelectionChanged(

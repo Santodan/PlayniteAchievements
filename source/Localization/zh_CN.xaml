@@ -14,7 +14,6 @@
     <sys:String x:Key="LOCPlayAch_Common_Actions">Actions</sys:String>
     <sys:String x:Key="LOCPlayAch_Common_Action_ExcludeFromSummaries">从统计摘要中排除</sys:String>
     <sys:String x:Key="LOCPlayAch_Common_Action_IncludeInSummaries">包含在统计摘要中</sys:String>
-    <sys:String x:Key="LOCPlayAch_Common_AddType">添加类型</sys:String>
     <sys:String x:Key="LOCPlayAch_Common_ApplyToSelected">Apply to Selected</sys:String>
     <sys:String x:Key="LOCPlayAch_Common_Ascending">升序</sys:String>
     <sys:String x:Key="LOCPlayAch_Common_All">全部</sys:String>

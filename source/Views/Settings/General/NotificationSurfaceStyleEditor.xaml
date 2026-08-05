@@ -1,0 +1,1112 @@
+<UserControl x:Class="PlayniteAchievements.Views.Settings.General.NotificationSurfaceStyleEditor"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+             xmlns:helpers="clr-namespace:PlayniteAchievements.Views.Helpers"
+             xmlns:vmSettings="clr-namespace:PlayniteAchievements.ViewModels.Settings"
+             mc:Ignorable="d"
+             d:DesignHeight="700"
+             d:DesignWidth="640"
+             d:DataContext="{d:DesignInstance vmSettings:NotificationAppearanceEditorViewModel}">
+    <UserControl.Resources>
+        <ResourceDictionary>
+            <ResourceDictionary.MergedDictionaries>
+                <ResourceDictionary Source="pack://application:,,,/PlayniteAchievements;component/Resources/SettingsScopedControlStyles.xaml"/>
+                <ResourceDictionary Source="pack://application:,,,/PlayniteAchievements;component/Resources/CommonResources.xaml"/>
+            </ResourceDictionary.MergedDictionaries>
+
+            <!-- A recessed panel-colored card grouping one logical area of the editor. Sits inside
+                 the host section's raised Surface, so a Panel fill + hairline border reads as a
+                 distinct sub-area without nesting another section card. -->
+            <Style x:Key="EditorCardStyle" TargetType="Border">
+                <Setter Property="Background" Value="{DynamicResource PlayAch.Brush.Panel}"/>
+                <Setter Property="BorderBrush" Value="{DynamicResource PlayAch.Brush.Border}"/>
+                <Setter Property="BorderThickness" Value="{StaticResource PlayAch.Thickness.Border}"/>
+                <Setter Property="CornerRadius" Value="{StaticResource PlayAch.Radius.Card}"/>
+                <Setter Property="Padding" Value="{StaticResource PlayAch.Thickness.CardPadding}"/>
+                <Setter Property="Margin" Value="{StaticResource PlayAch.Thickness.Bottom.Md}"/>
+            </Style>
+
+            <!-- Primary label for a group inside a card. -->
+            <Style x:Key="EditorGroupHeaderStyle" TargetType="TextBlock" BasedOn="{StaticResource SubSectionHeaderStyle}">
+                <Setter Property="Margin" Value="0,0,0,8"/>
+            </Style>
+
+            <!-- Secondary label for a nested sub-group within a card (e.g. Font family under
+                 Text lines, or Name line offset under Size). -->
+            <Style x:Key="EditorSubGroupHeaderStyle" TargetType="TextBlock" BasedOn="{StaticResource SubSectionHeaderStyle}">
+                <Setter Property="Margin" Value="0,16,0,6"/>
+            </Style>
+
+            <!-- Left-column caption for an aligned label/control row. -->
+            <Style x:Key="EditorRowLabelStyle" TargetType="TextBlock">
+                <Setter Property="Foreground" Value="{DynamicResource PlayAch.Brush.Text}"/>
+                <Setter Property="VerticalAlignment" Value="Center"/>
+                <Setter Property="Margin" Value="0,0,8,0"/>
+            </Style>
+
+            <!-- Uniform spacing for every checkbox in the editor, so the option grids share one
+                 consistent horizontal/vertical rhythm. Based on the app's custom checkbox style
+                 so the visual template is preserved (a keyless override would strip it). -->
+            <Style TargetType="CheckBox" BasedOn="{StaticResource PlayAch.CheckBox.BaseStyle}">
+                <Setter Property="VerticalAlignment" Value="Center"/>
+                <Setter Property="Margin" Value="0,0,16,10"/>
+            </Style>
+
+            <Style x:Key="LineOrderGridRowStyle"
+                   TargetType="DataGridRow"
+                   BasedOn="{StaticResource AchievementRowStyle}">
+                <Setter Property="MinHeight" Value="32"/>
+                <Setter Property="Cursor" Value="Arrow"/>
+            </Style>
+
+            <!-- Compact whole-line emphasis toggle (bold/italic/underline/strikethrough) for
+                 the text-line rows. -->
+            <Style x:Key="LineEmphasisToggleStyle"
+                   TargetType="ToggleButton"
+                   BasedOn="{StaticResource PlayAch.ToggleButton.BaseStyle}">
+                <Setter Property="Width" Value="24"/>
+                <Setter Property="MinHeight" Value="24"/>
+                <Setter Property="Height" Value="24"/>
+                <Setter Property="Padding" Value="0"/>
+                <Setter Property="Margin" Value="2,0,0,0"/>
+                <Setter Property="FontSize" Value="{DynamicResource PlayAch.FontSize.Caption}"/>
+            </Style>
+        </ResourceDictionary>
+    </UserControl.Resources>
+
+    <StackPanel IsEnabled="{Binding IsEditable}">
+
+        <!-- Display: which elements appear on the surface, plus the surface's own chrome
+             (toast accent strip / timer bar, frame vignette). -->
+        <Border Style="{StaticResource EditorCardStyle}">
+            <StackPanel>
+                <TextBlock Text="{DynamicResource LOCPlayAch_Settings_TabDisplay}"
+                           Style="{StaticResource EditorGroupHeaderStyle}"/>
+                <UniformGrid Columns="2">
+                    <CheckBox Content="{DynamicResource LOCPlayAch_Settings_ToastShowHeader}"
+                              IsChecked="{Binding Surface.ShowHeader}"/>
+                    <CheckBox Content="{DynamicResource LOCPlayAch_Settings_ToastShowName}"
+                              IsChecked="{Binding Surface.ShowName}"/>
+                    <CheckBox Content="{DynamicResource LOCPlayAch_Settings_ToastShowDescription}"
+                              IsChecked="{Binding Surface.ShowDescription}"/>
+                    <CheckBox Content="{DynamicResource LOCPlayAch_Settings_ToastShowGameName}"
+                              IsChecked="{Binding Surface.ShowGameName}"/>
+                    <CheckBox Content="{DynamicResource LOCPlayAch_Common_Label_Category}"
+                              IsChecked="{Binding Surface.ShowCategory}"/>
+                    <CheckBox Content="{DynamicResource LOCPlayAch_Common_UnlockTime}"
+                              IsChecked="{Binding Surface.ShowUnlockTime}"/>
+                    <CheckBox Content="{DynamicResource LOCPlayAch_Common_Label_Platform}"
+                              IsEnabled="{Binding IsProviderIconEnabled}"
+                              IsChecked="{Binding Surface.ShowProviderIcon}"/>
+                </UniformGrid>
+
+                <!-- Toast-only chrome: the frame has no accent strip or timer bar. -->
+                <StackPanel Visibility="{Binding IsToastSurface, Converter={StaticResource BoolToVis}}">
+                    <UniformGrid Columns="2">
+                        <CheckBox Content="{DynamicResource LOCPlayAch_Settings_Style_ShowAccentStrip}"
+                                  IsChecked="{Binding Surface.ShowAccentStrip}"/>
+                        <CheckBox Content="{DynamicResource LOCPlayAch_Settings_Style_ShowCountdownBar}"
+                                  IsChecked="{Binding Surface.ShowCountdownBar}"/>
+                    </UniformGrid>
+
+                    <!-- Timer bar color: blank follows the default progress brush; a color overrides. -->
+                    <Grid HorizontalAlignment="Left">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="Auto" MinWidth="90"/>
+                            <ColumnDefinition Width="Auto"/>
+                            <ColumnDefinition Width="Auto"/>
+                            <ColumnDefinition Width="Auto"/>
+                            <ColumnDefinition Width="Auto"/>
+                        </Grid.ColumnDefinitions>
+                        <TextBlock Grid.Column="0"
+                                   Text="{DynamicResource LOCPlayAch_Settings_Style_CountdownBarColor}"
+                                   Style="{StaticResource EditorRowLabelStyle}"/>
+                        <Border Grid.Column="1"
+                                Width="24" Height="24"
+                                CornerRadius="3"
+                                BorderBrush="{DynamicResource PlayAch.Brush.Border}"
+                                BorderThickness="1"
+                                Background="{Binding CountdownBarSwatch}"
+                                VerticalAlignment="Center"
+                                Margin="0,0,8,0"/>
+                        <TextBox Grid.Column="2"
+                                 Text="{Binding CountdownBarColorText, Mode=TwoWay, UpdateSourceTrigger=LostFocus}"
+                                 MinWidth="110"
+                                 VerticalAlignment="Center"/>
+                        <Button Grid.Column="3"
+                                Content="{DynamicResource LOCPlayAch_Button_Pick}"
+                                Click="PickCountdownColor_Click"
+                                MinWidth="58"
+                                Margin="8,0,0,0"
+                                VerticalAlignment="Center"/>
+                        <Button Grid.Column="4"
+                                Content="{DynamicResource LOCPlayAch_Button_Reset}"
+                                Click="ResetCountdownColor_Click"
+                                MinWidth="58"
+                                Margin="8,0,0,0"
+                                VerticalAlignment="Center"/>
+                    </Grid>
+                </StackPanel>
+
+                <!-- Frame vignette (frame surface only): the darkening drawn around the screenshot. -->
+                <Grid HorizontalAlignment="Left"
+                      Visibility="{Binding IsFrameSurface, Converter={StaticResource BoolToVis}}">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="Auto" MinWidth="90"/>
+                        <ColumnDefinition Width="Auto"/>
+                    </Grid.ColumnDefinitions>
+
+                    <TextBlock Grid.Column="0"
+                               Text="{DynamicResource LOCPlayAch_Settings_Style_FrameVignette}"
+                               Style="{StaticResource EditorRowLabelStyle}"
+                               Margin="0,0,8,0"/>
+                    <ComboBox Grid.Column="1"
+                              ItemsSource="{Binding FrameVignetteOptions}"
+                              SelectedItem="{Binding SelectedFrameVignette, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                              DisplayMemberPath="Display"
+                              MinWidth="190"/>
+                </Grid>
+            </StackPanel>
+        </Border>
+
+        <!-- Rarity: name coloring plus badge placement, percent placement, and glow layout. -->
+        <Border Style="{StaticResource EditorCardStyle}">
+            <StackPanel>
+                <TextBlock Text="{DynamicResource LOCPlayAch_Column_Rarity}"
+                           Style="{StaticResource EditorGroupHeaderStyle}"/>
+                <CheckBox Content="{DynamicResource LOCPlayAch_Settings_ToastRarityColoredName}"
+                          IsChecked="{Binding Surface.RarityColoredName}"/>
+                <Grid HorizontalAlignment="Left">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="Auto" MinWidth="90"/>
+                        <ColumnDefinition Width="Auto"/>
+                    </Grid.ColumnDefinitions>
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="Auto"/>
+                    </Grid.RowDefinitions>
+
+                    <TextBlock Grid.Row="0" Grid.Column="0"
+                               Text="{DynamicResource LOCPlayAch_Settings_Style_Rarity_BadgeLabel}"
+                               Style="{StaticResource EditorRowLabelStyle}"
+                               Margin="0,0,8,8"/>
+                    <ComboBox Grid.Row="0" Grid.Column="1"
+                              ItemsSource="{Binding BadgePlacementOptions}"
+                              SelectedItem="{Binding SelectedBadgePlacement, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                              DisplayMemberPath="Display"
+                              MinWidth="190"
+                              Margin="0,0,0,8"/>
+
+                    <TextBlock Grid.Row="1" Grid.Column="0"
+                               Text="{DynamicResource LOCPlayAch_Settings_Style_Rarity_PercentLabel}"
+                               Style="{StaticResource EditorRowLabelStyle}"
+                               Margin="0,0,8,8"/>
+                    <ComboBox Grid.Row="1" Grid.Column="1"
+                              ItemsSource="{Binding PercentPlacementOptions}"
+                              SelectedItem="{Binding SelectedPercentPlacement, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                              DisplayMemberPath="Display"
+                              MinWidth="190"
+                              Margin="0,0,0,8"/>
+
+                    <TextBlock Grid.Row="2" Grid.Column="0"
+                               Text="{DynamicResource LOCPlayAch_Settings_ToastShowRarityGlow}"
+                               Style="{StaticResource EditorRowLabelStyle}"/>
+                    <ComboBox Grid.Row="2" Grid.Column="1"
+                              ItemsSource="{Binding GlowDisplayOptions}"
+                              SelectedItem="{Binding SelectedGlowDisplay, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                              DisplayMemberPath="Display"
+                              MinWidth="190"/>
+                </Grid>
+            </StackPanel>
+        </Border>
+
+        <!-- Size: element sizes for both surfaces, toast card dimensions, and the name-line
+             offset. A blank box uses the surface default. -->
+        <Border Style="{StaticResource EditorCardStyle}">
+            <StackPanel>
+                <TextBlock Text="{DynamicResource LOCPlayAch_Settings_Style_SizeHeader}"
+                           Style="{StaticResource EditorGroupHeaderStyle}"/>
+                <Grid HorizontalAlignment="Left">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="Auto" MinWidth="90"/>
+                        <ColumnDefinition Width="160"/>
+                        <ColumnDefinition Width="Auto"/>
+                    </Grid.ColumnDefinitions>
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="Auto"/>
+                    </Grid.RowDefinitions>
+
+                    <TextBlock Grid.Row="0" Grid.Column="0"
+                               Text="{DynamicResource LOCPlayAch_Column_Icon}"
+                               Style="{StaticResource EditorRowLabelStyle}"
+                               Margin="0,0,8,8"/>
+                    <Slider Grid.Row="0" Grid.Column="1"
+                            Minimum="16" Maximum="200"
+                            SmallChange="1" LargeChange="5" TickFrequency="1" IsSnapToTickEnabled="True"
+                            Value="{Binding IconSizeSlider, Mode=TwoWay}"
+                            VerticalAlignment="Center"
+                            Margin="0,0,8,8"/>
+                    <TextBox Grid.Row="0" Grid.Column="2"
+                             Text="{Binding IconSizeText, Mode=TwoWay, UpdateSourceTrigger=LostFocus}"
+                             Width="70"
+                             TextAlignment="Right"
+                             Margin="0,0,0,8"/>
+
+                    <TextBlock Grid.Row="1" Grid.Column="0"
+                               Text="{DynamicResource LOCPlayAch_Settings_Style_Rarity_BadgeLabel}"
+                               Style="{StaticResource EditorRowLabelStyle}"
+                               Margin="0,0,8,8"/>
+                    <Slider Grid.Row="1" Grid.Column="1"
+                            Minimum="8" Maximum="128"
+                            SmallChange="1" LargeChange="5" TickFrequency="1" IsSnapToTickEnabled="True"
+                            Value="{Binding RarityBadgeSizeSlider, Mode=TwoWay}"
+                            VerticalAlignment="Center"
+                            Margin="0,0,8,8"/>
+                    <TextBox Grid.Row="1" Grid.Column="2"
+                             Text="{Binding RarityBadgeSizeText, Mode=TwoWay, UpdateSourceTrigger=LostFocus}"
+                             Width="70"
+                             TextAlignment="Right"
+                             Margin="0,0,0,8"/>
+
+                    <TextBlock Grid.Row="2" Grid.Column="0"
+                               Text="{DynamicResource LOCPlayAch_Settings_Style_Rarity_PercentLabel}"
+                               Style="{StaticResource EditorRowLabelStyle}"
+                               Margin="0,0,8,8"/>
+                    <Slider Grid.Row="2" Grid.Column="1"
+                            Minimum="6" Maximum="48"
+                            SmallChange="1" LargeChange="5" TickFrequency="1" IsSnapToTickEnabled="True"
+                            Value="{Binding RarityFontSizeSlider, Mode=TwoWay}"
+                            VerticalAlignment="Center"
+                            Margin="0,0,8,8"/>
+                    <TextBox Grid.Row="2" Grid.Column="2"
+                             Text="{Binding RarityFontSizeText, Mode=TwoWay, UpdateSourceTrigger=LostFocus}"
+                             Width="70"
+                             TextAlignment="Right"
+                             Margin="0,0,0,8"/>
+
+                    <TextBlock Grid.Row="3" Grid.Column="0"
+                               Text="{DynamicResource LOCPlayAch_Common_Label_Platform}"
+                               Style="{StaticResource EditorRowLabelStyle}"
+                               Margin="0,0,8,8"/>
+                    <Slider Grid.Row="3" Grid.Column="1"
+                            Minimum="8" Maximum="128"
+                            SmallChange="1" LargeChange="5" TickFrequency="1" IsSnapToTickEnabled="True"
+                            Value="{Binding ProviderIconSizeSlider, Mode=TwoWay}"
+                            VerticalAlignment="Center"
+                            Margin="0,0,8,8"/>
+                    <TextBox Grid.Row="3" Grid.Column="2"
+                             Text="{Binding ProviderIconSizeText, Mode=TwoWay, UpdateSourceTrigger=LostFocus}"
+                             Width="70"
+                             TextAlignment="Right"
+                             Margin="0,0,0,8"/>
+
+                    <TextBlock Grid.Row="4" Grid.Column="0"
+                               Text="{DynamicResource LOCPlayAch_Settings_Style_LinePadding}"
+                               Style="{StaticResource EditorRowLabelStyle}"/>
+                    <Slider Grid.Row="4" Grid.Column="1"
+                            Minimum="0" Maximum="24"
+                            SmallChange="1" LargeChange="2" TickFrequency="1" IsSnapToTickEnabled="True"
+                            Value="{Binding LinePaddingSlider, Mode=TwoWay}"
+                            VerticalAlignment="Center"
+                            Margin="0,0,8,0"/>
+                    <TextBox Grid.Row="4" Grid.Column="2"
+                             Text="{Binding LinePaddingText, Mode=TwoWay, UpdateSourceTrigger=LostFocus}"
+                             Width="70"
+                             TextAlignment="Right"/>
+                </Grid>
+
+                <!-- Toast card size: the frame has no free card size. The height slider's
+                     minimum (0) means auto height. -->
+                <Grid HorizontalAlignment="Left"
+                      Margin="0,10,0,0"
+                      Visibility="{Binding IsToastSurface, Converter={StaticResource BoolToVis}}">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="Auto" MinWidth="90"/>
+                        <ColumnDefinition Width="160"/>
+                        <ColumnDefinition Width="Auto"/>
+                    </Grid.ColumnDefinitions>
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="Auto"/>
+                    </Grid.RowDefinitions>
+
+                    <TextBlock Grid.Row="0" Grid.Column="0"
+                               Text="{DynamicResource LOCPlayAch_Settings_Style_CardWidth}"
+                               Style="{StaticResource EditorRowLabelStyle}"
+                               Margin="0,0,8,8"/>
+                    <Slider Grid.Row="0" Grid.Column="1"
+                            Minimum="200" Maximum="1200"
+                            SmallChange="5" LargeChange="25" TickFrequency="5" IsSnapToTickEnabled="True"
+                            Value="{Binding CardWidthSlider, Mode=TwoWay}"
+                            VerticalAlignment="Center"
+                            Margin="0,0,8,8"/>
+                    <TextBox Grid.Row="0" Grid.Column="2"
+                             Text="{Binding CardWidthText, Mode=TwoWay, UpdateSourceTrigger=LostFocus}"
+                             Width="70"
+                             TextAlignment="Right"
+                             Margin="0,0,0,8"/>
+
+                    <TextBlock Grid.Row="1" Grid.Column="0"
+                               Text="{DynamicResource LOCPlayAch_Settings_Style_CardHeight}"
+                               Style="{StaticResource EditorRowLabelStyle}"
+                               Margin="0,0,8,8"/>
+                    <Slider Grid.Row="1" Grid.Column="1"
+                            Minimum="0" Maximum="500"
+                            SmallChange="5" LargeChange="25" TickFrequency="5" IsSnapToTickEnabled="True"
+                            Value="{Binding CardHeightSlider, Mode=TwoWay}"
+                            VerticalAlignment="Center"
+                            Margin="0,0,8,8"/>
+                    <TextBox Grid.Row="1" Grid.Column="2"
+                             Text="{Binding CardHeightText, Mode=TwoWay, UpdateSourceTrigger=LostFocus}"
+                             Width="70"
+                             TextAlignment="Right"
+                             Margin="0,0,0,8"/>
+
+                    <TextBlock Grid.Row="2" Grid.Column="0"
+                               Text="{DynamicResource LOCPlayAch_Settings_Style_CardPaddingLeft}"
+                               Style="{StaticResource EditorRowLabelStyle}"
+                               Margin="0,0,8,8"/>
+                    <Slider Grid.Row="2" Grid.Column="1"
+                            Minimum="0" Maximum="120"
+                            SmallChange="1" LargeChange="5" TickFrequency="1" IsSnapToTickEnabled="True"
+                            Value="{Binding CardPaddingLeftSlider, Mode=TwoWay}"
+                            VerticalAlignment="Center"
+                            Margin="0,0,8,8"/>
+                    <TextBox Grid.Row="2" Grid.Column="2"
+                             Text="{Binding CardPaddingLeftText, Mode=TwoWay, UpdateSourceTrigger=LostFocus}"
+                             Width="70"
+                             TextAlignment="Right"
+                             Margin="0,0,0,8"/>
+
+                    <TextBlock Grid.Row="3" Grid.Column="0"
+                               Text="{DynamicResource LOCPlayAch_Settings_Style_CardPaddingRight}"
+                               Style="{StaticResource EditorRowLabelStyle}"/>
+                    <Slider Grid.Row="3" Grid.Column="1"
+                            Minimum="0" Maximum="120"
+                            SmallChange="1" LargeChange="5" TickFrequency="1" IsSnapToTickEnabled="True"
+                            Value="{Binding CardPaddingRightSlider, Mode=TwoWay}"
+                            VerticalAlignment="Center"
+                            Margin="0,0,8,0"/>
+                    <TextBox Grid.Row="3" Grid.Column="2"
+                             Text="{Binding CardPaddingRightText, Mode=TwoWay, UpdateSourceTrigger=LostFocus}"
+                             Width="70"
+                             TextAlignment="Right"/>
+                </Grid>
+
+                <!-- Name-line offset: positive indents the name line (badge included) to the
+                     right; negative pushes the other lines right instead, so the name line never
+                     slides left under the icon. -->
+                <TextBlock Text="{DynamicResource LOCPlayAch_Settings_Style_TitleLineOffset}"
+                           Style="{StaticResource EditorSubGroupHeaderStyle}"/>
+                <Grid HorizontalAlignment="Left"
+                      MinWidth="260">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*"/>
+                        <ColumnDefinition Width="Auto"/>
+                    </Grid.ColumnDefinitions>
+                    <Slider Grid.Column="0"
+                            Minimum="-50"
+                            Maximum="50"
+                            SmallChange="1"
+                            LargeChange="5"
+                            TickFrequency="1"
+                            IsSnapToTickEnabled="True"
+                            Value="{Binding Surface.TitleLineOffset, Mode=TwoWay}"
+                            VerticalAlignment="Center"/>
+                    <TextBox Grid.Column="1"
+                             Text="{Binding TitleLineOffsetText, Mode=TwoWay, UpdateSourceTrigger=LostFocus}"
+                             Width="50"
+                             TextAlignment="Right"
+                             VerticalAlignment="Center"
+                             Margin="8,0,0,0"/>
+                </Grid>
+            </StackPanel>
+        </Border>
+
+        <!-- Text: drag-to-reorder lines with per-line font size, then the shared font family. -->
+        <Border Style="{StaticResource EditorCardStyle}">
+            <StackPanel>
+                <TextBlock Text="{DynamicResource LOCPlayAch_Settings_Style_TextLines}"
+                           Style="{StaticResource EditorGroupHeaderStyle}"/>
+                <TextBlock Text="{DynamicResource LOCPlayAch_Settings_Style_TextLinesHint}"
+                           Style="{StaticResource MutedTextStyle}"
+                           TextWrapping="Wrap"
+                           Margin="0,0,0,6"/>
+
+                <!-- Shared font family: persists immediately for every line still on "Default";
+                     Apply clears the per-line font overrides so all lines follow it at once. -->
+                <StackPanel Orientation="Horizontal"
+                            Margin="0,0,0,8">
+                    <TextBlock Text="{DynamicResource LOCPlayAch_Settings_Style_FontFamily}"
+                               Style="{StaticResource EditorRowLabelStyle}"/>
+                    <ComboBox ItemsSource="{Binding FontFamilyOptions}"
+                              SelectedItem="{Binding SelectedFontFamilyOption, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                              MinWidth="260"
+                              MaxDropDownHeight="360"
+                              VirtualizingPanel.IsVirtualizing="True">
+                        <ComboBox.ItemsPanel>
+                            <ItemsPanelTemplate>
+                                <VirtualizingStackPanel/>
+                            </ItemsPanelTemplate>
+                        </ComboBox.ItemsPanel>
+                        <ComboBox.ItemTemplate>
+                            <DataTemplate>
+                                <TextBlock Text="{Binding DisplayName}"
+                                           FontFamily="{Binding PreviewFamily}"/>
+                            </DataTemplate>
+                        </ComboBox.ItemTemplate>
+                    </ComboBox>
+                    <Button Content="{DynamicResource LOCPlayAch_Button_Apply}"
+                            Click="ApplyFontFamilyToAllLines_Click"
+                            Margin="8,0,0,0"
+                            VerticalAlignment="Center"
+                            Padding="{StaticResource PlayAch.Thickness.ButtonPadding}"/>
+                </StackPanel>
+
+                <Grid HorizontalAlignment="Left">
+                    <DataGrid x:Name="LineOrderGrid"
+                              Style="{StaticResource PlayAch.DataGrid.BaseStyle}"
+                              ItemsSource="{Binding LineRows}"
+                              AutoGenerateColumns="False"
+                              CanUserAddRows="False"
+                              CanUserDeleteRows="False"
+                              CanUserResizeRows="False"
+                              CanUserResizeColumns="False"
+                              CanUserReorderColumns="False"
+                              CanUserSortColumns="False"
+                              SelectionMode="Single"
+                              SelectionUnit="FullRow"
+                              HeadersVisibility="None"
+                              IsReadOnly="False"
+                              GridLinesVisibility="None"
+                              BorderThickness="0"
+                              Background="{DynamicResource PlayAch.Brush.Grid.Background}"
+                              RowBackground="{DynamicResource PlayAch.Brush.Grid.RowBackground}"
+                              Foreground="{DynamicResource PlayAch.Brush.Text}"
+                              CellStyle="{StaticResource AchievementCellStyle}"
+                              RowStyle="{StaticResource LineOrderGridRowStyle}"
+                              AllowDrop="True">
+                        <DataGrid.Columns>
+                            <DataGridTemplateColumn Width="36" MinWidth="36" MaxWidth="36" CanUserResize="False">
+                                <DataGridTemplateColumn.CellStyle>
+                                    <Style TargetType="DataGridCell" BasedOn="{StaticResource AchievementCellStyle}">
+                                        <Setter Property="Cursor" Value="SizeAll"/>
+                                    </Style>
+                                </DataGridTemplateColumn.CellStyle>
+                                <DataGridTemplateColumn.CellTemplate>
+                                    <DataTemplate>
+                                        <Border Tag="DragHandle"
+                                                Background="Transparent"
+                                                HorizontalAlignment="Stretch"
+                                                VerticalAlignment="Stretch"
+                                                Cursor="SizeAll">
+                                            <TextBlock Tag="DragHandle"
+                                                       Text="☰"
+                                                       HorizontalAlignment="Center"
+                                                       VerticalAlignment="Center"
+                                                       Foreground="{DynamicResource PlayAch.Brush.Text}"
+                                                       Opacity="0.65"/>
+                                        </Border>
+                                    </DataTemplate>
+                                </DataGridTemplateColumn.CellTemplate>
+                            </DataGridTemplateColumn>
+
+                            <!-- Auto width keeps the name column snug against the font column
+                                 instead of a star column stretching blank space between them. -->
+                            <DataGridTemplateColumn Width="Auto" MinWidth="90">
+                                <DataGridTemplateColumn.CellTemplate>
+                                    <DataTemplate>
+                                        <TextBlock Text="{Binding DisplayName}"
+                                                   Foreground="{DynamicResource PlayAch.Brush.Text}"
+                                                   VerticalAlignment="Center"
+                                                   Margin="6,0,10,0"/>
+                                    </DataTemplate>
+                                </DataGridTemplateColumn.CellTemplate>
+                            </DataGridTemplateColumn>
+
+                            <!-- Per-line font family ("Default" follows the shared family). -->
+                            <DataGridTemplateColumn Width="150" MinWidth="150" MaxWidth="150" CanUserResize="False" IsReadOnly="True">
+                                <DataGridTemplateColumn.CellTemplate>
+                                    <DataTemplate>
+                                        <ComboBox ItemsSource="{Binding DataContext.LineFontFamilyOptions, RelativeSource={RelativeSource AncestorType=DataGrid}}"
+                                                  SelectedItem="{Binding SelectedFontFamilyOption, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                                  MaxDropDownHeight="360"
+                                                  VerticalAlignment="Center"
+                                                  Margin="4,2"
+                                                  VirtualizingPanel.IsVirtualizing="True">
+                                            <ComboBox.ItemsPanel>
+                                                <ItemsPanelTemplate>
+                                                    <VirtualizingStackPanel/>
+                                                </ItemsPanelTemplate>
+                                            </ComboBox.ItemsPanel>
+                                            <ComboBox.ItemTemplate>
+                                                <DataTemplate>
+                                                    <TextBlock Text="{Binding DisplayName}"
+                                                               FontFamily="{Binding PreviewFamily}"/>
+                                                </DataTemplate>
+                                            </ComboBox.ItemTemplate>
+                                        </ComboBox>
+                                    </DataTemplate>
+                                </DataGridTemplateColumn.CellTemplate>
+                            </DataGridTemplateColumn>
+
+                            <!-- Whole-line emphasis toggles. IsReadOnly keeps the grid's edit
+                                 pipeline away from the buttons (a template-column control
+                                 otherwise risks its value being reverted by a stray edit
+                                 transaction). -->
+                            <DataGridTemplateColumn Width="118" MinWidth="118" MaxWidth="118" CanUserResize="False" IsReadOnly="True">
+                                <!-- The shared cell style pads 10px per side, which would clip
+                                     the last (strikethrough) toggle; the four buttons need the
+                                     width more than the breathing room. -->
+                                <DataGridTemplateColumn.CellStyle>
+                                    <Style TargetType="DataGridCell" BasedOn="{StaticResource AchievementCellStyle}">
+                                        <Setter Property="Padding" Value="4,2"/>
+                                    </Style>
+                                </DataGridTemplateColumn.CellStyle>
+                                <DataGridTemplateColumn.CellTemplate>
+                                    <DataTemplate>
+                                        <StackPanel Orientation="Horizontal"
+                                                    VerticalAlignment="Center">
+                                            <ToggleButton Style="{StaticResource LineEmphasisToggleStyle}"
+                                                          IsChecked="{Binding IsBold, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}">
+                                                <TextBlock Text="B" FontWeight="Bold"/>
+                                            </ToggleButton>
+                                            <ToggleButton Style="{StaticResource LineEmphasisToggleStyle}"
+                                                          IsChecked="{Binding IsItalic, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}">
+                                                <TextBlock Text="I" FontStyle="Italic"/>
+                                            </ToggleButton>
+                                            <ToggleButton Style="{StaticResource LineEmphasisToggleStyle}"
+                                                          IsChecked="{Binding IsUnderline, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}">
+                                                <TextBlock Text="U" TextDecorations="Underline"/>
+                                            </ToggleButton>
+                                            <ToggleButton Style="{StaticResource LineEmphasisToggleStyle}"
+                                                          IsChecked="{Binding IsStrikethrough, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}">
+                                                <TextBlock Text="S" TextDecorations="Strikethrough"/>
+                                            </ToggleButton>
+                                        </StackPanel>
+                                    </DataTemplate>
+                                </DataGridTemplateColumn.CellTemplate>
+                            </DataGridTemplateColumn>
+
+                            <DataGridTemplateColumn Width="70" MinWidth="70" MaxWidth="70" CanUserResize="False">
+                                <DataGridTemplateColumn.CellTemplate>
+                                    <DataTemplate>
+                                        <TextBox Text="{Binding SizeText, Mode=TwoWay, UpdateSourceTrigger=LostFocus}"
+                                                 TextAlignment="Right"
+                                                 VerticalAlignment="Center"
+                                                 Margin="4,2"/>
+                                    </DataTemplate>
+                                </DataGridTemplateColumn.CellTemplate>
+                            </DataGridTemplateColumn>
+                        </DataGrid.Columns>
+                    </DataGrid>
+
+                    <Border x:Name="DropInsertLine"
+                            Height="2"
+                            VerticalAlignment="Top"
+                            HorizontalAlignment="Stretch"
+                            Background="{DynamicResource PlayAch.Brush.Accent}"
+                            Visibility="Collapsed"
+                            Margin="0,0,0,0"
+                            IsHitTestVisible="False"
+                            Panel.ZIndex="10"/>
+
+                    <Popup x:Name="DragCountPopup"
+                           Placement="AbsolutePoint"
+                           AllowsTransparency="True"
+                           StaysOpen="True"
+                           IsHitTestVisible="False">
+                        <Border Background="{StaticResource PlayAch.Brush.DialogBackdrop}"
+                                BorderBrush="{DynamicResource PlayAch.Brush.Accent}"
+                                BorderThickness="{StaticResource PlayAch.Thickness.Border}"
+                                CornerRadius="10"
+                                Padding="8,3">
+                            <TextBlock x:Name="DragCountText"
+                                       Foreground="White"
+                                       FontWeight="SemiBold"
+                                       FontSize="{DynamicResource PlayAch.FontSize.Caption}"/>
+                        </Border>
+                    </Popup>
+                </Grid>
+
+                <!-- Text shadow: opacity darkens up to solid black (50 = built-in, 0 = none);
+                     offset moves the shadow away from the glyphs (25 = built-in). The blur is
+                     fixed, so the shadow stays glyph-shaped at every setting. Applies to this
+                     surface's text, badges, and logos. -->
+                <TextBlock Text="{DynamicResource LOCPlayAch_Settings_Style_TextShadow}"
+                           Style="{StaticResource EditorSubGroupHeaderStyle}"/>
+                <Grid HorizontalAlignment="Left">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="Auto" MinWidth="90"/>
+                        <ColumnDefinition Width="160"/>
+                        <ColumnDefinition Width="Auto"/>
+                    </Grid.ColumnDefinitions>
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="Auto"/>
+                    </Grid.RowDefinitions>
+
+                    <TextBlock Grid.Row="0" Grid.Column="0"
+                               Text="{DynamicResource LOCPlayAch_Settings_Style_TextShadowOpacity}"
+                               Style="{StaticResource EditorRowLabelStyle}"
+                               Margin="0,0,8,8"/>
+                    <Slider Grid.Row="0" Grid.Column="1"
+                            Minimum="0" Maximum="100"
+                            SmallChange="1" LargeChange="10" TickFrequency="1" IsSnapToTickEnabled="True"
+                            Value="{Binding TextShadowSlider, Mode=TwoWay}"
+                            VerticalAlignment="Center"
+                            Margin="0,0,8,8"/>
+                    <TextBox Grid.Row="0" Grid.Column="2"
+                             Text="{Binding TextShadowText, Mode=TwoWay, UpdateSourceTrigger=LostFocus}"
+                             Width="70"
+                             TextAlignment="Right"
+                             Margin="0,0,0,8"/>
+
+                    <TextBlock Grid.Row="1" Grid.Column="0"
+                               Text="{DynamicResource LOCPlayAch_Settings_Style_TextShadowOffset}"
+                               Style="{StaticResource EditorRowLabelStyle}"/>
+                    <Slider Grid.Row="1" Grid.Column="1"
+                            Minimum="0" Maximum="100"
+                            SmallChange="1" LargeChange="10" TickFrequency="1" IsSnapToTickEnabled="True"
+                            Value="{Binding TextShadowOffsetSlider, Mode=TwoWay}"
+                            VerticalAlignment="Center"
+                            Margin="0,0,8,0"/>
+                    <TextBox Grid.Row="1" Grid.Column="2"
+                             Text="{Binding TextShadowOffsetText, Mode=TwoWay, UpdateSourceTrigger=LostFocus}"
+                             Width="70"
+                             TextAlignment="Right"/>
+                </Grid>
+
+                <!-- Image shadow: independent of the text shadow, applied to badge images and
+                     the platform icon (the frame branding keeps a fixed shadow). Single
+                     layer, so 100 is both the built-in look and the darkest. -->
+                <TextBlock Text="{DynamicResource LOCPlayAch_Settings_Style_ImageShadow}"
+                           Style="{StaticResource EditorSubGroupHeaderStyle}"/>
+                <Grid HorizontalAlignment="Left">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="Auto" MinWidth="90"/>
+                        <ColumnDefinition Width="160"/>
+                        <ColumnDefinition Width="Auto"/>
+                    </Grid.ColumnDefinitions>
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="Auto"/>
+                    </Grid.RowDefinitions>
+
+                    <TextBlock Grid.Row="0" Grid.Column="0"
+                               Text="{DynamicResource LOCPlayAch_Settings_Style_TextShadowOpacity}"
+                               Style="{StaticResource EditorRowLabelStyle}"
+                               Margin="0,0,8,8"/>
+                    <Slider Grid.Row="0" Grid.Column="1"
+                            Minimum="0" Maximum="100"
+                            SmallChange="1" LargeChange="10" TickFrequency="1" IsSnapToTickEnabled="True"
+                            Value="{Binding ImageShadowSlider, Mode=TwoWay}"
+                            VerticalAlignment="Center"
+                            Margin="0,0,8,8"/>
+                    <TextBox Grid.Row="0" Grid.Column="2"
+                             Text="{Binding ImageShadowText, Mode=TwoWay, UpdateSourceTrigger=LostFocus}"
+                             Width="70"
+                             TextAlignment="Right"
+                             Margin="0,0,0,8"/>
+
+                    <TextBlock Grid.Row="1" Grid.Column="0"
+                               Text="{DynamicResource LOCPlayAch_Settings_Style_TextShadowOffset}"
+                               Style="{StaticResource EditorRowLabelStyle}"/>
+                    <Slider Grid.Row="1" Grid.Column="1"
+                            Minimum="0" Maximum="100"
+                            SmallChange="1" LargeChange="10" TickFrequency="1" IsSnapToTickEnabled="True"
+                            Value="{Binding ImageShadowOffsetSlider, Mode=TwoWay}"
+                            VerticalAlignment="Center"
+                            Margin="0,0,8,0"/>
+                    <TextBox Grid.Row="1" Grid.Column="2"
+                             Text="{Binding ImageShadowOffsetText, Mode=TwoWay, UpdateSourceTrigger=LostFocus}"
+                             Width="70"
+                             TextAlignment="Right"/>
+                </Grid>
+            </StackPanel>
+        </Border>
+
+        <!-- Badge images: this surface's own custom rarity badge art. -->
+        <Border Style="{StaticResource EditorCardStyle}">
+            <StackPanel>
+                <TextBlock Text="{DynamicResource LOCPlayAch_Settings_Style_BadgeImages}"
+                           Style="{StaticResource EditorGroupHeaderStyle}"/>
+                <TextBlock Text="{DynamicResource LOCPlayAch_Settings_Style_BadgeImagesHint}"
+                           Style="{StaticResource MutedTextStyle}"
+                           TextWrapping="Wrap"
+                           Margin="0,0,0,6"/>
+                <Grid>
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="Auto" MinWidth="110"/>
+                        <ColumnDefinition Width="Auto"/>
+                        <ColumnDefinition Width="*"/>
+                        <ColumnDefinition Width="Auto"/>
+                        <ColumnDefinition Width="Auto"/>
+                    </Grid.ColumnDefinitions>
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="Auto"/>
+                    </Grid.RowDefinitions>
+
+                    <!-- Common -->
+                    <TextBlock Grid.Row="0" Grid.Column="0"
+                               Text="{DynamicResource LOCPlayAch_Rarity_Common}"
+                               Foreground="{DynamicResource PlayAch.Brush.Text}"
+                               VerticalAlignment="Center"
+                               Margin="0,0,8,6"/>
+                    <Border Grid.Row="0" Grid.Column="1"
+                            Width="48" Height="48"
+                            Background="{DynamicResource PlayAch.Brush.Surface}"
+                            BorderBrush="{DynamicResource PlayAch.Brush.Border}"
+                            BorderThickness="1"
+                            Margin="0,0,8,6">
+                        <Image helpers:AsyncImage.Uri="{Binding BadgeCommonThumbnailUri}"
+                               helpers:AsyncImage.DecodePixel="48"
+                               Stretch="Uniform"
+                               RenderOptions.BitmapScalingMode="HighQuality"/>
+                    </Border>
+                    <TextBox Grid.Row="0" Grid.Column="2"
+                             Tag="BadgeCommon"
+                             Text="{Binding Surface.BadgeImages.CommonPath, Mode=OneWay}"
+                             IsReadOnly="True"
+                             VerticalAlignment="Center"
+                             Margin="0,0,0,6"
+                             AllowDrop="True"
+                             PreviewDragOver="ImageTextBox_PreviewDragOver"
+                             PreviewDrop="ImageTextBox_PreviewDrop"/>
+                    <Button Grid.Row="0" Grid.Column="3"
+                            Tag="BadgeCommon"
+                            Content="{DynamicResource LOCPlayAch_Button_Clear}"
+                            Click="ImageClear_Click"
+                            Margin="8,0,0,6"
+                            VerticalAlignment="Center"/>
+                    <Button Grid.Row="0" Grid.Column="4"
+                            Tag="BadgeCommon"
+                            Content="{DynamicResource LOCPlayAch_Button_Browse}"
+                            Click="ImageBrowse_Click"
+                            Margin="8,0,0,6"
+                            VerticalAlignment="Center"/>
+
+                    <!-- Uncommon -->
+                    <TextBlock Grid.Row="1" Grid.Column="0"
+                               Text="{DynamicResource LOCPlayAch_Rarity_Uncommon}"
+                               Foreground="{DynamicResource PlayAch.Brush.Text}"
+                               VerticalAlignment="Center"
+                               Margin="0,0,8,6"/>
+                    <Border Grid.Row="1" Grid.Column="1"
+                            Width="48" Height="48"
+                            Background="{DynamicResource PlayAch.Brush.Surface}"
+                            BorderBrush="{DynamicResource PlayAch.Brush.Border}"
+                            BorderThickness="1"
+                            Margin="0,0,8,6">
+                        <Image helpers:AsyncImage.Uri="{Binding BadgeUncommonThumbnailUri}"
+                               helpers:AsyncImage.DecodePixel="48"
+                               Stretch="Uniform"
+                               RenderOptions.BitmapScalingMode="HighQuality"/>
+                    </Border>
+                    <TextBox Grid.Row="1" Grid.Column="2"
+                             Tag="BadgeUncommon"
+                             Text="{Binding Surface.BadgeImages.UncommonPath, Mode=OneWay}"
+                             IsReadOnly="True"
+                             VerticalAlignment="Center"
+                             Margin="0,0,0,6"
+                             AllowDrop="True"
+                             PreviewDragOver="ImageTextBox_PreviewDragOver"
+                             PreviewDrop="ImageTextBox_PreviewDrop"/>
+                    <Button Grid.Row="1" Grid.Column="3"
+                            Tag="BadgeUncommon"
+                            Content="{DynamicResource LOCPlayAch_Button_Clear}"
+                            Click="ImageClear_Click"
+                            Margin="8,0,0,6"
+                            VerticalAlignment="Center"/>
+                    <Button Grid.Row="1" Grid.Column="4"
+                            Tag="BadgeUncommon"
+                            Content="{DynamicResource LOCPlayAch_Button_Browse}"
+                            Click="ImageBrowse_Click"
+                            Margin="8,0,0,6"
+                            VerticalAlignment="Center"/>
+
+                    <!-- Rare -->
+                    <TextBlock Grid.Row="2" Grid.Column="0"
+                               Text="{DynamicResource LOCPlayAch_Rarity_Rare}"
+                               Foreground="{DynamicResource PlayAch.Brush.Text}"
+                               VerticalAlignment="Center"
+                               Margin="0,0,8,6"/>
+                    <Border Grid.Row="2" Grid.Column="1"
+                            Width="48" Height="48"
+                            Background="{DynamicResource PlayAch.Brush.Surface}"
+                            BorderBrush="{DynamicResource PlayAch.Brush.Border}"
+                            BorderThickness="1"
+                            Margin="0,0,8,6">
+                        <Image helpers:AsyncImage.Uri="{Binding BadgeRareThumbnailUri}"
+                               helpers:AsyncImage.DecodePixel="48"
+                               Stretch="Uniform"
+                               RenderOptions.BitmapScalingMode="HighQuality"/>
+                    </Border>
+                    <TextBox Grid.Row="2" Grid.Column="2"
+                             Tag="BadgeRare"
+                             Text="{Binding Surface.BadgeImages.RarePath, Mode=OneWay}"
+                             IsReadOnly="True"
+                             VerticalAlignment="Center"
+                             Margin="0,0,0,6"
+                             AllowDrop="True"
+                             PreviewDragOver="ImageTextBox_PreviewDragOver"
+                             PreviewDrop="ImageTextBox_PreviewDrop"/>
+                    <Button Grid.Row="2" Grid.Column="3"
+                            Tag="BadgeRare"
+                            Content="{DynamicResource LOCPlayAch_Button_Clear}"
+                            Click="ImageClear_Click"
+                            Margin="8,0,0,6"
+                            VerticalAlignment="Center"/>
+                    <Button Grid.Row="2" Grid.Column="4"
+                            Tag="BadgeRare"
+                            Content="{DynamicResource LOCPlayAch_Button_Browse}"
+                            Click="ImageBrowse_Click"
+                            Margin="8,0,0,6"
+                            VerticalAlignment="Center"/>
+
+                    <!-- Ultra rare -->
+                    <TextBlock Grid.Row="3" Grid.Column="0"
+                               Text="{DynamicResource LOCPlayAch_Rarity_UltraRare}"
+                               Foreground="{DynamicResource PlayAch.Brush.Text}"
+                               VerticalAlignment="Center"
+                               Margin="0,0,8,6"/>
+                    <Border Grid.Row="3" Grid.Column="1"
+                            Width="48" Height="48"
+                            Background="{DynamicResource PlayAch.Brush.Surface}"
+                            BorderBrush="{DynamicResource PlayAch.Brush.Border}"
+                            BorderThickness="1"
+                            Margin="0,0,8,6">
+                        <Image helpers:AsyncImage.Uri="{Binding BadgeUltraRareThumbnailUri}"
+                               helpers:AsyncImage.DecodePixel="48"
+                               Stretch="Uniform"
+                               RenderOptions.BitmapScalingMode="HighQuality"/>
+                    </Border>
+                    <TextBox Grid.Row="3" Grid.Column="2"
+                             Tag="BadgeUltraRare"
+                             Text="{Binding Surface.BadgeImages.UltraRarePath, Mode=OneWay}"
+                             IsReadOnly="True"
+                             VerticalAlignment="Center"
+                             Margin="0,0,0,6"
+                             AllowDrop="True"
+                             PreviewDragOver="ImageTextBox_PreviewDragOver"
+                             PreviewDrop="ImageTextBox_PreviewDrop"/>
+                    <Button Grid.Row="3" Grid.Column="3"
+                            Tag="BadgeUltraRare"
+                            Content="{DynamicResource LOCPlayAch_Button_Clear}"
+                            Click="ImageClear_Click"
+                            Margin="8,0,0,6"
+                            VerticalAlignment="Center"/>
+                    <Button Grid.Row="3" Grid.Column="4"
+                            Tag="BadgeUltraRare"
+                            Content="{DynamicResource LOCPlayAch_Button_Browse}"
+                            Click="ImageBrowse_Click"
+                            Margin="8,0,0,6"
+                            VerticalAlignment="Center"/>
+
+                    <!-- Completion -->
+                    <TextBlock Grid.Row="4" Grid.Column="0"
+                               Text="{DynamicResource LOCPlayAch_Completed}"
+                               Foreground="{DynamicResource PlayAch.Brush.Text}"
+                               VerticalAlignment="Center"
+                               Margin="0,0,8,0"/>
+                    <Border Grid.Row="4" Grid.Column="1"
+                            Width="48" Height="48"
+                            Background="{DynamicResource PlayAch.Brush.Surface}"
+                            BorderBrush="{DynamicResource PlayAch.Brush.Border}"
+                            BorderThickness="1"
+                            Margin="0,0,8,0">
+                        <Image helpers:AsyncImage.Uri="{Binding BadgeCompletionThumbnailUri}"
+                               helpers:AsyncImage.DecodePixel="48"
+                               Stretch="Uniform"
+                               RenderOptions.BitmapScalingMode="HighQuality"/>
+                    </Border>
+                    <TextBox Grid.Row="4" Grid.Column="2"
+                             Tag="BadgeCompletion"
+                             Text="{Binding Surface.BadgeImages.CompletionPath, Mode=OneWay}"
+                             IsReadOnly="True"
+                             VerticalAlignment="Center"
+                             AllowDrop="True"
+                             PreviewDragOver="ImageTextBox_PreviewDragOver"
+                             PreviewDrop="ImageTextBox_PreviewDrop"/>
+                    <Button Grid.Row="4" Grid.Column="3"
+                            Tag="BadgeCompletion"
+                            Content="{DynamicResource LOCPlayAch_Button_Clear}"
+                            Click="ImageClear_Click"
+                            Margin="8,0,0,0"
+                            VerticalAlignment="Center"/>
+                    <Button Grid.Row="4" Grid.Column="4"
+                            Tag="BadgeCompletion"
+                            Content="{DynamicResource LOCPlayAch_Button_Browse}"
+                            Click="ImageBrowse_Click"
+                            Margin="8,0,0,0"
+                            VerticalAlignment="Center"/>
+                </Grid>
+            </StackPanel>
+        </Border>
+
+        <!-- Background image (toast only; frames never get a background). -->
+        <Border Style="{StaticResource EditorCardStyle}"
+                Visibility="{Binding IsToastSurface, Converter={StaticResource BoolToVis}}">
+            <StackPanel>
+                <TextBlock Text="{DynamicResource LOCPlayAch_Settings_Style_BackgroundImage}"
+                           Style="{StaticResource EditorGroupHeaderStyle}"/>
+                <TextBlock Text="{DynamicResource LOCPlayAch_Settings_Style_BackgroundImageHint}"
+                           Style="{StaticResource MutedTextStyle}"
+                           TextWrapping="Wrap"
+                           Margin="0,0,0,6"/>
+                <Grid Margin="0,0,0,6">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="Auto"/>
+                        <ColumnDefinition Width="*"/>
+                        <ColumnDefinition Width="Auto"/>
+                        <ColumnDefinition Width="Auto"/>
+                    </Grid.ColumnDefinitions>
+                    <Border Grid.Column="0"
+                            Width="48"
+                            Height="48"
+                            Background="{DynamicResource PlayAch.Brush.Surface}"
+                            BorderBrush="{DynamicResource PlayAch.Brush.Border}"
+                            BorderThickness="1"
+                            Margin="0,0,8,0">
+                        <Image helpers:AsyncImage.Uri="{Binding BackgroundThumbnailUri}"
+                               helpers:AsyncImage.DecodePixel="48"
+                               Stretch="Uniform"
+                               RenderOptions.BitmapScalingMode="HighQuality"/>
+                    </Border>
+                    <TextBox Grid.Column="1"
+                             Tag="Background"
+                             Text="{Binding Style.ToastBackgroundImagePath, Mode=OneWay}"
+                             IsReadOnly="True"
+                             VerticalAlignment="Center"
+                             AllowDrop="True"
+                             PreviewDragOver="ImageTextBox_PreviewDragOver"
+                             PreviewDrop="ImageTextBox_PreviewDrop"/>
+                    <Button Grid.Column="2"
+                            Tag="Background"
+                            Content="{DynamicResource LOCPlayAch_Button_Clear}"
+                            Click="ImageClear_Click"
+                            Margin="8,0,0,0"
+                            VerticalAlignment="Center"/>
+                    <Button Grid.Column="3"
+                            Tag="Background"
+                            Content="{DynamicResource LOCPlayAch_Button_Browse}"
+                            Click="ImageBrowse_Click"
+                            Margin="8,0,0,0"
+                            VerticalAlignment="Center"/>
+                </Grid>
+                <!-- Image size + one-click fit so users don't have to guess card dimensions to
+                     match a chosen background (the card crops to its own aspect via UniformToFill). -->
+                <Grid Visibility="{Binding HasBackgroundImage, Converter={StaticResource BoolToVis}}">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="Auto"/>
+                        <ColumnDefinition Width="*"/>
+                        <ColumnDefinition Width="Auto"/>
+                    </Grid.ColumnDefinitions>
+                    <TextBlock Grid.Column="0"
+                               Text="{Binding BackgroundImageDimensionsText}"
+                               Style="{StaticResource MutedTextStyle}"
+                               VerticalAlignment="Center"/>
+                    <Button Grid.Column="2"
+                            Content="{DynamicResource LOCPlayAch_Settings_Style_FitCardToImage}"
+                            Click="FitCardToImage_Click"
+                            VerticalAlignment="Center"/>
+                </Grid>
+            </StackPanel>
+        </Border>
+
+        <!-- Header texts for this surface (the friend formats are toast-only since friend
+             unlocks never produce screenshots). Explicit bindings committed on focus loss or
+             Enter so format strings never persist per keystroke. -->
+        <Border Style="{StaticResource EditorCardStyle}">
+            <StackPanel>
+                <TextBlock Text="{DynamicResource LOCPlayAch_Settings_Style_HeaderTexts}"
+                           Style="{StaticResource EditorGroupHeaderStyle}"/>
+                <TextBlock Text="{DynamicResource LOCPlayAch_Settings_Style_HeaderTextsHint}"
+                           Style="{StaticResource MutedTextStyle}"
+                           TextWrapping="Wrap"
+                           Margin="0,0,0,6"/>
+                <Grid>
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="Auto" MinWidth="160"/>
+                        <ColumnDefinition Width="*"/>
+                    </Grid.ColumnDefinitions>
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="Auto"/>
+                    </Grid.RowDefinitions>
+
+                    <TextBlock Grid.Row="0" Grid.Column="0"
+                               Text="{DynamicResource LOCPlayAch_Settings_Style_HeaderUnlock}"
+                               Foreground="{DynamicResource PlayAch.Brush.Text}"
+                               VerticalAlignment="Center"
+                               Margin="0,0,12,6"/>
+                    <TextBox x:Name="UnlockHeaderTextBox"
+                             Grid.Row="0" Grid.Column="1"
+                             Text="{Binding UnlockHeaderText, Mode=TwoWay, UpdateSourceTrigger=Explicit}"
+                             LostFocus="HeaderTextBox_LostFocus"
+                             PreviewKeyDown="HeaderTextBox_PreviewKeyDown"
+                             Margin="0,0,0,6"/>
+
+                    <TextBlock Grid.Row="1" Grid.Column="0"
+                               Text="{DynamicResource LOCPlayAch_Settings_Style_HeaderFriendUnlock}"
+                               Foreground="{DynamicResource PlayAch.Brush.Text}"
+                               VerticalAlignment="Center"
+                               Margin="0,0,12,6"
+                               Visibility="{Binding IsToastSurface, Converter={StaticResource BoolToVis}}"/>
+                    <TextBox x:Name="FriendUnlockHeaderTextBox"
+                             Grid.Row="1" Grid.Column="1"
+                             Text="{Binding FriendUnlockHeaderText, Mode=TwoWay, UpdateSourceTrigger=Explicit}"
+                             LostFocus="HeaderTextBox_LostFocus"
+                             PreviewKeyDown="HeaderTextBox_PreviewKeyDown"
+                             Margin="0,0,0,6"
+                             Visibility="{Binding IsToastSurface, Converter={StaticResource BoolToVis}}"/>
+
+                    <TextBlock Grid.Row="2" Grid.Column="0"
+                               Text="{DynamicResource LOCPlayAch_Settings_Style_HeaderCongratulations}"
+                               Foreground="{DynamicResource PlayAch.Brush.Text}"
+                               VerticalAlignment="Center"
+                               Margin="0,0,12,6"/>
+                    <TextBox x:Name="CompletionHeaderTextBox"
+                             Grid.Row="2" Grid.Column="1"
+                             Text="{Binding CompletionHeaderText, Mode=TwoWay, UpdateSourceTrigger=Explicit}"
+                             LostFocus="HeaderTextBox_LostFocus"
+                             PreviewKeyDown="HeaderTextBox_PreviewKeyDown"
+                             Margin="0,0,0,6"/>
+
+                    <TextBlock Grid.Row="3" Grid.Column="0"
+                               Text="{DynamicResource LOCPlayAch_Settings_Style_HeaderFriendCompleted}"
+                               Foreground="{DynamicResource PlayAch.Brush.Text}"
+                               VerticalAlignment="Center"
+                               Margin="0,0,12,0"
+                               Visibility="{Binding IsToastSurface, Converter={StaticResource BoolToVis}}"/>
+                    <TextBox x:Name="FriendCompletionHeaderTextBox"
+                             Grid.Row="3" Grid.Column="1"
+                             Text="{Binding FriendCompletionHeaderText, Mode=TwoWay, UpdateSourceTrigger=Explicit}"
+                             LostFocus="HeaderTextBox_LostFocus"
+                             PreviewKeyDown="HeaderTextBox_PreviewKeyDown"
+                             Visibility="{Binding IsToastSurface, Converter={StaticResource BoolToVis}}"/>
+                </Grid>
+                <TextBlock Text="{DynamicResource LOCPlayAch_Settings_Style_HeaderFormatInvalid}"
+                           Foreground="{DynamicResource PlayAch.Brush.ErrorText}"
+                           TextWrapping="Wrap"
+                           Margin="0,6,0,0"
+                           Visibility="{Binding HasHeaderFormatError, Converter={StaticResource BoolToVis}}"/>
+            </StackPanel>
+        </Border>
+    </StackPanel>
+</UserControl>

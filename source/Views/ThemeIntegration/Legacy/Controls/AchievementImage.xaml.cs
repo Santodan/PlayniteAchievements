@@ -61,6 +61,18 @@ namespace PlayniteAchievements.Views.ThemeIntegration.Legacy.Controls
             set => SetValue(ShowRarityGlowProperty, value);
         }
 
+        public static readonly DependencyProperty AnimateRarityGlowsProperty = DependencyProperty.Register(
+            nameof(AnimateRarityGlows),
+            typeof(bool),
+            typeof(AchievementImage),
+            new FrameworkPropertyMetadata(true)
+        );
+        public bool AnimateRarityGlows
+        {
+            get => (bool)GetValue(AnimateRarityGlowsProperty);
+            set => SetValue(AnimateRarityGlowsProperty, value);
+        }
+
         public static readonly DependencyProperty IsHardcoreProperty = DependencyProperty.Register(
             nameof(IsHardcore),
             typeof(bool),
@@ -247,6 +259,7 @@ namespace PlayniteAchievements.Views.ThemeIntegration.Legacy.Controls
         public AchievementImage()
         {
             InitializeComponent();
+            RarityAppearanceHelper.BindAnimateRarityGlows(this, AnimateRarityGlowsProperty);
             NewProperty();
             UpdatePercentUi();
         }

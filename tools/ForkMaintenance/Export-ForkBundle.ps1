@@ -78,6 +78,13 @@ $untrackedFiles = @((Invoke-FmGit $repositoryRoot @(
         -not $_.StartsWith("source/Localization/", [StringComparison]::OrdinalIgnoreCase)
     })
 
+# A no-commit upstream integration leaves upstream-added files untracked relative to the
+# fork branch. They are not overlays when the selected baseline already owns the path.
+$untrackedFiles = @($untrackedFiles | Where-Object {
+    $baselinePath = "$baselineCommit`:$($_)"
+    (Invoke-FmGit $repositoryRoot @("cat-file", "-e", $baselinePath) -AllowFailure).ExitCode -ne 0
+})
+
 $overlayFiles = @($addedFiles + $untrackedFiles | Sort-Object -Unique)
 $overlayManifest = @()
 foreach ($relativePath in $overlayFiles)

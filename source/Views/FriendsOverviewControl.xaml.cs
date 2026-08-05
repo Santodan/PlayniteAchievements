@@ -977,6 +977,22 @@ namespace PlayniteAchievements.Views
             };
             refreshItem.Click += (_, __) => GameRowContextMenuBuilder.ExecuteCommand(refreshCommand, friend);
             menu.Items.Add(refreshItem);
+
+            var favoriteItem = new MenuItem
+            {
+                Header = friend.IsFavorite
+                    ? GetText("LOCRemoveFavoriteGame", "Remove from Favorites")
+                    : GetText("LOCFavoriteGame", "Add to Favorites"),
+                IsEnabled = IsConfigurableFriend(friend)
+            };
+            favoriteItem.Click += (_, __) =>
+            {
+                if (FriendFavoriteToggleHelper.ToggleFavorite(friend, _logger))
+                {
+                    _ = _viewModel?.LoadAsync();
+                }
+            };
+            menu.Items.Add(favoriteItem);
             menu.Items.Add(new Separator());
 
             var clearItem = new MenuItem
@@ -1096,10 +1112,13 @@ namespace PlayniteAchievements.Views
 
                 foreach (var account in GetConfigurableFriendAccounts(friend))
                 {
+                    // DisplayName is omitted: friend.DisplayName is the resolved display value
+                    // (nickname/mode formatting applied) and must not overwrite the stored
+                    // provider name.
                     var entry = persisted.AddOrUpdateFriend(
                         account.ProviderKey,
                         account.ExternalUserId,
-                        friend.DisplayName,
+                        null,
                         friend.AvatarPath,
                         null,
                         FriendSettingsSource.AutoDiscovered);
@@ -1137,30 +1156,7 @@ namespace PlayniteAchievements.Views
 
         private static IEnumerable<FriendAccountRef> GetConfigurableFriendAccounts(FriendSummaryItem friend)
         {
-            if (friend == null)
-            {
-                yield break;
-            }
-
-            if (friend.IsMergedFriend)
-            {
-                foreach (var account in friend.MemberAccounts ?? new List<FriendAccountRef>())
-                {
-                    if (!string.IsNullOrWhiteSpace(account?.ProviderKey) &&
-                        !string.IsNullOrWhiteSpace(account.ExternalUserId))
-                    {
-                        yield return account;
-                    }
-                }
-
-                yield break;
-            }
-
-            if (!string.IsNullOrWhiteSpace(friend.ProviderKey) &&
-                !string.IsNullOrWhiteSpace(friend.ExternalUserId))
-            {
-                yield return FriendAccountRef.From(friend.ProviderKey, friend.ExternalUserId);
-            }
+            return FriendFavoriteToggleHelper.GetConfigurableFriendAccounts(friend);
         }
 
         private string GetText(string resourceKey, string fallback)

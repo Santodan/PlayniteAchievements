@@ -9,6 +9,17 @@
                    mc:Ignorable="d"
                    d:DesignHeight="40" d:DesignWidth="300">
 
+    <local:ThemeControlBase.Style>
+        <Style TargetType="local:ThemeControlBase">
+            <Style.Triggers>
+                <DataTrigger Binding="{Binding Persisted.EnableAchievementProgressBarControl}"
+                             Value="False">
+                    <Setter Property="Visibility" Value="Collapsed"/>
+                </DataTrigger>
+            </Style.Triggers>
+        </Style>
+    </local:ThemeControlBase.Style>
+
     <local:ThemeControlBase.Resources>
         <ResourceDictionary>
             <ResourceDictionary.MergedDictionaries>

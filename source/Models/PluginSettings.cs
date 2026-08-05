@@ -2002,6 +2002,20 @@ namespace PlayniteAchievements.Models
         }
 
         [DontSerialize]
+        public ObservableCollection<GameAchievementSummary> GameJoltGames
+        {
+            get => ModernTheme.GameJoltGames;
+            set => ModernTheme.GameJoltGames = value;
+        }
+
+        [DontSerialize]
+        public ObservableCollection<GameAchievementSummary> FFXIVGames
+        {
+            get => ModernTheme.FFXIVGames;
+            set => ModernTheme.FFXIVGames = value;
+        }
+
+        [DontSerialize]
         public ObservableCollection<GameAchievementSummary> ManualGames
         {
             get => ModernTheme.ManualGames;
@@ -2202,29 +2216,45 @@ namespace PlayniteAchievements.Models
             set => LegacyTheme.Rank = value;
         }
 
+        // SuccessStory-compat flags track the shared theme-control enable settings so themes
+        // binding container visibility to them collapse alongside the plugin controls.
+        // PropertyChanged for these names is relayed from the persisted settings via
+        // CompatFlagsByPersistedName in Persisted_PropertyChanged and CopyPersistedFrom.
         [DontSerialize]
-        public bool EnableIntegrationCompact => true;
+        public bool EnableIntegrationCompact => Persisted?.EnableAchievementCompactListControl ?? true;
 
         [DontSerialize]
-        public bool EnableIntegrationButton => true;
+        public bool EnableIntegrationButton => Persisted?.EnableAchievementButtonControl ?? true;
 
         [DontSerialize]
-        public bool EnableIntegrationViewItem => true;
+        public bool EnableIntegrationViewItem => Persisted?.EnableAchievementViewItemControl ?? true;
 
         [DontSerialize]
-        public bool EnableIntegrationCompactUnlocked => true;
+        public bool EnableIntegrationCompactUnlocked => Persisted?.EnableAchievementCompactUnlockedListControl ?? true;
 
         [DontSerialize]
-        public bool EnableIntegrationCompactLocked => true;
+        public bool EnableIntegrationCompactLocked => Persisted?.EnableAchievementCompactLockedListControl ?? true;
 
         [DontSerialize]
-        public bool EnableIntegrationList => true;
+        public bool EnableIntegrationList => Persisted?.EnableAchievementDataGridControl ?? true;
 
         [DontSerialize]
-        public bool EnableIntegrationUserStats => true;
+        public bool EnableIntegrationUserStats => Persisted?.EnableAchievementStatsControl ?? true;
 
         [DontSerialize]
-        public bool EnableIntegrationChart => true;
+        public bool EnableIntegrationChart => Persisted?.EnableAchievementBarChartControl ?? true;
+
+        private static readonly Dictionary<string, string> CompatFlagsByPersistedName = new Dictionary<string, string>
+        {
+            { nameof(PersistedSettings.EnableAchievementCompactListControl), nameof(EnableIntegrationCompact) },
+            { nameof(PersistedSettings.EnableAchievementButtonControl), nameof(EnableIntegrationButton) },
+            { nameof(PersistedSettings.EnableAchievementViewItemControl), nameof(EnableIntegrationViewItem) },
+            { nameof(PersistedSettings.EnableAchievementCompactUnlockedListControl), nameof(EnableIntegrationCompactUnlocked) },
+            { nameof(PersistedSettings.EnableAchievementCompactLockedListControl), nameof(EnableIntegrationCompactLocked) },
+            { nameof(PersistedSettings.EnableAchievementDataGridControl), nameof(EnableIntegrationList) },
+            { nameof(PersistedSettings.EnableAchievementStatsControl), nameof(EnableIntegrationUserStats) },
+            { nameof(PersistedSettings.EnableAchievementBarChartControl), nameof(EnableIntegrationChart) },
+        };
 
         [DontSerialize]
         public bool Is100Percent => LegacyTheme.Is100Percent;
@@ -2390,6 +2420,11 @@ namespace PlayniteAchievements.Models
             if (!string.IsNullOrWhiteSpace(propertyName))
             {
                 OnPropertyChanged($"Persisted.{propertyName}");
+
+                if (CompatFlagsByPersistedName.TryGetValue(propertyName, out var compatFlagName))
+                {
+                    OnPropertyChanged(compatFlagName);
+                }
             }
         }
 
@@ -2428,6 +2463,12 @@ namespace PlayniteAchievements.Models
             AttachPersistedHandlers();
             RefreshThemeDisplayItemsFromPersisted();
             OnPropertyChanged(nameof(Persisted));
+
+            // The compat flag getters read through the replaced Persisted instance.
+            foreach (var compatFlagName in CompatFlagsByPersistedName.Values)
+            {
+                OnPropertyChanged(compatFlagName);
+            }
         }
 
         /// <summary>

@@ -4,6 +4,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
+using System.Windows.Media;
 using Newtonsoft.Json.Linq;
 using PlayniteAchievements.Models;
 using PlayniteAchievements.Models.Settings;
@@ -240,7 +241,7 @@ namespace PlayniteAchievements.Providers
             if (_providersByKey.TryGetValue(providerKey, out var provider) && provider != null)
             {
                 iconKey = provider.ProviderIconKey;
-                colorHex = provider.ProviderColorHex;
+                colorHex = ResolveEffectiveColor(providerKey, provider.ProviderColorHex);
                 return !string.IsNullOrWhiteSpace(iconKey) || !string.IsNullOrWhiteSpace(colorHex);
             }
 
@@ -264,6 +265,58 @@ namespace PlayniteAchievements.Providers
                    !string.IsNullOrWhiteSpace(colorHex)
                 ? colorHex
                 : fallback;
+        }
+
+        public bool TryGetProviderDefaultColorHex(string providerKey, out string colorHex)
+        {
+            colorHex = null;
+            if (!TryGetProvider(providerKey, out var provider) ||
+                !IsValidColor(provider.ProviderColorHex))
+            {
+                return false;
+            }
+
+            colorHex = provider.ProviderColorHex.Trim();
+            return true;
+        }
+
+        public static string GetProviderDefaultColorHex(string providerKey, string fallback = "#888888")
+        {
+            var instance = Instance;
+            return instance != null &&
+                   instance.TryGetProviderDefaultColorHex(providerKey, out var colorHex)
+                ? colorHex
+                : fallback;
+        }
+
+        private string ResolveEffectiveColor(string providerKey, string defaultColorHex)
+        {
+            var overrides = _settings?.Persisted?.ProviderColorOverrides;
+            if (overrides != null &&
+                overrides.TryGetValue(providerKey, out var overrideColorHex) &&
+                IsValidColor(overrideColorHex))
+            {
+                return overrideColorHex.Trim();
+            }
+
+            return IsValidColor(defaultColorHex) ? defaultColorHex.Trim() : null;
+        }
+
+        internal static bool IsValidColor(string colorText)
+        {
+            if (string.IsNullOrWhiteSpace(colorText))
+            {
+                return false;
+            }
+
+            try
+            {
+                return ColorConverter.ConvertFromString(colorText.Trim()) is Color;
+            }
+            catch
+            {
+                return false;
+            }
         }
 
         // ===================== ENABLED STATE =====================

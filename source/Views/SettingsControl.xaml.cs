@@ -30,6 +30,7 @@ namespace PlayniteAchievements.Views
         private readonly Func<Window, string, string> _pickColor;
         private DisplaySettingsTab _displaySettingsTab;
         private GeneralSettingsTab _generalSettingsTab;
+        private Settings.Notifications.NotificationsSettingsTab _notificationsSettingsTab;
         private LegacyNotificationSettingsControl _legacyNotificationSettingsControl;
         private bool _providerNavigationBuilt;
         private readonly HashSet<string> _autoAuthCheckedProviders = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
@@ -118,6 +119,17 @@ namespace PlayniteAchievements.Views
                 GeneralSettingsContent.Content = _generalSettingsTab;
             }
 
+            if (NotificationsSettingsContent != null)
+            {
+                _notificationsSettingsTab = new Settings.Notifications.NotificationsSettingsTab(
+                    _settingsViewModel.Settings,
+                    _plugin,
+                    _logger);
+                NotificationsSettingsContent.Content = _notificationsSettingsTab;
+            }
+
+            _settingsViewModel.Settings.PropertyChanged += Settings_PropertyChanged;
+            AttachPersistedSettings(_settingsViewModel.Settings.Persisted);
             if (AchievementNotificationsContent != null)
             {
                 _legacyNotificationSettingsControl = new LegacyNotificationSettingsControl(
@@ -426,19 +438,66 @@ namespace PlayniteAchievements.Views
             _autoAuthDebounceCts?.Cancel();
             _autoAuthDebounceCts?.Dispose();
             _autoAuthDebounceCts = null;
-            _settingsViewModel.Settings.Persisted.PropertyChanged -= Persisted_PropertyChanged;
+            _settingsViewModel.Settings.PropertyChanged -= Settings_PropertyChanged;
+            AttachPersistedSettings(null);
             _displaySettingsTab?.Dispose();
             _generalSettingsTab?.Dispose();
+            _notificationsSettingsTab?.Dispose();
             _legacyNotificationSettingsControl?.Dispose();
         }
 
         private void Persisted_PropertyChanged(object sender, System.ComponentModel.PropertyChangedEventArgs e)
         {
+            if (string.IsNullOrEmpty(e?.PropertyName) ||
+                e.PropertyName == nameof(PersistedSettings.ProviderColorOverrides))
+            {
+                foreach (var item in ProviderNavigationItems)
+                {
+                    item.RefreshProviderAppearance();
+                }
+            }
+
             if (e.PropertyName == nameof(PersistedSettings.EnableFriendsFeatures)
                 && !_settingsViewModel.Settings.Persisted.EnableFriendsFeatures
                 && SettingsTabControl.SelectedItem == FriendsTab)
             {
                 SettingsTabControl.SelectedItem = GeneralTab;
+            }
+        }
+
+        private PersistedSettings _subscribedPersistedSettings;
+
+        private void Settings_PropertyChanged(
+            object sender,
+            System.ComponentModel.PropertyChangedEventArgs e)
+        {
+            if (string.IsNullOrEmpty(e?.PropertyName) ||
+                e.PropertyName == nameof(PlayniteAchievementsSettings.Persisted))
+            {
+                AttachPersistedSettings(_settingsViewModel.Settings.Persisted);
+                foreach (var item in ProviderNavigationItems)
+                {
+                    item.RefreshProviderAppearance();
+                }
+            }
+        }
+
+        private void AttachPersistedSettings(PersistedSettings persisted)
+        {
+            if (ReferenceEquals(_subscribedPersistedSettings, persisted))
+            {
+                return;
+            }
+
+            if (_subscribedPersistedSettings != null)
+            {
+                _subscribedPersistedSettings.PropertyChanged -= Persisted_PropertyChanged;
+            }
+
+            _subscribedPersistedSettings = persisted;
+            if (_subscribedPersistedSettings != null)
+            {
+                _subscribedPersistedSettings.PropertyChanged += Persisted_PropertyChanged;
             }
         }
     }

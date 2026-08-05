@@ -257,7 +257,7 @@ namespace PlayniteAchievements.Providers.Tests
             return Encoding.UTF8.GetBytes(value);
         }
 
-        private static byte[] BuildBinaryTrp(uint version, params (string Name, byte[] Data)[] entries)
+        internal static byte[] BuildBinaryTrp(uint version, params (string Name, byte[] Data)[] entries)
         {
             const int entrySize = 64;
             var headerSize = version >= 2 ? 0x40 : 0x30;

@@ -69,6 +69,14 @@ namespace PlayniteAchievements.ViewModels
 
         public ObservableCollection<ProviderNotificationRowItem> Rows { get; }
 
+        public void RefreshProviderAppearance()
+        {
+            foreach (var row in Rows)
+            {
+                row.RefreshProviderAppearance();
+            }
+        }
+
         private void OnRowChanged(ProviderNotificationRowItem row)
         {
             if (row == null)
@@ -141,7 +149,6 @@ namespace PlayniteAchievements.ViewModels
             DisplayName = ProviderRegistry.GetLocalizedName(providerKey);
             ProviderRegistry.TryResolveProviderVisuals(providerKey, out var iconKey, out _);
             ProviderIconKey = iconKey;
-            ProviderColorHex = ProviderRegistry.GetProviderColorHex(providerKey);
 
             _unlockToasts = OverrideStates.FromNullable(stored?.UnlockToasts);
             _friendUnlockToasts = OverrideStates.FromNullable(stored?.FriendUnlockToasts);
@@ -160,9 +167,14 @@ namespace PlayniteAchievements.ViewModels
 
         public string ProviderIconKey { get; }
 
-        public string ProviderColorHex { get; }
+        public string ProviderColorHex => ProviderRegistry.GetProviderColorHex(ProviderKey);
 
         public bool HasProviderIcon => !string.IsNullOrWhiteSpace(ProviderIconKey);
+
+        public void RefreshProviderAppearance()
+        {
+            OnPropertyChanged(nameof(ProviderColorHex));
+        }
 
         public OverrideState UnlockToasts
         {

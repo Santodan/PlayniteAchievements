@@ -81,6 +81,22 @@ namespace PlayniteAchievements.ViewModels
         private FriendOverviewProjection _projection = new FriendOverviewProjection(null);
         private readonly HashSet<string> _selectedTypeFilters = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
         private readonly HashSet<string> _selectedCategoryFilters = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        private bool _showUnlockedAchievements = true;
+        private bool _showLockedAchievements = true;
+        private bool _showHiddenAchievements = true;
+        // Unlock-state toggle availability, computed from the friend+game pair rows in
+        // ApplyFilters; false outside the pair state so the toggles auto-hide (locked rows
+        // only exist in the pair comparison view).
+        private bool _hasPairUnlocked;
+        private bool _hasPairLocked;
+        private bool _hasPairHiddenLocked;
+        // Compare-friend selection for the pair view: session-only, dropped whenever the
+        // friend+game pair changes. Applied comparisons are tracked so they can be cleared
+        // from item instances that survive selection changes (snapshot/pair caches).
+        private FriendSummaryItem _compareFriend;
+        private FriendSummaryItem _comparePairFriend;
+        private FriendGameSummaryItem _comparePairGame;
+        private readonly List<AchievementDisplayItem> _compareAppliedItems = new List<AchievementDisplayItem>();
         private readonly HashSet<string> _selectedOwnershipFilters = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
         private readonly HashSet<string> _selectedFriendProviderFilters = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
         private ObservableCollection<ProviderFilterGroup> _gamePlatformFilterGroups =
@@ -298,6 +314,45 @@ namespace PlayniteAchievements.ViewModels
         public bool HasGameSelection => SelectedGame != null;
         public bool HasAnySelection => SelectedFriend != null || SelectedGame != null;
         public bool HasFriendGameSelection => SelectedFriend != null && SelectedGame != null;
+
+        public string CompareSelectionText => _compareFriend?.DisplayName
+            ?? ResourceProvider.GetString("LOCPlayAch_Filter_CompareSelectorPlaceholder");
+
+        public bool IsCompareAvailable => HasFriendGameSelection && GetCompareFriendOptions().Count > 0;
+
+        // Friends other than the selected one that have cached data for the selected game.
+        private IReadOnlyList<FriendSummaryItem> GetCompareFriendOptions()
+        {
+            if (!HasFriendGameSelection)
+            {
+                return Array.Empty<FriendSummaryItem>();
+            }
+
+            return _allFriends
+                .Where(friend => friend != null &&
+                    !IsSameFriend(friend, SelectedFriend) &&
+                    HasFriendGamePairData(friend, SelectedGame))
+                .ToList();
+        }
+
+        private void SetCompareFriend(FriendSummaryItem friend)
+        {
+            if (friend != null && IsSameFriend(friend, SelectedFriend))
+            {
+                friend = null;
+            }
+
+            if (ReferenceEquals(_compareFriend, friend))
+            {
+                return;
+            }
+
+            _compareFriend = friend;
+            NotifyCompareStateChanged();
+            UpdateCompareState(HasFriendGameSelection
+                ? ResolvePairAchievementSource()
+                : (IReadOnlyList<FriendAchievementDisplayItem>)Array.Empty<FriendAchievementDisplayItem>());
+        }
         public string AchievementColumnSettingsKey
         {
             get
@@ -368,6 +423,42 @@ namespace PlayniteAchievements.ViewModels
             set
             {
                 if (SetValueAndReturn(ref _achievementSearchText, value))
+                {
+                    ApplyFilters();
+                }
+            }
+        }
+
+        public bool ShowUnlockedAchievements
+        {
+            get => _showUnlockedAchievements;
+            set
+            {
+                if (SetValueAndReturn(ref _showUnlockedAchievements, value))
+                {
+                    ApplyFilters();
+                }
+            }
+        }
+
+        public bool ShowLockedAchievements
+        {
+            get => _showLockedAchievements;
+            set
+            {
+                if (SetValueAndReturn(ref _showLockedAchievements, value))
+                {
+                    ApplyFilters();
+                }
+            }
+        }
+
+        public bool ShowHiddenAchievements
+        {
+            get => _showHiddenAchievements;
+            set
+            {
+                if (SetValueAndReturn(ref _showHiddenAchievements, value))
                 {
                     ApplyFilters();
                 }
@@ -506,7 +597,8 @@ namespace PlayniteAchievements.ViewModels
         // merged-friend membership checks stay key-based).
         public string SelectedFriendProviderFilterText =>
             _selectedFriendProviderFilters.Count == 1
-                ? ProviderRegistry.GetLocalizedName(_selectedFriendProviderFilters.First())
+                ? PlayniteAchievements.Providers.ProviderRegistry.GetLocalizedName(
+                    _selectedFriendProviderFilters.First())
                 : GetSelectedFilterText(
                     _selectedFriendProviderFilters,
                     FriendProviderFilterOptions,
@@ -524,6 +616,17 @@ namespace PlayniteAchievements.ViewModels
         private static string OwnedFilterLabel => ResourceProvider.GetString("LOCPlayAch_Column_Owned");
 
         private static string UnownedFilterLabel => ResourceProvider.GetString("LOCPlayAch_Filter_Unowned");
+
+        // Each side grid's title names the filter imposed by the other grid's selection; the
+        // ✕ that follows it removes that filter (friends grid ✕ clears the game, games grid ✕
+        // clears the friend).
+        public string FriendSectionTitle => SelectedGame != null
+            ? SelectedGame.GameName
+            : ResourceProvider.GetString("LOCPlayAch_FriendsOverview_FriendSummaries");
+
+        public string GameSectionTitle => SelectedFriend != null
+            ? SelectedFriend.DisplayName
+            : ResourceProvider.GetString("LOCPlayAch_Overview_GameSummaries");
 
         public string AchievementSectionTitle
         {
@@ -597,7 +700,7 @@ namespace PlayniteAchievements.ViewModels
                 () => FriendProviderFilterOptions,
                 IsFriendProviderFilterSelected,
                 SetFriendProviderFilterSelected,
-                ProviderRegistry.GetLocalizedName)
+                PlayniteAchievements.Providers.ProviderRegistry.GetLocalizedName)
             {
                 Width = 118
             });
@@ -670,7 +773,89 @@ namespace PlayniteAchievements.ViewModels
             {
                 Width = 132
             });
+            controlBar.Items.Add(new GridToggleFilter(
+                this,
+                nameof(ShowUnlockedAchievements),
+                ResourceProvider.GetString("LOCPlayAch_Common_Unlocked"),
+                () => ShowUnlockedAchievements,
+                value => ShowUnlockedAchievements = value,
+                GridToggleFilterIcon.Unlocked,
+                () => _hasPairUnlocked && _hasPairLocked));
+            controlBar.Items.Add(new GridToggleFilter(
+                this,
+                nameof(ShowLockedAchievements),
+                ResourceProvider.GetString("LOCPlayAch_Common_Locked"),
+                () => ShowLockedAchievements,
+                value => ShowLockedAchievements = value,
+                GridToggleFilterIcon.Locked,
+                () => _hasPairUnlocked && _hasPairLocked));
+            controlBar.Items.Add(new GridToggleFilter(
+                this,
+                nameof(ShowHiddenAchievements),
+                ResourceProvider.GetString("LOCPlayAch_Filter_Hidden"),
+                () => ShowHiddenAchievements,
+                value => ShowHiddenAchievements = value,
+                GridToggleFilterIcon.Hidden,
+                () => _hasPairHiddenLocked));
+            controlBar.Items.Add(new GridMultiSelectFilter(
+                this,
+                nameof(CompareSelectionText),
+                () => CompareSelectionText,
+                () => GetCompareFriendOptions().Select(FriendOverviewProjection.GetFriendScopeKey),
+                IsCompareKeySelected,
+                SetCompareKeySelected,
+                GetCompareFriendDisplayName,
+                () => IsCompareAvailable,
+                IsCompareKeyFavorite)
+            {
+                Width = 140,
+                ToolTip = ResourceProvider.GetString("LOCPlayAch_Filter_CompareSelectorPlaceholder")
+            });
             return controlBar;
+        }
+
+        private bool IsCompareKeySelected(string key)
+        {
+            return _compareFriend != null && string.Equals(
+                FriendOverviewProjection.GetFriendScopeKey(_compareFriend),
+                key,
+                StringComparison.OrdinalIgnoreCase);
+        }
+
+        private bool IsCompareKeyFavorite(string key)
+        {
+            return _allFriends.FirstOrDefault(friend => friend != null && string.Equals(
+                FriendOverviewProjection.GetFriendScopeKey(friend),
+                key,
+                StringComparison.OrdinalIgnoreCase))?.IsFavorite == true;
+        }
+
+        // Single-select semantics over checkable menu items: checking a friend replaces any
+        // other selection; unchecking the selected friend clears the comparison.
+        private void SetCompareKeySelected(string key, bool isSelected)
+        {
+            if (!isSelected)
+            {
+                if (IsCompareKeySelected(key))
+                {
+                    SetCompareFriend(null);
+                }
+
+                return;
+            }
+
+            SetCompareFriend(GetCompareFriendOptions().FirstOrDefault(friend => string.Equals(
+                FriendOverviewProjection.GetFriendScopeKey(friend),
+                key,
+                StringComparison.OrdinalIgnoreCase)));
+        }
+
+        private string GetCompareFriendDisplayName(string key)
+        {
+            return GetCompareFriendOptions().FirstOrDefault(friend => string.Equals(
+                FriendOverviewProjection.GetFriendScopeKey(friend),
+                key,
+                StringComparison.OrdinalIgnoreCase))?.DisplayName ?? key;
         }
 
         public Task LoadAsync()
@@ -1714,10 +1899,26 @@ namespace PlayniteAchievements.ViewModels
                         ? _allUnlockedAchievements
                         : _allRecentUnlocks;
 
+                UpdateUnlockStateToggleAvailability(achievementSource);
+
                 var achievements = achievementSource
                     .Where(achievement => MatchesProvider(achievement?.ProviderKey))
                     .Where(achievement => _achievementSearchIndex.Matches(achievement, achievementQuery))
                     .Where(MatchesAchievementFilters);
+
+                // Unlock-state toggles only apply in the pair comparison view; every other
+                // source is unlocked rows only and the toggles are hidden/reset there.
+                if (HasFriendGameSelection)
+                {
+                    if (!_showHiddenAchievements)
+                    {
+                        achievements = achievements.Where(achievement =>
+                            !(achievement.Hidden && !achievement.Unlocked));
+                    }
+
+                    achievements = achievements.Where(achievement =>
+                        achievement.Unlocked ? _showUnlockedAchievements : _showLockedAchievements);
+                }
 
                 if (SelectedFriend != null)
                 {
@@ -1805,6 +2006,7 @@ namespace PlayniteAchievements.ViewModels
                 DisplayedAchievements.ReplaceAll(DisplayGridRowLimitHelper.Limit(
                     _filteredAchievementsList,
                     persisted?.FriendsOverviewAchievementsGridMaxRows));
+                UpdateCompareState(achievementSource);
                 OnPropertyChanged(nameof(AchievementCountText));
                 OnPropertyChanged(nameof(HasData));
             }
@@ -1863,7 +2065,9 @@ namespace PlayniteAchievements.ViewModels
             try
             {
                 rows = await Task
-                    .Run(() => _friendCache.LoadFriendGameAchievementData(gameScope)?.AllAchievements)
+                    .Run(() => FriendOverviewProjection.ApplyMergeIdentity(
+                        _friendCache.LoadFriendGameAchievementData(gameScope),
+                        _settings?.Persisted))
                     .ConfigureAwait(false);
             }
             catch (Exception ex)
@@ -2280,6 +2484,164 @@ namespace PlayniteAchievements.ViewModels
             GameSummariesControlBar?.Refresh();
         }
 
+        // Unlocked/locked/hidden toggle availability for the friend+game pair state: exact from
+        // the loaded pair rows, estimated from the friend-scoped game summary counts while the
+        // on-demand row fetch is in flight so the buttons never lag the rest of the control bar.
+        // Outside the pair state the flags go false so the toggles auto-hide via
+        // GridToggleFilter.HasAvailableAction, and the toggle values reset to "show everything"
+        // so stale filtering never silently carries into a later selection.
+        private void UpdateUnlockStateToggleAvailability(IReadOnlyList<FriendAchievementDisplayItem> achievementSource)
+        {
+            if (HasFriendGameSelection)
+            {
+                if (ReferenceEquals(achievementSource, _pairGameAchievements))
+                {
+                    var pairRows = achievementSource
+                        .Where(achievement => MatchesProvider(achievement?.ProviderKey))
+                        .Where(achievement => IsSameFriend(achievement, SelectedFriend))
+                        .Where(achievement => IsSameGame(achievement, SelectedGame))
+                        .ToList();
+                    _hasPairUnlocked = pairRows.Any(achievement => achievement.Unlocked);
+                    _hasPairLocked = pairRows.Any(achievement => !achievement.Unlocked);
+                    _hasPairHiddenLocked = pairRows.Any(achievement => achievement.Hidden && !achievement.Unlocked);
+                }
+                else
+                {
+                    // The on-demand pair row load has not landed yet (or loaded empty), so the
+                    // toggles must not wait on it: the friend-scoped game summary already carries
+                    // the exact unlocked/total counts, making the buttons available together with
+                    // the rest of the control bar. Hidden-locked existence is only knowable from
+                    // rows, so it is assumed alongside locked rows and settled by the exact pass
+                    // when the fetch completes.
+                    var summary = GetSelectedFriendGameForHeader();
+                    var unlocked = summary?.UnlockedAchievements ?? 0;
+                    var total = summary?.TotalAchievements ?? 0;
+                    _hasPairUnlocked = unlocked > 0;
+                    _hasPairLocked = total > unlocked;
+                    _hasPairHiddenLocked = _hasPairLocked;
+                }
+            }
+            else
+            {
+                _hasPairUnlocked = false;
+                _hasPairLocked = false;
+                _hasPairHiddenLocked = false;
+
+                if (!_showUnlockedAchievements || !_showLockedAchievements || !_showHiddenAchievements)
+                {
+                    _showUnlockedAchievements = true;
+                    _showLockedAchievements = true;
+                    _showHiddenAchievements = true;
+                    OnPropertyChanged(nameof(ShowUnlockedAchievements));
+                    OnPropertyChanged(nameof(ShowLockedAchievements));
+                    OnPropertyChanged(nameof(ShowHiddenAchievements));
+                }
+            }
+
+            AchievementsControlBar?.Refresh();
+        }
+
+        // Keeps the compare-friend enrichment in sync with the pair rows: drops the compare
+        // selection when the friend+game pair changes, and (re)applies the comparison fields
+        // to the selected friend's rows from the compare friend's rows in the same source.
+        // Rows absent for the compare friend (or present locked) render as locked.
+        private void UpdateCompareState(IReadOnlyList<FriendAchievementDisplayItem> achievementSource)
+        {
+            if (!HasFriendGameSelection)
+            {
+                _comparePairFriend = null;
+                _comparePairGame = null;
+                if (_compareFriend != null)
+                {
+                    _compareFriend = null;
+                    NotifyCompareStateChanged();
+                }
+
+                ClearAppliedComparisons();
+                return;
+            }
+
+            var pairChanged = !IsSameFriend(_comparePairFriend, SelectedFriend) ||
+                              !IsSameGame(_comparePairGame, SelectedGame);
+            _comparePairFriend = SelectedFriend;
+            _comparePairGame = SelectedGame;
+            if (pairChanged && _compareFriend != null)
+            {
+                _compareFriend = null;
+                NotifyCompareStateChanged();
+            }
+
+            ClearAppliedComparisons();
+            if (_compareFriend == null || achievementSource == null)
+            {
+                return;
+            }
+
+            var compareRows = new Dictionary<string, FriendAchievementDisplayItem>(StringComparer.OrdinalIgnoreCase);
+            foreach (var row in achievementSource)
+            {
+                if (row == null ||
+                    string.IsNullOrWhiteSpace(row.ApiName) ||
+                    !IsSameFriend(row, _compareFriend) ||
+                    !IsSameGame(row, SelectedGame))
+                {
+                    continue;
+                }
+
+                if (!compareRows.TryGetValue(row.ApiName, out var existing) ||
+                    (row.Unlocked && !existing.Unlocked))
+                {
+                    compareRows[row.ApiName] = row;
+                }
+            }
+
+            var compareName = _compareFriend.DisplayName;
+            var compareAvatar = _compareFriend.AvatarPath;
+            foreach (var item in achievementSource)
+            {
+                if (item == null ||
+                    !IsSameFriend(item, SelectedFriend) ||
+                    !IsSameGame(item, SelectedGame))
+                {
+                    continue;
+                }
+
+                FriendAchievementDisplayItem compareRow = null;
+                if (!string.IsNullOrWhiteSpace(item.ApiName))
+                {
+                    compareRows.TryGetValue(item.ApiName, out compareRow);
+                }
+
+                item.ApplyComparison(
+                    compareName,
+                    compareAvatar ?? compareRow?.FriendAvatarPath,
+                    compareRow?.UnlockTimeUtc,
+                    compareRow?.Unlocked == true);
+                _compareAppliedItems.Add(item);
+            }
+        }
+
+        private void ClearAppliedComparisons()
+        {
+            if (_compareAppliedItems.Count == 0)
+            {
+                return;
+            }
+
+            foreach (var item in _compareAppliedItems)
+            {
+                item?.ClearComparison();
+            }
+
+            _compareAppliedItems.Clear();
+        }
+
+        private void NotifyCompareStateChanged()
+        {
+            OnPropertyChanged(nameof(CompareSelectionText));
+            OnPropertyChanged(nameof(IsCompareAvailable));
+        }
+
         // Type and category options reflect only the achievements currently in scope. They only
         // make sense once a single game is selected (achievement types/categories are game-specific
         // vocabulary); with no game selected they're cleared, which auto-hides the dropdowns via
@@ -2406,8 +2768,11 @@ namespace PlayniteAchievements.ViewModels
             OnPropertyChanged(nameof(HasAnySelection));
             OnPropertyChanged(nameof(HasFriendGameSelection));
             OnPropertyChanged(nameof(AchievementColumnSettingsKey));
+            OnPropertyChanged(nameof(FriendSectionTitle));
+            OnPropertyChanged(nameof(GameSectionTitle));
             OnPropertyChanged(nameof(AchievementSectionTitle));
             OnPropertyChanged(nameof(AchievementCountText));
+            OnPropertyChanged(nameof(IsCompareAvailable));
         }
 
         private void RaiseRefreshCanExecuteChanged()
@@ -2425,7 +2790,22 @@ namespace PlayniteAchievements.ViewModels
         {
             var propertyName = e?.PropertyName;
             if (string.IsNullOrWhiteSpace(propertyName) ||
-                propertyName == nameof(PersistedSettings.ShowFriendSpoilers))
+                propertyName == nameof(PersistedSettings.ProviderColorOverrides))
+            {
+                foreach (var friend in _allFriends)
+                {
+                    friend?.RefreshProviderAppearance();
+                }
+
+                foreach (var game in _allGames)
+                {
+                    game?.RefreshProviderAppearance();
+                }
+            }
+
+            if (string.IsNullOrWhiteSpace(propertyName) ||
+                propertyName == nameof(PersistedSettings.ShowFriendSpoilers) ||
+                propertyName == nameof(PersistedSettings.FriendNameDisplayMode))
             {
                 _friendsOverviewDataCoordinator?.Invalidate();
             }

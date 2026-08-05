@@ -55,7 +55,14 @@ namespace PlayniteAchievements.Views
             _playniteApi = playniteApi;
             _achievementOverridesService = achievementOverridesService;
             _cacheManager = cacheManager;
-            DataContext = new ViewAchievementsViewModel(gameId, refreshRuntime, achievementDataService, playniteApi, logger, settings);
+            DataContext = new ViewAchievementsViewModel(
+                gameId,
+                refreshRuntime,
+                achievementDataService,
+                playniteApi,
+                logger,
+                settings,
+                cacheManager as Services.Friends.IFriendCacheManager);
             if (ViewModel != null)
             {
                 ViewModel.PropertyChanged += ViewModel_PropertyChanged;
@@ -364,7 +371,8 @@ namespace PlayniteAchievements.Views
                 _playniteApi,
                 _achievementOverridesService,
                 _cacheManager,
-                _logger);
+                _logger,
+                includeViewCaptures: true);
             if (menu == null || menu.Items.Count == 0)
             {
                 return;
@@ -446,7 +454,8 @@ namespace PlayniteAchievements.Views
                 menu,
                 row.DataContext,
                 this,
-                RefreshAfterRowOptionsChanged);
+                RefreshAfterRowOptionsChanged,
+                includeViewCaptures: true);
             if (menu.Items.Count == 0)
             {
                 return false;

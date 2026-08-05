@@ -50,6 +50,7 @@ namespace PlayniteAchievements.ViewModels.Items
         private string _friendName;
         private string _friendExternalUserId;
         private string _friendAvatarPath;
+        private bool _friendIsFavorite;
         private int? _pointsValue;
         private string _categoryType;
         private string _categoryLabel;
@@ -94,6 +95,13 @@ namespace PlayniteAchievements.ViewModels.Items
             set => SetValue(ref _friendName, value);
         }
 
+        // Session-only: true when this achievement has any saved unlock captures on disk. Set by the
+        // capture presence marker after the grid is built; gates the Captures column button.
+        private bool _hasCaptures;
+        [DontSerialize]
+        [IgnoreDataMember]
+        public bool HasCaptures { get => _hasCaptures; set => SetValue(ref _hasCaptures, value); }
+
         public string FriendExternalUserId
         {
             get => _friendExternalUserId;
@@ -104,6 +112,130 @@ namespace PlayniteAchievements.ViewModels.Items
         {
             get => _friendAvatarPath;
             set => SetValue(ref _friendAvatarPath, value);
+        }
+
+        // Projected from the friend's persisted favorite flag; drives the favorite star in the
+        // friend achievements grid's Friend column. Always false for self-achievement rows.
+        public bool FriendIsFavorite
+        {
+            get => _friendIsFavorite;
+            set => SetValue(ref _friendIsFavorite, value);
+        }
+
+        // --- Friend comparison (session-only; set by the hosting view model when a
+        //     compare friend is selected, cleared when the selection changes) ---
+
+        private bool _hasComparison;
+        private string _comparisonFriendName;
+        private string _comparisonFriendAvatarPath;
+        private DateTime? _comparisonUnlockTimeUtc;
+        private bool _comparisonUnlocked;
+
+        [DontSerialize]
+        [IgnoreDataMember]
+        public bool HasComparison
+        {
+            get => _hasComparison;
+            private set => SetValue(ref _hasComparison, value);
+        }
+
+        [DontSerialize]
+        [IgnoreDataMember]
+        public string ComparisonFriendName
+        {
+            get => _comparisonFriendName;
+            private set
+            {
+                if (SetValueAndReturn(ref _comparisonFriendName, value))
+                {
+                    OnPropertyChanged(nameof(ComparisonToolTip));
+                }
+            }
+        }
+
+        [DontSerialize]
+        [IgnoreDataMember]
+        public string ComparisonFriendAvatarPath
+        {
+            get => _comparisonFriendAvatarPath;
+            private set => SetValue(ref _comparisonFriendAvatarPath, value);
+        }
+
+        [DontSerialize]
+        [IgnoreDataMember]
+        public DateTime? ComparisonUnlockTimeUtc
+        {
+            get => _comparisonUnlockTimeUtc;
+            private set
+            {
+                if (SetValueAndReturn(ref _comparisonUnlockTimeUtc, value))
+                {
+                    OnPropertyChanged(nameof(ComparisonUnlockTimeLocal));
+                    OnPropertyChanged(nameof(ComparisonToolTip));
+                }
+            }
+        }
+
+        [DontSerialize]
+        [IgnoreDataMember]
+        public bool ComparisonUnlocked
+        {
+            get => _comparisonUnlocked;
+            private set
+            {
+                if (SetValueAndReturn(ref _comparisonUnlocked, value))
+                {
+                    OnPropertyChanged(nameof(ComparisonToolTip));
+                }
+            }
+        }
+
+        [DontSerialize]
+        [IgnoreDataMember]
+        public DateTime? ComparisonUnlockTimeLocal =>
+            _comparisonUnlockTimeUtc.HasValue
+                ? DateTimeUtilities.AsLocalFromUtc(_comparisonUnlockTimeUtc.Value)
+                : (DateTime?)null;
+
+        [DontSerialize]
+        [IgnoreDataMember]
+        public string ComparisonToolTip
+        {
+            get
+            {
+                if (!_hasComparison || string.IsNullOrWhiteSpace(_comparisonFriendName))
+                {
+                    return null;
+                }
+
+                if (!_comparisonUnlocked)
+                {
+                    return $"{_comparisonFriendName} · {ResourceProvider.GetString("LOCPlayAch_Common_Locked")}";
+                }
+
+                var local = ComparisonUnlockTimeLocal;
+                return local.HasValue
+                    ? $"{_comparisonFriendName} · {local.Value.ToString("G", FormattingCulture.Current)}"
+                    : _comparisonFriendName;
+            }
+        }
+
+        public void ApplyComparison(string friendName, string friendAvatarPath, DateTime? unlockTimeUtc, bool unlocked)
+        {
+            ComparisonFriendName = friendName;
+            ComparisonFriendAvatarPath = friendAvatarPath;
+            ComparisonUnlockTimeUtc = unlockTimeUtc;
+            ComparisonUnlocked = unlocked;
+            HasComparison = true;
+        }
+
+        public void ClearComparison()
+        {
+            HasComparison = false;
+            ComparisonFriendName = null;
+            ComparisonFriendAvatarPath = null;
+            ComparisonUnlockTimeUtc = null;
+            ComparisonUnlocked = false;
         }
 
         public string DisplayName
@@ -1075,6 +1207,7 @@ namespace PlayniteAchievements.ViewModels.Items
             clone.FriendName = _friendName;
             clone.FriendExternalUserId = _friendExternalUserId;
             clone.FriendAvatarPath = _friendAvatarPath;
+            clone.FriendIsFavorite = _friendIsFavorite;
             clone.GameName = _gameName;
             clone.SortingName = _sortingName;
             clone.PlayniteGameId = _playniteGameId;

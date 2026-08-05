@@ -1,10 +1,12 @@
 using System;
+using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.ComponentModel;
 using System.Threading.Tasks;
 using System.Windows;
 using Playnite.SDK;
+using PlayniteAchievements.Providers.RetroAchievements.EmulatorLog;
 using PlayniteAchievements.Providers.Settings;
 using PlayniteAchievements.Services.Logging;
 
@@ -39,6 +41,10 @@ namespace PlayniteAchievements.Providers.RetroAchievements
 
         public new RetroAchievementsSettings Settings => _raSettings;
 
+        /// <summary>Per-emulator log-tracking rows shown in the "instant notifications" section.</summary>
+        public System.Collections.IEnumerable EmulatorLogRows { get; private set; } =
+            Array.Empty<RaEmulatorLogRowViewModel>();
+
         public RetroAchievementsSettingsView(string pluginUserDataPath)
         {
             _pluginUserDataPath = pluginUserDataPath ?? string.Empty;
@@ -51,6 +57,7 @@ namespace PlayniteAchievements.Providers.RetroAchievements
         public override void Initialize(IProviderSettings settings)
         {
             _raSettings = settings as RetroAchievementsSettings;
+            BuildEmulatorLogRows();
             base.Initialize(settings);
 
             if (_raSettings is INotifyPropertyChanged notify)
@@ -88,6 +95,44 @@ namespace PlayniteAchievements.Providers.RetroAchievements
         {
             RefreshAuthStatus();
             return Task.CompletedTask;
+        }
+
+        private void BuildEmulatorLogRows()
+        {
+            if (_raSettings == null)
+            {
+                EmulatorLogRows = Array.Empty<RaEmulatorLogRowViewModel>();
+                return;
+            }
+
+            var rows = new List<RaEmulatorLogRowViewModel>();
+            foreach (var entry in RaEmulatorLogRegistry.Entries)
+            {
+                var emulator = RaEmulatorLogRegistry.FindDatabaseEmulator(API.Instance, entry);
+                var defaultPath = entry.ResolveDefaultLogPath(emulator?.InstallDir);
+                rows.Add(new RaEmulatorLogRowViewModel(
+                    _raSettings,
+                    entry.Key,
+                    entry.DisplayName,
+                    defaultPath));
+            }
+
+            EmulatorLogRows = rows;
+        }
+
+        private void EmulatorLogBrowse_Click(object sender, RoutedEventArgs e)
+        {
+            if (!((sender as FrameworkElement)?.DataContext is RaEmulatorLogRowViewModel row))
+            {
+                return;
+            }
+
+            var selected = API.Instance?.Dialogs?.SelectFile(
+                "Log files|*.log;*.txt|All files|*.*");
+            if (!string.IsNullOrWhiteSpace(selected))
+            {
+                row.OverridePath = selected;
+            }
         }
 
         private void ForceRebuildHashIndex_Click(object sender, RoutedEventArgs e)

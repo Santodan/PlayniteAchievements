@@ -14,7 +14,7 @@ namespace PlayniteAchievements.ThemeMigration.Tests
     public class ThemeDiscoveryServiceTests
     {
         [TestMethod]
-        public void DiscoverThemes_DoesNotFlagThemeForMigration_WhenThemeFilesContainPlayniteAchievements()
+        public void DiscoverThemes_DoesNotFlagThemeForMigration_WhenThemeContainsNativeSantodanSupport()
         {
             var themesRoot = CreateThemesRoot();
 
@@ -25,7 +25,7 @@ namespace PlayniteAchievements.ThemeMigration.Tests
                 File.WriteAllText(Path.Combine(themePath, "theme.yaml"), "Name: Aniki ReMake\nVersion: 2.5.5\n");
                 File.WriteAllText(
                     Path.Combine(themePath, "View.xaml"),
-                    "<TextBlock Text=\"SuccessStoryFullscreenHelper\" />\n<TextBlock Text=\"PlayniteAchievements\" />");
+                    "<TextBlock Text=\"PlayniteAchievementsSantodan\" />");
 
                 var service = new ThemeDiscoveryService(new FakeLogger(), new FakePlayniteApi());
                 var themes = service.DiscoverThemes(themesRoot);

@@ -45,6 +45,33 @@ namespace PlayniteAchievements.Tests.Services.UI
         }
 
         [TestMethod]
+        public void ResolveTemplate_ThemeSourcesSkippedWhenThemeStylingDisabled()
+        {
+            RunOnSta(() =>
+            {
+                var root = CreateConfigurationRoot();
+                try
+                {
+                    WriteThemeOverride(root, "Desktop", "ThemeA", "file");
+                    var appResources = new ResourceDictionary
+                    {
+                        [AchievementToastTemplateResolver.TemplateKey] = CreateTemplate("app")
+                    };
+
+                    var resolver = CreateResolver(root, ApplicationMode.Desktop, desktopTheme: "ThemeA");
+                    var template = resolver.ResolveTemplate(appResources, allowThemeSources: false);
+
+                    // Both the loaded theme resource and the theme override file are skipped.
+                    Assert.AreEqual("default", GetMarker(template));
+                }
+                finally
+                {
+                    DeleteDirectory(root);
+                }
+            });
+        }
+
+        [TestMethod]
         public void ResolveTemplate_ThemeFileWinsOverDefault()
         {
             RunOnSta(() =>

@@ -147,6 +147,103 @@
 
     <Style x:Key="MutedTextStyle" TargetType="TextBlock" BasedOn="{StaticResource PlayAch.MutedTextStyle}"/>
 
+    <!-- Self-contained slider chrome for settings rows, mirroring the color picker dialog's
+         slider template. The template is owned here because the active theme's implicit Slider
+         style does not reliably provide a usable track/thumb inside plugin settings surfaces. -->
+    <Style x:Key="SettingsSliderTrackButtonStyle" TargetType="RepeatButton">
+        <Setter Property="Focusable" Value="False"/>
+        <Setter Property="IsTabStop" Value="False"/>
+        <Setter Property="OverridesDefaultStyle" Value="True"/>
+        <Setter Property="Background" Value="Transparent"/>
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="RepeatButton">
+                    <Grid Background="Transparent">
+                        <Border Height="4"
+                                VerticalAlignment="Center"
+                                HorizontalAlignment="Stretch"
+                                Background="{TemplateBinding Background}"
+                                CornerRadius="{StaticResource PlayAch.Radius.Tiny}"/>
+                    </Grid>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+    </Style>
+
+    <Style x:Key="SettingsSliderThumbStyle" TargetType="Thumb">
+        <Setter Property="Width" Value="14"/>
+        <Setter Property="Height" Value="14"/>
+        <Setter Property="Background" Value="{DynamicResource PlayAch.Brush.Text}"/>
+        <Setter Property="BorderBrush" Value="{DynamicResource PlayAch.Brush.Dialog.Border}"/>
+        <Setter Property="BorderThickness" Value="{StaticResource PlayAch.Thickness.Border}"/>
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="Thumb">
+                    <Border x:Name="ThumbChrome"
+                            Background="{TemplateBinding Background}"
+                            BorderBrush="{TemplateBinding BorderBrush}"
+                            BorderThickness="{TemplateBinding BorderThickness}"
+                            CornerRadius="{StaticResource PlayAch.Radius.Circle18}"
+                            SnapsToDevicePixels="True"/>
+                    <ControlTemplate.Triggers>
+                        <Trigger Property="IsMouseOver" Value="True">
+                            <Setter TargetName="ThumbChrome" Property="Background" Value="{DynamicResource PlayAch.Brush.Accent}"/>
+                        </Trigger>
+                        <Trigger Property="IsDragging" Value="True">
+                            <Setter TargetName="ThumbChrome" Property="Background" Value="{DynamicResource PlayAch.Brush.Selection}"/>
+                        </Trigger>
+                        <Trigger Property="IsEnabled" Value="False">
+                            <Setter TargetName="ThumbChrome" Property="Opacity" Value="{StaticResource PlayAch.Opacity.Disabled}"/>
+                        </Trigger>
+                    </ControlTemplate.Triggers>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+    </Style>
+
+    <Style x:Key="SettingsSliderStyle" TargetType="Slider">
+        <Setter Property="Height" Value="{StaticResource PlayAch.Size.Control.Height}"/>
+        <Setter Property="Background" Value="{DynamicResource PlayAch.Brush.Input.Background}"/>
+        <Setter Property="Foreground" Value="{DynamicResource PlayAch.Brush.Accent}"/>
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="Slider">
+                    <Grid x:Name="Root" Height="{TemplateBinding Height}" SnapsToDevicePixels="True">
+                        <Border Height="4"
+                                Margin="7,0"
+                                VerticalAlignment="Center"
+                                Background="{TemplateBinding Background}"
+                                BorderBrush="{DynamicResource PlayAch.Brush.Input.Border}"
+                                BorderThickness="{StaticResource PlayAch.Thickness.Border}"
+                                CornerRadius="{StaticResource PlayAch.Radius.Tiny}"/>
+                        <Track x:Name="PART_Track"
+                               Margin="7,0"
+                               VerticalAlignment="Stretch">
+                            <Track.DecreaseRepeatButton>
+                                <RepeatButton Command="Slider.DecreaseLarge"
+                                              Background="{TemplateBinding Foreground}"
+                                              Style="{StaticResource SettingsSliderTrackButtonStyle}"/>
+                            </Track.DecreaseRepeatButton>
+                            <Track.IncreaseRepeatButton>
+                                <RepeatButton Command="Slider.IncreaseLarge"
+                                              Background="Transparent"
+                                              Style="{StaticResource SettingsSliderTrackButtonStyle}"/>
+                            </Track.IncreaseRepeatButton>
+                            <Track.Thumb>
+                                <Thumb Style="{StaticResource SettingsSliderThumbStyle}"/>
+                            </Track.Thumb>
+                        </Track>
+                    </Grid>
+                    <ControlTemplate.Triggers>
+                        <Trigger Property="IsEnabled" Value="False">
+                            <Setter TargetName="Root" Property="Opacity" Value="{StaticResource PlayAch.Opacity.Disabled}"/>
+                        </Trigger>
+                    </ControlTemplate.Triggers>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+    </Style>
+
     <Style x:Key="ProviderNavigationItemContainerStyle" TargetType="ListBoxItem">
         <Setter Property="HorizontalContentAlignment" Value="Stretch"/>
         <Setter Property="VerticalContentAlignment" Value="Stretch"/>

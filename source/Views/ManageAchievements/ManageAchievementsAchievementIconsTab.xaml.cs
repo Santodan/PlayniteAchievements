@@ -1,16 +1,15 @@
-using Microsoft.Win32;
+// WinForms dialog: the WPF Microsoft.Win32 picker renders legacy-style on .NET Framework.
+using DialogResult = System.Windows.Forms.DialogResult;
+using OpenFileDialog = System.Windows.Forms.OpenFileDialog;
 using PlayniteAchievements.Services.Images;
 using PlayniteAchievements.ViewModels;
 using System;
 using System.Collections.Generic;
-using System.IO;
 using System.Linq;
-using System.Text.RegularExpressions;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Controls.Primitives;
 using System.Windows.Input;
-using System.Windows.Media.Imaging;
 using Playnite.SDK.Events;
 using PlayniteAchievements.Services.UI;
 using PlayniteAchievements.ViewModels.ManageAchievements;
@@ -21,17 +20,6 @@ namespace PlayniteAchievements.Views.ManageAchievements
     public partial class ManageAchievementsAchievementIconsTab : UserControl, IFullscreenControllerNavigable
     {
         private const double SmoothMouseWheelDivisor = 3.0;
-        private static readonly Regex HttpUrlRegex = new Regex(@"https?://[^\s""'<>]+", RegexOptions.IgnoreCase | RegexOptions.Compiled);
-        private static readonly string[] SupportedImageExtensions =
-        {
-            ".png",
-            ".jpg",
-            ".jpeg",
-            ".bmp",
-            ".gif",
-            ".tif",
-            ".tiff"
-        };
 
         private readonly ManageAchievementsAchievementIconsViewModel _viewModel;
         private ScrollViewer _achievementCardsScrollViewer;
@@ -81,7 +69,7 @@ namespace PlayniteAchievements.Views.ManageAchievements
                 Multiselect = false
             };
 
-            if (dialog.ShowDialog() != true)
+            if (dialog.ShowDialog() != DialogResult.OK)
             {
                 return;
             }
@@ -135,7 +123,8 @@ namespace PlayniteAchievements.Views.ManageAchievements
 
         private void OverrideTextBox_PreviewDragOver(object sender, DragEventArgs e)
         {
-            var hasDropPayload = TryGetFirstImageFilePath(e.Data, out _) || TryGetFirstBrowserUrl(e.Data, out _);
+            var hasDropPayload = ImageDropHelper.TryGetFirstImageFilePath(e.Data, out _) ||
+                                 ImageDropHelper.TryGetFirstBrowserUrl(e.Data, out _);
             e.Effects = hasDropPayload ? DragDropEffects.Copy : DragDropEffects.None;
             e.Handled = true;
         }
@@ -161,14 +150,14 @@ namespace PlayniteAchievements.Views.ManageAchievements
 
             try
             {
-                if (TryGetFirstImageFilePath(e.Data, out var imagePath))
+                if (ImageDropHelper.TryGetFirstImageFilePath(e.Data, out var imagePath))
                 {
                     e.Handled = true;
                     await _viewModel.ApplyLocalFileOverrideAsync(row, variant, imagePath);
                     return;
                 }
 
-                if (TryGetFirstBrowserUrl(e.Data, out var url))
+                if (ImageDropHelper.TryGetFirstBrowserUrl(e.Data, out var url))
                 {
                     e.Handled = true;
                     if (variant == AchievementIconVariant.Locked)
@@ -226,118 +215,6 @@ namespace PlayniteAchievements.Views.ManageAchievements
             }
 
             return true;
-        }
-
-        private static bool TryGetFirstImageFilePath(IDataObject data, out string imagePath)
-        {
-            imagePath = null;
-            if (data == null)
-            {
-                return false;
-            }
-
-            try
-            {
-                if (!data.GetDataPresent(DataFormats.FileDrop))
-                {
-                    return false;
-                }
-
-                var files = data.GetData(DataFormats.FileDrop) as string[];
-                imagePath = files?.FirstOrDefault(IsSupportedImageFile);
-                return !string.IsNullOrWhiteSpace(imagePath);
-            }
-            catch
-            {
-                return false;
-            }
-        }
-
-        private static bool TryGetFirstBrowserUrl(IDataObject data, out string url)
-        {
-            url = null;
-            if (data == null)
-            {
-                return false;
-            }
-
-            try
-            {
-                var text = ReadDroppedText(data, DataFormats.UnicodeText) ??
-                           ReadDroppedText(data, DataFormats.Text) ??
-                           ReadDroppedText(data, DataFormats.Html);
-                if (string.IsNullOrWhiteSpace(text))
-                {
-                    return false;
-                }
-
-                var match = HttpUrlRegex.Match(text);
-                if (!match.Success)
-                {
-                    return false;
-                }
-
-                url = TrimTrailingUrlPunctuation(match.Value);
-                return !string.IsNullOrWhiteSpace(url);
-            }
-            catch
-            {
-                return false;
-            }
-        }
-
-        private static string ReadDroppedText(IDataObject data, string format)
-        {
-            if (data == null || string.IsNullOrWhiteSpace(format))
-            {
-                return null;
-            }
-
-            try
-            {
-                if (!data.GetDataPresent(format))
-                {
-                    return null;
-                }
-
-                return data.GetData(format) as string;
-            }
-            catch
-            {
-                return null;
-            }
-        }
-
-        private static bool IsSupportedImageFile(string path)
-        {
-            if (string.IsNullOrWhiteSpace(path) || !File.Exists(path))
-            {
-                return false;
-            }
-
-            var extension = Path.GetExtension(path) ?? string.Empty;
-            if (!SupportedImageExtensions.Contains(extension, StringComparer.OrdinalIgnoreCase))
-            {
-                return false;
-            }
-
-            try
-            {
-                using (var stream = File.Open(path, FileMode.Open, FileAccess.Read, FileShare.ReadWrite))
-                {
-                    BitmapDecoder.Create(stream, BitmapCreateOptions.DelayCreation, BitmapCacheOption.None);
-                    return true;
-                }
-            }
-            catch
-            {
-                return false;
-            }
-        }
-
-        private static string TrimTrailingUrlPunctuation(string value)
-        {
-            return (value ?? string.Empty).Trim().TrimEnd('.', ',', ';', ')', ']', '}');
         }
 
         private static bool IsInteractiveElementHit(DependencyObject source)

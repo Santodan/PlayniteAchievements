@@ -240,7 +240,7 @@
                                     Visibility="Collapsed">
                 <DataGridTemplateColumn.CellStyle>
                     <Style TargetType="DataGridCell" BasedOn="{StaticResource AchievementNoteCellStyle}">
-                        <Setter Property="helpers:AchievementNoteInlineFormatter.NoteToolTip" Value="{Binding AchievementNote}"/>
+                        <Setter Property="helpers:InlineMarkdownFormatter.NoteToolTip" Value="{Binding AchievementNote}"/>
                     </Style>
                 </DataGridTemplateColumn.CellStyle>
                 <DataGridTemplateColumn.CellTemplate>
@@ -249,7 +249,7 @@
                             <TextBlock Foreground="{DynamicResource PlayAch.Brush.Text}"
                                        TextWrapping="Wrap"
                                        TextTrimming="CharacterEllipsis"
-                                       helpers:AchievementNoteInlineFormatter.FormattedText="{Binding AchievementNote}"
+                                       helpers:InlineMarkdownFormatter.FormattedText="{Binding AchievementNote}"
                                        VerticalAlignment="{Binding RelativeSource={RelativeSource AncestorType={x:Type DataGridCell}}, Path=Column.(helpers:DataGridAlignmentBehavior.CellVerticalAlignment)}"
                                        HorizontalAlignment="Stretch">
                                 <TextBlock.Style>
@@ -345,14 +345,41 @@
                 </DataGridTemplateColumn.CellStyle>
                 <DataGridTemplateColumn.CellTemplate>
                     <DataTemplate>
-                        <TextBlock Text="{Binding FriendName}"
-                                   TextWrapping="Wrap"
-                                   TextTrimming="CharacterEllipsis"
-                                   Style="{StaticResource WrappedCenteredDataGridTextStyle}"
-                                   Foreground="{DynamicResource PlayAch.Brush.Text}"
-                                   FontWeight="SemiBold"
-                                   VerticalAlignment="{Binding RelativeSource={RelativeSource AncestorType={x:Type DataGridCell}}, Path=Column.(helpers:DataGridAlignmentBehavior.CellVerticalAlignment)}"
-                                   HorizontalAlignment="{Binding RelativeSource={RelativeSource AncestorType={x:Type DataGridCell}}, Path=Column.(helpers:DataGridAlignmentBehavior.CellHorizontalAlignment)}"/>
+                        <StackPanel Orientation="Horizontal"
+                                    VerticalAlignment="{Binding RelativeSource={RelativeSource AncestorType={x:Type DataGridCell}}, Path=Column.(helpers:DataGridAlignmentBehavior.CellVerticalAlignment)}"
+                                    HorizontalAlignment="{Binding RelativeSource={RelativeSource AncestorType={x:Type DataGridCell}}, Path=Column.(helpers:DataGridAlignmentBehavior.CellHorizontalAlignment)}">
+                            <!-- Fixed-width star gutter marks favorited friends; collapses entirely when
+                                 no row in the grid belongs to a favorited friend. -->
+                            <!-- Match the friend name's font metrics so the star sits on the same
+                                 visual centerline as the text beside it. -->
+                            <TextBlock Text="&#x2605;"
+                                       Width="14"
+                                       TextAlignment="Center"
+                                       VerticalAlignment="Center"
+                                       Foreground="{DynamicResource PlayAch.Brush.Text}"
+                                       ToolTip="{DynamicResource LOCPlayAch_Column_Favorite}">
+                                <TextBlock.Style>
+                                    <Style TargetType="TextBlock" BasedOn="{StaticResource PlayAch.TextBlock.BaseStyle}">
+                                        <Setter Property="Opacity" Value="0"/>
+                                        <Setter Property="Visibility" Value="Collapsed"/>
+                                        <Style.Triggers>
+                                            <DataTrigger Binding="{Binding HasAnyFavorites, RelativeSource={RelativeSource AncestorType={x:Type controls:AchievementDataGridControl}}}" Value="True">
+                                                <Setter Property="Visibility" Value="Visible"/>
+                                            </DataTrigger>
+                                            <DataTrigger Binding="{Binding FriendIsFavorite}" Value="True">
+                                                <Setter Property="Opacity" Value="1"/>
+                                            </DataTrigger>
+                                        </Style.Triggers>
+                                    </Style>
+                                </TextBlock.Style>
+                            </TextBlock>
+                            <TextBlock Text="{Binding FriendName}"
+                                       TextTrimming="CharacterEllipsis"
+                                       Style="{StaticResource WrappedCenteredDataGridTextStyle}"
+                                       Foreground="{DynamicResource PlayAch.Brush.Text}"
+                                       FontWeight="SemiBold"
+                                       VerticalAlignment="Center"/>
+                        </StackPanel>
                     </DataTemplate>
                 </DataGridTemplateColumn.CellTemplate>
             </DataGridTemplateColumn>
@@ -520,6 +547,25 @@
 
             <DataGridTemplateColumn Width="*" MinWidth="22" CanUserResize="True" Header="{DynamicResource LOCPlayAch_Column_Points}" SortMemberPath="Points" helpers:ColumnVisibilityHelper.ColumnKey="Points"
                                     CellTemplate="{StaticResource AchievementPointsTemplate}"/>
+            <DataGridTemplateColumn Width="56" MinWidth="40" MaxWidth="120" CanUserResize="True" CanUserSort="False"
+                                    Header="{DynamicResource LOCPlayAch_Column_Captures}"
+                                    helpers:ColumnVisibilityHelper.ColumnKey="Captures">
+                <DataGridTemplateColumn.CellTemplate>
+                    <DataTemplate>
+                        <Button Content="&#xF5B0;"
+                                FontFamily="Segoe MDL2 Assets"
+                                FontSize="13"
+                                Style="{StaticResource PlayAch.Button.BaseStyle}"
+                                Foreground="{DynamicResource PlayAch.Brush.Accent}"
+                                Padding="10,3"
+                                HorizontalAlignment="Center"
+                                VerticalAlignment="Center"
+                                ToolTip="{DynamicResource LOCPlayAch_Column_Captures}"
+                                Visibility="{Binding HasCaptures, Converter={StaticResource BooleanToVisibilityConverter}}"
+                                Click="CapturesButton_Click"/>
+                    </DataTemplate>
+                </DataGridTemplateColumn.CellTemplate>
+            </DataGridTemplateColumn>
         </DataGrid.Columns>
     </DataGrid>
         </Grid>

@@ -1388,12 +1388,16 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
                 _definitionOrderedRows.Count > 0 ? _definitionOrderedRows : _allRows,
                 row => row?.Category,
                 categoryOrder);
+            EnsureDefaultCategoryLabel(orderedLabels, categoryOrder);
             var fileStems = AchievementIconCachePathBuilder.BuildFileStems(orderedLabels);
             var rows = new List<ManageAchievementsCategoryMetadataItem>();
 
             foreach (var label in orderedLabels)
             {
-                if (!groups.TryGetValue(label, out var bucket) || bucket.Count == 0)
+                // The Default row is kept even with no achievements in it so its art can
+                // be set and selected for game summaries ahead of time.
+                if ((!groups.TryGetValue(label, out var bucket) || bucket.Count == 0) &&
+                    !string.Equals(label, AchievementCategoryTypeHelper.DefaultCategoryLabel, StringComparison.OrdinalIgnoreCase))
                 {
                     continue;
                 }
@@ -1415,12 +1419,44 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
                     fileStem,
                     _managedCustomIconService,
                     isSummarySelected: summaryCategory != null &&
-                        string.Equals(summaryCategory.Label, label, StringComparison.OrdinalIgnoreCase)));
+                        string.Equals(summaryCategory.Label, label, StringComparison.OrdinalIgnoreCase),
+                    artFallbackSource: _allRows));
             }
 
             HasCustomCategoryNames = rows.Any(row =>
                 !string.Equals(row.CategoryLabel, row.ProviderCategoryLabel, StringComparison.OrdinalIgnoreCase));
             ReplaceCategoryRows(rows);
+        }
+
+        // Inserts the Default label when no achievement currently falls into it, at its
+        // persisted custom-order position when one exists, otherwise at the end.
+        private static void EnsureDefaultCategoryLabel(List<string> orderedLabels, IReadOnlyList<string> categoryOrder)
+        {
+            if (orderedLabels == null ||
+                orderedLabels.Contains(AchievementCategoryTypeHelper.DefaultCategoryLabel, StringComparer.OrdinalIgnoreCase))
+            {
+                return;
+            }
+
+            var insertIndex = orderedLabels.Count;
+            var defaultOrderIndex = AchievementCategoryFilterOrderHelper.ResolveCategoryOrderIndex(
+                AchievementCategoryTypeHelper.DefaultCategoryLabel,
+                categoryOrder);
+            if (defaultOrderIndex != int.MaxValue)
+            {
+                // Ordered labels precede unordered ones (index int.MaxValue), so the first
+                // label ranked after Default marks the insertion point.
+                for (var i = 0; i < orderedLabels.Count; i++)
+                {
+                    if (AchievementCategoryFilterOrderHelper.ResolveCategoryOrderIndex(orderedLabels[i], categoryOrder) > defaultOrderIndex)
+                    {
+                        insertIndex = i;
+                        break;
+                    }
+                }
+            }
+
+            orderedLabels.Insert(insertIndex, AchievementCategoryTypeHelper.DefaultCategoryLabel);
         }
 
         private void RefreshCategoryLabelOptions()
@@ -2063,11 +2099,15 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
             string gameIdText,
             string fileStem,
             ManagedCustomIconService managedCustomIconService,
-            bool isSummarySelected = false)
+            bool isSummarySelected = false,
+            IReadOnlyList<ManageAchievementsCategoryItem> artFallbackSource = null)
         {
             var normalizedLabel = AchievementCategoryTypeHelper.NormalizeCategoryOrDefault(categoryLabel);
             var normalizedProviderLabel = AchievementCategoryTypeHelper.NormalizeCategoryOrDefault(providerCategoryLabel);
             var playniteGameId = Guid.TryParse(gameIdText, out var parsedGameId) ? parsedGameId : (Guid?)null;
+            // An empty bucket (the always-listed Default row) still resolves game art
+            // from the fallback source so its preview matches the other rows.
+            var artSource = achievements != null && achievements.Count > 0 ? achievements : artFallbackSource;
             var row = new ManageAchievementsCategoryMetadataItem(gameIdText, fileStem, managedCustomIconService)
             {
                 CategoryLabel = normalizedLabel,
@@ -2077,8 +2117,8 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
                 // Provider-supplied defaults are the true revert target, ahead of game art.
                 // They are keyed by the provider label so renamed rows still find them.
                 DefaultArtPath = CategoryDefaultImageResolver.Resolve(playniteGameId, normalizedProviderLabel) ??
-                                 ResolveSharedImage(achievements, item => item?.GameIconPath) ??
-                                 ResolveSharedImage(achievements, item => item?.GameCoverPath)
+                                 ResolveSharedImage(artSource, item => item?.GameIconPath) ??
+                                 ResolveSharedImage(artSource, item => item?.GameCoverPath)
             };
 
             row._renameOverrideText = string.Equals(row.CategoryLabel, row.ProviderCategoryLabel, StringComparison.OrdinalIgnoreCase)

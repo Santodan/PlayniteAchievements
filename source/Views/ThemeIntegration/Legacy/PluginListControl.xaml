@@ -16,6 +16,17 @@
                    Height="500"
                    MaxHeight="{Binding RelativeSource={RelativeSource AncestorType=ContentControl}, Path=MaxHeight}">
 
+    <local:ThemeControlBase.Style>
+        <Style TargetType="local:ThemeControlBase">
+            <Style.Triggers>
+                <DataTrigger Binding="{Binding Persisted.EnableAchievementDataGridControl}"
+                             Value="False">
+                    <Setter Property="Visibility" Value="Collapsed"/>
+                </DataTrigger>
+            </Style.Triggers>
+        </Style>
+    </local:ThemeControlBase.Style>
+
     <local:ThemeControlBase.Resources>
         <ResourceDictionary>
             <ResourceDictionary.MergedDictionaries>

@@ -14,6 +14,7 @@ using PlayniteAchievements.Providers.Local;
 using PlayniteAchievements.Services;
 using PlayniteAchievements.Services.Achievements;
 using PlayniteAchievements.Services.Cache;
+using PlayniteAchievements.Services.Friends;
 using PlayniteAchievements.Services.Refresh;
 using PlayniteAchievements.Services.Summaries;
 using PlayniteAchievements.ViewModels.Items;
@@ -51,6 +52,9 @@ namespace PlayniteAchievements.ViewModels
         // Search and filter state. The control bar (search box, Unlocked/Locked/Hidden
         // toggles, Type/Category filters) and its filter predicate live in the shared adapter.
         private readonly AchievementGridControlBarAdapter _controlBar = new AchievementGridControlBarAdapter();
+
+        // Compare-friend selection: enriches the self rows with a friend's unlock state.
+        public FriendCompareController FriendCompare { get; }
         private List<AchievementDisplayItem> _allAchievements = new List<AchievementDisplayItem>();
         private List<AchievementDisplayItem> _orderedAchievements = new List<AchievementDisplayItem>();
         private List<AchievementDisplayItem> _filteredAchievements = new List<AchievementDisplayItem>();
@@ -70,13 +74,14 @@ namespace PlayniteAchievements.ViewModels
 
         private static GridStateSnapshot _lastGridState;
 
-        public ViewAchievementsViewModel(
+        internal ViewAchievementsViewModel(
             Guid gameId,
             RefreshRuntime refreshRuntime,
             AchievementDataService achievementDataService,
             IPlayniteAPI playniteApi,
             ILogger logger,
-            PlayniteAchievementsSettings settings)
+            PlayniteAchievementsSettings settings,
+            IFriendCacheManager friendCache = null)
         {
             _gameId = gameId;
             _refreshService = refreshRuntime ?? throw new ArgumentNullException(nameof(refreshRuntime));
@@ -85,6 +90,9 @@ namespace PlayniteAchievements.ViewModels
             _logger = logger;
             _settings = settings;
             _summaryBuilder = new GameSummaryItemBuilder(_refreshService.Providers, _playniteApi, _logger);
+            FriendCompare = new FriendCompareController(friendCache, settings, logger);
+            _controlBar.AttachFriendCompare(FriendCompare);
+            FriendCompare.SetGame(gameId, null);
 
             Timeline = new TimelineViewModel();
             ApplySavedTimelineState();
@@ -221,7 +229,8 @@ namespace PlayniteAchievements.ViewModels
                 new RefreshRequest
                 {
                     Mode = RefreshModeType.Single,
-                    SingleGameId = _gameId
+                    SingleGameId = _gameId,
+                    ShowEmptyTargetNotice = true
                 },
                 new RefreshExecutionPolicy
                 {
@@ -532,6 +541,7 @@ namespace PlayniteAchievements.ViewModels
                         _controlBar.Clear();
                         Achievements.Clear();
                         AllAchievements.Clear();
+                        FriendCompare?.SetTargetItems(null);
                     });
 
                     Timeline.SetCounts(null);
@@ -579,6 +589,8 @@ namespace PlayniteAchievements.ViewModels
                 }
 
                 _allAchievements = displayItems;
+                Services.Captures.CapturePresenceMarker.MarkAchievements(
+                    _allAchievements, PlayniteAchievementsPlugin.Instance?.CaptureLibraryService);
                 var localProvider = _refreshService?.Providers?.OfType<LocalSavesProvider>().FirstOrDefault();
                 CanEditLocalAchievements =
                     localProvider != null &&
@@ -591,6 +603,7 @@ namespace PlayniteAchievements.ViewModels
                 {
                     _controlBar.UpdateOptions(_allAchievements);
                     CollectionHelper.Replace(AllAchievements, _allAchievements);
+                    FriendCompare?.SetTargetItems(_allAchievements);
                 });
                 ApplySearchFilter();
 
@@ -660,6 +673,8 @@ namespace PlayniteAchievements.ViewModels
 
             System.Windows.Application.Current?.Dispatcher?.Invoke(() =>
                 CollectionHelper.SynchronizeCollection(SummaryItems, items));
+            Services.Captures.CapturePresenceMarker.MarkSummaries(
+                items, PlayniteAchievementsPlugin.Instance?.CaptureLibraryService);
         }
 
         private void RaiseSummaryAppearanceProperties()

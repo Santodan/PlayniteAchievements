@@ -68,7 +68,8 @@ namespace PlayniteAchievements.Views.ThemeIntegration.Modern
         protected override bool ShouldHandleSettingsDataChange(string propertyName)
         {
             return propertyName == nameof(PersistedSettings.ShowFriendsOverviewGameSummariesGridColumnHeaders) ||
-                   propertyName == nameof(PersistedSettings.FriendsOverviewGameSummariesGridRowHeight);
+                   propertyName == nameof(PersistedSettings.FriendsOverviewGameSummariesGridRowHeight) ||
+                   propertyName == nameof(PersistedSettings.ProviderColorOverrides);
         }
 
         private void LoadData()

@@ -3,6 +3,7 @@
 This directory turns the Santodan fork into a repeatable layer over an upstream
 PlayniteAchievements checkout. It intentionally does not modify or package:
 
+- `README.md`
 - `source/extension.yaml`
 - `InstallerManifest.yaml`
 

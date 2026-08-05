@@ -303,6 +303,179 @@ namespace PlayniteAchievements.Tests.Services
         }
 
         [TestMethod]
+        public void ApplyMergeIdentity_StampsFreshRowsWithoutFriendSummaries()
+        {
+            var settings = CreateMergeSettings(groupNickname: "Alice Unified", avatarProviderKey: null);
+            var group = settings.GetFriendMergeGroups().Single();
+            var gameId = Guid.Parse("66666666-6666-6666-6666-666666666666");
+            var unlockedMember = Achievement("Steam", "steam-alice", 10, gameId, "Steam Game", "SteamA", Utc(2026, 1, 1), RarityTier.Common);
+            unlockedMember.FriendName = "Steam Alice";
+            unlockedMember.FriendAvatarPath = "steam-avatar.png";
+            var lockedMember = Achievement("Steam", "steam-alice", 10, gameId, "Steam Game", "SteamB", Utc(2026, 1, 1), RarityTier.Rare);
+            lockedMember.Unlocked = false;
+            lockedMember.UnlockTimeUtc = null;
+            lockedMember.FriendName = "Steam Alice";
+            lockedMember.FriendAvatarPath = "steam-avatar.png";
+            var nonMember = Achievement("Steam", "bob", 10, gameId, "Steam Game", "SteamA", Utc(2026, 1, 2), RarityTier.Common);
+            nonMember.FriendName = "Bob";
+            // Fresh SQL-load shape: achievements only, no Friends summaries, no FriendGroupId.
+            var data = new FriendsOverviewData
+            {
+                AllAchievements = new List<FriendAchievementDisplayItem> { unlockedMember, lockedMember, nonMember }
+            };
+
+            var rows = FriendOverviewProjection.ApplyMergeIdentity(data, settings);
+
+            Assert.AreSame(unlockedMember, rows[0]);
+            var mergedKey = FriendOverviewProjection.BuildFriendKey(FriendOverviewProjection.MergedProviderKey, group.Id);
+            Assert.AreEqual(group.Id, unlockedMember.FriendGroupId);
+            Assert.AreEqual(group.Id, lockedMember.FriendGroupId);
+            Assert.AreEqual(mergedKey, unlockedMember.FriendScopeKey);
+            Assert.AreEqual(mergedKey, lockedMember.FriendScopeKey);
+            Assert.AreEqual("Alice Unified", unlockedMember.FriendName);
+            Assert.AreEqual("steam-avatar.png", unlockedMember.FriendAvatarPath);
+            Assert.IsNull(nonMember.FriendGroupId);
+            Assert.AreEqual("Bob", nonMember.FriendName);
+        }
+
+        [TestMethod]
+        public void ApplyMergeIdentity_WithoutMergeGroupsAppliesIndividualNicknames()
+        {
+            var settings = new PersistedSettings();
+            settings.AddOrUpdateFriend(
+                "Steam",
+                "steam-alice",
+                "Steam Alice",
+                null,
+                null,
+                FriendSettingsSource.AutoDiscovered);
+            settings.SetFriendNickname("Steam", "steam-alice", "Ally");
+            var gameId = Guid.Parse("77777777-7777-7777-7777-777777777777");
+            var row = Achievement("Steam", "steam-alice", 10, gameId, "Steam Game", "SteamA", Utc(2026, 1, 1), RarityTier.Common);
+            row.FriendName = "Steam Alice";
+            var data = new FriendsOverviewData
+            {
+                AllAchievements = new List<FriendAchievementDisplayItem> { row }
+            };
+
+            var rows = FriendOverviewProjection.ApplyMergeIdentity(data, settings);
+
+            Assert.AreSame(row, rows.Single());
+            Assert.IsNull(row.FriendGroupId);
+            Assert.AreEqual("Ally", row.FriendName);
+        }
+
+        [TestMethod]
+        public void ApplyMergeIdentity_FormatsProviderNicknameUnderDefaultMode()
+        {
+            var settings = new PersistedSettings();
+            settings.AddOrUpdateFriend(new FriendIdentity
+            {
+                ProviderKey = "Steam",
+                ExternalUserId = "steam-alice",
+                DisplayName = "Steam Alice",
+                ProviderNickname = "Ally"
+            });
+            var gameId = Guid.Parse("88888888-8888-8888-8888-888888888888");
+            var row = Achievement("Steam", "steam-alice", 10, gameId, "Steam Game", "SteamA", Utc(2026, 1, 1), RarityTier.Common);
+            row.FriendName = "Steam Alice";
+            var data = new FriendsOverviewData
+            {
+                AllAchievements = new List<FriendAchievementDisplayItem> { row }
+            };
+
+            FriendOverviewProjection.ApplyMergeIdentity(data, settings);
+
+            Assert.AreEqual("Steam Alice (Ally)", row.FriendName);
+        }
+
+        [TestMethod]
+        public void ApplyMergeIdentity_HonorsNameDisplayModeAndManualNicknamePrecedence()
+        {
+            var settings = new PersistedSettings { FriendNameDisplayMode = FriendNameDisplayMode.Nickname };
+            settings.AddOrUpdateFriend(new FriendIdentity
+            {
+                ProviderKey = "Steam",
+                ExternalUserId = "steam-alice",
+                DisplayName = "Steam Alice",
+                ProviderNickname = "Ally"
+            });
+            var gameId = Guid.Parse("99999999-9999-9999-9999-999999999999");
+            var row = Achievement("Steam", "steam-alice", 10, gameId, "Steam Game", "SteamA", Utc(2026, 1, 1), RarityTier.Common);
+            row.FriendName = "Steam Alice";
+            var data = new FriendsOverviewData
+            {
+                AllAchievements = new List<FriendAchievementDisplayItem> { row }
+            };
+
+            FriendOverviewProjection.ApplyMergeIdentity(data, settings);
+            Assert.AreEqual("Ally", row.FriendName);
+
+            // A manual plugin rename beats the mode formatting.
+            settings.SetFriendNickname("Steam", "steam-alice", "Bestie");
+            row.FriendName = "Steam Alice";
+            FriendOverviewProjection.ApplyMergeIdentity(data, settings);
+            Assert.AreEqual("Bestie", row.FriendName);
+        }
+
+        [TestMethod]
+        public void Projection_FormatsFriendSummaryDisplayNameWithProviderNickname()
+        {
+            var settings = new PersistedSettings();
+            settings.AddOrUpdateFriend(new FriendIdentity
+            {
+                ProviderKey = "Steam",
+                ExternalUserId = "steam-alice",
+                DisplayName = "Steam Alice",
+                ProviderNickname = "Ally"
+            });
+            settings.AddOrUpdateFriend(new FriendIdentity
+            {
+                ProviderKey = "RetroAchievements",
+                ExternalUserId = "retro-bob",
+                DisplayName = "Retro Bob"
+            });
+            var data = new FriendsOverviewData
+            {
+                Friends = new List<FriendSummaryItem>
+                {
+                    new FriendSummaryItem { ProviderKey = "Steam", ExternalUserId = "steam-alice", DisplayName = "Steam Alice" },
+                    new FriendSummaryItem { ProviderKey = "RetroAchievements", ExternalUserId = "retro-bob", DisplayName = "Retro Bob" }
+                }
+            };
+
+            var projection = new FriendOverviewProjection(data, settings);
+
+            Assert.AreEqual(
+                "Steam Alice (Ally)",
+                projection.Friends.Single(friend => friend.ExternalUserId == "steam-alice").DisplayName);
+            // Providers without nickname data keep the plain display name in every mode.
+            Assert.AreEqual(
+                "Retro Bob",
+                projection.Friends.Single(friend => friend.ExternalUserId == "retro-bob").DisplayName);
+        }
+
+        [TestMethod]
+        public void MergeGroups_PrimaryAccountSuppliesMergedDisplayName()
+        {
+            // No group or member nicknames: the merged name comes from the primary (avatar)
+            // account even though it is not the first member.
+            var settings = CreateMergeSettings(groupNickname: null, avatarProviderKey: "Exophase");
+            var data = new FriendsOverviewData
+            {
+                Friends = new List<FriendSummaryItem>
+                {
+                    new FriendSummaryItem { ProviderKey = "Steam", ExternalUserId = "steam-alice", DisplayName = "Steam Alice" },
+                    new FriendSummaryItem { ProviderKey = "Exophase", ExternalUserId = "exo-alice", DisplayName = "Exo Alice" }
+                }
+            };
+
+            var projection = new FriendOverviewProjection(data, settings);
+
+            Assert.AreEqual("Exo Alice", projection.Friends.Single().DisplayName);
+        }
+
+        [TestMethod]
         public void ScopeKeys_AreStableAndCaseInsensitive()
         {
             var gameId = Guid.Parse("33333333-3333-3333-3333-333333333333");
@@ -313,60 +486,6 @@ namespace PlayniteAchievements.Tests.Services
             Assert.AreEqual(
                 "alice|steam|app:10",
                 FriendOverviewProjection.BuildFriendGameUnlockKey(" Steam ", " Alice ", null, 10, gameId));
-        }
-
-        [TestMethod]
-        public void IsSameFriend_MergedFriendMatchesRawMemberAchievement()
-        {
-            var merged = new FriendSummaryItem
-            {
-                ProviderKey = FriendOverviewProjection.MergedProviderKey,
-                ExternalUserId = "merged-alice",
-                MergedFriendId = "merged-alice",
-                MemberAccounts = new List<FriendAccountRef>
-                {
-                    FriendAccountRef.From("RetroAchievements", "Nalings"),
-                    FriendAccountRef.From("Steam", "steam-alice")
-                }
-            };
-            var rawPairRow = new FriendAchievementDisplayItem
-            {
-                ProviderKey = "retroachievements",
-                FriendExternalUserId = "nalings"
-            };
-
-            Assert.IsTrue(FriendOverviewProjection.IsSameFriend(rawPairRow, merged));
-        }
-
-        [TestMethod]
-        public void IsSameFriend_MergedFriendRejectsOtherMemberAndOtherMergeGroup()
-        {
-            var merged = new FriendSummaryItem
-            {
-                ProviderKey = FriendOverviewProjection.MergedProviderKey,
-                ExternalUserId = "merged-alice",
-                MergedFriendId = "merged-alice",
-                MemberAccounts = new List<FriendAccountRef>
-                {
-                    FriendAccountRef.From("RetroAchievements", "Nalings")
-                }
-            };
-
-            Assert.IsFalse(FriendOverviewProjection.IsSameFriend(
-                new FriendAchievementDisplayItem
-                {
-                    ProviderKey = "RetroAchievements",
-                    FriendExternalUserId = "someone-else"
-                },
-                merged));
-            Assert.IsFalse(FriendOverviewProjection.IsSameFriend(
-                new FriendAchievementDisplayItem
-                {
-                    ProviderKey = "RetroAchievements",
-                    FriendExternalUserId = "Nalings",
-                    FriendGroupId = "different-merge"
-                },
-                merged));
         }
 
         private static FriendAchievementDisplayItem Achievement(

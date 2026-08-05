@@ -18,7 +18,7 @@ using System.Threading.Tasks;
 
 namespace PlayniteAchievements.Providers.Xenia
 {
-    internal sealed class XeniaDataProvider : DataProviderBase<XeniaSettings>, IDataProvider, IProviderOverride
+    internal sealed class XeniaDataProvider : DataProviderBase<XeniaSettings>, IDataProvider, IProviderOverride, IInGameProgressSource
     {
         public ProviderOverrideDescriptor OverrideDescriptor { get; } = ProviderOverrideDescriptor.Text(
             "LOCPlayAch_ManageAchievements_Overrides_ProviderValueLabel_Xenia",
@@ -31,6 +31,7 @@ namespace PlayniteAchievements.Providers.Xenia
         private readonly IPlayniteAPI _playniteApi;
         private readonly PlayniteAchievementsSettings _settings;
         private readonly string _pluginUserDataPath;
+        private readonly XeniaScanner _scanner;
 
         public XeniaDataProvider(ILogger logger, PlayniteAchievementsSettings settings, IPlayniteAPI playniteApi, string pluginUserDataPath)
         {
@@ -38,6 +39,12 @@ namespace PlayniteAchievements.Providers.Xenia
             _playniteApi = playniteApi;
             _settings = settings ?? throw new ArgumentNullException(nameof(settings));
             _pluginUserDataPath = pluginUserDataPath ?? string.Empty;
+            _scanner = new XeniaScanner(
+                _logger,
+                _playniteApi,
+                ProviderSettings,
+                _pluginUserDataPath,
+                _settings);
         }
 
         public string ProviderName => ResourceProvider.GetString("LOCPlayAch_Provider_Xenia");
@@ -119,8 +126,99 @@ namespace PlayniteAchievements.Providers.Xenia
             Func<Game, GameAchievementData, Task> onGameCompleted,
             CancellationToken cancel)
         {
-            return new XeniaScanner(_logger, _playniteApi, ProviderSettings, _pluginUserDataPath, _settings)
-                .RefreshAsync(gamesToRefresh, onGameStarting, onGameCompleted, cancel);
+            return _scanner.RefreshAsync(gamesToRefresh, onGameStarting, onGameCompleted, cancel);
+        }
+
+        InGameProgressRegistration IInGameProgressSource.TryRegister(
+            Game game,
+            GameAchievementData cachedSchema)
+        {
+            if (game == null ||
+                cachedSchema?.Achievements == null ||
+                cachedSchema.Achievements.Count == 0 ||
+                !string.Equals(cachedSchema.ProviderKey, ProviderKey, StringComparison.OrdinalIgnoreCase))
+            {
+                return null;
+            }
+
+            string titleId;
+            if (TryGetTitleIdOverride(game.Id, out var overrideTitleId))
+            {
+                titleId = overrideTitleId;
+            }
+            else if (cachedSchema.AppId != 0)
+            {
+                titleId = unchecked((uint)cachedSchema.AppId).ToString("X8");
+            }
+            else if (!_scanner.ResolveTitleID(game, out titleId))
+            {
+                return null;
+            }
+
+            titleId = XeniaTitleIdHelper.Normalize(titleId);
+            var accountPath = GetAccountPath();
+            var progressPath = string.IsNullOrWhiteSpace(accountPath) || string.IsNullOrWhiteSpace(titleId)
+                ? null
+                : Path.Combine(accountPath, titleId + ".gpd");
+            if (string.IsNullOrWhiteSpace(progressPath) || !Directory.Exists(accountPath))
+            {
+                return null;
+            }
+
+            return new InGameProgressRegistration
+            {
+                ProviderKey = ProviderKey,
+                WatchTargets = new[] { progressPath },
+                PollInterval = InGameProgressRegistration.FileWatchSafetyPollInterval,
+                State = progressPath
+            };
+        }
+
+        Task<IReadOnlyList<InGameProgressQueryResult>> IInGameProgressSource.QueryAsync(
+            IReadOnlyList<InGameTrackingContext> games,
+            CancellationToken cancellationToken)
+        {
+            var results = new List<InGameProgressQueryResult>();
+            foreach (var context in games ?? Array.Empty<InGameTrackingContext>())
+            {
+                cancellationToken.ThrowIfCancellationRequested();
+                var gameId = context?.Game?.Id ?? Guid.Empty;
+                var path = context?.Registration?.State as string;
+                if (!GPDResolver.TryLoadAchievementProgress(path, out var progress))
+                {
+                    results.Add(InGameProgressQueryResult.Failed(gameId, "file_unstable"));
+                    continue;
+                }
+
+                var observations = progress
+                    .Where(item => item.Unlocked)
+                    .Select(item => new AchievementProgressObservation
+                    {
+                        ApiName = item.Id.ToString(),
+                        Unlocked = true,
+                        UnlockTimeUtc = item.UnlockTime == 0
+                            ? (DateTime?)null
+                            : SafeFileTime(item.UnlockTime)
+                    })
+                    .ToList();
+                results.Add(InGameProgressQueryResult.Succeeded(gameId, observations));
+            }
+
+            return Task.FromResult<IReadOnlyList<InGameProgressQueryResult>>(results);
+        }
+
+        private static DateTime? SafeFileTime(ulong fileTime)
+        {
+            try
+            {
+                return fileTime <= long.MaxValue
+                    ? DateTime.FromFileTimeUtc((long)fileTime)
+                    : (DateTime?)null;
+            }
+            catch
+            {
+                return null;
+            }
         }
 
         private string GetAccountPath()

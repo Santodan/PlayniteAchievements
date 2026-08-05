@@ -22,8 +22,9 @@ function Get-FmRepositoryRoot
         $candidate = $PSScriptRoot
     }
 
-    $root = (& git -C $candidate rev-parse --show-toplevel 2>&1 | Select-Object -First 1)
-    if ($LASTEXITCODE -ne 0 -or [string]::IsNullOrWhiteSpace($root))
+    $result = Invoke-FmGit $candidate @("rev-parse", "--show-toplevel") -AllowFailure
+    $root = $result.Output | Select-Object -First 1
+    if ($result.ExitCode -ne 0 -or [string]::IsNullOrWhiteSpace($root))
     {
         throw "Unable to resolve a Git repository from '$candidate'."
     }
@@ -39,20 +40,53 @@ function Invoke-FmGit
         [switch] $AllowFailure
     )
 
-    # Git writes successful three-way apply diagnostics to stderr. Temporarily
-    # keep native stderr from becoming a PowerShell terminating error and use
-    # Git's exit code as the source of truth.
-    $previousErrorActionPreference = $ErrorActionPreference
+    $gitCommand = Get-Command git.exe -ErrorAction Stop
+    $processArguments = @("-C", $RepositoryRoot) + $Arguments
+    $argumentText = ($processArguments | ForEach-Object {
+        ConvertTo-FmProcessArgument ([string]$_)
+    }) -join " "
+
+    $startInfo = [Diagnostics.ProcessStartInfo]::new()
+    $startInfo.FileName = $gitCommand.Source
+    $startInfo.Arguments = $argumentText
+    $startInfo.UseShellExecute = $false
+    $startInfo.CreateNoWindow = $true
+    $startInfo.WindowStyle = [Diagnostics.ProcessWindowStyle]::Hidden
+    $startInfo.RedirectStandardOutput = $true
+    $startInfo.RedirectStandardError = $true
+
+    $process = [Diagnostics.Process]::new()
+    $process.StartInfo = $startInfo
     try
     {
-        $ErrorActionPreference = "Continue"
-        $result = @(& git -C $RepositoryRoot @Arguments 2>&1)
-        $exitCode = $LASTEXITCODE
+        if (-not $process.Start())
+        {
+            throw "Unable to start Git."
+        }
+
+        # Read both streams asynchronously so verbose Git operations cannot deadlock.
+        $stdoutTask = $process.StandardOutput.ReadToEndAsync()
+        $stderrTask = $process.StandardError.ReadToEndAsync()
+        $process.WaitForExit()
+        $stdout = $stdoutTask.GetAwaiter().GetResult()
+        $stderr = $stderrTask.GetAwaiter().GetResult()
+        $exitCode = $process.ExitCode
     }
     finally
     {
-        $ErrorActionPreference = $previousErrorActionPreference
+        $process.Dispose()
     }
+
+    $result = @()
+    if (-not [string]::IsNullOrEmpty($stdout))
+    {
+        $result += @($stdout.TrimEnd("`r", "`n") -split "\r?\n")
+    }
+    if (-not [string]::IsNullOrEmpty($stderr))
+    {
+        $result += @($stderr.TrimEnd("`r", "`n") -split "\r?\n")
+    }
+
     if ($exitCode -ne 0 -and -not $AllowFailure)
     {
         $message = ($result -join [Environment]::NewLine)
@@ -63,6 +97,27 @@ function Invoke-FmGit
         ExitCode = $exitCode
         Output = $result
     }
+}
+
+function ConvertTo-FmProcessArgument
+{
+    param([AllowEmptyString()][string] $Argument)
+
+    if ([string]::IsNullOrEmpty($Argument))
+    {
+        return '""'
+    }
+
+    if ($Argument -notmatch '[\s"]')
+    {
+        return $Argument
+    }
+
+    # Windows command-line quoting: double backslashes before quotes and at the
+    # end of a quoted argument so CommandLineToArgvW reconstructs it exactly.
+    $escaped = [Regex]::Replace($Argument, '(\\*)"', '$1$1\"')
+    $escaped = [Regex]::Replace($escaped, '(\\+)$', '$1$1')
+    return '"' + $escaped + '"'
 }
 
 function ConvertTo-FmGitPath

@@ -4152,12 +4152,6 @@
                                                   Margin="0,0,0,12"/>
                                         <StackPanel Margin="18,0,0,0" IsEnabled="{Binding EnableUnlockRecordings}">
                                             <DockPanel Margin="0,0,0,6">
-                                                <TextBlock Text="ffmpeg.exe:" VerticalAlignment="Center" Margin="0,0,8,0" FontWeight="SemiBold"/>
-                                                <Button Content="{DynamicResource LOCPlayAch_Button_Browse}" Width="90" DockPanel.Dock="Right"
-                                                        Margin="8,0,0,0" Click="NotificationsRecordingFfmpegBrowse_Click"/>
-                                                <TextBox Text="{Binding FfmpegPath, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"/>
-                                            </DockPanel>
-                                            <DockPanel Margin="0,0,0,6">
                                                 <TextBlock Text="Save folder:" VerticalAlignment="Center" Margin="0,0,8,0" FontWeight="SemiBold"/>
                                                 <Button Content="{DynamicResource LOCPlayAch_Button_Browse}" Width="90" DockPanel.Dock="Right"
                                                         Margin="8,0,0,0" Click="NotificationsRecordingSaveFolder_Click"/>
@@ -4193,8 +4187,6 @@
                                                     <RowDefinition Height="Auto"/>
                                                     <RowDefinition Height="Auto"/>
                                                     <RowDefinition Height="Auto"/>
-                                                    <RowDefinition Height="Auto"/>
-                                                    <RowDefinition Height="Auto"/>
                                                 </Grid.RowDefinitions>
                                                 <TextBlock Grid.Row="0" Text="Pre-roll length (seconds):" Margin="0,0,8,6"/>
                                                 <TextBox Grid.Row="0" Grid.Column="1" Text="{Binding RecordingClipSeconds, UpdateSourceTrigger=LostFocus}" Margin="0,0,0,6"/>
@@ -4206,25 +4198,11 @@
                                                     <ComboBoxItem Content="1080p" Tag="{x:Static settings:RecordingResolution.P1080}"/>
                                                     <ComboBoxItem Content="720p" Tag="{x:Static settings:RecordingResolution.P720}"/>
                                                 </ComboBox>
-                                                <TextBlock Grid.Row="3" Text="Encoder:" Margin="0,0,8,6"/>
-                                                <ComboBox Grid.Row="3" Grid.Column="1" SelectedValue="{Binding RecordingEncoder}" SelectedValuePath="Tag" Margin="0,0,0,6">
-                                                    <ComboBoxItem Content="Auto" Tag="{x:Static settings:RecordingEncoder.Auto}"/>
-                                                    <ComboBoxItem Content="x264 (CPU)" Tag="{x:Static settings:RecordingEncoder.X264}"/>
-                                                    <ComboBoxItem Content="NVENC" Tag="{x:Static settings:RecordingEncoder.Nvenc}"/>
-                                                    <ComboBoxItem Content="Quick Sync" Tag="{x:Static settings:RecordingEncoder.Qsv}"/>
-                                                    <ComboBoxItem Content="AMF" Tag="{x:Static settings:RecordingEncoder.Amf}"/>
-                                                </ComboBox>
-                                                <TextBlock Grid.Row="4" Text="Capture backend:" Margin="0,0,8,0"/>
-                                                <ComboBox Grid.Row="4" Grid.Column="1" SelectedValue="{Binding RecordingCaptureBackend}" SelectedValuePath="Tag">
-                                                    <ComboBoxItem Content="Auto" Tag="{x:Static settings:RecordingCaptureBackend.Auto}"/>
-                                                    <ComboBoxItem Content="GDI" Tag="{x:Static settings:RecordingCaptureBackend.Gdigrab}"/>
-                                                    <ComboBoxItem Content="DirectX" Tag="{x:Static settings:RecordingCaptureBackend.Ddagrab}"/>
-                                                </ComboBox>
                                             </Grid>
                                             <CheckBox Content="Include system audio"
                                                       IsChecked="{Binding RecordingIncludeAudio, Mode=TwoWay}"
                                                       Margin="0,10,0,0"/>
-                                            <TextBlock Text="Recording uses the upstream rolling ffmpeg engine. Folder and filename wildcards use this custom notification configuration."
+                                            <TextBlock Text="Recording uses Windows Graphics Capture and Media Foundation. Folder and filename wildcards use this custom notification configuration."
                                                        Style="{StaticResource MutedTextStyle}" TextWrapping="Wrap" Margin="0,6,0,0"/>
                                         </StackPanel>
                                     </StackPanel>

@@ -203,6 +203,8 @@ namespace PlayniteAchievements.Providers.Steam
                     "Steam community friends page did not contain a friends payload.");
             }
 
+            await RecoverNicknamedFriendPersonaNamesAsync(parsedFriends, cancel).ConfigureAwait(false);
+
             var now = DateTime.UtcNow;
             var friends = parsedFriends
                 .Where(friend => !string.IsNullOrWhiteSpace(friend?.SteamId))
@@ -211,12 +213,46 @@ namespace PlayniteAchievements.Providers.Steam
                     ProviderKey = ProviderKey,
                     ExternalUserId = friend.SteamId.Trim(),
                     DisplayName = FirstNonEmpty(friend.DisplayName, friend.SteamId),
+                    ProviderNickname = friend.ProviderNickname,
                     AvatarUrl = friend.AvatarUrl,
                     LastRefreshedUtc = now
                 })
                 .ToList();
 
             return FriendsProviderResult<IReadOnlyList<FriendIdentity>>.FromData(friends);
+        }
+
+        // A nicknamed friend's block omits the persona name, so the parser leaves DisplayName
+        // null; recover it from the friend's profile XML. Failures fall back to the nickname
+        // and are retried on the next roster refresh.
+        private async Task RecoverNicknamedFriendPersonaNamesAsync(
+            List<SteamCommunityFriend> parsedFriends,
+            CancellationToken cancel)
+        {
+            foreach (var friend in parsedFriends)
+            {
+                if (friend == null ||
+                    !string.IsNullOrWhiteSpace(friend.DisplayName) ||
+                    string.IsNullOrWhiteSpace(friend.ProviderNickname) ||
+                    string.IsNullOrWhiteSpace(friend.SteamId))
+                {
+                    continue;
+                }
+
+                string personaName = null;
+                try
+                {
+                    var profilePage = await _steamClient.GetProfileXmlPageAsync(friend.SteamId, cancel).ConfigureAwait(false);
+                    personaName = SteamCommunityPageParser.TryExtractProfilePersonaName(profilePage?.Html);
+                }
+                catch (OperationCanceledException) { throw; }
+                catch (Exception ex)
+                {
+                    _logger?.Debug(ex, $"Steam profile XML persona lookup failed for friend {friend.SteamId}.");
+                }
+
+                friend.DisplayName = personaName ?? friend.ProviderNickname;
+            }
         }
 
         private async Task<OwnedGamesPageResult> GetOwnedGamesFromCommunityPageAsync(

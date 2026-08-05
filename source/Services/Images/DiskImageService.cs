@@ -789,6 +789,79 @@ namespace PlayniteAchievements.Services.Images
             return cropped;
         }
 
+        /// <summary>
+        /// Ensures the icon at <paramref name="path"/> is stored as a centered square. Compares the
+        /// image dimensions via a header-only read (no full pixel decode), and only decodes, crops,
+        /// and rewrites the file (as PNG) when it is actually non-square. No-op for already-square,
+        /// missing, or empty paths, so it is cheap to call on every refresh.
+        /// </summary>
+        public async Task EnsureIconSquareAsync(string path, CancellationToken cancel)
+        {
+            if (string.IsNullOrWhiteSpace(path) || !File.Exists(path))
+            {
+                return;
+            }
+
+            var pathLock = await AcquirePathWriteLockAsync(path, cancel).ConfigureAwait(false);
+            using (pathLock)
+            {
+                try
+                {
+                    if (!File.Exists(path))
+                    {
+                        return;
+                    }
+
+                    int width;
+                    int height;
+
+                    // Header-only read: DelayCreation reads dimensions from the image header without
+                    // decoding the pixels, so already-square icons cost only a metadata read.
+                    using (var headerStream = new FileStream(path, FileMode.Open, FileAccess.Read, FileShare.Read))
+                    {
+                        var frame = BitmapFrame.Create(
+                            headerStream,
+                            BitmapCreateOptions.DelayCreation | BitmapCreateOptions.IgnoreColorProfile,
+                            BitmapCacheOption.None);
+                        width = frame.PixelWidth;
+                        height = frame.PixelHeight;
+                    }
+
+                    if (width <= 0 || height <= 0 || Math.Abs(width - height) <= 1)
+                    {
+                        return;
+                    }
+
+                    var originalBytes = File.ReadAllBytes(path);
+                    var bitmap = new BitmapImage();
+                    bitmap.BeginInit();
+                    bitmap.CacheOption = BitmapCacheOption.OnLoad;
+                    bitmap.CreateOptions = BitmapCreateOptions.IgnoreColorProfile;
+                    using (var ms = new MemoryStream(originalBytes, writable: false))
+                    {
+                        bitmap.StreamSource = ms;
+                        bitmap.EndInit();
+                    }
+
+                    var squared = CropToSquare(bitmap);
+                    var encoder = new PngBitmapEncoder();
+                    encoder.Frames.Add(BitmapFrame.Create(squared));
+                    await SavePngWithRetryAsync(path, encoder, cancel).ConfigureAwait(false);
+
+                    InvalidateDefaultCategoryArtSnapshotForTargetPath(path);
+                    NotifyImageFileOverwritten(path);
+                }
+                catch (OperationCanceledException)
+                {
+                    throw;
+                }
+                catch (Exception ex)
+                {
+                    _logger?.Warn(ex, $"Failed to normalize icon to square: {path}");
+                }
+            }
+        }
+
         // A 4xx client error means the resource will not appear on retry (missing image), except
         // 408 Request Timeout and 429 Too Many Requests which are worth retrying. 5xx and network
         // faults fall through to the transient retry path.

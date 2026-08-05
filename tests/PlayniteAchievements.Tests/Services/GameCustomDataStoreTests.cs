@@ -381,70 +381,6 @@ namespace PlayniteAchievements.Services.Tests
         }
 
         [TestMethod]
-        public void Export_OmitsInternalExclusionFlags()
-        {
-            var tempDir = CreateTempDirectory();
-            var gameId = Guid.NewGuid();
-            var exportPath = Path.Combine(tempDir, "portable-export.json");
-
-            try
-            {
-                var store = new GameCustomDataStore(tempDir);
-                store.Save(gameId, new GameCustomDataFile
-                {
-                    PlayniteGameId = gameId,
-                    ExcludedFromRefreshes = true,
-                    ExcludedFromSummaries = true,
-                    UseSeparateLockedIconsOverride = true,
-                    ManualCapstoneApiName = " capstone_one ",
-                    AchievementOrder = new List<string> { "ach_one", " ACH_ONE ", "ach_two" },
-                    AchievementUnlockedIconOverrides = new Dictionary<string, string>
-                    {
-                        [" ach_one "] = " https://example.com/unlocked.png ",
-                        ["ach_blank"] = " "
-                    },
-                    AchievementLockedIconOverrides = new Dictionary<string, string>
-                    {
-                        ["ach_one"] = " https://example.com/locked.png "
-                    },
-                    AchievementNotes = new Dictionary<string, string>
-                    {
-                        [" ach_one "] = " remember this "
-                    },
-                    ProviderOverride = new ProviderOverrideData
-                    {
-                        ProviderKey = "Steam",
-                        Value = "480"
-                    }
-                });
-
-                store.Export(gameId, exportPath);
-
-                var exportedJson = File.ReadAllText(exportPath);
-                Assert.IsFalse(exportedJson.Contains(nameof(GameCustomDataFile.ExcludedFromRefreshes)));
-                Assert.IsFalse(exportedJson.Contains(nameof(GameCustomDataFile.ExcludedFromSummaries)));
-
-                var portable = JsonConvert.DeserializeObject<GameCustomDataPortableFile>(exportedJson);
-                Assert.IsNotNull(portable);
-                Assert.AreEqual(gameId, portable.PlayniteGameId);
-                Assert.AreEqual("capstone_one", portable.ManualCapstoneApiName);
-                CollectionAssert.AreEqual(new[] { "ach_one", "ach_two" }, portable.AchievementOrder);
-                Assert.AreEqual("https://example.com/unlocked.png", portable.AchievementUnlockedIconOverrides["ach_one"]);
-                Assert.AreEqual("https://example.com/locked.png", portable.AchievementLockedIconOverrides["ach_one"]);
-                Assert.AreEqual("remember this", portable.AchievementNotes["ach_one"]);
-                Assert.AreEqual(1, portable.AchievementUnlockedIconOverrides.Count);
-                Assert.AreEqual(1, portable.AchievementLockedIconOverrides.Count);
-                Assert.AreEqual(1, portable.AchievementNotes.Count);
-                AssertProviderOverride(portable, "Steam", "480");
-                Assert.IsTrue(portable.UseSeparateLockedIconsOverride == true);
-            }
-            finally
-            {
-                DeleteDirectory(tempDir);
-            }
-        }
-
-        [TestMethod]
         public void Save_UrlOverride_PrunesCustomCacheButKeepsExpectedManagedCustomFile()
         {
             var tempDir = CreateTempDirectory();
@@ -483,58 +419,100 @@ namespace PlayniteAchievements.Services.Tests
         }
 
         [TestMethod]
-        public void ExportPortablePa_OmitsManagedLocalIconOverrides()
+        public void NotificationAppearance_PaZip_RoundTripsAllSlotsAndCleansGameOwnedFiles()
         {
             var tempDir = CreateTempDirectory();
             var gameId = Guid.NewGuid();
-            const string apiName = "ach_one";
+            var importedGameId = Guid.NewGuid();
 
             try
             {
-                var store = new GameCustomDataStore(tempDir);
                 var diskImageService = new DiskImageService(logger: null, cacheRoot: tempDir);
-                var managedCustomIconService = new ManagedCustomIconService(diskImageService, logger: null);
-                store.AttachManagedCustomIconService(managedCustomIconService);
+                var imageStore = new NotificationImageStore(diskImageService, logger: null);
+                var store = new GameCustomDataStore(tempDir);
+                store.AttachNotificationImageStore(imageStore);
 
-                var fileStem = AchievementIconCachePathBuilder.BuildFileStems(new[] { apiName })[apiName];
-                var managedPath = managedCustomIconService.GetAchievementCustomIconPath(
-                    gameId.ToString("D"),
-                    fileStem,
-                    AchievementIconVariant.Unlocked);
-                WritePlaceholderFile(managedPath);
+                var sourcePaths = Enumerable.Range(0, 6)
+                    .Select(index => Path.Combine(tempDir, "source_" + index + ".png"))
+                    .ToList();
+                foreach (var sourcePath in sourcePaths)
+                {
+                    WritePngFile(sourcePath);
+                }
 
+                var style = NotificationStyleSettings.CreateDefault();
+                style.Toast.ShowDescription = false;
+                style.ToastBackgroundImagePath = sourcePaths[0];
+                style.Toast.BadgeImages.CommonPath = sourcePaths[1];
+                style.Toast.BadgeImages.UncommonPath = sourcePaths[2];
+                style.Toast.BadgeImages.RarePath = sourcePaths[3];
+                style.Toast.BadgeImages.UltraRarePath = sourcePaths[4];
+                style.Toast.BadgeImages.CompletionPath = sourcePaths[5];
                 store.Save(gameId, new GameCustomDataFile
                 {
                     PlayniteGameId = gameId,
-                    AchievementUnlockedIconOverrides = new Dictionary<string, string>
+                    NotificationAppearanceOverride = new GameNotificationAppearanceOverride
                     {
-                        [apiName] = managedPath
-                    },
-                    AchievementLockedIconOverrides = new Dictionary<string, string>
-                    {
-                        [apiName] = "https://example.com/locked.png"
-                    },
-                    AchievementNotes = new Dictionary<string, string>
-                    {
-                        [apiName] = "portable note"
-                    },
-                    ProviderOverride = new ProviderOverrideData
-                    {
-                        ProviderKey = "Steam",
-                        Value = "480"
+                        Style = style,
+                        ToastUseThemeStyling = false,
+                        FrameUseThemeStyling = true
                     }
                 });
 
-                var exportPath = Path.Combine(tempDir, "portable.pa");
-                var result = store.ExportPortablePa(gameId, exportPath);
-                var portable = JsonConvert.DeserializeObject<GameCustomDataPortableFile>(File.ReadAllText(exportPath));
+                var packagePath = Path.Combine(tempDir, "notification.pa");
+                store.ExportPortablePackage(gameId, packagePath);
+                using (var archive = ZipFile.OpenRead(packagePath))
+                {
+                    var entryNames = archive.Entries.Select(entry => entry.FullName).ToList();
+                    foreach (var stem in new[]
+                    {
+                        "notification_background",
+                        "notification_badge_common",
+                        "notification_badge_uncommon",
+                        "notification_badge_rare",
+                        "notification_badge_ultrarare",
+                        "notification_badge_completion"
+                    })
+                    {
+                        CollectionAssert.Contains(entryNames, "images/" + stem + ".png");
+                    }
+                }
 
-                Assert.IsTrue(result.HasOmittedLocalIconOverrides);
-                Assert.AreEqual(1, result.OmittedLocalIconOverrideCount);
-                Assert.IsNull(portable.AchievementUnlockedIconOverrides);
-                Assert.AreEqual("https://example.com/locked.png", portable.AchievementLockedIconOverrides[apiName]);
-                Assert.AreEqual("portable note", portable.AchievementNotes[apiName]);
-                AssertProviderOverride(portable, "Steam", "480");
+                var imported = store.ImportReplacePortable(importedGameId, packagePath).ImportedData;
+                var importedStyle = imported.NotificationAppearanceOverride.Style;
+                var importedPaths = new[]
+                {
+                    importedStyle.ToastBackgroundImagePath,
+                    importedStyle.Toast.BadgeImages.CommonPath,
+                    importedStyle.Toast.BadgeImages.UncommonPath,
+                    importedStyle.Toast.BadgeImages.RarePath,
+                    importedStyle.Toast.BadgeImages.UltraRarePath,
+                    importedStyle.Toast.BadgeImages.CompletionPath
+                };
+                var expectedDirectorySuffix = Path.Combine(
+                    "notification_images",
+                    "games",
+                    importedGameId.ToString("D"));
+                foreach (var importedPath in importedPaths)
+                {
+                    Assert.IsTrue(File.Exists(importedPath));
+                    Assert.IsTrue(Path.GetDirectoryName(importedPath).EndsWith(
+                        expectedDirectorySuffix,
+                        StringComparison.OrdinalIgnoreCase));
+                }
+
+                Assert.IsFalse(imported.NotificationAppearanceOverride.ToastUseThemeStyling);
+                Assert.IsTrue(imported.NotificationAppearanceOverride.FrameUseThemeStyling);
+                Assert.IsFalse(importedStyle.Toast.ShowDescription);
+
+                var staleBadgePath = importedStyle.Toast.BadgeImages.CommonPath;
+                store.Update(importedGameId, data =>
+                    data.NotificationAppearanceOverride.Style.Toast.BadgeImages.CommonPath = null);
+                Assert.IsFalse(File.Exists(staleBadgePath));
+
+                var gameImageDirectory = Path.GetDirectoryName(importedStyle.ToastBackgroundImagePath);
+                store.Delete(importedGameId);
+                Assert.IsFalse(Directory.Exists(gameImageDirectory));
             }
             finally
             {
@@ -543,28 +521,43 @@ namespace PlayniteAchievements.Services.Tests
         }
 
         [TestMethod]
-        public void ImportReplacePortable_RejectsLocalPathsInPa()
+        public void NotificationAppearance_PaZip_RejectsTraversalSlotEntry()
         {
             var tempDir = CreateTempDirectory();
             var gameId = Guid.NewGuid();
-            var importPath = Path.Combine(tempDir, "bad.pa");
 
             try
             {
+                var diskImageService = new DiskImageService(logger: null, cacheRoot: tempDir);
                 var store = new GameCustomDataStore(tempDir);
-                File.WriteAllText(
-                    importPath,
-                    JsonConvert.SerializeObject(
-                        new GameCustomDataPortableFile
-                        {
-                            PlayniteGameId = Guid.NewGuid(),
-                            AchievementUnlockedIconOverrides = new Dictionary<string, string>
-                            {
-                                ["ach_one"] = @"C:\temp\custom.png"
-                            }
-                        }));
+                store.AttachNotificationImageStore(
+                    new NotificationImageStore(diskImageService, logger: null));
 
-                Assert.ThrowsException<InvalidOperationException>(() => store.ImportReplacePortable(gameId, importPath));
+                var packagePath = Path.Combine(tempDir, "evil.pa.zip");
+                using (var archive = ZipFile.Open(packagePath, ZipArchiveMode.Create))
+                {
+                    var manifest = archive.CreateEntry(
+                        GameCustomDataStore.PortablePackageManifestEntryName);
+                    using (var writer = new StreamWriter(manifest.Open()))
+                    {
+                        writer.Write(JsonConvert.SerializeObject(
+                            new GameCustomDataPortableFile
+                            {
+                                NotificationAppearanceOverride =
+                                    new GameNotificationAppearanceOverride
+                                    {
+                                        Style = NotificationStyleSettings.CreateDefault()
+                                    }
+                            }));
+                    }
+
+                    WritePackageImageEntry(
+                        archive,
+                        "images/notification_background./../secret.png");
+                }
+
+                Assert.ThrowsException<InvalidOperationException>(() =>
+                    store.ImportReplacePortable(gameId, packagePath));
             }
             finally
             {
@@ -621,7 +614,7 @@ namespace PlayniteAchievements.Services.Tests
                     }
                 });
 
-                var packagePath = Path.Combine(tempDir, "portable.pa.zip");
+                var packagePath = Path.Combine(tempDir, "portable.pa");
                 store.ExportPortablePackage(gameId, packagePath);
 
                 using (var archive = ZipFile.OpenRead(packagePath))
@@ -1360,6 +1353,20 @@ namespace PlayniteAchievements.Services.Tests
             }
 
             File.WriteAllBytes(path, new byte[] { 1, 2, 3, 4 });
+        }
+
+        private static void WritePngFile(string path)
+        {
+            var directory = Path.GetDirectoryName(path);
+            if (!string.IsNullOrWhiteSpace(directory))
+            {
+                Directory.CreateDirectory(directory);
+            }
+
+            File.WriteAllBytes(
+                path,
+                Convert.FromBase64String(
+                    "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVQIW2NkYGD4DwABBAEAgh8sXQAAAABJRU5ErkJggg=="));
         }
 
         private static void WritePackageImageEntry(ZipArchive archive, string entryName)

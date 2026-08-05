@@ -26,12 +26,14 @@ namespace PlayniteAchievements.Views.Controls
         private PersistedSettings _subscribedPersisted;
         private const double DefaultCoverColumnWidth = 96;
         private const double DefaultPlatformColumnWidth = 44;
+        private const double DefaultCapturesColumnWidth = 56;
 
         private static readonly IReadOnlyDictionary<string, double> DefaultImageColumnWidthSeeds =
             new Dictionary<string, double>(StringComparer.OrdinalIgnoreCase)
             {
                 ["Cover"] = DefaultCoverColumnWidth,
-                ["GameSummaryPlatform"] = DefaultPlatformColumnWidth
+                ["GameSummaryPlatform"] = DefaultPlatformColumnWidth,
+                ["Captures"] = DefaultCapturesColumnWidth
             };
 
         // The View Friends Achievements summary strip is a single-row header; the image cell
@@ -40,7 +42,8 @@ namespace PlayniteAchievements.Views.Controls
             new Dictionary<string, double>(StringComparer.OrdinalIgnoreCase)
             {
                 ["Cover"] = 48,
-                ["GameSummaryPlatform"] = 36
+                ["GameSummaryPlatform"] = 36,
+                ["Captures"] = DefaultCapturesColumnWidth
             };
 
         private static readonly IReadOnlyDictionary<string, double> LegacyImageColumnRuntimeDefaults =
@@ -107,7 +110,7 @@ namespace PlayniteAchievements.Views.Controls
         private static readonly IReadOnlyDictionary<string, IReadOnlyDictionary<string, bool>> DefaultVisibilityByColumnSettingsKey =
             new Dictionary<string, IReadOnlyDictionary<string, bool>>(StringComparer.OrdinalIgnoreCase)
             {
-                ["OverviewGameSummaries"] = CreateGameSummaryVisibility(),
+                ["OverviewGameSummaries"] = CreateGameSummaryVisibility(captures: true),
                 ["StartPageGameSummaries"] = CreateGameSummaryVisibility(
                     platform: false,
                     lastPlayed: false,
@@ -123,9 +126,9 @@ namespace PlayniteAchievements.Views.Controls
                     collectionScore: false,
                     prestigeScore: false),
                 // Single-game summary: Cover, Game, Progress, Total visible; the rest hidden.
-                ["ViewAchievementsGameSummaries"] = CreateGameSummaryVisibility(),
+                ["ViewAchievementsGameSummaries"] = CreateGameSummaryVisibility(captures: true),
                 // Theme AchievementDataGrid header row; mirrors the ViewAchievements defaults.
-                ["DesktopThemeGameSummaries"] = CreateGameSummaryVisibility(),
+                ["DesktopThemeGameSummaries"] = CreateGameSummaryVisibility(captures: true),
                 // No friend selected: Cover, Game, Platform only.
                 ["FriendsOverviewGameSummaries"] = CreateGameSummaryVisibility(
                     platform: true,
@@ -186,7 +189,8 @@ namespace PlayniteAchievements.Views.Controls
             bool total = true,
             bool collectionScore = false,
             bool prestigeScore = false,
-            bool points = false)
+            bool points = false,
+            bool captures = false)
         {
             return new Dictionary<string, bool>(StringComparer.OrdinalIgnoreCase)
             {
@@ -201,7 +205,8 @@ namespace PlayniteAchievements.Views.Controls
                 ["TotalAchievements"] = total,
                 ["GameSummaryCollectionScore"] = collectionScore,
                 ["GameSummaryPrestigeScore"] = prestigeScore,
-                ["GameSummaryPoints"] = points
+                ["GameSummaryPoints"] = points,
+                ["Captures"] = captures
             };
         }
 
@@ -307,6 +312,23 @@ namespace PlayniteAchievements.Views.Controls
         {
             get => (bool)GetValue(ShowCompletionGlowProperty);
             set => SetValue(ShowCompletionGlowProperty, value);
+        }
+
+        /// <summary>
+        /// When true, the completion glow on completed game art gently fades in and out.
+        /// Self-bound to the global setting in the constructor.
+        /// </summary>
+        public static readonly DependencyProperty AnimateRarityGlowsProperty =
+            DependencyProperty.Register(
+                nameof(AnimateRarityGlows),
+                typeof(bool),
+                typeof(GameSummariesGridControl),
+                new PropertyMetadata(true));
+
+        public bool AnimateRarityGlows
+        {
+            get => (bool)GetValue(AnimateRarityGlowsProperty);
+            set => SetValue(AnimateRarityGlowsProperty, value);
         }
 
         public static readonly DependencyProperty ColumnSettingsKeyProperty =
@@ -491,6 +513,7 @@ namespace PlayniteAchievements.Views.Controls
         public GameSummariesGridControl()
         {
             InitializeComponent();
+            RarityAppearanceHelper.BindAnimateRarityGlows(this, AnimateRarityGlowsProperty);
             UpdateColumnHeadersVisibility();
         }
 
@@ -1330,7 +1353,31 @@ namespace PlayniteAchievements.Views.Controls
 
         private void DataGridRow_PreviewMouseLeftButtonDown(object sender, MouseButtonEventArgs e)
         {
+            // A click on an in-cell button (e.g. the Captures button) must not also drive row
+            // selection/navigation, so don't forward the row event in that case.
+            if (IsFromButton(e.OriginalSource))
+            {
+                return;
+            }
+
             ForwardRowMouseEvent(e, RowPreviewMouseLeftButtonDownEvent, sender);
+        }
+
+        private static bool IsFromButton(object originalSource)
+        {
+            // Use the shared traversal: the click can originate on a non-visual element (e.g. a Run
+            // inside a TextBlock), which VisualTreeHelper.GetParent cannot handle and would throw on.
+            return VisualTreeHelpers.FindVisualParent<ButtonBase>(originalSource as DependencyObject) != null;
+        }
+
+        private void CapturesButton_Click(object sender, RoutedEventArgs e)
+        {
+            if ((sender as FrameworkElement)?.DataContext is GameSummaryItem item)
+            {
+                PlayniteAchievementsPlugin.Instance?.OpenCapturesViewer(item);
+            }
+
+            e.Handled = true;
         }
 
         private void DataGridRow_PreviewMouseRightButtonDown(object sender, MouseButtonEventArgs e)
