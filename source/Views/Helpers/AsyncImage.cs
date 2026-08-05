@@ -404,37 +404,29 @@ namespace PlayniteAchievements.Views.Helpers
 
             try
             {
+                // Both attached properties are read here, on the UI thread, so the background
+                // decode below never touches the target.
                 var applyGray = GetGray(d);
+                var phaseLock = GetPhaseLock(d);
 
                 // Fast path: with the composited frames already cached (e.g. a settings mockup
                 // rebuilt during a slider drag), building the animation is cheap — attach it
                 // synchronously, in the same dispatcher pass as the static bitmap, so the
                 // element never renders an out-of-phase frame.
-                if (GifAnimationHelper.TryCreateAnimationFromCache(
-                        uriString, applyGray,
-                        out var cachedNormalized, out var cachedFirstFrame, out var cachedAnimation))
+                if (TryApplyCachedAnimation(d, uriString, applyGray, phaseLock))
                 {
-                    ApplyAnimatedFrames(d, cachedNormalized, cachedFirstFrame, cachedAnimation);
                     return;
                 }
 
-                var created = await Task.Run(() =>
-                {
-                    if (cancellationToken.IsCancellationRequested)
-                    {
-                        return (ok: false, normalized: (string)null, firstFrame: (ImageSource)null, animation: (ObjectAnimationUsingKeyFrames)null);
-                    }
+                // Cache miss: decode off the UI thread. Only the frozen frames cross back; the
+                // animation is always built at apply time so its phase-locked BeginTime never has
+                // to be stamped onto an already-frozen instance.
+                var decoded = await Task.Run(
+                    () => !cancellationToken.IsCancellationRequested &&
+                          GifAnimationHelper.TryEnsureCachedFrames(uriString, applyGray),
+                    cancellationToken).ConfigureAwait(false);
 
-                    var ok = GifAnimationHelper.TryCreateAnimation(
-                        uriString,
-                        applyGray,
-                        out var normalized,
-                        out var firstFrame,
-                        out var animation);
-                    return (ok, normalized, firstFrame, animation);
-                }, cancellationToken).ConfigureAwait(false);
-
-                if (!created.ok || cancellationToken.IsCancellationRequested)
+                if (!decoded || cancellationToken.IsCancellationRequested)
                 {
                     return;
                 }
@@ -446,13 +438,13 @@ namespace PlayniteAchievements.Views.Helpers
                     {
                         if (!cancellationToken.IsCancellationRequested)
                         {
-                            ApplyAnimatedFrames(d, created.normalized, created.firstFrame, created.animation);
+                            TryApplyCachedAnimation(d, uriString, applyGray, phaseLock);
                         }
                     }));
                 }
                 else if (!cancellationToken.IsCancellationRequested)
                 {
-                    ApplyAnimatedFrames(d, created.normalized, created.firstFrame, created.animation);
+                    TryApplyCachedAnimation(d, uriString, applyGray, phaseLock);
                 }
             }
             catch (OperationCanceledException)
@@ -462,6 +454,31 @@ namespace PlayniteAchievements.Views.Helpers
             {
                 Logger?.Debug(ex, $"GIF animation setup failed for '{uriString}'.");
             }
+        }
+
+        /// <summary>
+        /// Builds the animation over the cached frames and attaches it. Returns false when the GIF
+        /// is not decoded yet, leaving the target untouched.
+        /// </summary>
+        private static bool TryApplyCachedAnimation(
+            DependencyObject target,
+            string uriString,
+            bool applyGray,
+            bool phaseLock)
+        {
+            if (!GifAnimationHelper.TryCreateAnimationFromCache(
+                    uriString,
+                    applyGray,
+                    phaseLock,
+                    out var normalizedSource,
+                    out var firstFrame,
+                    out var animation))
+            {
+                return false;
+            }
+
+            ApplyAnimatedFrames(target, normalizedSource, firstFrame, animation);
+            return true;
         }
 
         private static void ApplySource(DependencyObject d, ImageSource source)
@@ -548,28 +565,22 @@ namespace PlayniteAchievements.Views.Helpers
             StopAnimation(target);
             SetActiveAnimatedGifSource(target, normalizedSource);
 
-            // Stamp the phase-lock at the moment the animation begins (the frozen source
-            // animation carries only the iteration duration): computing it earlier would bake
-            // the creation-to-begin delay in as a per-instance phase error, visibly desyncing
-            // instances of the same GIF. Phase-lock opt-outs (toast cards) start at frame one
-            // instead, so freshly built surfaces are deterministic in captures.
-            var phased = animation.Clone();
-            phased.BeginTime = GetPhaseLock(target)
-                ? GifAnimationHelper.PhaseLockBeginTime(animation.Duration)
-                : TimeSpan.Zero;
-            phased.Freeze();
-
+            // The animation arrives already stamped with its phase-locked BeginTime and frozen
+            // (see GifAnimationHelper.TryCreateAnimationFromCache), so it is attached as-is. Never
+            // clone it to adjust BeginTime here: Freezable.Clone on a frozen animation deep-copies
+            // every key frame's bitmap through CachedBitmap.CloneCore, which reallocates the whole
+            // decoded GIF per attach and exhausts memory on long animations.
             if (target is System.Windows.Controls.Image image)
             {
                 image.Source = firstFrame;
-                image.BeginAnimation(System.Windows.Controls.Image.SourceProperty, phased, HandoffBehavior.SnapshotAndReplace);
+                image.BeginAnimation(System.Windows.Controls.Image.SourceProperty, animation, HandoffBehavior.SnapshotAndReplace);
                 return;
             }
 
             if (target is System.Windows.Media.ImageBrush brush)
             {
                 brush.ImageSource = firstFrame;
-                brush.BeginAnimation(System.Windows.Media.ImageBrush.ImageSourceProperty, phased, HandoffBehavior.SnapshotAndReplace);
+                brush.BeginAnimation(System.Windows.Media.ImageBrush.ImageSourceProperty, animation, HandoffBehavior.SnapshotAndReplace);
             }
         }
 
