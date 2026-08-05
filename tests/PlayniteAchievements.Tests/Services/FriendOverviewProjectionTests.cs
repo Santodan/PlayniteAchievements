@@ -456,6 +456,26 @@ namespace PlayniteAchievements.Tests.Services
         }
 
         [TestMethod]
+        public void MergeGroups_PrimaryAccountSuppliesMergedDisplayName()
+        {
+            // No group or member nicknames: the merged name comes from the primary (avatar)
+            // account even though it is not the first member.
+            var settings = CreateMergeSettings(groupNickname: null, avatarProviderKey: "Exophase");
+            var data = new FriendsOverviewData
+            {
+                Friends = new List<FriendSummaryItem>
+                {
+                    new FriendSummaryItem { ProviderKey = "Steam", ExternalUserId = "steam-alice", DisplayName = "Steam Alice" },
+                    new FriendSummaryItem { ProviderKey = "Exophase", ExternalUserId = "exo-alice", DisplayName = "Exo Alice" }
+                }
+            };
+
+            var projection = new FriendOverviewProjection(data, settings);
+
+            Assert.AreEqual("Exo Alice", projection.Friends.Single().DisplayName);
+        }
+
+        [TestMethod]
         public void ScopeKeys_AreStableAndCaseInsensitive()
         {
             var gameId = Guid.Parse("33333333-3333-3333-3333-333333333333");
