@@ -14,7 +14,6 @@
     <sys:String x:Key="LOCPlayAch_Common_Actions">Actions</sys:String>
     <sys:String x:Key="LOCPlayAch_Common_Action_ExcludeFromSummaries">Exclude from Summaries</sys:String>
     <sys:String x:Key="LOCPlayAch_Common_Action_IncludeInSummaries">Include in Summaries</sys:String>
-    <sys:String x:Key="LOCPlayAch_Common_AddType">Add Type</sys:String>
     <sys:String x:Key="LOCPlayAch_Common_ApplyToSelected">Apply to Selected</sys:String>
     <sys:String x:Key="LOCPlayAch_Common_Ascending">Ascending</sys:String>
     <sys:String x:Key="LOCPlayAch_Common_All">All</sys:String>
