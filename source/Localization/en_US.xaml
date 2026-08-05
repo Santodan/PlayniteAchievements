@@ -581,6 +581,9 @@
     <sys:String x:Key="LOCPlayAch_Settings_Style_ImportApplyStyle">Apply the appearance style from this file to the selected platform?</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_Style_ImportInstallToastTemplate">This file includes a custom notification template. Install it for the current selection? It replaces any custom notification template already set for that scope.</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_Style_ImportInstallFrameTemplate">This file includes a custom frame template. Install it for the current selection? It replaces any custom frame template already set for that scope.</sys:String>
+    <sys:String x:Key="LOCPlayAch_Settings_Style_ImportUnsupportedFile">Only .pastyle, .panotif, and .paframe files are supported.</sys:String>
+    <sys:String x:Key="LOCPlayAch_Settings_Style_ImportMissingManifest">The package does not contain a notification style manifest.</sys:String>
+    <sys:String x:Key="LOCPlayAch_Settings_Style_ImportNotPackage">This file is not a style package. Import the original .pastyle, .panotif, or .paframe file you exported, not a file extracted from it.</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_Style_Presets_Hint">Presets save the appearance of the tab shown above, including its images and any custom template. Applying one replaces that part of the current selection.</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_Style_ResetToDefault">Reset to default</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_Style_ResetConfirm">Reset this surface to the default appearance? This clears your style changes and removes any custom template for it.</sys:String>
