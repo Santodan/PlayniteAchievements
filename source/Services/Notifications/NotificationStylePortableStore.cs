@@ -651,8 +651,7 @@ namespace PlayniteAchievements.Services.Notifications
                 case ".gif":
                 case ".tif":
                 case ".tiff":
-                    // .webp is deliberately absent: WPF on .NET Framework ships no WebP decoder,
-                    // so a bundled .webp would import cleanly and then throw when rendered.
+                case ".webp":
                     return true;
                 default:
                     return false;
