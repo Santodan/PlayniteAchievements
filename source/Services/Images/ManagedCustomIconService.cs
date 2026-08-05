@@ -354,7 +354,11 @@ namespace PlayniteAchievements.Services.Images
                 }
             }
 
-            foreach (var file in Directory.EnumerateFiles(customDirectory, "*.png", SearchOption.AllDirectories))
+            // Custom icons keep their source format, so a "*.png" sweep left every other format
+            // behind forever. Enumerate everything and filter by recognized extension instead.
+            foreach (var file in Directory
+                .EnumerateFiles(customDirectory, "*", SearchOption.AllDirectories)
+                .Where(candidate => ImageFormats.HasSupportedExtension(candidate)))
             {
                 try
                 {
