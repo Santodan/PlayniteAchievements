@@ -224,9 +224,10 @@ namespace PlayniteAchievements.Services.UI
         {
             try
             {
-                // WGC monitor capture (HDR-correct) for the out-of-game test fire, where the toast
-                // is genuinely on screen and there is no game window to capture. GDI fallback
-                // below is SDR-only.
+                // WGC monitor capture (HDR-correct) for the out-of-game test fire, where there is
+                // no game window to capture — taken once at wave start, before the toast shows;
+                // the card is composited on per item like the in-game path. GDI fallback below is
+                // SDR-only.
                 if (windowOnMonitor != IntPtr.Zero && WgcWindowCapture.IsSupported)
                 {
                     using (var wgc = new WgcWindowCapture())

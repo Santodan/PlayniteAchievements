@@ -435,13 +435,16 @@ namespace PlayniteAchievements.Services.UI
 
         /// <summary>
         /// Builds the with-notification screenshot for each qualifying item in the wave: an
-        /// independent clone of the shared base game capture with only that item's toast card
+        /// independent clone of the shared base capture with only that item's toast card
         /// composited at the anchor corner — where a genuine single-toast notification would sit —
-        /// so every saved file reads as a normal single-unlock screenshot regardless of wave size.
-        /// Test fires with no game fall back to one monitor capture, cloned per item (the real
-        /// stack is genuinely on screen there). Items whose card can't be rendered degrade to the
-        /// plain base clone; a null base capture yields null (with-toast files are skipped). Never
-        /// disposes or mutates the base bitmap — the save pipeline owns it via the capture task.
+        /// so every saved file reads as a normal single-unlock screenshot regardless of wave size,
+        /// and every variant shares one identical frame. In game the base is the client-area
+        /// window capture and cards anchor to the client rect; the out-of-game test fire reuses
+        /// the wave's single monitor capture and anchors cards to the monitor work area (the same
+        /// anchor the live toast is placed against). Items whose card can't be rendered degrade
+        /// to the plain base clone; a null base capture yields null (with-toast files are
+        /// skipped). Never disposes or mutates the base bitmap — the save pipeline owns it via
+        /// the capture task.
         /// </summary>
         private async Task<Dictionary<AchievementToastViewModel, System.Drawing.Bitmap>> ComposeWaveWithToastAsync(
             WaveScreenshotPlan plan, Window window, bool isTestFire,
@@ -456,42 +459,6 @@ namespace PlayniteAchievements.Services.UI
                 return null;
             }
 
-            var waveHwnd = ResolveWaveWindowHandle();
-            var processId = _getGameProcessId?.Invoke(_activeWaveGameId);
-            var gameRunning = waveHwnd != IntPtr.Zero || (processId.HasValue && processId.Value > 0);
-            if (!gameRunning && isTestFire)
-            {
-                var appHwnd = ResolveAppWindowHandle();
-                var monitor = await Task.Run(() => _screenshotService.CaptureMonitor(appHwnd)).ConfigureAwait(true);
-                if (monitor == null)
-                {
-                    return null;
-                }
-
-                return await Task.Run(() =>
-                {
-                    var monitorByVm = new Dictionary<AchievementToastViewModel, System.Drawing.Bitmap>();
-                    try
-                    {
-                        var full = new System.Drawing.Rectangle(0, 0, monitor.Width, monitor.Height);
-                        foreach (var vm in withToastVms)
-                        {
-                            monitorByVm[vm] = monitor.Clone(full, monitor.PixelFormat);
-                        }
-                    }
-                    catch (Exception ex)
-                    {
-                        _logger?.Debug(ex, "Test-fire monitor clone failed; some with-notification shots are skipped.");
-                    }
-                    finally
-                    {
-                        monitor.Dispose();
-                    }
-
-                    return monitorByVm.Count > 0 ? monitorByVm : null;
-                }).ConfigureAwait(true);
-            }
-
             var baseBitmap = baseCaptureTask != null
                 ? await baseCaptureTask.ConfigureAwait(true)
                 : null;
@@ -500,19 +467,44 @@ namespace PlayniteAchievements.Services.UI
                 return null;
             }
 
+            // Geometry for placing cards into the base capture: the corner math runs against the
+            // anchor rect (game client rect, or the work area for the out-of-game test fire) and
+            // the composite maps through the rect the capture covers (client rect, or the full
+            // monitor bounds — a monitor capture includes the taskbar area the work area excludes).
+            var waveHwnd = ResolveWaveWindowHandle();
+            var processId = _getGameProcessId?.Invoke(_activeWaveGameId);
+            var gameRunning = waveHwnd != IntPtr.Zero || (processId.HasValue && processId.Value > 0);
+            var anchorPhys = System.Drawing.Rectangle.Empty;
+            var capturePhys = System.Drawing.Rectangle.Empty;
+            var haveGeometry = false;
+            if (!gameRunning && isTestFire)
+            {
+                var monitorBounds = _screenshotService.TryGetGameMonitorBounds(ResolveAppWindowHandle(), null);
+                if (monitorBounds.HasValue &&
+                    TryResolveAnchor(out anchorPhys) && anchorPhys.Width > 0 && anchorPhys.Height > 0)
+                {
+                    capturePhys = monitorBounds.Value;
+                    haveGeometry = true;
+                }
+            }
+            else if (_activeIsGame &&
+                     TryResolveAnchor(out anchorPhys) && anchorPhys.Width > 0 && anchorPhys.Height > 0)
+            {
+                capturePhys = anchorPhys;
+                haveGeometry = true;
+            }
+
             // UI thread: render each card and compute its synthetic single-toast corner rect. Map
             // by VM identity — the screenshot plan and the on-screen toast items can differ (per
             // variant rarity policy vs ShouldToast); an item with no card on screen degrades to
             // the plain base clone.
-            var haveClient = TryResolveAnchor(out var clientPhys);
-            haveClient = haveClient && _activeIsGame && clientPhys.Width > 0 && clientPhys.Height > 0;
             var itemsControl = window?.Content as ItemsControl;
             var overlays = new List<(AchievementToastViewModel Vm, System.Drawing.Bitmap Overlay, System.Drawing.Rectangle Rect)>();
             foreach (var vm in withToastVms)
             {
                 System.Drawing.Bitmap overlay = null;
                 var rect = System.Drawing.Rectangle.Empty;
-                if (haveClient && itemsControl != null)
+                if (haveGeometry && itemsControl != null)
                 {
                     var container = itemsControl.ItemContainerGenerator.ContainerFromItem(vm) as FrameworkElement;
                     if (container != null)
@@ -521,7 +513,7 @@ namespace PlayniteAchievements.Services.UI
                         if (overlay != null)
                         {
                             ToastWindowPlacer.ComputeCorner(
-                                clientPhys, physSize.Width, physSize.Height, _activeMonitorScale,
+                                anchorPhys, physSize.Width, physSize.Height, _activeMonitorScale,
                                 AlignRight(), AlignBottom(), EffectiveGapDip(), out var ix, out var iy);
                             rect = new System.Drawing.Rectangle(ix, iy, physSize.Width, physSize.Height);
                         }
@@ -548,7 +540,7 @@ namespace PlayniteAchievements.Services.UI
                         {
                             try
                             {
-                                CompositeToastOverlay(clone, entry.Overlay, entry.Rect, clientPhys);
+                                CompositeToastOverlay(clone, entry.Overlay, entry.Rect, capturePhys);
                             }
                             catch (Exception ex)
                             {
@@ -820,10 +812,10 @@ namespace PlayniteAchievements.Services.UI
         }
 
         /// <summary>
-        /// Draws the toast overlay onto the game client capture at the given physical rect relative
-        /// to the client rect (the card's synthetic single-toast corner, or a live window rect).
-        /// Physical-pixel coordinates map 1:1 into the capture when it equals the client rect; the
-        /// width/height ratio absorbs any rounding or DPI difference. Mutates
+        /// Draws the toast overlay onto the base capture at the given physical rect relative to
+        /// the rect the capture covers (game client rect, or monitor bounds for the out-of-game
+        /// test fire). Physical-pixel coordinates map 1:1 into the capture when it equals that
+        /// rect; the width/height ratio absorbs any rounding or DPI difference. Mutates
         /// <paramref name="game"/> in place.
         /// </summary>
         private static void CompositeToastOverlay(
