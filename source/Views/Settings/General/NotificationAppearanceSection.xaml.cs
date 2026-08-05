@@ -1554,47 +1554,62 @@ namespace PlayniteAchievements.Views.Settings.General
                 // still following an inherited style, snapshot the inherited images into the
                 // scope first so the new copy never references another owner's slot files.
                 var merged = style.Clone();
-                if (!IsGameMode && providerKey != null &&
-                    persisted.GetProviderNotificationStyle(providerKey) == null)
+                try
                 {
-                    await _plugin.NotificationImageStore.CopyImagesForProviderAsync(
-                        merged, providerKey, CancellationToken.None);
-                }
-                else if (IsGameMode && CustomizeGameCheckBox?.IsChecked != true)
-                {
-                    await _plugin.NotificationImageStore.CopyImagesForGameAsync(
-                        merged, _gameId, CancellationToken.None);
-                }
+                    if (!IsGameMode && providerKey != null &&
+                        persisted.GetProviderNotificationStyle(providerKey) == null)
+                    {
+                        await _plugin.NotificationImageStore.CopyImagesForProviderAsync(
+                            merged, providerKey, CancellationToken.None);
+                    }
+                    else if (IsGameMode && CustomizeGameCheckBox?.IsChecked != true)
+                    {
+                        await _plugin.NotificationImageStore.CopyImagesForGameAsync(
+                            merged, _gameId, CancellationToken.None);
+                    }
 
-                var imported = await store.LoadPresetStyleAsync(preset, owner, CancellationToken.None);
-                if (imported == null)
-                {
-                    throw new InvalidOperationException("Preset notification style was empty.");
-                }
+                    var imported = await store.LoadPresetStyleAsync(preset, owner, CancellationToken.None);
+                    if (imported == null)
+                    {
+                        throw new InvalidOperationException("Preset notification style was empty.");
+                    }
 
-                // The preset's surface replaces the target surface wholesale, badge images and
-                // header texts included; a toast preset also carries the toast-only background.
-                if (isFrame)
-                {
-                    merged.Frame = imported.Frame;
-                }
-                else
-                {
-                    merged.Toast = imported.Toast;
-                    merged.ToastBackgroundImagePath = imported.ToastBackgroundImagePath;
-                }
+                    // The preset's surface replaces the target surface wholesale, badge images and
+                    // header texts included; a toast preset also carries the toast-only background.
+                    if (isFrame)
+                    {
+                        merged.Frame = imported.Frame;
+                    }
+                    else
+                    {
+                        merged.Toast = imported.Toast;
+                        merged.ToastBackgroundImagePath = imported.ToastBackgroundImagePath;
+                    }
 
-                ApplyImportedStyle(persisted, providerKey, merged);
+                    ApplyImportedStyle(persisted, providerKey, merged);
 
-                if (!IsGameMode)
-                {
-                    _plugin.PersistSettingsForUi();
+                    if (!IsGameMode)
+                    {
+                        _plugin.PersistSettingsForUi();
+                    }
                 }
-
-                // Drop slot files the replaced style no longer references.
-                _plugin.NotificationImageStore.PruneOrphans(
-                    persisted,
-                    _plugin.GameCustomDataStore?.LoadAll());
+                finally
+                {
+                    // Drop slot files the replaced style no longer references. In a finally so an
+                    // unreadable preset cannot strand the images snapshotted above: nothing was
+                    // persisted on that path, so they are unreferenced and get collected here.
+                    try
+                    {
+                        _plugin.NotificationImageStore.PruneOrphans(
+                            persisted,
+                            _plugin.GameCustomDataStore?.LoadAll());
+                    }
+                    catch (Exception pruneEx)
+                    {
+                        // Never let cleanup replace the failure the caller is about to report.
+                        _logger?.Debug(pruneEx, "Failed pruning orphaned notification images after applying a preset.");
+                    }
+                }
 
                 var templateErrors = new List<string>();
                 try
