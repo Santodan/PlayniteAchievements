@@ -283,7 +283,7 @@ namespace PlayniteAchievements.Services.Images
         /// <summary>
         /// Legacy helper: generate a cache filename from a URI using a SHA256 hash.
         /// New achievement icon writes should use API-name paths instead.
-        /// This is retained for display-time hash-cache lookups (MemoryImageService, GifAnimationHelper).
+        /// This is retained for display-time hash-cache lookups (MemoryImageService, AnimatedImageHelper).
         /// </summary>
         public string GetIconCachePathFromUri(string uri, int decodeSize, string gameId = null)
         {
