@@ -30,6 +30,9 @@ namespace PlayniteAchievements.Services.UI
         // Optional foreground tracker: supplies the learned game window handle, which beats the
         // pid-based resolve for launcher-wrapped titles.
         private readonly ActiveGameWindowTracker _windowTracker;
+        // Whether an unlock is being cut into a clip, so its card must be rendered into an overlay
+        // track even when nothing about it shows on screen. Supplied by the recording service.
+        private readonly Func<AchievementUnlockedEventArgs, bool> _needsOverlayTrack;
         private readonly UnlockScreenshotService _screenshotService;
         private readonly ScreenshotFrameCompositor _frameCompositor;
         private readonly AchievementToastTemplateResolver _templateResolver;
@@ -75,6 +78,10 @@ namespace PlayniteAchievements.Services.UI
         // is that monitor's true effective scale (1.0 = 100%).
         private IntPtr _activeReferenceHwnd;
         private bool _activeIsGame;
+        // Set for a headless wave. The window is never revealed, so it must not insert itself into
+        // the game's z-order; placement itself still runs, because the overlay track reads the
+        // window's physical rect every frame.
+        private bool _activeSuppressZOrder;
         private double _activeMonitorScale = 1.0;
         // The anchor monitor's refresh rate (Hz), resolved with the scale above, or 0 when it can't be
         // read. Every on-screen cadence derives from it: the composition tick that drives the slide
@@ -96,7 +103,8 @@ namespace PlayniteAchievements.Services.UI
             Action ensureResourcesLoaded,
             Func<Guid?, int?> getGameProcessId = null,
             ActiveGameWindowTracker windowTracker = null,
-            GameCustomDataStore gameCustomDataStore = null)
+            GameCustomDataStore gameCustomDataStore = null,
+            Func<AchievementUnlockedEventArgs, bool> needsOverlayTrack = null)
         {
             _api = api;
             _settings = settings;
@@ -105,6 +113,7 @@ namespace PlayniteAchievements.Services.UI
             _getGameProcessId = getGameProcessId;
             _windowTracker = windowTracker;
             _gameCustomDataStore = gameCustomDataStore;
+            _needsOverlayTrack = needsOverlayTrack;
             _screenshotService = new UnlockScreenshotService(logger);
             _frameCompositor = new ScreenshotFrameCompositor(logger);
             _templateResolver = new AchievementToastTemplateResolver(
@@ -208,20 +217,28 @@ namespace PlayniteAchievements.Services.UI
                 return;
             }
 
+            // Resolved here, synchronously with the recording service's own handler on this same
+            // event, so a capture session starting or stopping cannot make the two disagree by
+            // the time the enqueue lands on the UI thread.
+            var needsOverlayTrack = NeedsOverlayTrack(e);
+
             var dispatcher = GetDispatcher();
             if (dispatcher == null || dispatcher.CheckAccess())
             {
-                EnqueueOnUi(e);
+                EnqueueOnUi(e, needsOverlayTrack);
                 return;
             }
 
-            dispatcher.BeginInvoke(new Action(() => EnqueueOnUi(e)), DispatcherPriority.Background);
+            dispatcher.BeginInvoke(
+                new Action(() => EnqueueOnUi(e, needsOverlayTrack)), DispatcherPriority.Background);
         }
 
         /// <summary>
-        /// Whether an unlock enters the wave pipeline at all: it either toasts, or (own unlocks
-        /// only) has at least one screenshot variant enabled. Screenshots no longer require
-        /// toasts — a screenshot-only wave runs the pipeline windowless.
+        /// Whether an unlock enters the wave pipeline at all. It qualifies if it shows a
+        /// notification, or (own unlocks only) if it owes notification imagery to something that
+        /// is not the screen: a screenshot variant, or a clip overlay track. A wave with no
+        /// on-screen notification runs headless when a card is owed, and windowless when it
+        /// is not.
         /// </summary>
         private bool ShouldProcess(AchievementUnlockedEventArgs args)
         {
@@ -240,6 +257,13 @@ namespace PlayniteAchievements.Services.UI
                 return false;
             }
 
+            // A clip being cut for this unlock needs a rendered card for its overlay track, even
+            // with every notification and screenshot turned off.
+            if (NeedsOverlayTrack(args))
+            {
+                return true;
+            }
+
             var persisted = _settings?.Persisted;
             if (persisted?.EnableUnlockScreenshots != true ||
                 string.IsNullOrWhiteSpace(persisted.UnlockScreenshotDirectory))
@@ -247,64 +271,25 @@ namespace PlayniteAchievements.Services.UI
                 return false;
             }
 
-            if (!System.Enum.TryParse(args.RarityTier, true, out RarityTier rarity))
-            {
-                rarity = RarityTier.Common;
-            }
-
-            var isCompletion = args.IsGameCompleted || args.IsCompletionAchievement || args.IsCapstone;
-
-            // Pipeline entry mirrors the old AnyScreenshot semantics: a screenshot-only wave still
-            // runs windowless, so assume a toast will show here; the with-toast variant is
-            // re-checked against the real toast state when the wave plan is built.
-            return ResolveQualifyingVariants(rarity, isCompletion, args.ProviderKey, persisted, toastWillShow: true)
+            return UnlockScreenshotVariantPolicy.Resolve(
+                ResolveRarity(args), IsCompletionUnlock(args), args.ProviderKey, persisted)
                 != ScreenshotVariants.None;
         }
 
         /// <summary>
-        /// The screenshot variants enabled for this provider whose own per-variant rarity threshold
-        /// this unlock clears. The with-notification variant additionally requires an on-screen
-        /// toast (without one it would just duplicate the clean capture).
+        /// Whether a clip is being cut for this unlock, so its card must be realized and sampled
+        /// into an overlay track regardless of what shows on screen. False when no recording
+        /// service is wired in.
         /// </summary>
-        private static ScreenshotVariants ResolveQualifyingVariants(
-            RarityTier rarity,
-            bool isCompletion,
-            string providerKey,
-            PersistedSettings persisted,
-            bool toastWillShow)
-        {
-            var effective = ProviderNotificationPolicy.Resolve(persisted, providerKey);
-            var variants = ScreenshotVariants.None;
+        private bool NeedsOverlayTrack(AchievementUnlockedEventArgs args) =>
+            args != null && !args.IsPreview && !args.IsFriendUnlock &&
+            (_needsOverlayTrack?.Invoke(args) ?? false);
 
-            if (effective.ScreenshotClean && UnlockCaptureRarityFilter.ShouldCapture(
-                    rarity,
-                    isCompletion,
-                    persisted.UnlockScreenshotCleanRarities,
-                    persisted.UnlockScreenshotCleanAlwaysCaptureCompletion))
-            {
-                variants |= ScreenshotVariants.Clean;
-            }
+        private static RarityTier ResolveRarity(AchievementUnlockedEventArgs args) =>
+            System.Enum.TryParse(args.RarityTier, true, out RarityTier rarity) ? rarity : RarityTier.Common;
 
-            if (effective.ScreenshotWithToast && toastWillShow && UnlockCaptureRarityFilter.ShouldCapture(
-                    rarity,
-                    isCompletion,
-                    persisted.UnlockScreenshotWithToastRarities,
-                    persisted.UnlockScreenshotWithToastAlwaysCaptureCompletion))
-            {
-                variants |= ScreenshotVariants.WithToast;
-            }
-
-            if (effective.ScreenshotFramed && UnlockCaptureRarityFilter.ShouldCapture(
-                    rarity,
-                    isCompletion,
-                    persisted.UnlockScreenshotFramedRarities,
-                    persisted.UnlockScreenshotFramedAlwaysCaptureCompletion))
-            {
-                variants |= ScreenshotVariants.Framed;
-            }
-
-            return variants;
-        }
+        private static bool IsCompletionUnlock(AchievementUnlockedEventArgs args) =>
+            args.IsGameCompleted || args.IsCompletionAchievement || args.IsCapstone;
 
         /// <summary>
         /// Whether this unlock shows an on-screen toast. Previews always toast; otherwise the
@@ -324,9 +309,11 @@ namespace PlayniteAchievements.Services.UI
                 : effective.UnlockToasts;
         }
 
-        private void EnqueueOnUi(AchievementUnlockedEventArgs args)
+        private void EnqueueOnUi(AchievementUnlockedEventArgs args, bool needsOverlayTrack)
         {
-            if (_disposed || !ShouldProcess(args))
+            // An owed overlay track survives the re-check: the clip request already exists, so
+            // dropping the item here would leave that clip waiting out its track timeout.
+            if (_disposed || !(needsOverlayTrack || ShouldProcess(args)))
             {
                 return;
             }
@@ -337,7 +324,10 @@ namespace PlayniteAchievements.Services.UI
                 args,
                 _settings?.Persisted,
                 styleOverride: args.PreviewStyleOverride,
-                gameCustomDataStore: _gameCustomDataStore));
+                gameCustomDataStore: _gameCustomDataStore)
+            {
+                NeedsOverlayTrack = needsOverlayTrack,
+            });
             if (!_processing)
             {
                 _processing = true;
@@ -1024,6 +1014,82 @@ namespace PlayniteAchievements.Services.UI
             return _windowTracker.IsGameWindowVisible(vm.PlayniteGameId);
         }
 
+        /// <summary>
+        /// How a wave runs. Notification imagery is rendered from a real toast card either way;
+        /// the mode only decides whether that card is ever revealed or sounded.
+        /// </summary>
+        private enum WaveMode
+        {
+            /// <summary>
+            /// No card is needed: capture the base surface, save clean/framed, never create a
+            /// window.
+            /// </summary>
+            CaptureOnly,
+
+            /// <summary>
+            /// Cards are realized in a window that is never revealed and plays no chime. Feeds the
+            /// with-notification composite and the clip overlay track.
+            /// </summary>
+            Headless,
+
+            /// <summary>The on-screen notification: chime, vibration, reveal, hold, slide-out.</summary>
+            Visible,
+        }
+
+        private sealed class WavePlan
+        {
+            public WaveMode Mode { get; set; }
+
+            /// <summary>Items realized as cards in the window. Empty only for CaptureOnly.</summary>
+            public IReadOnlyList<AchievementToastViewModel> CardItems { get; set; }
+
+            public WaveScreenshotPlan Screenshots { get; set; }
+
+            public bool IsVisible => Mode == WaveMode.Visible;
+        }
+
+        /// <summary>
+        /// Splits a wave into what is shown and what is merely rendered. Toasting items decide the
+        /// mode; when nothing toasts, a card is still realized — invisibly — for every item that
+        /// owes a with-notification screenshot or a clip overlay track.
+        /// </summary>
+        private WavePlan ResolveWavePlan(IReadOnlyList<AchievementToastViewModel> wave)
+        {
+            var screenshots = BuildScreenshotPlan(wave);
+
+            // Toasts, screenshots and clips gate independently: a wave can contain items that
+            // toast, items that only produce capture output, or a mix (waves batch by friend/own
+            // only).
+            var toastItems = wave
+                .Where(vm => ShouldToast(vm.IsPreview, vm.IsFriendUnlock, vm.ProviderKey))
+                .ToList();
+            if (toastItems.Count > 0)
+            {
+                return new WavePlan
+                {
+                    Mode = WaveMode.Visible,
+                    CardItems = toastItems,
+                    Screenshots = screenshots,
+                };
+            }
+
+            var withToastVms = new HashSet<AchievementToastViewModel>(
+                screenshots?.Items
+                    .Where(i => (i.Variants & ScreenshotVariants.WithToast) != 0)
+                    .Select(i => i.Vm)
+                    ?? Enumerable.Empty<AchievementToastViewModel>());
+            var cardItems = wave
+                .Where(vm => vm.NeedsOverlayTrack || withToastVms.Contains(vm))
+                .ToList();
+
+            return new WavePlan
+            {
+                Mode = cardItems.Count > 0 ? WaveMode.Headless : WaveMode.CaptureOnly,
+                CardItems = cardItems,
+                Screenshots = screenshots,
+            };
+        }
+
         private async Task ShowWaveAsync(IReadOnlyList<AchievementToastViewModel> wave)
         {
             if (wave == null || wave.Count == 0)
@@ -1047,28 +1113,25 @@ namespace PlayniteAchievements.Services.UI
             var waveGameId = wave[0].PlayniteGameId;
             _activeWaveGameId = waveGameId != Guid.Empty ? waveGameId : (Guid?)null;
 
-            // Toasts and screenshots gate independently: a wave can contain items that toast,
-            // items that only produce screenshots, or a mix (waves batch by friend/own only).
-            var toastItems = wave
-                .Where(vm => ShouldToast(vm.IsPreview, vm.IsFriendUnlock, vm.ProviderKey))
-                .ToList();
+            var wavePlan = ResolveWavePlan(wave);
+            var cardItems = wavePlan.CardItems;
+            var visible = wavePlan.IsVisible;
+            var plan = wavePlan.Screenshots;
 
             // The base capture must precede window.Show(); overlapping it with the sound-align
             // delay below adds no latency to the toast itself. It feeds every variant: clean saves
             // it as-is, framed composites the frame onto it, and with-notification composites each
-            // item's rendered card onto a copy of it. With-toast variants are dropped when nothing
-            // in the wave toasts (they would just duplicate the clean shot).
-            var plan = BuildScreenshotPlan(wave, toastItems.Count > 0);
+            // item's rendered card onto a copy of it.
             Task<System.Drawing.Bitmap> baseCaptureTask = null;
             if (plan != null)
             {
                 baseCaptureTask = StartWaveSurfaceCapture(waveIsTestFire);
             }
 
-            // Screenshot-only wave: no sound, no window, no delays — capture and save. Running
-            // this inside the sequential wave pipeline guarantees no earlier wave's toast is
-            // still on screen, keeping the clean shot clean.
-            if (toastItems.Count == 0)
+            // Nothing needs a card: capture and save, no window, no delays. Running this inside
+            // the sequential wave pipeline is what keeps the out-of-game monitor capture free of
+            // an earlier wave's toast, and keeps the per-wave placement state single-owner.
+            if (wavePlan.Mode == WaveMode.CaptureOnly)
             {
                 if (plan != null)
                 {
@@ -1078,19 +1141,26 @@ namespace PlayniteAchievements.Services.UI
                 return;
             }
 
-            // Play the sound first, then show the toast after a short delay so the audio onset and
-            // the slide-in visually align.
-            var soundPlayedUtc = PlayWaveSound(toastItems);
-            await Task.Delay(SoundAlignmentDelayMs).ConfigureAwait(true);
-            if (_disposed)
+            // Chime and vibration belong to the on-screen notification, so a headless wave skips
+            // both — and skips the alignment delay that exists only to line them up with the
+            // reveal. Its clips carry no chime because none was played.
+            DateTime? soundPlayedUtc = null;
+            if (visible)
             {
-                DisposeCaptureTask(baseCaptureTask);
-                return;
-            }
+                // Play the sound first, then show the toast after a short delay so the audio onset
+                // and the slide-in visually align.
+                soundPlayedUtc = PlayWaveSound(cardItems);
+                await Task.Delay(SoundAlignmentDelayMs).ConfigureAwait(true);
+                if (_disposed)
+                {
+                    DisposeCaptureTask(baseCaptureTask);
+                    return;
+                }
 
-            // Pulse after the same alignment delay: the motors start in-process, so firing at launch
-            // time would put the vibration ahead of the audible chime.
-            VibrateControllers();
+                // Pulse after the same alignment delay: the motors start in-process, so firing at
+                // launch time would put the vibration ahead of the audible chime.
+                VibrateControllers();
+            }
 
             var window = PlayniteUiProvider.CreateBorderlessTopmostWindow(
                 _api,
@@ -1102,18 +1172,18 @@ namespace PlayniteAchievements.Services.UI
             // preview source vs normal theme-styling resolve) and the host element are built through
             // the shared ToastSurfaceFactory so the live toast and the settings inline preview
             // cannot drift.
-            var waveProviderKey = toastItems.FirstOrDefault()?.ProviderKey;
+            var waveProviderKey = cardItems.FirstOrDefault()?.ProviderKey;
             var waveScopeGameId = _activeWaveGameId ?? Guid.Empty;
             // A fire-test carries a forced preview source; captured here for the render-failure
             // handler below (the template decision itself lives in ToastSurfaceFactory).
-            var previewSource = toastItems
+            var previewSource = cardItems
                 .Select(vm => vm.PreviewTemplateSource)
                 .FirstOrDefault(source => source.HasValue);
             var template = ToastSurfaceFactory.ResolveToastTemplate(
-                _templateResolver, toastItems, ToastThemeStylingEnabled, waveProviderKey, waveScopeGameId);
-            var items = ToastSurfaceFactory.BuildToastSurface(toastItems, template);
+                _templateResolver, cardItems, ToastThemeStylingEnabled, waveProviderKey, waveScopeGameId);
+            var items = ToastSurfaceFactory.BuildToastSurface(cardItems, template);
 
-            LogWaveDiagnostics(toastItems, template);
+            LogWaveDiagnostics(cardItems, template, wavePlan.Mode);
 
             window.Content = items;
 
@@ -1148,8 +1218,11 @@ namespace PlayniteAchievements.Services.UI
             // windows behind it. Instead the toast is inserted directly above the game in the z-order
             // each frame (see the follow below), which leaves the game and every other window in
             // place: the toast just sits over the game and is naturally occluded by anything above it.
-            // Out-of-game / preview keeps the topmost float over Playnite.
-            if (_activeIsGame && _activeReferenceHwnd != IntPtr.Zero)
+            // Out-of-game / preview keeps the topmost float over Playnite. A headless wave is never
+            // revealed, so it drops topmost unconditionally and stays out of the z-order entirely
+            // (see _activeSuppressZOrder) — it has no business floating over anything.
+            _activeSuppressZOrder = !visible;
+            if (!visible || (_activeIsGame && _activeReferenceHwnd != IntPtr.Zero))
             {
                 window.Topmost = false;
             }
@@ -1204,7 +1277,8 @@ namespace PlayniteAchievements.Services.UI
                     Math.Abs(_activeMonitorScale - systemScale) >= DpiSettleTolerance;
                 _logger?.Info(
                     $"[Toast] Fire: monitorScale={_activeMonitorScale:0.###}, systemScale={systemScale:0.###}, " +
-                    $"perMonitorWindow={needsPerMonitorWindow}, isGame={_activeIsGame}");
+                    $"perMonitorWindow={needsPerMonitorWindow}, isGame={_activeIsGame}, " +
+                    $"headless={!visible}");
                 if (needsPerMonitorWindow)
                 {
                     using (Common.DpiAwarenessScope.PerMonitorV2())
@@ -1240,13 +1314,14 @@ namespace PlayniteAchievements.Services.UI
                 }
 
                 // Now on the target monitor with the DPI settled: correct the compensation from the
-                // actual render scale, snap to the corner, and reveal.
+                // actual render scale, snap to the corner, and (for a visible wave) reveal.
                 ApplyDpiCompensation(window, items, fitScale);
                 PlaceWindow(window, "shown");
-                SlideInPhysical(window);
+                SlideInPhysical(window, reveal: visible);
 
-                // Start recording each card's overlay track now, at the reveal, so the slide-in
-                // animation lands in the tracks (not just the settled toast). Tracks are sampled at the
+                // Start recording each card's overlay track now, at the slide-in — revealed or not
+                // — so the slide-in animation lands in the tracks (not just the settled toast).
+                // Tracks are sampled at the
                 // recording frame rate and re-timed into each achievement's clip at export. Independent
                 // of the placement hooks below (sampling only reads, never moves the window). Game anchor
                 // only — a test fire out of game has no video — and only with recordings enabled, since
@@ -1256,7 +1331,7 @@ namespace PlayniteAchievements.Services.UI
                 {
                     var sampleIntervalMs = TrackSampleIntervalMs();
                     trackRecorder = new ToastOverlayTrackRecorder(_logger, sampleIntervalMs);
-                    SampleWaveTracks(trackRecorder, window, toastItems, 0d);
+                    SampleWaveTracks(trackRecorder, window, cardItems, 0d);
                     trackSampleCount = 1;
                     // The unconditional resample also carries animation frames into the tracks (min
                     // effective frame delay is 100ms for both GIF and WebP per AnimatedImageHelper) — do
@@ -1290,7 +1365,7 @@ namespace PlayniteAchievements.Services.UI
                             while (nextDueMs <= elapsedMs);
 
                             trackSampleCount++;
-                            SampleWaveTracks(recorder, window, toastItems, elapsedMs);
+                            SampleWaveTracks(recorder, window, cardItems, elapsedMs);
                         }
                         catch
                         {
@@ -1300,8 +1375,10 @@ namespace PlayniteAchievements.Services.UI
                     CompositionTarget.Rendering += onTrackSample;
                 }
 
-                // Let the toast finish sliding in and paint, then capture (so the toast is in the
-                // frame), then hold for the remaining display time.
+                // Let the cards finish sliding in and paint so each renders at its final laid-out
+                // size (achievement icons and badge images load asynchronously), then snap,
+                // composite the with-notification shots, and hold for the remaining display time.
+                // The base capture itself already ran, before the window existed.
                 const int captureDelayMs = 300;
                 await Task.Delay(captureDelayMs).ConfigureAwait(true);
                 if (_disposed)
@@ -1314,14 +1391,15 @@ namespace PlayniteAchievements.Services.UI
                 StopActiveSlide();
                 PlaceWindow(window, "snap");
 
-                // The wave is now fully visible: signal the recording service (a liveness bump for
-                // its track wait, plus this wave's chime time for the clip audio mix — clip
-                // windows themselves are unlock-anchored).
-                RaiseWaveDisplayed(toastItems, soundPlayedUtc);
+                // The wave has settled, revealed or not: signal the recording service (a liveness
+                // bump for its track wait, plus this wave's chime time for the clip audio mix —
+                // clip windows themselves are unlock-anchored). A headless wave passes a null
+                // chime time, so its clips are mixed without one.
+                RaiseWaveDisplayed(cardItems, soundPlayedUtc);
 
                 // Layout and placement are final: pin each card's synthetic single-toast corner so
                 // its recorded motion lands where a genuine lone toast would sit.
-                SetTrackCornerOffsets(trackRecorder, window, toastItems);
+                SetTrackCornerOffsets(trackRecorder, window, cardItems);
 
                 // The with-notification composites happen here: the toast has slid in and settled,
                 // so each item's card renders at its final laid-out size. Cards render on the UI
@@ -1337,6 +1415,15 @@ namespace PlayniteAchievements.Services.UI
                 {
                     _ = SaveWaveScreenshotsAsync(plan, baseCaptureTask, toastByVm);
                     baseCaptureTask = null;
+                }
+
+                // An invisible wave that owes no overlay track has already produced everything it
+                // exists for: nothing left to follow, animate, hold or slide out. The finally block
+                // closes the window. Skipping the hold is what keeps a screenshot-only
+                // configuration from occupying the sequential queue for a full display duration.
+                if (!visible && trackRecorder == null)
+                {
+                    return;
                 }
 
                 // Follow the anchor window every rendered frame (smooth while dragging). The anchor
@@ -1433,6 +1520,7 @@ namespace PlayniteAchievements.Services.UI
                 StopActiveSlide();
                 _activeReferenceHwnd = IntPtr.Zero;
                 _activeIsGame = false;
+                _activeSuppressZOrder = false;
                 _activeMonitorScale = 1.0;
 
                 try
@@ -1569,9 +1657,7 @@ namespace PlayniteAchievements.Services.UI
         /// nothing should be captured (previews, friend waves, screenshots disabled, no directory,
         /// or every item resolved to no variants).
         /// </summary>
-        private WaveScreenshotPlan BuildScreenshotPlan(
-            IReadOnlyList<AchievementToastViewModel> wave,
-            bool toastWillShow)
+        private WaveScreenshotPlan BuildScreenshotPlan(IReadOnlyList<AchievementToastViewModel> wave)
         {
             if (wave == null || wave.Count == 0)
             {
@@ -1610,12 +1696,11 @@ namespace PlayniteAchievements.Services.UI
                 // Each variant is gated independently by its own per-variant rarity threshold and
                 // completion bypass. The policy ANDs the EnableUnlockScreenshots master switch into
                 // each variant flag.
-                var variants = ResolveQualifyingVariants(
+                var variants = UnlockScreenshotVariantPolicy.Resolve(
                     vm.Rarity,
                     vm.IsGameCompleted || vm.IsCompletionAchievement || vm.IsCapstone,
                     vm.ProviderKey,
-                    persisted,
-                    toastWillShow);
+                    persisted);
 
                 if (variants != ScreenshotVariants.None)
                 {
@@ -1796,7 +1881,8 @@ namespace PlayniteAchievements.Services.UI
         /// user's log answer whether a mixed-DPI topology or a SizeToContent/DPI HWND mismatch is
         /// behind toast clipping.
         /// </summary>
-        private void LogWaveDiagnostics(IReadOnlyList<AchievementToastViewModel> toastItems, DataTemplate template)
+        private void LogWaveDiagnostics(
+            IReadOnlyList<AchievementToastViewModel> cardItems, DataTemplate template, WaveMode mode)
         {
             if (!Common.PerfScope.PerfTracingEnabled)
             {
@@ -1813,10 +1899,11 @@ namespace PlayniteAchievements.Services.UI
 
                 _logger?.Info(string.Format(
                     System.Globalization.CultureInfo.InvariantCulture,
-                    "Toast wave: corner={0} template={1} items={2} gameHwnd=0x{3:X}",
+                    "Toast wave: mode={0} corner={1} template={2} items={3} gameHwnd=0x{4:X}",
+                    mode,
                     _activePosition,
                     templateSource,
-                    toastItems?.Count ?? 0,
+                    cardItems?.Count ?? 0,
                     gameHwnd.ToInt64()));
                 _logger?.Info(ToastPlacementDiagnostics.DescribeEnvironment(_api));
             }
@@ -1983,8 +2070,8 @@ namespace PlayniteAchievements.Services.UI
             // Keep the toast directly above the game window in the z-order (not owned, so the game is
             // never raised). Re-asserted every placement/follow frame so it stays interleaved as the
             // user moves between windows. Only for a running-game anchor; the Playnite/preview case
-            // keeps its topmost float.
-            if (_activeIsGame && _activeReferenceHwnd != IntPtr.Zero)
+            // keeps its topmost float, and a headless wave stays out of the z-order entirely.
+            if (!_activeSuppressZOrder && _activeIsGame && _activeReferenceHwnd != IntPtr.Zero)
             {
                 ToastWindowPlacer.SetZOrderAbove(window, _activeReferenceHwnd);
             }
@@ -2288,14 +2375,23 @@ namespace PlayniteAchievements.Services.UI
             }
         }
 
-        private void SlideInPhysical(Window window)
+        /// <summary>
+        /// Runs the slide-in and, when <paramref name="reveal"/> is set, makes the window visible.
+        /// A headless wave slides without revealing: the motion is what the overlay track records,
+        /// so the composited clip shows the same slide-in a visible notification would.
+        /// </summary>
+        private void SlideInPhysical(Window window, bool reveal)
         {
             if (window == null)
             {
                 return;
             }
 
-            window.Opacity = 1;
+            if (reveal)
+            {
+                window.Opacity = 1;
+            }
+
             if (!TryComputeRestingCorner(window, out var rx, out var ry))
             {
                 return;
