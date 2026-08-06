@@ -128,9 +128,9 @@ namespace PlayniteAchievements.ViewModels.Settings
         public IReadOnlyList<FontFamilyOption> FontFamilyOptions => EnsureFontFamilyOptions();
 
         /// <summary>
-        /// Builds (once, process-wide) the system font-family list. Enumerating
-        /// <see cref="Fonts.SystemFontFamilies"/> and culture-sorting it is slow, so it is cached and
-        /// guarded so a background pre-warm and the first UI access never build it twice.
+        /// Builds (once, process-wide) the picker list: the "theme default" sentinel followed by
+        /// <see cref="SystemFontCatalog.Families"/>. Cached and guarded so a background pre-warm and
+        /// the first UI access never build it twice.
         /// </summary>
         private static IReadOnlyList<FontFamilyOption> EnsureFontFamilyOptions()
         {
@@ -216,6 +216,11 @@ namespace PlayniteAchievements.ViewModels.Settings
                 return options.FirstOrDefault();
             }
 
+            // A stored family the catalog doesn't list (an uninstalled font, or one that came from a
+            // machine that has it) falls back to the "inherit" sentinel, which is what the surface
+            // actually renders with: ResolveFontFamily can't resolve the name either. The fallback
+            // has to be an entry that exists in the list, because a Selector pushes SelectedItem
+            // back as null when the bound value isn't among its items.
             return options.FirstOrDefault(option =>
                        string.Equals(option.FamilyName, familyName, StringComparison.OrdinalIgnoreCase))
                    ?? options.FirstOrDefault();
@@ -1999,9 +2004,7 @@ namespace PlayniteAchievements.ViewModels.Settings
                     previewFamily: System.Windows.SystemFonts.MessageFontFamily)
             };
 
-            options.AddRange(Fonts.SystemFontFamilies
-                .Select(family => new FontFamilyOption(family.Source, family.Source, family))
-                .OrderBy(option => option.DisplayName, StringComparer.CurrentCultureIgnoreCase));
+            options.AddRange(SystemFontCatalog.Families);
 
             return options;
         }
@@ -2106,26 +2109,6 @@ namespace PlayniteAchievements.ViewModels.Settings
         public RarityPercentPlacement Value { get; }
 
         public string Display { get; }
-    }
-
-    /// <summary>
-    /// One entry of the font family picker. A null <see cref="FamilyName"/> means the theme
-    /// default; <see cref="PreviewFamily"/> is never null so item rendering has a valid font.
-    /// </summary>
-    internal sealed class FontFamilyOption
-    {
-        public FontFamilyOption(string displayName, string familyName, FontFamily previewFamily)
-        {
-            DisplayName = displayName;
-            FamilyName = familyName;
-            PreviewFamily = previewFamily;
-        }
-
-        public string DisplayName { get; }
-
-        public string FamilyName { get; }
-
-        public FontFamily PreviewFamily { get; }
     }
 
     /// <summary>
