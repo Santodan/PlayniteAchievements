@@ -8,7 +8,14 @@
              xmlns:nav="clr-namespace:PlayniteAchievements.Views.Settings.Navigation"
              mc:Ignorable="d"
              d:DesignHeight="600"
-             d:DesignWidth="700">
+             d:DesignWidth="700"
+             UseLayoutRounding="True"
+             SnapsToDevicePixels="True">
+
+    <!-- UseLayoutRounding/SnapsToDevicePixels are declared on this root rather than left to the
+         host window, because the usual host is Playnite's own Settings dialog, which the plugin does
+         not create and cannot configure. The popout path already gets them from
+         PlayniteUiProvider.CreateExtensionWindow, which carries the full rationale. -->
 
     <UserControl.Resources>
         <ResourceDictionary>
