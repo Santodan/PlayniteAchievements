@@ -75,6 +75,46 @@ namespace PlayniteAchievements.Views.Helpers
         public static bool GetPhaseLock(DependencyObject element) =>
             (bool)element.GetValue(PhaseLockProperty);
 
+        // The rate (Hz) the pulse's clock is asked to tick at; 0 (default) leaves WPF's default rate.
+        // Inherited so a host can set it once on the window and have every glow in the subtree pick it
+        // up — the toast pipeline sets its anchor monitor's refresh rate, while grid and settings
+        // surfaces, which span monitors and outlive any one placement, stay on the default.
+        public static readonly DependencyProperty DesiredFrameRateProperty =
+            DependencyProperty.RegisterAttached(
+                "DesiredFrameRate", typeof(int), typeof(RarityGlowPulse),
+                new FrameworkPropertyMetadata(0, FrameworkPropertyMetadataOptions.Inherits));
+
+        public static void SetDesiredFrameRate(DependencyObject element, int value) =>
+            element.SetValue(DesiredFrameRateProperty, value);
+
+        public static int GetDesiredFrameRate(DependencyObject element) =>
+            (int)element.GetValue(DesiredFrameRateProperty);
+
+        /// <summary>
+        /// Restarts the pulse on every active glow in a subtree, picking up the current
+        /// <see cref="DesiredFrameRateProperty"/>. A running animation's clock rate cannot be changed in
+        /// place, so a host that learns its frame rate after the tree was built (the toast, whose anchor
+        /// monitor is resolved after its content is assigned) sets the property and calls this.
+        /// </summary>
+        public static void ReapplyIn(DependencyObject root)
+        {
+            if (root == null)
+            {
+                return;
+            }
+
+            if (root is FrameworkElement element && element.IsLoaded && GetIsActive(element))
+            {
+                ApplyAnimation(element, PlayniteAchievementsPlugin.Instance?.Settings?.Persisted);
+            }
+
+            var count = System.Windows.Media.VisualTreeHelper.GetChildrenCount(root);
+            for (var i = 0; i < count; i++)
+            {
+                ReapplyIn(System.Windows.Media.VisualTreeHelper.GetChild(root, i));
+            }
+        }
+
         // Stores the per-element settings-changed handler so it can be detached (kept only while
         // the element is loaded and active, so it never outlives the element on the app-lifetime
         // PersistedSettings instance).
@@ -231,6 +271,13 @@ namespace PlayniteAchievements.Views.Helpers
                 RepeatBehavior = RepeatBehavior.Forever,
                 EasingFunction = new SineEase { EasingMode = EasingMode.EaseInOut }
             };
+
+            // Tick at the host's presentation rate when it declared one, else leave WPF's default.
+            var desiredFrameRate = GetDesiredFrameRate(element);
+            if (desiredFrameRate > 0)
+            {
+                Timeline.SetDesiredFrameRate(animation, desiredFrameRate);
+            }
 
             if (GetTarget(element) == RarityGlowPulseTarget.Effect)
             {
