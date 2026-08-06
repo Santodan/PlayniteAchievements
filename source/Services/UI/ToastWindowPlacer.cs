@@ -120,15 +120,21 @@ namespace PlayniteAchievements.Services.UI
         }
 
         /// <summary>
-        /// A learned constant offset between the coordinates handed to <c>SetWindowPos</c> and where
-        /// the toast HWND actually lands, accumulated across a wave's settled placements and applied
-        /// to every move of that wave. This is what rescues a coordinate-space disagreement between
-        /// the anchor rect and the window's own DPI context — the case that leaves a toast entirely
-        /// off-screen at a display scale we cannot reproduce. Only the settled stages measure, so the
-        /// per-frame follow path never re-reads (and so never moves the window back and forth).
+        /// A constant offset between the coordinates handed to <c>SetWindowPos</c> and where the toast
+        /// HWND actually lands, measured once on a wave's first settled placement and applied to every
+        /// move of that wave. This is what rescues a coordinate-space disagreement between the anchor
+        /// rect and the window's own DPI context — the case that leaves a toast entirely off-screen at
+        /// a display scale we cannot reproduce.
+        ///
+        /// Deliberately measured once and then fixed. Re-measuring on later placements would correct a
+        /// pure translation no better, and would oscillate if the two spaces differ by a scale factor:
+        /// each pass would compute the delta that undoes the previous pass's correction. One pass
+        /// leaves the toast visible in every case, and the warning the caller logs carries the target
+        /// and the achieved rect, so the exact relationship is recoverable from a user's log.
         /// </summary>
         internal struct PlacementCorrection
         {
+            public bool Measured;
             public int OffsetX;
             public int OffsetY;
         }
@@ -530,8 +536,8 @@ namespace PlayniteAchievements.Services.UI
 
         /// <summary>
         /// Positions the toast at the requested corner of the game's client rect in physical pixels,
-        /// applying (and, on a measured pass, refining) the placement correction described by
-        /// <see cref="PlacementCorrection"/>. <paramref name="measure"/> should be true only for a
+        /// applying (and, on the first measured pass, establishing) the placement correction described
+        /// by <see cref="PlacementCorrection"/>. <paramref name="measure"/> should be true only for a
         /// settled placement — the pre-show pass has no laid-out size and the per-frame follow must
         /// not re-measure. Reports what happened via <paramref name="outcome"/>; returns false if the
         /// corner could not be computed.
@@ -560,16 +566,21 @@ namespace PlayniteAchievements.Services.UI
             outcome.TargetY = y;
             outcome.Clamped = clamped;
             outcome.Moved = MovePhysical(window, x + correction.OffsetX, y + correction.OffsetY);
-            if (!outcome.Moved || !measure || !TryGetPhysicalRect(window, out var actual))
+            if (!outcome.Moved || !measure || correction.Measured)
             {
                 return true;
             }
 
-            // Settled placement: check where the window really landed. If it is not where we asked,
-            // the coordinates we hand SetWindowPos and the space the anchor rect was read in disagree.
-            // Fold the delta into the correction and re-issue — one move per measured pass, so a
-            // later settled pass refines the offset rather than fighting it, and the unmeasured
-            // per-frame path just reuses whatever has been learned.
+            // First settled placement of this wave: check where the window really landed. If it is not
+            // where we asked, the coordinates we hand SetWindowPos and the space the anchor rect was
+            // read in disagree — record the delta and re-issue once. Marked measured either way, so
+            // this runs exactly once per wave and every later move reuses the same offset.
+            correction.Measured = true;
+            if (!TryGetPhysicalRect(window, out var actual))
+            {
+                return true;
+            }
+
             outcome.Achieved = actual;
             var dx = x - actual.Left;
             var dy = y - actual.Top;
@@ -579,10 +590,9 @@ namespace PlayniteAchievements.Services.UI
             }
 
             outcome.Mismatched = true;
-            correction.OffsetX += dx;
-            correction.OffsetY += dy;
-            if (MovePhysical(window, x + correction.OffsetX, y + correction.OffsetY) &&
-                TryGetPhysicalRect(window, out var corrected))
+            correction.OffsetX = dx;
+            correction.OffsetY = dy;
+            if (MovePhysical(window, x + dx, y + dy) && TryGetPhysicalRect(window, out var corrected))
             {
                 outcome.Achieved = corrected;
             }
