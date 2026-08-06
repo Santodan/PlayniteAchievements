@@ -1137,8 +1137,8 @@ namespace PlayniteAchievements.Models.Settings
 
         /// <summary>
         /// When true, a screenshot of the game's monitor is saved for each of your own unlock
-        /// waves. Independent of unlock toasts (the with-toast variant is skipped when no toast
-        /// shows). Opt-in since it writes files to disk.
+        /// waves. Fully independent of unlock toasts: every variant is produced whether or not a
+        /// notification is shown. Opt-in since it writes files to disk.
         /// </summary>
         public bool EnableUnlockScreenshots
         {
@@ -1147,7 +1147,8 @@ namespace PlayniteAchievements.Models.Settings
         }
 
         /// <summary>
-        /// Save a screenshot captured before the toast window is shown (game only, no overlay).
+        /// Save a clean per-window capture of the game, taken before any notification window
+        /// exists (game only, no overlay).
         /// </summary>
         public bool UnlockScreenshotClean
         {
@@ -1156,7 +1157,9 @@ namespace PlayniteAchievements.Models.Settings
         }
 
         /// <summary>
-        /// Save a screenshot captured after the toast slides in (toast visible in frame).
+        /// Save the clean capture with this unlock's notification card composited into the corner.
+        /// The card is rendered for the shot even when notifications are turned off, so the file
+        /// always shows one.
         /// </summary>
         public bool UnlockScreenshotWithToast
         {
