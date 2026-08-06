@@ -117,6 +117,7 @@ namespace PlayniteAchievements.Services.Capture
                 outputType.Set(MediaTypeAttributeKeys.FrameSize, Pack(width, height));
                 outputType.Set(MediaTypeAttributeKeys.FrameRate, Pack(fps, 1));
                 outputType.Set(MediaTypeAttributeKeys.PixelAspectRatio, Pack(1, 1));
+                MediaFoundationColor.ApplyBt709LimitedOutput(outputType);
                 _writer.AddStream(outputType, out _streamIndex);
             }
 
@@ -128,6 +129,7 @@ namespace PlayniteAchievements.Services.Capture
                 inputType.Set(MediaTypeAttributeKeys.FrameSize, Pack(width, height));
                 inputType.Set(MediaTypeAttributeKeys.FrameRate, Pack(fps, 1));
                 inputType.Set(MediaTypeAttributeKeys.PixelAspectRatio, Pack(1, 1));
+                MediaFoundationColor.ApplyFullRangeRgbInput(inputType);
                 _writer.SetInputMediaType(_streamIndex, inputType, null);
             }
 
