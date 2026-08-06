@@ -235,6 +235,7 @@ namespace PlayniteAchievements.Views.ManageAchievements
                 elements.Add(LockAllButton);
                 elements.Add(ManualAchievementsDataGrid);
                 elements.Add(UnlinkButton);
+                elements.Add(DisplayPlatformComboBox);
                 elements.Add(SaveButton);
                 elements.Add(EditCancelButton);
             }
