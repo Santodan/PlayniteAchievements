@@ -43,5 +43,13 @@ namespace PlayniteAchievements.Providers.RetroAchievements.EmulatorLog
 
         /// <summary>Last observed hardcore-mode state for the running session (softcore until proven otherwise).</summary>
         public bool Hardcore { get; set; }
+
+        /// <summary>
+        /// True once this session has completed one successful read. The in-game monitor treats a
+        /// source's first successful read as a silent baseline, so the remote feed backstop only
+        /// contributes observations from the second read onwards. Distinct from <see cref="Primed"/>,
+        /// which tracks the log offset and stays false while the log file does not exist yet.
+        /// </summary>
+        public bool BaselineRead { get; set; }
     }
 }
