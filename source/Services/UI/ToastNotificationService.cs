@@ -73,6 +73,11 @@ namespace PlayniteAchievements.Services.UI
         private double _activeMonitorScale = 1.0;
         // The running physical slide's per-frame tick handler (CompositionTarget.Rendering), or null.
         private EventHandler _activeSlideTick;
+        // Per-wave placement state: the offset between where SetWindowPos is asked to put the toast
+        // and where its HWND lands (learned once, on the first settled placement of the wave), and
+        // whether this wave has already logged that its placement needed rescuing.
+        private ToastWindowPlacer.PlacementCorrection _placementCorrection;
+        private bool _placementAnomalyLogged;
         // Throttle (Environment.TickCount) for sampling the toast cards into their overlay tracks.
         private int _lastTrackSampleTick;
 
@@ -1025,6 +1030,10 @@ namespace PlayniteAchievements.Services.UI
             // both read the resolved value.
             _activePosition = EffectivePosition();
             _activeCardGlow = wave[0].ToastGlowMargin.Top;
+            // Placement state is per-wave: the correction is learned once on this wave's first settled
+            // placement, and the anomaly warning is emitted at most once for it.
+            _placementCorrection = default(ToastWindowPlacer.PlacementCorrection);
+            _placementAnomalyLogged = false;
             var waveGameId = wave[0].PlayniteGameId;
             _activeWaveGameId = waveGameId != Guid.Empty ? waveGameId : (Guid?)null;
 
@@ -1783,12 +1792,16 @@ namespace PlayniteAchievements.Services.UI
                 return;
             }
 
+            // Verify where the window really landed only on the settled stages: "preshow" runs before
+            // the window has a laid-out size, and "rendered" can still be mid-DPI-settle.
+            var measure = stage == "shown" || stage == "snap";
+
             // Position the per-monitor toast in physical pixels relative to the anchor.
-            if (TryPlacePhysical(window, out var px, out var py) &&
+            if (TryPlacePhysical(window, measure, out var outcome) &&
                 stage != null && Common.PerfScope.PerfTracingEnabled)
             {
                 _logger?.Info(ToastPlacementDiagnostics.DescribePhysicalPlacement(
-                    stage, window, _activeReferenceHwnd, _activeMonitorScale, px, py));
+                    stage, window, _activeReferenceHwnd, _activeMonitorScale, outcome.TargetX, outcome.TargetY));
             }
         }
 
@@ -1803,7 +1816,7 @@ namespace PlayniteAchievements.Services.UI
                 return;
             }
 
-            TryPlacePhysical(window, out _, out _);
+            TryPlacePhysical(window, false, out _);
         }
 
         private bool AlignRight()
@@ -1856,10 +1869,9 @@ namespace PlayniteAchievements.Services.UI
         /// <see cref="ToastWindowPlacer"/>. Returns false (doing nothing) when the anchor can't be
         /// measured.
         /// </summary>
-        private bool TryPlacePhysical(Window window, out int x, out int y)
+        private bool TryPlacePhysical(Window window, bool measure, out ToastWindowPlacer.PlacementOutcome outcome)
         {
-            x = 0;
-            y = 0;
+            outcome = default(ToastWindowPlacer.PlacementOutcome);
             if (!TryResolveAnchor(out var anchorPhys))
             {
                 return false;
@@ -1867,7 +1879,9 @@ namespace PlayniteAchievements.Services.UI
 
             var renderScale = ToastWindowPlacer.RenderScale(window);
             var placed = ToastWindowPlacer.PositionPhysical(
-                window, anchorPhys, renderScale, _activeMonitorScale, AlignRight(), AlignBottom(), EffectiveGapDip(), out x, out y);
+                window, anchorPhys, renderScale, _activeMonitorScale, AlignRight(), AlignBottom(), EffectiveGapDip(),
+                measure, ref _placementCorrection, out outcome);
+            LogPlacementAnomaly(window, anchorPhys, renderScale, outcome);
 
             // Keep the toast directly above the game window in the z-order (not owned, so the game is
             // never raised). Re-asserted every placement/follow frame so it stays interleaved as the
@@ -1881,6 +1895,63 @@ namespace PlayniteAchievements.Services.UI
             return placed;
         }
 
+        /// <summary>
+        /// Emits one warning per wave when a placement had to be rescued — the computed corner fell
+        /// outside the anchor, or the HWND did not land where <c>SetWindowPos</c> was asked to put it.
+        /// Both mean the coordinate spaces feeding the corner math disagree, which is what makes a
+        /// toast invisible at a display scale we cannot reproduce, so the line carries everything
+        /// needed to identify the setup. Silent on a healthy placement, and capped at one line because
+        /// the per-frame follow path runs through here on every rendered frame.
+        /// </summary>
+        private void LogPlacementAnomaly(
+            Window window,
+            System.Drawing.Rectangle anchorPhys,
+            double renderScale,
+            ToastWindowPlacer.PlacementOutcome outcome)
+        {
+            if (_placementAnomalyLogged || (!outcome.Clamped && !outcome.Mismatched))
+            {
+                return;
+            }
+
+            _placementAnomalyLogged = true;
+            try
+            {
+                var achieved = outcome.Achieved.IsEmpty
+                    ? "unread"
+                    : $"({outcome.Achieved.Left},{outcome.Achieved.Top} {outcome.Achieved.Width}x{outcome.Achieved.Height})";
+                _logger?.Warn(string.Format(
+                    System.Globalization.CultureInfo.InvariantCulture,
+                    "[Toast] Placement corrected: corner={0} clamped={1} mismatched={2} target=({3},{4}) actual={5} " +
+                    "offset=({6},{7}) anchor=({8},{9} {10}x{11}) monScale={12:0.###} sysScale={13:0.###} " +
+                    "render={14:0.###} size={15:0.0}x{16:0.0} thread={17} isGame={18}",
+                    _activePosition,
+                    outcome.Clamped,
+                    outcome.Mismatched,
+                    outcome.TargetX,
+                    outcome.TargetY,
+                    achieved,
+                    _placementCorrection.OffsetX,
+                    _placementCorrection.OffsetY,
+                    anchorPhys.Left,
+                    anchorPhys.Top,
+                    anchorPhys.Width,
+                    anchorPhys.Height,
+                    _activeMonitorScale,
+                    ToastWindowPlacer.SystemScale(),
+                    renderScale,
+                    window?.ActualWidth ?? 0,
+                    window?.ActualHeight ?? 0,
+                    Common.DpiAwarenessScope.DescribeThreadContext(),
+                    _activeIsGame));
+                _logger?.Warn(ToastPlacementDiagnostics.DescribeEnvironment(_api));
+            }
+            catch (Exception ex)
+            {
+                _logger?.Debug(ex, "Toast placement anomaly logging failed.");
+            }
+        }
+
         private bool TryComputeRestingCorner(Window window, out int x, out int y)
         {
             x = 0;
@@ -1892,7 +1963,8 @@ namespace PlayniteAchievements.Services.UI
 
             var renderScale = ToastWindowPlacer.RenderScale(window);
             return ToastWindowPlacer.TryComputeCorner(
-                window, anchorPhys, renderScale, _activeMonitorScale, AlignRight(), AlignBottom(), EffectiveGapDip(), out x, out y);
+                window, anchorPhys, renderScale, _activeMonitorScale, AlignRight(), AlignBottom(), EffectiveGapDip(),
+                out x, out y, out _);
         }
 
         /// <summary>
@@ -2123,7 +2195,7 @@ namespace PlayniteAchievements.Services.UI
             StopActiveSlide();
             if (durationMs <= 0)
             {
-                ToastWindowPlacer.MovePhysical(window, x, toY);
+                MoveCorrected(window, x, toY);
                 return;
             }
 
@@ -2134,7 +2206,7 @@ namespace PlayniteAchievements.Services.UI
                 var t = Math.Min(1.0, stopwatch.Elapsed.TotalMilliseconds / durationMs);
                 var k = ease != null ? ease.Ease(t) : t;
                 var y = (int)Math.Round(fromY + ((toY - fromY) * k));
-                ToastWindowPlacer.MovePhysical(window, x, y);
+                MoveCorrected(window, x, y);
                 if (t >= 1.0)
                 {
                     CompositionTarget.Rendering -= tick;
@@ -2146,8 +2218,17 @@ namespace PlayniteAchievements.Services.UI
             };
 
             _activeSlideTick = tick;
-            ToastWindowPlacer.MovePhysical(window, x, fromY);
+            MoveCorrected(window, x, fromY);
             CompositionTarget.Rendering += tick;
+        }
+
+        // Slide frames move the HWND directly (deliberately off the anchor corner, so they must not be
+        // clamped), but they still go through the wave's learned placement correction — otherwise a
+        // corrected resting position would jump from an uncorrected slide.
+        private void MoveCorrected(Window window, int x, int y)
+        {
+            ToastWindowPlacer.MovePhysical(
+                window, x + _placementCorrection.OffsetX, y + _placementCorrection.OffsetY);
         }
 
         private void StopActiveSlide()
