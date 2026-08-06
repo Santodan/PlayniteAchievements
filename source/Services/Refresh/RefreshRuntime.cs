@@ -1030,12 +1030,7 @@ namespace PlayniteAchievements.Services.Refresh
             {
                 // Recorded before the payload check: a provider that produced no payload still ran,
                 // and its notification should still be eligible for clearing.
-                var executedKey = result?.Provider?.ProviderKey;
-                if (!string.IsNullOrWhiteSpace(executedKey) &&
-                    !executedProviderKeys.Contains(executedKey, StringComparer.OrdinalIgnoreCase))
-                {
-                    executedProviderKeys.Add(executedKey);
-                }
+                RecordExecutedProvider(result, executedProviderKeys);
 
                 if (result?.Payload == null)
                 {
@@ -1081,6 +1076,22 @@ namespace PlayniteAchievements.Services.Refresh
                 FaultedProviderKeys = faultedProviderKeys,
                 ExecutedProviderKeys = executedProviderKeys
             };
+        }
+
+        /// <summary>
+        /// Records that a provider took part in this refresh, so clearing its auth-failed
+        /// notification is scoped to the providers the run actually spoke to.
+        /// </summary>
+        private static void RecordExecutedProvider(
+            ProviderRefreshExecutor.ProviderExecutionResult result,
+            List<string> executedProviderKeys)
+        {
+            var key = result?.Provider?.ProviderKey;
+            if (!string.IsNullOrWhiteSpace(key) &&
+                !executedProviderKeys.Contains(key, StringComparer.OrdinalIgnoreCase))
+            {
+                executedProviderKeys.Add(key);
+            }
         }
 
         /// <summary>
@@ -1419,6 +1430,7 @@ namespace PlayniteAchievements.Services.Refresh
                     {
                         FriendRefreshCoordinator.Merge(payload, result?.Payload);
                         RecordProviderFault(result, payload.FaultedProviderKeys);
+                        RecordExecutedProvider(result, payload.ExecutedProviderKeys);
                     }
 
                     // Merge dedupes RefreshedGameIds but sums per-provider pass counts; report the
