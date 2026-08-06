@@ -49,6 +49,16 @@ namespace PlayniteAchievements.Services.UI
         [return: MarshalAs(UnmanagedType.Bool)]
         private static extern bool GetMonitorInfo(IntPtr hMonitor, ref MONITORINFO lpmi);
 
+        // The MONITORINFO overload above carries no strings, so the ANSI default binds fine; the EX
+        // variant's szDevice does not, hence the explicit W entry point.
+        [DllImport("user32.dll", EntryPoint = "GetMonitorInfoW", CharSet = CharSet.Unicode)]
+        [return: MarshalAs(UnmanagedType.Bool)]
+        private static extern bool GetMonitorInfoEx(IntPtr hMonitor, ref MONITORINFOEX lpmi);
+
+        [DllImport("user32.dll", CharSet = CharSet.Unicode)]
+        [return: MarshalAs(UnmanagedType.Bool)]
+        private static extern bool EnumDisplaySettings(string deviceName, int modeNum, ref DEVMODE devMode);
+
         [StructLayout(LayoutKind.Sequential)]
         private struct RECT
         {
@@ -67,6 +77,56 @@ namespace PlayniteAchievements.Services.UI
             public uint dwFlags;
         }
 
+        [StructLayout(LayoutKind.Sequential, CharSet = CharSet.Unicode)]
+        private struct MONITORINFOEX
+        {
+            public int cbSize;
+            public RECT rcMonitor;
+            public RECT rcWork;
+            public uint dwFlags;
+
+            /// <summary>The display device name EnumDisplaySettings takes (e.g. <c>\\.\DISPLAY1</c>).</summary>
+            [MarshalAs(UnmanagedType.ByValTStr, SizeConst = 32)]
+            public string szDevice;
+        }
+
+        [StructLayout(LayoutKind.Sequential, CharSet = CharSet.Unicode)]
+        private struct DEVMODE
+        {
+            [MarshalAs(UnmanagedType.ByValTStr, SizeConst = 32)]
+            public string dmDeviceName;
+            public ushort dmSpecVersion;
+            public ushort dmDriverVersion;
+            public ushort dmSize;
+            public ushort dmDriverExtra;
+            public uint dmFields;
+            public int dmPositionX;
+            public int dmPositionY;
+            public uint dmDisplayOrientation;
+            public uint dmDisplayFixedOutput;
+            public short dmColor;
+            public short dmDuplex;
+            public short dmYResolution;
+            public short dmTTOption;
+            public short dmCollate;
+            [MarshalAs(UnmanagedType.ByValTStr, SizeConst = 32)]
+            public string dmFormName;
+            public ushort dmLogPixels;
+            public uint dmBitsPerPel;
+            public uint dmPelsWidth;
+            public uint dmPelsHeight;
+            public uint dmDisplayFlags;
+            public uint dmDisplayFrequency;
+            public uint dmICMMethod;
+            public uint dmICMIntent;
+            public uint dmMediaType;
+            public uint dmDitherType;
+            public uint dmReserved1;
+            public uint dmReserved2;
+            public uint dmPanningWidth;
+            public uint dmPanningHeight;
+        }
+
         private const uint SWP_NOSIZE = 0x0001;
         private const uint SWP_NOMOVE = 0x0002;
         private const uint SWP_NOZORDER = 0x0004;
@@ -78,6 +138,11 @@ namespace PlayniteAchievements.Services.UI
         private static readonly IntPtr HWND_TOPMOST = new IntPtr(-1);
         private const uint MONITOR_DEFAULTTONEAREST = 2;
         private const int MDT_EFFECTIVE_DPI = 0;
+        private const int ENUM_CURRENT_SETTINGS = -1;
+        // dmDisplayFrequency uses 0 and 1 to mean "the hardware's default rate" rather than a real
+        // frequency; anything outside this range is treated as unusable.
+        private const int MinRefreshHz = 24;
+        private const int MaxRefreshHz = 480;
         // Windows' baseline DPI: a monitor reporting this is at 100% scale.
         private const double StandardDpi = 96.0;
 
@@ -193,6 +258,61 @@ namespace PlayniteAchievements.Services.UI
             }
 
             return 1.0;
+        }
+
+        /// <summary>
+        /// The refresh rate (Hz) of the monitor the given window is on, resolved from the same
+        /// <c>MonitorFromWindow</c> nearest-monitor rule as <see cref="ResolveMonitorScale"/>. This is the
+        /// rate the toast's on-screen animation can actually be presented at: the composition tick that
+        /// drives the slide cannot outpace it, and the WPF timelines in the card have no reason to.
+        ///
+        /// No Per-Monitor-V2 scope here — a display frequency is not a coordinate or a scale, so DPI
+        /// awareness does not virtualize it. Returns false (and 0) whenever the rate can't be trusted,
+        /// leaving callers on their own defaults.
+        /// </summary>
+        public static bool TryGetMonitorRefreshHz(IntPtr windowHandle, out int hz)
+        {
+            hz = 0;
+            if (windowHandle == IntPtr.Zero)
+            {
+                return false;
+            }
+
+            try
+            {
+                var monitor = MonitorFromWindow(windowHandle, MONITOR_DEFAULTTONEAREST);
+                if (monitor == IntPtr.Zero)
+                {
+                    return false;
+                }
+
+                var info = new MONITORINFOEX { cbSize = Marshal.SizeOf(typeof(MONITORINFOEX)) };
+                if (!GetMonitorInfoEx(monitor, ref info) || string.IsNullOrEmpty(info.szDevice))
+                {
+                    return false;
+                }
+
+                var mode = new DEVMODE { dmSize = (ushort)Marshal.SizeOf(typeof(DEVMODE)) };
+                if (!EnumDisplaySettings(info.szDevice, ENUM_CURRENT_SETTINGS, ref mode))
+                {
+                    return false;
+                }
+
+                var frequency = (int)mode.dmDisplayFrequency;
+                if (frequency < MinRefreshHz || frequency > MaxRefreshHz)
+                {
+                    return false;
+                }
+
+                hz = frequency;
+                return true;
+            }
+            catch
+            {
+                // Fall through to failure.
+            }
+
+            return false;
         }
 
         /// <summary>
