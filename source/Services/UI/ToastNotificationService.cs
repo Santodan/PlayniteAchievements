@@ -2255,6 +2255,7 @@ namespace PlayniteAchievements.Services.UI
                 System.Diagnostics.Stopwatch.StartNew();
             private bool _sourceChosen;
             private bool _useRenderingTime;
+            private double _firstMs;
             private double _lastMs = double.NegativeInfinity;
 
             /// <summary>Distinct composed frames observed.</summary>
@@ -2262,8 +2263,6 @@ namespace PlayniteAchievements.Services.UI
 
             /// <summary>Mean interval between the observed frames (ms); 0 below two frames.</summary>
             public double MeanIntervalMs => Frames > 1 ? (_lastMs - _firstMs) / (Frames - 1) : 0d;
-
-            private double _firstMs;
 
             /// <summary>
             /// True when this event carries a frame not seen yet, with <paramref name="elapsedMs"/> set to
