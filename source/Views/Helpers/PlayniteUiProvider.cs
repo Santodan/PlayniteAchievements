@@ -14,6 +14,10 @@ namespace PlayniteAchievements.Views.Helpers
     {
         private const string FullscreenWindowTag = "PlayniteAchievementsFullscreen";
 
+        // Matches ToastNotificationService.DpiSettleTolerance: below this the monitor scale and the
+        // render scale are the same scale read through two APIs, not a real mismatch.
+        private const double MonitorScaleTolerance = 0.01;
+
         public static void RestoreMainView()
         {
             API.Instance.MainView.SwitchToLibraryView();
@@ -214,10 +218,21 @@ namespace PlayniteAchievements.Views.Helpers
         }
 
         /// <summary>
-        /// Sizes and positions a manual-placement window to cover the entire monitor the
-        /// reference window is on (physical monitor bounds converted to DIPs via the reference's
-        /// presentation source). Returns the monitor's physical pixel bounds, or null when
-        /// placement failed and the window was left untouched.
+        /// Sizes and positions a manual-placement window to cover the entire monitor the reference
+        /// window is on, and returns that monitor's true physical pixel bounds (or null when
+        /// placement failed and the window was left untouched).
+        ///
+        /// The bounds come from <see cref="Services.UI.ToastWindowPlacer.TryGetMonitorBoundsPhysical"/>
+        /// rather than <c>System.Windows.Forms.Screen.Bounds</c>, which is DPI-virtualized and
+        /// process-cached in this system-aware host and therefore reports the wrong size on a monitor
+        /// whose scale differs from the process's system DPI. Callers size a render canvas from the
+        /// returned rect, so a virtualized value silently scales the whole composition.
+        ///
+        /// On a monitor whose scale disagrees with the system DPI the HWND is realized Per-Monitor-V2
+        /// and placed in physical pixels, matching the toast path. The guard is the same one
+        /// ToastNotificationService uses: when the scales already agree Windows never virtualizes the
+        /// window, and forcing a per-monitor HWND anyway routes WM_DPICHANGED through WPF's shared DPI
+        /// state and has been observed to rescale siblings and crash on single-monitor high-DPI setups.
         /// </summary>
         public static System.Drawing.Rectangle? PlaceOnWindowMonitor(Window window, Window reference)
         {
@@ -231,30 +246,67 @@ namespace PlayniteAchievements.Views.Helpers
                 var handle = reference != null
                     ? new System.Windows.Interop.WindowInteropHelper(reference).Handle
                     : IntPtr.Zero;
-                var screen = handle != IntPtr.Zero
-                    ? System.Windows.Forms.Screen.FromHandle(handle)
-                    : System.Windows.Forms.Screen.PrimaryScreen;
-                var bounds = screen?.Bounds;
-                if (bounds == null || bounds.Value.Width <= 0 || bounds.Value.Height <= 0)
+                if (handle == IntPtr.Zero)
+                {
+                    // The monitor is resolved from an HWND, so fall back to the host's main window
+                    // rather than losing placement entirely when no reference was passed.
+                    handle = Services.UI.ToastWindowPlacer.Handle(Application.Current?.MainWindow);
+                }
+
+                if (!Services.UI.ToastWindowPlacer.TryGetMonitorBoundsPhysical(handle, out var bounds))
                 {
                     return null;
                 }
 
-                var toDips = Matrix.Identity;
-                var source = reference != null ? PresentationSource.FromVisual(reference) : null;
-                if (source?.CompositionTarget != null)
+                var monitorScale = Services.UI.ToastWindowPlacer.ResolveMonitorScale(handle);
+                var systemScale = Services.UI.ToastWindowPlacer.SystemScale();
+                var needsPerMonitorWindow = systemScale > 0 &&
+                    Math.Abs(monitorScale - systemScale) >= MonitorScaleTolerance;
+
+                window.WindowStartupLocation = WindowStartupLocation.Manual;
+
+                if (needsPerMonitorWindow)
                 {
-                    toDips = source.CompositionTarget.TransformFromDevice;
+                    using (DpiAwarenessScope.PerMonitorV2())
+                    {
+                        new System.Windows.Interop.WindowInteropHelper(window).EnsureHandle();
+                    }
                 }
 
-                var topLeft = toDips.Transform(new Point(bounds.Value.Left, bounds.Value.Top));
-                var size = toDips.Transform(new Point(bounds.Value.Width, bounds.Value.Height));
-                window.WindowStartupLocation = WindowStartupLocation.Manual;
-                window.Left = topLeft.X;
-                window.Top = topLeft.Y;
-                window.Width = size.X;
-                window.Height = size.Y;
-                return bounds.Value;
+                // Seed WPF's own DIP placement either way: Show() applies Left/Top/Width/Height from
+                // these properties, so leaving them unset would move the window off the rect that the
+                // physical pass sets below. Converted through the window's own render scale, which is
+                // the scale WPF will interpret them at.
+                var renderScale = needsPerMonitorWindow
+                    ? Services.UI.ToastWindowPlacer.RenderScale(window)
+                    : systemScale;
+                if (renderScale <= 0)
+                {
+                    renderScale = 1.0;
+                }
+
+                window.Left = bounds.Left / renderScale;
+                window.Top = bounds.Top / renderScale;
+                window.Width = bounds.Width / renderScale;
+                window.Height = bounds.Height / renderScale;
+
+                if (needsPerMonitorWindow)
+                {
+                    // Pre-show placement, then re-assert once the window is presented: Show() applies
+                    // the DIP properties above and WM_DPICHANGED can resize the window again, so the
+                    // physical rect only sticks if it is set after presentation too.
+                    Services.UI.ToastWindowPlacer.SetBoundsPhysical(window, bounds);
+
+                    EventHandler onRendered = null;
+                    onRendered = (s, e) =>
+                    {
+                        window.ContentRendered -= onRendered;
+                        Services.UI.ToastWindowPlacer.SetBoundsPhysical(window, bounds);
+                    };
+                    window.ContentRendered += onRendered;
+                }
+
+                return bounds;
             }
             catch
             {
