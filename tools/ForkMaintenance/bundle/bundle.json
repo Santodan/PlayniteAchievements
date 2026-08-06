@@ -1,6 +1,6 @@
 {
     "schemaVersion":  1,
-    "generatedUtc":  "2026-08-06T13:13:39.0008039Z",
+    "generatedUtc":  "2026-08-06T13:20:35.6367752Z",
     "baselineRef":  "v3.1.0",
     "baselineCommit":  "8fb84ef5f965919c95fd8a6f1492ccb832bb7c0b",
     "protectedPaths":  [
@@ -10,7 +10,7 @@
                        ],
     "patch":  {
                   "path":  "fork-changes.patch",
-                  "sha256":  "569E2849D9E810C305A6D441ED8A5F114DC3E5032B069B1CBACBA0823E0FADFB"
+                  "sha256":  "1F7DA317A9ABF463832FC34CD22A08EAF4935B4D7873E57D1DDDE19591A8783D"
               },
     "localizationRecipes":  {
                                 "path":  "localization-recipes.json",
@@ -305,7 +305,7 @@
                          },
                          {
                              "path":  "source/Views/LegacyNotificationSettingsControl.xaml.cs",
-                             "sha256":  "9370FF5ED1D24A386A8E7279AB9414FF9F820A31466AD509E0EC204BE87A64B9"
+                             "sha256":  "F9E31EEF1717C71CB14EF193474D8FBFFA618ECA32D15D5D2E1C34C22A4B2430"
                          },
                          {
                              "path":  "source/Views/LocalAchievementEditorControl.xaml",

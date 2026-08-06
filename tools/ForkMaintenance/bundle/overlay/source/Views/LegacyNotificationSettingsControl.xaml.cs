@@ -629,6 +629,7 @@ namespace PlayniteAchievements.Views
         private bool _isRefreshingNotificationStyleSelection;
         private bool _isRefreshingOverlayPresetControls;
         private bool _isRefreshingCustomStyleSlotSelection;
+        private bool _isSynchronizingUnlockRecordingSetting;
         private bool _achievementNotificationDebugSettingReady;
         private ICollectionView _providerNavigationView;
         private bool _providerNavigationBuilt;
@@ -1048,6 +1049,9 @@ namespace PlayniteAchievements.Views
                         _notificationPreviewSettings.PropertyChanged += LocalNotificationSettings_PropertyChanged;
                     }
 
+                    SyncUnlockRecordingSetting(
+                        _settingsViewModel?.Settings?.Persisted?.EnableUnlockRecordings ?? false);
+
                     RefreshAchievementNotificationControls(localSettings);
                     _achievementNotificationDebugSettingReady = true;
                 }
@@ -1144,6 +1148,14 @@ namespace PlayniteAchievements.Views
             if (!(sender is Providers.Local.LocalSettings localSettings))
             {
                 return;
+            }
+
+            if (string.Equals(
+                    e.PropertyName,
+                    nameof(Providers.Local.LocalSettings.EnableUnlockRecordings),
+                    StringComparison.Ordinal))
+            {
+                SyncUnlockRecordingSetting(localSettings.EnableUnlockRecordings);
             }
 
             if (string.Equals(e.PropertyName, nameof(Providers.Local.LocalSettings.UnlockOverlayTransitionStyle), StringComparison.Ordinal))
@@ -8240,6 +8252,12 @@ namespace PlayniteAchievements.Views
         {
             var persisted = _settingsViewModel?.Settings?.Persisted;
             if (persisted != null &&
+                e.PropertyName == nameof(Models.Settings.PersistedSettings.EnableUnlockRecordings))
+            {
+                SyncUnlockRecordingSetting(persisted.EnableUnlockRecordings);
+            }
+
+            if (persisted != null &&
                 e.PropertyName == nameof(Models.Settings.PersistedSettings.DefaultAchievementSortMode) &&
                 persisted.DefaultAchievementSortMode == Models.Settings.CompactListSortMode.DisplayOrder &&
                 persisted.DefaultAchievementSortDescending)
@@ -8284,6 +8302,35 @@ namespace PlayniteAchievements.Views
             if (refreshProperties.Contains(e.PropertyName))
             {
                 RefreshMockPreviews();
+            }
+        }
+
+        private void SyncUnlockRecordingSetting(bool enabled)
+        {
+            if (_isSynchronizingUnlockRecordingSetting)
+            {
+                return;
+            }
+
+            _isSynchronizingUnlockRecordingSetting = true;
+            try
+            {
+                var persisted = _settingsViewModel?.Settings?.Persisted;
+                if (persisted != null && persisted.EnableUnlockRecordings != enabled)
+                {
+                    persisted.EnableUnlockRecordings = enabled;
+                }
+
+                var localSettings = _notificationPreviewSettings ??
+                    _providerRegistry?.GetSettingsForEdit("Local") as Providers.Local.LocalSettings;
+                if (localSettings != null && localSettings.EnableUnlockRecordings != enabled)
+                {
+                    localSettings.EnableUnlockRecordings = enabled;
+                }
+            }
+            finally
+            {
+                _isSynchronizingUnlockRecordingSetting = false;
             }
         }
 

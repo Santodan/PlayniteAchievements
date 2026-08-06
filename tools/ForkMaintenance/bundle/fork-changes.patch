@@ -19775,4 +19775,3 @@ index 880a621ac658128dfc3328f6f65ebf3dd5c8c751..cb74debb9c19a7af23a8c2441d0ab984
              StringAssert.Contains(
                  card.NextTierThresholdText,
                  AchievementRankPresentation.FormatRank(snapshot.NextRank));
-warning: in the working copy of 'source/Services/NotificationPublisher.cs', LF will be replaced by CRLF the next time Git touches it
