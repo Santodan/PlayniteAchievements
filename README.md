@@ -99,13 +99,14 @@ The entries below are fork-side changes, grouped by date. When a date includes a
 
 ## Next release - TBD
 
+## 2026-08-06 - v3.1.0.1
+
 - v3.1.0 merge
 - Added the setting for the automatic theme migration under the `Theme Migration` tab
 - Fixed the friend's achievements not appearing correctly when two friends's accounts are merged
 - Added logs for the screenshot and for the video from the `Achievement Notification`
 - Removed the always on overlay for the `Achievement Notification`
 - Fixed the `<rarity>` wildcard showing the rarity tier instead of percentage.
-
 
 ## 2026-08-02 - v3.0.0.1
 
@@ -133,6 +134,10 @@ The entries below are fork-side changes, grouped by date. When a date includes a
 - Added Debug mode for the achievement notification to generate additional logs
 - The setting to have the overlay in the same monitor as the game for multiple monitors is set to false as default
 
+
+## Old Changelogs
+<details>
+
 ## 2026-07-20 - v2.5.3.3
 - Trying to make the WebView notification quicker
 - Fixed a duplicate playnite window in the `ALT+TAB` menu in windows
@@ -155,9 +160,6 @@ The entries below are fork-side changes, grouped by date. When a date includes a
 - Added a setting to have the overlay in the same monitor as the game for multiple monitors
 - Fixed the notification not showing the achievement's icon when offline
 - Guides added to the github
-
-## Old Changelogs
-<details>
 
 ## 2026-07-09 - v2.5.3.2
 - Fixed the multiple folders detection showing the list index instead of the folder path
