@@ -61,6 +61,87 @@ namespace PlayniteAchievements.Services.Tests.Capture
             Assert.AreEqual(2, track.FindSampleIndexAtOrBefore(10.0));
         }
 
+        // === Resample cadence ===
+        //
+        // Tracks are sampled once per recording frame, so a clip at that same frame rate must advance
+        // one sample per frame. Getting a distinct sample only every other frame is the judder these
+        // guard against, and it is invisible in the output unless asserted.
+
+        /// <summary>Sample times as the recorder stores them: rounded to whole ms.</summary>
+        private static ToastOverlayTrack TrackSampledAt(double fps, int frames)
+        {
+            var track = new ToastOverlayTrack();
+            for (var i = 0; i < frames; i++)
+            {
+                track.Samples.Add(new ToastOverlayTrack.Sample
+                {
+                    ElapsedMs = (int)Math.Round(i * (1000.0 / fps)),
+                    FrameIndex = 0,
+                });
+            }
+
+            return track;
+        }
+
+        private static int DistinctSamplesOverPlayback(ToastOverlayTrack track, double fps, int frames)
+        {
+            var indices = new int[frames];
+            for (var i = 0; i < frames; i++)
+            {
+                indices[i] = track.FindSampleIndexAtOrBefore(i / fps);
+            }
+
+            return indices.Distinct().Count();
+        }
+
+        [TestMethod]
+        public void FindSample_SixtyFpsTrackAtSixtyFps_AdvancesEveryFrame()
+        {
+            var track = TrackSampledAt(60, 61);
+
+            for (var frame = 0; frame < 61; frame++)
+            {
+                Assert.AreEqual(
+                    frame, track.FindSampleIndexAtOrBefore(frame / 60.0),
+                    $"frame {frame} did not resolve to its own sample");
+            }
+        }
+
+        [TestMethod]
+        public void FindSample_ThirtyFpsTrackAtThirtyFps_AdvancesEveryFrame()
+        {
+            var track = TrackSampledAt(30, 31);
+
+            for (var frame = 0; frame < 31; frame++)
+            {
+                Assert.AreEqual(frame, track.FindSampleIndexAtOrBefore(frame / 30.0));
+            }
+        }
+
+        [TestMethod]
+        public void FindSample_SixtyFpsTrackAtSixtyFps_DoesNotHoldPositionsInPairs()
+        {
+            // The pre-change behaviour: a ~30 Hz track played at 60 fps yielded ~31 distinct
+            // positions across 61 frames. Sampling at the recording rate must not land near that.
+            var atRate = DistinctSamplesOverPlayback(TrackSampledAt(60, 61), 60.0, 61);
+            var atHalfRate = DistinctSamplesOverPlayback(TrackSampledAt(30, 31), 60.0, 61);
+
+            Assert.AreEqual(61, atRate);
+            Assert.IsTrue(atHalfRate <= 31, $"expected pair-held playback, got {atHalfRate} distinct");
+        }
+
+        [TestMethod]
+        public void FindSample_TrackSampledFasterThanPlayback_SkipsEvenly()
+        {
+            // Recording at 30 fps while the track was sampled at 60: every other sample is unused,
+            // never the same one twice.
+            var track = TrackSampledAt(60, 61);
+
+            Assert.AreEqual(0, track.FindSampleIndexAtOrBefore(0.0));
+            Assert.AreEqual(2, track.FindSampleIndexAtOrBefore(1 / 30.0));
+            Assert.AreEqual(4, track.FindSampleIndexAtOrBefore(2 / 30.0));
+        }
+
         // === Frame round-trip ===
 
         [TestMethod]
