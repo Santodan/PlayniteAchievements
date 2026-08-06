@@ -454,10 +454,16 @@ namespace PlayniteAchievements.Services.UI
         /// and every variant shares one identical frame. In game the base is the client-area
         /// window capture and cards anchor to the client rect; the out-of-game test fire reuses
         /// the wave's single monitor capture and anchors cards to the monitor work area (the same
-        /// anchor the live toast is placed against). Items whose card can't be rendered degrade
-        /// to the plain base clone; a null base capture yields null (with-toast files are
-        /// skipped). Never disposes or mutates the base bitmap — the save pipeline owns it via
-        /// the capture task.
+        /// anchor the live toast is placed against). The source window may be a headless one that
+        /// is never revealed — the card render is layout-driven and does not read window opacity.
+        /// <para>
+        /// Invariant: a saved with-notification screenshot always contains a rendered notification
+        /// card. It degrades to a plain clone of the base capture only when the card cannot be
+        /// rendered or the anchor geometry cannot be resolved — never because notifications are
+        /// turned off. A null base capture yields null (with-toast files are skipped).
+        /// </para>
+        /// Never disposes or mutates the base bitmap — the save pipeline owns it via the capture
+        /// task.
         /// </summary>
         private async Task<Dictionary<AchievementToastViewModel, System.Drawing.Bitmap>> ComposeWaveWithToastAsync(
             WaveScreenshotPlan plan, Window window, bool isTestFire,
@@ -506,9 +512,9 @@ namespace PlayniteAchievements.Services.UI
             }
 
             // UI thread: render each card and compute its synthetic single-toast corner rect. Map
-            // by VM identity — the screenshot plan and the on-screen toast items can differ (per
-            // variant rarity policy vs ShouldToast); an item with no card on screen degrades to
-            // the plain base clone.
+            // by VM identity — the screenshot plan and the wave's realized cards can differ, since
+            // each variant carries its own rarity policy; an item with no realized card degrades
+            // to the plain base clone.
             var itemsControl = window?.Content as ItemsControl;
             var overlays = new List<(AchievementToastViewModel Vm, System.Drawing.Bitmap Overlay, System.Drawing.Rectangle Rect)>();
             foreach (var vm in withToastVms)
@@ -747,8 +753,9 @@ namespace PlayniteAchievements.Services.UI
         /// per item, the card's rendered pixels plus its client-relative physical rect. The
         /// per-item tracks are re-timed into each achievement's unlock clip at export (WGC's
         /// per-window video capture can't see the separate toast window). Called by the caller once per
-        /// recording frame, with that frame's composition time; a no-op when not a game anchor. UI
-        /// thread only.
+        /// recording frame, with that frame's composition time; a no-op when not a game anchor. The
+        /// window may be a headless one that is never revealed — rendering a card reads layout, not
+        /// visibility. UI thread only.
         /// </summary>
         private void SampleWaveTracks(
             ToastOverlayTrackRecorder recorder, Window window,
@@ -993,8 +1000,9 @@ namespace PlayniteAchievements.Services.UI
         /// A wave may show whenever its game's window is visible — focused, unfocused, or covered by
         /// another window all count. Previews, unlocks without a game id, and games that aren't
         /// running (e.g. friend unlocks for unowned titles) are always ready. The only thing that
-        /// holds a running game's wave is a minimized window: there is then no surface to place the
-        /// notification over (the toast z-orders above the game) or to capture. The toast is owned by
+        /// holds a running game's wave is a minimized window: a minimized window cannot be
+        /// WGC-captured, and offers no surface to place a visible notification over (the toast
+        /// z-orders above the game), so visible and headless waves both hold. The toast is owned by
         /// the game window, so an unfocused/occluded game still gets a correctly-interleaved toast.
         /// </summary>
         private bool IsWaveGameReady(AchievementToastViewModel vm)
@@ -1563,12 +1571,13 @@ namespace PlayniteAchievements.Services.UI
         }
 
         /// <summary>
-        /// Holds the wave on screen for its remaining display time. The toast is owned by / z-ordered
-        /// above the game window (see <see cref="ShowWaveAsync"/>), so the OS occludes and hides it in
-        /// lockstep with the game — covered when the game is covered, hidden when the game is
-        /// minimized — with no manual focus-based hide/show. The countdown-bar animation runs on
-        /// wall-clock time. Returns false (the toast is never hidden by us) so the caller always runs
-        /// the normal slide-out.
+        /// Holds the wave for its remaining display time. The toast is owned by / z-ordered above the
+        /// game window (see <see cref="ShowWaveAsync"/>), so the OS occludes and hides it in lockstep
+        /// with the game — covered when the game is covered, hidden when the game is minimized — with
+        /// no manual focus-based hide/show. The countdown-bar animation runs on wall-clock time. A
+        /// headless wave holds for the same duration so its overlay track spans the clip's toast
+        /// slot. Returns false (the toast is never hidden by us) so the caller always runs the normal
+        /// slide-out.
         /// </summary>
         private async Task<bool> HoldWaveAsync(int remainingMs)
         {
