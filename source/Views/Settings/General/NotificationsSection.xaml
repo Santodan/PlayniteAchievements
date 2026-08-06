@@ -1,4 +1,5 @@
 <UserControl x:Class="PlayniteAchievements.Views.Settings.General.NotificationsSection"
+             x:Name="NotificationsSectionRoot"
              xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
@@ -181,6 +182,331 @@
                                     HorizontalAlignment="Right"
                                     Margin="0,8,8,0"/>
                         </Grid>
+                    </StackPanel>
+                </Border>
+
+                <!-- Screenshots -->
+                <Border Style="{StaticResource SectionBorderStyle}">
+                    <StackPanel>
+                        <TextBlock Text="{DynamicResource LOCPlayAch_Settings_ScreenshotsHeader}"
+                                   Style="{StaticResource SectionHeaderStyle}"
+                                   Margin="{StaticResource PlayAch.Thickness.Bottom.Md}"/>
+                        <Border Style="{StaticResource SectionAccentRuleStyle}"/>
+
+                        <CheckBox Content="{DynamicResource LOCPlayAch_Settings_EnableUnlockScreenshots}"
+                                  IsChecked="{Binding Persisted.EnableUnlockScreenshots}"
+                                  Margin="0,0,0,10"/>
+
+                        <StackPanel Margin="18,0,0,0"
+                                    IsEnabled="{Binding Persisted.EnableUnlockScreenshots}">
+                            <!-- Clean variant: independent rarity threshold + completion bypass -->
+                            <CheckBox Content="{DynamicResource LOCPlayAch_Settings_ScreenshotVariantClean}"
+                                      IsChecked="{Binding Persisted.UnlockScreenshotClean}"
+                                      Margin="0,0,0,4"/>
+                            <StackPanel Margin="18,0,0,10"
+                                        IsEnabled="{Binding Persisted.UnlockScreenshotClean}">
+                                <Grid Margin="0,0,0,6">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*"/>
+                                        <ColumnDefinition Width="Auto"/>
+                                    </Grid.ColumnDefinitions>
+                                    <TextBlock Grid.Column="0"
+                                               Text="{DynamicResource LOCPlayAch_Settings_CaptureMinimumRarity}"
+                                               Foreground="{DynamicResource PlayAch.Brush.Text}"
+                                               VerticalAlignment="Center"
+                                               Margin="0,0,8,0"/>
+                                    <Button Grid.Column="1"
+                                            x:Name="CleanRaritiesButton"
+                                            Style="{StaticResource AchievementSelectorButtonStyle}"
+                                            Content="{Binding CleanRaritiesText, ElementName=NotificationsSectionRoot}"
+                                            Click="CleanRaritiesButton_Click"
+                                            MinWidth="140"
+                                            Height="{StaticResource PlayAch.Size.Control.Height}"
+                                            HorizontalAlignment="Left">
+                                        <Button.ContextMenu>
+                                            <ContextMenu Style="{StaticResource AchievementSelectorContextMenuStyle}"
+                                                         ItemContainerStyle="{StaticResource AchievementMultiSelectMenuItemStyle}"/>
+                                        </Button.ContextMenu>
+                                    </Button>
+                                </Grid>
+                                <CheckBox Content="{DynamicResource LOCPlayAch_Settings_AlwaysCaptureCompletion}"
+                                          IsChecked="{Binding Persisted.UnlockScreenshotCleanAlwaysCaptureCompletion}"/>
+                            </StackPanel>
+
+                            <!-- With-notification variant: independent rarity threshold + completion bypass -->
+                            <CheckBox Content="{DynamicResource LOCPlayAch_Settings_ScreenshotVariantWithToast}"
+                                      IsChecked="{Binding Persisted.UnlockScreenshotWithToast}"
+                                      Margin="0,0,0,4"/>
+                            <StackPanel Margin="18,0,0,10"
+                                        IsEnabled="{Binding Persisted.UnlockScreenshotWithToast}">
+                                <Grid Margin="0,0,0,6">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*"/>
+                                        <ColumnDefinition Width="Auto"/>
+                                    </Grid.ColumnDefinitions>
+                                    <TextBlock Grid.Column="0"
+                                               Text="{DynamicResource LOCPlayAch_Settings_CaptureMinimumRarity}"
+                                               Foreground="{DynamicResource PlayAch.Brush.Text}"
+                                               VerticalAlignment="Center"
+                                               Margin="0,0,8,0"/>
+                                    <Button Grid.Column="1"
+                                            x:Name="WithToastRaritiesButton"
+                                            Style="{StaticResource AchievementSelectorButtonStyle}"
+                                            Content="{Binding WithToastRaritiesText, ElementName=NotificationsSectionRoot}"
+                                            Click="WithToastRaritiesButton_Click"
+                                            MinWidth="140"
+                                            Height="{StaticResource PlayAch.Size.Control.Height}"
+                                            HorizontalAlignment="Left">
+                                        <Button.ContextMenu>
+                                            <ContextMenu Style="{StaticResource AchievementSelectorContextMenuStyle}"
+                                                         ItemContainerStyle="{StaticResource AchievementMultiSelectMenuItemStyle}"/>
+                                        </Button.ContextMenu>
+                                    </Button>
+                                </Grid>
+                                <CheckBox Content="{DynamicResource LOCPlayAch_Settings_AlwaysCaptureCompletion}"
+                                          IsChecked="{Binding Persisted.UnlockScreenshotWithToastAlwaysCaptureCompletion}"/>
+                            </StackPanel>
+
+                            <!-- Framed variant: independent rarity threshold + completion bypass -->
+                            <CheckBox Content="{DynamicResource LOCPlayAch_Settings_ScreenshotVariantFramed}"
+                                      IsChecked="{Binding Persisted.UnlockScreenshotFramed}"
+                                      Margin="0,0,0,4"/>
+                            <StackPanel Margin="18,0,0,10"
+                                        IsEnabled="{Binding Persisted.UnlockScreenshotFramed}">
+                                <Grid Margin="0,0,0,6">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*"/>
+                                        <ColumnDefinition Width="Auto"/>
+                                    </Grid.ColumnDefinitions>
+                                    <TextBlock Grid.Column="0"
+                                               Text="{DynamicResource LOCPlayAch_Settings_CaptureMinimumRarity}"
+                                               Foreground="{DynamicResource PlayAch.Brush.Text}"
+                                               VerticalAlignment="Center"
+                                               Margin="0,0,8,0"/>
+                                    <Button Grid.Column="1"
+                                            x:Name="FramedRaritiesButton"
+                                            Style="{StaticResource AchievementSelectorButtonStyle}"
+                                            Content="{Binding FramedRaritiesText, ElementName=NotificationsSectionRoot}"
+                                            Click="FramedRaritiesButton_Click"
+                                            MinWidth="140"
+                                            Height="{StaticResource PlayAch.Size.Control.Height}"
+                                            HorizontalAlignment="Left">
+                                        <Button.ContextMenu>
+                                            <ContextMenu Style="{StaticResource AchievementSelectorContextMenuStyle}"
+                                                         ItemContainerStyle="{StaticResource AchievementMultiSelectMenuItemStyle}"/>
+                                        </Button.ContextMenu>
+                                    </Button>
+                                </Grid>
+                                <CheckBox Content="{DynamicResource LOCPlayAch_Settings_AlwaysCaptureCompletion}"
+                                          IsChecked="{Binding Persisted.UnlockScreenshotFramedAlwaysCaptureCompletion}"/>
+                            </StackPanel>
+
+                            <TextBlock Text="{DynamicResource LOCPlayAch_Settings_ScreenshotSuffixes}"
+                                       Foreground="{DynamicResource PlayAch.Brush.Text}"
+                                       Margin="0,0,0,4"/>
+                            <Grid Margin="18,0,0,0">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*"/>
+                                    <ColumnDefinition Width="Auto"/>
+                                </Grid.ColumnDefinitions>
+                                <Grid.RowDefinitions>
+                                    <RowDefinition Height="Auto"/>
+                                    <RowDefinition Height="Auto"/>
+                                    <RowDefinition Height="Auto"/>
+                                </Grid.RowDefinitions>
+
+                                <TextBlock Grid.Row="0" Grid.Column="0"
+                                           Text="{DynamicResource LOCPlayAch_Settings_ScreenshotVariantClean}"
+                                           Foreground="{DynamicResource PlayAch.Brush.Text}"
+                                           VerticalAlignment="Center"
+                                           Margin="0,0,8,8"/>
+                                <TextBox Grid.Row="0" Grid.Column="1"
+                                         Text="{Binding Persisted.UnlockScreenshotSuffixClean, UpdateSourceTrigger=PropertyChanged}"
+                                         Width="160"
+                                         Margin="0,0,0,8"/>
+
+                                <TextBlock Grid.Row="1" Grid.Column="0"
+                                           Text="{DynamicResource LOCPlayAch_Settings_ScreenshotVariantWithToast}"
+                                           Foreground="{DynamicResource PlayAch.Brush.Text}"
+                                           VerticalAlignment="Center"
+                                           Margin="0,0,8,8"/>
+                                <TextBox Grid.Row="1" Grid.Column="1"
+                                         Text="{Binding Persisted.UnlockScreenshotSuffixWithToast, UpdateSourceTrigger=PropertyChanged}"
+                                         Width="160"
+                                         Margin="0,0,0,8"/>
+
+                                <TextBlock Grid.Row="2" Grid.Column="0"
+                                           Text="{DynamicResource LOCPlayAch_Settings_ScreenshotVariantFramed}"
+                                           Foreground="{DynamicResource PlayAch.Brush.Text}"
+                                           VerticalAlignment="Center"
+                                           Margin="0,0,8,8"/>
+                                <TextBox Grid.Row="2" Grid.Column="1"
+                                         Text="{Binding Persisted.UnlockScreenshotSuffixFramed, UpdateSourceTrigger=PropertyChanged}"
+                                         Width="160"
+                                         Margin="0,0,0,8"/>
+                            </Grid>
+                            <TextBlock Text="{DynamicResource LOCPlayAch_Settings_ScreenshotDirectory}"
+                                       Foreground="{DynamicResource PlayAch.Brush.Text}"
+                                       Margin="0,0,0,4"/>
+                            <Grid>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*"/>
+                                    <ColumnDefinition Width="Auto"/>
+                                </Grid.ColumnDefinitions>
+                                <TextBox Grid.Column="0"
+                                         Text="{Binding Persisted.UnlockScreenshotDirectory, UpdateSourceTrigger=PropertyChanged}"
+                                         VerticalAlignment="Center"/>
+                                <Button Grid.Column="1"
+                                        Content="{DynamicResource LOCPlayAch_Button_Browse}"
+                                        Click="ScreenshotDirectory_Browse_Click"
+                                        Margin="8,0,0,0"/>
+                            </Grid>
+                        </StackPanel>
+                    </StackPanel>
+                </Border>
+
+                <!-- Unlock recordings: in-process Windows.Graphics.Capture + Media Foundation
+                     rolling capture and per-unlock clip export. No external tools. -->
+                <Border Style="{StaticResource SectionBorderStyle}">
+                    <StackPanel>
+                        <TextBlock Text="{DynamicResource LOCPlayAch_Settings_RecordingsHeader}"
+                                   Style="{StaticResource SectionHeaderStyle}"
+                                   Margin="{StaticResource PlayAch.Thickness.Bottom.Md}"/>
+                        <Border Style="{StaticResource SectionAccentRuleStyle}"/>
+
+                        <CheckBox Content="{DynamicResource LOCPlayAch_Settings_EnableUnlockRecordings}"
+                                  IsChecked="{Binding Persisted.EnableUnlockRecordings}"
+                                  Margin="0,0,0,10"/>
+
+                        <StackPanel Margin="18,0,0,0"
+                                    IsEnabled="{Binding Persisted.EnableUnlockRecordings}">
+                            <Grid Margin="0,0,0,6">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*"/>
+                                    <ColumnDefinition Width="Auto"/>
+                                </Grid.ColumnDefinitions>
+                                <TextBlock Grid.Column="0"
+                                           Text="{DynamicResource LOCPlayAch_Settings_CaptureMinimumRarity}"
+                                           Foreground="{DynamicResource PlayAch.Brush.Text}"
+                                           VerticalAlignment="Center"
+                                           Margin="0,0,8,0"/>
+                                <Button Grid.Column="1"
+                                        x:Name="RecordingRaritiesButton"
+                                        Style="{StaticResource AchievementSelectorButtonStyle}"
+                                        Content="{Binding RecordingRaritiesText, ElementName=NotificationsSectionRoot}"
+                                        Click="RecordingRaritiesButton_Click"
+                                        MinWidth="140"
+                                        Height="{StaticResource PlayAch.Size.Control.Height}"
+                                        HorizontalAlignment="Left">
+                                    <Button.ContextMenu>
+                                        <ContextMenu Style="{StaticResource AchievementSelectorContextMenuStyle}"
+                                                     ItemContainerStyle="{StaticResource AchievementMultiSelectMenuItemStyle}"/>
+                                    </Button.ContextMenu>
+                                </Button>
+                            </Grid>
+                            <CheckBox Content="{DynamicResource LOCPlayAch_Settings_AlwaysCaptureCompletion}"
+                                      IsChecked="{Binding Persisted.UnlockRecordingAlwaysCaptureCompletion}"
+                                      Margin="0,0,0,10"/>
+
+                            <TextBlock Text="{DynamicResource LOCPlayAch_Settings_RecordingDirectory}"
+                                       Foreground="{DynamicResource PlayAch.Brush.Text}"
+                                       Margin="0,10,0,4"/>
+                            <Grid>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*"/>
+                                    <ColumnDefinition Width="Auto"/>
+                                </Grid.ColumnDefinitions>
+                                <TextBox Grid.Column="0"
+                                         Text="{Binding Persisted.UnlockRecordingDirectory, UpdateSourceTrigger=PropertyChanged}"
+                                         VerticalAlignment="Center"/>
+                                <Button Grid.Column="1"
+                                        Content="{DynamicResource LOCPlayAch_Button_Browse}"
+                                        Click="RecordingDirectory_Browse_Click"
+                                        Margin="8,0,0,0"/>
+                            </Grid>
+                            <TextBlock Text="{DynamicResource LOCPlayAch_Settings_RecordingDirectoryHint}"
+                                       Style="{StaticResource MutedTextStyle}"
+                                       TextWrapping="Wrap"
+                                       Margin="0,6,0,10"/>
+
+                            <Grid>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*"/>
+                                    <ColumnDefinition Width="Auto"/>
+                                </Grid.ColumnDefinitions>
+                                <Grid.RowDefinitions>
+                                    <RowDefinition Height="Auto"/>
+                                    <RowDefinition Height="Auto"/>
+                                    <RowDefinition Height="Auto"/>
+                                </Grid.RowDefinitions>
+
+                                <TextBlock Grid.Row="0" Grid.Column="0"
+                                           Text="{DynamicResource LOCPlayAch_Settings_RecordingClipSeconds}"
+                                           Foreground="{DynamicResource PlayAch.Brush.Text}"
+                                           VerticalAlignment="Center"
+                                           Margin="0,0,8,8"/>
+                                <TextBox Grid.Row="0" Grid.Column="1"
+                                         Text="{Binding Persisted.RecordingClipSeconds, UpdateSourceTrigger=LostFocus}"
+                                         Width="{StaticResource PlayAch.Size.Input.NarrowWidth}"
+                                         TextAlignment="Right"
+                                         Margin="0,0,0,8"/>
+
+                                <TextBlock Grid.Row="1" Grid.Column="0"
+                                           Text="{DynamicResource LOCPlayAch_Settings_RecordingFps}"
+                                           Foreground="{DynamicResource PlayAch.Brush.Text}"
+                                           VerticalAlignment="Center"
+                                           Margin="0,0,8,8"/>
+                                <TextBox Grid.Row="1" Grid.Column="1"
+                                         Text="{Binding Persisted.RecordingFps, UpdateSourceTrigger=LostFocus}"
+                                         Width="{StaticResource PlayAch.Size.Input.NarrowWidth}"
+                                         TextAlignment="Right"
+                                         Margin="0,0,0,8"/>
+
+                                <TextBlock Grid.Row="2" Grid.Column="0"
+                                           Text="{DynamicResource LOCPlayAch_Settings_RecordingResolution}"
+                                           Foreground="{DynamicResource PlayAch.Brush.Text}"
+                                           VerticalAlignment="Center"
+                                           Margin="0,0,8,8"/>
+                                <ComboBox Grid.Row="2" Grid.Column="1"
+                                          SelectedValue="{Binding Persisted.RecordingResolution, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                          SelectedValuePath="Tag"
+                                          MinWidth="140"
+                                          Margin="0,0,0,8">
+                                    <ComboBoxItem Content="{DynamicResource LOCPlayAch_Settings_RecordingResolutionNative}" Tag="{x:Static settings:RecordingResolution.Native}"/>
+                                    <ComboBoxItem Content="1080p" Tag="{x:Static settings:RecordingResolution.P1080}"/>
+                                    <ComboBoxItem Content="720p" Tag="{x:Static settings:RecordingResolution.P720}"/>
+                                </ComboBox>
+                            </Grid>
+
+                            <CheckBox Content="{DynamicResource LOCPlayAch_Settings_RecordingIncludeAudio}"
+                                      IsChecked="{Binding Persisted.RecordingIncludeAudio}"
+                                      Margin="0,10,0,0"/>
+                            <StackPanel Margin="18,6,0,0"
+                                        IsEnabled="{Binding Persisted.RecordingIncludeAudio}">
+                                <Grid>
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*"/>
+                                        <ColumnDefinition Width="Auto"/>
+                                    </Grid.ColumnDefinitions>
+                                    <TextBlock Grid.Column="0"
+                                               Text="{DynamicResource LOCPlayAch_Settings_RecordingAudioSource}"
+                                               Foreground="{DynamicResource PlayAch.Brush.Text}"
+                                               VerticalAlignment="Center"
+                                               Margin="0,0,8,0"/>
+                                    <ComboBox Grid.Column="1"
+                                              SelectedValue="{Binding Persisted.RecordingAudioSource, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                              SelectedValuePath="Tag"
+                                              MinWidth="160"
+                                              HorizontalAlignment="Left">
+                                        <ComboBoxItem Content="{DynamicResource LOCPlayAch_Settings_RecordingAudioSourceFull}" Tag="{x:Static settings:RecordingAudioSource.FullSystem}"/>
+                                        <ComboBoxItem Content="{DynamicResource LOCPlayAch_Settings_RecordingAudioSourceGame}" Tag="{x:Static settings:RecordingAudioSource.GameOnly}"/>
+                                    </ComboBox>
+                                </Grid>
+                                <CheckBox Content="{DynamicResource LOCPlayAch_Settings_RecordingIncludeMicrophone}"
+                                          IsChecked="{Binding Persisted.RecordingIncludeMicrophone}"
+                                          Margin="0,8,0,0"/>
+                            </StackPanel>
+                        </StackPanel>
                     </StackPanel>
                 </Border>
 

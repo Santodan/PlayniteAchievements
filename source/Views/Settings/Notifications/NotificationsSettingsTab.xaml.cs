@@ -9,9 +9,10 @@ using PlayniteAchievements.Views.Settings.Navigation;
 namespace PlayniteAchievements.Views.Settings.Notifications
 {
     /// <summary>
-    /// Notifications settings tab: a master-detail navigation over the three notification
-    /// sections (General, Appearance, Capture). Sections are created lazily when first
-    /// selected.
+    /// Notifications settings tab: a master-detail navigation over the two notification sections
+    /// (General, Appearance). Sections are created lazily when first selected. The General page
+    /// carries all three unlock-event features as siblings — notifications, screenshots and
+    /// recordings — because none of them depends on the others.
     /// </summary>
     public partial class NotificationsSettingsTab : UserControl, IDisposable
     {
@@ -19,7 +20,6 @@ namespace PlayniteAchievements.Views.Settings.Notifications
 
         private NotificationsSection _generalSection;
         private NotificationAppearanceSection _appearanceSection;
-        private CaptureSettingsSection _captureSection;
 
         public NotificationsSettingsTab()
         {
@@ -48,13 +48,7 @@ namespace PlayniteAchievements.Views.Settings.Notifications
                     ResourceProvider.GetString("LOCPlayAch_Settings_Appearance"),
                     iconGlyph: "",
                     viewFactory: () => _appearanceSection =
-                        new NotificationAppearanceSection(settings, plugin, logger)),
-                new SettingsNavigationItem(
-                    "Capture",
-                    ResourceProvider.GetString("LOCPlayAch_Section_Capture"),
-                    iconGlyph: "",
-                    viewFactory: () => _captureSection =
-                        new CaptureSettingsSection(settings, plugin, logger))
+                        new NotificationAppearanceSection(settings, plugin, logger))
             };
 
             MasterDetail.ItemsSource = _navigationItems;
@@ -65,7 +59,6 @@ namespace PlayniteAchievements.Views.Settings.Notifications
         {
             _generalSection?.Dispose();
             _appearanceSection?.Dispose();
-            _captureSection?.Dispose();
         }
     }
 }
