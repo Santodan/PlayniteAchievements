@@ -520,10 +520,14 @@ namespace PlayniteAchievements.Services.Capture
         }
 
         /// <summary>
-        /// The track frame for a sample, inflating lazily and caching the last inflation (tracks are
-        /// sampled per recording frame, but consecutive samples share a frame whenever the card's pixels
-        /// did not change). A frame whose compression failed (null payload) falls back to the cached
-        /// previous frame so the card holds instead of flickering out.
+        /// The track frame for a sample, reconstructed lazily and cached (tracks are sampled per
+        /// recording frame, but consecutive samples share a frame whenever the card's pixels did not
+        /// change, and frames are stored as XOR deltas against their predecessor). Samples are walked
+        /// forward, so the usual cost is one inflate-and-XOR onto the frame already in hand.
+        ///
+        /// A broken chain — a frame whose compression failed — falls back to the previously
+        /// reconstructed frame so the card holds instead of flickering out, and recovers at the track's
+        /// next keyframe.
         /// </summary>
         private static bool TryGetOverlay(
             ToastOverlayTrack track, int sampleIndex,
@@ -541,26 +545,25 @@ namespace PlayniteAchievements.Services.Capture
                 return false;
             }
 
-            var candidate = track.Frames[frameIndex];
-            if (candidate.Deflated == null)
+            // Keep the last good reconstruction so a failure can fall back to it: TryReconstructFrame
+            // clears the index it is handed when it gives up partway.
+            var held = inflated;
+            var heldIndex = inflatedIndex;
+            if (track.TryReconstructFrame(frameIndex, ref inflated, ref inflatedIndex))
             {
-                if (inflatedIndex < 0)
-                {
-                    return false;
-                }
-
-                frame = track.Frames[inflatedIndex];
+                frame = track.Frames[frameIndex];
                 return inflated != null;
             }
 
-            if (frameIndex != inflatedIndex)
+            inflated = held;
+            inflatedIndex = heldIndex;
+            if (inflatedIndex < 0 || inflated == null)
             {
-                inflated = candidate.ToRaw();
-                inflatedIndex = frameIndex;
+                return false;
             }
 
-            frame = candidate;
-            return inflated != null;
+            frame = track.Frames[inflatedIndex];
+            return frame != null;
         }
 
         private static Sample ReadNextAudio(SourceReader audioReader, long trimLead)
