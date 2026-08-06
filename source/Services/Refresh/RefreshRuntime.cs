@@ -470,7 +470,8 @@ namespace PlayniteAchievements.Services.Refresh
             Func<RebuildPayload, string> finalMessage,
             string errorLogMessage,
             IReadOnlyList<IDataProvider> providerScope = null,
-            RefreshAuthContext authContext = null)
+            RefreshAuthContext authContext = null,
+            bool surfaceUserNotices = false)
         {
             var operationId = Guid.NewGuid();
 
@@ -628,10 +629,23 @@ namespace PlayniteAchievements.Services.Refresh
                     context: $"refresh.end mode={mode}");
                 ScheduleFollowUpCompaction(compactionWorkVolume, mode);
 
-                // Notify refresh completion subscribers (e.g., auth failure notifications).
+                // Notify refresh completion subscribers (the provider auth-failed notification).
+                // Only a refresh of a selected game may add or clear that notification: a polling,
+                // periodic, or bulk refresh that hit an expired session would otherwise re-add the
+                // notification on every tick, and one that succeeded would clear a notification a
+                // selected-game refresh had legitimately raised. Suppressed failures stay in the
+                // log so an expiry is still diagnosable.
                 if (!wasCanceled && payload != null)
                 {
-                    try { _onRefreshCompleted?.Invoke(payload); } catch (Exception ex) { _logger?.Debug(ex, "Refresh completion callback failed."); }
+                    if (surfaceUserNotices)
+                    {
+                        try { _onRefreshCompleted?.Invoke(payload); } catch (Exception ex) { _logger?.Debug(ex, "Refresh completion callback failed."); }
+                    }
+                    else if (payload.FailedProviderKeys?.Count > 0)
+                    {
+                        _logger?.Debug(
+                            $"Suppressing auth-failed notification for non-targeted refresh (mode={mode}, providers={string.Join(", ", payload.FailedProviderKeys)}).");
+                    }
                 }
 
                 _refreshProgressReporter.Reset();
@@ -1681,7 +1695,8 @@ namespace PlayniteAchievements.Services.Refresh
                 payload => FormatRefreshCompletionForResolvedRequest(resolved, payload),
                 resolved.ErrorLogMessage ?? "Refresh failed.",
                 resolved.ProviderScope,
-                authContext);
+                authContext,
+                resolved.SurfaceUserNotices);
         }
 
         private async Task<RebuildPayload> RefreshResolvedAsync(

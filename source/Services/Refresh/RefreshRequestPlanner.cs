@@ -27,6 +27,12 @@ namespace PlayniteAchievements.Services.Refresh
             public string EmptySelectionLogMessage { get; set; }
             public string UserMessage { get; set; }
             public bool ShouldExecute { get; set; }
+
+            /// <summary>
+            /// Carries <see cref="RefreshRequest.SurfaceUserNotices"/> into the managed run, whose
+            /// completion path no longer has the originating request.
+            /// </summary>
+            public bool SurfaceUserNotices { get; set; }
         }
 
         private readonly IPlayniteAPI _api;
@@ -61,6 +67,7 @@ namespace PlayniteAchievements.Services.Refresh
                 authenticatedProviders,
                 targetSelectionCache);
             resolved.ErrorLogMessage = resolved.ErrorLogMessage ?? ResolveErrorLogMessage(mode, options);
+            resolved.SurfaceUserNotices = request.SurfaceUserNotices;
             return resolved;
         }
 
