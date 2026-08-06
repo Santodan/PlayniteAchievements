@@ -40,11 +40,27 @@ namespace PlayniteAchievements.Providers.Manual
         /// Returns the stored override when it still names a selectable platform, otherwise null
         /// so the caller falls back to source-derived detection. This keeps a link written against
         /// a provider that has since been removed from displaying an unresolvable icon.
+        ///
+        /// Fails open: with no registry to check against, the stored value is trusted rather than
+        /// discarded, since it was constrained to a registered key when the user chose it.
         /// </summary>
         public static string NormalizeOverride(string providerKey)
         {
             var trimmed = providerKey?.Trim();
-            return !string.IsNullOrEmpty(trimmed) && IsSelectablePlatformKey(trimmed) ? trimmed : null;
+            if (string.IsNullOrEmpty(trimmed))
+            {
+                return null;
+            }
+
+            var selectable = GetSelectablePlatformKeys();
+            if (selectable.Count == 0)
+            {
+                return trimmed;
+            }
+
+            return selectable.Any(key => string.Equals(key, trimmed, StringComparison.OrdinalIgnoreCase))
+                ? trimmed
+                : null;
         }
 
         /// <summary>
