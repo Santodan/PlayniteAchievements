@@ -2,6 +2,7 @@ using System;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Controls.Primitives;
+using System.Windows.Threading;
 using PlayniteAchievements.Services.UI;
 
 namespace PlayniteAchievements.Views.Helpers
@@ -60,6 +61,12 @@ namespace PlayniteAchievements.Views.Helpers
             /// TextChanged/SelectionChanged echoes are not treated as the user typing.
             /// </summary>
             public bool Suppress;
+
+            /// <summary>
+            /// Set while handling DropDownClosed. Reopening the popup from inside its own closed
+            /// handler throws, so no code path may set IsDropDownOpen while this is set.
+            /// </summary>
+            public bool IsClosing;
         }
 
         private static void OnEnableSearchChanged(
@@ -76,7 +83,8 @@ namespace PlayniteAchievements.Views.Helpers
                 return;
             }
 
-            combo.SetValue(StateProperty, new SearchState());
+            var state = new SearchState();
+            combo.SetValue(StateProperty, state);
 
             combo.IsEditable = true;
             combo.StaysOpenOnEdit = true;
@@ -92,6 +100,7 @@ namespace PlayniteAchievements.Views.Helpers
             combo.Loaded += OnLoaded;
 
             ApplySelectedPreviewFont(combo);
+            RestoreSelectionText(combo, state);
         }
 
         private static void Detach(ComboBox combo)
@@ -108,11 +117,15 @@ namespace PlayniteAchievements.Views.Helpers
 
         private static void OnLoaded(object sender, RoutedEventArgs e)
         {
-            if (sender is ComboBox combo)
+            if (!(sender is ComboBox combo)
+                || !(combo.GetValue(StateProperty) is SearchState state))
             {
-                // Recycled DataGrid cells re-run Loaded with a different row's selection.
-                ApplySelectedPreviewFont(combo);
+                return;
             }
+
+            // Recycled DataGrid cells re-run Loaded with a different row's selection.
+            ApplySelectedPreviewFont(combo);
+            RestoreSelectionText(combo, state);
         }
 
         /// <summary>
@@ -147,14 +160,58 @@ namespace PlayniteAchievements.Views.Helpers
                 return;
             }
 
+            // Only the user typing counts as a search. The ComboBox writes into the box itself too -
+            // when it turns editable, and after a commit - and treating that as a query filtered the
+            // list down to just the already-selected entry, so opening a font dropdown showed one
+            // row until it was cleared by hand. Those writes arrive without keyboard focus, or carry
+            // exactly the selected item's name.
+            var selectedName = (combo.SelectedItem as FontFamilyOption)?.DisplayName;
+            if (!combo.IsKeyboardFocusWithin
+                || (selectedName != null
+                    && string.Equals(query, selectedName, StringComparison.Ordinal)))
+            {
+                state.Query = string.Empty;
+                ClearFilter(combo);
+                return;
+            }
+
             state.Query = query;
             ApplyFilter(combo, state);
+            OpenDropDownForQuery(combo, state);
+        }
 
-            // Typing with the list closed would filter invisibly.
-            if (!combo.IsDropDownOpen && combo.IsKeyboardFocusWithin)
+        /// <summary>
+        /// Shows the narrowed list when the user types with the drop-down closed.
+        /// </summary>
+        /// <remarks>
+        /// Posted rather than set inline. WPF throws "Cannot reopen a popup in the closed event
+        /// handler" if IsDropDownOpen is set anywhere inside the popup's close call stack, and a
+        /// TextChanged can be raised from within that stack, so the open has to wait until it has
+        /// unwound. The re-check is what keeps a just-committed selection from springing back open:
+        /// committing clears the query, so a stale post finds nothing to do.
+        /// </remarks>
+        private static void OpenDropDownForQuery(ComboBox combo, SearchState state)
+        {
+            if (state.IsClosing || combo.IsDropDownOpen || !combo.IsKeyboardFocusWithin)
             {
-                combo.IsDropDownOpen = true;
+                return;
             }
+
+            combo.Dispatcher.BeginInvoke(
+                new Action(() =>
+                {
+                    if (state.IsClosing
+                        || combo.IsDropDownOpen
+                        || !combo.IsKeyboardFocusWithin
+                        || string.IsNullOrEmpty(state.Query)
+                        || !string.Equals(state.Query, combo.Text, StringComparison.Ordinal))
+                    {
+                        return;
+                    }
+
+                    combo.IsDropDownOpen = true;
+                }),
+                DispatcherPriority.Input);
         }
 
         private static void OnSelectionChanged(object sender, SelectionChangedEventArgs e)
@@ -185,12 +242,22 @@ namespace PlayniteAchievements.Views.Helpers
                 return;
             }
 
-            state.Query = string.Empty;
-            ClearFilter(combo);
+            // Everything here runs inside the popup's closed handler, where reopening the popup
+            // throws, so the flag keeps any re-entrant TextChanged from doing that.
+            state.IsClosing = true;
+            try
+            {
+                state.Query = string.Empty;
+                ClearFilter(combo);
 
-            // An abandoned partial query would otherwise sit in the box looking like the chosen
-            // font; restore the text the selection implies.
-            RestoreSelectionText(combo, state);
+                // An abandoned partial query would otherwise sit in the box looking like the chosen
+                // font; restore the text the selection implies.
+                RestoreSelectionText(combo, state);
+            }
+            finally
+            {
+                state.IsClosing = false;
+            }
         }
 
         private static void ApplyFilter(ComboBox combo, SearchState state)
@@ -218,7 +285,7 @@ namespace PlayniteAchievements.Views.Helpers
                     return !string.IsNullOrEmpty(name)
                            && name.IndexOf(query, StringComparison.OrdinalIgnoreCase) >= 0;
                 };
-            });
+            }, preserveTypedText: true);
         }
 
         private static void ClearFilter(ComboBox combo)
@@ -228,16 +295,31 @@ namespace PlayniteAchievements.Views.Helpers
                 return;
             }
 
-            RunSuppressed(combo, state, () => combo.Items.Filter = null);
+            RunSuppressed(combo, state, () => combo.Items.Filter = null, preserveTypedText: false);
         }
 
         /// <summary>
-        /// Refreshing the view makes the ComboBox re-derive its editable text from the selection,
-        /// which would wipe the half-typed query, so the caret and text are put back afterwards.
+        /// Runs a view change without the behaviour reacting to the TextChanged and SelectionChanged
+        /// echoes it causes, and puts the half-typed query back afterwards.
         /// </summary>
-        private static void RunSuppressed(ComboBox combo, SearchState state, Action action)
+        /// <remarks>
+        /// Refreshing the view makes the ComboBox re-derive its editable text from the selection,
+        /// which otherwise wipes what the user has typed the moment the filter is applied. The
+        /// restore must happen while suppression is still in effect: writing the text raises
+        /// TextChanged again, and once that was seen as fresh typing it re-entered the handler and
+        /// reopened the drop-down, which throws when the change came from DropDownClosed.
+        /// </remarks>
+        /// <param name="preserveTypedText">
+        /// True while narrowing the list, where the query must survive the refresh. False when
+        /// clearing the filter on commit or close, where the ComboBox should be left to put the
+        /// chosen font's name in the box itself.
+        /// </param>
+        private static void RunSuppressed(
+            ComboBox combo, SearchState state, Action action, bool preserveTypedText)
         {
-            var editBox = combo.Template?.FindName("PART_EditableTextBox", combo) as TextBox;
+            var editBox = preserveTypedText
+                ? combo.Template?.FindName("PART_EditableTextBox", combo) as TextBox
+                : null;
             var text = editBox?.Text;
             var caret = editBox?.CaretIndex ?? 0;
 
@@ -246,6 +328,14 @@ namespace PlayniteAchievements.Views.Helpers
             try
             {
                 action();
+
+                if (editBox != null
+                    && text != null
+                    && !string.Equals(editBox.Text, text, StringComparison.Ordinal))
+                {
+                    editBox.Text = text;
+                    editBox.CaretIndex = Math.Min(caret, editBox.Text.Length);
+                }
             }
             catch (InvalidOperationException)
             {
@@ -255,14 +345,17 @@ namespace PlayniteAchievements.Views.Helpers
             {
                 state.Suppress = wasSuppressed;
             }
-
-            if (editBox != null && text != null && !string.Equals(editBox.Text, text, StringComparison.Ordinal))
-            {
-                editBox.Text = text;
-                editBox.CaretIndex = Math.Min(caret, editBox.Text.Length);
-            }
         }
 
+        /// <summary>
+        /// Puts the selected font's name in the box, discarding any abandoned partial query.
+        /// </summary>
+        /// <remarks>
+        /// Also what gets the name there in the first place: an editable ComboBox derives its text
+        /// through <see cref="TextSearch"/>, and when the text is derived before this behaviour sets
+        /// the text path the box shows the option object's ToString. Setting it explicitly keeps the
+        /// displayed name independent of the order XAML applies the attached property in.
+        /// </remarks>
         private static void RestoreSelectionText(ComboBox combo, SearchState state)
         {
             var name = (combo.SelectedItem as FontFamilyOption)?.DisplayName ?? string.Empty;
