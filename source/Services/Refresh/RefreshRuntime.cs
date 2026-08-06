@@ -45,6 +45,16 @@ namespace PlayniteAchievements.Services.Refresh
         public ProgressReport GetLastRebuildProgress() => _progressReportingService.GetLastProgress();
         public string GetLastRebuildStatus() => _progressReportingService.GetLastStatus();
 
+        /// <summary>
+        /// The most recent completed or failed run's outcome, or null when no run has finished
+        /// since startup and after a user cancel. Set once per run, after the run ends. Reference
+        /// assignment, so a reader on another thread sees either the whole outcome or the previous
+        /// one, never a half-written mix.
+        /// </summary>
+        public RebuildOutcome GetLastRebuildOutcome() => _lastRebuildOutcome;
+
+        private RebuildOutcome _lastRebuildOutcome;
+
         public bool IsRebuilding
         {
             get { return _refreshStateManager.IsRebuilding; }
@@ -512,6 +522,9 @@ namespace PlayniteAchievements.Services.Refresh
                 currentGameId: singleGameId);
 
             RebuildPayload payload = null;
+            // This run's outcome for GetLastRebuildOutcome. A run that throws decides it in the
+            // catch; a run that completes resolves it from its payload in the finally.
+            RebuildOutcome runOutcome = null;
             try
             {
                 authContextReceivers = BeginScopedRefreshAuthContext(effectiveAuthContext, effectiveProviderScope);
@@ -538,8 +551,9 @@ namespace PlayniteAchievements.Services.Refresh
                 // TaskCanceledException) without the run token being cancelled is a failure,
                 // not a user cancel; log it with its stack so the timeout site is identifiable.
                 _logger.Error(ex, $"{errorLogMessage} (operation canceled without the run token being cancelled)");
+                runOutcome = RebuildOutcome.Failed(ResourceProvider.GetString("LOCPlayAch_Error_RebuildFailed"));
                 Report(
-                    ResourceProvider.GetString("LOCPlayAch_Error_RebuildFailed"),
+                    runOutcome.Status,
                     0,
                     1,
                     operationId: operationId,
@@ -561,8 +575,9 @@ namespace PlayniteAchievements.Services.Refresh
             catch (Exception ex)
             {
                 _logger.Error(ex, errorLogMessage);
+                runOutcome = RebuildOutcome.Failed(ResourceProvider.GetString("LOCPlayAch_Error_RebuildFailed"));
                 Report(
-                    ResourceProvider.GetString("LOCPlayAch_Error_RebuildFailed"),
+                    runOutcome.Status,
                     0,
                     1,
                     operationId: operationId,
@@ -582,15 +597,23 @@ namespace PlayniteAchievements.Services.Refresh
                 // Send final completion report AFTER EndRun so IsRebuilding is false when UI processes it
                 if (!wasCanceled && payload != null)
                 {
-                    var msg = ResolveFinalSuccessMessage(payload, finalMessage);
+                    var outcome = ResolveFinalOutcome(payload, finalMessage);
+                    // A run that already threw keeps its failure: reaching here with a payload only
+                    // means the throw happened after the payload was produced.
+                    runOutcome = runOutcome ?? outcome;
                     Report(
-                        msg,
+                        outcome.Status,
                         finalTotalSteps,
                         finalTotalSteps,
                         operationId: operationId,
                         mode: mode,
                         currentGameId: singleGameId);
                 }
+
+                // Published after the run ends so a completion handler reads this run's result and
+                // never a previous one's. Null for a user cancel: nothing failed and nothing
+                // completed, so there is nothing to report.
+                _lastRebuildOutcome = runOutcome;
 
                 if (hasSavedGames)
                 {
@@ -1635,7 +1658,12 @@ namespace PlayniteAchievements.Services.Refresh
             }
         }
 
-        private string ResolveFinalSuccessMessage(RebuildPayload payload, Func<RebuildPayload, string> finalMessage)
+        /// <summary>
+        /// The run's final status text together with whether it faulted. Both are decided here, in
+        /// one place, so the message the user reads and the flag that drives the failure
+        /// notification cannot disagree.
+        /// </summary>
+        private RebuildOutcome ResolveFinalOutcome(RebuildPayload payload, Func<RebuildPayload, string> finalMessage)
         {
             var defaultMessage = ResourceProvider.GetString("LOCPlayAch_Status_RefreshComplete");
             string resolvedMessage = null;
@@ -1675,6 +1703,10 @@ namespace PlayniteAchievements.Services.Refresh
                     string.Format(failedFormat, string.Join(", ", payload.FaultedProviderKeys)));
             }
 
+            // Re-authentication counts as a fault: the provider silently stopped delivering data,
+            // which is exactly the case an unattended refresh needs to surface.
+            var faulted = payload?.FaultedProviderKeys?.Count > 0 || payload?.AuthRequired == true;
+
             if (payload?.AuthRequired == true)
             {
                 var suffix = ResourceProvider.GetString("LOCPlayAch_Status_RefreshCompleteAuthRequiredSuffix");
@@ -1683,10 +1715,10 @@ namespace PlayniteAchievements.Services.Refresh
                     suffix = "Some providers require authentication.";
                 }
 
-                return string.Concat(resolvedMessage, " ", suffix);
+                return new RebuildOutcome(string.Concat(resolvedMessage, " ", suffix), faulted);
             }
 
-            return resolvedMessage;
+            return new RebuildOutcome(resolvedMessage, faulted);
         }
 
         // -----------------------------
