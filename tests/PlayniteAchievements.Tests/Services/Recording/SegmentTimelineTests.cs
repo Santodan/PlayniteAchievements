@@ -19,7 +19,7 @@ namespace PlayniteAchievements.Services.Tests.Recording
         {
             return new SegmentTimeline.SegmentInfo
             {
-                Path = $@"C:\buf\seg_{startUtc:yyyyMMdd-HHmmss}.ts",
+                Path = $@"C:\buf\seg_{startUtc:yyyyMMdd-HHmmss}.mp4",
                 StartUtc = startUtc,
                 SizeBytes = size
             };
@@ -31,7 +31,7 @@ namespace PlayniteAchievements.Services.Tests.Recording
         public void ParseSegments_ConvertsLocalStampsToUtcWithInjectedZone()
         {
             var segments = SegmentTimeline.ParseSegments(
-                new[] { (@"C:\buf\seg_20260101-140000.ts", 123L) },
+                new[] { (@"C:\buf\seg_20260101-140000.mp4", 123L) },
                 PlusTwo);
 
             Assert.AreEqual(1, segments.Count);
@@ -45,10 +45,10 @@ namespace PlayniteAchievements.Services.Tests.Recording
             var segments = SegmentTimeline.ParseSegments(
                 new[]
                 {
-                    (@"C:\buf\seg_20260101-140010.ts", 1L),
+                    (@"C:\buf\seg_20260101-140010.mp4", 1L),
                     (@"C:\buf\clip_abc.mp4", 1L),
-                    (@"C:\buf\seg_20260101-140000.ts", 1L),
-                    (@"C:\buf\seg_garbage.ts", 1L),
+                    (@"C:\buf\seg_20260101-140000.mp4", 1L),
+                    (@"C:\buf\seg_garbage.mp4", 1L),
                     (@"C:\buf\notes.txt", 1L)
                 },
                 PlusTwo);
@@ -64,7 +64,7 @@ namespace PlayniteAchievements.Services.Tests.Recording
                 new[]
                 {
                     (@"C:\buf\aud_20260101-140005.wav", 2L),
-                    (@"C:\buf\seg_20260101-140000.ts", 1L),
+                    (@"C:\buf\seg_20260101-140000.mp4", 1L),
                     (@"C:\buf\aud_20260101-140000.wav", 1L),
                     (@"C:\buf\aud_garbage.wav", 1L),
                     (@"C:\buf\clipaud_abc.txt", 1L)
@@ -84,13 +84,13 @@ namespace PlayniteAchievements.Services.Tests.Recording
             var segments = SegmentTimeline.ParseSegments(
                 new[]
                 {
-                    (@"C:\buf\seg_20260101-140000.ts", 1L),
+                    (@"C:\buf\seg_20260101-140000.mp4", 1L),
                     (@"C:\buf\aud_20260101-140000.wav", 1L)
                 },
                 PlusTwo);
 
             Assert.AreEqual(1, segments.Count);
-            StringAssert.EndsWith(segments[0].Path, "seg_20260101-140000.ts");
+            StringAssert.EndsWith(segments[0].Path, "seg_20260101-140000.mp4");
         }
 
         // === Precise-unlock detection ===
