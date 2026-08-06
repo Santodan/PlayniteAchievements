@@ -51,11 +51,17 @@ namespace PlayniteAchievements.Services.Capture
         /// PCM, the chime mixes in starting at <paramref name="chimeStartSeconds"/>, and the
         /// result re-encodes to AAC; otherwise the audio stream passes through untouched.
         /// </summary>
+        /// <param name="configuredFps">
+        /// The frame rate the base clip was captured at, used only when its media type does not declare
+        /// one. Output cadence comes from the samples' own timestamps either way; this sets the declared
+        /// rate, the bitrate and the keyframe spacing.
+        /// </param>
         [HandleProcessCorruptedStateExceptions, System.Security.SecurityCritical]
         public bool Export(
             string baseClipPath, ToastOverlayTrack track,
             double toastStartSeconds, double toastMaxSeconds, double trimLeadSeconds,
-            double endSeconds, byte[] chimePcm, double chimeStartSeconds, string outputPath)
+            double endSeconds, byte[] chimePcm, double chimeStartSeconds, string outputPath,
+            int configuredFps)
         {
             if (string.IsNullOrEmpty(baseClipPath) || track == null ||
                 track.Samples.Count == 0 || string.IsNullOrEmpty(outputPath))
@@ -91,7 +97,7 @@ namespace PlayniteAchievements.Services.Capture
                             var size = decodedType.Get(MediaTypeAttributeKeys.FrameSize);
                             frameW = (int)(size >> 32);
                             frameH = (int)(size & 0xffffffff);
-                            fps = ReadFps(decodedType);
+                            fps = ReadFps(decodedType, configuredFps);
                             stride = ReadStride(decodedType, frameW);
 
                             // The sink must agree with our row-order interpretation. When the
@@ -508,10 +514,10 @@ namespace PlayniteAchievements.Services.Capture
         }
 
         /// <summary>
-        /// The track frame for a sample, inflating lazily and caching the last inflation (60 fps
-        /// video against a ~30 fps track reuses every other frame). A frame whose compression
-        /// failed (null payload) falls back to the cached previous frame so the card holds
-        /// instead of flickering out.
+        /// The track frame for a sample, inflating lazily and caching the last inflation (tracks are
+        /// sampled per recording frame, but consecutive samples share a frame whenever the card's pixels
+        /// did not change). A frame whose compression failed (null payload) falls back to the cached
+        /// previous frame so the card holds instead of flickering out.
         /// </summary>
         private static bool TryGetOverlay(
             ToastOverlayTrack track, int sampleIndex,
@@ -598,7 +604,9 @@ namespace PlayniteAchievements.Services.Capture
             }
         }
 
-        private static int ReadFps(MediaType type)
+        // Falls back to the rate the clip was captured at rather than a fixed guess: a 30 fps capture
+        // declared as 60 misprices both the bitrate and the keyframe spacing.
+        private static int ReadFps(MediaType type, int configuredFps)
         {
             try
             {
@@ -615,7 +623,7 @@ namespace PlayniteAchievements.Services.Capture
                 // fall through to the default
             }
 
-            return 60;
+            return Math.Max(1, configuredFps);
         }
 
         private static int ReadStride(MediaType type, int frameW)
