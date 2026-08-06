@@ -85,6 +85,7 @@ namespace PlayniteAchievements.ViewModels.Settings
                     new NotificationLineRowItem(
                         kind,
                         BuildLineDisplayName(kind),
+                        new List<FontFamilyOption>(EnsureLineFontFamilyOptions()),
                         OnLineRowSizeEdited,
                         OnLineRowEmphasisEdited,
                         OnLineRowFontFamilyEdited)));
@@ -125,7 +126,18 @@ namespace PlayniteAchievements.ViewModels.Settings
 
         private static readonly object _fontFamilyOptionsGate = new object();
 
-        public IReadOnlyList<FontFamilyOption> FontFamilyOptions => EnsureFontFamilyOptions();
+        /// <summary>
+        /// This editor's own copy of the shared picker list. The entries are shared, but the list
+        /// instance is not: a font dropdown filters as the user types, WPF resolves that filter
+        /// against the default collection view of the bound list, and that view is per list
+        /// instance — so a shared list would let one dropdown's filter drop another dropdown's
+        /// selected font out of its items, which a Selector reports back as a null selection.
+        /// </summary>
+        public IReadOnlyList<FontFamilyOption> FontFamilyOptions =>
+            _surfaceFontFamilyOptions
+            ?? (_surfaceFontFamilyOptions = new List<FontFamilyOption>(EnsureFontFamilyOptions()));
+
+        private IReadOnlyList<FontFamilyOption> _surfaceFontFamilyOptions;
 
         /// <summary>
         /// Builds (once, process-wide) the picker list: the "theme default" sentinel followed by
@@ -182,7 +194,8 @@ namespace PlayniteAchievements.ViewModels.Settings
 
         /// <summary>
         /// The per-line font dropdown's options: "Default" (follow the shared family) plus the
-        /// same system families as <see cref="FontFamilyOptions"/>.
+        /// same system families as <see cref="FontFamilyOptions"/>. Each row copies this into its
+        /// own list for the reason given on <see cref="FontFamilyOptions"/>.
         /// </summary>
         public IReadOnlyList<FontFamilyOption> LineFontFamilyOptions => EnsureLineFontFamilyOptions();
 
@@ -2133,12 +2146,14 @@ namespace PlayniteAchievements.ViewModels.Settings
         public NotificationLineRowItem(
             string kind,
             string displayName,
+            IReadOnlyList<FontFamilyOption> fontFamilyOptions,
             Action<NotificationLineRowItem, string> onSizeEdited,
             Action<NotificationLineRowItem> onEmphasisEdited,
             Action<NotificationLineRowItem> onFontFamilyEdited)
         {
             Kind = kind;
             DisplayName = displayName;
+            FontFamilyOptions = fontFamilyOptions;
             _onSizeEdited = onSizeEdited;
             _onEmphasisEdited = onEmphasisEdited;
             _onFontFamilyEdited = onFontFamilyEdited;
@@ -2147,6 +2162,12 @@ namespace PlayniteAchievements.ViewModels.Settings
         public string Kind { get; }
 
         public string DisplayName { get; }
+
+        /// <summary>
+        /// This row's own copy of the per-line picker list, so type-to-filter in one row's font
+        /// dropdown cannot disturb another row's selection.
+        /// </summary>
+        public IReadOnlyList<FontFamilyOption> FontFamilyOptions { get; }
 
         public bool IsBold
         {
