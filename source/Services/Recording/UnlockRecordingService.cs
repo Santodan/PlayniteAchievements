@@ -619,36 +619,56 @@ namespace PlayniteAchievements.Services.Recording
 
         // === Unlock handling ===
 
-        private void OnAchievementUnlocked(object sender, AchievementUnlockedEventArgs e)
+        /// <summary>
+        /// Why an unlock does or does not produce a clip. Split out of
+        /// <see cref="OnAchievementUnlocked"/> so the decision itself is side-effect free and can
+        /// be asked twice: once here, and once by the toast pipeline deciding whether an unlock
+        /// owes a headless overlay track.
+        /// </summary>
+        private enum ClipEligibility
         {
+            Eligible,
+
+            /// <summary>Disposed, a preview, a friend unlock, or recordings are turned off.</summary>
+            NotRecordable,
+            CaptureInactive,
+            ProviderDisabled,
+            BelowRarity,
+            DifferentGame,
+        }
+
+        /// <summary>
+        /// Resolves whether this unlock would be cut into a clip right now, and the session it
+        /// would be cut from. Logs nothing and changes no state — the caller decides what to say.
+        /// </summary>
+        private ClipEligibility EvaluateClipEligibility(
+            AchievementUnlockedEventArgs e, out CaptureSession session)
+        {
+            session = null;
             if (_disposed || e == null || e.IsPreview || e.IsFriendUnlock)
             {
-                return;
+                return ClipEligibility.NotRecordable;
             }
 
             if (_settings?.Persisted?.EnableUnlockRecordings != true)
             {
-                return;
+                return ClipEligibility.NotRecordable;
             }
 
-            CaptureSession session;
             lock (_gate)
             {
                 session = _session;
             }
 
             // Active means the WGC-MF recorder is running for this session.
-            var captureActive = session != null && !session.Stopping && session.WgcRecorder != null;
-            if (!captureActive)
+            if (session == null || session.Stopping || session.WgcRecorder == null)
             {
-                _logger?.Debug(
-                    $"[Recording] Unlock '{e.DisplayName}' ignored; capture is not active (session={(session == null ? "none" : session.Stopping ? "stopping" : "no capture")}).");
-                return;
+                return ClipEligibility.CaptureInactive;
             }
 
             if (_isProviderRecordingEnabled?.Invoke(e.ProviderKey) == false)
             {
-                return;
+                return ClipEligibility.ProviderDisabled;
             }
 
             var persisted = _settings.Persisted;
@@ -657,9 +677,7 @@ namespace PlayniteAchievements.Services.Recording
                     persisted.UnlockRecordingRarities,
                     persisted.UnlockRecordingAlwaysCaptureCompletion))
             {
-                _logger?.Debug(
-                    $"[Recording] Unlock '{e.DisplayName}' is below the minimum recording rarity; no clip.");
-                return;
+                return ClipEligibility.BelowRarity;
             }
 
             // The buffer only contains the owner game's monitor; an unlock from another running
@@ -668,10 +686,50 @@ namespace PlayniteAchievements.Services.Recording
                 session.OwnerGameId != Guid.Empty &&
                 e.PlayniteGameId != session.OwnerGameId)
             {
-                _logger?.Debug(
-                    $"[Recording] Unlock '{e.DisplayName}' is from '{e.GameName}' but the capture follows '{session.GameName}'; toast/screenshot only, no clip.");
-                return;
+                return ClipEligibility.DifferentGame;
             }
+
+            return ClipEligibility.Eligible;
+        }
+
+        /// <summary>
+        /// Whether this unlock would produce a clip right now, so the toast pipeline can decide
+        /// that it owes a headless overlay track. Both sides read the same state through
+        /// <see cref="EvaluateClipEligibility"/>. It is evaluated in the toast service's unlock
+        /// handler, which runs before this service's own: a capture session starting or stopping
+        /// in that instant can make the two disagree, which costs at most a wasted headless wave
+        /// or a track wait that times out as it already would.
+        /// </summary>
+        internal bool WouldRequestClip(AchievementUnlockedEventArgs e) =>
+            EvaluateClipEligibility(e, out _) == ClipEligibility.Eligible;
+
+        private void OnAchievementUnlocked(object sender, AchievementUnlockedEventArgs e)
+        {
+            switch (EvaluateClipEligibility(e, out var session))
+            {
+                case ClipEligibility.Eligible:
+                    break;
+
+                case ClipEligibility.CaptureInactive:
+                    _logger?.Debug(
+                        $"[Recording] Unlock '{e.DisplayName}' ignored; capture is not active (session={(session == null ? "none" : session.Stopping ? "stopping" : "no capture")}).");
+                    return;
+
+                case ClipEligibility.BelowRarity:
+                    _logger?.Debug(
+                        $"[Recording] Unlock '{e.DisplayName}' is below the minimum recording rarity; no clip.");
+                    return;
+
+                case ClipEligibility.DifferentGame:
+                    _logger?.Debug(
+                        $"[Recording] Unlock '{e.DisplayName}' is from '{e.GameName}' but the capture follows '{session.GameName}'; toast/screenshot only, no clip.");
+                    return;
+
+                default:
+                    return;
+            }
+
+            var persisted = _settings.Persisted;
 
             // A stale timestamp (before this capture session) can't anchor the clip; the timing
             // math falls back to detection-anchored footage so every unlock still gets a clip.
