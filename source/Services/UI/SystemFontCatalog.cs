@@ -11,7 +11,7 @@ namespace PlayniteAchievements.Services.UI
     /// (the theme default, or the shared surface family for a per-line row);
     /// <see cref="PreviewFamily"/> is never null so item rendering always has a valid font.
     /// </summary>
-    internal sealed class FontFamilyOption
+    public sealed class FontFamilyOption
     {
         public FontFamilyOption(string displayName, string familyName, FontFamily previewFamily)
         {
