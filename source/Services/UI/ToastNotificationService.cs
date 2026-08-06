@@ -76,6 +76,11 @@ namespace PlayniteAchievements.Services.UI
         private IntPtr _activeReferenceHwnd;
         private bool _activeIsGame;
         private double _activeMonitorScale = 1.0;
+        // The anchor monitor's refresh rate (Hz), resolved with the scale above, or 0 when it can't be
+        // read. Every on-screen cadence derives from it: the composition tick that drives the slide
+        // cannot outpace it, the card's WPF timelines are asked to tick at it, and the DPI settle poll
+        // waits one of its frames at a time.
+        private int _activeMonitorRefreshHz;
         // The running physical slide's per-frame tick handler (CompositionTarget.Rendering), or null.
         private EventHandler _activeSlideTick;
         // Per-wave placement state: the offset between where SetWindowPos is asked to put the toast
@@ -83,8 +88,6 @@ namespace PlayniteAchievements.Services.UI
         // this wave has already logged that its placement needed rescuing.
         private ToastWindowPlacer.PlacementCorrection _placementCorrection;
         private bool _placementAnomalyLogged;
-        // Throttle (Environment.TickCount) for sampling the toast cards into their overlay tracks.
-        private int _lastTrackSampleTick;
 
         public ToastNotificationService(
             IPlayniteAPI api,
@@ -753,12 +756,13 @@ namespace PlayniteAchievements.Services.UI
         /// Records one animation tick of every toast card into the wave's overlay track recorder:
         /// per item, the card's rendered pixels plus its client-relative physical rect. The
         /// per-item tracks are re-timed into each achievement's unlock clip at export (WGC's
-        /// per-window video capture can't see the separate toast window). Throttled by the
-        /// caller; a no-op when not a game anchor. UI thread only.
+        /// per-window video capture can't see the separate toast window). Called by the caller once per
+        /// recording frame, with that frame's composition time; a no-op when not a game anchor. UI
+        /// thread only.
         /// </summary>
         private void SampleWaveTracks(
             ToastOverlayTrackRecorder recorder, Window window,
-            IReadOnlyList<AchievementToastViewModel> toastItems)
+            IReadOnlyList<AchievementToastViewModel> toastItems, double elapsedMs)
         {
             if (recorder == null ||
                 !TryGetTrackGeometry(window, out var itemsControl, out var clientPhys, out var windowPhys,
@@ -783,7 +787,8 @@ namespace PlayniteAchievements.Services.UI
                 var origin = container.TransformToAncestor(window).Transform(new Point(0, 0));
                 var relX = windowPhys.X + (int)Math.Round(origin.X * pxPerDipX) - clientPhys.X;
                 var relY = windowPhys.Y + (int)Math.Round(origin.Y * pxPerDipY) - clientPhys.Y;
-                recorder.Sample(toastItems[i], pixels, pw, ph, relX, relY, clientPhys.Width, clientPhys.Height);
+                recorder.Sample(
+                    toastItems[i], pixels, pw, ph, relX, relY, clientPhys.Width, clientPhys.Height, elapsedMs);
             }
         }
 
@@ -1135,6 +1140,8 @@ namespace PlayniteAchievements.Services.UI
             }
 
             _activeMonitorScale = ToastWindowPlacer.ResolveMonitorScale(_activeReferenceHwnd);
+            _activeMonitorRefreshHz =
+                ToastWindowPlacer.TryGetMonitorRefreshHz(_activeReferenceHwnd, out var refreshHz) ? refreshHz : 0;
 
             // When anchored to a running game, drop topmost so the toast can be occluded. It is NOT
             // owned by the game window — ownership raises the owner (game), pushing overlapping
@@ -1176,6 +1183,11 @@ namespace PlayniteAchievements.Services.UI
             EventHandler onRendering = null;
             EventHandler onTrackSample = null;
             ToastOverlayTrackRecorder trackRecorder = null;
+            // Overlay-track sampling stats for the wave's diagnostic line: the composed frames the
+            // sampler saw against the samples it actually took is what shows the cadence landing where
+            // the recording frame rate asks for it rather than aliasing to half of it.
+            RenderTickCounter trackTicks = null;
+            var trackSampleCount = 0;
             try
             {
                 // Realize the toast HWND under Per-Monitor-V2 so Windows does not bitmap-rescale it on
@@ -1213,12 +1225,13 @@ namespace PlayniteAchievements.Services.UI
                 // window's render scale reaches the target monitor's scale) while it is still invisible
                 // (Opacity=0), so the reveal below does not flicker across the monitor boundary. Bounded
                 // so it never hangs; already-settled cases (e.g. the system monitor) exit immediately.
+                var settleFrameMs = Math.Max(1, (int)Math.Ceiling(MonitorFramePeriodMs()));
                 for (var settle = 0;
                     settle < MaxDpiSettleFrames && !_disposed &&
                         Math.Abs(ToastWindowPlacer.RenderScale(window) - _activeMonitorScale) >= DpiSettleTolerance;
                     settle++)
                 {
-                    await Task.Delay(DpiSettleFrameMs).ConfigureAwait(true);
+                    await Task.Delay(settleFrameMs).ConfigureAwait(true);
                 }
 
                 if (_disposed)
@@ -1230,32 +1243,64 @@ namespace PlayniteAchievements.Services.UI
                 // actual render scale, snap to the corner, and reveal.
                 ApplyDpiCompensation(window, items, fitScale);
                 PlaceWindow(window, "shown");
+                // The anchor monitor is only known now, after the content was built, so hand the cards'
+                // glow pulses its refresh rate and restart them on it (a running clock's rate can't be
+                // changed in place). Toast glows opt out of phase lock and start at their peak, so this
+                // also lands that peak on the visible reveal instead of on the pre-show layout pass.
+                if (_activeMonitorRefreshHz > 0)
+                {
+                    RarityGlowPulse.SetDesiredFrameRate(window, _activeMonitorRefreshHz);
+                    RarityGlowPulse.ReapplyIn(window);
+                }
+
                 SlideInPhysical(window);
 
                 // Start recording each card's overlay track now, at the reveal, so the slide-in
-                // animation lands in the tracks (not just the settled toast). Tracks are re-timed
-                // into each achievement's clip at export. Independent of the placement hooks below
-                // (sampling only reads, never moves the window). Game anchor only — a test fire
-                // out of game has no video.
-                if (_activeIsGame && _activeReferenceHwnd != IntPtr.Zero)
+                // animation lands in the tracks (not just the settled toast). Tracks are sampled at the
+                // recording frame rate and re-timed into each achievement's clip at export. Independent
+                // of the placement hooks below (sampling only reads, never moves the window). Game anchor
+                // only — a test fire out of game has no video — and only with recordings enabled, since
+                // nothing else consumes a track.
+                if (_activeIsGame && _activeReferenceHwnd != IntPtr.Zero &&
+                    (_settings?.Persisted?.EnableUnlockRecordings ?? false))
                 {
-                    trackRecorder = new ToastOverlayTrackRecorder(_logger);
-                    _lastTrackSampleTick = 0;
-                    SampleWaveTracks(trackRecorder, window, toastItems);
-                    // The unconditional ~30fps resample also carries animation frames into
-                    // the tracks (min effective frame delay is 100ms for both GIF and WebP per
-                    // AnimatedImageHelper) — do not reduce this to
-                    // sample-on-position-change.
+                    var sampleIntervalMs = TrackSampleIntervalMs();
+                    trackRecorder = new ToastOverlayTrackRecorder(_logger, sampleIntervalMs);
+                    SampleWaveTracks(trackRecorder, window, toastItems, 0d);
+                    trackSampleCount = 1;
+                    // The unconditional resample also carries animation frames into the tracks (min
+                    // effective frame delay is 100ms for both GIF and WebP per AnimatedImageHelper) — do
+                    // not reduce this to sample-on-position-change.
                     var recorder = trackRecorder;
+                    // Sampling is due every recording frame, but can only happen on a composed frame, so
+                    // take the tick nearest each due instant: comparing against the due time less half a
+                    // monitor frame is what stops a recording rate at or near the refresh rate from
+                    // aliasing. When the two rates match, every tick is a sample; when the recording rate
+                    // is the lower one, ticks are skipped evenly.
+                    var dueTolerance = MonitorFramePeriodMs() / 2d;
+                    var nextDueMs = sampleIntervalMs;
+                    trackTicks = new RenderTickCounter();
+                    var counter = trackTicks;
                     onTrackSample = (s, e) =>
                     {
                         try
                         {
-                            if (unchecked(Environment.TickCount - _lastTrackSampleTick) >= TrackSampleIntervalMs)
+                            if (!counter.TryAdvance(e, out var elapsedMs) ||
+                                elapsedMs < nextDueMs - dueTolerance)
                             {
-                                _lastTrackSampleTick = Environment.TickCount;
-                                SampleWaveTracks(recorder, window, toastItems);
+                                return;
                             }
+
+                            // Advance past the elapsed time so a stall or a dropped frame resumes on
+                            // cadence instead of bunching the samples it missed onto this tick.
+                            do
+                            {
+                                nextDueMs += sampleIntervalMs;
+                            }
+                            while (nextDueMs <= elapsedMs);
+
+                            trackSampleCount++;
+                            SampleWaveTracks(recorder, window, toastItems, elapsedMs);
                         }
                         catch
                         {
@@ -1310,11 +1355,17 @@ namespace PlayniteAchievements.Services.UI
                 // by onTrackSample (started at the reveal so the slide-in is recorded too).
                 if (_activeReferenceHwnd != IntPtr.Zero)
                 {
+                    var followTicks = new RenderTickCounter();
                     onRendering = (s, e) =>
                     {
                         try
                         {
-                            PlaceWindowToHandle(window);
+                            // Once per composed frame: WPF can raise Rendering more than once for the
+                            // same frame, and a second SetWindowPos to the same point is pure cost.
+                            if (followTicks.TryAdvance(e, out _))
+                            {
+                                PlaceWindowToHandle(window);
+                            }
                         }
                         catch
                         {
@@ -1357,6 +1408,8 @@ namespace PlayniteAchievements.Services.UI
                     CompositionTarget.Rendering -= onTrackSample;
                     onTrackSample = null;
                 }
+
+                LogWaveCadence(trackTicks, trackSampleCount);
             }
             catch (Exception ex) when (previewSource.HasValue)
             {
@@ -1783,6 +1836,51 @@ namespace PlayniteAchievements.Services.UI
             }
         }
 
+        /// <summary>
+        /// One line per wave describing the cadences that were actually achieved (gated behind the
+        /// compile-time perf tracing flag): the anchor monitor's refresh rate against the mean interval
+        /// between composed frames, and the overlay sampler's frames-seen against samples-taken.
+        ///
+        /// That last pair is the one worth reading. Sampling is due every recording frame but can only
+        /// happen on a composed frame, so samples should equal frames when the two rates match and fall
+        /// to the expected fraction when the recording rate is lower. Half the expected count is the
+        /// signature of the sampler aliasing against the refresh rate.
+        /// </summary>
+        private void LogWaveCadence(RenderTickCounter trackTicks, int trackSampleCount)
+        {
+            if (!Common.PerfScope.PerfTracingEnabled)
+            {
+                return;
+            }
+
+            try
+            {
+                var culture = System.Globalization.CultureInfo.InvariantCulture;
+                var monitorHz = _activeMonitorRefreshHz > 0
+                    ? _activeMonitorRefreshHz.ToString(culture)
+                    : "unknown";
+                if (trackTicks == null)
+                {
+                    _logger?.Info(string.Format(
+                        culture, "Toast cadence: monitorHz={0} track=off", monitorHz));
+                    return;
+                }
+
+                _logger?.Info(string.Format(
+                    culture,
+                    "Toast cadence: monitorHz={0} tickMean={1:0.00}ms frames={2} sampleTarget={3:0.00}ms samples={4}",
+                    monitorHz,
+                    trackTicks.MeanIntervalMs,
+                    trackTicks.Frames,
+                    TrackSampleIntervalMs(),
+                    trackSampleCount));
+            }
+            catch (Exception ex)
+            {
+                _logger?.Debug(ex, "Toast cadence diagnostics failed.");
+            }
+        }
+
         private void PlaceWindow(Window window)
         {
             PlaceWindow(window, null);
@@ -2102,24 +2200,104 @@ namespace PlayniteAchievements.Services.UI
         private const double SlideTravelPaddingDip = 40d;
         // Small pause after a slide-out finishes before the window is torn down.
         private const int SlideSettleBufferMs = 10;
-        // Minimum spacing between overlay-track samples (~30 fps): fast enough that the animating
-        // countdown bar reads as smooth in the clip, without paying the card re-renders on every
-        // 60 fps composition tick.
-        private const int TrackSampleIntervalMs = 33;
         // Below this, the content scale is treated as 1.0 and no LayoutTransform is applied.
         private const double ContentScaleEpsilon = 0.001;
         // Post-Show wait for the per-monitor DPI change to settle before revealing the toast: poll the
-        // window's render scale up to MaxDpiSettleFrames times, DpiSettleFrameMs apart, until it reaches
+        // window's render scale up to MaxDpiSettleFrames times, one monitor frame apart, until it reaches
         // the target monitor's scale (within DpiSettleTolerance). Bounds a worst case at ~1-2 frames for
         // the common case and never hangs.
-        private const int DpiSettleFrameMs = 16;
         private const int MaxDpiSettleFrames = 8;
         private const double DpiSettleTolerance = 0.01;
+        // Frame period assumed when the anchor monitor's refresh rate can't be read (60 Hz).
+        private const double FallbackFramePeriodMs = 1000d / 60d;
+        // Recording frame rate assumed when settings are unreachable; matches PersistedSettings' default.
+        private const int FallbackRecordingFps = 30;
+
+        /// <summary>
+        /// One frame of the monitor the current wave is on (ms), or a 60 Hz frame when its refresh rate
+        /// could not be read. The upper bound on how often anything on screen can change.
+        /// </summary>
+        private double MonitorFramePeriodMs()
+        {
+            return _activeMonitorRefreshHz > 0 ? 1000d / _activeMonitorRefreshHz : FallbackFramePeriodMs;
+        }
+
+        /// <summary>
+        /// One frame of the configured recording frame rate (ms) — the interval the overlay tracks are
+        /// sampled at, since the tracks exist only to be composited into clips at that rate. Sampling
+        /// faster would hand export samples it cannot place; slower is what made a 60 fps clip show every
+        /// toast position twice.
+        /// </summary>
+        private double TrackSampleIntervalMs()
+        {
+            var fps = _settings?.Persisted?.RecordingFps ?? FallbackRecordingFps;
+            return 1000d / Math.Max(1, fps);
+        }
 
         private static readonly IEasingFunction DefaultSlideInEase =
             new BackEase { EasingMode = EasingMode.EaseOut, Amplitude = SlideOvershootAmplitude };
         private static readonly IEasingFunction DefaultSlideOutEase =
             new CubicEase { EasingMode = EasingMode.EaseIn };
+
+        /// <summary>
+        /// Per-frame bookkeeping for one <c>CompositionTarget.Rendering</c> subscription: hands the
+        /// handler the composing frame's timestamp, reports a repeated tick so the work is done once per
+        /// composed frame, and keeps the frame count and span so the wave's real tick rate is reportable.
+        ///
+        /// The timestamp is the frame's composition time rather than the time the handler happened to
+        /// run, so motion driven from it is spaced as evenly as the frames themselves. The source is
+        /// fixed on the first tick — <see cref="RenderingEventArgs.RenderingTime"/> when WPF supplies it,
+        /// else a local stopwatch — so the epoch never changes mid-subscription.
+        /// </summary>
+        private sealed class RenderTickCounter
+        {
+            private readonly System.Diagnostics.Stopwatch _fallbackClock =
+                System.Diagnostics.Stopwatch.StartNew();
+            private bool _sourceChosen;
+            private bool _useRenderingTime;
+            private double _lastMs = double.NegativeInfinity;
+
+            /// <summary>Distinct composed frames observed.</summary>
+            public int Frames { get; private set; }
+
+            /// <summary>Mean interval between the observed frames (ms); 0 below two frames.</summary>
+            public double MeanIntervalMs => Frames > 1 ? (_lastMs - _firstMs) / (Frames - 1) : 0d;
+
+            private double _firstMs;
+
+            /// <summary>
+            /// True when this event carries a frame not seen yet, with <paramref name="elapsedMs"/> set to
+            /// that frame's time since the first observed one.
+            /// </summary>
+            public bool TryAdvance(EventArgs e, out double elapsedMs)
+            {
+                elapsedMs = 0d;
+                var renderingTime = (e as RenderingEventArgs)?.RenderingTime;
+                if (!_sourceChosen)
+                {
+                    _useRenderingTime = renderingTime.HasValue;
+                    _sourceChosen = true;
+                }
+
+                var nowMs = _useRenderingTime && renderingTime.HasValue
+                    ? renderingTime.Value.TotalMilliseconds
+                    : _fallbackClock.Elapsed.TotalMilliseconds;
+                if (nowMs <= _lastMs)
+                {
+                    return false;
+                }
+
+                if (Frames == 0)
+                {
+                    _firstMs = nowMs;
+                }
+
+                _lastMs = nowMs;
+                Frames++;
+                elapsedMs = nowMs - _firstMs;
+                return true;
+            }
+        }
 
         private void SlideInPhysical(Window window)
         {
@@ -2208,11 +2386,19 @@ namespace PlayniteAchievements.Services.UI
                 return;
             }
 
-            var stopwatch = System.Diagnostics.Stopwatch.StartNew();
+            // Progress comes from each frame's composition time, not from when the handler ran: the
+            // window moves once per composed frame either way, but timing it off the frame keeps the
+            // steps as evenly spaced as the frames, at whatever rate the monitor presents.
+            var ticks = new RenderTickCounter();
             EventHandler tick = null;
             tick = (s, e) =>
             {
-                var t = Math.Min(1.0, stopwatch.Elapsed.TotalMilliseconds / durationMs);
+                if (!ticks.TryAdvance(e, out var elapsedMs))
+                {
+                    return;
+                }
+
+                var t = Math.Min(1.0, elapsedMs / durationMs);
                 var k = ease != null ? ease.Ease(t) : t;
                 var y = (int)Math.Round(fromY + ((toY - fromY) * k));
                 MoveCorrected(window, x, y);
@@ -2365,6 +2551,13 @@ namespace PlayniteAchievements.Services.UI
                 // The countdown must track the actual display time, so the runtime duration always
                 // wins over whatever placeholder the storyboard authored.
                 animation.Duration = duration;
+                // Tick the bar at the rate its monitor can actually present, rather than leaving it on
+                // WPF's default clock rate.
+                if (_activeMonitorRefreshHz > 0)
+                {
+                    Timeline.SetDesiredFrameRate(animation, _activeMonitorRefreshHz);
+                }
+
                 scale.BeginAnimation(ScaleTransform.ScaleXProperty, animation);
             }
         }
