@@ -76,6 +76,7 @@ namespace PlayniteAchievements.Services.Recording
         // Fallbacks matching the PersistedSettings defaults, used when settings are unavailable.
         private const int DefaultPollIntervalSeconds = 15;
         private const int DefaultPreRollSeconds = 15;
+        private const int DefaultRecordingFps = 30;
         // Sentinel poll interval handed to SelectPrunable to suspend age-based pruning while clips
         // are outstanding; large enough that the retention depth keeps every buffered segment.
         private const int AgePruneSuspendedInterval = 3600;
@@ -1003,9 +1004,13 @@ namespace PlayniteAchievements.Services.Recording
             try
             {
                 var reencoder = new MediaFoundationOverlayReencoder(_logger);
+                // The rate the segments were captured at, so a base clip whose media type declares no
+                // frame rate is re-encoded as what it actually is. Falls back to the setting's own
+                // default, which is what a capture with unreachable settings would have used.
+                var capturedFps = _settings?.Persisted?.RecordingFps ?? DefaultRecordingFps;
                 var ok = await Task.Run(() => reencoder.Export(
                         basePath, track, toastStartSeconds, toastSlotSeconds, videoLeadSeconds,
-                        endSeconds, chimePcm, chimeStartSeconds, tempPath))
+                        endSeconds, chimePcm, chimeStartSeconds, tempPath, capturedFps))
                     .ConfigureAwait(false);
                 if (ok)
                 {
