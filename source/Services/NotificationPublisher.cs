@@ -20,26 +20,32 @@ namespace PlayniteAchievements.Services
             _logger = logger;
         }
 
-        public void ShowPeriodicStatus(string status)
+        /// <summary>
+        /// Reports an unattended background refresh that fell short — a provider threw, a provider
+        /// needs re-authentication, or the run failed outright. A clean refresh says nothing, so
+        /// seeing this always means something wants attention rather than being routine noise.
+        /// There is no per-feature setting; only the plugin-wide notification switch silences it.
+        /// </summary>
+        public void ShowRefreshFailed(string status)
         {
-            if (_settings?.Persisted?.EnableNotifications != true || !_settings.Persisted.NotifyPeriodicUpdates)
+            if (_settings?.Persisted?.EnableNotifications != true)
                 return;
 
             var title = ResourceProvider.GetString("LOCPlayAch_Title_PluginName");
             var text = string.IsNullOrWhiteSpace(status)
-                ? ResourceProvider.GetString("LOCPlayAch_Status_RefreshComplete")
+                ? ResourceProvider.GetString("LOCPlayAch_Error_RebuildFailed")
                 : status;
 
             try
             {
                 _api.Notifications.Add(new NotificationMessage(
-                    $"PlayniteAchievements-Periodic-{Guid.NewGuid()}",
+                    $"PlayniteAchievements-RefreshFailed-{Guid.NewGuid()}",
                     $"{title}\n{text}",
-                    NotificationType.Info));
+                    NotificationType.Error));
             }
             catch (Exception ex)
             {
-                _logger?.Debug(ex, "Failed to show periodic notification.");
+                _logger?.Debug(ex, "Failed to show refresh failure notification.");
             }
         }
 
