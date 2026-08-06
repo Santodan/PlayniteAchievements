@@ -107,6 +107,11 @@ namespace PlayniteAchievements.Services.Capture
                             // Declaring the stride we actually assume removes the ambiguity.
                             decodedType.Set(MediaTypeAttributeKeys.DefaultStride, stride);
 
+                            // The decoder/converter hands back full-range RGB regardless of the base
+                            // clip's own range, so say so: the sink's RGB -> encoder converter then
+                            // compresses to the limited range the output type declares.
+                            MediaFoundationColor.ApplyFullRangeRgbInput(decodedType);
+
                             SinkWriter sink = null;
                             try
                             {
@@ -172,6 +177,7 @@ namespace PlayniteAchievements.Services.Capture
                 outputType.Set(MediaTypeAttributeKeys.FrameSize, Pack(frameW, frameH));
                 outputType.Set(MediaTypeAttributeKeys.FrameRate, Pack(fps, 1));
                 outputType.Set(MediaTypeAttributeKeys.PixelAspectRatio, Pack(1, 1));
+                MediaFoundationColor.ApplyBt709LimitedOutput(outputType);
                 sink.AddStream(outputType, out var streamIndex);
 
                 // The reader's own decoded type as input guarantees subtype/size/stride agreement;
