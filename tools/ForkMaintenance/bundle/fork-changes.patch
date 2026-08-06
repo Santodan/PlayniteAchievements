@@ -770,7 +770,7 @@ index 49f7ff62a1120efabe5fec552b23b3589a8e3d0c..f1def6c118dc602e46db4ee2df9c6d57
          {
              _resourceService.EnsureAchievementResourcesLoaded(_settingsViewModel.Settings);
 diff --git a/source/PlayniteAchievementsPlugin.cs b/source/PlayniteAchievementsPlugin.cs
-index 32f9362b9ca8aae768b89db43e969161c3b5c4e7..b3e4a19462ae9b667cb6a8d1256ae616d6d1e46c 100644
+index 32f9362b9ca8aae768b89db43e969161c3b5c4e7..64af7e9d33d49d7cf92d4c864598f298e7539248 100644
 --- a/source/PlayniteAchievementsPlugin.cs
 +++ b/source/PlayniteAchievementsPlugin.cs
 @@ -38,6 +38,7 @@
@@ -833,7 +833,7 @@ index 32f9362b9ca8aae768b89db43e969161c3b5c4e7..b3e4a19462ae9b667cb6a8d1256ae616
          /// <summary>
          /// Raises the SettingsSaved event to notify listeners that settings have changed. Every
          /// subscriber is a UI control, so when this is invoked from a background thread (e.g. a friend
-@@ -212,6 +236,65 @@ public static void NotifyAchievementUnlocked(AchievementUnlockedEventArgs args)
+@@ -212,6 +236,72 @@ public static void NotifyAchievementUnlocked(AchievementUnlockedEventArgs args)
              handler.Invoke(null, args);
          }
  
@@ -862,6 +862,13 @@ index 32f9362b9ca8aae768b89db43e969161c3b5c4e7..b3e4a19462ae9b667cb6a8d1256ae616
 +                {
 +                    var localSettings = ProviderRegistry.Settings<Providers.Local.LocalSettings>();
 +                    var game = PlayniteApi?.Database?.Games?.Get(args.PlayniteGameId);
++                    var notificationRarity = args.GlobalPercent.HasValue
++                        ? AchievementRarityResolver.GetDetailText(
++                            args.GlobalPercent,
++                            RarityTierExtensions.TryParse(args.RarityTier, out var rarityTier)
++                                ? rarityTier
++                                : RarityTier.Common)
++                        : args.RarityTier;
 +                    _notifications?.ShowLocalAchievementUnlocked(
 +                        args.GameName ?? game?.Name,
 +                        new[]
@@ -871,7 +878,7 @@ index 32f9362b9ca8aae768b89db43e969161c3b5c4e7..b3e4a19462ae9b667cb6a8d1256ae616
 +                                args.IconPath,
 +                                args.Description,
 +                                args.Points ?? args.ScaledPoints,
-+                                args.RarityTier,
++                                notificationRarity,
 +                                args.TrophyType)
 +                        },
 +                        localSettings?.UnlockSoundPath,
@@ -899,7 +906,7 @@ index 32f9362b9ca8aae768b89db43e969161c3b5c4e7..b3e4a19462ae9b667cb6a8d1256ae616
          private void TryWarmCustomDataCache()
          {
              if (_gameCustomDataStore == null)
-@@ -254,9 +337,22 @@ private string GetPluginLocalizationDirectory()
+@@ -254,9 +344,22 @@ private string GetPluginLocalizationDirectory()
          }
  
          public void PersistSettingsForUi()
@@ -922,7 +929,7 @@ index 32f9362b9ca8aae768b89db43e969161c3b5c4e7..b3e4a19462ae9b667cb6a8d1256ae616
                  _providerRegistry?.PersistAllProviderSettings(false);
                  SavePluginSettings(_settingsViewModel.Settings);
              }
-@@ -264,8 +360,31 @@ public void PersistSettingsForUi()
+@@ -264,8 +367,31 @@ public void PersistSettingsForUi()
              {
                  _logger?.Warn(ex, "Failed to persist plugin settings.");
              }
@@ -955,7 +962,7 @@ index 32f9362b9ca8aae768b89db43e969161c3b5c4e7..b3e4a19462ae9b667cb6a8d1256ae616
          }
  
          // Public bridge method for external helpers/themes that used to target SuccessStory via reflection.
-@@ -423,8 +542,22 @@ public PlayniteAchievementsPlugin(IPlayniteAPI api) : base(api)
+@@ -423,8 +549,22 @@ public PlayniteAchievementsPlugin(IPlayniteAPI api) : base(api)
                  _manualSourceRegistry = new ManualSourceRegistry(_logger, settings, PlayniteApi, pluginUserDataPath);
  
                  // Create provider registry
@@ -979,7 +986,7 @@ index 32f9362b9ca8aae768b89db43e969161c3b5c4e7..b3e4a19462ae9b667cb6a8d1256ae616
                  settings.Persisted?.MigrateLegacyProviderFriends();
                  _gameCustomDataStore = _settingsViewModel.GameCustomDataStore;
                  _gameCustomDataStore.AttachRuntimeSettings(settings);
-@@ -526,6 +659,7 @@ public PlayniteAchievementsPlugin(IPlayniteAPI api) : base(api)
+@@ -526,6 +666,7 @@ public PlayniteAchievementsPlugin(IPlayniteAPI api) : base(api)
                      }
  
                      _notifications = new NotificationPublisher(api, settings, _logger);
@@ -987,7 +994,7 @@ index 32f9362b9ca8aae768b89db43e969161c3b5c4e7..b3e4a19462ae9b667cb6a8d1256ae616
                      _refreshCoordinator = new RefreshEntryPoint(
                          _refreshService,
                          _logger,
-@@ -538,7 +672,8 @@ public PlayniteAchievementsPlugin(IPlayniteAPI api) : base(api)
+@@ -538,7 +679,8 @@ public PlayniteAchievementsPlugin(IPlayniteAPI api) : base(api)
                          () => _resourceService.EnsureAchievementResourcesLoaded(_settingsViewModel.Settings),
                          GetProcessIdForGame,
                          _windowTracker,
@@ -997,7 +1004,7 @@ index 32f9362b9ca8aae768b89db43e969161c3b5c4e7..b3e4a19462ae9b667cb6a8d1256ae616
                      _unlockRecordings = new Services.Recording.UnlockRecordingService(
                          PlayniteApi,
                          settings,
-@@ -558,7 +693,7 @@ public PlayniteAchievementsPlugin(IPlayniteAPI api) : base(api)
+@@ -558,7 +700,7 @@ public PlayniteAchievementsPlugin(IPlayniteAPI api) : base(api)
                          _cacheManager,
                          _refreshService,
                          (request, policy) => _refreshCoordinator.ExecuteAsync(request, policy),
@@ -1006,7 +1013,7 @@ index 32f9362b9ca8aae768b89db43e969161c3b5c4e7..b3e4a19462ae9b667cb6a8d1256ae616
                      _backgroundUpdates = new BackgroundUpdater(_refreshCoordinator, _refreshService, _cacheManager, settings, _logger, _notifications, null);
  
                      // Create tag sync service
-@@ -717,7 +852,7 @@ public override IEnumerable<SidebarItem> GetSidebarItems()
+@@ -717,7 +859,7 @@ public override IEnumerable<SidebarItem> GetSidebarItems()
                  Opened = () =>
                  {
                      return new OverviewHostControl(
@@ -1015,7 +1022,7 @@ index 32f9362b9ca8aae768b89db43e969161c3b5c4e7..b3e4a19462ae9b667cb6a8d1256ae616
                          _logger,
                          PlayniteApi,
                          _refreshService,
-@@ -1106,6 +1241,11 @@ private void PersistedSettings_PropertyChanged(object sender, PropertyChangedEve
+@@ -1106,6 +1248,11 @@ private void PersistedSettings_PropertyChanged(object sender, PropertyChangedEve
                  ReconfigureInGameMonitor();
              }
  
@@ -1027,7 +1034,7 @@ index 32f9362b9ca8aae768b89db43e969161c3b5c4e7..b3e4a19462ae9b667cb6a8d1256ae616
              if (e.PropertyName == nameof(PersistedSettings.UseUniformRarityBadges) ||
                  e.PropertyName == nameof(PersistedSettings.RarityColors))
              {
-@@ -1225,6 +1365,37 @@ private void ReconfigureInGameMonitor()
+@@ -1225,6 +1372,37 @@ private void ReconfigureInGameMonitor()
              }
          }
  
@@ -1065,7 +1072,7 @@ index 32f9362b9ca8aae768b89db43e969161c3b5c4e7..b3e4a19462ae9b667cb6a8d1256ae616
          public override void OnApplicationStopped(OnApplicationStoppedEventArgs args)
          {
              _logger.Info("OnApplicationStopped called.");
-@@ -1261,6 +1432,7 @@ public override void OnApplicationStopped(OnApplicationStoppedEventArgs args)
+@@ -1261,6 +1439,7 @@ public override void OnApplicationStopped(OnApplicationStoppedEventArgs args)
              DisposeStartPageViews();
  
              // Shutdown logging system
@@ -4601,7 +4608,7 @@ index 11ca94e019cfaf99cdc80b4904455f0fc62e802b..4a4abc1ceae8235972f43175044a1825
          {
              token.ThrowIfCancellationRequested();
 diff --git a/source/Services/NotificationPublisher.cs b/source/Services/NotificationPublisher.cs
-index 975e6f2dcd0e0aa299dfb49e9541d5c461bf9e47..c22aa18ab0039218283d7dac56469499689fb814 100644
+index 975e6f2dcd0e0aa299dfb49e9541d5c461bf9e47..4fef00a63b70e03aaaecbca3124e1ebc91fd19ea 100644
 --- a/source/Services/NotificationPublisher.cs
 +++ b/source/Services/NotificationPublisher.cs
 @@ -1,23 +1,82 @@
@@ -5085,7 +5092,7 @@ index 975e6f2dcd0e0aa299dfb49e9541d5c461bf9e47..c22aa18ab0039218283d7dac56469499
          private static readonly string[] AllKnownProviderKeys = new[]
          {
              "Steam", "Epic", "GOG", "BattleNet", "EA", "PSN", "Xbox",
-@@ -163,5 +613,7248 @@ private void OpenPluginSettingsForProvider(string providerKey)
+@@ -163,5 +613,7262 @@ private void OpenPluginSettingsForProvider(string providerKey)
                  _logger?.Debug(ex, "Failed to open plugin settings from notification click.");
              }
          }
@@ -11107,7 +11114,7 @@ index 975e6f2dcd0e0aa299dfb49e9541d5c461bf9e47..c22aa18ab0039218283d7dac56469499
 +                case "points":
 +                    return achievementPoints?.ToString(CultureInfo.InvariantCulture) ?? string.Empty;
 +                case "rarity":
-+                    return achievementRarity ?? string.Empty;
++                    return ResolveRarityWildcardText(achievementRarity);
 +                case "trophy":
 +                    return FormatTrophyText(achievementTrophy);
 +                case "provider":
@@ -11127,6 +11134,20 @@ index 975e6f2dcd0e0aa299dfb49e9541d5c461bf9e47..c22aa18ab0039218283d7dac56469499
 +                default:
 +                    return fallback;
 +            }
++        }
++
++        private static string ResolveRarityWildcardText(string rarity)
++        {
++            if (string.IsNullOrWhiteSpace(rarity))
++            {
++                return string.Empty;
++            }
++
++            // The notification pipeline keeps the tier alongside the percentage so rarity
++            // badges and score tokens can resolve it without guessing. The legacy <rarity>
++            // wildcard, however, has always represented the global unlock percentage only.
++            var percent = Regex.Match(rarity, @"<?\s*[-+]?\d+(?:[.,]\d+)?\s*%");
++            return percent.Success ? percent.Value.Trim() : rarity;
 +        }
 +
 +        private sealed class NotificationScoreContext
@@ -19775,3 +19796,5 @@ index 880a621ac658128dfc3328f6f65ebf3dd5c8c751..cb74debb9c19a7af23a8c2441d0ab984
              StringAssert.Contains(
                  card.NextTierThresholdText,
                  AchievementRankPresentation.FormatRank(snapshot.NextRank));
+warning: in the working copy of 'source/PlayniteAchievementsPlugin.cs', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'source/Services/NotificationPublisher.cs', LF will be replaced by CRLF the next time Git touches it

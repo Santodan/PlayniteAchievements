@@ -1,7 +1,7 @@
 {
     "schemaVersion":  1,
-    "generatedUtc":  "2026-08-06T13:20:35.6367752Z",
-    "baselineRef":  "v3.1.0",
+    "generatedUtc":  "2026-08-06T13:28:34.2471940Z",
+    "baselineRef":  "upstream/main",
     "baselineCommit":  "8fb84ef5f965919c95fd8a6f1492ccb832bb7c0b",
     "protectedPaths":  [
                            "README.md",
@@ -10,7 +10,7 @@
                        ],
     "patch":  {
                   "path":  "fork-changes.patch",
-                  "sha256":  "1F7DA317A9ABF463832FC34CD22A08EAF4935B4D7873E57D1DDDE19591A8783D"
+                  "sha256":  "3D43D93825771818276EA9149C7EC26B306446A86CCB2AA7FB8B59236750FF42"
               },
     "localizationRecipes":  {
                                 "path":  "localization-recipes.json",

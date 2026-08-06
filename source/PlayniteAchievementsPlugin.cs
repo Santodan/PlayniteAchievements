@@ -261,6 +261,13 @@ namespace PlayniteAchievements
                 {
                     var localSettings = ProviderRegistry.Settings<Providers.Local.LocalSettings>();
                     var game = PlayniteApi?.Database?.Games?.Get(args.PlayniteGameId);
+                    var notificationRarity = args.GlobalPercent.HasValue
+                        ? AchievementRarityResolver.GetDetailText(
+                            args.GlobalPercent,
+                            RarityTierExtensions.TryParse(args.RarityTier, out var rarityTier)
+                                ? rarityTier
+                                : RarityTier.Common)
+                        : args.RarityTier;
                     _notifications?.ShowLocalAchievementUnlocked(
                         args.GameName ?? game?.Name,
                         new[]
@@ -270,7 +277,7 @@ namespace PlayniteAchievements
                                 args.IconPath,
                                 args.Description,
                                 args.Points ?? args.ScaledPoints,
-                                args.RarityTier,
+                                notificationRarity,
                                 args.TrophyType)
                         },
                         localSettings?.UnlockSoundPath,

@@ -6631,7 +6631,7 @@ if ({JsBool(settings?.OverlayCustomAutoResizeToContent == true)}) {{
                 case "points":
                     return achievementPoints?.ToString(CultureInfo.InvariantCulture) ?? string.Empty;
                 case "rarity":
-                    return achievementRarity ?? string.Empty;
+                    return ResolveRarityWildcardText(achievementRarity);
                 case "trophy":
                     return FormatTrophyText(achievementTrophy);
                 case "provider":
@@ -6651,6 +6651,20 @@ if ({JsBool(settings?.OverlayCustomAutoResizeToContent == true)}) {{
                 default:
                     return fallback;
             }
+        }
+
+        private static string ResolveRarityWildcardText(string rarity)
+        {
+            if (string.IsNullOrWhiteSpace(rarity))
+            {
+                return string.Empty;
+            }
+
+            // The notification pipeline keeps the tier alongside the percentage so rarity
+            // badges and score tokens can resolve it without guessing. The legacy <rarity>
+            // wildcard, however, has always represented the global unlock percentage only.
+            var percent = Regex.Match(rarity, @"<?\s*[-+]?\d+(?:[.,]\d+)?\s*%");
+            return percent.Success ? percent.Value.Trim() : rarity;
         }
 
         private sealed class NotificationScoreContext
