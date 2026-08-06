@@ -21,7 +21,12 @@ namespace PlayniteAchievements.Services.Images
         private static readonly ILogger StaticLogger = PluginLogger.GetLogger(nameof(MemoryImageService));
         private const int DefaultDecodePixel = 64;
         private const int MinDecodePixel = 16;
-        private const int MaxDecodePixel = 1024;
+
+        // Upper bound for a single decode. Sized for a full-screen capture on a 4K display at
+        // 150% scaling, where AsyncImage.InferDecodePixel asks for roughly 4700 px. A lower cap
+        // silently truncates the request and the surface then upscales a downsampled bitmap.
+        // Callers that want the file's native resolution pass a negative decodePixel instead.
+        private const int MaxDecodePixel = 4096;
         private const string CacheBustPrefix = "cachebust|";
         private const string PreviewHttpPrefix = "previewhttp:";
 
