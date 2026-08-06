@@ -1243,16 +1243,6 @@ namespace PlayniteAchievements.Services.UI
                 // actual render scale, snap to the corner, and reveal.
                 ApplyDpiCompensation(window, items, fitScale);
                 PlaceWindow(window, "shown");
-                // The anchor monitor is only known now, after the content was built, so hand the cards'
-                // glow pulses its refresh rate and restart them on it (a running clock's rate can't be
-                // changed in place). Toast glows opt out of phase lock and start at their peak, so this
-                // also lands that peak on the visible reveal instead of on the pre-show layout pass.
-                if (_activeMonitorRefreshHz > 0)
-                {
-                    RarityGlowPulse.SetDesiredFrameRate(window, _activeMonitorRefreshHz);
-                    RarityGlowPulse.ReapplyIn(window);
-                }
-
                 SlideInPhysical(window);
 
                 // Start recording each card's overlay track now, at the reveal, so the slide-in
@@ -2550,13 +2540,11 @@ namespace PlayniteAchievements.Services.UI
                 // The countdown must track the actual display time, so the runtime duration always
                 // wins over whatever placeholder the storyboard authored.
                 animation.Duration = duration;
-                // Tick the bar at the rate its monitor can actually present, rather than leaving it on
-                // WPF's default clock rate.
-                if (_activeMonitorRefreshHz > 0)
-                {
-                    Timeline.SetDesiredFrameRate(animation, _activeMonitorRefreshHz);
-                }
-
+                // No Timeline.DesiredFrameRate here: a WPF timeline already advances once per composed
+                // frame, so requesting the monitor's rate buys nothing, and requesting a rate below the
+                // real composition rate (a 59.94 Hz panel reporting 60, adaptive sync, plain rounding)
+                // throttles the whole render loop — measured dropping a 163 Hz tick to 90 Hz, which would
+                // coarsen the slide as well as the bar.
                 scale.BeginAnimation(ScaleTransform.ScaleXProperty, animation);
             }
         }
