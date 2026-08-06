@@ -154,7 +154,9 @@ namespace PlayniteAchievements.Tests.Services.UI
 
             Assert.IsFalse(effective.UnlockToasts);
             Assert.IsFalse(effective.FriendUnlockToasts);
-            // Screenshots have their own master switch and are unaffected by EnableNotifications.
+            // Load-bearing: screenshots have their own master switch, and the with-notification
+            // variant survives notifications being off because its card is rendered headlessly
+            // rather than read off the screen.
             Assert.IsTrue(effective.ScreenshotWithToast);
         }
 
