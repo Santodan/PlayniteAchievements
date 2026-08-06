@@ -122,10 +122,15 @@ namespace PlayniteAchievements.Services.Capture
         /// <summary>
         /// Index of the last sample at or before <paramref name="secondsIntoTrack"/>; -1 before the
         /// first sample. Binary search over the time-ordered sample list.
+        ///
+        /// The query time is rounded to the millisecond the samples are stored in, not floored: a frame
+        /// instant of 16.667 ms floored to 16 would miss a sample stored at 17 and resolve to the one
+        /// before it, so an output frame rate matching the sample rate would still duplicate one
+        /// position (and skip one) per second purely from the two quantizations disagreeing.
         /// </summary>
         public int FindSampleIndexAtOrBefore(double secondsIntoTrack)
         {
-            var targetMs = (long)Math.Floor(secondsIntoTrack * 1000.0);
+            var targetMs = (long)Math.Round(secondsIntoTrack * 1000.0);
             if (Samples.Count == 0 || targetMs < Samples[0].ElapsedMs)
             {
                 return -1;
