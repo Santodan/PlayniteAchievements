@@ -253,7 +253,10 @@ namespace PlayniteAchievements.Services
                 var request = new RefreshRequest { Mode = RefreshModeType.Recent };
                 var policy = new RefreshExecutionPolicy
                 {
-                    ValidateAuthentication = true,
+                    // False so the unattended run can never open the "no platforms are
+                    // authenticated" modal, which stole focus mid-game. ExecuteRefreshAsync still
+                    // builds its own auth context, so preflight and provider filtering are intact.
+                    ValidateAuthentication = false,
                     UseProgressWindow = false,
                     SwallowExceptions = true,
                     ErrorLogMessage = ResourceProvider.GetString("LOCPlayAch_Error_Periodic_UpdateFailed")
@@ -282,7 +285,8 @@ namespace PlayniteAchievements.Services
                 var request = new RefreshRequest { Mode = RefreshModeType.FriendsRecent };
                 var policy = new RefreshExecutionPolicy
                 {
-                    ValidateAuthentication = true,
+                    // Unattended, so no auth modal; see ExecuteUpdate.
+                    ValidateAuthentication = false,
                     UseProgressWindow = false,
                     SwallowExceptions = true,
                     ErrorLogMessage = ResourceProvider.GetString("LOCPlayAch_Error_Periodic_UpdateFailed")
