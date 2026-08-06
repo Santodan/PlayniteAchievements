@@ -39,8 +39,9 @@ namespace PlayniteAchievements.Models.Settings
         }
 
         /// <summary>
-        /// Absolute path of a user-supplied toast background image (png/jpg/gif), or null for
-        /// the default surface brush. Applies to the toast only; frames never get a background.
+        /// Absolute path of a user-supplied toast background image in any format ImageFormats
+        /// recognizes, or null for the default surface brush. Applies to the toast only; frames
+        /// never get a background.
         /// </summary>
         public string ToastBackgroundImagePath
         {

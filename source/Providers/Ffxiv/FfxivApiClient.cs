@@ -227,8 +227,8 @@ namespace PlayniteAchievements.Providers.Ffxiv
         }
 
         /// <summary>
-        /// Rewrites the FFXIV Collect icon URL from webp to png. WPF on .NET
-        /// Framework 4.6.2 cannot decode webp.
+        /// Rewrites the FFXIV Collect icon URL from webp to png. WebP decoding depends on an
+        /// optional OS component, so requesting png keeps these icons readable on every machine.
         /// </summary>
         private static string NormalizeIconUrl(string url)
         {

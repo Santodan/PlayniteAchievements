@@ -27,6 +27,10 @@ namespace PlayniteAchievements
 
         public Services.ThemeIntegration.ThemeIntegrationService ThemeIntegrationService { get; set; }
 
+        // Mirrors the real plugin property that AnimatedImageHelper reads when mapping an http
+        // animation URL to its disk-cache path.
+        public Services.Images.DiskImageService DiskImageService { get; set; }
+
         public IPlayniteAPI PlayniteApi { get; set; }
 
         public void SavePluginSettings(PlayniteAchievementsSettings settings)

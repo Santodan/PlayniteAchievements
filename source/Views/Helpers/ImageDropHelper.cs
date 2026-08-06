@@ -1,3 +1,4 @@
+using PlayniteAchievements.Services.Images;
 using System;
 using System.IO;
 using System.Linq;
@@ -15,16 +16,6 @@ namespace PlayniteAchievements.Views.Helpers
     internal static class ImageDropHelper
     {
         private static readonly Regex HttpUrlRegex = new Regex(@"https?://[^\s""'<>]+", RegexOptions.IgnoreCase | RegexOptions.Compiled);
-        private static readonly string[] SupportedImageExtensions =
-        {
-            ".png",
-            ".jpg",
-            ".jpeg",
-            ".bmp",
-            ".gif",
-            ".tif",
-            ".tiff"
-        };
 
         /// <summary>
         /// True when the drop payload contains a decodable local image file; returns its path.
@@ -92,8 +83,8 @@ namespace PlayniteAchievements.Views.Helpers
         }
 
         /// <summary>
-        /// True when the path points at an existing file with a supported image extension
-        /// that a <see cref="BitmapDecoder"/> can open.
+        /// True when the path points at an existing file in a format this machine offers and that
+        /// a <see cref="BitmapDecoder"/> can actually open.
         /// </summary>
         public static bool IsSupportedImageFile(string path)
         {
@@ -102,8 +93,7 @@ namespace PlayniteAchievements.Views.Helpers
                 return false;
             }
 
-            var extension = Path.GetExtension(path) ?? string.Empty;
-            if (!SupportedImageExtensions.Contains(extension, StringComparer.OrdinalIgnoreCase))
+            if (!ImageFormats.HasSelectableExtension(path))
             {
                 return false;
             }

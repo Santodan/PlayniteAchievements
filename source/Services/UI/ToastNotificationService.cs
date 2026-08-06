@@ -1225,9 +1225,9 @@ namespace PlayniteAchievements.Services.UI
                     trackRecorder = new ToastOverlayTrackRecorder(_logger);
                     _lastTrackSampleTick = 0;
                     SampleWaveTracks(trackRecorder, window, toastItems);
-                    // The unconditional ~30fps resample also carries GIF animation frames into
-                    // the tracks (min effective GIF frame delay is 100ms per
-                    // GifAnimationHelper.BuildFrameDelays) — do not reduce this to
+                    // The unconditional ~30fps resample also carries animation frames into
+                    // the tracks (min effective frame delay is 100ms for both GIF and WebP per
+                    // AnimatedImageHelper) — do not reduce this to
                     // sample-on-position-change.
                     var recorder = trackRecorder;
                     onTrackSample = (s, e) =>

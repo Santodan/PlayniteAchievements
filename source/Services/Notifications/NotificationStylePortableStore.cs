@@ -575,10 +575,11 @@ namespace PlayniteAchievements.Services.Notifications
             foreach (var pair in entriesByName)
             {
                 if (pair.Key.StartsWith(prefix, StringComparison.OrdinalIgnoreCase) &&
-                    IsSupportedImageExtension(Path.GetExtension(pair.Key)))
+                    ImageFormats.IsSupportedExtension(Path.GetExtension(pair.Key)))
                 {
                     // Guard against traversal / nested paths beyond images/<stem>.<ext>.
                     NormalizePackageImagePathOrThrow(pair.Key);
+                    EnsureBundledImageDecodableOrThrow(pair.Key);
                     return pair.Value;
                 }
             }
@@ -630,31 +631,31 @@ namespace PlayniteAchievements.Services.Notifications
             }
         }
 
+        /// <summary>
+        /// The extension an exported image keeps. Judged against every recognized format rather
+        /// than only the decodable ones: an image already configured on this machine must round-trip
+        /// with its own bytes and extension, even if the codec that reads it is no longer installed.
+        /// </summary>
         private static string NormalizeImageExtension(string extension)
         {
-            return IsSupportedImageExtension(extension) ? extension.Trim().ToLowerInvariant() : ".png";
+            return ImageFormats.IsSupportedExtension(extension)
+                ? extension.Trim().ToLowerInvariant()
+                : ".png";
         }
 
-        private static bool IsSupportedImageExtension(string extension)
+        /// <summary>
+        /// Rejects a bundled image this machine could not render. Without this the file would import
+        /// cleanly, materialize into managed storage, and then throw when the surface draws it,
+        /// because the templates bind the path straight to <c>Image.Source</c>.
+        /// </summary>
+        private static void EnsureBundledImageDecodableOrThrow(string entryName)
         {
-            if (string.IsNullOrWhiteSpace(extension))
+            if (ImageFormats.IsWebpExtension(ImageFormats.GetExtension(entryName)) &&
+                !WebpCodecProbe.IsSupported)
             {
-                return false;
-            }
-
-            switch (extension.Trim().ToLowerInvariant())
-            {
-                case ".png":
-                case ".jpg":
-                case ".jpeg":
-                case ".bmp":
-                case ".gif":
-                case ".tif":
-                case ".tiff":
-                case ".webp":
-                    return true;
-                default:
-                    return false;
+                throw new InvalidOperationException(
+                    $"The bundled image '{entryName}' is a WebP, which this system has no decoder for. " +
+                    "Install the WebP Image Extension from the Microsoft Store, then import again.");
             }
         }
 

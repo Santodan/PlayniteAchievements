@@ -108,7 +108,11 @@
     <Compile Include="..\..\source\Services\Captures\CaptureFileNameParser.cs" Link="Source\Services\Captures\CaptureFileNameParser.cs" />
     <Compile Include="..\..\source\Services\Images\CategoryDefaultImageResolver.cs" Link="Source\Services\Images\CategoryDefaultImageResolver.cs" />
     <Compile Include="..\..\source\Services\Images\DiskImageService.cs" Link="Source\Services\Images\DiskImageService.cs" />
+    <Compile Include="..\..\source\Services\Images\ImageFormats.cs" Link="Source\Services\Images\ImageFormats.cs" />
+    <Compile Include="..\..\source\Services\Images\WebpAnimationInfo.cs" Link="Source\Services\Images\WebpAnimationInfo.cs" />
+    <Compile Include="..\..\source\Services\Images\WebpCodecProbe.cs" Link="Source\Services\Images\WebpCodecProbe.cs" />
     <Compile Include="..\..\source\Services\Images\MemoryImageService.cs" Link="Source\Services\Images\MemoryImageService.cs" />
+    <Compile Include="..\..\source\Views\Helpers\AnimatedImageHelper.cs" Link="Source\Views\Helpers\AnimatedImageHelper.cs" />
     <Compile Include="..\..\source\Services\Images\ManagedCustomIconService.cs" Link="Source\Services\Images\ManagedCustomIconService.cs" />
     <Compile Include="..\..\source\Services\Images\AchievementIconService.cs" Link="Source\Services\Images\AchievementIconService.cs" />
     <Compile Include="..\..\source\Services\Images\NotificationImageSlotMap.cs" Link="Source\Services\Images\NotificationImageSlotMap.cs" />
@@ -296,6 +300,8 @@
     <Compile Include="..\..\source\Models\Settings\PersistedSettings.GridCompatibility.cs" Link="Source\Models\Settings\PersistedSettings.GridCompatibility.cs" />
     <Compile Include="..\..\source\Models\Settings\PersistedSettings.GridCompatibility.Notifications.cs" Link="Source\Models\Settings\PersistedSettings.GridCompatibility.Notifications.cs" />
     <Compile Include="..\..\source\Models\Settings\ProviderNotificationOverride.cs" Link="Source\Models\Settings\ProviderNotificationOverride.cs" />
+    <Compile Include="..\..\source\Models\Settings\FrameVignetteStyle.cs" Link="Source\Models\Settings\FrameVignetteStyle.cs" />
+    <Compile Include="..\..\source\Models\Settings\NotificationLineEmphasis.cs" Link="Source\Models\Settings\NotificationLineEmphasis.cs" />
     <Compile Include="..\..\source\Models\Settings\NotificationStyleSettings.cs" Link="Source\Models\Settings\NotificationStyleSettings.cs" />
     <Compile Include="..\..\source\Models\Settings\NotificationStyleSettingsMigration.cs" Link="Source\Models\Settings\NotificationStyleSettingsMigration.cs" />
     <Compile Include="..\..\source\Models\Settings\RecordingEnums.cs" Link="Source\Models\Settings\RecordingEnums.cs" />
