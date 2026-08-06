@@ -447,6 +447,40 @@ namespace PlayniteAchievements.Services.UI
         }
 
         /// <summary>
+        /// Moves and resizes the window's HWND to a physical desktop rectangle, in the same
+        /// Per-Monitor-V2 scope and coordinate space as <see cref="MovePhysical"/>. Separate from
+        /// <c>MovePhysical</c> because the toast is <c>SizeToContent</c> and must never be resized
+        /// from outside; callers that own an explicit size (a full-monitor overlay) need both axes.
+        /// </summary>
+        public static bool SetBoundsPhysical(Window window, Rectangle bounds)
+        {
+            var hwnd = Handle(window);
+            if (hwnd == IntPtr.Zero || bounds.Width <= 0 || bounds.Height <= 0)
+            {
+                return false;
+            }
+
+            try
+            {
+                using (DpiAwarenessScope.PerMonitorV2())
+                {
+                    return SetWindowPos(
+                        hwnd,
+                        IntPtr.Zero,
+                        bounds.Left,
+                        bounds.Top,
+                        bounds.Width,
+                        bounds.Height,
+                        SWP_NOZORDER | SWP_NOACTIVATE);
+                }
+            }
+            catch
+            {
+                return false;
+            }
+        }
+
+        /// <summary>
         /// Inserts the toast directly above <paramref name="insertAfterHwnd"/> (the game window) in
         /// the z-order, without moving, resizing, or activating anything. The game is never raised,
         /// so an overlapping window keeps its place — the toast simply sits just above the game and
