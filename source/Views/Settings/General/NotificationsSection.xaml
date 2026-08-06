@@ -46,14 +46,6 @@
                         <CheckBox Content="{DynamicResource LOCPlayAch_Settings_EnableNotifications}"
                                   IsChecked="{Binding Persisted.EnableNotifications}"
                                   Margin="0,0,0,10"/>
-                        <CheckBox Content="{DynamicResource LOCPlayAch_Settings_NotifyPeriodicUpdates}"
-                                  IsChecked="{Binding Persisted.NotifyPeriodicUpdates}"
-                                  Margin="18,0,0,10"
-                                  IsEnabled="{Binding Persisted.EnableNotifications}"/>
-                        <CheckBox Content="{DynamicResource LOCPlayAch_Settings_NotifyOnRebuild}"
-                                  IsChecked="{Binding Persisted.NotifyOnRebuild}"
-                                  Margin="18,0,0,10"
-                                  IsEnabled="{Binding Persisted.EnableNotifications}"/>
                         <CheckBox Content="{DynamicResource LOCPlayAch_Settings_EnableUnlockToasts}"
                                   IsChecked="{Binding Persisted.EnableUnlockToasts}"
                                   Margin="18,0,0,10"
