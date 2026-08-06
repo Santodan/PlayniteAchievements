@@ -202,7 +202,7 @@ namespace PlayniteAchievements.Services.UI
                 var bitmap = new Bitmap(bounds.Width, bounds.Height, PixelFormat.Format32bppRgb);
                 using (var graphics = Graphics.FromImage(bitmap))
                 {
-                    graphics.CopyFromScreen(bounds.Location, Point.Empty, bounds.Size);
+                    CopyScreenPhysical(graphics, bounds);
                 }
 
                 return bitmap;
@@ -249,7 +249,7 @@ namespace PlayniteAchievements.Services.UI
                 var bitmap = new Bitmap(bounds.Width, bounds.Height, PixelFormat.Format32bppRgb);
                 using (var graphics = Graphics.FromImage(bitmap))
                 {
-                    graphics.CopyFromScreen(bounds.Location, Point.Empty, bounds.Size);
+                    CopyScreenPhysical(graphics, bounds);
                 }
 
                 return bitmap;
@@ -258,6 +258,20 @@ namespace PlayniteAchievements.Services.UI
             {
                 _logger?.Debug(ex, "Unlock monitor capture failed.");
                 return null;
+            }
+        }
+
+        /// <summary>
+        /// GDI screen copy for the SDR fallback paths, taken in a Per-Monitor-V2 thread scope so the
+        /// screen DC is addressed in the same physical pixels the bounds are measured in. Without the
+        /// scope a system-aware process addresses the screen in virtualized coordinates, so on a
+        /// monitor scaled above 100% the copy would read the wrong region at the wrong size.
+        /// </summary>
+        private static void CopyScreenPhysical(Graphics graphics, Rectangle bounds)
+        {
+            using (Common.DpiAwarenessScope.PerMonitorV2())
+            {
+                graphics.CopyFromScreen(bounds.Location, Point.Empty, bounds.Size);
             }
         }
 
@@ -479,9 +493,20 @@ namespace PlayniteAchievements.Services.UI
         public bool TryGetClientBounds(IntPtr hwnd, out Rectangle bounds)
         {
             bounds = Rectangle.Empty;
-            if (hwnd == IntPtr.Zero || !TryGetWindowRectangle(hwnd, out var window))
+            if (hwnd == IntPtr.Zero)
             {
                 return false;
+            }
+
+            // Physical pixels on both sides of the intersection below (the scope is re-entrant, so
+            // callers that already established one are unaffected).
+            Rectangle window;
+            using (Common.DpiAwarenessScope.PerMonitorV2())
+            {
+                if (!TryGetWindowRectangle(hwnd, out window))
+                {
+                    return false;
+                }
             }
 
             var monitor = ResolveMonitorBounds(hwnd);
@@ -518,9 +543,22 @@ namespace PlayniteAchievements.Services.UI
         {
             bounds = Rectangle.Empty;
             hwnd = ResolveWindow(knownHwnd, startedProcessId);
-            if (hwnd == IntPtr.Zero || !TryGetWindowRectangle(hwnd, out var window))
+            if (hwnd == IntPtr.Zero)
             {
                 return false;
+            }
+
+            // Read the window rect in the same physical (device) pixels ResolveMonitorBounds returns,
+            // so the intersection below stays in one coordinate space. Capture works in physical
+            // pixels throughout; without this scope a system-aware read would be virtualized and the
+            // captured region would be wrong on a monitor scaled above 100%.
+            Rectangle window;
+            using (Common.DpiAwarenessScope.PerMonitorV2())
+            {
+                if (!TryGetWindowRectangle(hwnd, out window))
+                {
+                    return false;
+                }
             }
 
             var monitor = ResolveMonitorBounds(hwnd);
@@ -574,10 +612,24 @@ namespace PlayniteAchievements.Services.UI
             return GetForegroundWindow();
         }
 
+        /// <summary>
+        /// The monitor rect a window rect is clamped against, in the same physical (device) pixels the
+        /// window rect is read in. <c>Screen.Bounds</c> cannot be used for that: this process is
+        /// system-DPI-aware, so WinForms reports virtualized (and process-cached) bounds, and
+        /// intersecting those with a Per-Monitor-V2 window rect mixes two coordinate spaces — at 200%
+        /// scaling that halves or empties the result. Screen.Bounds remains the last-resort fallback
+        /// for when the Win32 query fails.
+        /// </summary>
         private static Rectangle ResolveMonitorBounds(IntPtr hwnd)
         {
             try
             {
+                if (hwnd != IntPtr.Zero &&
+                    ToastWindowPlacer.TryGetMonitorBoundsPhysical(hwnd, out var physical))
+                {
+                    return physical;
+                }
+
                 var screen = hwnd != IntPtr.Zero ? Screen.FromHandle(hwnd) : Screen.PrimaryScreen;
                 return (screen ?? Screen.PrimaryScreen).Bounds;
             }
