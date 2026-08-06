@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Globalization;
 using System.Runtime.InteropServices;
 using System.Text;
+using System.Threading.Tasks;
 using Microsoft.Win32.SafeHandles;
 using Playnite.SDK;
 
@@ -23,10 +24,21 @@ namespace PlayniteAchievements.Services.UI
     {
         private const int SteamControllerReportLength = 10;
 
-        // A DualSense emulates rumble through its haptic actuators, which run stronger than the
-        // motors in an Xbox or DualShock 4 pad, so SDL's compatibility path halves the magnitude.
-        // Keeping that shift is what makes one strength slider feel the same across pads.
-        private const int SonyStrengthShift = 1;
+        /// <summary>
+        /// Temporary: when true the settings Test button sweeps candidate report variants instead of
+        /// firing a normal pulse, so the variant real hardware responds to can be identified. Set
+        /// back to false once the answer is folded into the builders.
+        /// </summary>
+        internal static readonly bool DiagnosticVariantSweep = true;
+
+        /// <summary>
+        /// Only the DualShock 4 still has an open question: whether the required high nibble works
+        /// without also claiming the lightbar. Every other family is settled.
+        /// </summary>
+        private static int VariantCount(PadFamily family)
+        {
+            return family == PadFamily.DualShock4 ? 2 : 1;
+        }
 
         private enum PadFamily
         {
@@ -53,15 +65,21 @@ namespace PlayniteAchievements.Services.UI
             { Key(0x28de, 0x1305), PadFamily.SteamController },
         };
 
-        // Windows rejects a write whose length is not the device's OutputReportByteLength, so every
-        // report is padded out to it. For the Sony pads that length also selects the layout, since
-        // their reports fill it exactly: a DualSense reports 48 over USB and 78 over Bluetooth, a
-        // DualShock 4 32 and 78. The Steam Controller's message is 10 bytes regardless and is sent
-        // inside a larger report, so its layout does not depend on the length at all.
-        private static readonly IReadOnlyDictionary<PadFamily, int[]> SonyReportLengths = new Dictionary<PadFamily, int[]>
+        // Two different lengths matter, and conflating them is why an earlier attempt failed.
+        //
+        // The transmit length is whatever OutputReportByteLength says, and Windows rejects any write
+        // that is not exactly that long. It is the MAXIMUM across every output report the descriptor
+        // declares, not the size of the one being sent: a Bluetooth DualSense reports 547.
+        //
+        // The logical length is the rumble report's own size, which fixes the field offsets and
+        // where the Bluetooth CRC goes. A report is built at its logical length and then zero-padded
+        // out to the transmit length, which is exactly what hidapi does on Windows.
+        private const int SonyBluetoothLogicalLength = 78;
+
+        private static readonly IReadOnlyDictionary<PadFamily, int> SonyUsbLogicalLengths = new Dictionary<PadFamily, int>
         {
-            { PadFamily.DualSense, new[] { 48, 78 } },
-            { PadFamily.DualShock4, new[] { 32, 78 } },
+            { PadFamily.DualSense, 48 },
+            { PadFamily.DualShock4, 32 },
         };
 
         private static volatile bool _hidUnavailable;
@@ -153,19 +171,12 @@ namespace PlayniteAchievements.Services.UI
             for (var i = _pads.Count - 1; i >= 0; i--)
             {
                 var pad = _pads[i];
-                var report = BuildReport(pad.Family, pad.ReportLength, speed);
+                var report = PadToTransmitLength(
+                    BuildReport(pad.Family, pad.LogicalLength, speed),
+                    pad.TransmitLength);
                 var error = 0;
                 if (report != null && Write(pad.Handle, report, out error))
                 {
-                    if (speed == 0 && pad.Family == PadFamily.DualSense)
-                    {
-                        var release = BuildDualSenseRelease(pad.ReportLength);
-                        if (release != null)
-                        {
-                            Write(pad.Handle, release, out error);
-                        }
-                    }
-
                     continue;
                 }
 
@@ -187,6 +198,110 @@ namespace PlayniteAchievements.Services.UI
             }
 
             _pads.Clear();
+        }
+
+        /// <summary>
+        /// Temporary hardware-identification aid. Tries each candidate report variant in turn, and
+        /// makes each one self-identifying by buzzing it a countable number of times: variant 0
+        /// buzzes once, variant 1 twice, variant 2 three times, variant 3 four times. Groups are
+        /// separated by a long pause, so whichever variant the pad responds to can be named by
+        /// counting the pulses felt, with no need to match log timestamps.
+        ///
+        /// Remove once the working variant is known and folded into the builders as variant 0.
+        /// </summary>
+        public static void RunDiagnosticSweep(int strengthPercent, ILogger logger)
+        {
+            const int BuzzMs = 220;
+            const int WithinGroupGapMs = 170;
+            const int BetweenGroupsMs = 1500;
+            const int BetweenPadsMs = 2500;
+
+            var clamped = Math.Max(1, Math.Min(100, strengthPercent));
+            var speed = (ushort)Math.Round(clamped / 100.0 * ushort.MaxValue);
+            Task.Run(async () =>
+            {
+                try
+                {
+                    using (var set = Open(logger))
+                    {
+                        if (set._pads.Count == 0)
+                        {
+                            logger?.Info("Vibration variant sweep: no HID pads found to test.");
+                            return;
+                        }
+
+                        for (var padIndex = 0; padIndex < set._pads.Count; padIndex++)
+                        {
+                            var pad = set._pads[padIndex];
+                            if (padIndex > 0)
+                            {
+                                await Task.Delay(BetweenPadsMs).ConfigureAwait(false);
+                            }
+
+                            var variants = VariantCount(pad.Family);
+                            logger?.Info(string.Format(
+                                CultureInfo.InvariantCulture,
+                                "Vibration variant sweep: {0} — {1} variants, each buzzing (variant + 1) times.",
+                                pad.Label,
+                                variants));
+
+                            for (var variant = 0; variant < variants; variant++)
+                            {
+                                if (variant > 0)
+                                {
+                                    await Task.Delay(BetweenGroupsMs).ConfigureAwait(false);
+                                }
+
+                                var on = PadToTransmitLength(
+                                    BuildReport(pad.Family, pad.LogicalLength, speed, variant),
+                                    pad.TransmitLength);
+                                var off = PadToTransmitLength(
+                                    BuildReport(pad.Family, pad.LogicalLength, 0, variant),
+                                    pad.TransmitLength);
+                                if (on == null || off == null)
+                                {
+                                    continue;
+                                }
+
+                                logger?.Info(string.Format(
+                                    CultureInfo.InvariantCulture,
+                                    "Vibration variant sweep: variant {0} now — expect {1} buzz(es).",
+                                    variant,
+                                    variant + 1));
+
+                                var error = 0;
+                                var wrote = true;
+                                for (var buzz = 0; buzz <= variant && wrote; buzz++)
+                                {
+                                    if (buzz > 0)
+                                    {
+                                        await Task.Delay(WithinGroupGapMs).ConfigureAwait(false);
+                                    }
+
+                                    wrote = Write(pad.Handle, on, out error);
+                                    await Task.Delay(BuzzMs).ConfigureAwait(false);
+                                    Write(pad.Handle, off, out _);
+                                }
+
+                                if (!wrote)
+                                {
+                                    logger?.Info(string.Format(
+                                        CultureInfo.InvariantCulture,
+                                        "Vibration variant sweep: variant {0} write failed (win32={1}).",
+                                        variant,
+                                        error));
+                                }
+                            }
+                        }
+
+                        logger?.Info("Vibration variant sweep: finished. Report how many buzzes you felt.");
+                    }
+                }
+                catch (Exception ex)
+                {
+                    logger?.Debug(ex, "Vibration variant sweep failed.");
+                }
+            });
         }
 
         private static Pad TryOpenPad(string path, List<string> unmatched)
@@ -234,22 +349,26 @@ namespace PlayniteAchievements.Services.UI
                     return null;
                 }
 
-                // The write must be exactly this long, and it is also what tells a Sony pad's USB
-                // layout from its Bluetooth one.
-                var reportLength = ReadOutputReportLength(handle);
-                if (reportLength <= 0 || !IsUsableReportLength(family, reportLength))
+                ReadReportLengths(handle, out var transmitLength, out var featureLength);
+                var logicalLength = transmitLength <= 0 ? 0 : ResolveLogicalLength(family, transmitLength);
+                if (logicalLength == 0)
                 {
                     unmatched.Add(DescribeUnmatched(handle, attributes));
                     return null;
                 }
 
-                if (!Write(handle, BuildNeutralReport(family, reportLength), out var probeError))
+                if (logicalLength == SonyBluetoothLogicalLength)
+                {
+                    EnableEnhancedReports(handle, family, featureLength);
+                }
+
+                if (!Write(handle, BuildNeutralReport(family, logicalLength, transmitLength), out var probeError))
                 {
                     unmatched.Add(string.Format(
                         CultureInfo.InvariantCulture,
                         "{0} out={1} (write rejected, win32={2})",
                         Describe(attributes.VendorId, attributes.ProductId),
-                        reportLength,
+                        transmitLength,
                         probeError));
                     return null;
                 }
@@ -258,13 +377,15 @@ namespace PlayniteAchievements.Services.UI
                 {
                     Handle = handle,
                     Family = family,
-                    ReportLength = reportLength,
+                    LogicalLength = logicalLength,
+                    TransmitLength = transmitLength,
                     Label = string.Format(
                         CultureInfo.InvariantCulture,
-                        "{0} {1} out={2}",
+                        "{0} {1} report={2} out={3}",
                         family,
                         Describe(attributes.VendorId, attributes.ProductId),
-                        reportLength),
+                        logicalLength,
+                        transmitLength),
                 };
                 handle = null;
                 return pad;
@@ -287,21 +408,31 @@ namespace PlayniteAchievements.Services.UI
         /// </summary>
         private static int ReadOutputReportLength(SafeFileHandle handle)
         {
+            ReadReportLengths(handle, out var outputLength, out _);
+            return outputLength;
+        }
+
+        private static void ReadReportLengths(SafeFileHandle handle, out int outputLength, out int featureLength)
+        {
+            outputLength = 0;
+            featureLength = 0;
+
             var preparsed = IntPtr.Zero;
             try
             {
                 if (!NativeMethods.HidD_GetPreparsedData(handle, out preparsed) || preparsed == IntPtr.Zero)
                 {
-                    return 0;
+                    return;
                 }
 
                 var caps = default(NativeMethods.HidpCaps);
                 if (NativeMethods.HidP_GetCaps(preparsed, ref caps) != NativeMethods.HIDP_STATUS_SUCCESS)
                 {
-                    return 0;
+                    return;
                 }
 
-                return caps.OutputReportByteLength;
+                outputLength = caps.OutputReportByteLength;
+                featureLength = caps.FeatureReportByteLength;
             }
             finally
             {
@@ -313,31 +444,92 @@ namespace PlayniteAchievements.Services.UI
         }
 
         /// <summary>
-        /// A Sony pad must report one of its two known report lengths, since that is what selects
-        /// the USB or Bluetooth layout. A Steam Controller's message is padded into whatever the
-        /// interface offers, so any length that holds the message will do.
+        /// Over Bluetooth a Sony pad starts in its simple DirectInput report mode and ignores the
+        /// full effects report. Reading one feature report is what switches it into enhanced mode:
+        /// SDL notes that reading the DualSense serial number "will also enable enhanced reports
+        /// over Bluetooth", and a DualShock 4 is switched the same way by reading report 0x02.
+        /// Best effort — a failure is left to the writability check that follows.
         /// </summary>
-        private static bool IsUsableReportLength(PadFamily family, int reportLength)
+        private static void EnableEnhancedReports(SafeFileHandle handle, PadFamily family, int featureLength)
         {
-            if (SonyReportLengths.TryGetValue(family, out var lengths))
+            if (featureLength <= 1)
             {
-                return Array.IndexOf(lengths, reportLength) >= 0;
+                return;
             }
 
-            return reportLength >= SteamControllerReportLength;
+            byte[] reportIds;
+            switch (family)
+            {
+                case PadFamily.DualSense:
+                    // SDL reads both of these and notes each one enables enhanced reports.
+                    reportIds = new byte[] { 0x09, 0x20 }; // Serial number, firmware info.
+                    break;
+                case PadFamily.DualShock4:
+                    reportIds = new byte[] { 0x02 }; // Calibration, the classic full-mode trigger.
+                    break;
+                default:
+                    return;
+            }
+
+            foreach (var reportId in reportIds)
+            {
+                var buffer = new byte[featureLength];
+                buffer[0] = reportId;
+                NativeMethods.HidD_GetFeature(handle, buffer, (uint)buffer.Length);
+            }
         }
 
         /// <summary>
-        /// A report that changes nothing, used to confirm the interface really accepts writes
-        /// before it is added to the set.
+        /// Picks the rumble report's own size for a device whose writes must be
+        /// <paramref name="transmitLength"/> bytes long. Returns 0 when the interface cannot carry
+        /// the report.
+        ///
+        /// A Sony pad's USB descriptor declares the effects report as its largest output report, so
+        /// a transmit length equal to that size means USB; anything larger (547 on Bluetooth) means
+        /// the Bluetooth layout. A Steam Controller message is always the same size.
         /// </summary>
-        private static byte[] BuildNeutralReport(PadFamily family, int reportLength)
+        private static int ResolveLogicalLength(PadFamily family, int transmitLength)
         {
-            // A DualSense uses its release report so that merely checking for writability does not
-            // switch the pad out of audio haptics.
-            return family == PadFamily.DualSense
-                ? BuildDualSenseRelease(reportLength)
-                : BuildReport(family, reportLength, 0);
+            if (SonyUsbLogicalLengths.TryGetValue(family, out var usbLength))
+            {
+                if (transmitLength == usbLength)
+                {
+                    return usbLength;
+                }
+
+                return transmitLength >= SonyBluetoothLogicalLength ? SonyBluetoothLogicalLength : 0;
+            }
+
+            return transmitLength >= SteamControllerReportLength ? SteamControllerReportLength : 0;
+        }
+
+        /// <summary>
+        /// Zero-pads a report out to the length the device demands for every write.
+        /// </summary>
+        private static byte[] PadToTransmitLength(byte[] report, int transmitLength)
+        {
+            if (report == null || report.Length > transmitLength)
+            {
+                return null;
+            }
+
+            if (report.Length == transmitLength)
+            {
+                return report;
+            }
+
+            var padded = new byte[transmitLength];
+            Buffer.BlockCopy(report, 0, padded, 0, report.Length);
+            return padded;
+        }
+
+        /// <summary>
+        /// A zero-magnitude report, used to confirm the interface really accepts writes before it is
+        /// added to the set. Silent on every family, so probing has no audible or visible effect.
+        /// </summary>
+        private static byte[] BuildNeutralReport(PadFamily family, int logicalLength, int transmitLength)
+        {
+            return PadToTransmitLength(BuildReport(family, logicalLength, 0), transmitLength);
         }
 
         private static string DescribeUnmatched(SafeFileHandle handle, NativeMethods.HiddAttributes attributes)
@@ -362,16 +554,20 @@ namespace PlayniteAchievements.Services.UI
             return error == 0;
         }
 
-        private static byte[] BuildReport(PadFamily family, int reportLength, ushort speed)
+        /// <summary>
+        /// Builds the rumble report at its own logical length. The caller pads the result out to the
+        /// length the device demands for a write.
+        /// </summary>
+        private static byte[] BuildReport(PadFamily family, int logicalLength, ushort speed, int variant = 0)
         {
             switch (family)
             {
                 case PadFamily.DualSense:
-                    return BuildDualSense(reportLength, speed);
+                    return BuildDualSense(logicalLength, speed, variant);
                 case PadFamily.DualShock4:
-                    return BuildDualShock4(reportLength, speed);
+                    return BuildDualShock4(logicalLength, speed, variant);
                 case PadFamily.SteamController:
-                    return BuildSteamController(reportLength, speed);
+                    return BuildSteamController(logicalLength, speed);
                 default:
                     return null;
             }
@@ -382,7 +578,7 @@ namespace PlayniteAchievements.Services.UI
         /// Bluetooth (78 bytes, effects at offset 3 behind a tag and magic byte, CRC trailer).
         /// See <see cref="BuildDualSenseRelease"/> for the report that ends rumble emulation.
         /// </summary>
-        private static byte[] BuildDualSense(int reportLength, ushort speed)
+        private static byte[] BuildDualSense(int reportLength, ushort speed, int variant)
         {
             var report = new byte[reportLength];
             int offset;
@@ -403,39 +599,17 @@ namespace PlayniteAchievements.Services.UI
                 return null;
             }
 
-            // The enable bits are always set, including for a stop: a zero magnitude with rumble
-            // emulation still enabled is what actually halts the motors. The follow-up release
-            // report clears the bits so audio haptics come back.
-            var magnitude = (byte)((speed >> 8) >> SonyStrengthShift);
-            report[offset] = 0x01 | 0x02;      // Enable rumble emulation, disable audio haptics.
-            report[offset + 2] = magnitude;    // ucRumbleRight
-            report[offset + 3] = magnitude;    // ucRumbleLeft
-
-            AppendBluetoothCrc(report, reportLength == 78);
-            return report;
-        }
-
-        /// <summary>
-        /// DualSense report with every enable bit clear. SDL relies on this to restore the pad's
-        /// audio haptics once rumble emulation is no longer wanted.
-        /// </summary>
-        private static byte[] BuildDualSenseRelease(int reportLength)
-        {
-            var report = new byte[reportLength];
-            if (reportLength == 48)
-            {
-                report[0] = 0x02;
-            }
-            else if (reportLength == 78)
-            {
-                report[0] = 0x31;
-                report[1] = 0x00;
-                report[2] = 0x10;
-            }
-            else
-            {
-                return null;
-            }
+            // Confirmed against a DualSense, a DualSense Edge, and a DualShock 4: rumble emulation
+            // on its own works, and additionally setting the audio-haptics-disable bit (0x02) — as
+            // SDL does — silences the motors instead. So only bit 0 is set, which also means audio
+            // haptics are never disturbed and no follow-up release report is needed.
+            //
+            // The bits stay set for a stop as well: a zero magnitude with emulation still enabled is
+            // what halts the motors.
+            report[offset] = 0x01;                        // Enable rumble emulation.
+            var magnitude = (byte)(speed >> 8);
+            report[offset + 2] = magnitude;               // ucRumbleRight
+            report[offset + 3] = magnitude;               // ucRumbleLeft
 
             AppendBluetoothCrc(report, reportLength == 78);
             return report;
@@ -446,7 +620,7 @@ namespace PlayniteAchievements.Services.UI
         /// Bluetooth (78 bytes, effects at offset 6, CRC trailer). The effect mask selects rumble
         /// only, so the lightbar keeps whatever colour it already has.
         /// </summary>
-        private static byte[] BuildDualShock4(int reportLength, ushort speed)
+        private static byte[] BuildDualShock4(int reportLength, ushort speed, int variant)
         {
             const byte EffectRumble = 0x01;
 
@@ -455,15 +629,45 @@ namespace PlayniteAchievements.Services.UI
             if (reportLength == 32)
             {
                 report[0] = 0x05;
-                report[1] = EffectRumble;
                 offset = 4;
+
+                // Byte 1 is valid_flag0: bit 0 motor, bit 1 lightbar, bit 2 lightbar blink.
+                // Testing showed 0xF3 works while 0x03 does not, so the high nibble is required and
+                // SDL's rumble-only 0x01 is not enough. 0xF3 also sets the lightbar bit, which
+                // obliges us to send a colour and would recolour the pad on every notification.
+                //
+                // Variant 0 asks whether the high nibble alone is sufficient (motor bit, no lightbar
+                // bit, light untouched). Variant 1 is the known-good 0xF3, which sets the light
+                // green. One buzz means we can leave the lightbar alone; two means we cannot.
+                switch (variant)
+                {
+                    case 1:
+                        report[1] = 0xF3; // Known good; sets the lightbar.
+                        SetDualShock4Lightbar(report, offset, 0x00, 0xFF, 0x00);
+                        break;
+                    default:
+                        report[1] = 0xF0 | EffectRumble; // High nibble, motor only, light untouched.
+                        break;
+                }
             }
             else if (reportLength == 78)
             {
                 report[0] = 0x11;
                 report[1] = 0xC0 | 4; // HID + CRC magic, and a 4 ms report interval.
-                report[3] = EffectRumble;
                 offset = 6;
+
+                // Same question as USB, but valid_flag0 sits at byte 3 over Bluetooth.
+                switch (variant)
+                {
+                    case 1:
+                        report[2] = 0x20;
+                        report[3] = 0xF3;
+                        SetDualShock4Lightbar(report, offset, 0x00, 0xFF, 0x00);
+                        break;
+                    default:
+                        report[3] = 0xF0 | EffectRumble;
+                        break;
+                }
             }
             else
             {
@@ -479,22 +683,33 @@ namespace PlayniteAchievements.Services.UI
         }
 
         /// <summary>
+        /// Sets the lightbar colour in a DualShock 4 effects report. Only meaningful when the
+        /// lightbar valid bit is set; the RGB bytes follow the two motor bytes.
+        /// </summary>
+        private static void SetDualShock4Lightbar(byte[] report, int offset, byte red, byte green, byte blue)
+        {
+            report[offset + 2] = red;   // ucLedRed
+            report[offset + 3] = green; // ucLedGreen
+            report[offset + 4] = blue;  // ucLedBlue
+        }
+
+        /// <summary>
         /// Steam Controller haptic rumble output report (ID_OUT_REPORT_HAPTIC_RUMBLE): a packed
         /// 10-byte message of type, intensity, and a speed/gain pair per side. This command expires
         /// on its own, which is why <see cref="NeedsResend"/> exists.
         ///
-        /// The message is shorter than the interface's output report, so it is zero-padded out to
-        /// <paramref name="reportLength"/> — the same thing hidapi does on Windows before writing,
-        /// and what SDL relies on when it hands hid_write only the 10 message bytes.
+        /// The caller pads the message out to the interface's output report length, which is the
+        /// same thing hidapi does on Windows and what SDL relies on when it hands hid_write only
+        /// these 10 bytes.
         /// </summary>
-        private static byte[] BuildSteamController(int reportLength, ushort speed)
+        private static byte[] BuildSteamController(int logicalLength, ushort speed)
         {
-            if (reportLength < SteamControllerReportLength)
+            if (logicalLength < SteamControllerReportLength)
             {
                 return null;
             }
 
-            var report = new byte[reportLength];
+            var report = new byte[SteamControllerReportLength];
             report[0] = 0x80;                          // ID_OUT_REPORT_HAPTIC_RUMBLE
             report[1] = 0x00;                          // type
             report[2] = 0x00;                          // intensity, low byte
@@ -685,7 +900,8 @@ namespace PlayniteAchievements.Services.UI
         {
             public SafeFileHandle Handle;
             public PadFamily Family;
-            public int ReportLength;
+            public int LogicalLength;
+            public int TransmitLength;
             public string Label;
 
             public void Dispose()
@@ -776,6 +992,10 @@ namespace PlayniteAchievements.Services.UI
 
             [DllImport("hid.dll")]
             public static extern int HidP_GetCaps(IntPtr preparsedData, ref HidpCaps capabilities);
+
+            [DllImport("hid.dll", SetLastError = true)]
+            [return: MarshalAs(UnmanagedType.Bool)]
+            public static extern bool HidD_GetFeature(SafeFileHandle handle, byte[] reportBuffer, uint reportBufferLength);
         }
     }
 }
