@@ -20,7 +20,22 @@
          scope/import-export controls and the per-surface editor scroll below. The Toast/Frame tabs
          live in the pinned band; the matching editor in the scroll band shows/hides by binding to
          each tab's IsSelected, so switching surface swaps both at once. -->
-    <Grid Background="{DynamicResource PlayAch.Brush.Panel}">
+    <!-- UseLayoutRounding/SnapsToDevicePixels are set here, at the root, mirroring what the live
+         toast window does on its own Window (PlayniteUiProvider.CreateBorderlessTopmostWindow) so
+         the preview rasterizes the way the notification it previews already does.
+
+         They have to be at the root: layout rounding snaps an element's rect within its parent's
+         coordinate space, so setting it lower cannot undo a fractional offset accumulated above.
+         Measured on this tree, the mockup's content sat at Y=115.92 DIP unrounded and 115.96 with
+         rounding on the card Border alone - still off-grid - versus a clean 116 from the root. The
+         card also starts at X=39 DIP, which is a whole pixel at 100% but 58.5 at 150%, which is why
+         this only ever showed up on scaled displays.
+
+         The description line opts itself back out locally (NotificationResources
+         ToastDescriptionLine) so its two-line clamp keeps matching the live toast. -->
+    <Grid Background="{DynamicResource PlayAch.Brush.Panel}"
+          UseLayoutRounding="True"
+          SnapsToDevicePixels="True">
         <Grid Margin="20">
             <Grid.RowDefinitions>
                 <RowDefinition Height="Auto"/>
@@ -46,22 +61,17 @@
                                        TextWrapping="Wrap"
                                        Margin="0,0,0,8"/>
 
-                            <!-- UseLayoutRounding/SnapsToDevicePixels mirror the live toast window
-                                 (PlayniteUiProvider.CreateBorderlessTopmostWindow), which sets both.
-                                 Without them the mockup's edges and text baselines land on fractional
-                                 device pixels at a non-integer display scale - at 150% one DIP is 1.5
-                                 px - and the card reads softer than the notification it previews. The
-                                 description line opts itself back out locally (NotificationResources
-                                 ToastDescriptionLine), so its two-line clamp still matches here. -->
+                            <!-- Device-pixel snapping for this card comes from the section root, not
+                                 from here: layout rounding resolves an element's rect in its parent's
+                                 coordinate space, so it cannot repair a fractional offset an ancestor
+                                 already introduced. See the root Grid. -->
                             <Border Background="{DynamicResource PlayAch.Brush.Surface}"
                                     BorderBrush="{DynamicResource PlayAch.Brush.Border}"
                                     BorderThickness="1"
                                     CornerRadius="8"
                                     Padding="0"
                                     HorizontalAlignment="Left"
-                                    Margin="0,0,0,10"
-                                    UseLayoutRounding="True"
-                                    SnapsToDevicePixels="True">
+                                    Margin="0,0,0,10">
                                 <ContentControl x:Name="ToastMockupHost"
                                                 ContentTemplate="{DynamicResource PlayAch.Template.AchievementToast}"/>
                             </Border>
