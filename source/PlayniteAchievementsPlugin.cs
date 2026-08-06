@@ -1534,7 +1534,9 @@ namespace PlayniteAchievements
             }
             else if (!payload.AuthRequired)
             {
-                _notifications?.ClearAllProviderAuthNotifications();
+                // Only the providers this refresh actually spoke to; clearing every known provider
+                // would drop a warning raised by a refresh of some other provider's game.
+                _notifications?.ClearProviderAuthNotifications(payload.ExecutedProviderKeys);
             }
         }
 

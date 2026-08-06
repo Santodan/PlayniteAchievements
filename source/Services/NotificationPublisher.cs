@@ -79,12 +79,6 @@ namespace PlayniteAchievements.Services
             }
         }
 
-        private static readonly string[] AllKnownProviderKeys = new[]
-        {
-            "Steam", "Epic", "GOG", "BattleNet", "EA", "PSN", "Xbox",
-            "Xenia", "RPCS3", "ShadPS4", "RetroAchievements", "Exophase", "Manual"
-        };
-
         private static string AuthNotificationId(string providerKey) => $"PlayAch-AuthFailed-{providerKey}";
 
         public void ShowProviderAuthFailed(List<string> providerKeys)
@@ -117,6 +111,11 @@ namespace PlayniteAchievements.Services
             }
         }
 
+        /// <summary>
+        /// Clears the auth-failed notification for the given providers. Callers pass the providers
+        /// their refresh actually spoke to, so a refresh cannot clear an unrelated provider's
+        /// warning.
+        /// </summary>
         public void ClearProviderAuthNotifications(IEnumerable<string> providerKeys)
         {
             if (providerKeys == null)
@@ -133,11 +132,6 @@ namespace PlayniteAchievements.Services
                     _logger?.Debug(ex, $"Failed to clear auth notification for {providerKey}.");
                 }
             }
-        }
-
-        public void ClearAllProviderAuthNotifications()
-        {
-            ClearProviderAuthNotifications(AllKnownProviderKeys);
         }
 
         private static string GetLocalizedProviderName(string providerKey)

@@ -1024,9 +1024,19 @@ namespace PlayniteAchievements.Services.Refresh
             var authRequired = false;
             var failedProviderKeys = new List<string>();
             var faultedProviderKeys = new List<string>();
+            var executedProviderKeys = new List<string>();
 
             foreach (var result in providerResults)
             {
+                // Recorded before the payload check: a provider that produced no payload still ran,
+                // and its notification should still be eligible for clearing.
+                var executedKey = result?.Provider?.ProviderKey;
+                if (!string.IsNullOrWhiteSpace(executedKey) &&
+                    !executedProviderKeys.Contains(executedKey, StringComparer.OrdinalIgnoreCase))
+                {
+                    executedProviderKeys.Add(executedKey);
+                }
+
                 if (result?.Payload == null)
                 {
                     continue;
@@ -1068,7 +1078,8 @@ namespace PlayniteAchievements.Services.Refresh
                 Summary = mergedSummary,
                 AuthRequired = authRequired,
                 FailedProviderKeys = failedProviderKeys,
-                FaultedProviderKeys = faultedProviderKeys
+                FaultedProviderKeys = faultedProviderKeys,
+                ExecutedProviderKeys = executedProviderKeys
             };
         }
 
