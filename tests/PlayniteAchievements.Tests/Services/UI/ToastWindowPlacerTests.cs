@@ -17,6 +17,15 @@ namespace PlayniteAchievements.Tests.Services.UI
         private const double GapBorderGlow = -18d;
 
         [TestMethod]
+        public void TryGetMonitorRefreshHz_NoHandle_FailsWithoutARate()
+        {
+            // Callers fall back to their own default only on a false return, so the out value must not
+            // carry a plausible-looking rate when nothing was resolved.
+            Assert.IsFalse(ToastWindowPlacer.TryGetMonitorRefreshHz(System.IntPtr.Zero, out var hz));
+            Assert.AreEqual(0, hz);
+        }
+
+        [TestMethod]
         public void ComputeCorner_PlacesEachCornerInsetByTheScaledGap()
         {
             var anchor = Rectangle.FromLTRB(0, 0, 1920, 1040);
