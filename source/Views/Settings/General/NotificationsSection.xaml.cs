@@ -4,6 +4,7 @@ using System.ComponentModel;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Controls.Primitives;
+using System.Windows.Input;
 using Playnite.SDK;
 using PlayniteAchievements.Models;
 using PlayniteAchievements.Models.Achievements;
@@ -116,6 +117,10 @@ namespace PlayniteAchievements.Views.Settings.General
         /// </summary>
         private void TestVibration_Click(object sender, RoutedEventArgs e)
         {
+            // Nothing here takes focus away from the button the way the buttons that open a window
+            // do, so it would keep the theme's focused look until something else was clicked.
+            Keyboard.ClearFocus();
+
             var persisted = _settings?.Persisted;
             if (persisted == null)
             {
