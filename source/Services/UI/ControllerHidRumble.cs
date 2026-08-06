@@ -53,14 +53,15 @@ namespace PlayniteAchievements.Services.UI
             { Key(0x28de, 0x1305), PadFamily.SteamController },
         };
 
-        // Windows rejects an output report whose length is not the device's OutputReportByteLength,
-        // so writing a silent report of each candidate length identifies the transport without
-        // having to parse the HID preparsed data. First length that is accepted wins.
-        private static readonly IReadOnlyDictionary<PadFamily, int[]> CandidateReportLengths = new Dictionary<PadFamily, int[]>
+        // Windows rejects a write whose length is not the device's OutputReportByteLength, so every
+        // report is padded out to it. For the Sony pads that length also selects the layout, since
+        // their reports fill it exactly: a DualSense reports 48 over USB and 78 over Bluetooth, a
+        // DualShock 4 32 and 78. The Steam Controller's message is 10 bytes regardless and is sent
+        // inside a larger report, so its layout does not depend on the length at all.
+        private static readonly IReadOnlyDictionary<PadFamily, int[]> SonyReportLengths = new Dictionary<PadFamily, int[]>
         {
-            { PadFamily.DualSense, new[] { 48, 78 } },      // USB, Bluetooth
-            { PadFamily.DualShock4, new[] { 32, 78 } },     // USB, Bluetooth
-            { PadFamily.SteamController, new[] { SteamControllerReportLength } },
+            { PadFamily.DualSense, new[] { 48, 78 } },
+            { PadFamily.DualShock4, new[] { 32, 78 } },
         };
 
         private static volatile bool _hidUnavailable;
@@ -215,11 +216,12 @@ namespace PlayniteAchievements.Services.UI
                     return null;
                 }
 
+                var isKnownVendor = attributes.VendorId == 0x054c || attributes.VendorId == 0x28de;
                 if (!KnownPads.TryGetValue(Key(attributes.VendorId, attributes.ProductId), out var family))
                 {
-                    if (attributes.VendorId == 0x054c || attributes.VendorId == 0x28de)
+                    if (isKnownVendor)
                     {
-                        unmatched.Add(Describe(attributes.VendorId, attributes.ProductId));
+                        unmatched.Add(DescribeUnmatched(handle, attributes));
                     }
 
                     return null;
@@ -232,10 +234,23 @@ namespace PlayniteAchievements.Services.UI
                     return null;
                 }
 
-                var reportLength = ProbeReportLength(handle, family);
-                if (reportLength == 0)
+                // The write must be exactly this long, and it is also what tells a Sony pad's USB
+                // layout from its Bluetooth one.
+                var reportLength = ReadOutputReportLength(handle);
+                if (reportLength <= 0 || !IsUsableReportLength(family, reportLength))
                 {
-                    unmatched.Add(Describe(attributes.VendorId, attributes.ProductId) + " (no writable report)");
+                    unmatched.Add(DescribeUnmatched(handle, attributes));
+                    return null;
+                }
+
+                if (!Write(handle, BuildNeutralReport(family, reportLength), out var probeError))
+                {
+                    unmatched.Add(string.Format(
+                        CultureInfo.InvariantCulture,
+                        "{0} out={1} (write rejected, win32={2})",
+                        Describe(attributes.VendorId, attributes.ProductId),
+                        reportLength,
+                        probeError));
                     return null;
                 }
 
@@ -267,25 +282,71 @@ namespace PlayniteAchievements.Services.UI
         }
 
         /// <summary>
-        /// Finds the report length the device accepts by sending a silent (zero magnitude) report
-        /// of each candidate length. Returns 0 when none is accepted.
+        /// Reads the device's output report length, which every write must match exactly.
+        /// Returns 0 when the device reports no output pipe or the caps cannot be read.
         /// </summary>
-        private static int ProbeReportLength(SafeFileHandle handle, PadFamily family)
+        private static int ReadOutputReportLength(SafeFileHandle handle)
         {
-            foreach (var length in CandidateReportLengths[family])
+            var preparsed = IntPtr.Zero;
+            try
             {
-                // A DualSense probe uses the release report so that merely looking for the right
-                // transport does not switch the pad out of audio haptics.
-                var report = family == PadFamily.DualSense
-                    ? BuildDualSenseRelease(length)
-                    : BuildReport(family, length, 0);
-                if (report != null && Write(handle, report, out _))
+                if (!NativeMethods.HidD_GetPreparsedData(handle, out preparsed) || preparsed == IntPtr.Zero)
                 {
-                    return length;
+                    return 0;
+                }
+
+                var caps = default(NativeMethods.HidpCaps);
+                if (NativeMethods.HidP_GetCaps(preparsed, ref caps) != NativeMethods.HIDP_STATUS_SUCCESS)
+                {
+                    return 0;
+                }
+
+                return caps.OutputReportByteLength;
+            }
+            finally
+            {
+                if (preparsed != IntPtr.Zero)
+                {
+                    NativeMethods.HidD_FreePreparsedData(preparsed);
                 }
             }
+        }
 
-            return 0;
+        /// <summary>
+        /// A Sony pad must report one of its two known report lengths, since that is what selects
+        /// the USB or Bluetooth layout. A Steam Controller's message is padded into whatever the
+        /// interface offers, so any length that holds the message will do.
+        /// </summary>
+        private static bool IsUsableReportLength(PadFamily family, int reportLength)
+        {
+            if (SonyReportLengths.TryGetValue(family, out var lengths))
+            {
+                return Array.IndexOf(lengths, reportLength) >= 0;
+            }
+
+            return reportLength >= SteamControllerReportLength;
+        }
+
+        /// <summary>
+        /// A report that changes nothing, used to confirm the interface really accepts writes
+        /// before it is added to the set.
+        /// </summary>
+        private static byte[] BuildNeutralReport(PadFamily family, int reportLength)
+        {
+            // A DualSense uses its release report so that merely checking for writability does not
+            // switch the pad out of audio haptics.
+            return family == PadFamily.DualSense
+                ? BuildDualSenseRelease(reportLength)
+                : BuildReport(family, reportLength, 0);
+        }
+
+        private static string DescribeUnmatched(SafeFileHandle handle, NativeMethods.HiddAttributes attributes)
+        {
+            return string.Format(
+                CultureInfo.InvariantCulture,
+                "{0} out={1}",
+                Describe(attributes.VendorId, attributes.ProductId),
+                ReadOutputReportLength(handle));
         }
 
         private static bool Write(SafeFileHandle handle, byte[] report, out int error)
@@ -310,7 +371,7 @@ namespace PlayniteAchievements.Services.UI
                 case PadFamily.DualShock4:
                     return BuildDualShock4(reportLength, speed);
                 case PadFamily.SteamController:
-                    return BuildSteamController(speed);
+                    return BuildSteamController(reportLength, speed);
                 default:
                     return null;
             }
@@ -421,10 +482,19 @@ namespace PlayniteAchievements.Services.UI
         /// Steam Controller haptic rumble output report (ID_OUT_REPORT_HAPTIC_RUMBLE): a packed
         /// 10-byte message of type, intensity, and a speed/gain pair per side. This command expires
         /// on its own, which is why <see cref="NeedsResend"/> exists.
+        ///
+        /// The message is shorter than the interface's output report, so it is zero-padded out to
+        /// <paramref name="reportLength"/> — the same thing hidapi does on Windows before writing,
+        /// and what SDL relies on when it hands hid_write only the 10 message bytes.
         /// </summary>
-        private static byte[] BuildSteamController(ushort speed)
+        private static byte[] BuildSteamController(int reportLength, ushort speed)
         {
-            var report = new byte[SteamControllerReportLength];
+            if (reportLength < SteamControllerReportLength)
+            {
+                return null;
+            }
+
+            var report = new byte[reportLength];
             report[0] = 0x80;                          // ID_OUT_REPORT_HAPTIC_RUMBLE
             report[1] = 0x00;                          // type
             report[2] = 0x00;                          // intensity, low byte
@@ -631,6 +701,7 @@ namespace PlayniteAchievements.Services.UI
             public const uint FILE_SHARE_WRITE = 0x00000002;
             public const uint OPEN_EXISTING = 3;
             public const uint CM_GET_DEVICE_INTERFACE_LIST_PRESENT = 0x00000001;
+            public const int HIDP_STATUS_SUCCESS = 0x00110000;
 
             public static Guid GuidDevInterfaceHid = new Guid("4D1E55B2-F16F-11CF-88CB-001111000030");
 
@@ -641,6 +712,20 @@ namespace PlayniteAchievements.Services.UI
                 public ushort VendorId;
                 public ushort ProductId;
                 public ushort VersionNumber;
+            }
+
+            /// <summary>
+            /// HIDP_CAPS. Only the report lengths are needed, so the trailing 17 USHORT reserved
+            /// words and the link-collection counts are left as padding via an explicit size.
+            /// </summary>
+            [StructLayout(LayoutKind.Sequential, Size = 64)]
+            public struct HidpCaps
+            {
+                public ushort Usage;
+                public ushort UsagePage;
+                public ushort InputReportByteLength;
+                public ushort OutputReportByteLength;
+                public ushort FeatureReportByteLength;
             }
 
             [DllImport("cfgmgr32.dll", CharSet = CharSet.Unicode)]
@@ -680,6 +765,17 @@ namespace PlayniteAchievements.Services.UI
             [DllImport("hid.dll", SetLastError = true)]
             [return: MarshalAs(UnmanagedType.Bool)]
             public static extern bool HidD_GetAttributes(SafeFileHandle handle, ref HiddAttributes attributes);
+
+            [DllImport("hid.dll", SetLastError = true)]
+            [return: MarshalAs(UnmanagedType.Bool)]
+            public static extern bool HidD_GetPreparsedData(SafeFileHandle handle, out IntPtr preparsedData);
+
+            [DllImport("hid.dll")]
+            [return: MarshalAs(UnmanagedType.Bool)]
+            public static extern bool HidD_FreePreparsedData(IntPtr preparsedData);
+
+            [DllImport("hid.dll")]
+            public static extern int HidP_GetCaps(IntPtr preparsedData, ref HidpCaps capabilities);
         }
     }
 }
