@@ -5,6 +5,7 @@
              xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
              xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
              xmlns:settings="clr-namespace:PlayniteAchievements.Models.Settings"
+             xmlns:helpers="clr-namespace:PlayniteAchievements.Views.Helpers"
              mc:Ignorable="d"
              d:DesignHeight="600"
              d:DesignWidth="700">
@@ -508,9 +509,77 @@
                                                             </Border.Style>
                                                         </Border>
 
+                                                        <!-- One value editor per value kind, all in
+                                                             the same cell: a searchable font picker
+                                                             for the font family, an editable size
+                                                             dropdown for the sizes, and the text box
+                                                             for every brush row. -->
                                                         <TextBox Grid.Column="1"
                                                                  MinWidth="120"
-                                                                 Text="{Binding DisplayValueText, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"/>
+                                                                 Text="{Binding DisplayValueText, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}">
+                                                            <TextBox.Style>
+                                                                <Style TargetType="TextBox">
+                                                                    <Setter Property="Visibility" Value="Visible"/>
+                                                                    <Style.Triggers>
+                                                                        <DataTrigger Binding="{Binding IsFontFamily}" Value="True">
+                                                                            <Setter Property="Visibility" Value="Collapsed"/>
+                                                                        </DataTrigger>
+                                                                        <DataTrigger Binding="{Binding IsFontSize}" Value="True">
+                                                                            <Setter Property="Visibility" Value="Collapsed"/>
+                                                                        </DataTrigger>
+                                                                    </Style.Triggers>
+                                                                </Style>
+                                                            </TextBox.Style>
+                                                        </TextBox>
+
+                                                        <ComboBox Grid.Column="1"
+                                                                  MinWidth="120"
+                                                                  MaxDropDownHeight="360"
+                                                                  ItemsSource="{Binding FontFamilyOptions}"
+                                                                  SelectedValuePath="FamilyName"
+                                                                  SelectedValue="{Binding DisplayValueText, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                                                  helpers:FontPickerBehavior.EnableSearch="True"
+                                                                  VirtualizingPanel.IsVirtualizing="True">
+                                                            <ComboBox.ItemsPanel>
+                                                                <ItemsPanelTemplate>
+                                                                    <VirtualizingStackPanel/>
+                                                                </ItemsPanelTemplate>
+                                                            </ComboBox.ItemsPanel>
+                                                            <ComboBox.ItemTemplate>
+                                                                <DataTemplate>
+                                                                    <TextBlock Text="{Binding DisplayName}"
+                                                                               FontFamily="{Binding PreviewFamily}"/>
+                                                                </DataTemplate>
+                                                            </ComboBox.ItemTemplate>
+                                                            <ComboBox.Style>
+                                                                <Style TargetType="ComboBox" BasedOn="{StaticResource PlayAch.ComboBox.BaseStyle}">
+                                                                    <Setter Property="Visibility" Value="Collapsed"/>
+                                                                    <Style.Triggers>
+                                                                        <DataTrigger Binding="{Binding IsFontFamily}" Value="True">
+                                                                            <Setter Property="Visibility" Value="Visible"/>
+                                                                        </DataTrigger>
+                                                                    </Style.Triggers>
+                                                                </Style>
+                                                            </ComboBox.Style>
+                                                        </ComboBox>
+
+                                                        <ComboBox Grid.Column="1"
+                                                                  MinWidth="120"
+                                                                  MaxDropDownHeight="300"
+                                                                  IsEditable="True"
+                                                                  ItemsSource="{Binding FontSizeOptions}"
+                                                                  Text="{Binding DisplayValueText, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}">
+                                                            <ComboBox.Style>
+                                                                <Style TargetType="ComboBox" BasedOn="{StaticResource PlayAch.ComboBox.BaseStyle}">
+                                                                    <Setter Property="Visibility" Value="Collapsed"/>
+                                                                    <Style.Triggers>
+                                                                        <DataTrigger Binding="{Binding IsFontSize}" Value="True">
+                                                                            <Setter Property="Visibility" Value="Visible"/>
+                                                                        </DataTrigger>
+                                                                    </Style.Triggers>
+                                                                </Style>
+                                                            </ComboBox.Style>
+                                                        </ComboBox>
 
                                                         <Button Grid.Column="2"
                                                                 Content="{DynamicResource LOCPlayAch_Button_Pick}"
