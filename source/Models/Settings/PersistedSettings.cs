@@ -71,8 +71,6 @@ namespace PlayniteAchievements.Models.Settings
         private int _inGameFriendRefreshMultiplier = 4;
         private int _inGameFriendBatchSize = 10;
         private bool _enableNotifications = true;
-        private bool _notifyPeriodicUpdates = true;
-        private bool _notifyOnRebuild = true;
         private bool _enableUnlockToasts = true;
         private bool _enableFriendUnlockToasts = true;
         private NotificationStyleSettings _notificationStyle;
@@ -1026,24 +1024,6 @@ namespace PlayniteAchievements.Models.Settings
         {
             get => _enableNotifications;
             set => SetValue(ref _enableNotifications, value);
-        }
-
-        /// <summary>
-        /// Show lightweight toast when periodic background updates complete.
-        /// </summary>
-        public bool NotifyPeriodicUpdates
-        {
-            get => _notifyPeriodicUpdates;
-            set => SetValue(ref _notifyPeriodicUpdates, value);
-        }
-
-        /// <summary>
-        /// Show a toast when a manual or managed rebuild completes or fails.
-        /// </summary>
-        public bool NotifyOnRebuild
-        {
-            get => _notifyOnRebuild;
-            set => SetValue(ref _notifyOnRebuild, value);
         }
 
         public bool EnableUnlockToasts
@@ -2601,8 +2581,6 @@ namespace PlayniteAchievements.Models.Settings
 
                 // Notification Settings
                 EnableNotifications = this.EnableNotifications,
-                NotifyPeriodicUpdates = this.NotifyPeriodicUpdates,
-                NotifyOnRebuild = this.NotifyOnRebuild,
                 EnableUnlockToasts = this.EnableUnlockToasts,
                 EnableFriendUnlockToasts = this.EnableFriendUnlockToasts,
                 NotificationStyle = this.NotificationStyle?.Clone() ?? NotificationStyleSettings.CreateDefault(),
