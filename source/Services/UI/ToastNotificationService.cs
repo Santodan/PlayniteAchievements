@@ -48,6 +48,11 @@ namespace PlayniteAchievements.Services.UI
         // CornerGapDip - glow so the body sits here whether or not the border glow is on (with the
         // glow on, the glow itself may reach the screen edge). Tunable.
         private const double CornerGapDip = 24d;
+        // Gap between launching the sound URI and the toast slide-in / controller pulse. The sound
+        // is played out-of-process (UniPlaySong resolves and starts the audio), so its onset lags
+        // the launch; this offset is what the slide-in and the in-process vibration wait for so all
+        // three land together. Tunable.
+        private const int SoundAlignmentDelayMs = 450;
 
         private bool _disposed;
         private Window _activeWindow;
@@ -1071,13 +1076,16 @@ namespace PlayniteAchievements.Services.UI
             // Play the sound first, then show the toast after a short delay so the audio onset and
             // the slide-in visually align.
             var soundPlayedUtc = PlayWaveSound(toastItems);
-            VibrateControllers();
-            await Task.Delay(450).ConfigureAwait(true);
+            await Task.Delay(SoundAlignmentDelayMs).ConfigureAwait(true);
             if (_disposed)
             {
                 DisposeCaptureTask(baseCaptureTask);
                 return;
             }
+
+            // Pulse after the same alignment delay: the motors start in-process, so firing at launch
+            // time would put the vibration ahead of the audible chime.
+            VibrateControllers();
 
             var window = PlayniteUiProvider.CreateBorderlessTopmostWindow(
                 _api,
@@ -1445,9 +1453,10 @@ namespace PlayniteAchievements.Services.UI
         /// fired) so the recording service can locate the chime in its sidecar audio track.
         /// </summary>
         /// <summary>
-        /// Pulses connected controllers alongside the wave's toast when enabled. Fires for every
-        /// toast wave — own unlocks, friend unlocks, and fire-tests — so the strength setting can
-        /// be tuned live from the settings preview.
+        /// Pulses connected controllers when enabled, called after SoundAlignmentDelayMs so the
+        /// motors start with the chime rather than ahead of it. Fires for every toast wave — own
+        /// unlocks, friend unlocks, and fire-tests — so the strength setting can be tuned live
+        /// from the settings preview.
         /// </summary>
         private void VibrateControllers()
         {
