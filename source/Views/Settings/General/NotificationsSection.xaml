@@ -135,6 +135,7 @@
                             <Grid.RowDefinitions>
                                 <RowDefinition Height="Auto"/>
                                 <RowDefinition Height="Auto"/>
+                                <RowDefinition Height="Auto"/>
                             </Grid.RowDefinitions>
 
                             <TextBlock Grid.Row="0" Grid.Column="0"
@@ -171,6 +172,14 @@
                                      Text="{Binding Persisted.ControllerVibrationDurationMs, UpdateSourceTrigger=LostFocus}"
                                      Width="{StaticResource PlayAch.Size.Input.NarrowWidth}"
                                      TextAlignment="Right"/>
+
+                            <!-- Pulses at the current settings without firing a whole notification
+                                 wave, and logs which controllers were reached. -->
+                            <Button Grid.Row="2" Grid.Column="1"
+                                    Click="TestVibration_Click"
+                                    Content="{DynamicResource LOCPlayAch_Button_Test}"
+                                    HorizontalAlignment="Right"
+                                    Margin="0,8,8,0"/>
                         </Grid>
                     </StackPanel>
                 </Border>
