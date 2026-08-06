@@ -89,6 +89,9 @@ namespace PlayniteAchievements.Views.Helpers
                 TextBoxBase.TextChangedEvent, new TextChangedEventHandler(OnTextChanged));
             combo.DropDownClosed += OnDropDownClosed;
             combo.SelectionChanged += OnSelectionChanged;
+            combo.Loaded += OnLoaded;
+
+            ApplySelectedPreviewFont(combo);
         }
 
         private static void Detach(ComboBox combo)
@@ -97,8 +100,36 @@ namespace PlayniteAchievements.Views.Helpers
                 TextBoxBase.TextChangedEvent, new TextChangedEventHandler(OnTextChanged));
             combo.DropDownClosed -= OnDropDownClosed;
             combo.SelectionChanged -= OnSelectionChanged;
+            combo.Loaded -= OnLoaded;
             ClearFilter(combo);
+            combo.ClearValue(Control.FontFamilyProperty);
             combo.SetValue(StateProperty, null);
+        }
+
+        private static void OnLoaded(object sender, RoutedEventArgs e)
+        {
+            if (sender is ComboBox combo)
+            {
+                // Recycled DataGrid cells re-run Loaded with a different row's selection.
+                ApplySelectedPreviewFont(combo);
+            }
+        }
+
+        /// <summary>
+        /// Renders the closed picker's text in the font it names. Making the ComboBox editable hides
+        /// the templated selection box, which is what previewed the selected font before, so the
+        /// preview is reapplied here as a local FontFamily value.
+        /// </summary>
+        private static void ApplySelectedPreviewFont(ComboBox combo)
+        {
+            var preview = (combo.SelectedItem as FontFamilyOption)?.PreviewFamily;
+            if (preview == null)
+            {
+                combo.ClearValue(Control.FontFamilyProperty);
+                return;
+            }
+
+            combo.FontFamily = preview;
         }
 
         private static void OnTextChanged(object sender, TextChangedEventArgs e)
@@ -129,8 +160,14 @@ namespace PlayniteAchievements.Views.Helpers
         private static void OnSelectionChanged(object sender, SelectionChangedEventArgs e)
         {
             if (!(sender is ComboBox combo)
-                || !(combo.GetValue(StateProperty) is SearchState state)
-                || state.Suppress)
+                || !(combo.GetValue(StateProperty) is SearchState state))
+            {
+                return;
+            }
+
+            ApplySelectedPreviewFont(combo);
+
+            if (state.Suppress)
             {
                 return;
             }
