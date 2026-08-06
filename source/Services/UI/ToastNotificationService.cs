@@ -74,8 +74,8 @@ namespace PlayniteAchievements.Services.UI
         // The running physical slide's per-frame tick handler (CompositionTarget.Rendering), or null.
         private EventHandler _activeSlideTick;
         // Per-wave placement state: the offset between where SetWindowPos is asked to put the toast
-        // and where its HWND lands (learned once, on the first settled placement of the wave), and
-        // whether this wave has already logged that its placement needed rescuing.
+        // and where its HWND lands (measured on the wave's settled placements only), and whether this
+        // wave has already logged that its placement needed rescuing.
         private ToastWindowPlacer.PlacementCorrection _placementCorrection;
         private bool _placementAnomalyLogged;
         // Throttle (Environment.TickCount) for sampling the toast cards into their overlay tracks.
@@ -1030,8 +1030,8 @@ namespace PlayniteAchievements.Services.UI
             // both read the resolved value.
             _activePosition = EffectivePosition();
             _activeCardGlow = wave[0].ToastGlowMargin.Top;
-            // Placement state is per-wave: the correction is learned once on this wave's first settled
-            // placement, and the anomaly warning is emitted at most once for it.
+            // Placement state is per-wave: the correction is measured from this wave's own settled
+            // placements, and the anomaly warning is emitted at most once for it.
             _placementCorrection = default(ToastWindowPlacer.PlacementCorrection);
             _placementAnomalyLogged = false;
             var waveGameId = wave[0].PlayniteGameId;
