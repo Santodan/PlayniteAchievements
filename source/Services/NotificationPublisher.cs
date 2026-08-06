@@ -2107,6 +2107,10 @@ steamImage +
                         webView.CoreWebView2.Settings.AreDefaultContextMenusEnabled = false;
                         webView.CoreWebView2.Settings.AreDevToolsEnabled = false;
                         webView.NavigateToString("<!doctype html><html><head><meta charset=\"utf-8\"></head><body></body></html>");
+                        // Keep the initialized controller alive without leaving a visible WPF window in
+                        // Application.Current.Windows. Fullscreen themes can treat any visible secondary
+                        // window as an active overlay and stop updating their focus/navigation state.
+                        window.Hide();
                         _logger?.Debug("[LocalOverlay] SAN WebView2 controller warm-up completed.");
                     }
                     catch (Exception ex)

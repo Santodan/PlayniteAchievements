@@ -103,6 +103,7 @@ The entries below are fork-side changes, grouped by date. When a date includes a
 - Added the setting for the automatic theme migration under the `Theme Migration` tab
 - Fixed the friend's achievements not appearing correctly when two friends's accounts are merged
 - Added logs for the screenshot and for the video from the `Achievement Notification`
+- Removed the always on overlay for the `Achievement Notification`
 
 
 ## 2026-08-02 - v3.0.0.1

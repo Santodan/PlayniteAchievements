@@ -770,7 +770,7 @@ index 49f7ff62a1120efabe5fec552b23b3589a8e3d0c..f1def6c118dc602e46db4ee2df9c6d57
          {
              _resourceService.EnsureAchievementResourcesLoaded(_settingsViewModel.Settings);
 diff --git a/source/PlayniteAchievementsPlugin.cs b/source/PlayniteAchievementsPlugin.cs
-index 32f9362b9ca8aae768b89db43e969161c3b5c4e7..7b3aa9ef079a02bdff83637ae859383065da7e58 100644
+index 32f9362b9ca8aae768b89db43e969161c3b5c4e7..b3e4a19462ae9b667cb6a8d1256ae616d6d1e46c 100644
 --- a/source/PlayniteAchievementsPlugin.cs
 +++ b/source/PlayniteAchievementsPlugin.cs
 @@ -38,6 +38,7 @@
@@ -899,7 +899,7 @@ index 32f9362b9ca8aae768b89db43e969161c3b5c4e7..7b3aa9ef079a02bdff83637ae8593830
          private void TryWarmCustomDataCache()
          {
              if (_gameCustomDataStore == null)
-@@ -254,18 +337,50 @@ private string GetPluginLocalizationDirectory()
+@@ -254,9 +337,22 @@ private string GetPluginLocalizationDirectory()
          }
  
          public void PersistSettingsForUi()
@@ -918,11 +918,11 @@ index 32f9362b9ca8aae768b89db43e969161c3b5c4e7..7b3aa9ef079a02bdff83637ae8593830
          {
              try
              {
-                 _providerRegistry?.PersistAllProviderSettings(false);
 +                ApplyCustomRecordingSettings();
+                 _providerRegistry?.PersistAllProviderSettings(false);
                  SavePluginSettings(_settingsViewModel.Settings);
              }
-             catch (Exception ex)
+@@ -264,8 +360,31 @@ public void PersistSettingsForUi()
              {
                  _logger?.Warn(ex, "Failed to persist plugin settings.");
              }
@@ -938,7 +938,11 @@ index 32f9362b9ca8aae768b89db43e969161c3b5c4e7..7b3aa9ef079a02bdff83637ae8593830
 +                return;
 +            }
 +
-+            persisted.EnableUnlockRecordings = custom.EnableUnlockRecordings;
++            // The persisted recording switch is the runtime master and the safe source of truth.
++            // Keep the Local notification editor's duplicate switch aligned with it; copying in
++            // the opposite direction here allowed a stale Local `true` to resurrect recordings at
++            // startup after the user disabled them on the main Notifications tab.
++            custom.EnableUnlockRecordings = persisted.EnableUnlockRecordings;
 +            persisted.UnlockRecordingDirectory = custom.RecordingSaveFolder;
 +            persisted.RecordingClipSeconds = custom.RecordingClipSeconds;
 +            persisted.RecordingFps = custom.RecordingFps;
@@ -951,7 +955,7 @@ index 32f9362b9ca8aae768b89db43e969161c3b5c4e7..7b3aa9ef079a02bdff83637ae8593830
          }
  
          // Public bridge method for external helpers/themes that used to target SuccessStory via reflection.
-@@ -423,8 +538,22 @@ public PlayniteAchievementsPlugin(IPlayniteAPI api) : base(api)
+@@ -423,8 +542,22 @@ public PlayniteAchievementsPlugin(IPlayniteAPI api) : base(api)
                  _manualSourceRegistry = new ManualSourceRegistry(_logger, settings, PlayniteApi, pluginUserDataPath);
  
                  // Create provider registry
@@ -975,7 +979,7 @@ index 32f9362b9ca8aae768b89db43e969161c3b5c4e7..7b3aa9ef079a02bdff83637ae8593830
                  settings.Persisted?.MigrateLegacyProviderFriends();
                  _gameCustomDataStore = _settingsViewModel.GameCustomDataStore;
                  _gameCustomDataStore.AttachRuntimeSettings(settings);
-@@ -526,6 +655,7 @@ public PlayniteAchievementsPlugin(IPlayniteAPI api) : base(api)
+@@ -526,6 +659,7 @@ public PlayniteAchievementsPlugin(IPlayniteAPI api) : base(api)
                      }
  
                      _notifications = new NotificationPublisher(api, settings, _logger);
@@ -983,7 +987,7 @@ index 32f9362b9ca8aae768b89db43e969161c3b5c4e7..7b3aa9ef079a02bdff83637ae8593830
                      _refreshCoordinator = new RefreshEntryPoint(
                          _refreshService,
                          _logger,
-@@ -538,7 +668,8 @@ public PlayniteAchievementsPlugin(IPlayniteAPI api) : base(api)
+@@ -538,7 +672,8 @@ public PlayniteAchievementsPlugin(IPlayniteAPI api) : base(api)
                          () => _resourceService.EnsureAchievementResourcesLoaded(_settingsViewModel.Settings),
                          GetProcessIdForGame,
                          _windowTracker,
@@ -993,7 +997,7 @@ index 32f9362b9ca8aae768b89db43e969161c3b5c4e7..7b3aa9ef079a02bdff83637ae8593830
                      _unlockRecordings = new Services.Recording.UnlockRecordingService(
                          PlayniteApi,
                          settings,
-@@ -558,7 +689,7 @@ public PlayniteAchievementsPlugin(IPlayniteAPI api) : base(api)
+@@ -558,7 +693,7 @@ public PlayniteAchievementsPlugin(IPlayniteAPI api) : base(api)
                          _cacheManager,
                          _refreshService,
                          (request, policy) => _refreshCoordinator.ExecuteAsync(request, policy),
@@ -1002,7 +1006,7 @@ index 32f9362b9ca8aae768b89db43e969161c3b5c4e7..7b3aa9ef079a02bdff83637ae8593830
                      _backgroundUpdates = new BackgroundUpdater(_refreshCoordinator, _refreshService, _cacheManager, settings, _logger, _notifications, null);
  
                      // Create tag sync service
-@@ -717,7 +848,7 @@ public override IEnumerable<SidebarItem> GetSidebarItems()
+@@ -717,7 +852,7 @@ public override IEnumerable<SidebarItem> GetSidebarItems()
                  Opened = () =>
                  {
                      return new OverviewHostControl(
@@ -1011,7 +1015,7 @@ index 32f9362b9ca8aae768b89db43e969161c3b5c4e7..7b3aa9ef079a02bdff83637ae8593830
                          _logger,
                          PlayniteApi,
                          _refreshService,
-@@ -1106,6 +1237,11 @@ private void PersistedSettings_PropertyChanged(object sender, PropertyChangedEve
+@@ -1106,6 +1241,11 @@ private void PersistedSettings_PropertyChanged(object sender, PropertyChangedEve
                  ReconfigureInGameMonitor();
              }
  
@@ -1023,7 +1027,7 @@ index 32f9362b9ca8aae768b89db43e969161c3b5c4e7..7b3aa9ef079a02bdff83637ae8593830
              if (e.PropertyName == nameof(PersistedSettings.UseUniformRarityBadges) ||
                  e.PropertyName == nameof(PersistedSettings.RarityColors))
              {
-@@ -1225,6 +1361,37 @@ private void ReconfigureInGameMonitor()
+@@ -1225,6 +1365,37 @@ private void ReconfigureInGameMonitor()
              }
          }
  
@@ -1061,7 +1065,7 @@ index 32f9362b9ca8aae768b89db43e969161c3b5c4e7..7b3aa9ef079a02bdff83637ae8593830
          public override void OnApplicationStopped(OnApplicationStoppedEventArgs args)
          {
              _logger.Info("OnApplicationStopped called.");
-@@ -1261,6 +1428,7 @@ public override void OnApplicationStopped(OnApplicationStoppedEventArgs args)
+@@ -1261,6 +1432,7 @@ public override void OnApplicationStopped(OnApplicationStoppedEventArgs args)
              DisposeStartPageViews();
  
              // Shutdown logging system
@@ -4597,7 +4601,7 @@ index 11ca94e019cfaf99cdc80b4904455f0fc62e802b..4a4abc1ceae8235972f43175044a1825
          {
              token.ThrowIfCancellationRequested();
 diff --git a/source/Services/NotificationPublisher.cs b/source/Services/NotificationPublisher.cs
-index 975e6f2dcd0e0aa299dfb49e9541d5c461bf9e47..5b496973abb5271152be78f3897cfd0c5033f6e2 100644
+index 975e6f2dcd0e0aa299dfb49e9541d5c461bf9e47..c22aa18ab0039218283d7dac56469499689fb814 100644
 --- a/source/Services/NotificationPublisher.cs
 +++ b/source/Services/NotificationPublisher.cs
 @@ -1,23 +1,82 @@
@@ -5081,7 +5085,7 @@ index 975e6f2dcd0e0aa299dfb49e9541d5c461bf9e47..5b496973abb5271152be78f3897cfd0c
          private static readonly string[] AllKnownProviderKeys = new[]
          {
              "Steam", "Epic", "GOG", "BattleNet", "EA", "PSN", "Xbox",
-@@ -163,5 +613,7244 @@ private void OpenPluginSettingsForProvider(string providerKey)
+@@ -163,5 +613,7248 @@ private void OpenPluginSettingsForProvider(string providerKey)
                  _logger?.Debug(ex, "Failed to open plugin settings from notification click.");
              }
          }
@@ -6579,6 +6583,10 @@ index 975e6f2dcd0e0aa299dfb49e9541d5c461bf9e47..5b496973abb5271152be78f3897cfd0c
 +                        webView.CoreWebView2.Settings.AreDefaultContextMenusEnabled = false;
 +                        webView.CoreWebView2.Settings.AreDevToolsEnabled = false;
 +                        webView.NavigateToString("<!doctype html><html><head><meta charset=\"utf-8\"></head><body></body></html>");
++                        // Keep the initialized controller alive without leaving a visible WPF window in
++                        // Application.Current.Windows. Fullscreen themes can treat any visible secondary
++                        // window as an active overlay and stop updating their focus/navigation state.
++                        window.Hide();
 +                        _logger?.Debug("[LocalOverlay] SAN WebView2 controller warm-up completed.");
 +                    }
 +                    catch (Exception ex)
@@ -16085,10 +16093,10 @@ index ac46eba2a418b8c7dd3c6ed417effce85f49a211..84240d15c1095281d21f8ee4cd1fa7af
              _refreshDebounceTimer?.Stop();
              _deltaBatchTimer?.Stop();
 diff --git a/source/ViewModels/SettingsViewModel.cs b/source/ViewModels/SettingsViewModel.cs
-index 97e069074eb3a7f04293a0e489a199a9ad39ca79..1ca9d9a391c560bda30b2fe20c0e5544306605b5 100644
+index 97e069074eb3a7f04293a0e489a199a9ad39ca79..26a4dda88dc7c5ad85f02219652d818697c0f125 100644
 --- a/source/ViewModels/SettingsViewModel.cs
 +++ b/source/ViewModels/SettingsViewModel.cs
-@@ -154,6 +154,7 @@ public void CancelEdit()
+@@ -154,20 +154,24 @@ public void CancelEdit()
  
              _plugin.ProviderRegistry?.CancelEditSession();
              _plugin.ProviderRegistry?.SyncFromSettings(Settings.Persisted);
@@ -16096,7 +16104,20 @@ index 97e069074eb3a7f04293a0e489a199a9ad39ca79..1ca9d9a391c560bda30b2fe20c0e5544
              GameCustomDataStore?.SyncRuntimeCaches();
              ApplyThemeResources();
          }
-@@ -168,6 +169,7 @@ public void EndEdit()
+ 
+         public void EndEdit()
+         {
++            ReconcileUnlockRecordingSetting();
+             _plugin.ProviderRegistry?.CommitEditSession(false);
+-            _plugin.ProviderRegistry?.PersistAllProviderSettings(false);
+-
+-            // Save the settings via the plugin
+-            _plugin.SavePluginSettings(Settings);
++            // Persist the committed provider settings and mirror the Achievement Notification
++            // recording options into the runtime master settings before saving. Without this,
++            // enabling recordings in the Local notification editor only takes effect after the
++            // next Playnite restart, when the startup synchronization runs.
++            _plugin.PersistSettingsForUiSilently();
  
              // Sync provider registry from the updated settings
              _plugin.ProviderRegistry?.SyncFromSettings(Settings.Persisted);
@@ -16104,7 +16125,51 @@ index 97e069074eb3a7f04293a0e489a199a9ad39ca79..1ca9d9a391c560bda30b2fe20c0e5544
              GameCustomDataStore?.SyncRuntimeCaches();
              ApplyThemeResources();
  
-@@ -188,6 +190,17 @@ public bool VerifySettings(out List<string> errors)
+@@ -175,6 +179,43 @@ public void EndEdit()
+             PlayniteAchievementsPlugin.NotifySettingsSaved();
+         }
+ 
++        private void ReconcileUnlockRecordingSetting()
++        {
++            var persisted = Settings?.Persisted;
++            if (persisted == null)
++            {
++                return;
++            }
++
++            var editedLocal = _plugin.ProviderRegistry?.GetSettingsForEdit("Local")
++                as Providers.Local.LocalSettings;
++            var liveLocal = _plugin.ProviderRegistry?.GetSettings<Providers.Local.LocalSettings>();
++            if (editedLocal == null || liveLocal == null)
++            {
++                return;
++            }
++
++            var masterChanged = _editingClone?.Persisted != null &&
++                persisted.EnableUnlockRecordings != _editingClone.Persisted.EnableUnlockRecordings;
++            var localChanged = editedLocal.EnableUnlockRecordings != liveLocal.EnableUnlockRecordings;
++
++            if (masterChanged)
++            {
++                // An explicit change on the main Notifications tab wins over a stale duplicate.
++                editedLocal.EnableUnlockRecordings = persisted.EnableUnlockRecordings;
++            }
++            else if (localChanged)
++            {
++                // A change made in Achievement Notifications updates the runtime master.
++                persisted.EnableUnlockRecordings = editedLocal.EnableUnlockRecordings;
++            }
++            else
++            {
++                // Heal settings written by older versions without changing the safe master value.
++                editedLocal.EnableUnlockRecordings = persisted.EnableUnlockRecordings;
++            }
++        }
++
+         public bool VerifySettings(out List<string> errors)
+         {
+             errors = new List<string>();
+@@ -188,6 +229,17 @@ public bool VerifySettings(out List<string> errors)
              return errors.Count == 0;
          }
  
@@ -19710,12 +19775,4 @@ index 880a621ac658128dfc3328f6f65ebf3dd5c8c751..cb74debb9c19a7af23a8c2441d0ab984
              StringAssert.Contains(
                  card.NextTierThresholdText,
                  AchievementRankPresentation.FormatRank(snapshot.NextRank));
-warning: in the working copy of 'source/PlayniteAchievementsPlugin.cs', LF will be replaced by CRLF the next time Git touches it
-warning: in the working copy of 'source/Services/Cache/CacheManager.cs', LF will be replaced by CRLF the next time Git touches it
-warning: in the working copy of 'source/Services/InGameAchievementMonitor.cs', LF will be replaced by CRLF the next time Git touches it
-warning: in the working copy of 'source/Services/Recording/UnlockRecordingService.cs', LF will be replaced by CRLF the next time Git touches it
-warning: in the working copy of 'source/Services/Refresh/RefreshRuntime.cs', LF will be replaced by CRLF the next time Git touches it
-warning: in the working copy of 'source/Services/Refresh/TargetSelectionResolver.cs', LF will be replaced by CRLF the next time Git touches it
-warning: in the working copy of 'source/Services/UI/ToastNotificationService.cs', LF will be replaced by CRLF the next time Git touches it
-warning: in the working copy of 'source/Services/UI/UnlockScreenshotService.cs', LF will be replaced by CRLF the next time Git touches it
-warning: in the working copy of 'tests/PlayniteAchievements.Tests/PlayniteAchievements.Tests.csproj', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'source/Services/NotificationPublisher.cs', LF will be replaced by CRLF the next time Git touches it
