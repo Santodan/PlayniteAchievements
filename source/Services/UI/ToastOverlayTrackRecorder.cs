@@ -16,6 +16,13 @@ namespace PlayniteAchievements.Services.UI
     /// background worker so the render tick never pays compression cost. Memory is capped per
     /// track and per recorder: past a cap new frames stop (samples continue, so the card freezes
     /// at its last frame in the clip) with a single log line.
+    ///
+    /// A unique frame is normally stored as the XOR against the frame before it, with a whole keyframe
+    /// every <see cref="KeyframeIntervalFrames"/>. An animating countdown bar makes nearly every sample
+    /// unique while leaving almost all of the card untouched, so whole frames would burn the per-track
+    /// budget partway through a clip on a full-bleed photographic background. The XOR is computed here
+    /// on the UI thread — this is where the previous frame's pixels already live for the dedup
+    /// comparison — and only the Deflate runs on the worker.
     /// </summary>
     internal sealed class ToastOverlayTrackRecorder
     {
@@ -29,6 +36,13 @@ namespace PlayniteAchievements.Services.UI
         /// </summary>
         private const int MaxQueuedCompressions = 16;
 
+        /// <summary>
+        /// A whole keyframe is stored every this many frames. Bounds two things: how far export replays
+        /// forward when it enters a track partway, and how long the card holds a stale image if one
+        /// frame's compression fails and breaks the delta chain.
+        /// </summary>
+        private const int KeyframeIntervalFrames = 60;
+
         private sealed class ItemState
         {
             public ToastOverlayTrack Track;
@@ -38,13 +52,18 @@ namespace PlayniteAchievements.Services.UI
             public bool HasFirstTick;
             public long CompressedBytes;
             public bool FramesCapped;
+            public int FramesSinceKeyframe;
         }
 
         private sealed class CompressionJob
         {
             public ItemState State;
             public ToastOverlayTrack.Frame Frame;
-            public byte[] Raw;
+
+            /// <summary>Whole pixels for a keyframe, or the XOR against the previous frame.</summary>
+            public byte[] Payload;
+
+            public bool IsDelta;
         }
 
         private readonly ILogger _logger;
@@ -196,6 +215,22 @@ namespace PlayniteAchievements.Services.UI
             return tracks;
         }
 
+        /// <summary>
+        /// The XOR of two equal-length card renders: zero everywhere the card did not change, which is
+        /// most of it. Cheap enough for the render tick (a few tens of microseconds on a card-sized
+        /// buffer) and it keeps the raw pixels off the compression worker.
+        /// </summary>
+        private static byte[] Xor(byte[] current, byte[] previous)
+        {
+            var delta = new byte[current.Length];
+            for (var i = 0; i < current.Length; i++)
+            {
+                delta[i] = (byte)(current[i] ^ previous[i]);
+            }
+
+            return delta;
+        }
+
         private static bool RawEquals(byte[] a, byte[] b)
         {
             if (a == null || b == null || a.Length != b.Length)
@@ -227,10 +262,30 @@ namespace PlayniteAchievements.Services.UI
                     return false;
                 }
 
-                var frame = new ToastOverlayTrack.Frame { Width = width, Height = height };
+                // Store the XOR against the previous frame, except on the periodic keyframe or when
+                // there is nothing valid to diff against (first frame, or the card changed size).
+                var canDelta = state.LastRaw != null &&
+                    state.LastRaw.Length == raw.Length &&
+                    state.LastFrameIndex >= 0 &&
+                    state.FramesSinceKeyframe < KeyframeIntervalFrames;
+                var payload = canDelta ? Xor(raw, state.LastRaw) : raw;
+
+                var frame = new ToastOverlayTrack.Frame
+                {
+                    Width = width,
+                    Height = height,
+                    IsDelta = canDelta,
+                };
                 state.Track.Frames.Add(frame);
                 frameIndex = state.Track.Frames.Count - 1;
-                _pending.Enqueue(new CompressionJob { State = state, Frame = frame, Raw = raw });
+                state.FramesSinceKeyframe = canDelta ? state.FramesSinceKeyframe + 1 : 0;
+                _pending.Enqueue(new CompressionJob
+                {
+                    State = state,
+                    Frame = frame,
+                    Payload = payload,
+                    IsDelta = canDelta,
+                });
                 if (_worker == null || _worker.IsCompleted)
                 {
                     _worker = Task.Run(() => DrainQueue());
@@ -257,7 +312,8 @@ namespace PlayniteAchievements.Services.UI
 
                 try
                 {
-                    var compressed = ToastOverlayTrack.Frame.FromRaw(job.Raw, job.Frame.Width, job.Frame.Height);
+                    var compressed = ToastOverlayTrack.Frame.Compress(
+                        job.Payload, job.Frame.Width, job.Frame.Height, job.IsDelta);
                     job.Frame.Deflated = compressed.Deflated;
 
                     job.State.CompressedBytes += compressed.Deflated.Length;
