@@ -46,13 +46,22 @@
                                        TextWrapping="Wrap"
                                        Margin="0,0,0,8"/>
 
+                            <!-- UseLayoutRounding/SnapsToDevicePixels mirror the live toast window
+                                 (PlayniteUiProvider.CreateBorderlessTopmostWindow), which sets both.
+                                 Without them the mockup's edges and text baselines land on fractional
+                                 device pixels at a non-integer display scale - at 150% one DIP is 1.5
+                                 px - and the card reads softer than the notification it previews. The
+                                 description line opts itself back out locally (NotificationResources
+                                 ToastDescriptionLine), so its two-line clamp still matches here. -->
                             <Border Background="{DynamicResource PlayAch.Brush.Surface}"
                                     BorderBrush="{DynamicResource PlayAch.Brush.Border}"
                                     BorderThickness="1"
                                     CornerRadius="8"
                                     Padding="0"
                                     HorizontalAlignment="Left"
-                                    Margin="0,0,0,10">
+                                    Margin="0,0,0,10"
+                                    UseLayoutRounding="True"
+                                    SnapsToDevicePixels="True">
                                 <ContentControl x:Name="ToastMockupHost"
                                                 ContentTemplate="{DynamicResource PlayAch.Template.AchievementToast}"/>
                             </Border>
