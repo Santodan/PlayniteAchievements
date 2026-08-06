@@ -1,6 +1,20 @@
 AddonId: PlayniteAchievements
 Packages:
 
+  - Version: 3.1.1
+    RequiredApiVersion: 6.14.0
+    ReleaseDate: 2026-08-06
+    PackageUrl: https://github.com/justin-delano/PlayniteAchievements/releases/download/v3.1.1/PlayniteAchievements_3_1_1.pext
+    Changelog:
+    - "[Fixed] Fixed cases where notifications appeared in the wrong spot, or settings and popout windows looked blurry, on scaled or multi-monitor setups."
+    - "[Fixed] Improved the colors in recorded clips, and the quality of screenshots taken at higher resolutions."
+    - "[Fixed] Improved detection of RetroAchievements unlocks that the emulator does not report right away."
+    - "[Fixed] Fixed cases where a bad notification preset or style file could break notification settings."
+    - "[New] Controller vibration now also works with DualSense, DualShock 4, and Steam Controller."
+    - "[New] Font pickers are now searchable dropdowns with more weight options, and animated WebP images can be used anywhere GIFs can."
+    - "[New] Manual tracking now lets you choose which platform a game shows as."
+    - "As always, many additional improvements and fixes behind the scenes."
+
   - Version: 3.1.0
     RequiredApiVersion: 6.14.0
     ReleaseDate: 2026-08-04
