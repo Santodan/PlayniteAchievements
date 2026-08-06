@@ -84,6 +84,20 @@ namespace PlayniteAchievements.Services.Notifications
 
         private const string ImagesFolderName = "images";
 
+        // Ordered longest-first so ".pastyle.zip" is matched whole instead of being read as
+        // ".pastyle" followed by a stray ".zip".
+        private static readonly string[] RecognizedFileSuffixes =
+        {
+            PackageFileExtension + ".zip",
+            ToastPackageFileExtension + ".zip",
+            FramePackageFileExtension + ".zip",
+            PackageFileExtension,
+            ToastPackageFileExtension,
+            FramePackageFileExtension,
+            ".zip",
+            ".json"
+        };
+
         /// <summary>
         /// The package entry stem each slot is bundled under (path accessors come from
         /// <see cref="NotificationImageSlotMap"/>). Toast badges keep the legacy unprefixed
@@ -265,7 +279,13 @@ namespace PlayniteAchievements.Services.Notifications
             if (!IsPackagePath(sourcePath))
             {
                 throw new InvalidOperationException(
-                    "Only .PASTYLE, .PANOTIF, and .PAFRAME files are supported.");
+                    ResourceProvider.GetString("LOCPlayAch_Settings_Style_ImportUnsupportedFile"));
+            }
+
+            if (!IsZipContent(sourcePath))
+            {
+                throw new InvalidOperationException(
+                    ResourceProvider.GetString("LOCPlayAch_Settings_Style_ImportNotPackage"));
             }
 
             using (var archive = ZipFile.OpenRead(sourcePath))
@@ -280,7 +300,7 @@ namespace PlayniteAchievements.Services.Notifications
                 if (manifestEntry == null)
                 {
                     throw new InvalidOperationException(
-                        "The package does not contain a notification style manifest.");
+                        ResourceProvider.GetString("LOCPlayAch_Settings_Style_ImportMissingManifest"));
                 }
 
                 // Read the manifest for the surface flags (and to validate the Kind up front).
@@ -311,7 +331,7 @@ namespace PlayniteAchievements.Services.Notifications
         /// </summary>
         public string ReadTemplateXaml(string sourcePath, bool isFrame)
         {
-            if (!IsPackagePath(sourcePath) || !File.Exists(sourcePath))
+            if (!IsPackagePath(sourcePath) || !File.Exists(sourcePath) || !IsZipContent(sourcePath))
             {
                 return null;
             }
@@ -363,13 +383,37 @@ namespace PlayniteAchievements.Services.Notifications
             if (!IsPackagePath(sourcePath))
             {
                 throw new InvalidOperationException(
-                    "Only .PASTYLE, .PANOTIF, and .PAFRAME files are supported.");
+                    ResourceProvider.GetString("LOCPlayAch_Settings_Style_ImportUnsupportedFile"));
             }
 
             return await ImportPackageAsync(
                 sourcePath,
                 targetOwner ?? NotificationImageOwner.Global,
                 cancel).ConfigureAwait(false);
+        }
+
+        /// <summary>
+        /// True when the file actually starts with the zip magic ("PK"). The style extensions are
+        /// bare (zip inside, like Playnite's .pext), so the extension alone does not prove the
+        /// container: a plain-JSON style from an older build, or the
+        /// <see cref="ManifestEntryName"/> manifest a user extracted out of a package, carries a
+        /// recognized extension while being unreadable as an archive. Checking here keeps
+        /// System.IO.Compression's raw "End of Central Directory record could not be found" out of
+        /// the user-facing error.
+        /// </summary>
+        private static bool IsZipContent(string path)
+        {
+            try
+            {
+                using (var stream = File.OpenRead(path))
+                {
+                    return stream.ReadByte() == 0x50 && stream.ReadByte() == 0x4B;
+                }
+            }
+            catch (Exception)
+            {
+                return false;
+            }
         }
 
         public static bool IsPackagePath(string path)
@@ -402,27 +446,34 @@ namespace PlayniteAchievements.Services.Notifications
                 return path;
             }
 
-            var trimmed = path.Trim();
-            foreach (var suffix in new[]
-                     {
-                         PackageFileExtension + ".zip",
-                         ToastPackageFileExtension + ".zip",
-                         FramePackageFileExtension + ".zip",
-                         PackageFileExtension,
-                         ToastPackageFileExtension,
-                         FramePackageFileExtension,
-                         ".zip",
-                         ".json"
-                     })
+            return StripRecognizedSuffix(path.Trim()) + extension;
+        }
+
+        /// <summary>
+        /// Strips whichever recognized style or container suffix <paramref name="value"/> actually
+        /// ends with, leaving it unchanged when none matches. Shared by export-path normalization
+        /// and preset-name derivation so a legacy <c>.pastyle.zip</c> name is handled identically
+        /// by both instead of being truncated to a partial stem.
+        /// </summary>
+        public static string StripRecognizedSuffix(string value)
+        {
+            if (string.IsNullOrEmpty(value))
             {
-                if (trimmed.EndsWith(suffix, StringComparison.OrdinalIgnoreCase))
+                return value;
+            }
+
+            foreach (var suffix in RecognizedFileSuffixes)
+            {
+                // Longer than the suffix, so a file named after nothing but an extension keeps a
+                // usable stem rather than collapsing to an empty string.
+                if (value.Length > suffix.Length &&
+                    value.EndsWith(suffix, StringComparison.OrdinalIgnoreCase))
                 {
-                    trimmed = trimmed.Substring(0, trimmed.Length - suffix.Length);
-                    break;
+                    return value.Substring(0, value.Length - suffix.Length);
                 }
             }
 
-            return trimmed + extension;
+            return value;
         }
 
         private async Task<NotificationStyleSettings> ImportPackageAsync(
@@ -433,6 +484,13 @@ namespace PlayniteAchievements.Services.Notifications
             if (!File.Exists(sourcePath))
             {
                 throw new FileNotFoundException("Package file not found.", sourcePath);
+            }
+
+            // The single chokepoint every import goes through, presets included.
+            if (!IsZipContent(sourcePath))
+            {
+                throw new InvalidOperationException(
+                    ResourceProvider.GetString("LOCPlayAch_Settings_Style_ImportNotPackage"));
             }
 
             using (var archive = ZipFile.OpenRead(sourcePath))
@@ -447,7 +505,7 @@ namespace PlayniteAchievements.Services.Notifications
                 if (!entriesByName.TryGetValue(ManifestEntryName, out var manifestEntry))
                 {
                     throw new InvalidOperationException(
-                        "The package does not contain a notification style manifest.");
+                        ResourceProvider.GetString("LOCPlayAch_Settings_Style_ImportMissingManifest"));
                 }
 
                 NotificationStylePortableFile portable;
@@ -517,10 +575,11 @@ namespace PlayniteAchievements.Services.Notifications
             foreach (var pair in entriesByName)
             {
                 if (pair.Key.StartsWith(prefix, StringComparison.OrdinalIgnoreCase) &&
-                    IsSupportedImageExtension(Path.GetExtension(pair.Key)))
+                    ImageFormats.IsSupportedExtension(Path.GetExtension(pair.Key)))
                 {
                     // Guard against traversal / nested paths beyond images/<stem>.<ext>.
                     NormalizePackageImagePathOrThrow(pair.Key);
+                    EnsureBundledImageDecodableOrThrow(pair.Key);
                     return pair.Value;
                 }
             }
@@ -572,31 +631,31 @@ namespace PlayniteAchievements.Services.Notifications
             }
         }
 
+        /// <summary>
+        /// The extension an exported image keeps. Judged against every recognized format rather
+        /// than only the decodable ones: an image already configured on this machine must round-trip
+        /// with its own bytes and extension, even if the codec that reads it is no longer installed.
+        /// </summary>
         private static string NormalizeImageExtension(string extension)
         {
-            return IsSupportedImageExtension(extension) ? extension.Trim().ToLowerInvariant() : ".png";
+            return ImageFormats.IsSupportedExtension(extension)
+                ? extension.Trim().ToLowerInvariant()
+                : ".png";
         }
 
-        private static bool IsSupportedImageExtension(string extension)
+        /// <summary>
+        /// Rejects a bundled image this machine could not render. Without this the file would import
+        /// cleanly, materialize into managed storage, and then throw when the surface draws it,
+        /// because the templates bind the path straight to <c>Image.Source</c>.
+        /// </summary>
+        private static void EnsureBundledImageDecodableOrThrow(string entryName)
         {
-            if (string.IsNullOrWhiteSpace(extension))
+            if (ImageFormats.IsWebpExtension(ImageFormats.GetExtension(entryName)) &&
+                !WebpCodecProbe.IsSupported)
             {
-                return false;
-            }
-
-            switch (extension.Trim().ToLowerInvariant())
-            {
-                case ".png":
-                case ".jpg":
-                case ".jpeg":
-                case ".bmp":
-                case ".gif":
-                case ".tif":
-                case ".tiff":
-                case ".webp":
-                    return true;
-                default:
-                    return false;
+                throw new InvalidOperationException(
+                    $"The bundled image '{entryName}' is a WebP, which this system has no decoder for. " +
+                    "Install the WebP Image Extension from the Microsoft Store, then import again.");
             }
         }
 

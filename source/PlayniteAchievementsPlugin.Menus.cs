@@ -338,7 +338,7 @@ namespace PlayniteAchievements
                             {
                                 Mode = RefreshModeType.Single,
                                 SingleGameId = game.Id,
-                                ShowEmptyTargetNotice = true
+                                SurfaceUserNotices = true
                             },
                             game.Id);
                     }
@@ -568,7 +568,7 @@ namespace PlayniteAchievements
                     {
                         Mode = RefreshModeType.Single,
                         SingleGameId = gameId,
-                        ShowEmptyTargetNotice = true
+                        SurfaceUserNotices = true
                     },
                     gameId);
             }

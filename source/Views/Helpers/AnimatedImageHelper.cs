@@ -1,3 +1,5 @@
+using Playnite.SDK;
+using PlayniteAchievements.Services.Images;
 using System;
 using System.Collections.Generic;
 using System.IO;
@@ -8,55 +10,169 @@ using System.Windows.Media.Imaging;
 
 namespace PlayniteAchievements.Views.Helpers
 {
-    internal static class GifAnimationHelper
+    /// <summary>
+    /// Decodes animated images into frozen frames and builds the WPF animation that plays them.
+    /// Handles GIF and WebP, which differ in how much work they need: WIC returns a GIF's raw
+    /// sub-frames, which must be composited against a running canvas, but returns a WebP's frames
+    /// already composited to full canvas.
+    /// </summary>
+    internal static class AnimatedImageHelper
     {
         private const string GrayPrefix = "gray:";
         private const string CacheBustPrefix = "cachebust|";
         private const string PreviewHttpPrefix = "previewhttp:";
-        private const int MaxCompositedGifFrames = 120;
-        private const int MaxGifPixelArea = 2048 * 2048;
-        private const int MaxCachedGifAnimations = 64;
+        private const int MaxAnimationFrames = 120;
+        private const int MaxFramePixelArea = 2048 * 2048;
+        private const int MaxCachedAnimations = 64;
+
+        // Every retained frame is a full-canvas snapshot, so retained bytes scale with
+        // area x frame count. MaxFramePixelArea only bounds the area, which a wide-but-short
+        // animation passes while still costing hundreds of megabytes across a few hundred frames.
+        // This budget bounds the product: 16 Mpx is a 64 MB ceiling per animation, high enough that
+        // normally sized notification art still reaches MaxAnimationFrames and only oversized
+        // sources get trimmed.
+        private const long MaxRetainedPixels = 16L * 1024 * 1024;
+
+        // Aggregate ceiling across every cached animation (~128 MB of BGRA). The entry count alone
+        // let a handful of large animations dominate the process.
+        private const long MaxCachedBytes = 128L * 1024 * 1024;
+
+        private const int BytesPerCompositedPixel = 4;
+
+        // Below this an animation is not worth retaining; the caller falls back to the static
+        // image path instead. It is also what sends a single-frame GIF or a still WebP down the
+        // ordinary image path.
+        private const int MinAnimationFrames = 2;
+
+        // Applied when a frame declares no usable duration of its own.
+        private const int DefaultFrameDelayMilliseconds = 100;
+
+        private static readonly ILogger Logger = LogManager.GetLogger();
 
         private static readonly object CacheSync = new object();
         private static readonly Dictionary<string, (List<BitmapSource> Frames, List<int> Delays)> FrameCache =
             new Dictionary<string, (List<BitmapSource> Frames, List<int> Delays)>(StringComparer.OrdinalIgnoreCase);
 
         // Wall-clock epoch used to phase-lock every animation instance: a recreated element
-        // (e.g. the settings mockup rebuilding during a slider drag) resumes the GIF mid-cycle
+        // (e.g. the settings mockup rebuilding during a slider drag) resumes the animation mid-cycle
         // instead of restarting it from the first frame.
         private static readonly System.Diagnostics.Stopwatch AnimationEpoch =
             System.Diagnostics.Stopwatch.StartNew();
 
-        public static bool TryCreateAnimation(string uri, bool applyGray, out string normalizedSource, out ImageSource firstFrame, out ObjectAnimationUsingKeyFrames animation)
+        /// <summary>
+        /// Decodes and caches an animation's frames so a later
+        /// <see cref="TryCreateAnimationFromCache"/> call succeeds. Safe to run on a background
+        /// thread: the cached frames are frozen bitmaps and no animation is built here, so no
+        /// thread-affine <see cref="Freezable"/> crosses back to the UI thread.
+        /// </summary>
+        public static bool TryEnsureCachedFrames(string uri, bool applyGray)
         {
-            return TryCreateAnimationCore(uri, applyGray, decodeIfMissing: true,
-                out normalizedSource, out firstFrame, out animation);
+            return TryResolveFrames(uri, applyGray, decodeIfMissing: true, out _, out _);
         }
 
         /// <summary>
-        /// Like <see cref="TryCreateAnimation"/> but never decodes: succeeds only when the
-        /// composited frames are already cached. Cheap enough to run synchronously on the UI
-        /// thread, so a recreated element can attach its animation in the same layout pass and
-        /// never flash a static frame.
+        /// Builds a ready-to-begin animation over already-cached frames; fails when the source has
+        /// not been decoded yet (see <see cref="TryEnsureCachedFrames"/>). Never decodes, so it is
+        /// cheap enough to run synchronously on the UI thread: the frames are shared with the
+        /// cache and only the lightweight key frames are new. A recreated element can therefore
+        /// attach its animation in the same layout pass and never flash a static frame.
         /// </summary>
-        public static bool TryCreateAnimationFromCache(string uri, bool applyGray, out string normalizedSource, out ImageSource firstFrame, out ObjectAnimationUsingKeyFrames animation)
+        /// <remarks>
+        /// <paramref name="phaseLock"/> is resolved here rather than by the caller because the
+        /// animation must be frozen before WPF receives it, and cloning a frozen animation to
+        /// stamp BeginTime afterwards deep-copies every frame bitmap
+        /// (<c>CachedBitmap.CloneCore</c>), which is an out-of-memory risk on long animations.
+        /// </remarks>
+        public static bool TryCreateAnimationFromCache(
+            string uri,
+            bool applyGray,
+            bool phaseLock,
+            out string normalizedSource,
+            out ImageSource firstFrame,
+            out ObjectAnimationUsingKeyFrames animation)
         {
-            return TryCreateAnimationCore(uri, applyGray, decodeIfMissing: false,
-                out normalizedSource, out firstFrame, out animation);
-        }
-
-        private static bool TryCreateAnimationCore(string uri, bool applyGray, bool decodeIfMissing, out string normalizedSource, out ImageSource firstFrame, out ObjectAnimationUsingKeyFrames animation)
-        {
-            normalizedSource = NormalizeGifSourceUri(uri);
             firstFrame = null;
             animation = null;
+
+            if (!TryResolveFrames(uri, applyGray, decodeIfMissing: false, out normalizedSource, out var cached))
+            {
+                return false;
+            }
+
+            try
+            {
+                var keyFrames = new ObjectAnimationUsingKeyFrames
+                {
+                    RepeatBehavior = RepeatBehavior.Forever
+                };
+
+                var current = TimeSpan.Zero;
+                var frameCount = Math.Min(cached.Frames.Count, cached.Delays.Count);
+                for (var i = 0; i < frameCount; i++)
+                {
+                    var frame = cached.Frames[i];
+                    if (frame == null)
+                    {
+                        continue;
+                    }
+
+                    keyFrames.KeyFrames.Add(new DiscreteObjectKeyFrame(frame, KeyTime.FromTimeSpan(current)));
+                    current = current.Add(TimeSpan.FromMilliseconds(cached.Delays[i]));
+                }
+
+                if (keyFrames.KeyFrames.Count == 0)
+                {
+                    return false;
+                }
+
+                // One iteration = the full frame sequence.
+                keyFrames.Duration = new Duration(current);
+
+                // Stamped immediately before freezing, i.e. at the moment the caller is about to
+                // begin the animation, so no creation-to-begin delay leaks in as a per-instance
+                // phase error.
+                keyFrames.BeginTime = phaseLock ? PhaseLockBeginTime(keyFrames.Duration) : TimeSpan.Zero;
+
+                if (keyFrames.CanFreeze)
+                {
+                    keyFrames.Freeze();
+                }
+
+                // The static frame shown until the animation takes over is the frame at the
+                // current phase (not frame zero), so the handoff is seamless.
+                var phaseMilliseconds = current.TotalMilliseconds > 0
+                    ? AnimationEpoch.ElapsedMilliseconds % current.TotalMilliseconds
+                    : 0.0;
+                firstFrame = FrameAtPhase(cached, phaseMilliseconds);
+                animation = keyFrames;
+                return true;
+            }
+            catch
+            {
+                return false;
+            }
+        }
+
+        /// <summary>
+        /// Resolves a source string to its cached frames, optionally decoding when the cache
+        /// misses. Shared by the background decode pass and the UI-thread build pass.
+        /// </summary>
+        private static bool TryResolveFrames(
+            string uri,
+            bool applyGray,
+            bool decodeIfMissing,
+            out string normalizedSource,
+            out (List<BitmapSource> Frames, List<int> Delays) frames)
+        {
+            normalizedSource = NormalizeSourceUri(uri);
+            frames = default((List<BitmapSource> Frames, List<int> Delays));
 
             // Some preview paths encode grayscale intent directly in the source string (gray:...)
             // instead of the AsyncImage.Gray attached property.
             applyGray = applyGray || HasGrayPrefix(uri);
 
             if (string.IsNullOrWhiteSpace(normalizedSource) ||
-                !normalizedSource.EndsWith(".gif", StringComparison.OrdinalIgnoreCase) ||
+                !ImageFormats.IsAnimationCandidate(normalizedSource) ||
                 !Path.IsPathRooted(normalizedSource) ||
                 !File.Exists(normalizedSource))
             {
@@ -74,31 +190,12 @@ namespace PlayniteAchievements.Views.Helpers
                         return false;
                     }
 
-                    // IgnoreImageCache bypasses WPF's URI-keyed decode cache: the managed image
-                    // slots reuse fixed file names, so an overwritten GIF at the same path must
-                    // decode fresh bytes.
-                    var decoder = new GifBitmapDecoder(
-                        new Uri(normalizedSource, UriKind.Absolute),
-                        BitmapCreateOptions.PreservePixelFormat | BitmapCreateOptions.IgnoreImageCache,
-                        BitmapCacheOption.OnLoad);
-                    if (decoder.Frames == null || decoder.Frames.Count == 0)
+                    cached = Decode(normalizedSource, applyGray);
+                    if (cached == null)
                     {
                         return false;
                     }
 
-                    var frames = BuildCompositedGifFrames(decoder, applyGray);
-                    if (frames.Count == 0)
-                    {
-                        return false;
-                    }
-
-                    var delays = BuildFrameDelays(decoder, frames.Count);
-                    if (delays.Count != frames.Count)
-                    {
-                        return false;
-                    }
-
-                    cached = (frames, delays);
                     SetCachedAnimation(cacheKey, cached.Value);
                 }
 
@@ -107,49 +204,7 @@ namespace PlayniteAchievements.Views.Helpers
                     return false;
                 }
 
-                var keyFrames = new ObjectAnimationUsingKeyFrames
-                {
-                    RepeatBehavior = RepeatBehavior.Forever
-                };
-
-                var current = TimeSpan.Zero;
-                for (var i = 0; i < cached.Value.Frames.Count; i++)
-                {
-                    var frame = cached.Value.Frames[i];
-                    if (frame == null)
-                    {
-                        continue;
-                    }
-
-                    var delayMilliseconds = cached.Value.Delays[i];
-
-                    keyFrames.KeyFrames.Add(new DiscreteObjectKeyFrame(frame, KeyTime.FromTimeSpan(current)));
-                    current = current.Add(TimeSpan.FromMilliseconds(delayMilliseconds));
-                }
-
-                if (keyFrames.KeyFrames.Count == 0)
-                {
-                    return false;
-                }
-
-                // One iteration = the full frame sequence; the phase-lock BeginTime is stamped
-                // by the caller at the moment the animation actually begins (see
-                // PhaseLockBeginTime) — computing it here would bake in the creation-to-begin
-                // delay as a per-instance phase error.
-                keyFrames.Duration = new Duration(current);
-
-                if (keyFrames.CanFreeze)
-                {
-                    keyFrames.Freeze();
-                }
-
-                // The static frame shown until the animation takes over is the frame at the
-                // current phase (not frame zero), so the handoff is seamless.
-                var phaseMilliseconds = current.TotalMilliseconds > 0
-                    ? AnimationEpoch.ElapsedMilliseconds % current.TotalMilliseconds
-                    : 0.0;
-                firstFrame = FrameAtPhase(cached.Value, phaseMilliseconds);
-                animation = keyFrames;
+                frames = cached.Value;
                 return true;
             }
             catch
@@ -159,10 +214,106 @@ namespace PlayniteAchievements.Views.Helpers
         }
 
         /// <summary>
-        /// Removes cached composited frames for every source whose key contains the given
-        /// segment (case-insensitive). Called through the image service's eviction chokepoint
-        /// so an overwritten or cleared GIF at a fixed managed path never re-serves the old
-        /// animation.
+        /// Decodes one source into frozen frames and their delays, dispatching on format. Returns
+        /// null when the source is a still image, exceeds the retention budget, or cannot be
+        /// decoded on this machine.
+        /// </summary>
+        private static (List<BitmapSource> Frames, List<int> Delays)? Decode(
+            string normalizedSource,
+            bool applyGray)
+        {
+            // IgnoreImageCache bypasses WPF's URI-keyed decode cache: the managed image slots reuse
+            // fixed file names, so an overwritten animation at the same path must decode fresh bytes.
+            const BitmapCreateOptions createOptions =
+                BitmapCreateOptions.PreservePixelFormat | BitmapCreateOptions.IgnoreImageCache;
+            var sourceUri = new Uri(normalizedSource, UriKind.Absolute);
+
+            if (ImageFormats.IsWebpExtension(ImageFormats.GetExtension(normalizedSource)))
+            {
+                // Checked up front so a machine without the codec costs a cheap boolean per image
+                // rather than a thrown decoder exception.
+                if (!WebpCodecProbe.IsSupported)
+                {
+                    return null;
+                }
+
+                var webpDecoder = BitmapDecoder.Create(sourceUri, createOptions, BitmapCacheOption.OnLoad);
+                if (webpDecoder?.Frames == null || webpDecoder.Frames.Count < MinAnimationFrames)
+                {
+                    return null;
+                }
+
+                var webpFrames = BuildFullCanvasFrames(webpDecoder, applyGray);
+                if (webpFrames.Count == 0)
+                {
+                    return null;
+                }
+
+                return (webpFrames, BuildWebpFrameDelays(normalizedSource, webpFrames.Count));
+            }
+
+            var decoder = new GifBitmapDecoder(sourceUri, createOptions, BitmapCacheOption.OnLoad);
+            if (decoder.Frames == null || decoder.Frames.Count == 0)
+            {
+                return null;
+            }
+
+            var composited = BuildCompositedGifFrames(decoder, applyGray);
+            if (composited.Count == 0)
+            {
+                return null;
+            }
+
+            var delays = BuildFrameDelays(decoder, composited.Count);
+            if (delays.Count != composited.Count)
+            {
+                return null;
+            }
+
+            return (composited, delays);
+        }
+
+        /// <summary>
+        /// Takes decoder frames as they are, for formats WIC already composites to full canvas.
+        /// </summary>
+        /// <remarks>
+        /// Running these through the GIF canvas walk would blend each frame over its predecessor a
+        /// second time, so the two paths must stay separate.
+        /// </remarks>
+        private static List<BitmapSource> BuildFullCanvasFrames(BitmapDecoder decoder, bool applyGray)
+        {
+            var result = new List<BitmapSource>();
+            var first = decoder.Frames[0];
+            var frameCount = ResolveFrameBudget(first.PixelWidth, first.PixelHeight, decoder.Frames.Count);
+
+            for (var i = 0; i < frameCount; i++)
+            {
+                BitmapSource frame = decoder.Frames[i];
+                if (frame == null)
+                {
+                    continue;
+                }
+
+                if (applyGray)
+                {
+                    frame = ConvertToGrayscale(frame);
+                }
+
+                if (frame.CanFreeze)
+                {
+                    frame.Freeze();
+                }
+
+                result.Add(frame);
+            }
+
+            return result;
+        }
+
+        /// <summary>
+        /// Removes cached frames for every source whose key contains the given segment
+        /// (case-insensitive). Called through the image service's eviction chokepoint so an
+        /// overwritten or cleared animation at a fixed managed path never re-serves the old frames.
         /// </summary>
         internal static void EvictBySegment(string segment)
         {
@@ -194,7 +345,7 @@ namespace PlayniteAchievements.Views.Helpers
             }
         }
 
-        public static string NormalizeGifSourceUri(string uri)
+        public static string NormalizeSourceUri(string uri)
         {
             var normalized = (uri ?? string.Empty).Trim();
             if (string.IsNullOrWhiteSpace(normalized))
@@ -216,7 +367,7 @@ namespace PlayniteAchievements.Views.Helpers
 
             if ((normalized.StartsWith("http://", StringComparison.OrdinalIgnoreCase) ||
                  normalized.StartsWith("https://", StringComparison.OrdinalIgnoreCase)) &&
-                normalized.IndexOf(".gif", StringComparison.OrdinalIgnoreCase) >= 0)
+                ImageFormats.IsAnimationCandidate(normalized))
             {
                 try
                 {
@@ -289,7 +440,7 @@ namespace PlayniteAchievements.Views.Helpers
             {
             }
 
-            return 100;
+            return DefaultFrameDelayMilliseconds;
         }
 
         private static List<int> BuildFrameDelays(GifBitmapDecoder decoder, int frameCount)
@@ -299,13 +450,33 @@ namespace PlayniteAchievements.Views.Helpers
             {
                 var delayMilliseconds = i < decoder.Frames.Count
                     ? GetGifFrameDelayMilliseconds(decoder.Frames[i])
-                    : 100;
+                    : DefaultFrameDelayMilliseconds;
                 if (delayMilliseconds < 20)
                 {
-                    delayMilliseconds = 100;
+                    delayMilliseconds = DefaultFrameDelayMilliseconds;
                 }
 
                 delays.Add(delayMilliseconds);
+            }
+
+            return delays;
+        }
+
+        /// <summary>
+        /// Per-frame delays for a WebP, read from its ANMF chunks. Falls back to the default for
+        /// any frame the container does not account for, so the delay list always matches the
+        /// frame list.
+        /// </summary>
+        private static List<int> BuildWebpFrameDelays(string normalizedSource, int frameCount)
+        {
+            var hasDurations = WebpAnimationInfo.TryReadFrameDurations(normalizedSource, out var durations);
+            var delays = new List<int>(frameCount);
+
+            for (var i = 0; i < frameCount; i++)
+            {
+                delays.Add(hasDurations && i < durations.Count
+                    ? durations[i]
+                    : DefaultFrameDelayMilliseconds);
             }
 
             return delays;
@@ -376,13 +547,104 @@ namespace PlayniteAchievements.Views.Helpers
 
             lock (CacheSync)
             {
-                if (FrameCache.Count >= MaxCachedGifAnimations && !FrameCache.ContainsKey(cacheKey))
+                FrameCache[cacheKey] = cached;
+                TrimCache(cacheKey);
+            }
+        }
+
+        /// <summary>
+        /// Evicts entries until the cache is inside both the entry-count and the retained-bytes
+        /// budget, never evicting <paramref name="keepKey"/> (the entry just added). Caller holds
+        /// <see cref="CacheSync"/>.
+        /// </summary>
+        private static void TrimCache(string keepKey)
+        {
+            var retainedBytes = 0L;
+            foreach (var entry in FrameCache.Values)
+            {
+                retainedBytes += EstimateRetainedBytes(entry);
+            }
+
+            if (FrameCache.Count <= MaxCachedAnimations && retainedBytes <= MaxCachedBytes)
+            {
+                return;
+            }
+
+            // Any eviction order is acceptable for a cache; evicting one entry at a time (rather
+            // than clearing wholesale, as this previously did) keeps unrelated animations warm.
+            foreach (var key in new List<string>(FrameCache.Keys))
+            {
+                if (FrameCache.Count <= MaxCachedAnimations && retainedBytes <= MaxCachedBytes)
                 {
-                    FrameCache.Clear();
+                    return;
                 }
 
-                FrameCache[cacheKey] = cached;
+                if (string.Equals(key, keepKey, StringComparison.OrdinalIgnoreCase))
+                {
+                    continue;
+                }
+
+                if (FrameCache.TryGetValue(key, out var evicted))
+                {
+                    retainedBytes -= EstimateRetainedBytes(evicted);
+                    FrameCache.Remove(key);
+                }
             }
+        }
+
+        /// <summary>
+        /// Bytes held by one cache entry. Every retained frame is a full-canvas snapshot of the
+        /// same size, whichever format it came from, so the first frame's dimensions describe them
+        /// all.
+        /// </summary>
+        private static long EstimateRetainedBytes((List<BitmapSource> Frames, List<int> Delays) cached)
+        {
+            var first = cached.Frames != null && cached.Frames.Count > 0 ? cached.Frames[0] : null;
+            return first == null
+                ? 0L
+                : (long)first.PixelWidth * first.PixelHeight * BytesPerCompositedPixel * cached.Frames.Count;
+        }
+
+        /// <summary>
+        /// How many frames of a source this size are worth retaining, or 0 when it should not
+        /// animate at all. Shared by both decode paths so the memory ceiling does not depend on
+        /// which format is being read.
+        /// </summary>
+        private static int ResolveFrameBudget(int width, int height, int availableFrames)
+        {
+            if (width <= 0 || height <= 0 || availableFrames <= 0)
+            {
+                return 0;
+            }
+
+            var frameArea = (long)width * height;
+            if (frameArea > MaxFramePixelArea)
+            {
+                Logger?.Info(
+                    $"[Animation] Skipping animation for a {width}x{height} source: the frame area exceeds the {MaxFramePixelArea} pixel limit.");
+                return 0;
+            }
+
+            // area x frames, not area alone: a modest frame multiplied by hundreds of frames is
+            // what actually exhausts memory.
+            var budgetFrames = (int)Math.Min(int.MaxValue, MaxRetainedPixels / frameArea);
+            var frameCount = Math.Min(availableFrames, Math.Min(MaxAnimationFrames, budgetFrames));
+            if (frameCount < MinAnimationFrames)
+            {
+                Logger?.Info(
+                    $"[Animation] Skipping animation for a {width}x{height} source with {availableFrames} frames: " +
+                    $"the retained-pixel budget allows only {frameCount} frame(s).");
+                return 0;
+            }
+
+            if (frameCount < availableFrames)
+            {
+                Logger?.Info(
+                    $"[Animation] Trimming a {width}x{height} animation to {frameCount} of {availableFrames} frames " +
+                    $"(~{frameArea * frameCount * BytesPerCompositedPixel / (1024 * 1024)} MB retained).");
+            }
+
+            return frameCount;
         }
 
         private static List<BitmapSource> BuildCompositedGifFrames(GifBitmapDecoder decoder, bool applyGray)
@@ -395,12 +657,8 @@ namespace PlayniteAchievements.Views.Helpers
 
             var width = decoder.Frames[0].PixelWidth;
             var height = decoder.Frames[0].PixelHeight;
-            if (width <= 0 || height <= 0)
-            {
-                return result;
-            }
-
-            if ((long)width * height > MaxGifPixelArea)
+            var frameCount = ResolveFrameBudget(width, height, decoder.Frames.Count);
+            if (frameCount <= 0)
             {
                 return result;
             }
@@ -415,7 +673,6 @@ namespace PlayniteAchievements.Views.Helpers
             int prevDisposal = 0;
             byte[] previousCanvasBackup = null;
 
-            var frameCount = Math.Min(decoder.Frames.Count, MaxCompositedGifFrames);
             for (var i = 0; i < frameCount; i++)
             {
                 ApplyPreviousDisposal(canvas, stride, prevDisposal, prevLeft, prevTop, prevWidth, prevHeight, previousCanvasBackup);

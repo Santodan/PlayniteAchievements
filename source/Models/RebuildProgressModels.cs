@@ -51,5 +51,12 @@ namespace PlayniteAchievements.Models
         /// The rest of the run continues; these are surfaced in the completion message.
         /// </summary>
         public List<string> FaultedProviderKeys { get; set; } = new List<string>();
+
+        /// <summary>
+        /// Provider keys that executed during this refresh, whatever their outcome. Scopes the
+        /// clearing of auth-failed notifications to the providers this run actually spoke to, so
+        /// a refresh of one provider's game cannot clear another provider's warning.
+        /// </summary>
+        public List<string> ExecutedProviderKeys { get; set; } = new List<string>();
     }
 }

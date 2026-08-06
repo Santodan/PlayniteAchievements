@@ -20,7 +20,17 @@
          scope/import-export controls and the per-surface editor scroll below. The Toast/Frame tabs
          live in the pinned band; the matching editor in the scroll band shows/hides by binding to
          each tab's IsSelected, so switching surface swaps both at once. -->
-    <Grid Background="{DynamicResource PlayAch.Brush.Panel}">
+    <!-- UseLayoutRounding/SnapsToDevicePixels are repeated here, even though both hosts (the
+         settings root and the Manage Achievements popout) already supply them, so the section stays
+         correct wherever it is hosted next. PlayniteUiProvider.CreateExtensionWindow carries the
+         rationale and the measurements.
+
+         Relevant to this section specifically: the toast mockup is meant to match the live toast,
+         and the live toast window sets the same pair. The description line opts itself back out
+         locally (NotificationResources ToastDescriptionLine) so its two-line clamp keeps matching. -->
+    <Grid Background="{DynamicResource PlayAch.Brush.Panel}"
+          UseLayoutRounding="True"
+          SnapsToDevicePixels="True">
         <Grid Margin="20">
             <Grid.RowDefinitions>
                 <RowDefinition Height="Auto"/>
@@ -46,6 +56,10 @@
                                        TextWrapping="Wrap"
                                        Margin="0,0,0,8"/>
 
+                            <!-- Device-pixel snapping for this card comes from the section root, not
+                                 from here: layout rounding resolves an element's rect in its parent's
+                                 coordinate space, so it cannot repair a fractional offset an ancestor
+                                 already introduced. See the root Grid. -->
                             <Border Background="{DynamicResource PlayAch.Brush.Surface}"
                                     BorderBrush="{DynamicResource PlayAch.Brush.Border}"
                                     BorderThickness="1"

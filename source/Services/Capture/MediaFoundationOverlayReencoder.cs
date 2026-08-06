@@ -51,11 +51,17 @@ namespace PlayniteAchievements.Services.Capture
         /// PCM, the chime mixes in starting at <paramref name="chimeStartSeconds"/>, and the
         /// result re-encodes to AAC; otherwise the audio stream passes through untouched.
         /// </summary>
+        /// <param name="configuredFps">
+        /// The frame rate the base clip was captured at, used only when its media type does not declare
+        /// one. Output cadence comes from the samples' own timestamps either way; this sets the declared
+        /// rate, the bitrate and the keyframe spacing.
+        /// </param>
         [HandleProcessCorruptedStateExceptions, System.Security.SecurityCritical]
         public bool Export(
             string baseClipPath, ToastOverlayTrack track,
             double toastStartSeconds, double toastMaxSeconds, double trimLeadSeconds,
-            double endSeconds, byte[] chimePcm, double chimeStartSeconds, string outputPath)
+            double endSeconds, byte[] chimePcm, double chimeStartSeconds, string outputPath,
+            int configuredFps)
         {
             if (string.IsNullOrEmpty(baseClipPath) || track == null ||
                 track.Samples.Count == 0 || string.IsNullOrEmpty(outputPath))
@@ -91,7 +97,7 @@ namespace PlayniteAchievements.Services.Capture
                             var size = decodedType.Get(MediaTypeAttributeKeys.FrameSize);
                             frameW = (int)(size >> 32);
                             frameH = (int)(size & 0xffffffff);
-                            fps = ReadFps(decodedType);
+                            fps = ReadFps(decodedType, configuredFps);
                             stride = ReadStride(decodedType, frameW);
 
                             // The sink must agree with our row-order interpretation. When the
@@ -100,6 +106,11 @@ namespace PlayniteAchievements.Services.Capture
                             // whole clip even though the video processor hands us top-down rows.
                             // Declaring the stride we actually assume removes the ambiguity.
                             decodedType.Set(MediaTypeAttributeKeys.DefaultStride, stride);
+
+                            // The decoder/converter hands back full-range RGB regardless of the base
+                            // clip's own range, so say so: the sink's RGB -> encoder converter then
+                            // compresses to the limited range the output type declares.
+                            MediaFoundationColor.ApplyFullRangeRgbInput(decodedType);
 
                             SinkWriter sink = null;
                             try
@@ -166,6 +177,7 @@ namespace PlayniteAchievements.Services.Capture
                 outputType.Set(MediaTypeAttributeKeys.FrameSize, Pack(frameW, frameH));
                 outputType.Set(MediaTypeAttributeKeys.FrameRate, Pack(fps, 1));
                 outputType.Set(MediaTypeAttributeKeys.PixelAspectRatio, Pack(1, 1));
+                MediaFoundationColor.ApplyBt709LimitedOutput(outputType);
                 sink.AddStream(outputType, out var streamIndex);
 
                 // The reader's own decoded type as input guarantees subtype/size/stride agreement;
@@ -508,10 +520,14 @@ namespace PlayniteAchievements.Services.Capture
         }
 
         /// <summary>
-        /// The track frame for a sample, inflating lazily and caching the last inflation (60 fps
-        /// video against a ~30 fps track reuses every other frame). A frame whose compression
-        /// failed (null payload) falls back to the cached previous frame so the card holds
-        /// instead of flickering out.
+        /// The track frame for a sample, reconstructed lazily and cached (tracks are sampled per
+        /// recording frame, but consecutive samples share a frame whenever the card's pixels did not
+        /// change, and frames are stored as XOR deltas against their predecessor). Samples are walked
+        /// forward, so the usual cost is one inflate-and-XOR onto the frame already in hand.
+        ///
+        /// A broken chain — a frame whose compression failed — falls back to the previously
+        /// reconstructed frame so the card holds instead of flickering out, and recovers at the track's
+        /// next keyframe.
         /// </summary>
         private static bool TryGetOverlay(
             ToastOverlayTrack track, int sampleIndex,
@@ -529,26 +545,25 @@ namespace PlayniteAchievements.Services.Capture
                 return false;
             }
 
-            var candidate = track.Frames[frameIndex];
-            if (candidate.Deflated == null)
+            // Keep the last good reconstruction so a failure can fall back to it: TryReconstructFrame
+            // clears the index it is handed when it gives up partway.
+            var held = inflated;
+            var heldIndex = inflatedIndex;
+            if (track.TryReconstructFrame(frameIndex, ref inflated, ref inflatedIndex))
             {
-                if (inflatedIndex < 0)
-                {
-                    return false;
-                }
-
-                frame = track.Frames[inflatedIndex];
+                frame = track.Frames[frameIndex];
                 return inflated != null;
             }
 
-            if (frameIndex != inflatedIndex)
+            inflated = held;
+            inflatedIndex = heldIndex;
+            if (inflatedIndex < 0 || inflated == null)
             {
-                inflated = candidate.ToRaw();
-                inflatedIndex = frameIndex;
+                return false;
             }
 
-            frame = candidate;
-            return inflated != null;
+            frame = track.Frames[inflatedIndex];
+            return frame != null;
         }
 
         private static Sample ReadNextAudio(SourceReader audioReader, long trimLead)
@@ -598,7 +613,9 @@ namespace PlayniteAchievements.Services.Capture
             }
         }
 
-        private static int ReadFps(MediaType type)
+        // Falls back to the rate the clip was captured at rather than a fixed guess: a 30 fps capture
+        // declared as 60 misprices both the bitrate and the keyframe spacing.
+        private static int ReadFps(MediaType type, int configuredFps)
         {
             try
             {
@@ -615,7 +632,7 @@ namespace PlayniteAchievements.Services.Capture
                 // fall through to the default
             }
 
-            return 60;
+            return Math.Max(1, configuredFps);
         }
 
         private static int ReadStride(MediaType type, int frameW)

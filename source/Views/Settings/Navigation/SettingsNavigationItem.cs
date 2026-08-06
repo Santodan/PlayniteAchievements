@@ -70,6 +70,12 @@ namespace PlayniteAchievements.Views.Settings.Navigation
 
         public UserControl View => _view;
 
+        /// <summary>
+        /// Creates the detail view on first selection. A factory failure yields null (an empty
+        /// detail pane) rather than propagating: this runs inside a DependencyProperty change
+        /// callback on the dispatcher, where an escaping exception takes Playnite down and loses
+        /// access to every other settings page too.
+        /// </summary>
         public UserControl EnsureView()
         {
             if (IsRedirect || _view != null)
@@ -77,7 +83,18 @@ namespace PlayniteAchievements.Views.Settings.Navigation
                 return _view;
             }
 
-            var view = _viewFactory?.Invoke();
+            UserControl view;
+            try
+            {
+                view = _viewFactory?.Invoke();
+            }
+            catch (Exception ex)
+            {
+                Playnite.SDK.LogManager.GetLogger()?.Error(
+                    ex, $"Failed creating the settings view for '{Key}'.");
+                return null;
+            }
+
             if (view != null)
             {
                 _view = view;

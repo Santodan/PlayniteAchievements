@@ -12,7 +12,8 @@ namespace PlayniteAchievements.Services.Capture
     /// consumes the textures directly and writes an MP4.
     ///
     /// Not available on Windows N/KN without the Media Feature Pack (the H.264 encoder MFT is absent)
-    /// — construction throws there, and the recording service falls back to the ffmpeg path.
+    /// — construction throws there. There is no fallback encoder: UnlockRecordingService gates on
+    /// <see cref="IsAvailable"/> and disables recording with a notification instead.
     /// This first cut takes BGRA (ARGB32) input; a later pass moves the tonemap shader to NV12 output
     /// to keep the color-conversion on the GPU as well.
     /// </summary>
@@ -117,6 +118,7 @@ namespace PlayniteAchievements.Services.Capture
                 outputType.Set(MediaTypeAttributeKeys.FrameSize, Pack(width, height));
                 outputType.Set(MediaTypeAttributeKeys.FrameRate, Pack(fps, 1));
                 outputType.Set(MediaTypeAttributeKeys.PixelAspectRatio, Pack(1, 1));
+                MediaFoundationColor.ApplyBt709LimitedOutput(outputType);
                 _writer.AddStream(outputType, out _streamIndex);
             }
 
@@ -128,6 +130,7 @@ namespace PlayniteAchievements.Services.Capture
                 inputType.Set(MediaTypeAttributeKeys.FrameSize, Pack(width, height));
                 inputType.Set(MediaTypeAttributeKeys.FrameRate, Pack(fps, 1));
                 inputType.Set(MediaTypeAttributeKeys.PixelAspectRatio, Pack(1, 1));
+                MediaFoundationColor.ApplyFullRangeRgbInput(inputType);
                 _writer.SetInputMediaType(_streamIndex, inputType, null);
             }
 

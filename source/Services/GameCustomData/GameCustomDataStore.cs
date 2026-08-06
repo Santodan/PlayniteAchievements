@@ -998,6 +998,8 @@ namespace PlayniteAchievements.Services.GameCustomData
                         $"Unsupported bundled notification image '{entry.FullName}'.");
                 }
 
+                EnsureBundledImageDecodableOrThrow(entry.FullName);
+
                 var tempDirectory = Path.Combine(
                     Path.GetTempPath(),
                     "PlayniteAchievements",
@@ -1625,23 +1627,21 @@ namespace PlayniteAchievements.Services.GameCustomData
 
         private static bool IsSupportedPackageImageExtension(string extension)
         {
-            if (string.IsNullOrWhiteSpace(extension))
-            {
-                return false;
-            }
+            return ImageFormats.IsSupportedExtension(extension);
+        }
 
-            switch (extension.Trim().ToLowerInvariant())
+        /// <summary>
+        /// Rejects a bundled image this machine could not render, so the failure lands on import
+        /// rather than while a notification surface is drawing.
+        /// </summary>
+        private static void EnsureBundledImageDecodableOrThrow(string entryName)
+        {
+            if (ImageFormats.IsWebpExtension(ImageFormats.GetExtension(entryName)) &&
+                !WebpCodecProbe.IsSupported)
             {
-                case ".png":
-                case ".jpg":
-                case ".jpeg":
-                case ".bmp":
-                case ".gif":
-                case ".tif":
-                case ".tiff":
-                    return true;
-                default:
-                    return false;
+                throw new InvalidOperationException(
+                    $"The bundled image '{entryName}' is a WebP, which this system has no decoder for. " +
+                    "Install the WebP Image Extension from the Microsoft Store, then import again.");
             }
         }
 

@@ -37,11 +37,6 @@ namespace PlayniteAchievements.Services.Refresh
         public List<Guid> LastRefreshedGameIds { get; private set; } = new List<Guid>();
 
         /// <summary>
-        /// Gets the provider keys that failed authentication in the most recent refresh.
-        /// </summary>
-        public List<string> GetLastFailedAuthProviderKeys() => new List<string>(_lastFailedAuthProviderKeys);
-
-        /// <summary>
         /// Raised after each individual game is refreshed and cached.
         /// Argument is the game ID that was refreshed.
         /// </summary>
@@ -49,6 +44,16 @@ namespace PlayniteAchievements.Services.Refresh
 
         public ProgressReport GetLastRebuildProgress() => _progressReportingService.GetLastProgress();
         public string GetLastRebuildStatus() => _progressReportingService.GetLastStatus();
+
+        /// <summary>
+        /// The most recent completed or failed run's outcome, or null when no run has finished
+        /// since startup and after a user cancel. Set once per run, after the run ends. Reference
+        /// assignment, so a reader on another thread sees either the whole outcome or the previous
+        /// one, never a half-written mix.
+        /// </summary>
+        public RebuildOutcome GetLastRebuildOutcome() => _lastRebuildOutcome;
+
+        private RebuildOutcome _lastRebuildOutcome;
 
         public bool IsRebuilding
         {
@@ -77,7 +82,6 @@ namespace PlayniteAchievements.Services.Refresh
         // side still compact, while Single/Recent runs (a handful of games) never trigger a
         // collection.
         private const int LohCompactionSavedGamesThreshold = 25;
-        private volatile List<string> _lastFailedAuthProviderKeys = new List<string>();
 
         // Dependencies that need disposal
         private readonly IReadOnlyList<IDataProvider> _providers;
@@ -470,7 +474,8 @@ namespace PlayniteAchievements.Services.Refresh
             Func<RebuildPayload, string> finalMessage,
             string errorLogMessage,
             IReadOnlyList<IDataProvider> providerScope = null,
-            RefreshAuthContext authContext = null)
+            RefreshAuthContext authContext = null,
+            bool surfaceUserNotices = false)
         {
             var operationId = Guid.NewGuid();
 
@@ -517,6 +522,9 @@ namespace PlayniteAchievements.Services.Refresh
                 currentGameId: singleGameId);
 
             RebuildPayload payload = null;
+            // This run's outcome for GetLastRebuildOutcome. A run that throws decides it in the
+            // catch; a run that completes resolves it from its payload in the finally.
+            RebuildOutcome runOutcome = null;
             try
             {
                 authContextReceivers = BeginScopedRefreshAuthContext(effectiveAuthContext, effectiveProviderScope);
@@ -536,11 +544,6 @@ namespace PlayniteAchievements.Services.Refresh
                 {
                     LastRefreshedGameIds = new List<Guid>();
                 }
-
-                // Store failed provider keys for notification consumers.
-                _lastFailedAuthProviderKeys = payload?.FailedProviderKeys?.Count > 0
-                    ? new List<string>(payload.FailedProviderKeys)
-                    : new List<string>();
             }
             catch (OperationCanceledException ex) when (!cts.IsCancellationRequested)
             {
@@ -548,8 +551,9 @@ namespace PlayniteAchievements.Services.Refresh
                 // TaskCanceledException) without the run token being cancelled is a failure,
                 // not a user cancel; log it with its stack so the timeout site is identifiable.
                 _logger.Error(ex, $"{errorLogMessage} (operation canceled without the run token being cancelled)");
+                runOutcome = RebuildOutcome.Failed(ResourceProvider.GetString("LOCPlayAch_Error_RebuildFailed"));
                 Report(
-                    ResourceProvider.GetString("LOCPlayAch_Error_RebuildFailed"),
+                    runOutcome.Status,
                     0,
                     1,
                     operationId: operationId,
@@ -571,8 +575,9 @@ namespace PlayniteAchievements.Services.Refresh
             catch (Exception ex)
             {
                 _logger.Error(ex, errorLogMessage);
+                runOutcome = RebuildOutcome.Failed(ResourceProvider.GetString("LOCPlayAch_Error_RebuildFailed"));
                 Report(
-                    ResourceProvider.GetString("LOCPlayAch_Error_RebuildFailed"),
+                    runOutcome.Status,
                     0,
                     1,
                     operationId: operationId,
@@ -592,15 +597,23 @@ namespace PlayniteAchievements.Services.Refresh
                 // Send final completion report AFTER EndRun so IsRebuilding is false when UI processes it
                 if (!wasCanceled && payload != null)
                 {
-                    var msg = ResolveFinalSuccessMessage(payload, finalMessage);
+                    var outcome = ResolveFinalOutcome(payload, finalMessage);
+                    // A run that already threw keeps its failure: reaching here with a payload only
+                    // means the throw happened after the payload was produced.
+                    runOutcome = runOutcome ?? outcome;
                     Report(
-                        msg,
+                        outcome.Status,
                         finalTotalSteps,
                         finalTotalSteps,
                         operationId: operationId,
                         mode: mode,
                         currentGameId: singleGameId);
                 }
+
+                // Published after the run ends so a completion handler reads this run's result and
+                // never a previous one's. Null for a user cancel: nothing failed and nothing
+                // completed, so there is nothing to report.
+                _lastRebuildOutcome = runOutcome;
 
                 if (hasSavedGames)
                 {
@@ -628,10 +641,23 @@ namespace PlayniteAchievements.Services.Refresh
                     context: $"refresh.end mode={mode}");
                 ScheduleFollowUpCompaction(compactionWorkVolume, mode);
 
-                // Notify refresh completion subscribers (e.g., auth failure notifications).
+                // Notify refresh completion subscribers (the provider auth-failed notification).
+                // Only a refresh of a selected game may add or clear that notification: a polling,
+                // periodic, or bulk refresh that hit an expired session would otherwise re-add the
+                // notification on every tick, and one that succeeded would clear a notification a
+                // selected-game refresh had legitimately raised. Suppressed failures stay in the
+                // log so an expiry is still diagnosable.
                 if (!wasCanceled && payload != null)
                 {
-                    try { _onRefreshCompleted?.Invoke(payload); } catch (Exception ex) { _logger?.Debug(ex, "Refresh completion callback failed."); }
+                    if (surfaceUserNotices)
+                    {
+                        try { _onRefreshCompleted?.Invoke(payload); } catch (Exception ex) { _logger?.Debug(ex, "Refresh completion callback failed."); }
+                    }
+                    else if (payload.FailedProviderKeys?.Count > 0)
+                    {
+                        _logger?.Debug(
+                            $"Suppressing auth-failed notification for non-targeted refresh (mode={mode}, providers={string.Join(", ", payload.FailedProviderKeys)}).");
+                    }
                 }
 
                 _refreshProgressReporter.Reset();
@@ -1021,9 +1047,14 @@ namespace PlayniteAchievements.Services.Refresh
             var authRequired = false;
             var failedProviderKeys = new List<string>();
             var faultedProviderKeys = new List<string>();
+            var executedProviderKeys = new List<string>();
 
             foreach (var result in providerResults)
             {
+                // Recorded before the payload check: a provider that produced no payload still ran,
+                // and its notification should still be eligible for clearing.
+                RecordExecutedProvider(result, executedProviderKeys);
+
                 if (result?.Payload == null)
                 {
                     continue;
@@ -1065,8 +1096,25 @@ namespace PlayniteAchievements.Services.Refresh
                 Summary = mergedSummary,
                 AuthRequired = authRequired,
                 FailedProviderKeys = failedProviderKeys,
-                FaultedProviderKeys = faultedProviderKeys
+                FaultedProviderKeys = faultedProviderKeys,
+                ExecutedProviderKeys = executedProviderKeys
             };
+        }
+
+        /// <summary>
+        /// Records that a provider took part in this refresh, so clearing its auth-failed
+        /// notification is scoped to the providers the run actually spoke to.
+        /// </summary>
+        private static void RecordExecutedProvider(
+            ProviderRefreshExecutor.ProviderExecutionResult result,
+            List<string> executedProviderKeys)
+        {
+            var key = result?.Provider?.ProviderKey;
+            if (!string.IsNullOrWhiteSpace(key) &&
+                !executedProviderKeys.Contains(key, StringComparer.OrdinalIgnoreCase))
+            {
+                executedProviderKeys.Add(key);
+            }
         }
 
         /// <summary>
@@ -1405,6 +1453,7 @@ namespace PlayniteAchievements.Services.Refresh
                     {
                         FriendRefreshCoordinator.Merge(payload, result?.Payload);
                         RecordProviderFault(result, payload.FaultedProviderKeys);
+                        RecordExecutedProvider(result, payload.ExecutedProviderKeys);
                     }
 
                     // Merge dedupes RefreshedGameIds but sums per-provider pass counts; report the
@@ -1609,7 +1658,12 @@ namespace PlayniteAchievements.Services.Refresh
             }
         }
 
-        private string ResolveFinalSuccessMessage(RebuildPayload payload, Func<RebuildPayload, string> finalMessage)
+        /// <summary>
+        /// The run's final status text together with whether it faulted. Both are decided here, in
+        /// one place, so the message the user reads and the flag that drives the failure
+        /// notification cannot disagree.
+        /// </summary>
+        private RebuildOutcome ResolveFinalOutcome(RebuildPayload payload, Func<RebuildPayload, string> finalMessage)
         {
             var defaultMessage = ResourceProvider.GetString("LOCPlayAch_Status_RefreshComplete");
             string resolvedMessage = null;
@@ -1649,6 +1703,10 @@ namespace PlayniteAchievements.Services.Refresh
                     string.Format(failedFormat, string.Join(", ", payload.FaultedProviderKeys)));
             }
 
+            // Re-authentication counts as a fault: the provider silently stopped delivering data,
+            // which is exactly the case an unattended refresh needs to surface.
+            var faulted = payload?.FaultedProviderKeys?.Count > 0 || payload?.AuthRequired == true;
+
             if (payload?.AuthRequired == true)
             {
                 var suffix = ResourceProvider.GetString("LOCPlayAch_Status_RefreshCompleteAuthRequiredSuffix");
@@ -1657,10 +1715,10 @@ namespace PlayniteAchievements.Services.Refresh
                     suffix = "Some providers require authentication.";
                 }
 
-                return string.Concat(resolvedMessage, " ", suffix);
+                return new RebuildOutcome(string.Concat(resolvedMessage, " ", suffix), faulted);
             }
 
-            return resolvedMessage;
+            return new RebuildOutcome(resolvedMessage, faulted);
         }
 
         // -----------------------------
@@ -1681,7 +1739,8 @@ namespace PlayniteAchievements.Services.Refresh
                 payload => FormatRefreshCompletionForResolvedRequest(resolved, payload),
                 resolved.ErrorLogMessage ?? "Refresh failed.",
                 resolved.ProviderScope,
-                authContext);
+                authContext,
+                resolved.SurfaceUserNotices);
         }
 
         private async Task<RebuildPayload> RefreshResolvedAsync(
@@ -1831,11 +1890,11 @@ namespace PlayniteAchievements.Services.Refresh
 
                 if (!string.IsNullOrWhiteSpace(resolved.UserMessage))
                 {
-                    if (request?.ShowEmptyTargetNotice != true)
+                    if (request?.SurfaceUserNotices != true)
                     {
-                        // Only user-initiated, targeted single-game refreshes opt in to the
-                        // no-capable-provider modal. Background, import, and bulk refreshes leave
-                        // the flag false and fail silently rather than interrupting the user.
+                        // Only refreshes of a selected game opt in to the no-capable-provider
+                        // modal. Polling, background, import, and bulk refreshes leave the flag
+                        // false and fail silently rather than interrupting the user.
                         _logger.Info("Refresh selection produced no targets; suppressing no-target modal for non-targeted refresh.");
                     }
                     else if (HasSteamTransientAuthFailure(effectiveAuthContext))

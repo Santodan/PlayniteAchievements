@@ -810,9 +810,23 @@ namespace PlayniteAchievements.Services.UI
                 File.WriteAllText(tempPath, xaml, new UTF8Encoding(encoderShouldEmitUTF8Identifier: false));
 
                 var dictionary = new ResourceDictionary { Source = new Uri(tempPath, UriKind.Absolute) };
-                if (!TryGetDirectResource(dictionary, key, out DataTemplate _))
+                if (!TryGetDirectResource(dictionary, key, out DataTemplate template))
                 {
                     error = $"The file does not define a DataTemplate with x:Key \"{key}\".";
+                    return false;
+                }
+
+                // Parsing the dictionary only proves the markup is well formed; a DataTemplate's
+                // content tree is realized lazily. Instantiate it here so a template that parses
+                // but throws on realization is rejected at install time instead of throwing during
+                // a layout pass on every subsequent open. Callers are on the UI thread.
+                try
+                {
+                    template.LoadContent();
+                }
+                catch (Exception ex)
+                {
+                    error = $"The template could not be created: {ex.Message}";
                     return false;
                 }
 

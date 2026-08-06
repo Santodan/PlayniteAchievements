@@ -563,6 +563,22 @@
                                Foreground="{DynamicResource PlayAch.Brush.Text}"
                                Opacity="{StaticResource PlayAch.Opacity.Subtle}"
                                VerticalAlignment="Center" />
+                    <TextBlock Text="{DynamicResource LOCPlayAch_Common_Label_Platform}"
+                               Foreground="{DynamicResource PlayAch.Brush.Text}"
+                               Opacity="{StaticResource PlayAch.Opacity.Hint}"
+                               Margin="{StaticResource PlayAch.Thickness.Left.Md}"
+                               VerticalAlignment="Center" />
+                    <TextBlock Text=": "
+                               Foreground="{DynamicResource PlayAch.Brush.Text}"
+                               Opacity="{StaticResource PlayAch.Opacity.Hint}"
+                               VerticalAlignment="Center" />
+                    <ComboBox x:Name="DisplayPlatformComboBox"
+                              ItemsSource="{Binding AvailableDisplayPlatforms}"
+                              SelectedValue="{Binding SelectedDisplayPlatformKey, Mode=TwoWay}"
+                              SelectedValuePath="Value"
+                              DisplayMemberPath="DisplayName"
+                              MinWidth="150"
+                              VerticalAlignment="Center" />
                     <Button x:Name="UnlinkButton"
                             Content="{DynamicResource LOCPlayAch_ManageAchievements_Manual_Unlink}"
                             Command="{Binding UnlinkCommand, RelativeSource={RelativeSource AncestorType=UserControl}}"
