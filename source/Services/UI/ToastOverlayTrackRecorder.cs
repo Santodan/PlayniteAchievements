@@ -9,8 +9,8 @@ namespace PlayniteAchievements.Services.UI
 {
     /// <summary>
     /// Accumulates one <see cref="ToastOverlayTrack"/> per toast item over a wave's on-screen
-    /// lifetime. The toast pipeline calls <see cref="Sample"/> on the UI thread once per publish
-    /// tick per item with the card's rendered pixels and client-relative rect; consecutive
+    /// lifetime. The toast pipeline calls <see cref="Sample"/> on the UI thread once per recording
+    /// frame per item with the card's rendered pixels and client-relative rect; consecutive
     /// identical frames dedup by memcmp (static cards collapse to a handful of frames, GIF and
     /// countdown cards keep their real cadence), and unique frames Deflate-compress on a single
     /// background worker so the render tick never pays compression cost. Memory is capped per
@@ -29,15 +29,12 @@ namespace PlayniteAchievements.Services.UI
         /// </summary>
         private const int MaxQueuedCompressions = 16;
 
-        /// <summary>Trailing pad added to the last sample time, one nominal sample interval.</summary>
-        private const int SampleIntervalMs = 33;
-
         private sealed class ItemState
         {
             public ToastOverlayTrack Track;
             public byte[] LastRaw;
             public int LastFrameIndex = -1;
-            public int FirstSampleTick;
+            public double FirstSampleMs;
             public bool HasFirstTick;
             public long CompressedBytes;
             public bool FramesCapped;
@@ -51,6 +48,7 @@ namespace PlayniteAchievements.Services.UI
         }
 
         private readonly ILogger _logger;
+        private readonly double _sampleIntervalMs;
         private readonly Dictionary<AchievementToastViewModel, ItemState> _items =
             new Dictionary<AchievementToastViewModel, ItemState>();
         private readonly object _queueLock = new object();
@@ -59,18 +57,29 @@ namespace PlayniteAchievements.Services.UI
         private long _totalCompressedBytes;
         private bool _capLogged;
 
-        public ToastOverlayTrackRecorder(ILogger logger)
+        /// <param name="sampleIntervalMs">
+        /// The interval the caller samples at (one recording frame). Used only as the trailing pad on
+        /// the last sample, so a track's duration covers the frame its final sample represents.
+        /// </param>
+        public ToastOverlayTrackRecorder(ILogger logger, double sampleIntervalMs)
         {
             _logger = logger;
+            _sampleIntervalMs = sampleIntervalMs > 0 ? sampleIntervalMs : 1;
         }
 
         /// <summary>
         /// Records one tick of one card's animation. UI thread only. The rect is the card's
         /// top-left relative to the game client rect plus the client size, all physical pixels.
         /// </summary>
+        /// <param name="elapsedMs">
+        /// The composing frame's timestamp (the render tick's <c>RenderingTime</c>), in ms on any
+        /// epoch the caller keeps stable for the wave; each item's samples are stored relative to its
+        /// own first one. Supplied rather than read here because <c>Environment.TickCount</c> resolves
+        /// to ~15.6 ms — coarser than a single frame at 60 fps, which would quantize the timeline.
+        /// </param>
         public void Sample(
             AchievementToastViewModel vm, byte[] premulBgra, int width, int height,
-            int relX, int relY, int clientW, int clientH)
+            int relX, int relY, int clientW, int clientH, double elapsedMs)
         {
             if (vm == null || premulBgra == null || width <= 0 || height <= 0)
             {
@@ -91,10 +100,9 @@ namespace PlayniteAchievements.Services.UI
                 _items[vm] = state;
             }
 
-            var now = Environment.TickCount;
             if (!state.HasFirstTick)
             {
-                state.FirstSampleTick = now;
+                state.FirstSampleMs = elapsedMs;
                 state.HasFirstTick = true;
             }
 
@@ -112,7 +120,7 @@ namespace PlayniteAchievements.Services.UI
 
             state.Track.Samples.Add(new ToastOverlayTrack.Sample
             {
-                ElapsedMs = unchecked(now - state.FirstSampleTick),
+                ElapsedMs = (int)Math.Round(elapsedMs - state.FirstSampleMs),
                 FrameIndex = frameIndex,
                 RelX = relX,
                 RelY = relY,
@@ -181,7 +189,7 @@ namespace PlayniteAchievements.Services.UI
                     continue;
                 }
 
-                state.Track.DurationSeconds = (samples[samples.Count - 1].ElapsedMs + SampleIntervalMs) / 1000.0;
+                state.Track.DurationSeconds = (samples[samples.Count - 1].ElapsedMs + _sampleIntervalMs) / 1000.0;
                 tracks.Add(state.Track);
             }
 
