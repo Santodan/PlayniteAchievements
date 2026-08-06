@@ -1831,11 +1831,11 @@ namespace PlayniteAchievements.Services.Refresh
 
                 if (!string.IsNullOrWhiteSpace(resolved.UserMessage))
                 {
-                    if (request?.ShowEmptyTargetNotice != true)
+                    if (request?.SurfaceUserNotices != true)
                     {
-                        // Only user-initiated, targeted single-game refreshes opt in to the
-                        // no-capable-provider modal. Background, import, and bulk refreshes leave
-                        // the flag false and fail silently rather than interrupting the user.
+                        // Only refreshes of a selected game opt in to the no-capable-provider
+                        // modal. Polling, background, import, and bulk refreshes leave the flag
+                        // false and fail silently rather than interrupting the user.
                         _logger.Info("Refresh selection produced no targets; suppressing no-target modal for non-targeted refresh.");
                     }
                     else if (HasSteamTransientAuthFailure(effectiveAuthContext))
