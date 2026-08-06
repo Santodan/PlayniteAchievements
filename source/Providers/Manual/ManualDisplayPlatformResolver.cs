@@ -11,8 +11,8 @@ namespace PlayniteAchievements.Providers.Manual
     /// <see cref="ManualAchievementsProvider"/> (which writes the cache during refresh) and the
     /// manual-tracking view model (which writes it right after a save) so both agree.
     ///
-    /// The override is restricted to registered provider keys, so the resulting key always
-    /// resolves to a localized name, icon, and color through ProviderRegistry.
+    /// The override is restricted to registered provider keys, so the resulting key resolves to
+    /// a localized name, icon, and color through ProviderRegistry.
     /// </summary>
     public static class ManualDisplayPlatformResolver
     {
