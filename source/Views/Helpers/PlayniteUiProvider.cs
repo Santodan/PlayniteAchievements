@@ -57,6 +57,23 @@ namespace PlayniteAchievements.Views.Helpers
             FormattingCulture.Apply(windowExtension);
             windowExtension.Title = Title;
             windowExtension.ShowInTaskbar = false;
+
+            // Snap layout to whole device pixels for everything this window hosts, the same way the
+            // toast window (CreateBorderlessTopmostWindow) and the fullscreen window
+            // (ConfigureBorderlessFullscreenWindow) already do.
+            //
+            // It has to be set here, on the Window: layout rounding resolves an element's rect in its
+            // parent's coordinate space, so setting it on some control deep inside cannot undo a
+            // fractional offset an ancestor already introduced. Measured on the settings tree, a card
+            // sat at Y=115.92 DIP unrounded and 115.96 with rounding applied to the card itself --
+            // still off-grid -- versus a clean 116 from the root.
+            //
+            // Why it shows up only on scaled displays: the shared 1-DIP section border
+            // (PlayAch.Thickness.Border) is a whole pixel at 100% but 1.5 at 150%, so content inside
+            // it starts mid-pixel and both edges and glyph phases soften.
+            windowExtension.UseLayoutRounding = true;
+            windowExtension.SnapsToDevicePixels = true;
+
             windowExtension.ResizeMode = windowOptions.CanBeResizable ? ResizeMode.CanResize : ResizeMode.NoResize;
             windowExtension.Owner = API.Instance.Dialogs.GetCurrentAppWindow();
             windowExtension.WindowStartupLocation = WindowStartupLocation.CenterOwner;
