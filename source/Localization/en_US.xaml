@@ -560,7 +560,7 @@
     <sys:String x:Key="LOCPlayAch_Settings_EnableUnlockScreenshots">Save a screenshot on each unlock</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_ScreenshotDirectory">Screenshot folder</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_ScreenshotVariantClean">Clean</sys:String>
-    <sys:String x:Key="LOCPlayAch_Settings_ScreenshotVariantWithToast">With notification visible</sys:String>
+    <sys:String x:Key="LOCPlayAch_Settings_ScreenshotVariantWithToast">With notification</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_ScreenshotVariantFramed">Framed</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_ScreenshotSuffixes">Filename suffixes</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_CaptureMinimumRarity">Rarities to capture</sys:String>
@@ -1129,7 +1129,6 @@
     <sys:String x:Key="LOCPlayAch_Rarity_UltraRare">Ultra Rare</sys:String>
     <sys:String x:Key="LOCPlayAch_Rarity_Uncommon">Uncommon</sys:String>
     <sys:String x:Key="LOCPlayAch_Section_Notifications">Notifications</sys:String>
-    <sys:String x:Key="LOCPlayAch_Section_Capture">Screenshots &amp; Recordings</sys:String>
     <sys:String x:Key="LOCPlayAch_Section_SyncUpdates">Sync &amp; Updates</sys:String>
     <sys:String x:Key="LOCPlayAch_Section_Timeline">Achievements Over Time</sys:String>
     <sys:String x:Key="LOCPlayAch_TimeRange_14D">14D</sys:String>
