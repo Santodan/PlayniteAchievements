@@ -23,7 +23,7 @@ namespace PlayniteAchievements.Services.Recording
     /// achievement's recorded toast animation (<see cref="Capture.ToastOverlayTrack"/>) is
     /// composited into the clip by an export-time re-encode — so every clip shows exactly its own
     /// toast, at the unlock moment, regardless of how the on-screen wave stacked or queued, and
-    /// whether or not that toast was ever shown: the toast pipeline renders a headless wave for
+    /// whether or not that toast was ever shown: the toast pipeline renders an unrevealed wave for
     /// clip-worthy unlocks (see <see cref="WouldRequestClip"/>), and such clips carry no chime.
     /// Subscribes to <see cref="PlayniteAchievementsPlugin.AchievementUnlocked"/> in parallel to
     /// the toast service, and to <see cref="ToastNotificationService.TracksCompleted"/> for the
@@ -52,7 +52,7 @@ namespace PlayniteAchievements.Services.Recording
         private const int WindowResolveGraceSeconds = 15;
         private const int WindowResolvePollMs = 2000;
         // The overlay-track wait gives up after this much toast SILENCE (no wave settled — visible
-        // or headless — and no track completed), not this long after detection, so a burst of
+        // or unrevealed — and no track completed), not this long after detection, so a burst of
         // queued waves keeps later requests waiting for their own toast. A give-up saves the
         // toastless base clip. Now that clip-worthy unlocks always produce a wave, reaching this
         // timeout means a genuine failure: a minimized game holding the queue, or a wave that
@@ -628,7 +628,7 @@ namespace PlayniteAchievements.Services.Recording
         /// Why an unlock does or does not produce a clip. Split out of
         /// <see cref="OnAchievementUnlocked"/> so the decision itself is side-effect free and can
         /// be asked twice: once here, and once by the toast pipeline deciding whether an unlock
-        /// owes a headless overlay track.
+        /// owes an overlay track.
         /// </summary>
         private enum ClipEligibility
         {
@@ -699,10 +699,10 @@ namespace PlayniteAchievements.Services.Recording
 
         /// <summary>
         /// Whether this unlock would produce a clip right now, so the toast pipeline can decide
-        /// that it owes a headless overlay track. Both sides read the same state through
+        /// that it owes an overlay track. Both sides read the same state through
         /// <see cref="EvaluateClipEligibility"/>. It is evaluated in the toast service's unlock
         /// handler, which runs before this service's own: a capture session starting or stopping
-        /// in that instant can make the two disagree, which costs at most a wasted headless wave
+        /// in that instant can make the two disagree, which costs at most a wasted unrevealed wave
         /// or a track wait that times out as it already would.
         /// </summary>
         internal bool WouldRequestClip(AchievementUnlockedEventArgs e) =>
@@ -780,7 +780,7 @@ namespace PlayniteAchievements.Services.Recording
         /// queued behind long waves keep waiting for their own track instead of timing out (track
         /// completions alone can be a full display duration apart). Also stamps the wave's chime
         /// time on its still-waiting requests so the re-encode can read the chime from the sidecar
-        /// track — a headless wave reports no chime time, so its clips are mixed without one.
+        /// track — an unrevealed wave reports no chime time, so its clips are mixed without one.
         /// </summary>
         private void OnToastWaveDisplayed(object sender, ToastWaveDisplayedEventArgs e)
         {

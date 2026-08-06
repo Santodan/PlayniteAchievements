@@ -78,7 +78,7 @@ namespace PlayniteAchievements.Services.UI
         // is that monitor's true effective scale (1.0 = 100%).
         private IntPtr _activeReferenceHwnd;
         private bool _activeIsGame;
-        // Set for a headless wave. The window is never revealed, so it must not insert itself into
+        // Set for an unrevealed wave. The window is never revealed, so it must not insert itself into
         // the game's z-order; placement itself still runs, because the overlay track reads the
         // window's physical rect every frame.
         private bool _activeSuppressZOrder;
@@ -237,7 +237,7 @@ namespace PlayniteAchievements.Services.UI
         /// Whether an unlock enters the wave pipeline at all. It qualifies if it shows a
         /// notification, or (own unlocks only) if it owes notification imagery to something that
         /// is not the screen: a screenshot variant, or a clip overlay track. A wave with no
-        /// on-screen notification runs headless when a card is owed, and windowless when it
+        /// on-screen notification runs unrevealed when a card is owed, and windowless when it
         /// is not.
         /// </summary>
         private bool ShouldProcess(AchievementUnlockedEventArgs args)
@@ -454,8 +454,8 @@ namespace PlayniteAchievements.Services.UI
         /// and every variant shares one identical frame. In game the base is the client-area
         /// window capture and cards anchor to the client rect; the out-of-game test fire reuses
         /// the wave's single monitor capture and anchors cards to the monitor work area (the same
-        /// anchor the live toast is placed against). The source window may be a headless one that
-        /// is never revealed — the card render is layout-driven and does not read window opacity.
+        /// anchor the live toast is placed against). The source window may never be revealed — the
+        /// card render is layout-driven and does not read window opacity.
         /// <para>
         /// Invariant: a saved with-notification screenshot always contains a rendered notification
         /// card. It degrades to a plain clone of the base capture only when the card cannot be
@@ -754,8 +754,8 @@ namespace PlayniteAchievements.Services.UI
         /// per-item tracks are re-timed into each achievement's unlock clip at export (WGC's
         /// per-window video capture can't see the separate toast window). Called by the caller once per
         /// recording frame, with that frame's composition time; a no-op when not a game anchor. The
-        /// window may be a headless one that is never revealed — rendering a card reads layout, not
-        /// visibility. UI thread only.
+        /// window may never be revealed — rendering a card reads layout, not visibility. UI thread
+        /// only.
         /// </summary>
         private void SampleWaveTracks(
             ToastOverlayTrackRecorder recorder, Window window,
@@ -1002,7 +1002,7 @@ namespace PlayniteAchievements.Services.UI
         /// running (e.g. friend unlocks for unowned titles) are always ready. The only thing that
         /// holds a running game's wave is a minimized window: a minimized window cannot be
         /// WGC-captured, and offers no surface to place a visible notification over (the toast
-        /// z-orders above the game), so visible and headless waves both hold. The toast is owned by
+        /// z-orders above the game), so visible and unrevealed waves both hold. The toast is owned by
         /// the game window, so an unfocused/occluded game still gets a correctly-interleaved toast.
         /// </summary>
         private bool IsWaveGameReady(AchievementToastViewModel vm)
@@ -1023,22 +1023,33 @@ namespace PlayniteAchievements.Services.UI
         }
 
         /// <summary>
-        /// How a wave runs. Notification imagery is rendered from a real toast card either way;
-        /// the mode only decides whether that card is ever revealed or sounded.
+        /// How a wave runs, decided by two independent questions: does anything need a rendered
+        /// notification card, and should that card be shown?
+        /// <list type="bullet">
+        /// <item><see cref="Windowless"/> — no card needed, so no window at all.</item>
+        /// <item><see cref="Unrevealed"/> — a card is needed as an image only.</item>
+        /// <item><see cref="Visible"/> — a card is needed and shown.</item>
+        /// </list>
+        /// The first two both produce nothing on screen, which is why they are easy to conflate;
+        /// they differ in whether a window is created and a card rendered.
         /// </summary>
         private enum WaveMode
         {
             /// <summary>
-            /// No card is needed: capture the base surface, save clean/framed, never create a
-            /// window.
+            /// Nothing needs a card: only the clean and/or framed screenshot variants qualify, and
+            /// no clip is being cut. Captures the base surface, saves it, and never creates a
+            /// window — the cheapest mode, and the one that keeps a screenshots-only setup off the
+            /// wave queue for a full display duration.
             /// </summary>
-            CaptureOnly,
+            Windowless,
 
             /// <summary>
-            /// Cards are realized in a window that is never revealed and plays no chime. Feeds the
-            /// with-notification composite and the clip overlay track.
+            /// A card is needed as an image but not on screen: the with-notification screenshot
+            /// variant must composite one, or a clip needs its overlay track. The window is
+            /// created, laid out, animated and sampled exactly as a visible wave, but is never
+            /// revealed and plays no chime.
             /// </summary>
-            Headless,
+            Unrevealed,
 
             /// <summary>The on-screen notification: chime, vibration, reveal, hold, slide-out.</summary>
             Visible,
@@ -1048,7 +1059,7 @@ namespace PlayniteAchievements.Services.UI
         {
             public WaveMode Mode { get; set; }
 
-            /// <summary>Items realized as cards in the window. Empty only for CaptureOnly.</summary>
+            /// <summary>Items realized as cards in the window. Empty only for Windowless.</summary>
             public IReadOnlyList<AchievementToastViewModel> CardItems { get; set; }
 
             public WaveScreenshotPlan Screenshots { get; set; }
@@ -1057,9 +1068,11 @@ namespace PlayniteAchievements.Services.UI
         }
 
         /// <summary>
-        /// Splits a wave into what is shown and what is merely rendered. Toasting items decide the
-        /// mode; when nothing toasts, a card is still realized — invisibly — for every item that
-        /// owes a with-notification screenshot or a clip overlay track.
+        /// Splits a wave into what is shown and what is merely rendered. Any toasting item makes
+        /// the wave <see cref="WaveMode.Visible"/> and those items are its cards. Otherwise a card
+        /// is realized — invisibly — for every item that owes a with-notification screenshot or a
+        /// clip overlay track, which is <see cref="WaveMode.Unrevealed"/>; if no item owes one,
+        /// there is nothing to render and the wave is <see cref="WaveMode.Windowless"/>.
         /// </summary>
         private WavePlan ResolveWavePlan(IReadOnlyList<AchievementToastViewModel> wave)
         {
@@ -1092,7 +1105,7 @@ namespace PlayniteAchievements.Services.UI
 
             return new WavePlan
             {
-                Mode = cardItems.Count > 0 ? WaveMode.Headless : WaveMode.CaptureOnly,
+                Mode = cardItems.Count > 0 ? WaveMode.Unrevealed : WaveMode.Windowless,
                 CardItems = cardItems,
                 Screenshots = screenshots,
             };
@@ -1139,7 +1152,7 @@ namespace PlayniteAchievements.Services.UI
             // Nothing needs a card: capture and save, no window, no delays. Running this inside
             // the sequential wave pipeline is what keeps the out-of-game monitor capture free of
             // an earlier wave's toast, and keeps the per-wave placement state single-owner.
-            if (wavePlan.Mode == WaveMode.CaptureOnly)
+            if (wavePlan.Mode == WaveMode.Windowless)
             {
                 if (plan != null)
                 {
@@ -1149,7 +1162,7 @@ namespace PlayniteAchievements.Services.UI
                 return;
             }
 
-            // Chime and vibration belong to the on-screen notification, so a headless wave skips
+            // Chime and vibration belong to the on-screen notification, so an unrevealed wave skips
             // both — and skips the alignment delay that exists only to line them up with the
             // reveal. Its clips carry no chime because none was played.
             DateTime? soundPlayedUtc = null;
@@ -1226,7 +1239,7 @@ namespace PlayniteAchievements.Services.UI
             // windows behind it. Instead the toast is inserted directly above the game in the z-order
             // each frame (see the follow below), which leaves the game and every other window in
             // place: the toast just sits over the game and is naturally occluded by anything above it.
-            // Out-of-game / preview keeps the topmost float over Playnite. A headless wave is never
+            // Out-of-game / preview keeps the topmost float over Playnite. A unrevealed wave is never
             // revealed, so it drops topmost unconditionally and stays out of the z-order entirely
             // (see _activeSuppressZOrder) — it has no business floating over anything.
             _activeSuppressZOrder = !visible;
@@ -1286,7 +1299,7 @@ namespace PlayniteAchievements.Services.UI
                 _logger?.Info(
                     $"[Toast] Fire: monitorScale={_activeMonitorScale:0.###}, systemScale={systemScale:0.###}, " +
                     $"perMonitorWindow={needsPerMonitorWindow}, isGame={_activeIsGame}, " +
-                    $"headless={!visible}");
+                    $"revealed={visible}");
                 if (needsPerMonitorWindow)
                 {
                     using (Common.DpiAwarenessScope.PerMonitorV2())
@@ -1401,7 +1414,7 @@ namespace PlayniteAchievements.Services.UI
 
                 // The wave has settled, revealed or not: signal the recording service (a liveness
                 // bump for its track wait, plus this wave's chime time for the clip audio mix —
-                // clip windows themselves are unlock-anchored). A headless wave passes a null
+                // clip windows themselves are unlock-anchored). A unrevealed wave passes a null
                 // chime time, so its clips are mixed without one.
                 RaiseWaveDisplayed(cardItems, soundPlayedUtc);
 
@@ -1575,7 +1588,7 @@ namespace PlayniteAchievements.Services.UI
         /// game window (see <see cref="ShowWaveAsync"/>), so the OS occludes and hides it in lockstep
         /// with the game — covered when the game is covered, hidden when the game is minimized — with
         /// no manual focus-based hide/show. The countdown-bar animation runs on wall-clock time. A
-        /// headless wave holds for the same duration so its overlay track spans the clip's toast
+        /// unrevealed wave holds for the same duration so its overlay track spans the clip's toast
         /// slot. Returns false (the toast is never hidden by us) so the caller always runs the normal
         /// slide-out.
         /// </summary>
@@ -2079,7 +2092,7 @@ namespace PlayniteAchievements.Services.UI
             // Keep the toast directly above the game window in the z-order (not owned, so the game is
             // never raised). Re-asserted every placement/follow frame so it stays interleaved as the
             // user moves between windows. Only for a running-game anchor; the Playnite/preview case
-            // keeps its topmost float, and a headless wave stays out of the z-order entirely.
+            // keeps its topmost float, and an unrevealed wave stays out of the z-order entirely.
             if (!_activeSuppressZOrder && _activeIsGame && _activeReferenceHwnd != IntPtr.Zero)
             {
                 ToastWindowPlacer.SetZOrderAbove(window, _activeReferenceHwnd);
@@ -2386,7 +2399,7 @@ namespace PlayniteAchievements.Services.UI
 
         /// <summary>
         /// Runs the slide-in and, when <paramref name="reveal"/> is set, makes the window visible.
-        /// A headless wave slides without revealing: the motion is what the overlay track records,
+        /// A unrevealed wave slides without revealing: the motion is what the overlay track records,
         /// so the composited clip shows the same slide-in a visible notification would.
         /// </summary>
         private void SlideInPhysical(Window window, bool reveal)

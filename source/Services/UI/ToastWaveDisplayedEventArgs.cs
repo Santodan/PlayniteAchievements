@@ -27,7 +27,7 @@ namespace PlayniteAchievements.Services.UI
         /// <summary>
         /// When this wave's unlock chime started playing. The recording service reads the chime
         /// sidecar track at this moment and mixes it into the wave's clips at the composited
-        /// toast. Null when no sound fired — including a headless wave, which deliberately plays
+        /// toast. Null when no sound fired — including an unrevealed wave, which deliberately plays
         /// none, so its clips ship without a chime.
         /// </summary>
         public DateTime? SoundPlayedUtc { get; }
