@@ -22,7 +22,9 @@ namespace PlayniteAchievements.Services.Recording
     /// unlock moment is trimmed out of the buffer (see <see cref="SegmentTimeline"/>), and that
     /// achievement's recorded toast animation (<see cref="Capture.ToastOverlayTrack"/>) is
     /// composited into the clip by an export-time re-encode — so every clip shows exactly its own
-    /// toast, at the unlock moment, regardless of how the on-screen wave stacked or queued.
+    /// toast, at the unlock moment, regardless of how the on-screen wave stacked or queued, and
+    /// whether or not that toast was ever shown: the toast pipeline renders a headless wave for
+    /// clip-worthy unlocks (see <see cref="WouldRequestClip"/>), and such clips carry no chime.
     /// Subscribes to <see cref="PlayniteAchievementsPlugin.AchievementUnlocked"/> in parallel to
     /// the toast service, and to <see cref="ToastNotificationService.TracksCompleted"/> for the
     /// overlay tracks (<see cref="ToastNotificationService.WaveDisplayed"/> is only a liveness
@@ -49,9 +51,12 @@ namespace PlayniteAchievements.Services.Recording
         // correct later if the game window appears somewhere else.
         private const int WindowResolveGraceSeconds = 15;
         private const int WindowResolvePollMs = 2000;
-        // The overlay-track wait gives up after this much toast SILENCE (no wave shown, no track
-        // completed) — not this long after detection, so a burst of queued waves keeps later
-        // requests waiting for their own toast. A give-up saves the toastless base clip.
+        // The overlay-track wait gives up after this much toast SILENCE (no wave settled — visible
+        // or headless — and no track completed), not this long after detection, so a burst of
+        // queued waves keeps later requests waiting for their own toast. A give-up saves the
+        // toastless base clip. Now that clip-worthy unlocks always produce a wave, reaching this
+        // timeout means a genuine failure: a minimized game holding the queue, or a wave that
+        // threw or was cleared.
         private const int ToastWaitTimeoutSeconds = 30;
         private const int ToastWaitPollSeconds = 5;
         // The clip's toast slot: the effective display duration plus an allowance for the
@@ -771,11 +776,11 @@ namespace PlayniteAchievements.Services.Recording
         }
 
         /// <summary>
-        /// A wave going on screen proves the toast queue is draining; bump the activity clock so
-        /// requests queued behind long waves keep waiting for their own track instead of timing
-        /// out (track completions alone can be a full display duration apart). Also stamps the
-        /// wave's chime time on its still-waiting requests so the re-encode can read the chime
-        /// from the sidecar track.
+        /// A wave settling proves the toast queue is draining; bump the activity clock so requests
+        /// queued behind long waves keep waiting for their own track instead of timing out (track
+        /// completions alone can be a full display duration apart). Also stamps the wave's chime
+        /// time on its still-waiting requests so the re-encode can read the chime from the sidecar
+        /// track — a headless wave reports no chime time, so its clips are mixed without one.
         /// </summary>
         private void OnToastWaveDisplayed(object sender, ToastWaveDisplayedEventArgs e)
         {
