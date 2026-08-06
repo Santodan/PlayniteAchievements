@@ -1,5 +1,17 @@
 AddonId: PlayniteAchievementsSantodan
 Packages:
+  - Version: 3.1.0.1
+    RequiredApiVersion: 6.14.0
+    ReleaseDate: 2026-08-06
+    PackageUrl: https://github.com/santodan/PlayniteAchievements/releases/download/v3.1.0.1/PlayniteAchievementsSantodan_3_1_0_1.pext
+    Changelog:
+    - "v3.1.0 merge"
+    - "Added the setting for the automatic theme migration under the `Theme Migration` tab"
+    - "Fixed the friend's achievements not appearing correctly when two friends's accounts are merged"
+    - "Added logs for the screenshot and for the video from the `Achievement Notification`"
+    - "Removed the always on overlay for the `Achievement Notification`"
+    - "Fixed the `<rarity>` wildcard showing the rarity tier instead of percentage."
+
   - Version: 3.0.0.1
     RequiredApiVersion: 6.14.0
     ReleaseDate: 2026-08-02
