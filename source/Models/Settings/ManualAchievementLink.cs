@@ -42,6 +42,13 @@ namespace PlayniteAchievements.Models.Settings
         public bool? AllowUnauthenticatedSchemaFetch { get; set; }
 
         /// <summary>
+        /// Provider key this manually tracked game displays as (e.g. "PSN"), chosen by the user.
+        /// Null or empty uses the platform derived from the source game id.
+        /// </summary>
+        [JsonProperty(NullValueHandling = NullValueHandling.Ignore)]
+        public string DisplayPlatformKeyOverride { get; set; }
+
+        /// <summary>
         /// UTC timestamp when this link was first created.
         /// </summary>
         public DateTime CreatedUtc { get; set; }
@@ -67,6 +74,7 @@ namespace PlayniteAchievements.Models.Settings
                     ? new Dictionary<string, bool>(this.UnlockStates)
                     : new Dictionary<string, bool>(),
                 AllowUnauthenticatedSchemaFetch = this.AllowUnauthenticatedSchemaFetch,
+                DisplayPlatformKeyOverride = this.DisplayPlatformKeyOverride,
                 CreatedUtc = this.CreatedUtc,
                 LastModifiedUtc = this.LastModifiedUtc
             };
