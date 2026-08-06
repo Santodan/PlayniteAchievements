@@ -37,11 +37,6 @@ namespace PlayniteAchievements.Services.Refresh
         public List<Guid> LastRefreshedGameIds { get; private set; } = new List<Guid>();
 
         /// <summary>
-        /// Gets the provider keys that failed authentication in the most recent refresh.
-        /// </summary>
-        public List<string> GetLastFailedAuthProviderKeys() => new List<string>(_lastFailedAuthProviderKeys);
-
-        /// <summary>
         /// Raised after each individual game is refreshed and cached.
         /// Argument is the game ID that was refreshed.
         /// </summary>
@@ -77,7 +72,6 @@ namespace PlayniteAchievements.Services.Refresh
         // side still compact, while Single/Recent runs (a handful of games) never trigger a
         // collection.
         private const int LohCompactionSavedGamesThreshold = 25;
-        private volatile List<string> _lastFailedAuthProviderKeys = new List<string>();
 
         // Dependencies that need disposal
         private readonly IReadOnlyList<IDataProvider> _providers;
@@ -537,11 +531,6 @@ namespace PlayniteAchievements.Services.Refresh
                 {
                     LastRefreshedGameIds = new List<Guid>();
                 }
-
-                // Store failed provider keys for notification consumers.
-                _lastFailedAuthProviderKeys = payload?.FailedProviderKeys?.Count > 0
-                    ? new List<string>(payload.FailedProviderKeys)
-                    : new List<string>();
             }
             catch (OperationCanceledException ex) when (!cts.IsCancellationRequested)
             {

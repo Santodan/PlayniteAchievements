@@ -299,20 +299,16 @@ namespace PlayniteAchievements.Services
             }
         }
 
+        // The periodic refresh reports only its own status. Provider authentication failures are
+        // surfaced by refreshes of a selected game (see RefreshRequest.SurfaceUserNotices); an
+        // unattended refresh raising them meant the notification could appear mid-session, and
+        // clearing them here could erase a warning a selected-game refresh had raised. The
+        // completion status already carries the auth-required suffix, and provider settings show
+        // live authentication state.
         private void HandleUpdateCompletion()
         {
             var lastStatus = _refreshService.GetLastRebuildStatus() ?? ResourceProvider.GetString("LOCPlayAch_Status_RefreshComplete");
             _notifications?.ShowPeriodicStatus(lastStatus);
-
-            var failedKeys = _refreshService.GetLastFailedAuthProviderKeys();
-            if (failedKeys != null && failedKeys.Count > 0)
-            {
-                _notifications?.ShowProviderAuthFailed(failedKeys);
-            }
-            else
-            {
-                _notifications?.ClearAllProviderAuthNotifications();
-            }
 
             _onUpdateCompleted?.Invoke();
         }
