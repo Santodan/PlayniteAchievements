@@ -161,6 +161,48 @@ namespace PlayniteAchievements.Services.Tests
         }
 
         [TestMethod]
+        public void NormalizeInternal_ManualLink_PreservesDisplayPlatformOverride()
+        {
+            // NormalizeManualLink rebuilds the link field by field on every save, so an omitted
+            // field is discarded silently rather than failing.
+            var gameId = Guid.NewGuid();
+            var normalized = GameCustomDataNormalizer.NormalizeInternal(
+                new GameCustomDataFile
+                {
+                    PlayniteGameId = gameId,
+                    ManualLink = new ManualAchievementLink
+                    {
+                        SourceKey = "Exophase",
+                        SourceGameId = "shogun-showdown",
+                        DisplayPlatformKeyOverride = " PSN "
+                    }
+                },
+                gameId);
+
+            Assert.AreEqual("PSN", normalized.ManualLink.DisplayPlatformKeyOverride);
+        }
+
+        [TestMethod]
+        public void NormalizeInternal_ManualLink_BlankDisplayPlatformOverrideBecomesNull()
+        {
+            var gameId = Guid.NewGuid();
+            var normalized = GameCustomDataNormalizer.NormalizeInternal(
+                new GameCustomDataFile
+                {
+                    PlayniteGameId = gameId,
+                    ManualLink = new ManualAchievementLink
+                    {
+                        SourceKey = "Exophase",
+                        SourceGameId = "shogun-showdown",
+                        DisplayPlatformKeyOverride = "   "
+                    }
+                },
+                gameId);
+
+            Assert.IsNull(normalized.ManualLink.DisplayPlatformKeyOverride);
+        }
+
+        [TestMethod]
         public void NotificationAppearanceOverride_CloneAndPortableRoundTrip_AreIndependent()
         {
             var data = new GameCustomDataFile
