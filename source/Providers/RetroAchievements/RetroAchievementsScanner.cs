@@ -168,6 +168,12 @@ namespace PlayniteAchievements.Providers.RetroAchievements
                         return ProviderRefreshExecutor.ProviderGameResult.Skipped();
                     }
 
+                    if (!IsStillSelectedProvider(game))
+                    {
+                        _logger?.Info($"[RA] Skipping '{game.Name}' because its provider changed before scanning started.");
+                        return ProviderRefreshExecutor.ProviderGameResult.Skipped();
+                    }
+
                     var hasOverride = RetroAchievementsDataProvider.TryGetGameIdOverride(game.Id, out _);
                     var hasResolvedConsole = RaConsoleIdResolver.TryResolve(game, out var resolvedConsoleId);
                     var consoleId = hasResolvedConsole ? (int?)resolvedConsoleId : null;
@@ -593,6 +599,12 @@ namespace PlayniteAchievements.Providers.RetroAchievements
             {
                 cancel.ThrowIfCancellationRequested();
 
+                if (!IsStillSelectedProvider(game))
+                {
+                    _logger?.Info($"[RA] Stopping platformless name fallback for '{game?.Name}' because its provider changed.");
+                    return null;
+                }
+
                 var games = await GetOrFetchGameListAsync(consoleId, cancel).ConfigureAwait(false);
                 if (games == null || games.Count == 0)
                 {
@@ -767,7 +779,7 @@ namespace PlayniteAchievements.Providers.RetroAchievements
                 try
                 {
                     var arrayItems = Newtonsoft.Json.JsonConvert.DeserializeObject<Models.RaGameListWithTitle[]>(json);
-                    if (arrayItems != null && arrayItems.Length > 0)
+                    if (arrayItems != null)
                     {
                         games = new List<Models.RaGameListWithTitle>(arrayItems);
                     }
@@ -817,6 +829,34 @@ namespace PlayniteAchievements.Providers.RetroAchievements
                 _logger?.Warn(ex, $"[RA] Failed to fetch game list for consoleId={consoleId}: {ex.Message}");
                 return new List<Models.RaGameListWithTitle>();
             }
+        }
+
+        private bool IsStillSelectedProvider(Game game)
+        {
+            if (game == null)
+            {
+                return false;
+            }
+
+            if (GameCustomDataLookup.TryGetProviderOverride(game.Id, out var providerOverride))
+            {
+                return string.Equals(
+                    providerOverride?.ProviderKey,
+                    "RetroAchievements",
+                    StringComparison.OrdinalIgnoreCase);
+            }
+
+            if (_settings?.Persisted?.PreferredProviderOverrides != null &&
+                _settings.Persisted.PreferredProviderOverrides.TryGetValue(game.Id, out var preferredProvider) &&
+                !string.IsNullOrWhiteSpace(preferredProvider))
+            {
+                return string.Equals(
+                    preferredProvider.Trim(),
+                    "RetroAchievements",
+                    StringComparison.OrdinalIgnoreCase);
+            }
+
+            return true;
         }
 
         private static string NormalizeGameName(string name)

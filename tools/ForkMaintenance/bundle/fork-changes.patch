@@ -852,7 +852,7 @@ index 49f7ff62a1120efabe5fec552b23b3589a8e3d0c..f1def6c118dc602e46db4ee2df9c6d57
          {
              _resourceService.EnsureAchievementResourcesLoaded(_settingsViewModel.Settings);
 diff --git a/source/PlayniteAchievementsPlugin.cs b/source/PlayniteAchievementsPlugin.cs
-index 222d988c8b2f9b3cf0247f351e319f0561290019..70113eac11b3284b403eaf2624d63b6973829808 100644
+index 222d988c8b2f9b3cf0247f351e319f0561290019..697c5682f7fe598d8eea2f48cfa107d031f85166 100644
 --- a/source/PlayniteAchievementsPlugin.cs
 +++ b/source/PlayniteAchievementsPlugin.cs
 @@ -38,6 +38,7 @@
@@ -878,15 +878,17 @@ index 222d988c8b2f9b3cf0247f351e319f0561290019..70113eac11b3284b403eaf2624d63b69
          };
  
          private readonly PlayniteAchievementsSettingsViewModel _settingsViewModel;
-@@ -108,6 +109,7 @@ public partial class PlayniteAchievementsPlugin : GenericPlugin
+@@ -108,6 +109,9 @@ public partial class PlayniteAchievementsPlugin : GenericPlugin
          private readonly Dictionary<Guid, int?> _startedProcessIds = new Dictionary<Guid, int?>();
          private readonly RefreshEntryPoint _refreshCoordinator;
          private bool _applicationStarted;
 +        private int _suspendNewGameAutoRefreshCount;
++        private readonly object _newGameAutoRefreshSync = new object();
++        private readonly HashSet<Guid> _deferredNewGameRefreshIds = new HashSet<Guid>();
  
          // Top panel item
          private PlayniteAchievementsTopPanelItem _topPanelItem;
-@@ -165,6 +167,28 @@ public partial class PlayniteAchievementsPlugin : GenericPlugin
+@@ -165,6 +169,28 @@ public partial class PlayniteAchievementsPlugin : GenericPlugin
          public static event EventHandler SettingsSaved;
          public static event EventHandler<AchievementUnlockedEventArgs> AchievementUnlocked;
  
@@ -915,7 +917,7 @@ index 222d988c8b2f9b3cf0247f351e319f0561290019..70113eac11b3284b403eaf2624d63b69
          /// <summary>
          /// Raises the SettingsSaved event to notify listeners that settings have changed. Every
          /// subscriber is a UI control, so when this is invoked from a background thread (e.g. a friend
-@@ -212,6 +236,72 @@ public static void NotifyAchievementUnlocked(AchievementUnlockedEventArgs args)
+@@ -212,6 +238,72 @@ public static void NotifyAchievementUnlocked(AchievementUnlockedEventArgs args)
              handler.Invoke(null, args);
          }
  
@@ -988,7 +990,7 @@ index 222d988c8b2f9b3cf0247f351e319f0561290019..70113eac11b3284b403eaf2624d63b69
          private void TryWarmCustomDataCache()
          {
              if (_gameCustomDataStore == null)
-@@ -254,9 +344,22 @@ private string GetPluginLocalizationDirectory()
+@@ -254,9 +346,22 @@ private string GetPluginLocalizationDirectory()
          }
  
          public void PersistSettingsForUi()
@@ -1011,7 +1013,7 @@ index 222d988c8b2f9b3cf0247f351e319f0561290019..70113eac11b3284b403eaf2624d63b69
                  _providerRegistry?.PersistAllProviderSettings(false);
                  SavePluginSettings(_settingsViewModel.Settings);
              }
-@@ -264,8 +367,31 @@ public void PersistSettingsForUi()
+@@ -264,8 +369,31 @@ public void PersistSettingsForUi()
              {
                  _logger?.Warn(ex, "Failed to persist plugin settings.");
              }
@@ -1044,7 +1046,7 @@ index 222d988c8b2f9b3cf0247f351e319f0561290019..70113eac11b3284b403eaf2624d63b69
          }
  
          // Public bridge method for external helpers/themes that used to target SuccessStory via reflection.
-@@ -423,8 +549,22 @@ public PlayniteAchievementsPlugin(IPlayniteAPI api) : base(api)
+@@ -423,8 +551,22 @@ public PlayniteAchievementsPlugin(IPlayniteAPI api) : base(api)
                  _manualSourceRegistry = new ManualSourceRegistry(_logger, settings, PlayniteApi, pluginUserDataPath);
  
                  // Create provider registry
@@ -1068,7 +1070,7 @@ index 222d988c8b2f9b3cf0247f351e319f0561290019..70113eac11b3284b403eaf2624d63b69
                  settings.Persisted?.MigrateLegacyProviderFriends();
                  _gameCustomDataStore = _settingsViewModel.GameCustomDataStore;
                  _gameCustomDataStore.AttachRuntimeSettings(settings);
-@@ -526,6 +666,7 @@ public PlayniteAchievementsPlugin(IPlayniteAPI api) : base(api)
+@@ -526,6 +668,7 @@ public PlayniteAchievementsPlugin(IPlayniteAPI api) : base(api)
                      }
  
                      _notifications = new NotificationPublisher(api, settings, _logger);
@@ -1076,7 +1078,7 @@ index 222d988c8b2f9b3cf0247f351e319f0561290019..70113eac11b3284b403eaf2624d63b69
                      _refreshCoordinator = new RefreshEntryPoint(
                          _refreshService,
                          _logger,
-@@ -542,7 +683,8 @@ public PlayniteAchievementsPlugin(IPlayniteAPI api) : base(api)
+@@ -542,7 +685,8 @@ public PlayniteAchievementsPlugin(IPlayniteAPI api) : base(api)
                          // Late-bound: the recording service is constructed just below, but the
                          // toast service only ever invokes this from an unlock handler, long after
                          // the field is assigned.
@@ -1086,7 +1088,7 @@ index 222d988c8b2f9b3cf0247f351e319f0561290019..70113eac11b3284b403eaf2624d63b69
                      _unlockRecordings = new Services.Recording.UnlockRecordingService(
                          PlayniteApi,
                          settings,
-@@ -562,7 +704,7 @@ public PlayniteAchievementsPlugin(IPlayniteAPI api) : base(api)
+@@ -562,7 +706,7 @@ public PlayniteAchievementsPlugin(IPlayniteAPI api) : base(api)
                          _cacheManager,
                          _refreshService,
                          (request, policy) => _refreshCoordinator.ExecuteAsync(request, policy),
@@ -1095,7 +1097,7 @@ index 222d988c8b2f9b3cf0247f351e319f0561290019..70113eac11b3284b403eaf2624d63b69
                      _backgroundUpdates = new BackgroundUpdater(_refreshCoordinator, _refreshService, _cacheManager, settings, _logger, _notifications, null);
  
                      // Create tag sync service
-@@ -721,7 +863,7 @@ public override IEnumerable<SidebarItem> GetSidebarItems()
+@@ -721,7 +865,7 @@ public override IEnumerable<SidebarItem> GetSidebarItems()
                  Opened = () =>
                  {
                      return new OverviewHostControl(
@@ -1104,7 +1106,7 @@ index 222d988c8b2f9b3cf0247f351e319f0561290019..70113eac11b3284b403eaf2624d63b69
                          _logger,
                          PlayniteApi,
                          _refreshService,
-@@ -1110,6 +1252,11 @@ private void PersistedSettings_PropertyChanged(object sender, PropertyChangedEve
+@@ -1110,6 +1254,11 @@ private void PersistedSettings_PropertyChanged(object sender, PropertyChangedEve
                  ReconfigureInGameMonitor();
              }
  
@@ -1116,7 +1118,7 @@ index 222d988c8b2f9b3cf0247f351e319f0561290019..70113eac11b3284b403eaf2624d63b69
              if (e.PropertyName == nameof(PersistedSettings.UseUniformRarityBadges) ||
                  e.PropertyName == nameof(PersistedSettings.RarityColors))
              {
-@@ -1229,6 +1376,37 @@ private void ReconfigureInGameMonitor()
+@@ -1229,6 +1378,37 @@ private void ReconfigureInGameMonitor()
              }
          }
  
@@ -1154,7 +1156,7 @@ index 222d988c8b2f9b3cf0247f351e319f0561290019..70113eac11b3284b403eaf2624d63b69
          public override void OnApplicationStopped(OnApplicationStoppedEventArgs args)
          {
              _logger.Info("OnApplicationStopped called.");
-@@ -1265,6 +1443,7 @@ public override void OnApplicationStopped(OnApplicationStoppedEventArgs args)
+@@ -1265,6 +1445,7 @@ public override void OnApplicationStopped(OnApplicationStoppedEventArgs args)
              DisposeStartPageViews();
  
              // Shutdown logging system
@@ -1162,6 +1164,72 @@ index 222d988c8b2f9b3cf0247f351e319f0561290019..70113eac11b3284b403eaf2624d63b69
              try { PluginLogger.Shutdown(); } catch (Exception ex) { System.Diagnostics.Trace.TraceError($"Failed to shutdown logger: {ex}"); }
          }
  
+@@ -1576,6 +1757,17 @@ private void Games_ItemCollectionChanged(object sender, ItemCollectionChangedEve
+                         continue;
+                     }
+ 
++                    if (NewGameAutoRefreshPolicy.ShouldDefer(game))
++                    {
++                        lock (_newGameAutoRefreshSync)
++                        {
++                            _deferredNewGameRefreshIds.Add(game.Id);
++                        }
++
++                        _logger.Debug($"Deferring new-game refresh for temporary manual game '{game.Name}' ({game.Id}).");
++                        continue;
++                    }
++
+                     addedGameIds.Add(game.Id);
+                 }
+ 
+@@ -1595,6 +1787,11 @@ private void Games_ItemCollectionChanged(object sender, ItemCollectionChangedEve
+                         continue;
+                     }
+ 
++                    lock (_newGameAutoRefreshSync)
++                    {
++                        _deferredNewGameRefreshIds.Remove(game.Id);
++                    }
++
+                     _ = TriggerRemovedGameCleanupAsync(game);
+                 }
+             }
+@@ -1606,6 +1803,35 @@ private void Games_ItemUpdated(object sender, ItemUpdatedEventArgs<Game> e)
+             // invalidate so the cached overview/start-page projection is rebuilt with fresh values.
+             // Invalidate() coalesces bursts (e.g. library scans) via its warm debounce.
+             _libraryProjectionService?.Invalidate();
++
++            if (e?.UpdatedItems == null || Volatile.Read(ref _suspendNewGameAutoRefreshCount) > 0)
++            {
++                return;
++            }
++
++            var readyGameIds = new List<Guid>();
++            foreach (var update in e.UpdatedItems)
++            {
++                var game = update?.NewData;
++                if (game == null || NewGameAutoRefreshPolicy.ShouldDefer(game))
++                {
++                    continue;
++                }
++
++                lock (_newGameAutoRefreshSync)
++                {
++                    if (_deferredNewGameRefreshIds.Remove(game.Id))
++                    {
++                        readyGameIds.Add(game.Id);
++                    }
++                }
++            }
++
++            if (readyGameIds.Count > 0)
++            {
++                _logger.Info($"Detected {readyGameIds.Count} completed manual game(s); starting batched refresh.");
++                _ = TriggerNewGamesRefreshAsync(readyGameIds);
++            }
+         }
+ 
+         private Task TriggerNewGamesRefreshAsync(List<Guid> gameIds)
 diff --git a/source/Providers/Exophase/ExophaseSettings.cs b/source/Providers/Exophase/ExophaseSettings.cs
 index 676e7db0542a4279b1b32a8260a2cce95e43b831..fae6009e490eec9a241a4b72ff755dac3560a56b 100644
 --- a/source/Providers/Exophase/ExophaseSettings.cs
@@ -1298,7 +1366,7 @@ index 703c21f04c5be26c91780f4f05b8eba65d8d91ba..a3dd67991654de177612444495ab51e5
          /// Checks if a game's platform is supported by RetroAchievements.
          /// Used by UI to determine if RA override option should be shown.
 diff --git a/source/Providers/RetroAchievements/RetroAchievementsScanner.cs b/source/Providers/RetroAchievements/RetroAchievementsScanner.cs
-index ea24ca14dce07648891d5d9bfd002ca187086b10..c7052e8db238ac8e9d7f75bc7fa9f2962d9f830f 100644
+index ea24ca14dce07648891d5d9bfd002ca187086b10..3714a150422f111051f03ec03ce00a3b322025f3 100644
 --- a/source/Providers/RetroAchievements/RetroAchievementsScanner.cs
 +++ b/source/Providers/RetroAchievements/RetroAchievementsScanner.cs
 @@ -4,6 +4,7 @@
@@ -1309,7 +1377,20 @@ index ea24ca14dce07648891d5d9bfd002ca187086b10..c7052e8db238ac8e9d7f75bc7fa9f296
  using PlayniteAchievements.Services.Images;
  using PlayniteAchievements.Services.Refresh;
  using Playnite.SDK;
-@@ -421,6 +422,11 @@ private async Task<GameAchievementData> FetchGameInfoAsync(Game game, int gameId
+@@ -167,6 +168,12 @@ public async Task<RebuildPayload> RefreshAsync(
+                         return ProviderRefreshExecutor.ProviderGameResult.Skipped();
+                     }
+ 
++                    if (!IsStillSelectedProvider(game))
++                    {
++                        _logger?.Info($"[RA] Skipping '{game.Name}' because its provider changed before scanning started.");
++                        return ProviderRefreshExecutor.ProviderGameResult.Skipped();
++                    }
++
+                     var hasOverride = RetroAchievementsDataProvider.TryGetGameIdOverride(game.Id, out _);
+                     var hasResolvedConsole = RaConsoleIdResolver.TryResolve(game, out var resolvedConsoleId);
+                     var consoleId = hasResolvedConsole ? (int?)resolvedConsoleId : null;
+@@ -421,6 +428,11 @@ private async Task<GameAchievementData> FetchGameInfoAsync(Game game, int gameId
                  var raSettings = ProviderRegistry.Settings<RetroAchievementsSettings>();
                  var gameInfo = await _api.GetGameInfoAndUserProgressAsync(gameId, cancel).ConfigureAwait(false);
                  var subsetConsoleId = RetroAchievementsSubsetConsoleResolver.Resolve(gameInfo, consoleId);
@@ -1321,7 +1402,7 @@ index ea24ca14dce07648891d5d9bfd002ca187086b10..c7052e8db238ac8e9d7f75bc7fa9f296
  
                  var sets = await RetroAchievementsSetAssembler.AssembleAsync(
                      gameInfo,
-@@ -430,7 +436,9 @@ private async Task<GameAchievementData> FetchGameInfoAsync(Game game, int gameId
+@@ -430,7 +442,9 @@ private async Task<GameAchievementData> FetchGameInfoAsync(Game game, int gameId
                      raSettings,
                      (setId, ct) => _api.GetGameInfoAndUserProgressAsync(setId, ct),
                      _logger,
@@ -1332,6 +1413,63 @@ index ea24ca14dce07648891d5d9bfd002ca187086b10..c7052e8db238ac8e9d7f75bc7fa9f296
  
                  await DownloadCategoryImagesAsync(game?.Id, sets.CategoryImageSources, cancel).ConfigureAwait(false);
  
+@@ -585,6 +599,12 @@ private async Task<PlatformlessNameMatch> TryMatchGameByNameAcrossConsolesAsync(
+             {
+                 cancel.ThrowIfCancellationRequested();
+ 
++                if (!IsStillSelectedProvider(game))
++                {
++                    _logger?.Info($"[RA] Stopping platformless name fallback for '{game?.Name}' because its provider changed.");
++                    return null;
++                }
++
+                 var games = await GetOrFetchGameListAsync(consoleId, cancel).ConfigureAwait(false);
+                 if (games == null || games.Count == 0)
+                 {
+@@ -759,7 +779,7 @@ private static bool IsSubsetLikeTitle(string title)
+                 try
+                 {
+                     var arrayItems = Newtonsoft.Json.JsonConvert.DeserializeObject<Models.RaGameListWithTitle[]>(json);
+-                    if (arrayItems != null && arrayItems.Length > 0)
++                    if (arrayItems != null)
+                     {
+                         games = new List<Models.RaGameListWithTitle>(arrayItems);
+                     }
+@@ -811,6 +831,34 @@ private static bool IsSubsetLikeTitle(string title)
+             }
+         }
+ 
++        private bool IsStillSelectedProvider(Game game)
++        {
++            if (game == null)
++            {
++                return false;
++            }
++
++            if (GameCustomDataLookup.TryGetProviderOverride(game.Id, out var providerOverride))
++            {
++                return string.Equals(
++                    providerOverride?.ProviderKey,
++                    "RetroAchievements",
++                    StringComparison.OrdinalIgnoreCase);
++            }
++
++            if (_settings?.Persisted?.PreferredProviderOverrides != null &&
++                _settings.Persisted.PreferredProviderOverrides.TryGetValue(game.Id, out var preferredProvider) &&
++                !string.IsNullOrWhiteSpace(preferredProvider))
++            {
++                return string.Equals(
++                    preferredProvider.Trim(),
++                    "RetroAchievements",
++                    StringComparison.OrdinalIgnoreCase);
++            }
++
++            return true;
++        }
++
+         private static string NormalizeGameName(string name)
+         {
+             if (string.IsNullOrWhiteSpace(name)) return string.Empty;
 diff --git a/source/Providers/RetroAchievements/RetroAchievementsSetAssembler.cs b/source/Providers/RetroAchievements/RetroAchievementsSetAssembler.cs
 index e07ad78859c21a1d86baada90b9047f61936a799..0cff82e69d632d603b3003d3740efb89252d1bd6 100644
 --- a/source/Providers/RetroAchievements/RetroAchievementsSetAssembler.cs
@@ -20096,10 +20234,18 @@ index 188ce2aa1c3ac413504e3e24fde651a318e0d7a5..4a6d7df0ba878386056e862a076088c1
          public void CloneAndCopyFrom_PreserveEnableFriendsFeatures()
          {
 diff --git a/tests/PlayniteAchievements.Tests/PlayniteAchievements.Tests.csproj b/tests/PlayniteAchievements.Tests/PlayniteAchievements.Tests.csproj
-index a7375e6445ce9124fb0f7808c30dfd2b4604dade..82e24fc61b9f4b3540b61bb9ed70460bd78523d4 100644
+index a7375e6445ce9124fb0f7808c30dfd2b4604dade..e8c36045588495761e6b6b427e85b3a2684e3c8d 100644
 --- a/tests/PlayniteAchievements.Tests/PlayniteAchievements.Tests.csproj
 +++ b/tests/PlayniteAchievements.Tests/PlayniteAchievements.Tests.csproj
-@@ -124,6 +124,7 @@
+@@ -81,6 +81,7 @@
+     <Compile Include="..\..\source\Models\CustomRefreshOptions.cs" Link="Source\Models\CustomRefreshOptions.cs" />
+     <Compile Include="..\..\source\Models\RefreshRequest.cs" Link="Source\Models\RefreshRequest.cs" />
+     <Compile Include="..\..\source\Services\Refresh\RefreshEntryPoint.cs" Link="Source\Services\Refresh\RefreshEntryPoint.cs" />
++    <Compile Include="..\..\source\Services\Refresh\NewGameAutoRefreshPolicy.cs" Link="Source\Services\Refresh\NewGameAutoRefreshPolicy.cs" />
+     <Compile Include="..\..\source\Services\LegacyManualLinkImporter.cs" Link="Source\Services\LegacyManualLinkImporter.cs" />
+     <Compile Include="..\..\source\Services\GameCustomData\GameCustomDataStore.cs" Link="Source\Services\GameCustomData\GameCustomDataStore.cs" />
+     <Compile Include="..\..\source\Services\GameCustomData\GameCustomDataLookup.cs" Link="Source\Services\GameCustomData\GameCustomDataLookup.cs" />
+@@ -124,6 +125,7 @@
      <Compile Include="..\..\source\Services\GameSummariesSortHelper.cs" Link="Source\Services\GameSummariesSortHelper.cs" />
      <Compile Include="..\..\source\Services\FriendSummarySortHelper.cs" Link="Source\Services\FriendSummarySortHelper.cs" />
      <Compile Include="..\..\source\Services\DisplayGridRowLimitHelper.cs" Link="Source\Services\DisplayGridRowLimitHelper.cs" />
@@ -20107,7 +20253,7 @@ index a7375e6445ce9124fb0f7808c30dfd2b4604dade..82e24fc61b9f4b3540b61bb9ed70460b
      <Compile Include="..\..\source\Services\Search\SearchQuery.cs" Link="Source\Services\Search\SearchQuery.cs" />
      <Compile Include="..\..\source\Services\Search\SearchTextBuilder.cs" Link="Source\Services\Search\SearchTextBuilder.cs" />
      <Compile Include="..\..\source\Services\Search\SearchTextIndex.cs" Link="Source\Services\Search\SearchTextIndex.cs" />
-@@ -301,6 +302,8 @@
+@@ -301,6 +303,8 @@
      <Compile Include="..\..\source\Models\Settings\PersistedSettings.cs" Link="Source\Models\Settings\PersistedSettings.cs" />
      <Compile Include="..\..\source\Models\Settings\PersistedSettings.GridCompatibility.cs" Link="Source\Models\Settings\PersistedSettings.GridCompatibility.cs" />
      <Compile Include="..\..\source\Models\Settings\PersistedSettings.GridCompatibility.Notifications.cs" Link="Source\Models\Settings\PersistedSettings.GridCompatibility.Notifications.cs" />
@@ -20116,7 +20262,7 @@ index a7375e6445ce9124fb0f7808c30dfd2b4604dade..82e24fc61b9f4b3540b61bb9ed70460b
      <Compile Include="..\..\source\Models\Settings\ProviderNotificationOverride.cs" Link="Source\Models\Settings\ProviderNotificationOverride.cs" />
      <Compile Include="..\..\source\Models\Settings\FrameVignetteStyle.cs" Link="Source\Models\Settings\FrameVignetteStyle.cs" />
      <Compile Include="..\..\source\Models\Settings\NotificationLineEmphasis.cs" Link="Source\Models\Settings\NotificationLineEmphasis.cs" />
-@@ -403,6 +406,7 @@
+@@ -403,6 +407,7 @@
      <Compile Include="..\..\source\Services\Refresh\FriendRefreshWorkPolicy.cs" Link="Source\Services\Refresh\FriendRefreshWorkPolicy.cs" />
      <Compile Include="..\..\source\Services\Refresh\RefreshStateManager.cs" Link="Source\Services\Refresh\RefreshStateManager.cs" />
      <Compile Include="..\..\source\Services\Refresh\TargetSelectionResolver.cs" Link="Source\Services\Refresh\TargetSelectionResolver.cs" />
@@ -20124,7 +20270,7 @@ index a7375e6445ce9124fb0f7808c30dfd2b4604dade..82e24fc61b9f4b3540b61bb9ed70460b
      <Compile Include="..\..\source\Services\ProgressReporting\ProgressReportingService.cs" Link="Source\Services\ProgressReporting\ProgressReportingService.cs" />
      <Compile Include="..\..\source\Services\ProgressReporting\RefreshProgressReporter.cs" Link="Source\Services\ProgressReporting\RefreshProgressReporter.cs" />
      <Compile Include="..\..\source\Services\Friends\FriendCacheModels.cs" Link="Source\Services\Friends\FriendCacheModels.cs" />
-@@ -434,6 +438,9 @@
+@@ -434,6 +439,9 @@
      <Compile Include="..\..\source\Services\UI\UnlockScreenshotVariantPolicy.cs" Link="Source\Services\UI\UnlockScreenshotVariantPolicy.cs" />
      <Compile Include="..\..\source\Services\UI\ToastWindowPlacer.cs" Link="Source\Services\UI\ToastWindowPlacer.cs" />
      <Compile Include="..\..\source\Services\UI\UnlockScreenshotService.cs" Link="Source\Services\UI\UnlockScreenshotService.cs" />
@@ -20590,14 +20736,3 @@ index 880a621ac658128dfc3328f6f65ebf3dd5c8c751..cb74debb9c19a7af23a8c2441d0ab984
              StringAssert.Contains(
                  card.NextTierThresholdText,
                  AchievementRankPresentation.FormatRank(snapshot.NextRank));
-warning: in the working copy of 'source/Models/Settings/GameCustomDataFile.cs', LF will be replaced by CRLF the next time Git touches it
-warning: in the working copy of 'source/Models/Settings/GameCustomDataPortableFile.cs', LF will be replaced by CRLF the next time Git touches it
-warning: in the working copy of 'source/Providers/RetroAchievements/RetroAchievementsDataProvider.cs', LF will be replaced by CRLF the next time Git touches it
-warning: in the working copy of 'source/Providers/RetroAchievements/RetroAchievementsScanner.cs', LF will be replaced by CRLF the next time Git touches it
-warning: in the working copy of 'source/Providers/RetroAchievements/RetroAchievementsSetAssembler.cs', LF will be replaced by CRLF the next time Git touches it
-warning: in the working copy of 'source/Services/Achievements/AchievementOverridesService.cs', LF will be replaced by CRLF the next time Git touches it
-warning: in the working copy of 'source/Services/GameCustomData/GameCustomDataLookup.cs', LF will be replaced by CRLF the next time Git touches it
-warning: in the working copy of 'source/Services/GameCustomData/GameCustomDataNormalizer.cs', LF will be replaced by CRLF the next time Git touches it
-warning: in the working copy of 'source/ViewModels/ManageAchievements/ManageAchievementsViewModel.cs', LF will be replaced by CRLF the next time Git touches it
-warning: in the working copy of 'source/Views/ManageAchievements/ManageAchievementsOverridesTab.xaml', LF will be replaced by CRLF the next time Git touches it
-warning: in the working copy of 'tests/PlayniteAchievements.Tests/Services/GameCustomDataNormalizerTests.cs', LF will be replaced by CRLF the next time Git touches it

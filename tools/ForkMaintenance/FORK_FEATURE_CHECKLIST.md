@@ -75,11 +75,16 @@ Primary fork areas:
   `achievements.ini`.
 - The Local achievement editor opens with the current v3 achievement cell
   resources and can save unlock state and unlock times back to the Local file.
+- Opening Playnite's manual-game editor does not refresh the temporary
+  library-less `New Game` record. Auto-refresh starts only after the record has
+  a real name, and an in-progress RetroAchievements platformless lookup stops
+  when the game is explicitly routed to Local or another provider.
 
 Primary fork areas:
 
 - `source/Providers/Local/`
 - `source/Providers/RetroAchievements/`
+- `source/Services/Refresh/NewGameAutoRefreshPolicy.cs`
 - `source/Services/GameCustomData/`
 - `source/ViewModels/LocalAchievementEditorViewModel.cs`
 - `source/Views/LocalAchievementEditorControl.*`

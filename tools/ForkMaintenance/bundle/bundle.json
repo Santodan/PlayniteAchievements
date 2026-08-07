@@ -1,6 +1,6 @@
 {
     "schemaVersion":  1,
-    "generatedUtc":  "2026-08-07T13:47:41.9937333Z",
+    "generatedUtc":  "2026-08-07T14:05:10.9788240Z",
     "baselineRef":  "upstream/main",
     "baselineCommit":  "f28ac5faae69739e2a7193a5c1af98ac55b9030f",
     "protectedPaths":  [
@@ -10,7 +10,7 @@
                        ],
     "patch":  {
                   "path":  "fork-changes.patch",
-                  "sha256":  "F4C9BBFAC259BBE7607AB06EDB160D3672D409D3A42E5553D54A3C0B6AEB83CC"
+                  "sha256":  "260CB679CC191C6229B7D107F030F63F76CBAFBE0A82ACA1693AC7C82F7CDEB2"
               },
     "localizationRecipes":  {
                                 "path":  "localization-recipes.json",
@@ -248,6 +248,10 @@
                              "sha256":  "83E25307FB58E1D2D60148233666F2DB03862E284EDE8B61A2E5153A39D14EAE"
                          },
                          {
+                             "path":  "source/Services/Refresh/NewGameAutoRefreshPolicy.cs",
+                             "sha256":  "9DE56FE9D82BCB311BFCBA2943DDA40195B3EC016F6187DC3D8FBE7789A6716A"
+                         },
+                         {
                              "path":  "source/Services/Refresh/SteamRefreshTargeting.cs",
                              "sha256":  "7572C3304D97DA4F3A4BED0627551F68CD57CB6814708655D587F275FC83A17C"
                          },
@@ -326,6 +330,10 @@
                          {
                              "path":  "source/Views/ManualAchievementSortDialog.xaml.cs",
                              "sha256":  "650F2CBB7DEAC70FBBA4852CF8D1DB172F1C7B839E8E76C10D65DCDD2E888EC3"
+                         },
+                         {
+                             "path":  "tests/PlayniteAchievements.Tests/Services/NewGameAutoRefreshPolicyTests.cs",
+                             "sha256":  "68D0D27CBBF77E6E6AA2D30B4F9FC96F6ACC7AA544138E4FFD879B3833E2723B"
                          },
                          {
                              "path":  "tests/PlayniteAchievements.Tests/Steam/SteamAsyncConfigTokenHelperTests.cs",

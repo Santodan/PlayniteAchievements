@@ -102,6 +102,7 @@ The entries below are fork-side changes, grouped by date. When a date includes a
 - v3.1.1 merge
 - Fixed Hidden achievements description not respecting the language setting
 - Added the option to apply a selected subset to the RA Game ID Override
+- Fixed the achievement refresh to `New Game` when adding a new game to playnite
 
 ## 2026-08-06 - v3.1.0.1
 

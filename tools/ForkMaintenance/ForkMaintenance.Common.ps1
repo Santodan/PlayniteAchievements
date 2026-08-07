@@ -82,7 +82,10 @@ function Invoke-FmGit
     {
         $result += @($stdout.TrimEnd("`r", "`n") -split "\r?\n")
     }
-    if (-not [string]::IsNullOrEmpty($stderr))
+    # Successful Git commands can write advisory messages (for example line-ending
+    # warnings) to stderr. Keep those out of machine-readable stdout such as an
+    # exported patch, while still surfacing stderr whenever Git fails.
+    if ($exitCode -ne 0 -and -not [string]::IsNullOrEmpty($stderr))
     {
         $result += @($stderr.TrimEnd("`r", "`n") -split "\r?\n")
     }

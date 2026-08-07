@@ -110,6 +110,8 @@ namespace PlayniteAchievements
         private readonly RefreshEntryPoint _refreshCoordinator;
         private bool _applicationStarted;
         private int _suspendNewGameAutoRefreshCount;
+        private readonly object _newGameAutoRefreshSync = new object();
+        private readonly HashSet<Guid> _deferredNewGameRefreshIds = new HashSet<Guid>();
 
         // Top panel item
         private PlayniteAchievementsTopPanelItem _topPanelItem;
@@ -1755,6 +1757,17 @@ namespace PlayniteAchievements
                         continue;
                     }
 
+                    if (NewGameAutoRefreshPolicy.ShouldDefer(game))
+                    {
+                        lock (_newGameAutoRefreshSync)
+                        {
+                            _deferredNewGameRefreshIds.Add(game.Id);
+                        }
+
+                        _logger.Debug($"Deferring new-game refresh for temporary manual game '{game.Name}' ({game.Id}).");
+                        continue;
+                    }
+
                     addedGameIds.Add(game.Id);
                 }
 
@@ -1774,6 +1787,11 @@ namespace PlayniteAchievements
                         continue;
                     }
 
+                    lock (_newGameAutoRefreshSync)
+                    {
+                        _deferredNewGameRefreshIds.Remove(game.Id);
+                    }
+
                     _ = TriggerRemovedGameCleanupAsync(game);
                 }
             }
@@ -1785,6 +1803,35 @@ namespace PlayniteAchievements
             // invalidate so the cached overview/start-page projection is rebuilt with fresh values.
             // Invalidate() coalesces bursts (e.g. library scans) via its warm debounce.
             _libraryProjectionService?.Invalidate();
+
+            if (e?.UpdatedItems == null || Volatile.Read(ref _suspendNewGameAutoRefreshCount) > 0)
+            {
+                return;
+            }
+
+            var readyGameIds = new List<Guid>();
+            foreach (var update in e.UpdatedItems)
+            {
+                var game = update?.NewData;
+                if (game == null || NewGameAutoRefreshPolicy.ShouldDefer(game))
+                {
+                    continue;
+                }
+
+                lock (_newGameAutoRefreshSync)
+                {
+                    if (_deferredNewGameRefreshIds.Remove(game.Id))
+                    {
+                        readyGameIds.Add(game.Id);
+                    }
+                }
+            }
+
+            if (readyGameIds.Count > 0)
+            {
+                _logger.Info($"Detected {readyGameIds.Count} completed manual game(s); starting batched refresh.");
+                _ = TriggerNewGamesRefreshAsync(readyGameIds);
+            }
         }
 
         private Task TriggerNewGamesRefreshAsync(List<Guid> gameIds)
