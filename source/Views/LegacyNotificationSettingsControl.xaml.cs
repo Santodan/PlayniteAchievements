@@ -59,6 +59,25 @@ namespace PlayniteAchievements.Views
 
         public ObservableCollection<NotificationCustomIconOption> NotificationCustomIconOptions => _notificationCustomIconOptions;
 
+        public IReadOnlyList<string> NotificationFontFamilies { get; } = new[]
+        {
+            "Default",
+            "Segoe UI",
+            "Titillium Web",
+            "Titillium Web Regular",
+            "Roboto",
+            "Source Sans Pro Light",
+            "Source Sans Pro ExtraLight",
+            "Noto Sans",
+            "Noto Sans Medium",
+            "Noto Sans Light",
+            "Noto Sans ExtraLight",
+            "Open Sans",
+            "Mandali",
+            "VT323",
+            "JetBrains Mono"
+        };
+
         public sealed class NotificationCustomIconOption
         {
             public string DisplayName { get; set; }
@@ -1225,6 +1244,13 @@ namespace PlayniteAchievements.Views
                 case nameof(Providers.Local.LocalSettings.OverlayCustomLine4FontSize):
                 case nameof(Providers.Local.LocalSettings.OverlayCustomLine5FontSize):
                 case nameof(Providers.Local.LocalSettings.OverlayCustomLine6FontSize):
+                case nameof(Providers.Local.LocalSettings.OverlayCustomLine1FontFamily):
+                case nameof(Providers.Local.LocalSettings.OverlayCustomLine2FontFamily):
+                case nameof(Providers.Local.LocalSettings.OverlayCustomLine3FontFamily):
+                case nameof(Providers.Local.LocalSettings.OverlayCustomLine4FontFamily):
+                case nameof(Providers.Local.LocalSettings.OverlayCustomLine5FontFamily):
+                case nameof(Providers.Local.LocalSettings.OverlayCustomLine6FontFamily):
+                case nameof(Providers.Local.LocalSettings.OverlayCustomTextFormattingMode):
                 case nameof(Providers.Local.LocalSettings.OverlayCustomAutoResizeToContent):
                 case nameof(Providers.Local.LocalSettings.OverlayCustomWrapAllText):
                 case nameof(Providers.Local.LocalSettings.OverlayCustomShowLine1):
@@ -4076,6 +4102,13 @@ namespace PlayniteAchievements.Views
                 Line4FontSize = localSettings.OverlayCustomLine4FontSize,
                 Line5FontSize = localSettings.OverlayCustomLine5FontSize,
                 Line6FontSize = localSettings.OverlayCustomLine6FontSize,
+                Line1FontFamily = localSettings.OverlayCustomLine1FontFamily,
+                Line2FontFamily = localSettings.OverlayCustomLine2FontFamily,
+                Line3FontFamily = localSettings.OverlayCustomLine3FontFamily,
+                Line4FontFamily = localSettings.OverlayCustomLine4FontFamily,
+                Line5FontFamily = localSettings.OverlayCustomLine5FontFamily,
+                Line6FontFamily = localSettings.OverlayCustomLine6FontFamily,
+                TextFormattingMode = localSettings.OverlayCustomTextFormattingMode,
                 BackgroundColor = localSettings.OverlayCustomBackgroundColor,
                 BorderColor = localSettings.OverlayCustomBorderColor,
                 AccentColor = localSettings.OverlayCustomAccentColor,
@@ -4270,6 +4303,13 @@ namespace PlayniteAchievements.Views
                         Line4FontSize = localSettings.OverlayCustomLine4FontSize,
                         Line5FontSize = localSettings.OverlayCustomLine5FontSize,
                         Line6FontSize = localSettings.OverlayCustomLine6FontSize,
+                        Line1FontFamily = localSettings.OverlayCustomLine1FontFamily,
+                        Line2FontFamily = localSettings.OverlayCustomLine2FontFamily,
+                        Line3FontFamily = localSettings.OverlayCustomLine3FontFamily,
+                        Line4FontFamily = localSettings.OverlayCustomLine4FontFamily,
+                        Line5FontFamily = localSettings.OverlayCustomLine5FontFamily,
+                        Line6FontFamily = localSettings.OverlayCustomLine6FontFamily,
+                        TextFormattingMode = localSettings.OverlayCustomTextFormattingMode,
                         BackgroundColor = localSettings.OverlayCustomBackgroundColor,
                         BorderColor = localSettings.OverlayCustomBorderColor,
                         AccentColor = localSettings.OverlayCustomAccentColor,
@@ -5586,6 +5626,13 @@ namespace PlayniteAchievements.Views
             localSettings.OverlayCustomLine4FontSize = slot.Line4FontSize;
             localSettings.OverlayCustomLine5FontSize = slot.Line5FontSize;
             localSettings.OverlayCustomLine6FontSize = slot.Line6FontSize;
+            localSettings.OverlayCustomLine1FontFamily = slot.Line1FontFamily;
+            localSettings.OverlayCustomLine2FontFamily = slot.Line2FontFamily;
+            localSettings.OverlayCustomLine3FontFamily = slot.Line3FontFamily;
+            localSettings.OverlayCustomLine4FontFamily = slot.Line4FontFamily;
+            localSettings.OverlayCustomLine5FontFamily = slot.Line5FontFamily;
+            localSettings.OverlayCustomLine6FontFamily = slot.Line6FontFamily;
+            localSettings.OverlayCustomTextFormattingMode = slot.TextFormattingMode;
             localSettings.OverlayCustomAutoResizeToContent = slot.AutoResizeToContent;
             localSettings.OverlayCustomWrapAllText = slot.WrapAllText;
             localSettings.OverlayCustomShowLine1 = slot.ShowLine1;

@@ -150,6 +150,13 @@ namespace PlayniteAchievements.Providers.Local
         Both = 2
     }
 
+    public enum LocalOverlayTextFormattingMode
+    {
+        Auto = 0,
+        Ideal = 1,
+        Display = 2
+    }
+
     public sealed class LocalMetadataSourceOption
     {
         public LocalMetadataSourceOption(string id, string displayName)
@@ -198,6 +205,13 @@ namespace PlayniteAchievements.Providers.Local
         public double Line4FontSize { get; set; } = 11;
         public double Line5FontSize { get; set; } = 11;
         public double Line6FontSize { get; set; } = 11;
+        public string Line1FontFamily { get; set; } = "Default";
+        public string Line2FontFamily { get; set; } = "Default";
+        public string Line3FontFamily { get; set; } = "Default";
+        public string Line4FontFamily { get; set; } = "Default";
+        public string Line5FontFamily { get; set; } = "Default";
+        public string Line6FontFamily { get; set; } = "Default";
+        public LocalOverlayTextFormattingMode TextFormattingMode { get; set; } = LocalOverlayTextFormattingMode.Auto;
         public string BackgroundColor { get; set; } = "#1E2430";
         public string BorderColor { get; set; } = "#6FA3D8";
         public string AccentColor { get; set; } = "#A7E0FF";
@@ -411,6 +425,13 @@ namespace PlayniteAchievements.Providers.Local
         private double _overlayCustomLine4FontSize = 11;
         private double _overlayCustomLine5FontSize = 11;
         private double _overlayCustomLine6FontSize = 11;
+        private string _overlayCustomLine1FontFamily = "Default";
+        private string _overlayCustomLine2FontFamily = "Default";
+        private string _overlayCustomLine3FontFamily = "Default";
+        private string _overlayCustomLine4FontFamily = "Default";
+        private string _overlayCustomLine5FontFamily = "Default";
+        private string _overlayCustomLine6FontFamily = "Default";
+        private LocalOverlayTextFormattingMode _overlayCustomTextFormattingMode = LocalOverlayTextFormattingMode.Auto;
         private bool _overlayCustomAutoResizeToContent;
         private bool _overlayCustomWrapAllText;
         private bool _overlayCustomShowLine1 = true;
@@ -964,6 +985,48 @@ namespace PlayniteAchievements.Providers.Local
         {
             get => _overlayCustomLine6FontSize;
             set => SetValue(ref _overlayCustomLine6FontSize, Math.Max(8, Math.Min(24, value)));
+        }
+
+        public string OverlayCustomLine1FontFamily
+        {
+            get => _overlayCustomLine1FontFamily;
+            set => SetValue(ref _overlayCustomLine1FontFamily, NormalizeFontFamilySetting(value));
+        }
+
+        public string OverlayCustomLine2FontFamily
+        {
+            get => _overlayCustomLine2FontFamily;
+            set => SetValue(ref _overlayCustomLine2FontFamily, NormalizeFontFamilySetting(value));
+        }
+
+        public string OverlayCustomLine3FontFamily
+        {
+            get => _overlayCustomLine3FontFamily;
+            set => SetValue(ref _overlayCustomLine3FontFamily, NormalizeFontFamilySetting(value));
+        }
+
+        public string OverlayCustomLine4FontFamily
+        {
+            get => _overlayCustomLine4FontFamily;
+            set => SetValue(ref _overlayCustomLine4FontFamily, NormalizeFontFamilySetting(value));
+        }
+
+        public string OverlayCustomLine5FontFamily
+        {
+            get => _overlayCustomLine5FontFamily;
+            set => SetValue(ref _overlayCustomLine5FontFamily, NormalizeFontFamilySetting(value));
+        }
+
+        public string OverlayCustomLine6FontFamily
+        {
+            get => _overlayCustomLine6FontFamily;
+            set => SetValue(ref _overlayCustomLine6FontFamily, NormalizeFontFamilySetting(value));
+        }
+
+        public LocalOverlayTextFormattingMode OverlayCustomTextFormattingMode
+        {
+            get => _overlayCustomTextFormattingMode;
+            set => SetValue(ref _overlayCustomTextFormattingMode, value);
         }
 
         public bool OverlayCustomAutoResizeToContent
@@ -2341,6 +2404,12 @@ namespace PlayniteAchievements.Providers.Local
             return string.IsNullOrWhiteSpace(normalized) ? fallback : normalized;
         }
 
+        private static string NormalizeFontFamilySetting(string value)
+        {
+            var normalized = value?.Trim();
+            return string.IsNullOrWhiteSpace(normalized) ? "Default" : normalized;
+        }
+
         private static List<LocalCustomOverlayStyleSlot> CreateDefaultCustomOverlayStyleSlots()
         {
             return new List<LocalCustomOverlayStyleSlot>(1)
@@ -2384,6 +2453,13 @@ namespace PlayniteAchievements.Providers.Local
                     Line4FontSize = Math.Max(8, Math.Min(24, slot.Line4FontSize <= 0 ? slot.MetaFontSize : slot.Line4FontSize)),
                     Line5FontSize = Math.Max(8, Math.Min(24, slot.Line5FontSize <= 0 ? slot.MetaFontSize : slot.Line5FontSize)),
                     Line6FontSize = Math.Max(8, Math.Min(24, slot.Line6FontSize <= 0 ? slot.MetaFontSize : slot.Line6FontSize)),
+                    Line1FontFamily = NormalizeFontFamilySetting(slot.Line1FontFamily),
+                    Line2FontFamily = NormalizeFontFamilySetting(slot.Line2FontFamily),
+                    Line3FontFamily = NormalizeFontFamilySetting(slot.Line3FontFamily),
+                    Line4FontFamily = NormalizeFontFamilySetting(slot.Line4FontFamily),
+                    Line5FontFamily = NormalizeFontFamilySetting(slot.Line5FontFamily),
+                    Line6FontFamily = NormalizeFontFamilySetting(slot.Line6FontFamily),
+                    TextFormattingMode = slot.TextFormattingMode,
                     BackgroundColor = NormalizeColorSetting(slot.BackgroundColor, "#1E2430"),
                     BorderColor = NormalizeColorSetting(slot.BorderColor, "#6FA3D8"),
                     AccentColor = NormalizeColorSetting(slot.AccentColor, "#A7E0FF"),

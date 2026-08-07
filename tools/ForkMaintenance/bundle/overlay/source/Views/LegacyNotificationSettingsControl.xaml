@@ -3324,6 +3324,8 @@
                                                          <WrapPanel Margin="128,0,0,8">
                                                              <TextBlock Text="Size:" VerticalAlignment="Center" Margin="0,0,6,0"/>
                                                              <TextBox Width="55" Text="{Binding OverlayCustomTitleFontSize, Mode=TwoWay, UpdateSourceTrigger=LostFocus}" Margin="0,0,12,0"/>
+                                                             <TextBlock Text="Font:" VerticalAlignment="Center" Margin="0,0,6,0"/>
+                                                             <ComboBox Width="160" IsEditable="True" IsTextSearchEnabled="True" ItemsSource="{Binding NotificationFontFamilies, ElementName=LegacyNotificationSettingsControlRoot}" Text="{Binding OverlayCustomLine1FontFamily, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" Margin="0,0,12,0" ToolTip="Choose a bundled/common font or type an installed font-family name."/>
                                                              <TextBlock Text="Color:" VerticalAlignment="Center" Margin="0,0,6,0"/>
                                                              <Button Content="Pick" Tag="Title" Click="NotificationsPickCustomColor_Click" Margin="0,0,6,0"/>
                                                              <TextBox Width="90" Text="{Binding OverlayCustomTitleColor, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" Margin="0,0,12,0"/>
@@ -3371,6 +3373,8 @@
                                                              <WrapPanel Margin="128,0,0,8">
                                                                  <TextBlock Text="Size:" VerticalAlignment="Center" Margin="0,0,6,0"/>
                                                                  <TextBox Width="55" Text="{Binding OverlayCustomDetailFontSize, Mode=TwoWay, UpdateSourceTrigger=LostFocus}" Margin="0,0,12,0"/>
+                                                                 <TextBlock Text="Font:" VerticalAlignment="Center" Margin="0,0,6,0"/>
+                                                                 <ComboBox Width="160" IsEditable="True" IsTextSearchEnabled="True" ItemsSource="{Binding NotificationFontFamilies, ElementName=LegacyNotificationSettingsControlRoot}" Text="{Binding OverlayCustomLine2FontFamily, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" Margin="0,0,12,0"/>
                                                                  <TextBlock Text="Color:" VerticalAlignment="Center" Margin="0,0,6,0"/>
                                                                  <Button Content="Pick" Tag="Detail" Click="NotificationsPickCustomColor_Click" Margin="0,0,6,0"/>
                                                                  <TextBox Width="90" Text="{Binding OverlayCustomDetailColor, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" Margin="0,0,12,0"/>
@@ -3419,6 +3423,8 @@
                                                              <WrapPanel Margin="128,0,0,8">
                                                                  <TextBlock Text="Size:" VerticalAlignment="Center" Margin="0,0,6,0"/>
                                                                  <TextBox Width="55" Text="{Binding OverlayCustomMetaFontSize, Mode=TwoWay, UpdateSourceTrigger=LostFocus}" Margin="0,0,12,0"/>
+                                                                 <TextBlock Text="Font:" VerticalAlignment="Center" Margin="0,0,6,0"/>
+                                                                 <ComboBox Width="160" IsEditable="True" IsTextSearchEnabled="True" ItemsSource="{Binding NotificationFontFamilies, ElementName=LegacyNotificationSettingsControlRoot}" Text="{Binding OverlayCustomLine3FontFamily, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" Margin="0,0,12,0"/>
                                                                  <TextBlock Text="Color:" VerticalAlignment="Center" Margin="0,0,6,0"/>
                                                                  <Button Content="Pick" Tag="Meta" Click="NotificationsPickCustomColor_Click" Margin="0,0,6,0"/>
                                                                  <TextBox Width="90" Text="{Binding OverlayCustomMetaColor, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" Margin="0,0,12,0"/>
@@ -3468,6 +3474,8 @@
                                                              <WrapPanel Margin="128,0,0,4">
                                                                  <TextBlock Text="Size:" VerticalAlignment="Center" Margin="0,0,6,0"/>
                                                                  <TextBox Width="55" Text="{Binding OverlayCustomLine4FontSize, Mode=TwoWay, UpdateSourceTrigger=LostFocus}" Margin="0,0,12,0"/>
+                                                                 <TextBlock Text="Font:" VerticalAlignment="Center" Margin="0,0,6,0"/>
+                                                                 <ComboBox Width="160" IsEditable="True" IsTextSearchEnabled="True" ItemsSource="{Binding NotificationFontFamilies, ElementName=LegacyNotificationSettingsControlRoot}" Text="{Binding OverlayCustomLine4FontFamily, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" Margin="0,0,12,0"/>
                                                                  <TextBlock Text="Color:" VerticalAlignment="Center" Margin="0,0,6,0"/>
                                                                  <Button Content="Pick" Tag="Line4" Click="NotificationsPickCustomColor_Click" Margin="0,0,6,0"/>
                                                                  <TextBox Width="90" Text="{Binding OverlayCustomLine4Color, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" Margin="0,0,12,0"/>
@@ -3508,6 +3516,8 @@
                                                              <WrapPanel Margin="128,0,0,4">
                                                                  <TextBlock Text="Size:" VerticalAlignment="Center" Margin="0,0,6,0"/>
                                                                  <TextBox Width="55" Text="{Binding OverlayCustomLine5FontSize, Mode=TwoWay, UpdateSourceTrigger=LostFocus}" Margin="0,0,12,0"/>
+                                                                 <TextBlock Text="Font:" VerticalAlignment="Center" Margin="0,0,6,0"/>
+                                                                 <ComboBox Width="160" IsEditable="True" IsTextSearchEnabled="True" ItemsSource="{Binding NotificationFontFamilies, ElementName=LegacyNotificationSettingsControlRoot}" Text="{Binding OverlayCustomLine5FontFamily, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" Margin="0,0,12,0"/>
                                                                  <TextBlock Text="Color:" VerticalAlignment="Center" Margin="0,0,6,0"/>
                                                                  <Button Content="Pick" Tag="Line5" Click="NotificationsPickCustomColor_Click" Margin="0,0,6,0"/>
                                                                  <TextBox Width="90" Text="{Binding OverlayCustomLine5Color, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" Margin="0,0,12,0"/>
@@ -3544,6 +3554,8 @@
                                                              <WrapPanel Margin="128,0,0,4">
                                                                  <TextBlock Text="Size:" VerticalAlignment="Center" Margin="0,0,6,0"/>
                                                                  <TextBox Width="55" Text="{Binding OverlayCustomLine6FontSize, Mode=TwoWay, UpdateSourceTrigger=LostFocus}" Margin="0,0,12,0"/>
+                                                                 <TextBlock Text="Font:" VerticalAlignment="Center" Margin="0,0,6,0"/>
+                                                                 <ComboBox Width="160" IsEditable="True" IsTextSearchEnabled="True" ItemsSource="{Binding NotificationFontFamilies, ElementName=LegacyNotificationSettingsControlRoot}" Text="{Binding OverlayCustomLine6FontFamily, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" Margin="0,0,12,0"/>
                                                                  <TextBlock Text="Color:" VerticalAlignment="Center" Margin="0,0,6,0"/>
                                                                  <Button Content="Pick" Tag="Line6" Click="NotificationsPickCustomColor_Click" Margin="0,0,6,0"/>
                                                                  <TextBox Width="90" Text="{Binding OverlayCustomLine6Color, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" Margin="0,0,12,0"/>
@@ -3621,6 +3633,32 @@
                                                              IsSnapToTickEnabled="True"
                                                              Value="{Binding OverlayCustomOpacity, Mode=TwoWay}"
                                                              ToolTip="Controls the opacity of the whole notification."/>
+                                                 </Grid>
+
+                                                 <Grid Margin="0,0,0,8">
+                                                     <Grid.ColumnDefinitions>
+                                                         <ColumnDefinition Width="Auto"/>
+                                                         <ColumnDefinition Width="180"/>
+                                                         <ColumnDefinition Width="20"/>
+                                                         <ColumnDefinition Width="*"/>
+                                                     </Grid.ColumnDefinitions>
+                                                     <TextBlock Text="Text formatting:"
+                                                                VerticalAlignment="Center"
+                                                                Margin="0,0,8,0"
+                                                                FontWeight="SemiBold"/>
+                                                     <ComboBox Grid.Column="1"
+                                                               SelectedValue="{Binding OverlayCustomTextFormattingMode, Mode=TwoWay}"
+                                                               SelectedValuePath="Tag"
+                                                               ToolTip="Ideal/Display are applied directly in WPF and mapped to the closest Chromium text-rendering mode in WebView notifications.">
+                                                         <ComboBoxItem Content="Auto" Tag="{x:Static local:LocalOverlayTextFormattingMode.Auto}"/>
+                                                         <ComboBoxItem Content="Ideal" Tag="{x:Static local:LocalOverlayTextFormattingMode.Ideal}"/>
+                                                         <ComboBoxItem Content="Display" Tag="{x:Static local:LocalOverlayTextFormattingMode.Display}"/>
+                                                     </ComboBox>
+                                                     <TextBlock Grid.Column="3"
+                                                                Text="WebView2 uses the closest Chromium equivalent; exact WPF glyph metrics are renderer-specific."
+                                                                Style="{StaticResource MutedTextStyle}"
+                                                                TextWrapping="Wrap"
+                                                                VerticalAlignment="Center"/>
                                                  </Grid>
 
                                                  <Grid Margin="0,0,0,8">

@@ -113,6 +113,9 @@ The entries below are fork-side changes, grouped by date. When a date includes a
 - Removed the always on overlay for the `Achievement Notification`
 - Fixed the `<rarity>` wildcard showing the rarity tier instead of percentage.
 - Fixed the `clear` in the `Manage Achievements` not clearing the `Provider Override` selection
+- Changed the `Inline real-time preview` to show the WebView2 preview instead of the WPF
+- Added `Font` to the `Line` customization
+- Added `Text formatting` below the `Corners` and `Opacity` settings
 
 ## 2026-08-02 - v3.0.0.1
 

@@ -2395,6 +2395,21 @@ steamImage +
                 : Path.GetDirectoryName(assemblyLocation) ?? AppDomain.CurrentDomain.BaseDirectory;
         }
 
+        private static void AppendSanFontFace(StringBuilder builder, LocalSettings settings, string family, string fileName)
+        {
+            var uri = ResolveSanAssetUri(settings, "fonts", fileName);
+            if (builder == null || string.IsNullOrWhiteSpace(uri))
+            {
+                return;
+            }
+
+            builder.Append("@font-face { font-family: '")
+                .Append(family)
+                .Append("'; src: url('")
+                .Append(CssUrl(uri))
+                .AppendLine("'); }");
+        }
+
         private string BuildSanWebViewDocument(
             string gameName,
             string achievementName,
@@ -2591,6 +2606,19 @@ steamImage +
                 : "none";
 
             var variables = new StringBuilder();
+            AppendSanFontFace(variables, settings, "Titillium Web", "TitilliumWeb-SemiBold.ttf");
+            AppendSanFontFace(variables, settings, "Titillium Web Regular", "TitilliumWeb-Regular.ttf");
+            AppendSanFontFace(variables, settings, "Roboto", "Roboto-Medium.ttf");
+            AppendSanFontFace(variables, settings, "Source Sans Pro Light", "SourceSansPro-Light.ttf");
+            AppendSanFontFace(variables, settings, "Source Sans Pro ExtraLight", "SourceSansPro-ExtraLight.ttf");
+            AppendSanFontFace(variables, settings, "Noto Sans", "NotoSans-Medium.ttf");
+            AppendSanFontFace(variables, settings, "Noto Sans Medium", "NotoSans-Medium.ttf");
+            AppendSanFontFace(variables, settings, "Noto Sans Light", "NotoSans-Light.ttf");
+            AppendSanFontFace(variables, settings, "Noto Sans ExtraLight", "NotoSans-ExtraLight.ttf");
+            AppendSanFontFace(variables, settings, "Open Sans", "OpenSans-Medium.ttf");
+            AppendSanFontFace(variables, settings, "Mandali", "Mandali-Regular.ttf");
+            AppendSanFontFace(variables, settings, "VT323", "VT323-Regular.ttf");
+            AppendSanFontFace(variables, settings, "JetBrains Mono", "JetBrainsMono-Light.ttf");
             variables.AppendLine(":root {");
             variables.AppendLine($"  --notifywidth: {Math.Max(1, width).ToString("0.###", CultureInfo.InvariantCulture)}px;");
             variables.AppendLine($"  --notifyheight: {Math.Max(1, height).ToString("0.###", CultureInfo.InvariantCulture)}px;");
@@ -2677,6 +2705,11 @@ steamImage +
             variables.AppendLine("}");
             variables.AppendLine("html, body { overflow: hidden; background: transparent !important; }");
             variables.AppendLine("body { opacity: 1 !important; }");
+            var cssTextRendering = ResolveCssTextRendering(settings?.OverlayCustomTextFormattingMode ?? LocalOverlayTextFormattingMode.Auto);
+            if (!string.IsNullOrWhiteSpace(cssTextRendering))
+            {
+                variables.AppendLine($"html, body, body * {{ text-rendering: {cssTextRendering} !important; }}");
+            }
             if (isInlinePreview)
             {
                 // SAN hides the cursor when its display timeline finishes. A live notification
@@ -2881,6 +2914,7 @@ const sanApplyElems = () => {{
         el.innerHTML = sanAddElem('decoration', pos) + sanAddElem('hiddenicon', pos) + '<span class=""san-line-inner"">' + line.html + '</span>' + sanAddElem('percent', pos);
         el.style.color = line.color || '';
         el.style.fontSize = line.size ? line.size + 'px' : '';
+        el.style.setProperty('font-family', line.fontFamily || '', line.fontFamily ? 'important' : '');
         el.style.marginBottom = line.spacing ? line.spacing + 'px' : '0';
         el.style.paddingBottom = line.spacing ? line.spacing + 'px' : '0';
         el.style.lineHeight = '1.15';
@@ -2892,6 +2926,7 @@ const sanApplyElems = () => {{
         el.style.setProperty('text-decoration', textDecoration.join(' ') || 'none', 'important');
         const inner = el.querySelector('.san-line-inner');
         if (inner) {{
+          inner.style.setProperty('font-family', line.fontFamily || '', line.fontFamily ? 'important' : '');
           inner.style.setProperty('font-weight', line.bold ? '700' : '400', 'important');
           inner.style.setProperty('font-style', line.italic ? 'italic' : 'normal', 'important');
           inner.style.setProperty('text-decoration', textDecoration.join(' ') || 'none', 'important');
@@ -3853,6 +3888,15 @@ if ({JsBool(settings?.OverlayCustomAutoResizeToContent == true)}) {{
                 settings.OverlayCustomLine5FontSize,
                 settings.OverlayCustomLine6FontSize
             };
+            var fontFamilies = new[]
+            {
+                settings.OverlayCustomLine1FontFamily,
+                settings.OverlayCustomLine2FontFamily,
+                settings.OverlayCustomLine3FontFamily,
+                settings.OverlayCustomLine4FontFamily,
+                settings.OverlayCustomLine5FontFamily,
+                settings.OverlayCustomLine6FontFamily
+            };
             var spacing = new[]
             {
                 settings.OverlayCustomLine1Spacing,
@@ -3920,6 +3964,7 @@ if ({JsBool(settings?.OverlayCustomAutoResizeToContent == true)}) {{
                 builder.Append("\"outlineSize\":").Append(Math.Max(0, Math.Min(8, outlineSize)).ToString("0.###", CultureInfo.InvariantCulture)).Append(",");
                 builder.Append("\"shadowSize\":").Append(Math.Max(0, Math.Min(24, shadowSize)).ToString("0.###", CultureInfo.InvariantCulture)).Append(",");
                 builder.Append("\"size\":").Append(Math.Max(8, Math.Min(34, sizes[i])).ToString("0.###", CultureInfo.InvariantCulture)).Append(",");
+                builder.Append("\"fontFamily\":").Append(JsString(IsDefaultFontFamily(fontFamilies[i]) ? string.Empty : fontFamilies[i].Trim())).Append(",");
                 var lineSpacing = spacing[i] > 0
                     ? spacing[i]
                     : (settings.OverlayCustomLineSpacing > 0 ? settings.OverlayCustomLineSpacing : 3);
@@ -4424,7 +4469,9 @@ if ({JsBool(settings?.OverlayCustomAutoResizeToContent == true)}) {{
         {
             if (string.Equals(style, NotificationStyleCustom, StringComparison.OrdinalIgnoreCase))
             {
-                return BuildCustomOverlayContent(title, gameName, achievementName, rawIconPath, providerKey, localSettings, overlayScale, game, achievementDescription, achievementPoints, achievementRarity, achievementTrophy);
+                var customContent = BuildCustomOverlayContent(title, gameName, achievementName, rawIconPath, providerKey, localSettings, overlayScale, game, achievementDescription, achievementPoints, achievementRarity, achievementTrophy);
+                ApplyCustomTextFormattingMode(customContent, localSettings);
+                return customContent;
             }
 
             var (backgroundBrush, borderBrush, accentBrush) = ResolveOverlayBrushes(style);
@@ -5382,6 +5429,8 @@ if ({JsBool(settings?.OverlayCustomAutoResizeToContent == true)}) {{
 
             AddSanTemplateLine(
                 textStack,
+                settings,
+                1,
                 settings?.OverlayCustomTitleTemplate,
                 "Achievement unlocked",
                 title,
@@ -5402,6 +5451,8 @@ if ({JsBool(settings?.OverlayCustomAutoResizeToContent == true)}) {{
 
             AddSanTemplateLine(
                 textStack,
+                settings,
+                2,
                 settings?.OverlayCustomGameNameTemplate,
                 "<achievementName>",
                 title,
@@ -5424,6 +5475,8 @@ if ({JsBool(settings?.OverlayCustomAutoResizeToContent == true)}) {{
             {
                 AddSanTemplateLine(
                     textStack,
+                    settings,
+                    3,
                     settings?.OverlayCustomAchievementTemplate,
                     "<achievementDescription>",
                     title,
@@ -5475,6 +5528,8 @@ if ({JsBool(settings?.OverlayCustomAutoResizeToContent == true)}) {{
 
         private static void AddSanTemplateLine(
             Panel target,
+            LocalSettings settings,
+            int lineIndex,
             string template,
             string fallback,
             string title,
@@ -5519,6 +5574,7 @@ if ({JsBool(settings?.OverlayCustomAutoResizeToContent == true)}) {{
                 suppressWhenTemplateEmpty: true);
             if (line != null)
             {
+                ApplyCustomLineTextEffect(line, settings, lineIndex);
                 line.TextTrimming = TextTrimming.CharacterEllipsis;
                 target.Children.Add(line);
             }
@@ -5724,6 +5780,7 @@ if ({JsBool(settings?.OverlayCustomAutoResizeToContent == true)}) {{
                 suppressWhenTemplateEmpty: true);
             if (titleLine != null)
             {
+                ApplyCustomLineTextEffect(titleLine, settings, 1);
                 titleLine.TextTrimming = TextTrimming.CharacterEllipsis;
                 textStack.Children.Add(titleLine);
             }
@@ -5754,6 +5811,7 @@ if ({JsBool(settings?.OverlayCustomAutoResizeToContent == true)}) {{
                 suppressWhenTemplateEmpty: true);
             if (detailLine != null)
             {
+                ApplyCustomLineTextEffect(detailLine, settings, 2);
                 detailLine.TextTrimming = TextTrimming.CharacterEllipsis;
                 textStack.Children.Add(detailLine);
             }
@@ -5843,6 +5901,7 @@ if ({JsBool(settings?.OverlayCustomAutoResizeToContent == true)}) {{
                 suppressWhenTemplateEmpty: false);
             if (line != null)
             {
+                ApplyCustomLineTextEffect(line, settings, 1);
                 line.VerticalAlignment = VerticalAlignment.Center;
                 line.TextTrimming = TextTrimming.CharacterEllipsis;
                 Grid.SetColumn(line, 1);
@@ -6662,6 +6721,61 @@ if ({JsBool(settings?.OverlayCustomAutoResizeToContent == true)}) {{
             return hasVisibleContent ? textBlock : null;
         }
 
+        private static string ResolveLineFontFamily(LocalSettings settings, int lineIndex)
+        {
+            if (settings == null)
+            {
+                return "Default";
+            }
+
+            switch (lineIndex)
+            {
+                case 1: return settings.OverlayCustomLine1FontFamily;
+                case 2: return settings.OverlayCustomLine2FontFamily;
+                case 3: return settings.OverlayCustomLine3FontFamily;
+                case 4: return settings.OverlayCustomLine4FontFamily;
+                case 5: return settings.OverlayCustomLine5FontFamily;
+                case 6: return settings.OverlayCustomLine6FontFamily;
+                default: return "Default";
+            }
+        }
+
+        private static bool IsDefaultFontFamily(string fontFamily)
+        {
+            return string.IsNullOrWhiteSpace(fontFamily) ||
+                   string.Equals(fontFamily.Trim(), "Default", StringComparison.OrdinalIgnoreCase);
+        }
+
+        private static void ApplyCustomTextFormattingMode(FrameworkElement content, LocalSettings settings)
+        {
+            if (content == null || settings == null)
+            {
+                return;
+            }
+
+            switch (settings.OverlayCustomTextFormattingMode)
+            {
+                case LocalOverlayTextFormattingMode.Ideal:
+                    TextOptions.SetTextFormattingMode(content, TextFormattingMode.Ideal);
+                    break;
+                case LocalOverlayTextFormattingMode.Display:
+                    TextOptions.SetTextFormattingMode(content, TextFormattingMode.Display);
+                    break;
+            }
+        }
+
+        private static string ResolveCssTextRendering(LocalOverlayTextFormattingMode mode)
+        {
+            switch (mode)
+            {
+                case LocalOverlayTextFormattingMode.Ideal:
+                    return "geometricPrecision";
+                case LocalOverlayTextFormattingMode.Display:
+                    return "optimizeLegibility";
+                default:
+                    return string.Empty;
+            }
+        }
 
         private static void ApplyCustomLineTextEffect(TextBlock line, LocalSettings settings, int lineIndex)
         {
@@ -6692,6 +6806,18 @@ if ({JsBool(settings?.OverlayCustomAutoResizeToContent == true)}) {{
                     outlineEnabled = settings.OverlayCustomLine6OutlineEnabled; shadowEnabled = settings.OverlayCustomLine6ShadowEnabled; outlineColor = settings.OverlayCustomLine6OutlineColor; shadowColor = settings.OverlayCustomLine6ShadowColor; outlineSize = settings.OverlayCustomLine6OutlineSize; shadowSize = settings.OverlayCustomLine6ShadowSize; break;
                 default:
                     return;
+            }
+
+            var fontFamily = ResolveLineFontFamily(settings, lineIndex);
+            if (!IsDefaultFontFamily(fontFamily))
+            {
+                try
+                {
+                    line.FontFamily = new FontFamily(fontFamily.Trim());
+                }
+                catch
+                {
+                }
             }
 
             if (shadowEnabled)
