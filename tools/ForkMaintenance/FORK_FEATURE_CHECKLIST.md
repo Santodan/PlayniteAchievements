@@ -62,6 +62,10 @@ Primary fork areas:
 - Local folder discovery, extra/excluded paths, import, and refresh work.
 - Steam App ID and Steam-user overrides remain in the Steam sub-tab.
 - LumaPlay App ID and `LumaPlay.ini` remain in the LumaPlay sub-tab.
+- A RetroAchievements Game ID override can load the base achievement set and
+  available subsets, save any combination through multi-selection, and limit
+  refresh results to those selected sets. Leaving every set unchecked includes
+  all available sets, including when global subset scanning is disabled.
 - Custom schema loading, editing, creation, and per-game enable/disable work.
 - Manage Achievements contains Overrides → Main/Local and Local →
   Local Saves & Schema/Steam/LumaPlay.
@@ -75,6 +79,8 @@ Primary fork areas:
 Primary fork areas:
 
 - `source/Providers/Local/`
+- `source/Providers/RetroAchievements/`
+- `source/Services/GameCustomData/`
 - `source/ViewModels/LocalAchievementEditorViewModel.cs`
 - `source/Views/LocalAchievementEditorControl.*`
 - `source/ViewModels/ViewAchievementsViewModel.cs`

@@ -1,6 +1,6 @@
 {
     "schemaVersion":  1,
-    "generatedUtc":  "2026-08-07T13:01:17.8120458Z",
+    "generatedUtc":  "2026-08-07T13:47:41.9937333Z",
     "baselineRef":  "upstream/main",
     "baselineCommit":  "f28ac5faae69739e2a7193a5c1af98ac55b9030f",
     "protectedPaths":  [
@@ -10,13 +10,13 @@
                        ],
     "patch":  {
                   "path":  "fork-changes.patch",
-                  "sha256":  "CF6BC0B21DC863BED63D8CFB5633E470267054A91F637737A674EAB75283906C"
+                  "sha256":  "F4C9BBFAC259BBE7607AB06EDB160D3672D409D3A42E5553D54A3C0B6AEB83CC"
               },
     "localizationRecipes":  {
                                 "path":  "localization-recipes.json",
-                                "sha256":  "F6526B7B8853F883EBAA540CAF778F3D5110071F0692A5D5CC71C26D7A3ACDF4",
+                                "sha256":  "1F6CA67B624A3A314BEB55240C5BAF6A507BD4CEA8827BDEE6FD6865490B07B1",
                                 "fileCount":  1,
-                                "entryCount":  376
+                                "entryCount":  383
                             },
     "overlayFiles":  [
                          {
@@ -282,6 +282,10 @@
                          {
                              "path":  "source/ViewModels/LocalAchievementEditorViewModel.cs",
                              "sha256":  "A6D3E5085604DB735FBE4B1BDC32DF40F24F4AADC758C8822E19D00ECD339445"
+                         },
+                         {
+                             "path":  "source/ViewModels/ManageAchievements/ManageAchievementsViewModel.RetroAchievementsSubsets.cs",
+                             "sha256":  "A8F823D8FD5CC490AE83F9F0D01399287272518C9BF424A2293CEB9607EB2207"
                          },
                          {
                              "path":  "source/ViewModels/ManageAchievementsViewModel.CustomSchema.cs",

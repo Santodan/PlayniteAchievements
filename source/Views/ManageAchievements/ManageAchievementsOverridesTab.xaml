@@ -198,6 +198,45 @@
                                   HorizontalAlignment="Left"
                                   Margin="{StaticResource PlayAch.Thickness.Top.Compact}" />
                     </StackPanel>
+
+                    <StackPanel Margin="0,12,0,0"
+                                Visibility="{Binding IsRetroAchievementsOverrideSelected, Converter={StaticResource BoolToVis}}">
+                        <TextBlock Text="{DynamicResource LOCPlayAch_ManageAchievements_Overrides_RaSubsets_Header}"
+                                   Foreground="{DynamicResource PlayAch.Brush.Text}"
+                                   FontWeight="SemiBold" />
+                        <TextBlock Text="{DynamicResource LOCPlayAch_ManageAchievements_Overrides_RaSubsets_Hint}"
+                                   Foreground="{DynamicResource PlayAch.Brush.Text}"
+                                   Opacity="{StaticResource PlayAch.Opacity.Hint}"
+                                   TextWrapping="Wrap"
+                                   Margin="{StaticResource PlayAch.Thickness.Top.Compact}" />
+                        <Button Content="{DynamicResource LOCPlayAch_ManageAchievements_Overrides_RaSubsets_LoadButton}"
+                                Command="{Binding LoadRetroAchievementsSubsetsCommand}"
+                                Padding="{StaticResource PlayAch.Thickness.ButtonPadding}"
+                                HorizontalAlignment="Left"
+                                Margin="0,8,0,0" />
+                        <TextBlock Text="{Binding RetroAchievementsSubsetStatusText}"
+                                   Foreground="{DynamicResource PlayAch.Brush.Text}"
+                                   TextWrapping="Wrap"
+                                   Margin="0,8,0,0" />
+                        <Border BorderBrush="{DynamicResource PlayAch.Brush.Border}"
+                                BorderThickness="1"
+                                Padding="8"
+                                Margin="0,8,0,0"
+                                MaxHeight="180"
+                                Visibility="{Binding HasRetroAchievementsSubsetOptions, Converter={StaticResource BoolToVis}}">
+                            <ScrollViewer VerticalScrollBarVisibility="Auto">
+                                <ItemsControl ItemsSource="{Binding RetroAchievementsSubsetOptions}">
+                                    <ItemsControl.ItemTemplate>
+                                        <DataTemplate>
+                                            <CheckBox Content="{Binding DisplayName}"
+                                                      IsChecked="{Binding IsSelected, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                                      Margin="0,3" />
+                                        </DataTemplate>
+                                    </ItemsControl.ItemTemplate>
+                                </ItemsControl>
+                            </ScrollViewer>
+                        </Border>
+                    </StackPanel>
                 </StackPanel>
             </Border>
 

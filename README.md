@@ -100,6 +100,8 @@ The entries below are fork-side changes, grouped by date. When a date includes a
 ## Next release - TBD
 
 - v3.1.1 merge
+- Fixed Hidden achievements description not respecting the language setting
+- Added the option to apply a selected subset to the RA Game ID Override
 
 ## 2026-08-06 - v3.1.0.1
 
@@ -122,6 +124,9 @@ The entries below are fork-side changes, grouped by date. When a date includes a
 - Added a refresh icon in the `View Achievements` window to refresh the achievements from that window
 - Added a dedicated file for the `Debug` setting for the `Achievement Notification`. The file is called `AchNotifDebug.log`
 
+## Old Changelogs
+<details>
+
 ## 2026-07-27 - v2.5.3.4
 
 - Fixed `RetroAchievements Game ID Override` displaying `No override set` after setting an override
@@ -135,10 +140,6 @@ The entries below are fork-side changes, grouped by date. When a date includes a
 - Fixed the defined overrides not appearing in the `Overview` tab
 - Added Debug mode for the achievement notification to generate additional logs
 - The setting to have the overlay in the same monitor as the game for multiple monitors is set to false as default
-
-
-## Old Changelogs
-<details>
 
 ## 2026-07-20 - v2.5.3.3
 - Trying to make the WebView notification quicker

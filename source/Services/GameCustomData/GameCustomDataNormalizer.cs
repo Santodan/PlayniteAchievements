@@ -6,14 +6,14 @@ using PlayniteAchievements.Services.Achievements;
 using System;
 using System.Collections.Generic;
 using System.Globalization;
+using System.Linq;
 
 namespace PlayniteAchievements.Services.GameCustomData
 {
     internal static class GameCustomDataNormalizer
     {
-        // v7: notification badge images and header texts moved onto each surface style, and
-        // portable files became zip-only under the bare .pa extension.
-        internal const int CurrentSchemaVersion = 7;
+        // v8: per-game RetroAchievements subset selection was added.
+        internal const int CurrentSchemaVersion = 8;
 
         private sealed class LegacyFilterExtractionResult
         {
@@ -50,10 +50,16 @@ namespace PlayniteAchievements.Services.GameCustomData
                 normalized.RetroAchievementsGameIdOverride.HasValue && normalized.RetroAchievementsGameIdOverride.Value > 0
                     ? normalized.RetroAchievementsGameIdOverride
                     : null;
+            normalized.RetroAchievementsSelectedSubsetGameIds = NormalizePositiveIdList(
+                normalized.RetroAchievementsSelectedSubsetGameIds);
             normalized.ProviderOverride =
                 NormalizeProviderOverride(normalized.ProviderOverride) ??
                 ResolveLegacyProviderOverride(normalized);
             ClearLegacyProviderOverrideFields(normalized);
+            if (!string.Equals(normalized.ProviderOverride?.ProviderKey, "RetroAchievements", StringComparison.OrdinalIgnoreCase))
+            {
+                normalized.RetroAchievementsSelectedSubsetGameIds = null;
+            }
             normalized.AchievementOrder = NormalizeAchievementOrder(normalized.AchievementOrder);
             normalized.AchievementCategoryOverrides = NormalizeCategoryOverrides(normalized.AchievementCategoryOverrides);
             normalized.AchievementCategoryOrder = NormalizeCategoryOrder(normalized.AchievementCategoryOrder);
@@ -91,10 +97,16 @@ namespace PlayniteAchievements.Services.GameCustomData
                 normalized.RetroAchievementsGameIdOverride.HasValue && normalized.RetroAchievementsGameIdOverride.Value > 0
                     ? normalized.RetroAchievementsGameIdOverride
                     : null;
+            normalized.RetroAchievementsSelectedSubsetGameIds = NormalizePositiveIdList(
+                normalized.RetroAchievementsSelectedSubsetGameIds);
             normalized.ProviderOverride =
                 NormalizeProviderOverride(normalized.ProviderOverride) ??
                 ResolveLegacyProviderOverride(normalized);
             ClearLegacyProviderOverrideFields(normalized);
+            if (!string.Equals(normalized.ProviderOverride?.ProviderKey, "RetroAchievements", StringComparison.OrdinalIgnoreCase))
+            {
+                normalized.RetroAchievementsSelectedSubsetGameIds = null;
+            }
             normalized.AchievementOrder = NormalizeAchievementOrder(normalized.AchievementOrder);
             normalized.AchievementCategoryOverrides = NormalizeCategoryOverrides(normalized.AchievementCategoryOverrides);
             normalized.AchievementCategoryOrder = NormalizeCategoryOrder(normalized.AchievementCategoryOrder);
@@ -135,6 +147,7 @@ namespace PlayniteAchievements.Services.GameCustomData
                    (data.AchievementLockedIconOverrides != null && data.AchievementLockedIconOverrides.Count > 0) ||
                    (data.AchievementNotes != null && data.AchievementNotes.Count > 0) ||
                    data.ProviderOverride != null ||
+                   (data.RetroAchievementsSelectedSubsetGameIds != null && data.RetroAchievementsSelectedSubsetGameIds.Count > 0) ||
                    (data.RetroAchievementsGameIdOverride.HasValue && data.RetroAchievementsGameIdOverride.Value > 0) ||
                    !string.IsNullOrWhiteSpace(data.XeniaTitleIdOverride) ||
                    !string.IsNullOrWhiteSpace(data.ShadPS4MatchIdOverride) ||
@@ -170,6 +183,7 @@ namespace PlayniteAchievements.Services.GameCustomData
                    (data.AchievementLockedIconOverrides != null && data.AchievementLockedIconOverrides.Count > 0) ||
                    (data.AchievementNotes != null && data.AchievementNotes.Count > 0) ||
                    data.ProviderOverride != null ||
+                   (data.RetroAchievementsSelectedSubsetGameIds != null && data.RetroAchievementsSelectedSubsetGameIds.Count > 0) ||
                    (data.RetroAchievementsGameIdOverride.HasValue && data.RetroAchievementsGameIdOverride.Value > 0) ||
                    !string.IsNullOrWhiteSpace(data.XeniaTitleIdOverride) ||
                    !string.IsNullOrWhiteSpace(data.ShadPS4MatchIdOverride) ||
@@ -200,6 +214,7 @@ namespace PlayniteAchievements.Services.GameCustomData
                    (data.AchievementLockedIconOverrides != null && data.AchievementLockedIconOverrides.Count > 0) ||
                    (data.AchievementNotes != null && data.AchievementNotes.Count > 0) ||
                    data.ProviderOverride != null ||
+                   (data.RetroAchievementsSelectedSubsetGameIds != null && data.RetroAchievementsSelectedSubsetGameIds.Count > 0) ||
                    (data.RetroAchievementsGameIdOverride.HasValue && data.RetroAchievementsGameIdOverride.Value > 0) ||
                    !string.IsNullOrWhiteSpace(data.XeniaTitleIdOverride) ||
                    !string.IsNullOrWhiteSpace(data.ShadPS4MatchIdOverride) ||
@@ -287,8 +302,23 @@ namespace PlayniteAchievements.Services.GameCustomData
                     NormalizeNotificationAppearanceOverride(legacy.NotificationAppearanceOverride),
                 ProviderOverride = ResolveEffectiveProviderOverride(existing) ??
                     ResolveEffectiveProviderOverride(legacy),
+                RetroAchievementsSelectedSubsetGameIds = existing.RetroAchievementsSelectedSubsetGameIds != null && existing.RetroAchievementsSelectedSubsetGameIds.Count > 0
+                    ? new List<int>(existing.RetroAchievementsSelectedSubsetGameIds)
+                    : legacy.RetroAchievementsSelectedSubsetGameIds != null && legacy.RetroAchievementsSelectedSubsetGameIds.Count > 0
+                        ? new List<int>(legacy.RetroAchievementsSelectedSubsetGameIds)
+                        : null,
                 ManualLink = existing.ManualLink?.Clone() ?? legacy.ManualLink?.Clone()
             };
+        }
+
+        private static List<int> NormalizePositiveIdList(IEnumerable<int> values)
+        {
+            var normalized = values?
+                .Where(value => value > 0)
+                .Distinct()
+                .OrderBy(value => value)
+                .ToList();
+            return normalized != null && normalized.Count > 0 ? normalized : null;
         }
 
         private static GameNotificationAppearanceOverride NormalizeNotificationAppearanceOverride(

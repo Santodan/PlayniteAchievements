@@ -155,9 +155,46 @@ namespace PlayniteAchievements.Services.Tests
                 },
                 gameId);
 
-            Assert.AreEqual(7, normalized.SchemaVersion);
+            Assert.AreEqual(8, normalized.SchemaVersion);
             Assert.AreEqual("capstone", normalized.ManualCapstoneApiName);
             Assert.IsNull(normalized.NotificationAppearanceOverride);
+        }
+
+        [TestMethod]
+        public void RetroAchievementsSelectedSets_NormalizeAndPortableRoundTrip()
+        {
+            var gameId = Guid.NewGuid();
+            var normalized = GameCustomDataNormalizer.NormalizeInternal(
+                new GameCustomDataFile
+                {
+                    PlayniteGameId = gameId,
+                    ProviderOverride = new ProviderOverrideData
+                    {
+                        ProviderKey = "RetroAchievements",
+                        Value = "5761"
+                    },
+                    RetroAchievementsSelectedSubsetGameIds = new List<int> { 9474, 0, 9472, 9474, -1 }
+                },
+                gameId);
+
+            CollectionAssert.AreEqual(
+                new[] { 9472, 9474 },
+                normalized.RetroAchievementsSelectedSubsetGameIds);
+
+            var clone = normalized.Clone();
+            var roundTrip = GameCustomDataFile.FromPortable(
+                normalized.ToPortable(),
+                gameId,
+                excludedFromRefreshes: false,
+                excludedFromSummaries: false);
+
+            clone.RetroAchievementsSelectedSubsetGameIds.Add(9999);
+            CollectionAssert.AreEqual(
+                new[] { 9472, 9474 },
+                normalized.RetroAchievementsSelectedSubsetGameIds);
+            CollectionAssert.AreEqual(
+                new[] { 9472, 9474 },
+                roundTrip.RetroAchievementsSelectedSubsetGameIds);
         }
 
         [TestMethod]
@@ -255,7 +292,7 @@ namespace PlayniteAchievements.Services.Tests
                 },
                 gameId);
 
-            Assert.AreEqual(7, normalized.SchemaVersion);
+            Assert.AreEqual(8, normalized.SchemaVersion);
             AssertProviderOverride(normalized, "Steam", "480");
             AssertLegacyProviderFieldsCleared(normalized);
         }

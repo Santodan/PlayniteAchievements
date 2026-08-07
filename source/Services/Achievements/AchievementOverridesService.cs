@@ -263,7 +263,10 @@ namespace PlayniteAchievements.Services.Achievements
             });
         }
 
-        public void SetProviderOverride(Guid gameId, ProviderOverrideData providerOverride)
+        public void SetProviderOverride(
+            Guid gameId,
+            ProviderOverrideData providerOverride,
+            IReadOnlyCollection<int> retroAchievementsSelectedSubsetGameIds = null)
         {
             if (gameId == Guid.Empty)
             {
@@ -273,6 +276,15 @@ namespace PlayniteAchievements.Services.Achievements
             _gameCustomDataStore.Update(gameId, customData =>
             {
                 customData.ProviderOverride = providerOverride?.Clone();
+                customData.RetroAchievementsSelectedSubsetGameIds =
+                    string.Equals(providerOverride?.ProviderKey, "RetroAchievements", StringComparison.OrdinalIgnoreCase) &&
+                    retroAchievementsSelectedSubsetGameIds != null
+                        ? retroAchievementsSelectedSubsetGameIds
+                            .Where(value => value > 0)
+                            .Distinct()
+                            .OrderBy(value => value)
+                            .ToList()
+                        : null;
             });
         }
 

@@ -4,6 +4,7 @@ using PlayniteAchievements.Models.Achievements;
 using PlayniteAchievements.Providers.RetroAchievements.Hashing;
 using PlayniteAchievements.Providers.Settings;
 using PlayniteAchievements.Services;
+using PlayniteAchievements.Services.GameCustomData;
 using PlayniteAchievements.Services.Images;
 using PlayniteAchievements.Services.Refresh;
 using Playnite.SDK;
@@ -421,6 +422,11 @@ namespace PlayniteAchievements.Providers.RetroAchievements
                 var raSettings = ProviderRegistry.Settings<RetroAchievementsSettings>();
                 var gameInfo = await _api.GetGameInfoAndUserProgressAsync(gameId, cancel).ConfigureAwait(false);
                 var subsetConsoleId = RetroAchievementsSubsetConsoleResolver.Resolve(gameInfo, consoleId);
+                var selectedSubsetGameIds = game != null
+                    ? GameCustomDataLookup.GetRetroAchievementsSelectedSubsetGameIds(game.Id)
+                    : Array.Empty<int>();
+                var hasGameIdOverride = game != null &&
+                    RetroAchievementsDataProvider.TryGetGameIdOverride(game.Id, out _);
 
                 var sets = await RetroAchievementsSetAssembler.AssembleAsync(
                     gameInfo,
@@ -430,7 +436,9 @@ namespace PlayniteAchievements.Providers.RetroAchievements
                     raSettings,
                     (setId, ct) => _api.GetGameInfoAndUserProgressAsync(setId, ct),
                     _logger,
-                    cancel).ConfigureAwait(false);
+                    cancel,
+                    selectedSubsetGameIds: selectedSubsetGameIds,
+                    scanAllSubsetsWhenSelectionEmpty: hasGameIdOverride).ConfigureAwait(false);
 
                 await DownloadCategoryImagesAsync(game?.Id, sets.CategoryImageSources, cancel).ConfigureAwait(false);
 

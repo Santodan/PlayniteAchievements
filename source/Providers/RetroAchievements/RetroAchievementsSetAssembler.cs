@@ -3,6 +3,7 @@ using PlayniteAchievements.Providers.RetroAchievements.Models;
 using Playnite.SDK;
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 
@@ -36,22 +37,43 @@ namespace PlayniteAchievements.Providers.RetroAchievements
             Func<int, CancellationToken, Task<RaGameInfoUserProgress>> fetchSetInfo,
             ILogger logger,
             CancellationToken cancel,
-            string logPrefix = "[RA]")
+            string logPrefix = "[RA]",
+            IReadOnlyCollection<int> selectedSubsetGameIds = null,
+            bool scanAllSubsetsWhenSelectionEmpty = false)
         {
             var result = new AssembledSets();
+            var selectedSubsetIds = selectedSubsetGameIds != null
+                ? new HashSet<int>(selectedSubsetGameIds)
+                : new HashSet<int>();
+            var hasSubsetSelection = selectedSubsetIds.Count > 0;
+            var includeBaseSet = !hasSubsetSelection || selectedSubsetIds.Contains(baseGameId);
 
-            var baseAchievements = RetroAchievementsAchievementMapper.ParseAchievements(
-                baseGameInfo,
-                settings.RaRarityStats,
-                categoryLabel: "Base",
-                enableAutomaticCapstoneAssignment: settings.EnableAutomaticCapstoneAssignment,
-                setCategoryType: "Base");
-            result.Achievements.AddRange(baseAchievements);
-            result.CategoryImageSources.Add(("Base", baseGameInfo));
+            if (includeBaseSet)
+            {
+                var baseAchievements = RetroAchievementsAchievementMapper.ParseAchievements(
+                    baseGameInfo,
+                    settings.RaRarityStats,
+                    categoryLabel: "Base",
+                    enableAutomaticCapstoneAssignment: settings.EnableAutomaticCapstoneAssignment,
+                    setCategoryType: "Base");
+                result.Achievements.AddRange(baseAchievements);
+                result.CategoryImageSources.Add(("Base", baseGameInfo));
 
-            logger?.Info($"{logPrefix} Parsed {baseAchievements.Count} achievements for '{baseGameInfo?.GameTitle}'.");
+                logger?.Info($"{logPrefix} Parsed {baseAchievements.Count} achievements for '{baseGameInfo?.GameTitle}'.");
+            }
+            else
+            {
+                logger?.Info($"{logPrefix} Per-game subset selection is active; excluding the base set.");
+            }
 
-            if (!settings.EnableRaSubsetScanning)
+            if (hasSubsetSelection && selectedSubsetIds.Count == 1 && includeBaseSet)
+            {
+                return result;
+            }
+
+            if (!settings.EnableRaSubsetScanning &&
+                !hasSubsetSelection &&
+                !scanAllSubsetsWhenSelectionEmpty)
             {
                 return result;
             }
@@ -87,6 +109,11 @@ namespace PlayniteAchievements.Providers.RetroAchievements
                     continue;
                 }
 
+                if (hasSubsetSelection && !selectedSubsetIds.Contains(subset.Id))
+                {
+                    continue;
+                }
+
                 try
                 {
                     var subsetInfo = await fetchSetInfo(subset.Id, cancel).ConfigureAwait(false);
@@ -107,6 +134,22 @@ namespace PlayniteAchievements.Providers.RetroAchievements
                 catch (Exception ex)
                 {
                     logger?.Warn(ex, $"{logPrefix} Failed to fetch subset '{subset.Title}' (ID={subset.Id}): {ex.Message}");
+                }
+            }
+
+            if (hasSubsetSelection)
+            {
+                var resolvedIds = new HashSet<int>(subsets
+                    .Where(subset => subset != null && selectedSubsetIds.Contains(subset.Id))
+                    .Select(subset => subset.Id));
+                if (includeBaseSet)
+                {
+                    resolvedIds.Add(baseGameId);
+                }
+                var missingIds = selectedSubsetIds.Where(id => !resolvedIds.Contains(id)).ToList();
+                if (missingIds.Count > 0)
+                {
+                    logger?.Warn($"{logPrefix} Selected subset game ID(s) were not found for gameId={baseGameId}: {string.Join(",", missingIds)}");
                 }
             }
 

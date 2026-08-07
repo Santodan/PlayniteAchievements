@@ -502,6 +502,55 @@ namespace PlayniteAchievements.Providers.RetroAchievements
                 fallbackSettings: ProviderRegistry.Settings<RetroAchievementsSettings>());
         }
 
+        internal async Task<IReadOnlyList<Models.RaSubsetEntry>> GetAvailableSubsetsAsync(
+            Game game,
+            int baseGameId,
+            CancellationToken cancel)
+        {
+            if (baseGameId <= 0)
+            {
+                return Array.Empty<Models.RaSubsetEntry>();
+            }
+
+            EnsureInitialized();
+            var availableSets = new List<Models.RaSubsetEntry>
+            {
+                new Models.RaSubsetEntry
+                {
+                    Id = baseGameId,
+                    Title = $"Base - {game?.Name ?? baseGameId.ToString(CultureInfo.InvariantCulture)}"
+                }
+            };
+            int? consoleId = null;
+            if (RaConsoleIdResolver.TryResolve(game, out var resolvedConsoleId))
+            {
+                consoleId = resolvedConsoleId;
+            }
+
+            if (!consoleId.HasValue)
+            {
+                var gameInfo = await _apiClient.GetGameExtendedAsync(baseGameId, cancel).ConfigureAwait(false);
+                consoleId = RetroAchievementsSubsetConsoleResolver.Resolve(gameInfo, null);
+            }
+
+            if (!consoleId.HasValue)
+            {
+                return availableSets;
+            }
+
+            var subsets = await _hashIndexStore
+                .GetSubsetsForGameAsync(baseGameId, consoleId.Value, cancel)
+                .ConfigureAwait(false);
+            availableSets.AddRange(subsets ?? new List<Models.RaSubsetEntry>());
+            return availableSets
+                .Where(subset => subset != null && subset.Id > 0)
+                .GroupBy(subset => subset.Id)
+                .Select(group => group.First())
+                .OrderByDescending(subset => subset.Id == baseGameId)
+                .ThenBy(subset => subset.Title ?? string.Empty, StringComparer.OrdinalIgnoreCase)
+                .ToList();
+        }
+
         /// <summary>
         /// Checks if a game's platform is supported by RetroAchievements.
         /// Used by UI to determine if RA override option should be shown.

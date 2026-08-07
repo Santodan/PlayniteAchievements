@@ -352,6 +352,13 @@ This deletes this game's manual links, capstones, custom icons, notification app
     <sys:String x:Key="LOCPlayAch_ManageAchievements_Overrides_ProviderValueLabel_Steam">Steam App ID</sys:String>
     <sys:String x:Key="LOCPlayAch_ManageAchievements_Overrides_ProviderValueLabel_GameJolt">Game Jolt Game ID</sys:String>
     <sys:String x:Key="LOCPlayAch_ManageAchievements_Overrides_ProviderValueLabel_RetroAchievements">RetroAchievements Game ID</sys:String>
+    <sys:String x:Key="LOCPlayAch_ManageAchievements_Overrides_RaSubsets_Header">Achievement Sets</sys:String>
+    <sys:String x:Key="LOCPlayAch_ManageAchievements_Overrides_RaSubsets_Hint">Load the available RetroAchievements sets, then select one or more. If none are selected, achievements from every set are included.</sys:String>
+    <sys:String x:Key="LOCPlayAch_ManageAchievements_Overrides_RaSubsets_LoadButton">Load Achievement Sets</sys:String>
+    <sys:String x:Key="LOCPlayAch_ManageAchievements_Overrides_RaSubsets_DefaultStatus">No sets selected; all achievement sets will be included.</sys:String>
+    <sys:String x:Key="LOCPlayAch_ManageAchievements_Overrides_RaSubsets_LoadFailed">Achievement sets could not be loaded.</sys:String>
+    <sys:String x:Key="LOCPlayAch_ManageAchievements_Overrides_RaSubsets_SavedStatus">Saved set selection. Load achievement sets to review or change it.</sys:String>
+    <sys:String x:Key="LOCPlayAch_ManageAchievements_Overrides_RaSubsets_SelectedStatus">{0} achievement set(s) selected.</sys:String>
     <sys:String x:Key="LOCPlayAch_ManageAchievements_Overrides_ProviderValueLabel_ShadPS4">ShadPS4 Match ID</sys:String>
     <sys:String x:Key="LOCPlayAch_ManageAchievements_Overrides_ProviderValueLabel_RPCS3">RPCS3 NP Communication ID</sys:String>
     <sys:String x:Key="LOCPlayAch_ManageAchievements_Overrides_ProviderValueLabel_Xenia">Xenia Title ID</sys:String>

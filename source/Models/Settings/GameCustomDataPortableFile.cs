@@ -9,7 +9,7 @@ namespace PlayniteAchievements.Models.Settings
     /// </summary>
     public sealed class GameCustomDataPortableFile
     {
-        public int SchemaVersion { get; set; } = 7;
+        public int SchemaVersion { get; set; } = 8;
 
         public Guid PlayniteGameId { get; set; }
 
@@ -40,6 +40,8 @@ namespace PlayniteAchievements.Models.Settings
         public Dictionary<string, string> AchievementNotes { get; set; }
 
         public int? RetroAchievementsGameIdOverride { get; set; }
+
+        public List<int> RetroAchievementsSelectedSubsetGameIds { get; set; }
 
         public string XeniaTitleIdOverride { get; set; }
 
@@ -93,6 +95,9 @@ namespace PlayniteAchievements.Models.Settings
                     ? new Dictionary<string, string>(AchievementNotes, StringComparer.OrdinalIgnoreCase)
                     : null,
                 RetroAchievementsGameIdOverride = RetroAchievementsGameIdOverride,
+                RetroAchievementsSelectedSubsetGameIds = RetroAchievementsSelectedSubsetGameIds != null
+                    ? new List<int>(RetroAchievementsSelectedSubsetGameIds)
+                    : null,
                 XeniaTitleIdOverride = XeniaTitleIdOverride,
                 ShadPS4MatchIdOverride = ShadPS4MatchIdOverride,
                 ForceUseExophase = ForceUseExophase,

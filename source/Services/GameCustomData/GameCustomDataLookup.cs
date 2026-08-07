@@ -11,6 +11,7 @@ using PlayniteAchievements.Services.Achievements;
 using System;
 using System.Collections.Generic;
 using System.Globalization;
+using System.Linq;
 
 namespace PlayniteAchievements.Services.GameCustomData
 {
@@ -559,6 +560,23 @@ namespace PlayniteAchievements.Services.GameCustomData
 
             return fallbackSettings?.RaGameIdOverrides != null &&
                    fallbackSettings.RaGameIdOverrides.TryGetValue(gameId, out gameIdOverride);
+        }
+
+        public static IReadOnlyList<int> GetRetroAchievementsSelectedSubsetGameIds(
+            Guid gameId,
+            GameCustomDataStore store = null)
+        {
+            if (gameId == Guid.Empty ||
+                !TryLoad(gameId, out var customData, store) ||
+                customData?.RetroAchievementsSelectedSubsetGameIds == null)
+            {
+                return Array.Empty<int>();
+            }
+
+            return customData.RetroAchievementsSelectedSubsetGameIds
+                .Where(value => value > 0)
+                .Distinct()
+                .ToList();
         }
 
         public static bool IsExophaseIncluded(

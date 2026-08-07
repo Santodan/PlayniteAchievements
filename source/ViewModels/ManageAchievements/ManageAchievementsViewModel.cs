@@ -136,6 +136,9 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
             ToggleSummaryExclusionCommand = new RelayCommand(_ => ToggleSummaryExclusion(), _ => HasGame);
             ApplyProviderOverrideCommand = new RelayCommand(_ => ApplyProviderOverride(), _ => HasGame);
             ClearProviderOverrideCommand = new RelayCommand(_ => ClearProviderOverride(), _ => HasGame && HasProviderOverride);
+            LoadRetroAchievementsSubsetsCommand = new AsyncCommand(
+                _ => LoadRetroAchievementsSubsetsAsync(),
+                _ => CanLoadRetroAchievementsSubsets());
             UnlinkManualTrackingCommand = new RelayCommand(_ => UnlinkManualTracking(), _ => HasGame && HasManualTrackingLink);
             RefreshStateCommand = new RelayCommand(_ => Reload());
             RefreshGameCommand = new AsyncCommand(_ => RefreshGameAsync(), _ => HasGame && !IsRefreshing && !(_refreshService?.IsRebuilding ?? false));
@@ -281,6 +284,7 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
             {
                 if (SetValueAndReturn(ref _providerOverrideInput, value ?? string.Empty))
                 {
+                    OnRetroAchievementsOverrideInputChanged();
                     RaiseCommandStates();
                 }
             }
@@ -719,6 +723,7 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
                     currentCustomData?.UseSeparateLockedIconsOverride == true);
                 OnPropertyChanged(nameof(SeparateLockedIconsStatusText));
                 ReloadProviderOverrideState(currentCustomData);
+                ReloadRetroAchievementsSubsetState(currentCustomData);
                 RefreshForkOverrideState();
 
                 ManualAchievementLink manualLink;
@@ -1023,9 +1028,13 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
                 return false;
             }
 
+            var selectedSubsetGameIds = GetRetroAchievementsSubsetIdsForSave(providerOverride);
             if (_achievementOverridesService != null)
             {
-                _achievementOverridesService.SetProviderOverride(_gameId, providerOverride);
+                _achievementOverridesService.SetProviderOverride(
+                    _gameId,
+                    providerOverride,
+                    selectedSubsetGameIds);
             }
             else
             {
@@ -1038,6 +1047,10 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
                 store.Update(_gameId, customData =>
                 {
                     customData.ProviderOverride = providerOverride.Clone();
+                    customData.RetroAchievementsSelectedSubsetGameIds =
+                        selectedSubsetGameIds != null && selectedSubsetGameIds.Count > 0
+                            ? selectedSubsetGameIds.ToList()
+                            : null;
                 });
             }
 
@@ -1070,6 +1083,7 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
                 store.Update(_gameId, customData =>
                 {
                     customData.ProviderOverride = null;
+                    customData.RetroAchievementsSelectedSubsetGameIds = null;
                 });
             }
 
@@ -1226,6 +1240,7 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
             ToggleSummaryExclusionCommand?.RaiseCanExecuteChanged();
             ApplyProviderOverrideCommand?.RaiseCanExecuteChanged();
             ClearProviderOverrideCommand?.RaiseCanExecuteChanged();
+            LoadRetroAchievementsSubsetsCommand?.RaiseCanExecuteChanged();
             UnlinkManualTrackingCommand?.RaiseCanExecuteChanged();
             RefreshStateCommand?.RaiseCanExecuteChanged();
             RefreshGameCommand?.RaiseCanExecuteChanged();
@@ -1422,6 +1437,7 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
             OnPropertyChanged(nameof(ProviderOverrideChoices));
             OnPropertyChanged(nameof(ProviderOverrideInputLabel));
             OnPropertyChanged(nameof(ProviderOverrideStatusText));
+            OnPropertyChanged(nameof(IsRetroAchievementsOverrideSelected));
             RaiseCommandStates();
         }
 
