@@ -138,6 +138,11 @@ Primary fork areas:
 ## Steam and imports
 
 - Steam browser authentication and Web API-key accounts both work.
+- With a non-English achievement language selected, refreshing a Steam game
+  obtains localized hidden-achievement titles and descriptions from Steam's
+  full schema. Revealing a locked hidden achievement uses the extension
+  language rather than English, the Windows locale, or the Playnite UI
+  language, while already-localized visible achievement text remains intact.
 - Per-game Steam-account overrides use the correct account.
 - Owned-games and family-sharing import retain their fork behavior.
 - Imported-game metadata source selection works for Steam and Local imports.

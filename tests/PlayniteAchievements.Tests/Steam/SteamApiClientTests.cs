@@ -184,6 +184,54 @@ namespace PlayniteAchievements.Steam.Tests
             Assert.AreEqual(5.1d, result.GlobalPercentages["E1FINISHSTORY"]);
         }
 
+        [TestMethod]
+        public async Task GetSchemaForGameDetailedAsync_UsesConfiguredLanguageForHiddenText()
+        {
+            Uri localizedSchemaUri = null;
+            using var httpClient = new HttpClient(new StubHttpMessageHandler(request =>
+            {
+                if (request.RequestUri.AbsolutePath.Contains("/ISteamUserStats/GetSchemaForGame/"))
+                {
+                    localizedSchemaUri = request.RequestUri;
+                    return new HttpResponseMessage(HttpStatusCode.OK)
+                    {
+                        Content = new StringContent(
+                            "{ \"response\": { \"game\": { \"availableGameStats\": { \"achievements\": [" +
+                            "{ \"name\": \"SECRET_1\", \"displayName\": \"Секрет\", \"description\": \"Скрытое описание\", \"hidden\": 1 }," +
+                            "{ \"name\": \"VISIBLE_1\", \"displayName\": \"Видимое\", \"description\": \"Видимое описание\", \"hidden\": 0 }" +
+                            "] } } } }",
+                            Encoding.UTF8,
+                            "application/json")
+                    };
+                }
+
+                return new HttpResponseMessage(HttpStatusCode.OK)
+                {
+                    Content = new StringContent(
+                        "{ \"response\": { \"achievements\": [" +
+                        "{ \"internal_name\": \"SECRET_1\", \"localized_name\": \"Secret\", \"localized_desc\": \"English hidden description\", \"hidden\": true }," +
+                        "{ \"internal_name\": \"VISIBLE_1\", \"localized_name\": \"Already localized\", \"localized_desc\": \"Already localized description\", \"hidden\": false }" +
+                        "] } }",
+                        Encoding.UTF8,
+                        "application/json")
+                };
+            }));
+
+            var client = new SteamApiClient(httpClient, logger: null);
+            var result = await client.GetSchemaForGameDetailedAsync(
+                "session-token",
+                123,
+                "russian",
+                CancellationToken.None).ConfigureAwait(false);
+
+            Assert.IsNotNull(localizedSchemaUri);
+            StringAssert.Contains(localizedSchemaUri.Query, "access_token=session-token");
+            StringAssert.Contains(localizedSchemaUri.Query, "l=russian");
+            Assert.AreEqual("Секрет", result.Achievements.Single(item => item.Name == "SECRET_1").DisplayName);
+            Assert.AreEqual("Скрытое описание", result.Achievements.Single(item => item.Name == "SECRET_1").Description);
+            Assert.AreEqual("Already localized description", result.Achievements.Single(item => item.Name == "VISIBLE_1").Description);
+        }
+
         private sealed class StubHttpMessageHandler : HttpMessageHandler
         {
             private readonly Func<HttpRequestMessage, HttpResponseMessage> _responseFactory;

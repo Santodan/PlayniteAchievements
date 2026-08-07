@@ -90,6 +90,38 @@ namespace PlayniteAchievements.Providers.Steam.Models
     }
 
     [DataContract]
+    internal sealed class GetSchemaForGameRoot
+    {
+        [DataMember(Name = "response")]
+        public GetSchemaForGameResponse Response { get; set; }
+
+        // Some Steam Web API gateways return the v2 payload without the response envelope.
+        [DataMember(Name = "game")]
+        public GetSchemaForGameGame Game { get; set; }
+    }
+
+    [DataContract]
+    internal sealed class GetSchemaForGameResponse
+    {
+        [DataMember(Name = "game")]
+        public GetSchemaForGameGame Game { get; set; }
+    }
+
+    [DataContract]
+    internal sealed class GetSchemaForGameGame
+    {
+        [DataMember(Name = "availableGameStats")]
+        public GetSchemaForGameAvailableStats AvailableGameStats { get; set; }
+    }
+
+    [DataContract]
+    internal sealed class GetSchemaForGameAvailableStats
+    {
+        [DataMember(Name = "achievements")]
+        public List<SchemaAchievement> Achievements { get; set; }
+    }
+
+    [DataContract]
     internal sealed class GetGameAchievementsRoot
     {
         [DataMember(Name = "response")]
