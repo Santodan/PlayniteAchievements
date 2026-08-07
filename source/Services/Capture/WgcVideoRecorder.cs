@@ -52,6 +52,16 @@ namespace PlayniteAchievements.Services.Capture
         private GpuHdrToneMapper _toneMapper;
         private bool _hdr;
         private float _refWhite = 1.0f;
+        // The size the frame pool was built at, and the pixel format it was built with. WGC does not
+        // resize the pool when the window does: it keeps handing back textures of this size holding
+        // the top-left corner of the larger content, so a window that grows after capture starts is
+        // recorded cropped (a "zoomed in" clip) until the pool is rebuilt. Compared against each
+        // frame's ContentSize to detect that.
+        private Windows.Graphics.SizeInt32 _poolSize;
+        private bool _geometryStale;
+        // Last window handle whose capture-item creation failed, so a window that is not capturable
+        // yet is logged once instead of once per second for as long as it stays that way.
+        private IntPtr _lastItemFailureHwnd;
 
         private D3D11.Texture2D _latest; // owned, BGRA, the most recent (tone-mapped) clean game frame
         private D3D11.Texture2D _scaled; // owned, BGRA, downscaled encode frame when a resolution cap applies
@@ -161,7 +171,18 @@ namespace PlayniteAchievements.Services.Capture
             }
             catch (Exception ex)
             {
-                _logger?.Debug(ex, "[Recording] WGC-MF could not create a capture item for the game window.");
+                // A game window commonly exists before it is capturable (still initializing, cloaked,
+                // no composition surface yet); the pump retries every tick, so log the first attempt
+                // per handle with the geometry that identifies the window and stay quiet after that.
+                if (hwnd != _lastItemFailureHwnd)
+                {
+                    _lastItemFailureHwnd = hwnd;
+                    _logger?.Debug(
+                        ex,
+                        $"[Recording] WGC-MF could not create a capture item for game window 0x{hwnd.ToInt64():X} " +
+                        $"({DescribeWindow(hwnd)}); retrying every second until it becomes capturable.");
+                }
+
                 return;
             }
 
@@ -169,6 +190,8 @@ namespace PlayniteAchievements.Services.Capture
             {
                 return;
             }
+
+            _lastItemFailureHwnd = IntPtr.Zero;
 
             TearDownCapture();
             FinalizeSegment();
@@ -186,12 +209,48 @@ namespace PlayniteAchievements.Services.Capture
                 ? DirectXPixelFormat.R16G16B16A16Float
                 : DirectXPixelFormat.B8G8R8A8UIntNormalized;
             _item = item;
+            _poolSize = item.Size;
+            _geometryStale = false;
             _framePool = Direct3D11CaptureFramePool.CreateFreeThreaded(_winrtDevice, pixelFormat, 2, item.Size);
             _session = _framePool.CreateCaptureSession(_item);
             WgcCaptureBorder.Suppress(_session);
             _session.StartCapture();
             _activeHwnd = hwnd;
-            _logger?.Info($"[Recording] WGC-MF capturing game window 0x{hwnd.ToInt64():X} (hdr={_hdr}, {item.Size.Width}x{item.Size.Height}@{_fps}).");
+            // The captured size, the crop derived from it and the monitor's scale together explain any
+            // later "the clip is cropped/zoomed" report, which is otherwise indistinguishable from the
+            // game simply rendering that way.
+            _logger?.Info(
+                $"[Recording] WGC-MF capturing game window 0x{hwnd.ToInt64():X} (hdr={_hdr}, " +
+                $"{item.Size.Width}x{item.Size.Height}@{_fps}, crop={_cropW}x{_cropH}+{_cropX}+{_cropY}, " +
+                $"{DescribeWindow(hwnd)}).");
+        }
+
+        /// <summary>
+        /// A compact description of a window for capture diagnostics: its outer rect, the DWM frame
+        /// bounds and client size WGC cropping measures against, and the true scale of the monitor
+        /// it is on. All rects are read per-monitor-aware, so they are the same physical pixels the
+        /// capture works in. Never throws.
+        /// </summary>
+        private static string DescribeWindow(IntPtr hwnd)
+        {
+            try
+            {
+                using (Common.DpiAwarenessScope.PerMonitorV2())
+                {
+                    var window = GetWindowRect(hwnd, out var wr) ? wr.ToString() : "?";
+                    var frame = DwmGetWindowAttribute(hwnd, DWMWA_EXTENDED_FRAME_BOUNDS, out var fr, Marshal.SizeOf(typeof(RECT))) == 0
+                        ? fr.ToString()
+                        : "?";
+                    var client = GetClientRect(hwnd, out var cr) ? $"{cr.Width}x{cr.Height}" : "?";
+                    var scale = UI.ToastWindowPlacer.ResolveMonitorScale(hwnd);
+                    return $"window={window} frame={frame} client={client} monitorScale={scale:0.##} " +
+                        $"visible={IsWindowVisible(hwnd)} iconic={IsIconic(hwnd)}";
+                }
+            }
+            catch
+            {
+                return "geometry=unavailable";
+            }
         }
 
         private void TearDownCapture()
@@ -207,6 +266,12 @@ namespace PlayniteAchievements.Services.Capture
         /// The client-area sub-region within the captured window texture (excludes chrome), in
         /// captured pixels — measured against the DWM extended frame bounds (what WGC captures) and
         /// scaled into the texture, with even dimensions for H.264. Falls back to the full frame.
+        ///
+        /// Every window read runs per-monitor-aware, matching the screenshot path: the host process
+        /// is system-DPI-aware, so on a monitor whose effective DPI differs from the system DPI the
+        /// client rect would come back virtualized while the DWM bounds and the captured texture are
+        /// physical pixels — and the crop derived from mixing the two spaces would keep only a
+        /// fraction of the frame.
         /// </summary>
         private static void ComputeClientCrop(IntPtr hwnd, int capturedW, int capturedH, out int x, out int y, out int w, out int h)
         {
@@ -216,37 +281,40 @@ namespace PlayniteAchievements.Services.Capture
             h = capturedH;
             try
             {
-                if (DwmGetWindowAttribute(hwnd, DWMWA_EXTENDED_FRAME_BOUNDS, out var frame, Marshal.SizeOf(typeof(RECT))) != 0)
+                using (Common.DpiAwarenessScope.PerMonitorV2())
                 {
-                    return;
+                    if (DwmGetWindowAttribute(hwnd, DWMWA_EXTENDED_FRAME_BOUNDS, out var frame, Marshal.SizeOf(typeof(RECT))) != 0)
+                    {
+                        return;
+                    }
+
+                    var fw = frame.Right - frame.Left;
+                    var fh = frame.Bottom - frame.Top;
+                    if (fw <= 0 || fh <= 0 || !GetClientRect(hwnd, out var client))
+                    {
+                        return;
+                    }
+
+                    var cw = client.Right - client.Left;
+                    var ch = client.Bottom - client.Top;
+                    var origin = new POINT { X = 0, Y = 0 };
+                    if (cw <= 0 || ch <= 0 || !ClientToScreen(hwnd, ref origin))
+                    {
+                        return;
+                    }
+
+                    var sx = (double)capturedW / fw;
+                    var sy = (double)capturedH / fh;
+                    var cx = Math.Max(0, Math.Min((int)Math.Round((origin.X - frame.Left) * sx), capturedW - 2));
+                    var cy = Math.Max(0, Math.Min((int)Math.Round((origin.Y - frame.Top) * sy), capturedH - 2));
+                    var cwp = Math.Max(2, Math.Min((int)Math.Round(cw * sx), capturedW - cx)) & ~1;
+                    var chp = Math.Max(2, Math.Min((int)Math.Round(ch * sy), capturedH - cy)) & ~1;
+
+                    x = cx;
+                    y = cy;
+                    w = cwp;
+                    h = chp;
                 }
-
-                var fw = frame.Right - frame.Left;
-                var fh = frame.Bottom - frame.Top;
-                if (fw <= 0 || fh <= 0 || !GetClientRect(hwnd, out var client))
-                {
-                    return;
-                }
-
-                var cw = client.Right - client.Left;
-                var ch = client.Bottom - client.Top;
-                var origin = new POINT { X = 0, Y = 0 };
-                if (cw <= 0 || ch <= 0 || !ClientToScreen(hwnd, ref origin))
-                {
-                    return;
-                }
-
-                var sx = (double)capturedW / fw;
-                var sy = (double)capturedH / fh;
-                var cx = Math.Max(0, Math.Min((int)Math.Round((origin.X - frame.Left) * sx), capturedW - 2));
-                var cy = Math.Max(0, Math.Min((int)Math.Round((origin.Y - frame.Top) * sy), capturedH - 2));
-                var cwp = Math.Max(2, Math.Min((int)Math.Round(cw * sx), capturedW - cx)) & ~1;
-                var chp = Math.Max(2, Math.Min((int)Math.Round(ch * sy), capturedH - cy)) & ~1;
-
-                x = cx;
-                y = cy;
-                w = cwp;
-                h = chp;
             }
             catch
             {
@@ -262,6 +330,7 @@ namespace PlayniteAchievements.Services.Capture
             var frameInterval = TimeSpan.FromSeconds(1.0 / _fps);
             var next = DateTime.UtcNow;
             var lastResolveUtc = DateTime.MinValue;
+            var lastRebuildUtc = DateTime.MinValue;
             try
             {
                 while (_running)
@@ -289,6 +358,21 @@ namespace PlayniteAchievements.Services.Capture
                     if (_activeHwnd != IntPtr.Zero && _framePool != null)
                     {
                         PullLatestFrame();
+
+                        // The window changed size under a pool built for the old one. Rebuild the
+                        // capture at the new size (which also re-measures the crop and re-detects
+                        // HDR for its monitor) and drop the held frame, so the next tick starts a
+                        // new segment at the new dimensions instead of encoding a stale crop. Held
+                        // to once a second: a window being dragged-resized reports a new size every
+                        // frame, and each rebuild costs a segment boundary.
+                        if (_geometryStale && (DateTime.UtcNow - lastRebuildUtc).TotalSeconds >= 1)
+                        {
+                            lastRebuildUtc = DateTime.UtcNow;
+                            _geometryStale = false;
+                            _latest?.Dispose();
+                            _latest = null;
+                            SetupCapture(_activeHwnd);
+                        }
                     }
 
                     if (_latest != null && _framePool != null)
@@ -362,6 +446,21 @@ namespace PlayniteAchievements.Services.Capture
 
             using (frame)
             {
+                // WGC never resizes the frame pool on its own: once the window is bigger than the
+                // pool it keeps handing back pool-sized textures holding only the content's top-left
+                // corner, which records as a clip zoomed into that corner. Flag it and let the pump
+                // rebuild the capture rather than encoding this frame against a stale crop.
+                var content = frame.ContentSize;
+                if (content.Width > 0 && content.Height > 0 &&
+                    (content.Width != _poolSize.Width || content.Height != _poolSize.Height))
+                {
+                    _logger?.Info(
+                        $"[Recording] WGC-MF game window resized ({_poolSize.Width}x{_poolSize.Height} -> " +
+                        $"{content.Width}x{content.Height}); rebuilding the capture.");
+                    _geometryStale = true;
+                    return;
+                }
+
                 var access = (IDirect3DDxgiInterfaceAccess)(object)frame.Surface;
                 var texIid = IID_ID3D11Texture2D;
                 var texPtr = access.GetInterface(ref texIid);
