@@ -8,6 +8,7 @@ using Playnite.SDK;
 using PlayniteAchievements.Providers;
 using PlayniteAchievements.Providers.Local;
 using PlayniteAchievements.Providers.Steam;
+using PlayniteAchievements.Services.GameCustomData;
 using RelayCommand = PlayniteAchievements.Common.RelayCommand;
 
 namespace PlayniteAchievements.ViewModels.ManageAchievements
@@ -185,7 +186,7 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
         public RelayCommand ApplySteamAccountOverrideCommand => _applySteamAccountOverrideCommand ??= new RelayCommand(_ => ApplySteamAccountOverride(), _ => HasGame);
         public RelayCommand ClearSteamAccountOverrideCommand => _clearSteamAccountOverrideCommand ??= new RelayCommand(_ => ClearSteamAccountOverride(), _ => HasGame && HasSteamAccountOverride);
         public RelayCommand ApplyPreferredProviderOverrideCommand => _applyPreferredProviderOverrideCommand ??= new RelayCommand(_ => ApplyPreferredProviderOverride(), _ => HasGame);
-        public RelayCommand ClearPreferredProviderOverrideCommand => _clearPreferredProviderOverrideCommand ??= new RelayCommand(_ => ClearPreferredProviderOverride(), _ => HasGame && HasPreferredProviderOverride);
+        public RelayCommand ClearPreferredProviderOverrideCommand => _clearPreferredProviderOverrideCommand ??= new RelayCommand(_ => ClearPreferredProviderOverride(), _ => HasGame);
 
         private void RefreshForkOverrideState()
         {
@@ -448,7 +449,25 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
             TriggerRefreshForProvider(key);
             Reload();
         }
-        private void ClearPreferredProviderOverride() { _achievementOverridesService?.ClearPreferredProviderOverride(_gameId); Reload(); }
+        private void ClearPreferredProviderOverride()
+        {
+            _achievementOverridesService?.ClearPreferredProviderOverride(_gameId);
+
+            // "Automatic" means that neither routing layer owns the game. A forced provider
+            // override takes precedence over the preferred-provider setting, so clearing only the
+            // latter left an Exophase (or other provider) override active while this UI reported
+            // Automatic. Clear the forced layer as well when it is present.
+            if (GameCustomDataLookup.TryGetProviderOverride(_gameId, out _))
+            {
+                TryClearProviderOverride();
+            }
+            else
+            {
+                _persistSettingsForUi?.Invoke();
+            }
+
+            Reload();
+        }
         private void ApplyProviderOverrideCompat(string providerKey, string value) { if (TryCreateProviderOverride(providerKey, value, out var data, out _, out _)) { TrySetProviderOverride(data); Reload(); } }
         private void ClearProviderOverrideCompat(string providerKey) { TryClearProviderOverride(); Reload(); }
         private static bool IsManualProviderKey(string providerKey) => string.Equals((providerKey ?? string.Empty).Trim(), "Manual", StringComparison.OrdinalIgnoreCase);

@@ -159,7 +159,7 @@ index ccaa93c37d35480682a810bceb55bb2084baa5af..d73dd9deb7816ecaca19cfb67695da7c
          /// <summary>
          /// Playnite library source name for the game at refresh time (e.g. Steam, GOG).
 diff --git a/source/Models/CustomRefreshOptions.cs b/source/Models/CustomRefreshOptions.cs
-index 861bca26c3bb303f644c2db6263749412bcb4ba8..e2294905728e63c3f593a0cb018dad7bebf56630 100644
+index 861bca26c3bb303f644c2db6263749412bcb4ba8..23ceb9d9d7e93efa648d2f819ca9ba2ffa342c6f 100644
 --- a/source/Models/CustomRefreshOptions.cs
 +++ b/source/Models/CustomRefreshOptions.cs
 @@ -28,6 +28,13 @@ public enum RefreshGameScope
@@ -176,6 +176,58 @@ index 861bca26c3bb303f644c2db6263749412bcb4ba8..e2294905728e63c3f593a0cb018dad7b
      /// <summary>
      /// Canonical refresh options shared by current-user and friend refreshes.
      /// </summary>
+@@ -49,6 +56,11 @@ public sealed class RefreshOptions
+         public bool ForceIconRefresh { get; set; }
+         public bool ForceDefinitionRefresh { get; set; }
+ 
++        // Programmatic workflows that explicitly name both the game and provider can opt out of
++        // the game's normal forced/preferred routing. Manual linking uses this while its transient
++        // link is being refreshed, before Manual becomes the game's durable provider.
++        public bool IgnoreProviderRoutingOverrides { get; set; }
++
+         // Reuse cached Ok schemas even for scopes that normally force a definition re-fetch
+         // (SelectedGame/Full). Set by latency-sensitive programmatic callers such as the
+         // in-game poller; user-initiated refreshes leave this false.
+@@ -83,6 +95,7 @@ public RefreshOptions Clone()
+                 ForceBypassExclusionsForExplicitIncludes = ForceBypassExclusionsForExplicitIncludes,
+                 ForceIconRefresh = ForceIconRefresh,
+                 ForceDefinitionRefresh = ForceDefinitionRefresh,
++                IgnoreProviderRoutingOverrides = IgnoreProviderRoutingOverrides,
+                 PreferCachedDefinitions = PreferCachedDefinitions,
+                 RunProvidersInParallelOverride = RunProvidersInParallelOverride
+             };
+@@ -102,6 +115,7 @@ public static RefreshOptions FromCustom(CustomRefreshOptions options)
+                 IncludeUnplayedOverride = source.IncludeUnplayedOverride,
+                 RespectUserExclusions = source.RespectUserExclusions,
+                 ForceBypassExclusionsForExplicitIncludes = source.ForceBypassExclusionsForExplicitIncludes,
++                IgnoreProviderRoutingOverrides = source.IgnoreProviderRoutingOverrides,
+                 RunProvidersInParallelOverride = source.RunProvidersInParallelOverride
+             }.Clone();
+         }
+@@ -136,6 +150,7 @@ public CustomRefreshOptions ToCustomOptions()
+                 IncludeUnplayedOverride = IncludeUnplayedOverride,
+                 RespectUserExclusions = RespectUserExclusions,
+                 ForceBypassExclusionsForExplicitIncludes = ForceBypassExclusionsForExplicitIncludes,
++                IgnoreProviderRoutingOverrides = IgnoreProviderRoutingOverrides,
+                 RunProvidersInParallelOverride = RunProvidersInParallelOverride
+             }.Clone();
+         }
+@@ -355,6 +370,7 @@ public sealed class CustomRefreshOptions
+         public bool? IncludeUnplayedOverride { get; set; }
+         public bool RespectUserExclusions { get; set; } = true;
+         public bool ForceBypassExclusionsForExplicitIncludes { get; set; } = true;
++        public bool IgnoreProviderRoutingOverrides { get; set; }
+         public bool? RunProvidersInParallelOverride { get; set; }
+ 
+         public CustomRefreshOptions Clone()
+@@ -379,6 +395,7 @@ public CustomRefreshOptions Clone()
+                 IncludeUnplayedOverride = IncludeUnplayedOverride,
+                 RespectUserExclusions = RespectUserExclusions,
+                 ForceBypassExclusionsForExplicitIncludes = ForceBypassExclusionsForExplicitIncludes,
++                IgnoreProviderRoutingOverrides = IgnoreProviderRoutingOverrides,
+                 RunProvidersInParallelOverride = RunProvidersInParallelOverride
+             };
+         }
 diff --git a/source/Models/PluginSettings.cs b/source/Models/PluginSettings.cs
 index 88e4c8f7aaa0a78cdac3c532b58511ea6bcfc0e4..33e8d16430157ad656ac07f7f01a9001badbfbf0 100644
 --- a/source/Models/PluginSettings.cs
@@ -13372,6 +13424,23 @@ index 78081aea47e3cdbd6eec78a818747cf2947d9a60..29622918db3a35d27d21a60973f8643e
                  if (!string.IsNullOrWhiteSpace(stderrTail))
                  {
                      message = $"{message}\n{stderrTail.Trim()}";
+diff --git a/source/Services/Refresh/RefreshRequestPlanner.cs b/source/Services/Refresh/RefreshRequestPlanner.cs
+index fa3dc5883d6e5ae9cf287fc633fe7b604f9c1a98..ad02164de7b15cd57d70b29138351d866bb04356 100644
+--- a/source/Services/Refresh/RefreshRequestPlanner.cs
++++ b/source/Services/Refresh/RefreshRequestPlanner.cs
+@@ -429,7 +429,11 @@ private CurrentOptionResult ResolveCurrentOptions(
+                     continue;
+                 }
+ 
+-                if (_targetSelectionResolver.ResolveProviderForGame(game, providers, targetSelectionCache) != null)
++                if (_targetSelectionResolver.ResolveProviderForGame(
++                    game,
++                    providers,
++                    targetSelectionCache,
++                    options.IgnoreProviderRoutingOverrides) != null)
+                 {
+                     targetGameIds.Add(game.Id);
+                 }
 diff --git a/source/Services/Refresh/RefreshRuntime.cs b/source/Services/Refresh/RefreshRuntime.cs
 index 9dc98130aec10c473820339fa82a6559aeb42319..b282a11696a8438a097e96a05a1a4b6f75c4478d 100644
 --- a/source/Services/Refresh/RefreshRuntime.cs
@@ -13511,7 +13580,7 @@ index 9dc98130aec10c473820339fa82a6559aeb42319..b282a11696a8438a097e96a05a1a4b6f
          }
  
 diff --git a/source/Services/Refresh/TargetSelectionResolver.cs b/source/Services/Refresh/TargetSelectionResolver.cs
-index b8a4effc88869cdb4d13d67bcc34ca92b5b387a7..c1b94754fab9ce678974d219e0a33ef732b93a77 100644
+index b8a4effc88869cdb4d13d67bcc34ca92b5b387a7..e5007a7d6ef173fab5938889dbf10ef1e6a07320 100644
 --- a/source/Services/Refresh/TargetSelectionResolver.cs
 +++ b/source/Services/Refresh/TargetSelectionResolver.cs
 @@ -3,6 +3,7 @@
@@ -13522,12 +13591,35 @@ index b8a4effc88869cdb4d13d67bcc34ca92b5b387a7..c1b94754fab9ce678974d219e0a33ef7
  using Playnite.SDK;
  using Playnite.SDK.Models;
  using System;
-@@ -93,6 +94,12 @@ public IDataProvider ResolveProviderForGame(
+@@ -80,19 +81,32 @@ public TargetSelectionResolver(
+         public IDataProvider ResolveProviderForGame(
+             Game game,
+             IReadOnlyList<IDataProvider> providers,
+-            TargetSelectionCache targetSelectionCache = null)
++            TargetSelectionCache targetSelectionCache = null,
++            bool ignoreProviderRoutingOverrides = false)
+         {
+             if (game == null || providers == null || providers.Count == 0)
+             {
+                 return null;
+             }
+ 
+-            var forcedProvider = ResolveForcedProviderForGame(game, providers);
+-            if (forcedProvider != null || HasForcedProviderOverride(game.Id))
++            var forcedProvider = ignoreProviderRoutingOverrides
++                ? null
++                : ResolveForcedProviderForGame(game, providers);
++            if (!ignoreProviderRoutingOverrides &&
++                (forcedProvider != null || HasForcedProviderOverride(game.Id)))
+             {
                  return forcedProvider;
              }
  
-+            var preferredProvider = ResolvePreferredProviderForGame(game, providers);
-+            if (preferredProvider != null || HasPreferredProviderOverride(game.Id))
++            var preferredProvider = ignoreProviderRoutingOverrides
++                ? null
++                : ResolvePreferredProviderForGame(game, providers);
++            if (!ignoreProviderRoutingOverrides &&
++                (preferredProvider != null || HasPreferredProviderOverride(game.Id)))
 +            {
 +                return preferredProvider;
 +            }
@@ -13535,7 +13627,7 @@ index b8a4effc88869cdb4d13d67bcc34ca92b5b387a7..c1b94754fab9ce678974d219e0a33ef7
              foreach (var provider in OrderProvidersForRefresh(providers))
              {
                  try
-@@ -113,6 +120,45 @@ public IDataProvider ResolveProviderForGame(
+@@ -113,6 +127,45 @@ public IDataProvider ResolveProviderForGame(
              return null;
          }
  
@@ -13581,7 +13673,7 @@ index b8a4effc88869cdb4d13d67bcc34ca92b5b387a7..c1b94754fab9ce678974d219e0a33ef7
          private bool IsProviderCapable(
              Game game,
              IDataProvider provider,
-@@ -202,6 +248,21 @@ public IReadOnlyList<IDataProvider> GetProvidersWithCapableGames(
+@@ -202,6 +255,21 @@ public IReadOnlyList<IDataProvider> GetProvidersWithCapableGames(
                      continue;
                  }
  
@@ -13603,7 +13695,7 @@ index b8a4effc88869cdb4d13d67bcc34ca92b5b387a7..c1b94754fab9ce678974d219e0a33ef7
                  foreach (var provider in candidates)
                  {
                      if (markedKeys.Contains(provider.ProviderKey))
-@@ -343,8 +404,11 @@ public List<ResolvedRefreshTarget> GetRefreshTargets(
+@@ -343,8 +411,11 @@ public List<ResolvedRefreshTarget> GetRefreshTargets(
              }
  
              timer.Stop();
@@ -15513,6 +15605,18 @@ index 3583c313f0a5d98fbb0bbe78d49cfe40698b8dc9..64730354a77998d71c6a8af322b98fc8
          private string BuildDefaultPortableFileBaseName()
          {
              var preferredName = SanitizePortableFileNamePart(
+diff --git a/source/ViewModels/ManualAchievementsViewModel.cs b/source/ViewModels/ManualAchievementsViewModel.cs
+index e0c9bc1e0057558d589636376a7618f9ab3220a0..e64a7c389fa983dee854c613883203a61e888fcc 100644
+--- a/source/ViewModels/ManualAchievementsViewModel.cs
++++ b/source/ViewModels/ManualAchievementsViewModel.cs
+@@ -767,6 +767,7 @@ private RefreshRequest BuildManualProviderRefreshRequest()
+                     IncludeUnplayedOverride = true,
+                     RespectUserExclusions = false,
+                     ForceBypassExclusionsForExplicitIncludes = true,
++                    IgnoreProviderRoutingOverrides = true,
+                     RunProvidersInParallelOverride = false
+                 })
+             };
 diff --git a/source/ViewModels/OverviewViewModel.cs b/source/ViewModels/OverviewViewModel.cs
 index 41e7709bdba3c13083ba85929b20dfbb23e6fe46..3dc80c2ecee5ffd89b07b041f498cca387aec1ed 100644
 --- a/source/ViewModels/OverviewViewModel.cs
@@ -20344,13 +20448,66 @@ index 59ec7539ad97384b54ca53c7b7b256617a5f9d8e..fa90c215a4c88a035a97d1db3456be80
              AssertLegacyProviderFieldsCleared(normalized);
          }
 diff --git a/tests/PlayniteAchievements.Tests/Services/TargetSelectionResolverTests.cs b/tests/PlayniteAchievements.Tests/Services/TargetSelectionResolverTests.cs
-index 60160aef932e3b17f6cbab12c9f857b7c173c166..2dd8de9ce3e4f4b2b85b7f0e9c2bc2d45b915166 100644
+index 60160aef932e3b17f6cbab12c9f857b7c173c166..12fc646f5fc6a6c80633b35099a37bff93b88043 100644
 --- a/tests/PlayniteAchievements.Tests/Services/TargetSelectionResolverTests.cs
 +++ b/tests/PlayniteAchievements.Tests/Services/TargetSelectionResolverTests.cs
-@@ -580,6 +580,88 @@ public void ResolveProviderForGame_NoOverride_RespectsProviderOrder()
+@@ -580,6 +580,141 @@ public void ResolveProviderForGame_NoOverride_RespectsProviderOrder()
              }
          }
  
++        [TestMethod]
++        public void ResolveProviderForGame_IgnoreRoutingOverrides_UsesRequestedCapableProvider()
++        {
++            var tempDir = CreateTempDirectory();
++            var gameId = Guid.NewGuid();
++            var previousPlugin = PlayniteAchievementsPlugin.Instance;
++
++            try
++            {
++                var store = new GameCustomDataStore(tempDir);
++                store.Save(gameId, new GameCustomDataFile
++                {
++                    PlayniteGameId = gameId,
++                    ProviderOverride = new ProviderOverrideData
++                    {
++                        ProviderKey = "Exophase"
++                    }
++                });
++
++                PlayniteAchievementsPlugin.Instance = new PlayniteAchievementsPlugin
++                {
++                    GameCustomDataStore = store
++                };
++
++                var resolver = new TargetSelectionResolver(
++                    new FakePlayniteApi(),
++                    new PlayniteAchievementsSettings(),
++                    new FakeCacheManager(),
++                    logger: null,
++                    refreshOrder: new[] { "Manual" });
++
++                var game = new Game { Id = gameId, Name = "Test Game" };
++                var providers = new List<IDataProvider>
++                {
++                    new FakeProvider("Manual", _ => true)
++                };
++
++                var resolved = resolver.ResolveProviderForGame(
++                    game,
++                    providers,
++                    targetSelectionCache: null,
++                    ignoreProviderRoutingOverrides: true);
++
++                Assert.IsNotNull(resolved);
++                Assert.AreEqual("Manual", resolved.ProviderKey);
++            }
++            finally
++            {
++                PlayniteAchievementsPlugin.Instance = previousPlugin;
++                DeleteDirectory(tempDir);
++            }
++        }
++
 +        [TestMethod]
 +        public void ResolveProviderForGame_PreferredSteamOverridesEarlierCapableLocalProvider()
 +        {

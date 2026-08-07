@@ -56,6 +56,11 @@ namespace PlayniteAchievements.Models
         public bool ForceIconRefresh { get; set; }
         public bool ForceDefinitionRefresh { get; set; }
 
+        // Programmatic workflows that explicitly name both the game and provider can opt out of
+        // the game's normal forced/preferred routing. Manual linking uses this while its transient
+        // link is being refreshed, before Manual becomes the game's durable provider.
+        public bool IgnoreProviderRoutingOverrides { get; set; }
+
         // Reuse cached Ok schemas even for scopes that normally force a definition re-fetch
         // (SelectedGame/Full). Set by latency-sensitive programmatic callers such as the
         // in-game poller; user-initiated refreshes leave this false.
@@ -90,6 +95,7 @@ namespace PlayniteAchievements.Models
                 ForceBypassExclusionsForExplicitIncludes = ForceBypassExclusionsForExplicitIncludes,
                 ForceIconRefresh = ForceIconRefresh,
                 ForceDefinitionRefresh = ForceDefinitionRefresh,
+                IgnoreProviderRoutingOverrides = IgnoreProviderRoutingOverrides,
                 PreferCachedDefinitions = PreferCachedDefinitions,
                 RunProvidersInParallelOverride = RunProvidersInParallelOverride
             };
@@ -109,6 +115,7 @@ namespace PlayniteAchievements.Models
                 IncludeUnplayedOverride = source.IncludeUnplayedOverride,
                 RespectUserExclusions = source.RespectUserExclusions,
                 ForceBypassExclusionsForExplicitIncludes = source.ForceBypassExclusionsForExplicitIncludes,
+                IgnoreProviderRoutingOverrides = source.IgnoreProviderRoutingOverrides,
                 RunProvidersInParallelOverride = source.RunProvidersInParallelOverride
             }.Clone();
         }
@@ -143,6 +150,7 @@ namespace PlayniteAchievements.Models
                 IncludeUnplayedOverride = IncludeUnplayedOverride,
                 RespectUserExclusions = RespectUserExclusions,
                 ForceBypassExclusionsForExplicitIncludes = ForceBypassExclusionsForExplicitIncludes,
+                IgnoreProviderRoutingOverrides = IgnoreProviderRoutingOverrides,
                 RunProvidersInParallelOverride = RunProvidersInParallelOverride
             }.Clone();
         }
@@ -362,6 +370,7 @@ namespace PlayniteAchievements.Models
         public bool? IncludeUnplayedOverride { get; set; }
         public bool RespectUserExclusions { get; set; } = true;
         public bool ForceBypassExclusionsForExplicitIncludes { get; set; } = true;
+        public bool IgnoreProviderRoutingOverrides { get; set; }
         public bool? RunProvidersInParallelOverride { get; set; }
 
         public CustomRefreshOptions Clone()
@@ -386,6 +395,7 @@ namespace PlayniteAchievements.Models
                 IncludeUnplayedOverride = IncludeUnplayedOverride,
                 RespectUserExclusions = RespectUserExclusions,
                 ForceBypassExclusionsForExplicitIncludes = ForceBypassExclusionsForExplicitIncludes,
+                IgnoreProviderRoutingOverrides = IgnoreProviderRoutingOverrides,
                 RunProvidersInParallelOverride = RunProvidersInParallelOverride
             };
         }

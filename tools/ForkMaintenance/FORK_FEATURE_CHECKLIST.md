@@ -69,6 +69,12 @@ Primary fork areas:
 - Custom schema loading, editing, creation, and per-game enable/disable work.
 - Manage Achievements contains Overrides → Main/Local and Local →
   Local Saves & Schema/Steam/LumaPlay.
+- In Manage Achievements, selecting Automatic or Clear under Change Provider
+  removes both the preferred-provider selection and any higher-priority forced
+  provider override.
+- Manual tracking can fetch a selected Exophase achievement set even when the
+  game previously had a forced or preferred provider route; the wizard proceeds
+  to editing instead of returning to the Exophase search results.
 - Local right-click commands and Manage Achievements shortcuts are present.
 - View Achievements shows `Edit Local Achievements` only when the game resolves
   through the Local provider and has a writable `achievements.json` or

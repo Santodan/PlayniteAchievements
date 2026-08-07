@@ -767,6 +767,7 @@ namespace PlayniteAchievements.ViewModels
                     IncludeUnplayedOverride = true,
                     RespectUserExclusions = false,
                     ForceBypassExclusionsForExplicitIncludes = true,
+                    IgnoreProviderRoutingOverrides = true,
                     RunProvidersInParallelOverride = false
                 })
             };

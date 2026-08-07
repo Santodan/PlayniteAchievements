@@ -1,6 +1,6 @@
 {
     "schemaVersion":  1,
-    "generatedUtc":  "2026-08-07T14:05:10.9788240Z",
+    "generatedUtc":  "2026-08-07T14:55:54.1432372Z",
     "baselineRef":  "upstream/main",
     "baselineCommit":  "f28ac5faae69739e2a7193a5c1af98ac55b9030f",
     "protectedPaths":  [
@@ -10,7 +10,7 @@
                        ],
     "patch":  {
                   "path":  "fork-changes.patch",
-                  "sha256":  "260CB679CC191C6229B7D107F030F63F76CBAFBE0A82ACA1693AC7C82F7CDEB2"
+                  "sha256":  "ED1B94EF72182503FB1A0261988F67D058742B4F08BF064A9A3499395A967213"
               },
     "localizationRecipes":  {
                                 "path":  "localization-recipes.json",
@@ -297,7 +297,7 @@
                          },
                          {
                              "path":  "source/ViewModels/ManageAchievementsViewModel.ForkOverrides.cs",
-                             "sha256":  "C74ACE6AA443DED67E1385B8693267B012008BB51F407EDB8E21ACFD612F55DE"
+                             "sha256":  "E0D1E5BE989A34879A8F6A265DC1AF9CBE98747C4CF11652EAD789288F827292"
                          },
                          {
                              "path":  "source/Views/GameOptionsLocalOverridesSection.xaml",

@@ -429,7 +429,11 @@ namespace PlayniteAchievements.Services.Refresh
                     continue;
                 }
 
-                if (_targetSelectionResolver.ResolveProviderForGame(game, providers, targetSelectionCache) != null)
+                if (_targetSelectionResolver.ResolveProviderForGame(
+                    game,
+                    providers,
+                    targetSelectionCache,
+                    options.IgnoreProviderRoutingOverrides) != null)
                 {
                     targetGameIds.Add(game.Id);
                 }

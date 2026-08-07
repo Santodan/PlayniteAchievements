@@ -81,21 +81,28 @@ namespace PlayniteAchievements.Services.Refresh
         public IDataProvider ResolveProviderForGame(
             Game game,
             IReadOnlyList<IDataProvider> providers,
-            TargetSelectionCache targetSelectionCache = null)
+            TargetSelectionCache targetSelectionCache = null,
+            bool ignoreProviderRoutingOverrides = false)
         {
             if (game == null || providers == null || providers.Count == 0)
             {
                 return null;
             }
 
-            var forcedProvider = ResolveForcedProviderForGame(game, providers);
-            if (forcedProvider != null || HasForcedProviderOverride(game.Id))
+            var forcedProvider = ignoreProviderRoutingOverrides
+                ? null
+                : ResolveForcedProviderForGame(game, providers);
+            if (!ignoreProviderRoutingOverrides &&
+                (forcedProvider != null || HasForcedProviderOverride(game.Id)))
             {
                 return forcedProvider;
             }
 
-            var preferredProvider = ResolvePreferredProviderForGame(game, providers);
-            if (preferredProvider != null || HasPreferredProviderOverride(game.Id))
+            var preferredProvider = ignoreProviderRoutingOverrides
+                ? null
+                : ResolvePreferredProviderForGame(game, providers);
+            if (!ignoreProviderRoutingOverrides &&
+                (preferredProvider != null || HasPreferredProviderOverride(game.Id)))
             {
                 return preferredProvider;
             }

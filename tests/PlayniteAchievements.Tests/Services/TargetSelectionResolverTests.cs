@@ -581,6 +581,59 @@ namespace PlayniteAchievements.Services.Tests
         }
 
         [TestMethod]
+        public void ResolveProviderForGame_IgnoreRoutingOverrides_UsesRequestedCapableProvider()
+        {
+            var tempDir = CreateTempDirectory();
+            var gameId = Guid.NewGuid();
+            var previousPlugin = PlayniteAchievementsPlugin.Instance;
+
+            try
+            {
+                var store = new GameCustomDataStore(tempDir);
+                store.Save(gameId, new GameCustomDataFile
+                {
+                    PlayniteGameId = gameId,
+                    ProviderOverride = new ProviderOverrideData
+                    {
+                        ProviderKey = "Exophase"
+                    }
+                });
+
+                PlayniteAchievementsPlugin.Instance = new PlayniteAchievementsPlugin
+                {
+                    GameCustomDataStore = store
+                };
+
+                var resolver = new TargetSelectionResolver(
+                    new FakePlayniteApi(),
+                    new PlayniteAchievementsSettings(),
+                    new FakeCacheManager(),
+                    logger: null,
+                    refreshOrder: new[] { "Manual" });
+
+                var game = new Game { Id = gameId, Name = "Test Game" };
+                var providers = new List<IDataProvider>
+                {
+                    new FakeProvider("Manual", _ => true)
+                };
+
+                var resolved = resolver.ResolveProviderForGame(
+                    game,
+                    providers,
+                    targetSelectionCache: null,
+                    ignoreProviderRoutingOverrides: true);
+
+                Assert.IsNotNull(resolved);
+                Assert.AreEqual("Manual", resolved.ProviderKey);
+            }
+            finally
+            {
+                PlayniteAchievementsPlugin.Instance = previousPlugin;
+                DeleteDirectory(tempDir);
+            }
+        }
+
+        [TestMethod]
         public void ResolveProviderForGame_PreferredSteamOverridesEarlierCapableLocalProvider()
         {
             var tempDir = CreateTempDirectory();
