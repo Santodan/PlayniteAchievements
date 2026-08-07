@@ -484,6 +484,25 @@ namespace PlayniteAchievements.Services
             var safeAchievement = string.IsNullOrWhiteSpace(achievementName) ? "Achievement unlocked" : achievementName.Trim();
             var overlayScale = GetOverlayScale(localSettings, style);
 
+            if (string.Equals(style, NotificationStyleCustom, StringComparison.OrdinalIgnoreCase))
+            {
+                var sanPreview = CreateSanWebViewPreviewContent(
+                    safeGameName,
+                    safeAchievement,
+                    achievementIconPath,
+                    providerKey,
+                    localSettings,
+                    game,
+                    achievementDescription,
+                    achievementPoints,
+                    achievementRarity,
+                    achievementTrophy);
+                if (sanPreview != null)
+                {
+                    return sanPreview;
+                }
+            }
+
             var content = BuildOverlayContent(title, safeGameName, safeAchievement, achievementIconPath, style, providerKey, localSettings, overlayScale, game, achievementDescription, achievementPoints, achievementRarity, achievementTrophy);
             if (!string.Equals(style, NotificationStyleCustom, StringComparison.OrdinalIgnoreCase))
             {
@@ -509,6 +528,175 @@ namespace PlayniteAchievements.Services
 
             frame.Children.Add(content);
             return frame;
+        }
+
+        private FrameworkElement CreateSanWebViewPreviewContent(
+            string gameName,
+            string achievementName,
+            string achievementIconPath,
+            string providerKey,
+            LocalSettings settings,
+            Game game,
+            string achievementDescription,
+            int? achievementPoints,
+            string achievementRarity,
+            string achievementTrophy)
+        {
+            var hasSanSelection = settings != null &&
+                (IsSanTransitionStyle(settings.UnlockOverlayTransitionStyle) ||
+                 !string.IsNullOrWhiteSpace(settings.OverlayCustomSanElementPresetId));
+            if (!hasSanSelection)
+            {
+                return null;
+            }
+
+            var width = Math.Max(280, settings.OverlayCustomWidth);
+            var height = Math.Max(LocalSettings.MinCustomOverlayHeight, settings.OverlayCustomHeight);
+            var durationMs = Math.Max(1200, settings.UnlockOverlayDurationMilliseconds);
+            var autoResizeToContent = settings.OverlayCustomAutoResizeToContent;
+            var host = new Grid
+            {
+                Width = width,
+                Height = height,
+                ClipToBounds = true,
+                Background = Brushes.Transparent
+            };
+
+            WebView2 activeWebView = null;
+            string activeHtmlPath = null;
+            var loadGeneration = 0;
+
+            void DisposeActivePreview()
+            {
+                loadGeneration++;
+                if (activeWebView != null)
+                {
+                    try
+                    {
+                        activeWebView.Dispose();
+                    }
+                    catch
+                    {
+                    }
+
+                    activeWebView = null;
+                }
+
+                if (!string.IsNullOrWhiteSpace(activeHtmlPath))
+                {
+                    TryDeleteSanWebViewDocument(activeHtmlPath);
+                    activeHtmlPath = null;
+                }
+
+                host.Children.Clear();
+            }
+
+            host.Loaded += async (_, __) =>
+            {
+                DisposeActivePreview();
+                var generation = loadGeneration;
+                var webView = new WebView2
+                {
+                    Width = width,
+                    Height = host.Height,
+                    HorizontalAlignment = HorizontalAlignment.Left,
+                    VerticalAlignment = VerticalAlignment.Top,
+                    IsHitTestVisible = false,
+                    Focusable = false,
+                    DefaultBackgroundColor = System.Drawing.Color.Transparent
+                };
+                activeWebView = webView;
+                host.Children.Add(webView);
+
+                try
+                {
+                    var html = BuildSanWebViewDocument(
+                        gameName,
+                        achievementName,
+                        achievementIconPath,
+                        providerKey,
+                        settings,
+                        game,
+                        achievementDescription,
+                        achievementPoints,
+                        achievementRarity,
+                        achievementTrophy,
+                        durationMs,
+                        width,
+                        height,
+                        isInlinePreview: true);
+                    var htmlPath = WriteSanWebViewDocumentToTempFile(html);
+                    if (generation != loadGeneration || !host.IsLoaded)
+                    {
+                        TryDeleteSanWebViewDocument(htmlPath);
+                        return;
+                    }
+
+                    activeHtmlPath = htmlPath;
+                    var environment = await GetSanWebView2EnvironmentAsync();
+                    if (generation != loadGeneration || !host.IsLoaded)
+                    {
+                        return;
+                    }
+
+                    await webView.EnsureCoreWebView2Async(environment);
+                    if (generation != loadGeneration || !host.IsLoaded)
+                    {
+                        return;
+                    }
+
+                    webView.CoreWebView2.Settings.AreDefaultContextMenusEnabled = false;
+                    webView.CoreWebView2.Settings.AreDevToolsEnabled = false;
+                    webView.CoreWebView2.Settings.IsZoomControlEnabled = false;
+                    if (autoResizeToContent)
+                    {
+                        webView.CoreWebView2.WebMessageReceived += (_, messageArgs) =>
+                        {
+                            const string prefix = "san-height:";
+                            var message = messageArgs.TryGetWebMessageAsString();
+                            if (generation != loadGeneration ||
+                                string.IsNullOrWhiteSpace(message) ||
+                                !message.StartsWith(prefix, StringComparison.Ordinal) ||
+                                !double.TryParse(message.Substring(prefix.Length), NumberStyles.Float, CultureInfo.InvariantCulture, out var measuredHeight))
+                            {
+                                return;
+                            }
+
+                            var resizedHeight = Math.Max(height, Math.Min(2000, Math.Ceiling(measuredHeight)));
+                            host.Height = resizedHeight;
+                            webView.Height = resizedHeight;
+                        };
+                    }
+
+                    webView.CoreWebView2.Navigate(new Uri(htmlPath).AbsoluteUri);
+                }
+                catch (Exception ex)
+                {
+                    if (generation == loadGeneration && host.IsLoaded)
+                    {
+                        _logger?.Warn(ex, "[LocalOverlay] Failed to initialize the inline SAN WebView2 preview; falling back to WPF.");
+                        AchievementNotificationDebugLog.Error(ex, "The inline SAN WebView2 preview failed to initialize; falling back to WPF.");
+                        DisposeActivePreview();
+                        host.Children.Add(BuildOverlayContent(
+                            ResolveOverlayTitle(NotificationStyleCustom),
+                            gameName,
+                            achievementName,
+                            achievementIconPath,
+                            NotificationStyleCustom,
+                            providerKey,
+                            settings,
+                            GetOverlayScale(settings, NotificationStyleCustom),
+                            game,
+                            achievementDescription,
+                            achievementPoints,
+                            achievementRarity,
+                            achievementTrophy));
+                    }
+                }
+            };
+
+            host.Unloaded += (_, __) => DisposeActivePreview();
+            return host;
         }
 
         public static void ClosePersistentSettingsPreview()
@@ -2220,7 +2408,8 @@ steamImage +
             string achievementTrophy,
             int durationMs,
             double width,
-            double height)
+            double height,
+            bool isInlinePreview = false)
         {
             var assetRoot = settings.OverlayCustomSanAssetRootPath;
             if (string.IsNullOrWhiteSpace(assetRoot))
@@ -2488,6 +2677,12 @@ steamImage +
             variables.AppendLine("}");
             variables.AppendLine("html, body { overflow: hidden; background: transparent !important; }");
             variables.AppendLine("body { opacity: 1 !important; }");
+            if (isInlinePreview)
+            {
+                // SAN hides the cursor when its display timeline finishes. A live notification
+                // closes at that point, but the embedded settings preview remains present.
+                variables.AppendLine("html, body, body * { cursor: default !important; pointer-events: none !important; }");
+            }
             variables.AppendLine(".san-inline-token-icon { display: inline-block; width: 1.2em; height: 1.2em; margin: 0 0.12em -0.18em; background: center / contain no-repeat; }");
             variables.AppendLine(".wrapper#achcontent > #unlockmsg, .wrapper#achcontent > #title, .wrapper#achcontent > #desc { display: none !important; }");
             variables.AppendLine(".wrapper#achcontent > .san-line-stack { grid-column: 1 / -1; grid-row: 1 / -1; }");
