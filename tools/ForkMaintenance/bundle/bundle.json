@@ -1,8 +1,8 @@
 {
     "schemaVersion":  1,
-    "generatedUtc":  "2026-08-06T13:28:34.2471940Z",
+    "generatedUtc":  "2026-08-07T12:29:47.4755634Z",
     "baselineRef":  "upstream/main",
-    "baselineCommit":  "8fb84ef5f965919c95fd8a6f1492ccb832bb7c0b",
+    "baselineCommit":  "f28ac5faae69739e2a7193a5c1af98ac55b9030f",
     "protectedPaths":  [
                            "README.md",
                            "source/extension.yaml",
@@ -10,7 +10,7 @@
                        ],
     "patch":  {
                   "path":  "fork-changes.patch",
-                  "sha256":  "3D43D93825771818276EA9149C7EC26B306446A86CCB2AA7FB8B59236750FF42"
+                  "sha256":  "9A25DD21111FE498FBFC87BCEF65F64914FA6E8A2936625073D44D6A5611594C"
               },
     "localizationRecipes":  {
                                 "path":  "localization-recipes.json",
@@ -330,10 +330,6 @@
                          {
                              "path":  "tests/PlayniteAchievements.Tests/TestSupport/LocalSavesProviderStub.cs",
                              "sha256":  "89155B28C860334C0D342A72ADBD9CFBCEA7082F1C034A78FD380C4500C6CB6D"
-                         },
-                         {
-                             "path":  "tests/PlayniteAchievements.Tests/TestSupport/WgcWindowCaptureStub.cs",
-                             "sha256":  "D35A5A572CB16325DA592AC7688836F4429273C7B6B1A099004C67B3716F0DFF"
                          },
                          {
                              "path":  "tools/notification-template-builder.html",

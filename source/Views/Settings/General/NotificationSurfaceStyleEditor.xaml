@@ -450,6 +450,7 @@
                                Style="{StaticResource EditorRowLabelStyle}"/>
                     <ComboBox ItemsSource="{Binding FontFamilyOptions}"
                               SelectedItem="{Binding SelectedFontFamilyOption, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                              helpers:FontPickerBehavior.EnableSearch="True"
                               MinWidth="260"
                               MaxDropDownHeight="360"
                               VirtualizingPanel.IsVirtualizing="True">
@@ -537,8 +538,9 @@
                             <DataGridTemplateColumn Width="150" MinWidth="150" MaxWidth="150" CanUserResize="False" IsReadOnly="True">
                                 <DataGridTemplateColumn.CellTemplate>
                                     <DataTemplate>
-                                        <ComboBox ItemsSource="{Binding DataContext.LineFontFamilyOptions, RelativeSource={RelativeSource AncestorType=DataGrid}}"
+                                        <ComboBox ItemsSource="{Binding FontFamilyOptions}"
                                                   SelectedItem="{Binding SelectedFontFamilyOption, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                                  helpers:FontPickerBehavior.EnableSearch="True"
                                                   MaxDropDownHeight="360"
                                                   VerticalAlignment="Center"
                                                   Margin="4,2"

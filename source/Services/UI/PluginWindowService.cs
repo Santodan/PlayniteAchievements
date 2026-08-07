@@ -270,7 +270,7 @@ namespace PlayniteAchievements.Services.UI
 
             configureWindow?.Invoke(window);
             AttachWindowPlacement(window, placementKey, isFullscreen);
-            EnsureOwner(window);
+            ApplyPopoutDpiAwareness(window, EnsureOwner(window), isFullscreen);
 
             if (closed != null)
             {
@@ -298,6 +298,65 @@ namespace PlayniteAchievements.Services.UI
             }
 
             return window;
+        }
+
+        // Matches ToastNotificationService.DpiSettleTolerance: below this the two scales are the
+        // same scale read through two different APIs, not a real mismatch.
+        private const double PopoutDpiTolerance = 0.01;
+
+        /// <summary>
+        /// Realizes a popout's HWND under Per-Monitor-V2 when its monitor's true scale differs from
+        /// the scale WPF renders at, so Windows presents it natively instead of bitmap-stretching
+        /// (and thereby blurring) it. A window's DPI awareness is fixed at HWND creation, so this has
+        /// to happen before the window is shown.
+        ///
+        /// The mismatch guard is deliberate and mirrors ToastNotificationService: when the scales
+        /// already agree Windows never virtualizes the window, and forcing a per-monitor HWND anyway
+        /// routes WM_DPICHANGED through WPF's shared DPI state in this system-aware host process,
+        /// which has been observed to rescale sibling windows and hard-crash the process on
+        /// single-monitor high-DPI setups.
+        ///
+        /// The monitor is probed from the owner rather than the popout, which has no HWND yet. That
+        /// is exact for the CenterOwner default and an approximation when a persisted placement puts
+        /// the popout on another monitor; in the case this targets — a process whose latched system
+        /// DPI is stale, so every monitor mismatches it — the probe agrees either way.
+        /// </summary>
+        private void ApplyPopoutDpiAwareness(Window window, Window owner, bool isFullscreen)
+        {
+            if (window == null || isFullscreen)
+            {
+                return;
+            }
+
+            try
+            {
+                var ownerHandle = owner != null ? new WindowInteropHelper(owner).Handle : IntPtr.Zero;
+                var monitorScale = ToastWindowPlacer.ResolveMonitorScale(ownerHandle);
+                var systemScale = ToastWindowPlacer.SystemScale();
+                var needsPerMonitorWindow = systemScale > 0 &&
+                    Math.Abs(monitorScale - systemScale) >= PopoutDpiTolerance;
+
+                // Logged unconditionally, once per window open: the no-mismatch case is what
+                // distinguishes a DPI-virtualization report from an image-resampling one.
+                _logger?.Info(
+                    $"[Dpi] Popout '{window.Title}': monitorScale={monitorScale:0.###}, " +
+                    $"systemScale={systemScale:0.###}, perMonitorWindow={needsPerMonitorWindow}, " +
+                    $"threadContext={DpiAwarenessScope.DescribeThreadContext()}");
+
+                if (!needsPerMonitorWindow)
+                {
+                    return;
+                }
+
+                using (DpiAwarenessScope.PerMonitorV2())
+                {
+                    new WindowInteropHelper(window).EnsureHandle();
+                }
+            }
+            catch (Exception ex)
+            {
+                _logger?.Debug(ex, "Failed to apply per-monitor DPI awareness to a plugin popout window.");
+            }
         }
 
         private Window EnsureOwner(Window window)

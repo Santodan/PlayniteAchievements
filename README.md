@@ -99,6 +99,8 @@ The entries below are fork-side changes, grouped by date. When a date includes a
 
 ## Next release - TBD
 
+- v3.1.1 merge
+
 ## 2026-08-06 - v3.1.0.1
 
 - v3.1.0 merge
@@ -424,4 +426,3 @@ The entries below are fork-side changes, grouped by date. When a date includes a
 - Upstream documentation: https://github.com/justin-delano/PlayniteAchievements/wiki
 - Upstream releases: https://github.com/justin-delano/PlayniteAchievements/releases
 - Santodan fork: https://github.com/Santodan/PlayniteAchievements
-

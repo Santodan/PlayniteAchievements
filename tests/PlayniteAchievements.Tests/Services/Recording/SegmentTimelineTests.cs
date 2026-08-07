@@ -19,7 +19,7 @@ namespace PlayniteAchievements.Services.Tests.Recording
         {
             return new SegmentTimeline.SegmentInfo
             {
-                Path = $@"C:\buf\seg_{startUtc:yyyyMMdd-HHmmss}.ts",
+                Path = $@"C:\buf\seg_{startUtc:yyyyMMdd-HHmmss}.mp4",
                 StartUtc = startUtc,
                 SizeBytes = size
             };

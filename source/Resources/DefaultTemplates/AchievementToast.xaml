@@ -96,8 +96,8 @@
                     ClipToBounds="True">
                 <Grid>
                     <!-- Crisp user background image (what is actually seen), full-bleed behind the
-                         content and matching the blurred shadow-caster copy above. Animated GIF
-                         backgrounds play (GifAnimationHelper animates ImageBrush.ImageSource). -->
+                         content and matching the blurred shadow-caster copy above. Animated
+                         backgrounds play (AnimatedImageHelper animates ImageBrush.ImageSource). -->
                     <Border CornerRadius="8"
                             Visibility="{Binding HasToastBackground, Converter={StaticResource BooleanToVisibilityConverter}}">
                         <Border.Background>

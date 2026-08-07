@@ -64,7 +64,7 @@ namespace PlayniteAchievements.Views.ManageAchievements
 
             var dialog = new OpenFileDialog
             {
-                Filter = "Image Files (*.png;*.jpg;*.jpeg;*.bmp;*.gif;*.tif;*.tiff)|*.png;*.jpg;*.jpeg;*.bmp;*.gif;*.tif;*.tiff|All Files (*.*)|*.*",
+                Filter = ImageFormats.BuildOpenFileDialogFilter(includeAllFiles: true),
                 CheckFileExists = true,
                 Multiselect = false
             };

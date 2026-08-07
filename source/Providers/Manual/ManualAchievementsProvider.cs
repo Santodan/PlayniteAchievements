@@ -148,8 +148,9 @@ namespace PlayniteAchievements.Providers.Manual
 
             await EnsureManualSourceAuthenticatedAsync(source, link, cancel).ConfigureAwait(false);
 
-            // Null when the source cannot resolve a platform; the game then displays as Manual.
-            var providerPlatformKey = source.ResolveProviderPlatformKey(link.SourceGameId);
+            // Prefers the user's display platform override, else derives it from the source game id.
+            // Null when neither resolves a platform; the game then displays as Manual.
+            var providerPlatformKey = ManualDisplayPlatformResolver.Resolve(source, link);
 
             // Fetch achievements directly as AchievementDetail list
             var achievements = await source.GetAchievementsAsync(link.SourceGameId, language, cancel);

@@ -150,6 +150,48 @@ namespace PlayniteAchievements.ViewModels.Settings
         public bool IsFontSize => Descriptor.ValueKind == ResourceOverrideValueKind.FontSize;
         public bool IsFontFamily => Descriptor.ValueKind == ResourceOverrideValueKind.FontFamily;
 
+        private static readonly IReadOnlyList<string> _fontSizeOptions = new[]
+        {
+            "10", "11", "12", "13", "14", "15", "16", "18", "20", "22", "24", "28", "32"
+        };
+
+        /// <summary>
+        /// Sizes offered by the font-size dropdown. The dropdown stays editable, so a size that is
+        /// not listed can still be typed. An instance property because WPF bindings do not resolve
+        /// static members by name.
+        /// </summary>
+        public IReadOnlyList<string> FontSizeOptions => _fontSizeOptions;
+
+        /// <summary>
+        /// This row's own copy of the font list, so type-to-filter here cannot disturb another
+        /// dropdown's selection (see <see cref="FontFamilyOption"/> use in the notification editor).
+        /// Only built for the font-family row; every other row leaves it null.
+        /// </summary>
+        public IReadOnlyList<FontFamilyOption> FontFamilyOptions =>
+            !IsFontFamily
+                ? null
+                : _fontFamilyOptions ?? (_fontFamilyOptions = BuildFontFamilyOptions());
+
+        private IReadOnlyList<FontFamilyOption> _fontFamilyOptions;
+
+        private IReadOnlyList<FontFamilyOption> BuildFontFamilyOptions()
+        {
+            var options = new List<FontFamilyOption>(SystemFontCatalog.Families);
+
+            // Keep whatever is stored selectable even when the catalog has no such font, because a
+            // Selector reports a value missing from its items back as null - which would overwrite
+            // the override with nothing.
+            var current = DisplayValueText;
+            if (!string.IsNullOrWhiteSpace(current)
+                && !options.Exists(option =>
+                    string.Equals(option.FamilyName, current, StringComparison.OrdinalIgnoreCase)))
+            {
+                options.Insert(0, SystemFontCatalog.CreateUnlistedOption(current));
+            }
+
+            return options;
+        }
+
         public ResourceOverrideMode Mode
         {
             get => _mode;
@@ -168,6 +210,11 @@ namespace PlayniteAchievements.ViewModels.Settings
                     OnPropertyChanged(nameof(IsTransparent));
                     OnPropertyChanged(nameof(DisplayValueText));
                     OnPropertyChanged(nameof(PreviewBrush));
+
+                    // The switch to Custom changes DisplayValueText, so the font list has to be
+                    // rebuilt in case the newly shown family is one the catalog does not list.
+                    _fontFamilyOptions = null;
+                    OnPropertyChanged(nameof(FontFamilyOptions));
                 }
             }
         }

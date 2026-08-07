@@ -1086,7 +1086,7 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
                 {
                     Mode = RefreshModeType.Single,
                     SingleGameId = _gameId,
-                    ShowEmptyTargetNotice = true,
+                    SurfaceUserNotices = true,
                     Options = new RefreshOptions
                     {
                         Subjects = RefreshSubjects.CurrentUser,
@@ -1139,7 +1139,7 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
                         {
                             Mode = RefreshModeType.Single,
                             SingleGameId = _gameId,
-                            ShowEmptyTargetNotice = true
+                            SurfaceUserNotices = true
                         },
                         RefreshExecutionPolicy.ProgressWindow(_gameId)).ConfigureAwait(false);
                 }

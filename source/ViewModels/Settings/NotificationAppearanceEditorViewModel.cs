@@ -85,6 +85,7 @@ namespace PlayniteAchievements.ViewModels.Settings
                     new NotificationLineRowItem(
                         kind,
                         BuildLineDisplayName(kind),
+                        new List<FontFamilyOption>(EnsureLineFontFamilyOptions()),
                         OnLineRowSizeEdited,
                         OnLineRowEmphasisEdited,
                         OnLineRowFontFamilyEdited)));
@@ -125,12 +126,23 @@ namespace PlayniteAchievements.ViewModels.Settings
 
         private static readonly object _fontFamilyOptionsGate = new object();
 
-        public IReadOnlyList<FontFamilyOption> FontFamilyOptions => EnsureFontFamilyOptions();
+        /// <summary>
+        /// This editor's own copy of the shared picker list. The entries are shared, but the list
+        /// instance is not: a font dropdown filters as the user types, WPF resolves that filter
+        /// against the default collection view of the bound list, and that view is per list
+        /// instance — so a shared list would let one dropdown's filter drop another dropdown's
+        /// selected font out of its items, which a Selector reports back as a null selection.
+        /// </summary>
+        public IReadOnlyList<FontFamilyOption> FontFamilyOptions =>
+            _surfaceFontFamilyOptions
+            ?? (_surfaceFontFamilyOptions = new List<FontFamilyOption>(EnsureFontFamilyOptions()));
+
+        private IReadOnlyList<FontFamilyOption> _surfaceFontFamilyOptions;
 
         /// <summary>
-        /// Builds (once, process-wide) the system font-family list. Enumerating
-        /// <see cref="Fonts.SystemFontFamilies"/> and culture-sorting it is slow, so it is cached and
-        /// guarded so a background pre-warm and the first UI access never build it twice.
+        /// Builds (once, process-wide) the picker list: the "theme default" sentinel followed by
+        /// <see cref="SystemFontCatalog.Families"/>. Cached and guarded so a background pre-warm and
+        /// the first UI access never build it twice.
         /// </summary>
         private static IReadOnlyList<FontFamilyOption> EnsureFontFamilyOptions()
         {
@@ -182,7 +194,8 @@ namespace PlayniteAchievements.ViewModels.Settings
 
         /// <summary>
         /// The per-line font dropdown's options: "Default" (follow the shared family) plus the
-        /// same system families as <see cref="FontFamilyOptions"/>.
+        /// same system families as <see cref="FontFamilyOptions"/>. Each row copies this into its
+        /// own list for the reason given on <see cref="FontFamilyOptions"/>.
         /// </summary>
         public IReadOnlyList<FontFamilyOption> LineFontFamilyOptions => EnsureLineFontFamilyOptions();
 
@@ -216,6 +229,11 @@ namespace PlayniteAchievements.ViewModels.Settings
                 return options.FirstOrDefault();
             }
 
+            // A stored family the catalog doesn't list (an uninstalled font, or one that came from a
+            // machine that has it) falls back to the "inherit" sentinel, which is what the surface
+            // actually renders with: ResolveFontFamily can't resolve the name either. The fallback
+            // has to be an entry that exists in the list, because a Selector pushes SelectedItem
+            // back as null when the bound value isn't among its items.
             return options.FirstOrDefault(option =>
                        string.Equals(option.FamilyName, familyName, StringComparison.OrdinalIgnoreCase))
                    ?? options.FirstOrDefault();
@@ -1999,9 +2017,7 @@ namespace PlayniteAchievements.ViewModels.Settings
                     previewFamily: System.Windows.SystemFonts.MessageFontFamily)
             };
 
-            options.AddRange(Fonts.SystemFontFamilies
-                .Select(family => new FontFamilyOption(family.Source, family.Source, family))
-                .OrderBy(option => option.DisplayName, StringComparer.CurrentCultureIgnoreCase));
+            options.AddRange(SystemFontCatalog.Families);
 
             return options;
         }
@@ -2109,26 +2125,6 @@ namespace PlayniteAchievements.ViewModels.Settings
     }
 
     /// <summary>
-    /// One entry of the font family picker. A null <see cref="FamilyName"/> means the theme
-    /// default; <see cref="PreviewFamily"/> is never null so item rendering has a valid font.
-    /// </summary>
-    internal sealed class FontFamilyOption
-    {
-        public FontFamilyOption(string displayName, string familyName, FontFamily previewFamily)
-        {
-            DisplayName = displayName;
-            FamilyName = familyName;
-            PreviewFamily = previewFamily;
-        }
-
-        public string DisplayName { get; }
-
-        public string FamilyName { get; }
-
-        public FontFamily PreviewFamily { get; }
-    }
-
-    /// <summary>
     /// One draggable text line row of the appearance editor: the line kind token, its
     /// localized name, its editable font size text (blank = theme default), and its
     /// whole-line emphasis toggles.
@@ -2150,12 +2146,14 @@ namespace PlayniteAchievements.ViewModels.Settings
         public NotificationLineRowItem(
             string kind,
             string displayName,
+            IReadOnlyList<FontFamilyOption> fontFamilyOptions,
             Action<NotificationLineRowItem, string> onSizeEdited,
             Action<NotificationLineRowItem> onEmphasisEdited,
             Action<NotificationLineRowItem> onFontFamilyEdited)
         {
             Kind = kind;
             DisplayName = displayName;
+            FontFamilyOptions = fontFamilyOptions;
             _onSizeEdited = onSizeEdited;
             _onEmphasisEdited = onEmphasisEdited;
             _onFontFamilyEdited = onFontFamilyEdited;
@@ -2164,6 +2162,12 @@ namespace PlayniteAchievements.ViewModels.Settings
         public string Kind { get; }
 
         public string DisplayName { get; }
+
+        /// <summary>
+        /// This row's own copy of the per-line picker list, so type-to-filter in one row's font
+        /// dropdown cannot disturb another row's selection.
+        /// </summary>
+        public IReadOnlyList<FontFamilyOption> FontFamilyOptions { get; }
 
         public bool IsBold
         {

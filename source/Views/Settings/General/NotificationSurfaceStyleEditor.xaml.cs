@@ -22,8 +22,6 @@ namespace PlayniteAchievements.Views.Settings.General
     public partial class NotificationSurfaceStyleEditor : UserControl
     {
         private const string DragDataFormat = "PlayniteAchievements.NotificationLineOrder";
-        private const string ImageFileDialogFilter =
-            "Image Files (*.png;*.jpg;*.jpeg;*.gif)|*.png;*.jpg;*.jpeg;*.gif";
 
         public NotificationSurfaceStyleEditor()
         {
@@ -94,7 +92,7 @@ namespace PlayniteAchievements.Views.Settings.General
 
             var dialog = new OpenFileDialog
             {
-                Filter = ImageFileDialogFilter,
+                Filter = ImageFormats.BuildOpenFileDialogFilter(includeAllFiles: false),
                 CheckFileExists = true,
                 Multiselect = false
             };

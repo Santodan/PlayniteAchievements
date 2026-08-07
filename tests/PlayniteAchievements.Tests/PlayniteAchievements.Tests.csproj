@@ -108,7 +108,11 @@
     <Compile Include="..\..\source\Services\Captures\CaptureFileNameParser.cs" Link="Source\Services\Captures\CaptureFileNameParser.cs" />
     <Compile Include="..\..\source\Services\Images\CategoryDefaultImageResolver.cs" Link="Source\Services\Images\CategoryDefaultImageResolver.cs" />
     <Compile Include="..\..\source\Services\Images\DiskImageService.cs" Link="Source\Services\Images\DiskImageService.cs" />
+    <Compile Include="..\..\source\Services\Images\ImageFormats.cs" Link="Source\Services\Images\ImageFormats.cs" />
+    <Compile Include="..\..\source\Services\Images\WebpAnimationInfo.cs" Link="Source\Services\Images\WebpAnimationInfo.cs" />
+    <Compile Include="..\..\source\Services\Images\WebpCodecProbe.cs" Link="Source\Services\Images\WebpCodecProbe.cs" />
     <Compile Include="..\..\source\Services\Images\MemoryImageService.cs" Link="Source\Services\Images\MemoryImageService.cs" />
+    <Compile Include="..\..\source\Views\Helpers\AnimatedImageHelper.cs" Link="Source\Views\Helpers\AnimatedImageHelper.cs" />
     <Compile Include="..\..\source\Services\Images\ManagedCustomIconService.cs" Link="Source\Services\Images\ManagedCustomIconService.cs" />
     <Compile Include="..\..\source\Services\Images\AchievementIconService.cs" Link="Source\Services\Images\AchievementIconService.cs" />
     <Compile Include="..\..\source\Services\Images\NotificationImageSlotMap.cs" Link="Source\Services\Images\NotificationImageSlotMap.cs" />
@@ -230,6 +234,7 @@
     <Compile Include="..\..\source\Providers\Manual\SteamManualSource.cs" Link="Source\Providers\Manual\SteamManualSource.cs" />
     <Compile Include="..\..\source\Providers\Manual\ExophaseManualSource.cs" Link="Source\Providers\Manual\ExophaseManualSource.cs" />
     <Compile Include="..\..\source\Providers\Manual\ManualUnlockResolver.cs" Link="Source\Providers\Manual\ManualUnlockResolver.cs" />
+    <Compile Include="..\..\source\Providers\Manual\ManualDisplayPlatformResolver.cs" Link="Source\Providers\Manual\ManualDisplayPlatformResolver.cs" />
     <Compile Include="..\..\source\Providers\Steam\SteamAPIClient.cs" Link="Source\Providers\Steam\SteamAPIClient.cs" />
     <Compile Include="..\..\source\Providers\Steam\SteamCommunityPageParser.cs" Link="Source\Providers\Steam\SteamCommunityPageParser.cs" />
     <Compile Include="..\..\source\Providers\Steam\SteamAchievementApiNameResolver.cs" Link="Source\Providers\Steam\SteamAchievementApiNameResolver.cs" />
@@ -253,6 +258,7 @@
     <Compile Include="..\..\source\Common\MemoryDiagnostics.cs" Link="Source\Common\MemoryDiagnostics.cs" />
     <Compile Include="..\..\source\Common\MemoryMaintenance.cs" Link="Source\Common\MemoryMaintenance.cs" />
     <Compile Include="..\..\source\Common\OffscreenViewLeaseSource.cs" Link="Source\Common\OffscreenViewLeaseSource.cs" />
+    <Compile Include="..\..\source\Common\DpiAwarenessScope.cs" Link="Source\Common\DpiAwarenessScope.cs" />
     <Compile Include="..\..\source\Common\FormattingCulture.cs" Link="Source\Common\FormattingCulture.cs" />
     <Compile Include="..\..\source\Common\PathExpansion.cs" Link="Source\Common\PathExpansion.cs" />
     <Compile Include="..\..\source\Common\PercentFormatter.cs" Link="Source\Common\PercentFormatter.cs" />
@@ -299,10 +305,10 @@
     <Compile Include="..\..\source\Models\Settings\PersistedSettings.ForkCompatibility.cs" Link="Source\Models\Settings\PersistedSettings.ForkCompatibility.cs" />
     <Compile Include="..\..\source\Models\Settings\GamesOverviewSortMode.cs" Link="Source\Models\Settings\GamesOverviewSortMode.cs" />
     <Compile Include="..\..\source\Models\Settings\ProviderNotificationOverride.cs" Link="Source\Models\Settings\ProviderNotificationOverride.cs" />
-    <Compile Include="..\..\source\Models\Settings\NotificationStyleSettings.cs" Link="Source\Models\Settings\NotificationStyleSettings.cs" />
-    <Compile Include="..\..\source\Models\Settings\NotificationStyleSettingsMigration.cs" Link="Source\Models\Settings\NotificationStyleSettingsMigration.cs" />
     <Compile Include="..\..\source\Models\Settings\FrameVignetteStyle.cs" Link="Source\Models\Settings\FrameVignetteStyle.cs" />
     <Compile Include="..\..\source\Models\Settings\NotificationLineEmphasis.cs" Link="Source\Models\Settings\NotificationLineEmphasis.cs" />
+    <Compile Include="..\..\source\Models\Settings\NotificationStyleSettings.cs" Link="Source\Models\Settings\NotificationStyleSettings.cs" />
+    <Compile Include="..\..\source\Models\Settings\NotificationStyleSettingsMigration.cs" Link="Source\Models\Settings\NotificationStyleSettingsMigration.cs" />
     <Compile Include="..\..\source\Models\Settings\RecordingEnums.cs" Link="Source\Models\Settings\RecordingEnums.cs" />
     <Compile Include="..\..\source\Models\Settings\RarityColorSettings.cs" Link="Source\Models\Settings\RarityColorSettings.cs" />
     <Compile Include="..\..\source\Models\Settings\ResourceOverrideDescriptor.cs" Link="Source\Models\Settings\ResourceOverrideDescriptor.cs" />
@@ -393,6 +399,7 @@
     <Compile Include="..\..\source\Services\Achievements\AchievementUnlockDiffer.cs" Link="Source\Services\Achievements\AchievementUnlockDiffer.cs" />
     <Compile Include="..\..\source\Services\Refresh\BulkRefreshGameFilter.cs" Link="Source\Services\Refresh\BulkRefreshGameFilter.cs" />
     <Compile Include="..\..\source\Services\Refresh\ProviderRefreshExecutor.cs" Link="Source\Services\Refresh\ProviderRefreshExecutor.cs" />
+    <Compile Include="..\..\source\Services\Refresh\RebuildOutcome.cs" Link="Source\Services\Refresh\RebuildOutcome.cs" />
     <Compile Include="..\..\source\Services\Refresh\RefreshRequestPlanner.cs" Link="Source\Services\Refresh\RefreshRequestPlanner.cs" />
     <Compile Include="..\..\source\Services\Refresh\RefreshRuntime.cs" Link="Source\Services\Refresh\RefreshRuntime.cs" />
     <Compile Include="..\..\source\Services\Refresh\FriendRefreshCoordinator.cs" Link="Source\Services\Refresh\FriendRefreshCoordinator.cs" />
@@ -427,11 +434,13 @@
     <Compile Include="..\..\source\Services\UI\ProviderNotificationPolicy.cs" Link="Source\Services\UI\ProviderNotificationPolicy.cs" />
     <Compile Include="..\..\source\Services\UI\ScreenshotFrameCompositor.cs" Link="Source\Services\UI\ScreenshotFrameCompositor.cs" />
     <Compile Include="..\..\source\Services\UI\ScreenshotVariants.cs" Link="Source\Services\UI\ScreenshotVariants.cs" />
+    <Compile Include="..\..\source\Services\UI\SystemFontCatalog.cs" Link="Source\Services\UI\SystemFontCatalog.cs" />
+    <Compile Include="..\..\source\Services\UI\UnlockScreenshotVariantPolicy.cs" Link="Source\Services\UI\UnlockScreenshotVariantPolicy.cs" />
+    <Compile Include="..\..\source\Services\UI\ToastWindowPlacer.cs" Link="Source\Services\UI\ToastWindowPlacer.cs" />
     <Compile Include="..\..\source\Services\UI\UnlockScreenshotService.cs" Link="Source\Services\UI\UnlockScreenshotService.cs" />
     <Compile Include="..\..\source\Providers\Local\LocalSettings.cs" Link="Source\Providers\Local\LocalSettings.cs" />
     <Compile Include="..\..\source\Services\Local\LocalAchievementScreenshotService.cs" Link="Source\Services\Local\LocalAchievementScreenshotService.cs" />
     <Compile Include="..\..\source\Providers\Steam\SteamAsyncConfigTokenHelper.cs" Link="Source\Providers\Steam\SteamAsyncConfigTokenHelper.cs" />
-    <Compile Include="..\..\source\Views\Helpers\GifAnimationHelper.cs" Link="Source\Views\Helpers\GifAnimationHelper.cs" />
 
     <Reference Include="Playnite.SDK">
       <HintPath>..\..\source\packages\PlayniteSDK.6.14.0\lib\net462\Playnite.SDK.dll</HintPath>

@@ -31,16 +31,6 @@ namespace PlayniteAchievements.Views.ManageAchievements
     {
         private const string CategoryDragDataFormat = "PlayniteAchievements.ManageAchievementsCategoryRows";
         private static readonly Regex HttpUrlRegex = new Regex(@"https?://[^\s""'<>]+", RegexOptions.IgnoreCase | RegexOptions.Compiled);
-        private static readonly string[] SupportedImageExtensions =
-        {
-            ".png",
-            ".jpg",
-            ".jpeg",
-            ".bmp",
-            ".gif",
-            ".tif",
-            ".tiff"
-        };
 
         private DataGridRow _pendingRightClickRow;
 
@@ -227,7 +217,7 @@ namespace PlayniteAchievements.Views.ManageAchievements
 
             var dialog = new OpenFileDialog
             {
-                Filter = "Image Files (*.png;*.jpg;*.jpeg;*.bmp;*.gif;*.tif;*.tiff)|*.png;*.jpg;*.jpeg;*.bmp;*.gif;*.tif;*.tiff|All Files (*.*)|*.*",
+                Filter = ImageFormats.BuildOpenFileDialogFilter(includeAllFiles: true),
                 CheckFileExists = true,
                 Multiselect = false
             };
@@ -961,29 +951,7 @@ namespace PlayniteAchievements.Views.ManageAchievements
 
         private static bool IsSupportedImageFile(string path)
         {
-            if (string.IsNullOrWhiteSpace(path) || !File.Exists(path))
-            {
-                return false;
-            }
-
-            var extension = Path.GetExtension(path) ?? string.Empty;
-            if (!SupportedImageExtensions.Contains(extension, StringComparer.OrdinalIgnoreCase))
-            {
-                return false;
-            }
-
-            try
-            {
-                using (var stream = File.Open(path, FileMode.Open, FileAccess.Read, FileShare.ReadWrite))
-                {
-                    BitmapDecoder.Create(stream, BitmapCreateOptions.DelayCreation, BitmapCacheOption.None);
-                    return true;
-                }
-            }
-            catch
-            {
-                return false;
-            }
+            return ImageDropHelper.IsSupportedImageFile(path);
         }
 
         private static string TrimTrailingUrlPunctuation(string value)

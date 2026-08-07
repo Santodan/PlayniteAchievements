@@ -220,7 +220,12 @@
                         CornerRadius="4"
                         ClipToBounds="True">
                     <Grid>
-                        <!-- Screenshot -->
+                        <!-- Screenshot. DecodePixel 0 asks AsyncImage to infer the decode size from
+                             the realized layout size and the monitor's DPI scale, and to reload at a
+                             larger size when the window grows. The lightbox opts out with -1 because
+                             it shows one image; this gallery pages through a whole capture set, so an
+                             inferred size bounded by MemoryImageService.MaxDecodePixel keeps the LRU
+                             from filling with full-resolution 4K decodes. -->
                         <Image x:Name="CaptureImage"
                                Margin="8"
                                Stretch="Uniform"

@@ -55,6 +55,19 @@ namespace PlayniteAchievements.Providers.RetroAchievements
         private readonly Dictionary<string, DateTime> _recentSeen =
             new Dictionary<string, DateTime>(StringComparer.Ordinal);
 
+        /// <summary>
+        /// Cadence for the "recent achievements" feed. It is the poll interval for a game tracked
+        /// solely by the feed, and the throttle for the same feed running as a backstop alongside
+        /// emulator-log tailing.
+        /// </summary>
+        private static readonly TimeSpan RecentFeedInterval = TimeSpan.FromSeconds(5);
+
+        /// <summary>
+        /// Last feed read. Unsynchronized: the in-game monitor runs at most one QueryAsync per
+        /// provider instance at a time, so every access is already serialized.
+        /// </summary>
+        private DateTime _lastRecentFeedUtc;
+
         public RetroAchievementsDataProvider(ILogger logger, PlayniteAchievementsSettings settings, IPlayniteAPI playniteApi, string pluginUserDataPath)
         {
             _logger = logger ?? throw new ArgumentNullException(nameof(logger));
@@ -238,8 +251,9 @@ namespace PlayniteAchievements.Providers.RetroAchievements
                 return null;
             }
 
-            // Prefer instant, offline unlocks by tailing the emulator's own log when one is usable;
-            // otherwise fall back to the remote "recent achievements" feed for this game.
+            // Tail the emulator's own log when one is usable, which reports unlocks instantly and
+            // offline. The remote "recent achievements" feed still runs as a backstop for those games
+            // (see QueryAsync); a game without a usable log is served by the feed alone.
             var logRegistration = TryBuildLogRegistration(game, cachedSchema);
             if (logRegistration != null)
             {
@@ -250,7 +264,7 @@ namespace PlayniteAchievements.Providers.RetroAchievements
             {
                 ProviderKey = ProviderKey,
                 IsRemote = true,
-                PollInterval = TimeSpan.FromSeconds(5)
+                PollInterval = RecentFeedInterval
             };
         }
 
@@ -324,34 +338,91 @@ namespace PlayniteAchievements.Providers.RetroAchievements
             var results = new List<InGameProgressQueryResult>(contexts.Count);
             var remoteContexts = new List<InGameTrackingContext>();
 
+            // Games eligible for this tick's feed read: every feed-only game, plus log-tracked games
+            // whose log read succeeded and which are already past their silent baseline read.
+            var feedContexts = new List<InGameTrackingContext>();
+            var observationsByGame = new Dictionary<Guid, List<AchievementProgressObservation>>();
+
             foreach (var context in contexts)
             {
                 cancellationToken.ThrowIfCancellationRequested();
                 if (context.Registration?.State is RaEmulatorLogSession session)
                 {
                     var gameId = context.Game.Id;
-                    results.Add(RaEmulatorLogReader.TryRead(session, out var observations)
-                        ? InGameProgressQueryResult.Succeeded(gameId, observations, isDelta: true)
-                        : InGameProgressQueryResult.Failed(gameId, "file_unstable"));
+
+                    // Captured before the read, which sets the flag: merging feed observations into
+                    // the monitor's silent baseline read would absorb an in-session unlock without
+                    // ever notifying.
+                    var wasBaselined = session.BaselineRead;
+                    if (!RaEmulatorLogReader.TryRead(session, out var observations))
+                    {
+                        results.Add(InGameProgressQueryResult.Failed(gameId, "file_unstable"));
+                        continue;
+                    }
+
+                    session.BaselineRead = true;
+                    observationsByGame[gameId] = observations.ToList();
+                    if (wasBaselined)
+                    {
+                        feedContexts.Add(context);
+                    }
                 }
                 else
                 {
                     remoteContexts.Add(context);
+                    observationsByGame[context.Game.Id] = new List<AchievementProgressObservation>();
+                    feedContexts.Add(context);
                 }
             }
 
-            if (remoteContexts.Count > 0)
+            // Feed-only games arrive on their own RecentFeedInterval cadence; log-tracked games read
+            // far more often, so the feed is throttled to that same cadence for them.
+            var feedDue = feedContexts.Count > 0 &&
+                (remoteContexts.Count > 0 ||
+                 DateTime.UtcNow - _lastRecentFeedUtc >= RecentFeedInterval);
+            if (feedDue)
             {
-                EnsureInitialized();
-                var recent = await _apiClient
-                    .GetUserRecentAchievementsAsync(lookbackMinutes: 2, cancellationToken)
-                    .ConfigureAwait(false) ?? new List<Models.RaRecentAchievement>();
+                try
+                {
+                    EnsureInitialized();
+                    var recent = await _apiClient
+                        .GetUserRecentAchievementsAsync(lookbackMinutes: 2, cancellationToken)
+                        .ConfigureAwait(false) ?? new List<Models.RaRecentAchievement>();
+                    _lastRecentFeedUtc = DateTime.UtcNow;
 
-                cancellationToken.ThrowIfCancellationRequested();
-                results.AddRange(RetroAchievementsRecentProgressMapper.Map(
-                    recent,
-                    remoteContexts,
-                    MarkRecentSeen));
+                    cancellationToken.ThrowIfCancellationRequested();
+                    foreach (var mapped in RetroAchievementsRecentProgressMapper.Map(
+                        recent,
+                        feedContexts,
+                        MarkRecentSeen))
+                    {
+                        if (observationsByGame.TryGetValue(mapped.GameId, out var merged))
+                        {
+                            merged.AddRange(mapped.Achievements);
+                        }
+                    }
+                }
+                catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+                {
+                    throw;
+                }
+                catch (Exception ex)
+                {
+                    // A feed failure must not discard log observations read in this same pass, and
+                    // must not fail the whole batch the way an escaping exception would.
+                    _logger?.Debug(ex, "[RetroAchievements] Recent-achievements feed read failed.");
+                    _lastRecentFeedUtc = DateTime.UtcNow;
+                    foreach (var context in remoteContexts)
+                    {
+                        observationsByGame.Remove(context.Game.Id);
+                        results.Add(InGameProgressQueryResult.Failed(context.Game.Id, "query_failed"));
+                    }
+                }
+            }
+
+            foreach (var pair in observationsByGame)
+            {
+                results.Add(InGameProgressQueryResult.Succeeded(pair.Key, pair.Value, isDelta: true));
             }
 
             return results;

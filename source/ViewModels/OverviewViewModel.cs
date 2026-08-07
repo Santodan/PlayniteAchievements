@@ -1767,8 +1767,8 @@ namespace PlayniteAchievements.ViewModels
             {
                 ModeKey = SelectedRefreshMode,
                 SingleGameId = singleGameId,
-                // Only the single-game mode is a targeted refresh; bulk modes fail silently.
-                ShowEmptyTargetNotice = singleGameId.HasValue
+                // Only the single-game mode refreshes a selected game; bulk modes fail silently.
+                SurfaceUserNotices = singleGameId.HasValue
             };
         }
 
@@ -1801,7 +1801,7 @@ namespace PlayniteAchievements.ViewModels
                     {
                         Mode = RefreshModeType.Single,
                         SingleGameId = gameId,
-                        ShowEmptyTargetNotice = true
+                        SurfaceUserNotices = true
                     },
                     new RefreshExecutionPolicy
                     {

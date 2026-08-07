@@ -4,6 +4,7 @@ param(
     [string] $BundlePath,
     [switch] $DryRun,
     [switch] $AllowDirty,
+    [switch] $ResumeAfterConflict,
     [switch] $ForceSemantic,
     [switch] $ForceOverlay
 )
@@ -34,12 +35,23 @@ if ([int]$manifest.schemaVersion -ne 1)
 $protectedPaths = @($manifest.protectedPaths | ForEach-Object { [string]$_ })
 $protectedHashes = Get-FmProtectedHashes $repositoryRoot $protectedPaths
 
-if (-not $AllowDirty)
+if (-not $AllowDirty -and -not $ResumeAfterConflict)
 {
     $status = @((Invoke-FmGit $repositoryRoot @("status", "--porcelain")).Output)
     if ($status.Count -gt 0)
     {
         throw "Target repository is not clean. Apply to a fresh upstream worktree or use -AllowDirty deliberately."
+    }
+}
+
+if ($ResumeAfterConflict)
+{
+    $unmerged = @((Invoke-FmGit $repositoryRoot @(
+        "diff", "--name-only", "--diff-filter=U"
+    ) -AllowFailure).Output)
+    if ($unmerged.Count -gt 0)
+    {
+        throw "Cannot resume while merge conflicts remain:`n$($unmerged -join "`n")"
     }
 }
 
@@ -161,7 +173,7 @@ foreach ($recipe in $localizationRecipes)
     }
 }
 
-if (-not [string]::IsNullOrWhiteSpace($patchText))
+if (-not $ResumeAfterConflict -and -not [string]::IsNullOrWhiteSpace($patchText))
 {
     $checkResult = Invoke-FmGit $repositoryRoot @(
         "apply", "--check", "--3way", "--whitespace=nowarn", $patchPath
@@ -185,10 +197,13 @@ if ($DryRun)
 
 try
 {
-    Invoke-FmGit $repositoryRoot @("config", "rerere.enabled", "true") | Out-Null
-    Invoke-FmGit $repositoryRoot @("config", "merge.conflictStyle", "zdiff3") | Out-Null
+    if (-not $ResumeAfterConflict)
+    {
+        Invoke-FmGit $repositoryRoot @("config", "rerere.enabled", "true") | Out-Null
+        Invoke-FmGit $repositoryRoot @("config", "merge.conflictStyle", "zdiff3") | Out-Null
+    }
 
-    if (-not [string]::IsNullOrWhiteSpace($patchText))
+    if (-not $ResumeAfterConflict -and -not [string]::IsNullOrWhiteSpace($patchText))
     {
         $applyResult = Invoke-FmGit $repositoryRoot @(
             "apply", "--3way", "--whitespace=nowarn", $patchPath
@@ -269,6 +284,13 @@ finally
 }
 
 Write-Host "Fork bundle applied successfully."
-Write-Host "  Three-way patch applied with git rerere enabled."
+if ($ResumeAfterConflict)
+{
+    Write-Host "  Three-way patch: resumed after conflicts were resolved."
+}
+else
+{
+    Write-Host "  Three-way patch applied with git rerere enabled."
+}
 Write-Host "  Fork-only overlays copied: $($overlayOperations.Count)"
 Write-Host "  Localization dictionaries updated semantically: $($localizationOperations.Count)"

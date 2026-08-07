@@ -15,6 +15,7 @@ using PlayniteAchievements.Models.Achievements;
 using PlayniteAchievements.Models.Settings;
 using PlayniteAchievements.Providers;
 using PlayniteAchievements.Providers.Manual;
+using PlayniteAchievements.Providers.Overrides;
 using PlayniteAchievements.Providers.Settings;
 using PlayniteAchievements.Services;
 using PlayniteAchievements.Services.Achievements;
@@ -86,6 +87,9 @@ namespace PlayniteAchievements.ViewModels
         private string _sourceGameName = string.Empty;
         private string _manualSourceName = string.Empty;
         private string _saveStatusMessage = string.Empty;
+        private string _displayPlatformKeyOverride;
+        private readonly IReadOnlyList<ProviderOverrideChoice> _availableDisplayPlatforms =
+            BuildDisplayPlatformOptions();
         private readonly SearchTextIndex<ManualAchievementEditItem> _editSearchIndex =
             new SearchTextIndex<ManualAchievementEditItem>(item =>
                 SearchTextBuilder.ForManualEdit(item?.DisplayName, item?.Description, item?.ApiName));
@@ -318,6 +322,30 @@ namespace PlayniteAchievements.ViewModels
         {
             get => _manualSourceName;
             private set => SetValue(ref _manualSourceName, value);
+        }
+
+        /// <summary>
+        /// Gets the platforms this game can be shown as. The first entry is the default, which
+        /// derives the platform from the source game id.
+        /// </summary>
+        public IReadOnlyList<ProviderOverrideChoice> AvailableDisplayPlatforms => _availableDisplayPlatforms;
+
+        /// <summary>
+        /// Gets or sets the provider key this game is shown as in grids, filters, and themes.
+        /// Empty selects the default. Persisted with the link when the user saves.
+        /// </summary>
+        public string SelectedDisplayPlatformKey
+        {
+            get => _displayPlatformKeyOverride ?? string.Empty;
+            set
+            {
+                var normalized = string.IsNullOrWhiteSpace(value) ? null : value.Trim();
+                if (_displayPlatformKeyOverride != normalized)
+                {
+                    _displayPlatformKeyOverride = normalized;
+                    OnPropertyChanged();
+                }
+            }
         }
 
         /// <summary>
@@ -894,6 +922,8 @@ namespace PlayniteAchievements.ViewModels
                 ? cachedData.GameName
                 : (!string.IsNullOrWhiteSpace(hydratedData?.GameName) ? hydratedData.GameName : link.SourceGameId);
             ManualSourceName = ResolveSourceName(link?.SourceKey);
+            SelectedDisplayPlatformKey =
+                ManualDisplayPlatformResolver.NormalizeOverride(link?.DisplayPlatformKeyOverride);
             _lastSavedLink = link?.Clone();
             SaveStatusMessage = string.Empty;
 
@@ -1385,6 +1415,27 @@ namespace PlayniteAchievements.ViewModels
             return true;
         }
 
+        /// <summary>
+        /// Builds the display platform options: the default first, then every registered provider
+        /// by localized name, so each choice resolves to a known icon and color.
+        /// </summary>
+        private static IReadOnlyList<ProviderOverrideChoice> BuildDisplayPlatformOptions()
+        {
+            var options = new List<ProviderOverrideChoice>
+            {
+                new ProviderOverrideChoice(
+                    string.Empty,
+                    ResourceProvider.GetString("LOCPlayAch_Common_Default"))
+            };
+
+            options.AddRange(ManualDisplayPlatformResolver
+                .GetSelectablePlatformKeys()
+                .Select(key => new ProviderOverrideChoice(key, ProviderRegistry.GetLocalizedName(key)))
+                .OrderBy(choice => choice.DisplayName, StringComparer.CurrentCultureIgnoreCase));
+
+            return options;
+        }
+
         private ManualAchievementLink BuildLink()
         {
             var now = DateTime.UtcNow;
@@ -1397,6 +1448,8 @@ namespace PlayniteAchievements.ViewModels
                 UnlockStates = new Dictionary<string, bool>(),
                 AllowUnauthenticatedSchemaFetch = _existingLink?.AllowUnauthenticatedSchemaFetch
                     ?? ResolveAllowUnauthenticatedSchemaFetch(_source?.SourceKey),
+                DisplayPlatformKeyOverride =
+                    ManualDisplayPlatformResolver.NormalizeOverride(_displayPlatformKeyOverride),
                 CreatedUtc = _existingLink?.CreatedUtc ?? now,
                 LastModifiedUtc = now
             };
@@ -1443,8 +1496,9 @@ namespace PlayniteAchievements.ViewModels
 
                     // Keep the display platform in sync so the game attributes to its real platform
                     // (e.g. Steam/PSN) instead of "Manual" right after a window edit, without waiting
-                    // for a full provider refresh. Null (unresolvable slug) mirrors provider behavior.
-                    cachedData.ProviderPlatformKey = _source?.ResolveProviderPlatformKey(link.SourceGameId);
+                    // for a full provider refresh. Resolves through the same helper the provider uses,
+                    // so a user override applies here too.
+                    cachedData.ProviderPlatformKey = ManualDisplayPlatformResolver.Resolve(_source, link);
 
                     // Reset then re-apply through the shared resolver, so the cached unlocked set
                     // exactly reflects the just-saved link (and never carries stale unlocks).
@@ -1607,6 +1661,8 @@ namespace PlayniteAchievements.ViewModels
             {
                 SourceGameId = baseline.SourceGameId;
                 ManualSourceName = ResolveSourceName(baseline.SourceKey);
+                SelectedDisplayPlatformKey =
+                    ManualDisplayPlatformResolver.NormalizeOverride(baseline.DisplayPlatformKeyOverride);
             }
 
             UpdateCounts();

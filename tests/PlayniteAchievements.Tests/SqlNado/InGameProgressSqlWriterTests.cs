@@ -170,6 +170,90 @@ namespace PlayniteAchievements.SqlNado.Tests
         }
 
         [TestMethod]
+        public void Apply_SameUnlockFromLogThenFeed_ReportsNoSecondUnlock()
+        {
+            // RetroAchievements tails the emulator log and polls the recent-achievements feed at the
+            // same time, so one unlock is observed twice: first by the log (stamped with the read
+            // time), then by the feed (carrying the authoritative time). The second apply must be
+            // inert, or the in-game monitor would raise a duplicate notification.
+            WithSeededDatabase(db =>
+            {
+                db.ExecuteNonQuery(
+                    "UPDATE Games SET ProviderKey = 'RetroAchievements' WHERE Id = 10;");
+
+                var logObserved = new DateTime(
+                    2026,
+                    7,
+                    28,
+                    12,
+                    0,
+                    5,
+                    DateTimeKind.Utc);
+                var fromLog = InGameProgressSqlWriter.Apply(
+                    db,
+                    "game-key",
+                    "RetroAchievements",
+                    new[]
+                    {
+                        new AchievementProgressObservation
+                        {
+                            ApiName = "ACH_NEW",
+                            Unlocked = true,
+                            UnlockTimeUtc = logObserved,
+                            UnlockMode = "Hardcore"
+                        }
+                    });
+
+                Assert.IsTrue(fromLog.Success);
+                Assert.IsTrue(fromLog.Changed);
+                CollectionAssert.AreEqual(
+                    new[] { "ACH_NEW" },
+                    fromLog.NewlyUnlockedKeys.ToArray());
+
+                var categoryAfterLog = db.ExecuteScalar<string>(
+                    @"SELECT CategoryType FROM AchievementDefinitions WHERE ApiName = 'ACH_NEW';");
+
+                var fromFeed = InGameProgressSqlWriter.Apply(
+                    db,
+                    "game-key",
+                    "RetroAchievements",
+                    new[]
+                    {
+                        new AchievementProgressObservation
+                        {
+                            ApiName = "ACH_NEW",
+                            Unlocked = true,
+                            UnlockTimeUtc = logObserved.AddSeconds(-2),
+                            UnlockMode = "Hardcore"
+                        }
+                    });
+
+                Assert.IsTrue(fromFeed.Success);
+                Assert.IsFalse(fromFeed.Changed);
+                Assert.AreEqual(0, fromFeed.NewlyUnlockedKeys.Count);
+                Assert.AreEqual(0, fromFeed.UnmatchedKeys.Count);
+
+                Assert.AreEqual(
+                    "1|2026-07-28T12:00:05.0000000Z",
+                    db.ExecuteScalar<string>(
+                        @"SELECT Unlocked || '|' || UnlockTimeUtc
+                          FROM UserAchievements
+                          WHERE AchievementDefinitionId = 101;"));
+                Assert.AreEqual(
+                    categoryAfterLog,
+                    db.ExecuteScalar<string>(
+                        @"SELECT CategoryType FROM AchievementDefinitions WHERE ApiName = 'ACH_NEW';"));
+                Assert.AreEqual(
+                    2L,
+                    db.ExecuteScalar<long>(
+                        "SELECT AchievementsUnlocked FROM UserGameProgress WHERE Id = 20;"));
+                Assert.AreEqual(
+                    2L,
+                    db.ExecuteScalar<long>("SELECT COUNT(*) FROM UserAchievements;"));
+            });
+        }
+
+        [TestMethod]
         public void Apply_MissingSchema_ReturnsFailureWithoutCreatingRows()
         {
             WithSeededDatabase(db =>

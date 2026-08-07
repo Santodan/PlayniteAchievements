@@ -203,10 +203,12 @@ namespace PlayniteAchievements.Services.Notifications
 
         private static string GetPresetName(string filePath)
         {
-            var fileName = Path.GetFileName(filePath) ?? string.Empty;
-            return fileName.Substring(
-                0,
-                fileName.Length - NotificationStylePortableStore.PackageFileExtension.Length);
+            // Strips whichever suffix the file actually carries: presets saved before the
+            // extensions went bare are named "<name>.pastyle.zip", and blindly removing
+            // PackageFileExtension.Length characters left a partial stem that no longer round
+            // tripped through GetPresetPath.
+            return NotificationStylePortableStore.StripRecognizedSuffix(
+                Path.GetFileName(filePath) ?? string.Empty);
         }
     }
 }

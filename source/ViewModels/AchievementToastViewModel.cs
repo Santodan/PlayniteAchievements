@@ -102,6 +102,14 @@ namespace PlayniteAchievements.ViewModels
         internal int AchievementNumber => _args.AchievementNumber;
 
         /// <summary>
+        /// Whether this unlock is being cut into a clip, so its card must be realized and sampled
+        /// into an overlay track even when nothing about it shows on screen. Stamped at enqueue
+        /// from the recording service's own eligibility check, at the same moment that service
+        /// creates the clip request, so the two cannot disagree.
+        /// </summary>
+        internal bool NeedsOverlayTrack { get; set; }
+
+        /// <summary>
         /// The unlock's name for screenshot/clip filenames and clip-to-wave matching: the
         /// achievement's display name, or the localized "Game Complete!" for the completion
         /// notification (which carries no display name). Shared with the recording service so

@@ -91,8 +91,6 @@ namespace PlayniteAchievements.Models.Settings
 
             // Notification Settings
             target.EnableNotifications = source.EnableNotifications;
-            target.NotifyPeriodicUpdates = source.NotifyPeriodicUpdates;
-            target.NotifyOnRebuild = source.NotifyOnRebuild;
             target.EnableUnlockToasts = source.EnableUnlockToasts;
             target.EnableFriendUnlockToasts = source.EnableFriendUnlockToasts;
             target.NotificationStyle = source.NotificationStyle?.Clone() ?? NotificationStyleSettings.CreateDefault();

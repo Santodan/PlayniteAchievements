@@ -409,7 +409,7 @@ namespace PlayniteAchievements
             {
                 Mode = RefreshModeType.Single,
                 SingleGameId = playniteGameId,
-                ShowEmptyTargetNotice = true
+                SurfaceUserNotices = true
             }) ?? Task.CompletedTask;
         }
 
@@ -680,6 +680,10 @@ namespace PlayniteAchievements
                         GetProcessIdForGame,
                         _windowTracker,
                         _gameCustomDataStore,
+                        // Late-bound: the recording service is constructed just below, but the
+                        // toast service only ever invokes this from an unlock handler, long after
+                        // the field is assigned.
+                        e => _unlockRecordings?.WouldRequestClip(e) ?? false,
                         UsesCustomAchievementNotification);
                     _unlockRecordings = new Services.Recording.UnlockRecordingService(
                         PlayniteApi,
@@ -1713,7 +1717,9 @@ namespace PlayniteAchievements
             }
             else if (!payload.AuthRequired)
             {
-                _notifications?.ClearAllProviderAuthNotifications();
+                // Only the providers this refresh actually spoke to; clearing every known provider
+                // would drop a warning raised by a refresh of some other provider's game.
+                _notifications?.ClearProviderAuthNotifications(payload.ExecutedProviderKeys);
             }
         }
 

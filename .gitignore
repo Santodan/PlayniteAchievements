@@ -106,3 +106,4 @@ tools/SAN-installed-extracted
 tools/NotificationTemplates/Icons
 Test*.json
 merge-conflict-backup/*
+.worktrees/

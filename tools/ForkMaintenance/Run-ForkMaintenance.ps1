@@ -6,6 +6,7 @@ param(
     [string] $BundlePath,
     [string] $Baseline = "v3.1.0",
     [switch] $AllowDirty,
+    [switch] $ResumeAfterConflict,
     [switch] $Force,
     [switch] $ForceSemantic,
     [switch] $ForceOverlay,
@@ -71,6 +72,7 @@ try
             if (-not [string]::IsNullOrWhiteSpace($RepositoryPath)) { $arguments.RepositoryPath = $RepositoryPath }
             if (-not [string]::IsNullOrWhiteSpace($BundlePath)) { $arguments.BundlePath = $BundlePath }
             if ($AllowDirty) { $arguments.AllowDirty = $true }
+            if ($ResumeAfterConflict) { $arguments.ResumeAfterConflict = $true }
             if ($ForceSemantic) { $arguments.ForceSemantic = $true }
             if ($ForceOverlay) { $arguments.ForceOverlay = $true }
 
@@ -79,7 +81,7 @@ try
         }
     }
 
-    if ($LASTEXITCODE -ne 0)
+    if ($null -ne $LASTEXITCODE -and $LASTEXITCODE -ne 0)
     {
         throw "ForkMaintenance exited with code $LASTEXITCODE."
     }

@@ -253,7 +253,10 @@ namespace PlayniteAchievements.Services
                 var request = new RefreshRequest { Mode = RefreshModeType.Recent };
                 var policy = new RefreshExecutionPolicy
                 {
-                    ValidateAuthentication = true,
+                    // False so the unattended run can never open the "no platforms are
+                    // authenticated" modal, which stole focus mid-game. ExecuteRefreshAsync still
+                    // builds its own auth context, so preflight and provider filtering are intact.
+                    ValidateAuthentication = false,
                     UseProgressWindow = false,
                     SwallowExceptions = true,
                     ErrorLogMessage = ResourceProvider.GetString("LOCPlayAch_Error_Periodic_UpdateFailed")
@@ -282,7 +285,8 @@ namespace PlayniteAchievements.Services
                 var request = new RefreshRequest { Mode = RefreshModeType.FriendsRecent };
                 var policy = new RefreshExecutionPolicy
                 {
-                    ValidateAuthentication = true,
+                    // Unattended, so no auth modal; see ExecuteUpdate.
+                    ValidateAuthentication = false,
                     UseProgressWindow = false,
                     SwallowExceptions = true,
                     ErrorLogMessage = ResourceProvider.GetString("LOCPlayAch_Error_Periodic_UpdateFailed")
@@ -299,19 +303,19 @@ namespace PlayniteAchievements.Services
             }
         }
 
+        // A periodic refresh reports only when it fell short: a clean run finishes silently, so a
+        // notification here always means something wants attention. Provider authentication
+        // failures still do not raise the separate per-provider auth notification — that is left to
+        // refreshes of a selected game (see RefreshRequest.SurfaceUserNotices), because an
+        // unattended refresh raising it could interrupt mid-session, and clearing it here could
+        // erase a warning a selected-game refresh had raised. The outcome's status text already
+        // carries the auth-required suffix, and provider settings show live authentication state.
         private void HandleUpdateCompletion()
         {
-            var lastStatus = _refreshService.GetLastRebuildStatus() ?? ResourceProvider.GetString("LOCPlayAch_Status_RefreshComplete");
-            _notifications?.ShowPeriodicStatus(lastStatus);
-
-            var failedKeys = _refreshService.GetLastFailedAuthProviderKeys();
-            if (failedKeys != null && failedKeys.Count > 0)
+            var outcome = _refreshService.GetLastRebuildOutcome();
+            if (outcome?.Faulted == true)
             {
-                _notifications?.ShowProviderAuthFailed(failedKeys);
-            }
-            else
-            {
-                _notifications?.ClearAllProviderAuthNotifications();
+                _notifications?.ShowRefreshFailed(outcome.Status);
             }
 
             _onUpdateCompleted?.Invoke();

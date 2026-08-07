@@ -41,17 +41,9 @@ namespace PlayniteAchievements.Services.Images
             "images-eds-ssl.xboxlive.com"
         };
 
-        private static readonly string[] SupportedImageExtensions =
-        {
-            ".png",
-            ".jpg",
-            ".jpeg",
-            ".gif",
-            ".bmp",
-            ".tif",
-            ".tiff",
-            ".webp"
-        };
+        // Every recognized format, not only the ones this machine can decode: a cached file must
+        // stay visible to path probing, size accounting, and clearing regardless of codec state.
+        private static string[] SupportedImageExtensions => ImageFormats.All;
 
         private readonly ILogger _logger;
         private readonly HttpClientHandler _httpHandler;
@@ -285,7 +277,7 @@ namespace PlayniteAchievements.Services.Images
         /// <summary>
         /// Legacy helper: generate a cache filename from a URI using a SHA256 hash.
         /// New achievement icon writes should use API-name paths instead.
-        /// This is retained for display-time hash-cache lookups (MemoryImageService, GifAnimationHelper).
+        /// This is retained for display-time hash-cache lookups (MemoryImageService, AnimatedImageHelper).
         /// </summary>
         public string GetIconCachePathFromUri(string uri, int decodeSize, string gameId = null)
         {
@@ -1720,12 +1712,7 @@ namespace PlayniteAchievements.Services.Images
 
         private static bool IsSupportedImageExtension(string extension)
         {
-            if (string.IsNullOrWhiteSpace(extension))
-            {
-                return false;
-            }
-
-            return SupportedImageExtensions.Contains(extension, StringComparer.OrdinalIgnoreCase);
+            return ImageFormats.IsSupportedExtension(extension);
         }
 
         private static bool IsSupportedCacheImageFile(string path)
