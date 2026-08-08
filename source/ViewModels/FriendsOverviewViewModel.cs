@@ -761,7 +761,8 @@ namespace PlayniteAchievements.ViewModels
                 IsTypeFilterSelected,
                 SetTypeFilterSelected)
             {
-                Width = 118
+                Width = 118,
+                IsCategoryFilter = true
             });
             controlBar.Items.Add(new GridMultiSelectFilter(
                 this,
@@ -771,7 +772,22 @@ namespace PlayniteAchievements.ViewModels
                 IsCategoryFilterSelected,
                 SetCategoryFilterSelected)
             {
-                Width = 132
+                Width = 132,
+                IsCategoryFilter = true
+            });
+            controlBar.Items.Add(new GridMultiSelectFilter(
+                this,
+                nameof(CompareSelectionText),
+                () => CompareSelectionText,
+                () => GetCompareFriendOptions().Select(FriendOverviewProjection.GetFriendScopeKey),
+                IsCompareKeySelected,
+                SetCompareKeySelected,
+                GetCompareFriendDisplayName,
+                () => IsCompareAvailable,
+                IsCompareKeyFavorite)
+            {
+                Width = 140,
+                ToolTip = ResourceProvider.GetString("LOCPlayAch_Filter_CompareSelectorPlaceholder")
             });
             controlBar.Items.Add(new GridToggleFilter(
                 this,
@@ -797,20 +813,6 @@ namespace PlayniteAchievements.ViewModels
                 value => ShowHiddenAchievements = value,
                 GridToggleFilterIcon.Hidden,
                 () => _hasPairHiddenLocked));
-            controlBar.Items.Add(new GridMultiSelectFilter(
-                this,
-                nameof(CompareSelectionText),
-                () => CompareSelectionText,
-                () => GetCompareFriendOptions().Select(FriendOverviewProjection.GetFriendScopeKey),
-                IsCompareKeySelected,
-                SetCompareKeySelected,
-                GetCompareFriendDisplayName,
-                () => IsCompareAvailable,
-                IsCompareKeyFavorite)
-            {
-                Width = 140,
-                ToolTip = ResourceProvider.GetString("LOCPlayAch_Filter_CompareSelectorPlaceholder")
-            });
             return controlBar;
         }
 
