@@ -71,6 +71,40 @@ namespace PlayniteAchievements.Steam.Tests
         }
 
         [TestMethod]
+        public void TryExtractProfileAvatarUrl_ReadsCdataAvatarFullElement()
+        {
+            const string xml =
+                "<profile><steamID64>76561198000000002</steamID64>" +
+                "<avatarIcon><![CDATA[https://avatars.example/small.jpg]]></avatarIcon>" +
+                "<avatarFull><![CDATA[https://avatars.example/full.jpg]]></avatarFull></profile>";
+
+            Assert.AreEqual(
+                "https://avatars.example/full.jpg",
+                SteamCommunityPageParser.TryExtractProfileAvatarUrl(xml));
+        }
+
+        [TestMethod]
+        public void TryExtractProfileAvatarUrl_ReadsEscapedXmlViewerPayload()
+        {
+            const string html =
+                "<html><body><div id=\"webkit-xml-viewer-source-xml\">" +
+                "&lt;profile&gt;&lt;avatarFull&gt;https://avatars.example/full.jpg&lt;/avatarFull&gt;&lt;/profile&gt;" +
+                "</div></body></html>";
+
+            Assert.AreEqual(
+                "https://avatars.example/full.jpg",
+                SteamCommunityPageParser.TryExtractProfileAvatarUrl(html));
+        }
+
+        [TestMethod]
+        public void TryExtractProfileAvatarUrl_ReturnsNullWhenAbsent()
+        {
+            const string xml = "<profile><steamID64>76561198000000002</steamID64></profile>";
+
+            Assert.IsNull(SteamCommunityPageParser.TryExtractProfileAvatarUrl(xml));
+        }
+
+        [TestMethod]
         public void ParseOwnedGames_MapsXmlPayload()
         {
             const string xml =
