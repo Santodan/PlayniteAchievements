@@ -126,6 +126,7 @@ namespace PlayniteAchievements.Models.Settings
             target.EnableUnlockRecordings = source.EnableUnlockRecordings;
             target.UnlockRecordingDirectory = source.UnlockRecordingDirectory;
             target.RecordingClipSeconds = source.RecordingClipSeconds;
+            target.RecordingBufferBudgetMb = source.RecordingBufferBudgetMb;
             target.RecordingFps = source.RecordingFps;
             target.RecordingResolution = source.RecordingResolution;
             target.RecordingIncludeAudio = source.RecordingIncludeAudio;

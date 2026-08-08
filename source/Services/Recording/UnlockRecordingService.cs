@@ -41,7 +41,9 @@ namespace PlayniteAchievements.Services.Recording
         private const string BufferRootFolderName = "RecordingBuffer";
         private const long MinFreeBytesToStart = 2L * 1024 * 1024 * 1024;
         private const long MinFreeBytesToContinue = 500L * 1024 * 1024;
-        private const long MaxBufferBytes = 2L * 1024 * 1024 * 1024;
+        // Toast-slot allowance used only by the prune floor, which must keep a clip window's worth
+        // of footage whatever the budget says. Generous enough to cover any toast-duration setting.
+        private const double MaxToastSlotAllowanceSeconds = 30.0;
         private const int WindowResolveTimeoutSeconds = 60;
         // How long to hold off the capture start waiting for the started process's main window.
         // Kept short: unlocks that fire before the capture is live can never be clipped, so a
@@ -82,9 +84,7 @@ namespace PlayniteAchievements.Services.Recording
         private const int DefaultPollIntervalSeconds = 15;
         private const int DefaultPreRollSeconds = 15;
         private const int DefaultRecordingFps = 30;
-        // Sentinel poll interval handed to SelectPrunable to suspend age-based pruning while clips
-        // are outstanding; large enough that the retention depth keeps every buffered segment.
-        private const int AgePruneSuspendedInterval = 3600;
+        private const int DefaultBufferBudgetMb = 512;
         private const string UnavailableNotificationId = "PlayAch-RecordingUnavailable";
 
         private readonly IPlayniteAPI _api;
@@ -122,7 +122,11 @@ namespace PlayniteAchievements.Services.Recording
         private DateTime _lastToastActivityUtc;
         // Requests between window computation and base-clip extraction: while any exist, the
         // buffered segments they need must survive age-based pruning.
-        private int _requestsAwaitingBase;
+        // Window starts of clips still between window computation and base extraction. Those clips
+        // read the buffer, so the pruner must not cut back past the oldest of them even when the
+        // budget is exceeded — once a base clip exists, its request no longer reads the buffer.
+        private readonly object _outstandingGate = new object();
+        private readonly List<DateTime> _outstandingWindowStarts = new List<DateTime>();
 
         public UnlockRecordingService(
             IPlayniteAPI api,
@@ -169,6 +173,9 @@ namespace PlayniteAchievements.Services.Recording
             // Segment file extension for the capture engine (.mp4 for WGC-MF). Threaded into segment
             // discovery/prune/export.
             public string SegmentExtension = RecordingPaths.SegmentFileExtension;
+            // Bytes the buffer currently occupies, refreshed each prune tick.
+            public long LastKnownBufferBytes;
+            public bool BufferBudgetClampLogged;
             public AudioLoopbackRecorder AudioRecorder;
             // The Playnite-only sidecar track (chm_*.wav): the main track excludes Playnite's
             // process tree, so unlock chimes exist only here for the per-clip chime mix.
@@ -924,7 +931,11 @@ namespace PlayniteAchievements.Services.Recording
                 // behind other waves.
                 string basePath;
                 double videoLeadSeconds;
-                Interlocked.Increment(ref _requestsAwaitingBase);
+                lock (_outstandingGate)
+                {
+                    _outstandingWindowStarts.Add(window.StartUtc);
+                }
+
                 try
                 {
                     (basePath, videoLeadSeconds) = await ExportBaseClipAsync(session, request, window)
@@ -932,7 +943,10 @@ namespace PlayniteAchievements.Services.Recording
                 }
                 finally
                 {
-                    Interlocked.Decrement(ref _requestsAwaitingBase);
+                    lock (_outstandingGate)
+                    {
+                        _outstandingWindowStarts.Remove(window.StartUtc);
+                    }
                 }
 
                 if (basePath == null)
@@ -1336,20 +1350,8 @@ namespace PlayniteAchievements.Services.Recording
 
             try
             {
-                // While clip requests are still between window computation and base extraction,
-                // age-based pruning would delete the very segments those clips need. Pause the
-                // age policy (byte cap still applies) only for that short span — once a base clip
-                // exists, its request no longer reads the buffer, even if its toast is queued far
-                // behind other waves.
-                var clipsOutstanding = Volatile.Read(ref _requestsAwaitingBase) > 0;
-
                 var persisted = _settings?.Persisted;
-                var pollInterval = Math.Max(10, persisted?.InGamePollIntervalSeconds ?? DefaultPollIntervalSeconds);
                 var preRoll = persisted?.RecordingClipSeconds ?? DefaultPreRollSeconds;
-                // Suspend age-based pruning while clips are outstanding: a clip waiting for a late
-                // toast reaches back to its pre-roll and forward to that toast, so the segments it
-                // needs must survive. The byte cap still applies. Video and audio share the policy.
-                var retentionInterval = clipsOutstanding ? AgePruneSuspendedInterval : pollInterval;
 
                 var segments = SegmentTimeline.ParseSegments(
                     ListBufferFiles(
@@ -1359,18 +1361,14 @@ namespace PlayniteAchievements.Services.Recording
                     TimeZoneInfo.Local,
                     RecordingPaths.SegmentFilePrefix,
                     session.SegmentExtension);
-                LogCaptureHealth(session, segments);
-                foreach (var segment in SegmentTimeline.SelectPrunable(
-                             segments, retentionInterval, preRoll, SegmentSeconds, MaxBufferBytes))
-                {
-                    TryDeleteFile(segment.Path);
-                }
 
-                // Audio chunks share the retention policy (their bytes are negligible next to the
-                // video's, so reusing the same cap is safe). The chime sidecar follows suit.
+                // Audio rides the same retention span as the video: a clip needs picture and sound
+                // over one window, and both count against the user's budget, so the cutoff is
+                // resolved once over every file in the buffer.
+                var audioByPrefix = new Dictionary<string, List<SegmentTimeline.SegmentInfo>>();
                 foreach (var prefix in new[] { RecordingPaths.AudioChunkFilePrefix, RecordingPaths.ChimeChunkFilePrefix })
                 {
-                    var audioChunks = SegmentTimeline.ParseSegments(
+                    audioByPrefix[prefix] = SegmentTimeline.ParseSegments(
                         ListBufferFiles(
                             session.BufferDirectory,
                             prefix,
@@ -1378,8 +1376,28 @@ namespace PlayniteAchievements.Services.Recording
                         TimeZoneInfo.Local,
                         prefix,
                         RecordingPaths.AudioChunkFileExtension);
-                    foreach (var chunk in SegmentTimeline.SelectPrunable(
-                                 audioChunks, retentionInterval, preRoll, SegmentSeconds, MaxBufferBytes))
+                }
+
+                var allFiles = new List<SegmentTimeline.SegmentInfo>(segments);
+                foreach (var chunks in audioByPrefix.Values)
+                {
+                    allFiles.AddRange(chunks);
+                }
+
+                var cutoff = SegmentTimeline.ResolveBudgetCutoffUtc(
+                    allFiles,
+                    ResolveBufferBudgetBytes(session, persisted),
+                    ResolveMinimumKeepFromUtc(preRoll));
+
+                LogCaptureHealth(session, segments, allFiles, cutoff);
+                foreach (var segment in SegmentTimeline.SelectPrunable(segments, cutoff))
+                {
+                    TryDeleteFile(segment.Path);
+                }
+
+                foreach (var pair in audioByPrefix)
+                {
+                    foreach (var chunk in SegmentTimeline.SelectPrunable(pair.Value, cutoff))
                     {
                         TryDeleteFile(chunk.Path);
                     }
@@ -1402,16 +1420,94 @@ namespace PlayniteAchievements.Services.Recording
         }
 
         /// <summary>
+        /// The buffer's storage budget in bytes: the user's setting, clamped down so it can never
+        /// exceed what the drive can actually give (leaving the stop-capture reserve free). Logged
+        /// once per session when the clamp bites, since the buffer then reaches back less far than
+        /// the user asked for.
+        /// </summary>
+        private long ResolveBufferBudgetBytes(CaptureSession session, PersistedSettings persisted)
+        {
+            var requested = (long)Math.Max(1, persisted?.RecordingBufferBudgetMb ?? DefaultBufferBudgetMb)
+                * 1024 * 1024;
+            try
+            {
+                var root = Path.GetPathRoot(Path.GetFullPath(session.BufferDirectory));
+                if (string.IsNullOrEmpty(root))
+                {
+                    return requested;
+                }
+
+                // What the buffer already occupies is available to it, so the headroom is the free
+                // space plus the current buffer, less the reserve that stops capture outright.
+                var free = new DriveInfo(root).AvailableFreeSpace;
+                var affordable = free + session.LastKnownBufferBytes - MinFreeBytesToContinue;
+                if (affordable >= requested || affordable <= 0)
+                {
+                    return requested;
+                }
+
+                if (!session.BufferBudgetClampLogged)
+                {
+                    session.BufferBudgetClampLogged = true;
+                    _logger?.Warn(
+                        $"[Recording] Buffer budget reduced from {requested / (1024 * 1024)}MB to " +
+                        $"{affordable / (1024 * 1024)}MB: not enough free space on the buffer drive.");
+                }
+
+                return affordable;
+            }
+            catch (Exception ex)
+            {
+                // Unknown drives (UNC quirks) fail open, matching HasFreeSpace.
+                _logger?.Debug(ex, "[Recording] Buffer budget free-space clamp failed.");
+                return requested;
+            }
+        }
+
+        /// <summary>
+        /// The newest moment the pruner may cut back to, whatever the budget says. Covers one clip
+        /// window (pre-roll plus the toast slot and tail, and a segment of slack), and reaches
+        /// further back while clip requests are still between window computation and base
+        /// extraction — those clips read the buffer, so their footage must survive even if the
+        /// budget is exceeded.
+        /// </summary>
+        private DateTime ResolveMinimumKeepFromUtc(int preRoll)
+        {
+            var floor = DateTime.UtcNow.AddSeconds(
+                -(preRoll + MaxToastSlotAllowanceSeconds + ToastTailSeconds + SegmentSeconds));
+
+            DateTime? oldestOutstanding;
+            lock (_outstandingGate)
+            {
+                oldestOutstanding = _outstandingWindowStarts.Count == 0
+                    ? (DateTime?)null
+                    : _outstandingWindowStarts.Min();
+            }
+
+            return oldestOutstanding.HasValue && oldestOutstanding.Value < floor
+                ? oldestOutstanding.Value
+                : floor;
+        }
+
+        /// <summary>
         /// Diagnostic only: a per-prune-tick capture-health line. Warns when the recorder has stopped
         /// opening new segments — a stalled capture that leaves an unlock with no footage ("no
         /// buffered segments overlap the clip window"). The WGC recorder duplicates the last frame at
         /// a constant rate, so segments should always advance; a stall here means the recorder itself
         /// wedged. Never throws.
         /// </summary>
-        private void LogCaptureHealth(CaptureSession session, IReadOnlyList<SegmentTimeline.SegmentInfo> segments)
+        private void LogCaptureHealth(
+            CaptureSession session,
+            IReadOnlyList<SegmentTimeline.SegmentInfo> segments,
+            IReadOnlyList<SegmentTimeline.SegmentInfo> allFiles,
+            DateTime cutoffUtc)
         {
             try
             {
+                // Tracked even when the health line is skipped: the budget's free-space clamp reads
+                // it to know how much of the drive the buffer already holds.
+                session.LastKnownBufferBytes = allFiles?.Sum(file => Math.Max(0, file.SizeBytes)) ?? 0;
+
                 if (session == null || session.Stopping || session.WgcRecorder == null)
                 {
                     return;
@@ -1446,10 +1542,14 @@ namespace PlayniteAchievements.Services.Recording
                     session.MaxSegmentBytes = lastClosed.SizeBytes;
                 }
 
+                // The retained span is what a clip can actually reach back to, so it is the number
+                // that explains "the unlock had no footage": compare it against unlock->detect.
+                var oldestKept = segments[0].StartUtc > cutoffUtc ? segments[0].StartUtc : cutoffUtc;
                 var line =
                     $"[RecordingHealth] '{session.GameName}': segments={segments.Count} " +
                     $"newestAge={(now - newest.StartUtc).TotalSeconds:F0}s sinceNewSegment={sinceNewSegment:F0}s " +
-                    $"lastClosed={(lastClosed?.SizeBytes ?? 0) / 1024}KB peak={session.MaxSegmentBytes / 1024}KB";
+                    $"lastClosed={(lastClosed?.SizeBytes ?? 0) / 1024}KB peak={session.MaxSegmentBytes / 1024}KB " +
+                    $"used={session.LastKnownBufferBytes / (1024 * 1024)}MB span={(now - oldestKept).TotalSeconds:F0}s";
 
                 // A new segment should open every SegmentSeconds; several periods without one means
                 // the capture has stalled.

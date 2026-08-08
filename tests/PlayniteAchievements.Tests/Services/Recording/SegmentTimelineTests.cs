@@ -25,6 +25,17 @@ namespace PlayniteAchievements.Services.Tests.Recording
             };
         }
 
+        /// <summary>A buffer file of a given byte size, for budget-cutoff tests.</summary>
+        private static SegmentTimeline.SegmentInfo Bytes(DateTime startUtc, long sizeBytes)
+        {
+            return new SegmentTimeline.SegmentInfo
+            {
+                Path = $@"C:\buf\seg_{startUtc:yyyyMMdd-HHmmss}.mp4",
+                StartUtc = startUtc,
+                SizeBytes = sizeBytes
+            };
+        }
+
         private static SegmentTimeline.SegmentInfo Sized(DateTime startUtc, int width, int height)
         {
             return new SegmentTimeline.SegmentInfo
@@ -302,12 +313,14 @@ namespace PlayniteAchievements.Services.Tests.Recording
         }
 
         [TestMethod]
-        public void ComputeClipWindow_FarBackPreciseUnlock_StartFlooredToPollIntervalPlusPreRoll()
+        public void ComputeClipWindow_UnreachableUnlockTimestamp_AnchorsOnDetectionWithFullPreRoll()
         {
+            // The Spider-Man case: Steam recorded SetAchievement two minutes before StoreStats
+            // popped the overlay, so the timestamp points at footage that has left the buffer.
+            // The clip must follow the player -- a full pre-roll ending on the pop -- rather than
+            // collapse onto the floored start and show an unrelated moment.
             var captureStart = T0;
             var detection = T0.AddSeconds(300);
-            // A trusted timestamp far earlier in the session would open a huge clip; the floor
-            // pulls the start to one poll interval + pre-roll before detection.
             var unlock = T0.AddSeconds(60);
 
             var window = SegmentTimeline.ComputeClipWindow(
@@ -315,26 +328,110 @@ namespace PlayniteAchievements.Services.Tests.Recording
                 pollIntervalSeconds: 15, preRollSeconds: 15,
                 toastSlotSeconds: 8, tailSeconds: 1);
 
-            Assert.AreEqual(detection.AddSeconds(-30), window.StartUtc);
-            // The floored start passed the far-back unlock anchor: toast begins at the start.
-            Assert.AreEqual(window.StartUtc, window.ToastAnchorUtc);
-        }
-
-        // === Depth math ===
-
-        [TestMethod]
-        public void BufferDepthSeconds_TakesMaxOfTripleIntervalAndClipSpan()
-        {
-            Assert.AreEqual(60, SegmentTimeline.BufferDepthSeconds(15, 15));
-            Assert.AreEqual(70, SegmentTimeline.BufferDepthSeconds(10, 30));
-            Assert.AreEqual(180, SegmentTimeline.BufferDepthSeconds(60, 15));
+            Assert.AreEqual(detection, window.ToastAnchorUtc);
+            Assert.AreEqual(detection.AddSeconds(-15), window.StartUtc);
+            Assert.AreEqual(detection.AddSeconds(9), window.EndUtc);
+            Assert.AreEqual(24, (window.EndUtc - window.StartUtc).TotalSeconds, 0.001);
         }
 
         [TestMethod]
-        public void RetainedSegmentCount_CeilsDepthPlusTwo()
+        public void ComputeClipWindow_ReachableUnlockTimestamp_StillAnchorsOnIt()
         {
-            Assert.AreEqual(11, SegmentTimeline.RetainedSegmentCount(45, 5));
-            Assert.AreEqual(12, SegmentTimeline.RetainedSegmentCount(46, 5));
+            // The ordinary case -- SetAchievement and StoreStats back to back -- must be untouched.
+            var captureStart = T0;
+            var detection = T0.AddSeconds(300);
+            var unlock = detection.AddSeconds(-4);
+
+            var window = SegmentTimeline.ComputeClipWindow(
+                unlock, detection, captureStart, null,
+                pollIntervalSeconds: 15, preRollSeconds: 15,
+                toastSlotSeconds: 8, tailSeconds: 1);
+
+            Assert.AreEqual(unlock, window.ToastAnchorUtc);
+            Assert.AreEqual(unlock.AddSeconds(-15), window.StartUtc);
+        }
+
+        // === Buffer budget ===
+
+        [TestMethod]
+        public void ResolveBudgetCutoffUtc_KeepsTheNewestFilesThatFitTheBudget()
+        {
+            // Four 100-byte files a second apart; a 250-byte budget holds the newest two.
+            var files = new List<SegmentTimeline.SegmentInfo>
+            {
+                Bytes(T0, 100),
+                Bytes(T0.AddSeconds(1), 100),
+                Bytes(T0.AddSeconds(2), 100),
+                Bytes(T0.AddSeconds(3), 100)
+            };
+
+            var cutoff = SegmentTimeline.ResolveBudgetCutoffUtc(files, 250, DateTime.MaxValue);
+
+            Assert.AreEqual(T0.AddSeconds(2), cutoff);
+            CollectionAssert.AreEqual(
+                new[] { files[0], files[1] },
+                SegmentTimeline.SelectPrunable(files, cutoff).ToArray());
+        }
+
+        [TestMethod]
+        public void ResolveBudgetCutoffUtc_MixesVideoAndAudioIntoOneSpan()
+        {
+            // Video and audio share the budget and the retained span: a clip needs both.
+            var files = new List<SegmentTimeline.SegmentInfo>
+            {
+                Bytes(T0, 100),
+                Bytes(T0, 20),
+                Bytes(T0.AddSeconds(5), 100),
+                Bytes(T0.AddSeconds(5), 20)
+            };
+
+            var cutoff = SegmentTimeline.ResolveBudgetCutoffUtc(files, 130, DateTime.MaxValue);
+
+            // The newest pair (120 bytes) fits; adding either older file would exceed 130.
+            Assert.AreEqual(T0.AddSeconds(5), cutoff);
+        }
+
+        [TestMethod]
+        public void ResolveBudgetCutoffUtc_FloorWinsWhenTheBudgetCannotHoldAClipWindow()
+        {
+            var files = new List<SegmentTimeline.SegmentInfo>
+            {
+                Bytes(T0, 100),
+                Bytes(T0.AddSeconds(5), 100),
+                Bytes(T0.AddSeconds(10), 100)
+            };
+
+            // A budget that holds only the newest file, but the floor demands the last 10 seconds:
+            // the buffer overruns the budget rather than leaving clips that cannot be built.
+            var cutoff = SegmentTimeline.ResolveBudgetCutoffUtc(files, 100, T0);
+
+            Assert.AreEqual(T0, cutoff);
+            Assert.AreEqual(0, SegmentTimeline.SelectPrunable(files, cutoff).Count);
+        }
+
+        [TestMethod]
+        public void ResolveBudgetCutoffUtc_NonPositiveBudgetKeepsEverything()
+        {
+            var files = new List<SegmentTimeline.SegmentInfo> { Bytes(T0, 100) };
+
+            Assert.AreEqual(DateTime.MinValue, SegmentTimeline.ResolveBudgetCutoffUtc(files, 0, DateTime.MaxValue));
+            Assert.AreEqual(DateTime.MinValue, SegmentTimeline.ResolveBudgetCutoffUtc(files, -1, DateTime.MaxValue));
+            Assert.AreEqual(DateTime.MinValue, SegmentTimeline.ResolveBudgetCutoffUtc(null, 100, DateTime.MaxValue));
+        }
+
+        [TestMethod]
+        public void ResolveBudgetCutoffUtc_BudgetSmallerThanOneFileStillKeepsTheNewest()
+        {
+            var files = new List<SegmentTimeline.SegmentInfo>
+            {
+                Bytes(T0, 100),
+                Bytes(T0.AddSeconds(5), 100)
+            };
+
+            var cutoff = SegmentTimeline.ResolveBudgetCutoffUtc(files, 10, DateTime.MaxValue);
+
+            Assert.AreEqual(T0.AddSeconds(5), cutoff);
+            Assert.AreEqual(1, SegmentTimeline.SelectPrunable(files, cutoff).Count);
         }
 
         // === Clip planning ===
@@ -539,72 +636,45 @@ namespace PlayniteAchievements.Services.Tests.Recording
         // === Pruning ===
 
         [TestMethod]
-        public void SelectPrunable_KeepsBufferDepthNewestSegments()
+        public void SelectPrunable_TakesEverythingStartingBeforeTheCutoff()
         {
-            // N=15, preRoll=15 -> depth 60s -> retain ceil(60/5)+2 = 14.
-            var segments = Enumerable.Range(0, 18)
+            var segments = Enumerable.Range(0, 6)
                 .Select(i => Segment(T0.AddSeconds(i * 5)))
                 .ToList();
 
-            var prunable = SegmentTimeline.SelectPrunable(segments, 15, 15, 5, maxTotalBytes: 0);
-
-            Assert.AreEqual(4, prunable.Count);
-            CollectionAssert.AreEqual(segments.Take(4).ToArray(), prunable.ToArray());
-        }
-
-        [TestMethod]
-        public void SelectPrunable_ByteCapPrunesOldestBeyondBudget()
-        {
-            const long gigabyte = 1024L * 1024 * 1024;
-            var segments = Enumerable.Range(0, 5)
-                .Select(i => Segment(T0.AddSeconds(i * 5), gigabyte))
-                .ToList();
-
-            // Depth would keep all 5, but only the newest two fit under 2 GB.
-            var prunable = SegmentTimeline.SelectPrunable(segments, 15, 15, 5, maxTotalBytes: 2 * gigabyte);
+            var prunable = SegmentTimeline.SelectPrunable(segments, T0.AddSeconds(15));
 
             Assert.AreEqual(3, prunable.Count);
             CollectionAssert.AreEqual(segments.Take(3).ToArray(), prunable.ToArray());
         }
 
         [TestMethod]
-        public void SelectPrunable_AlwaysKeepsTheNewestSegmentEvenOverBudget()
+        public void SelectPrunable_AudioChunksSharTheVideoCutoff()
         {
-            var segments = new List<SegmentTimeline.SegmentInfo>
-            {
-                Segment(T0, 10),
-                Segment(T0.AddSeconds(5), long.MaxValue / 2)
-            };
-
-            var prunable = SegmentTimeline.SelectPrunable(segments, 15, 15, 5, maxTotalBytes: 100);
-
-            Assert.AreEqual(1, prunable.Count);
-            Assert.AreSame(segments[0], prunable[0]);
-        }
-
-        [TestMethod]
-        public void SelectPrunable_AudioChunks_UseSameRetentionAsVideo()
-        {
-            // Same 5s cadence as the video test: N=15, preRoll=15 -> retain 14 of 18.
+            // One cutoff governs every stream, so a clip always has picture and sound over the
+            // same span.
             var chunks = SegmentTimeline.ParseSegments(
-                Enumerable.Range(0, 18)
+                Enumerable.Range(0, 6)
                     .Select(i => ($@"C:\buf\aud_{T0.AddHours(2).AddSeconds(i * 5):yyyyMMdd-HHmmss}.wav", 1L))
                     .ToList(),
                 PlusTwo,
                 "aud_",
                 ".wav");
 
-            var prunable = SegmentTimeline.SelectPrunable(chunks, 15, 15, 5, maxTotalBytes: 0);
+            var prunable = SegmentTimeline.SelectPrunable(chunks, T0.AddSeconds(15));
 
-            Assert.AreEqual(4, prunable.Count);
-            CollectionAssert.AreEqual(chunks.Take(4).ToList(), prunable);
+            Assert.AreEqual(3, prunable.Count);
             Assert.IsTrue(prunable.All(c => c.Path.Contains("aud_")));
         }
 
         [TestMethod]
-        public void SelectPrunable_EmptyInput_ReturnsEmpty()
+        public void SelectPrunable_EmptyInputOrMinValueCutoff_ReturnsEmpty()
         {
-            Assert.AreEqual(0, SegmentTimeline.SelectPrunable(null, 15, 15, 5, 0).Count);
+            Assert.AreEqual(0, SegmentTimeline.SelectPrunable(null, T0).Count);
+            Assert.AreEqual(
+                0,
+                SegmentTimeline.SelectPrunable(
+                    new List<SegmentTimeline.SegmentInfo> { Segment(T0) }, DateTime.MinValue).Count);
         }
     }
 }

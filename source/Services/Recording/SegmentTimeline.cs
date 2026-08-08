@@ -244,14 +244,26 @@ namespace PlayniteAchievements.Services.Recording
         }
 
         /// <summary>
-        /// Computes the clip window in UTC, anchored purely on the unlock — the on-screen toast
-        /// never moves the window because the toast is composited into the clip at export.
-        /// Start: preRollSeconds (the user's setting) before the unlock moment — the precise
-        /// timestamp when trusted, else pre-roll before detection. A floor keeps the start no
-        /// earlier than one poll interval + pre-roll before detection, so a far-back but
-        /// in-session precise timestamp can't open a runaway clip; the start is also clamped to
-        /// recorded data. End: the toast anchor (raised to the clip start when the pre-roll got
-        /// clamped away) plus the toast slot and tail.
+        /// Computes the clip window in UTC. The clip is built around the moment the achievement
+        /// appeared on screen — the on-screen toast never moves the window, because the toast is
+        /// composited into the clip at export.
+        ///
+        /// The anchor is the provider's unlock timestamp when it is reachable, else detection. Two
+        /// floors raise the start: it may not open earlier than one poll interval + pre-roll before
+        /// detection, nor earlier than recorded data. When a floor raises the start past the
+        /// timestamp itself, that timestamp is discarded and the window is recomputed around
+        /// detection.
+        ///
+        /// That last rule is the difference between a clip of the achievement and a clip of
+        /// something else. A platform can record an unlock well before the player sees it — Steam
+        /// stores the time the game called SetAchievement, while the overlay pops (and the stats
+        /// file is written, and we detect) only at the later StoreStats — so the timestamp can
+        /// point minutes back, at footage that has already left the buffer. Anchoring there used to
+        /// drag the toast forward onto the floored start, leaving a clip of exactly the toast slot
+        /// showing a moment unrelated to the achievement, with no pre-roll at all. Detection is the
+        /// better anchor: it is when the player saw the pop, and it still yields the whole pre-roll.
+        ///
+        /// End: the toast anchor plus the toast slot and tail.
         /// </summary>
         public static ClipWindow ComputeClipWindow(
             DateTime? unlockTimeUtc,
@@ -263,20 +275,7 @@ namespace PlayniteAchievements.Services.Recording
             double toastSlotSeconds,
             double tailSeconds)
         {
-            var anchor = IsPreciseUnlockTime(unlockTimeUtc, captureStartUtc, detectionUtc)
-                ? unlockTimeUtc.Value
-                : detectionUtc;
-
             var preRoll = Math.Max(0, preRollSeconds);
-            var start = anchor.AddSeconds(-preRoll);
-
-            // Start floor: never open earlier than the oldest moment a promptly-detected unlock
-            // could have occurred (one poll interval back) plus the pre-roll.
-            var earliest = detectionUtc.AddSeconds(-(Math.Max(0, pollIntervalSeconds) + preRoll));
-            if (start < earliest)
-            {
-                start = earliest;
-            }
 
             // Clamp to data that actually exists.
             var floor = captureStartUtc;
@@ -285,12 +284,23 @@ namespace PlayniteAchievements.Services.Recording
                 floor = oldestSegmentStartUtc.Value;
             }
 
-            if (start < floor)
+            var anchor = IsPreciseUnlockTime(unlockTimeUtc, captureStartUtc, detectionUtc)
+                ? unlockTimeUtc.Value
+                : detectionUtc;
+            var start = ClampWindowStart(
+                anchor.AddSeconds(-preRoll), detectionUtc, pollIntervalSeconds, preRoll, floor);
+
+            if (start > anchor)
             {
-                start = floor;
+                // The timestamp is unreachable — older than the buffer, or than a promptly-detected
+                // unlock could be. Re-anchor on the moment the player saw the pop.
+                anchor = detectionUtc;
+                start = ClampWindowStart(
+                    anchor.AddSeconds(-preRoll), detectionUtc, pollIntervalSeconds, preRoll, floor);
             }
 
-            // The toast begins at the clip start when the pre-roll got clamped away entirely.
+            // The toast begins at the clip start when the pre-roll got clamped away entirely (a
+            // capture that only just started).
             if (anchor < start)
             {
                 anchor = start;
@@ -301,20 +311,76 @@ namespace PlayniteAchievements.Services.Recording
         }
 
         /// <summary>
-        /// Rolling buffer depth in seconds: covers the worst-case clip span (pre-roll + poll
-        /// interval + toast display) plus refresh-tick and toast-queue latency margin.
+        /// Raises a window start to the earliest moment it may open: no earlier than a promptly
+        /// detected unlock could have occurred (one poll interval plus the pre-roll before
+        /// detection), and no earlier than recorded data.
         /// </summary>
-        public static int BufferDepthSeconds(int pollIntervalSeconds, int preRollSeconds)
+        private static DateTime ClampWindowStart(
+            DateTime start, DateTime detectionUtc, int pollIntervalSeconds, int preRoll, DateTime floor)
         {
-            var interval = Math.Max(0, pollIntervalSeconds);
-            return Math.Max(3 * interval, interval + Math.Max(0, preRollSeconds) + 30);
+            var earliest = detectionUtc.AddSeconds(-(Math.Max(0, pollIntervalSeconds) + preRoll));
+            if (start < earliest)
+            {
+                start = earliest;
+            }
+
+            return start < floor ? floor : start;
         }
 
-        /// <summary>Segments kept by the pruner for the given depth: ceil(depth/K) + 2.</summary>
-        public static int RetainedSegmentCount(int bufferDepthSeconds, int segmentSeconds)
+        /// <summary>
+        /// The oldest moment the rolling buffer keeps, given a storage budget: everything starting
+        /// before the returned time is prunable.
+        ///
+        /// The buffer's size is the budget, not a duration — how far back it reaches is whatever
+        /// the budget buys at the user's capture settings, which is why one number works across
+        /// resolutions. <paramref name="allBufferFiles"/> must be every file the budget covers
+        /// (video segments and both audio streams), so the cutoff is one span all of them share:
+        /// a clip needs picture and sound over the same window.
+        ///
+        /// <paramref name="minimumKeepFromUtc"/> is a floor, not a target: a budget too small to
+        /// hold one clip window overruns it rather than leaving clips that cannot be built.
+        /// Returns <see cref="DateTime.MinValue"/> (keep everything) for a non-positive budget.
+        /// </summary>
+        public static DateTime ResolveBudgetCutoffUtc(
+            IReadOnlyList<SegmentInfo> allBufferFiles,
+            long budgetBytes,
+            DateTime minimumKeepFromUtc)
         {
-            var k = Math.Max(1, segmentSeconds);
-            return (Math.Max(0, bufferDepthSeconds) + k - 1) / k + 2;
+            if (budgetBytes <= 0 || allBufferFiles == null || allBufferFiles.Count == 0)
+            {
+                return DateTime.MinValue;
+            }
+
+            var newestFirst = allBufferFiles
+                .Where(file => file != null)
+                .OrderByDescending(file => file.StartUtc)
+                .ToList();
+            if (newestFirst.Count == 0)
+            {
+                return DateTime.MinValue;
+            }
+
+            long total = 0;
+            var cutoff = DateTime.MinValue;
+            foreach (var file in newestFirst)
+            {
+                total += Math.Max(0, file.SizeBytes);
+                if (total > budgetBytes)
+                {
+                    // This file does not fit: keep everything from the previous one onward.
+                    break;
+                }
+
+                cutoff = file.StartUtc;
+            }
+
+            // Nothing fit at all — keep the newest file regardless, so the buffer is never empty.
+            if (cutoff == DateTime.MinValue)
+            {
+                cutoff = newestFirst[0].StartUtc;
+            }
+
+            return cutoff > minimumKeepFromUtc ? minimumKeepFromUtc : cutoff;
         }
 
         /// <summary>
@@ -444,49 +510,25 @@ namespace PlayniteAchievements.Services.Recording
         }
 
         /// <summary>
-        /// Segments (oldest-first) the pruner should delete: everything older than the retained
-        /// buffer depth, plus — regardless of age — the oldest segments once the newest-first
-        /// cumulative size exceeds the byte cap.
+        /// Files (oldest-first) the pruner should delete: everything starting before
+        /// <paramref name="cutoffUtc"/>, as resolved by <see cref="ResolveBudgetCutoffUtc"/>.
         /// </summary>
         public static List<SegmentInfo> SelectPrunable(
             IReadOnlyList<SegmentInfo> orderedSegments,
-            int pollIntervalSeconds,
-            int targetClipSeconds,
-            int segmentSeconds,
-            long maxTotalBytes)
+            DateTime cutoffUtc)
         {
             var result = new List<SegmentInfo>();
-            if (orderedSegments == null || orderedSegments.Count == 0)
+            if (orderedSegments == null)
             {
                 return result;
             }
 
-            var retain = RetainedSegmentCount(
-                BufferDepthSeconds(pollIntervalSeconds, targetClipSeconds),
-                segmentSeconds);
-
-            // Newest-first byte walk: find how many newest segments fit under the cap.
-            var byteBudgetCount = orderedSegments.Count;
-            if (maxTotalBytes > 0)
+            foreach (var segment in orderedSegments)
             {
-                long total = 0;
-                byteBudgetCount = 0;
-                for (var i = orderedSegments.Count - 1; i >= 0; i--)
+                if (segment != null && segment.StartUtc < cutoffUtc)
                 {
-                    total += Math.Max(0, orderedSegments[i].SizeBytes);
-                    if (total > maxTotalBytes && byteBudgetCount > 0)
-                    {
-                        break;
-                    }
-
-                    byteBudgetCount++;
+                    result.Add(segment);
                 }
-            }
-
-            var keep = Math.Min(retain, byteBudgetCount);
-            for (var i = 0; i < orderedSegments.Count - keep; i++)
-            {
-                result.Add(orderedSegments[i]);
             }
 
             return result;

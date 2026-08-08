@@ -4,6 +4,7 @@
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
              xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+             xmlns:sys="clr-namespace:System;assembly=mscorlib"
              xmlns:settings="clr-namespace:PlayniteAchievements.Models.Settings"
              xmlns:helpers="clr-namespace:PlayniteAchievements.Views.Helpers"
              xmlns:vm="clr-namespace:PlayniteAchievements.ViewModels"
@@ -449,6 +450,7 @@
                                     <RowDefinition Height="Auto"/>
                                     <RowDefinition Height="Auto"/>
                                     <RowDefinition Height="Auto"/>
+                                    <RowDefinition Height="Auto"/>
                                 </Grid.RowDefinitions>
 
                                 <TextBlock Grid.Row="0" Grid.Column="0"
@@ -461,6 +463,22 @@
                                          Width="{StaticResource PlayAch.Size.Input.NarrowWidth}"
                                          TextAlignment="Right"
                                          Margin="0,0,0,8"/>
+
+                                <TextBlock Grid.Row="3" Grid.Column="0"
+                                           Text="{DynamicResource LOCPlayAch_Settings_RecordingBufferBudgetMb}"
+                                           Foreground="{DynamicResource PlayAch.Brush.Text}"
+                                           VerticalAlignment="Center"
+                                           Margin="0,0,8,8"/>
+                                <ComboBox Grid.Row="3" Grid.Column="1"
+                                          SelectedValue="{Binding Persisted.RecordingBufferBudgetMb, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                          SelectedValuePath="Tag"
+                                          MinWidth="140"
+                                          Margin="0,0,0,8">
+                                    <ComboBoxItem Content="256 MB"><ComboBoxItem.Tag><sys:Int32>256</sys:Int32></ComboBoxItem.Tag></ComboBoxItem>
+                                    <ComboBoxItem Content="512 MB"><ComboBoxItem.Tag><sys:Int32>512</sys:Int32></ComboBoxItem.Tag></ComboBoxItem>
+                                    <ComboBoxItem Content="1 GB"><ComboBoxItem.Tag><sys:Int32>1024</sys:Int32></ComboBoxItem.Tag></ComboBoxItem>
+                                    <ComboBoxItem Content="2 GB"><ComboBoxItem.Tag><sys:Int32>2048</sys:Int32></ComboBoxItem.Tag></ComboBoxItem>
+                                </ComboBox>
 
                                 <TextBlock Grid.Row="1" Grid.Column="0"
                                            Text="{DynamicResource LOCPlayAch_Settings_RecordingFps}"
