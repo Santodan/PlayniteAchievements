@@ -15367,7 +15367,7 @@ index 3b437baab5d9577f8600420361090f5dbd704ab0..524899e89cce24678330630b84c7e7a2
          {
              try
 diff --git a/source/Services/UI/ToastNotificationService.cs b/source/Services/UI/ToastNotificationService.cs
-index d5e034ec651d003331ec4db4279ac5b7ebaf22ed..4abaf4dd17cf3fde6d7e7a8b7bc20c3379a1b003 100644
+index d5e034ec651d003331ec4db4279ac5b7ebaf22ed..e86e135ee040338744a135668d615a70115bd127 100644
 --- a/source/Services/UI/ToastNotificationService.cs
 +++ b/source/Services/UI/ToastNotificationService.cs
 @@ -16,6 +16,8 @@
@@ -15414,25 +15414,23 @@ index d5e034ec651d003331ec4db4279ac5b7ebaf22ed..4abaf4dd17cf3fde6d7e7a8b7bc20c33
              {
                  return true;
              }
-@@ -264,6 +269,17 @@ private bool ShouldProcess(AchievementUnlockedEventArgs args)
-                 return true;
+@@ -265,7 +270,14 @@ private bool ShouldProcess(AchievementUnlockedEventArgs args)
              }
  
-+            var custom = ProviderRegistry.Settings<LocalSettings>();
-+            if (custom?.EnableUnlockScreenshots == true &&
-+                !string.IsNullOrWhiteSpace(custom.EffectiveScreenshotSaveFolder))
+             var persisted = _settings?.Persisted;
+-            if (persisted?.EnableUnlockScreenshots != true ||
++            if (persisted?.EnableUnlockScreenshots != true)
 +            {
-+                return UnlockCaptureRarityFilter.ShouldCapture(
-+                    ResolveRarity(args),
-+                    IsCompletionUnlock(args),
-+                    custom.ScreenshotRarities,
-+                    custom.ScreenshotAlwaysCaptureCompletion);
++                return false;
 +            }
 +
-             var persisted = _settings?.Persisted;
-             if (persisted?.EnableUnlockScreenshots != true ||
++            var custom = ProviderRegistry.Settings<LocalSettings>();
++            var useCustomNaming = ShouldUseCustomScreenshotNaming(custom, persisted);
++            if ((!useCustomNaming || string.IsNullOrWhiteSpace(custom?.EffectiveScreenshotSaveFolder)) &&
                  string.IsNullOrWhiteSpace(persisted.UnlockScreenshotDirectory))
-@@ -296,13 +312,29 @@ private static bool IsCompletionUnlock(AchievementUnlockedEventArgs args) =>
+             {
+                 return false;
+@@ -296,13 +308,29 @@ private static bool IsCompletionUnlock(AchievementUnlockedEventArgs args) =>
          /// policy ANDs the EnableNotifications master switch into both toast flags and resolves
          /// all-false for null settings.
          /// </summary>
@@ -15463,7 +15461,7 @@ index d5e034ec651d003331ec4db4279ac5b7ebaf22ed..4abaf4dd17cf3fde6d7e7a8b7bc20c33
              var effective = ProviderNotificationPolicy.Resolve(_settings?.Persisted, providerKey);
              return isFriendUnlock
                  ? effective.FriendUnlockToasts
-@@ -1082,7 +1114,12 @@ private WavePlan ResolveWavePlan(IReadOnlyList<AchievementToastViewModel> wave)
+@@ -1082,7 +1110,12 @@ private WavePlan ResolveWavePlan(IReadOnlyList<AchievementToastViewModel> wave)
              // toast, items that only produce capture output, or a mix (waves batch by friend/own
              // only).
              var toastItems = wave
@@ -15477,28 +15475,19 @@ index d5e034ec651d003331ec4db4279ac5b7ebaf22ed..4abaf4dd17cf3fde6d7e7a8b7bc20c33
                  .ToList();
              if (toastItems.Count > 0)
              {
-@@ -1146,7 +1183,19 @@ private async Task ShowWaveAsync(IReadOnlyList<AchievementToastViewModel> wave)
+@@ -1146,6 +1179,11 @@ private async Task ShowWaveAsync(IReadOnlyList<AchievementToastViewModel> wave)
              Task<System.Drawing.Bitmap> baseCaptureTask = null;
              if (plan != null)
              {
--                baseCaptureTask = StartWaveSurfaceCapture(waveIsTestFire);
 +                if (plan.CaptureDelayMilliseconds > 0)
 +                {
 +                    await Task.Delay(plan.CaptureDelayMilliseconds).ConfigureAwait(true);
 +                }
 +
-+                var waveHwnd = ResolveWaveWindowHandle();
-+                var processId = _getGameProcessId?.Invoke(_activeWaveGameId);
-+                baseCaptureTask = plan.UsesCustomSettings
-+                    ? Task.Run(() => _screenshotService.CaptureUsingMode(
-+                        plan.CustomSettings.ScreenshotCaptureMode,
-+                        waveHwnd,
-+                        processId))
-+                    : StartWaveSurfaceCapture(waveIsTestFire);
+                 baseCaptureTask = StartWaveSurfaceCapture(waveIsTestFire);
              }
  
-             // Nothing needs a card: capture and save, no window, no delays. Running this inside
-@@ -1663,12 +1712,20 @@ private sealed class WaveScreenshotPlan
+@@ -1663,12 +1701,22 @@ private sealed class WaveScreenshotPlan
  
              public string FramedSuffix { get; set; }
  
@@ -15508,9 +15497,11 @@ index d5e034ec651d003331ec4db4279ac5b7ebaf22ed..4abaf4dd17cf3fde6d7e7a8b7bc20c33
 -            public bool NeedsToastComposite => Items.Any(i =>
 +            public LocalSettings CustomSettings { get; set; }
 +
-+            public bool UsesCustomSettings => CustomSettings != null;
++            public bool UsesCustomNaming => CustomSettings != null;
 +
-+            public int CaptureDelayMilliseconds => CustomSettings?.ScreenshotDelayMilliseconds ?? 0;
++            public int CaptureDelayMilliseconds { get; set; }
++
++            public bool IsTestFire { get; set; }
 +
 +            public bool NeedsCleanCapture => Items.Any(i =>
 +                (i.Variants & (ScreenshotVariants.Clean | ScreenshotVariants.Framed)) != 0);
@@ -15523,43 +15514,71 @@ index d5e034ec651d003331ec4db4279ac5b7ebaf22ed..4abaf4dd17cf3fde6d7e7a8b7bc20c33
              public bool NeedsFrame => Items.Any(i =>
                  (i.Variants & ScreenshotVariants.Framed) != 0);
          }
-@@ -1693,6 +1750,35 @@ private WaveScreenshotPlan BuildScreenshotPlan(IReadOnlyList<AchievementToastVie
+@@ -1693,15 +1741,28 @@ private WaveScreenshotPlan BuildScreenshotPlan(IReadOnlyList<AchievementToastVie
              }
  
              var persisted = _settings?.Persisted;
-+            var custom = ProviderRegistry.Settings<LocalSettings>();
-+            if (custom?.EnableUnlockScreenshots == true &&
-+                !string.IsNullOrWhiteSpace(custom.EffectiveScreenshotSaveFolder))
+-            var baseDir = persisted?.UnlockScreenshotDirectory;
+-            if (persisted?.EnableUnlockScreenshots != true || string.IsNullOrWhiteSpace(baseDir))
++            if (persisted?.EnableUnlockScreenshots != true)
 +            {
-+                var customPlan = new WaveScreenshotPlan
-+                {
-+                    BaseDirectory = custom.EffectiveScreenshotSaveFolder,
-+                    CustomSettings = custom
-+                };
-+                foreach (var vm in wave.Where(vm => !vm.IsPreview && !vm.IsFriendUnlock))
-+                {
-+                    if (UnlockCaptureRarityFilter.ShouldCapture(
-+                            vm.Rarity,
-+                            vm.IsGameCompleted || vm.IsCompletionAchievement || vm.IsCapstone,
-+                            custom.ScreenshotRarities,
-+                            custom.ScreenshotAlwaysCaptureCompletion))
-+                    {
-+                        customPlan.Items.Add((vm, ScreenshotVariants.Clean));
-+                    }
-+                }
-+
-+                if (customPlan.Items.Count == 0)
-+                {
-+                    _logger?.Debug("[Screenshot] Custom screenshot skipped because no unlock cleared the selected rarity policy.");
-+                }
-+
-+                return customPlan.Items.Count > 0 ? customPlan : null;
++                return null;
 +            }
 +
-             var baseDir = persisted?.UnlockScreenshotDirectory;
-             if (persisted?.EnableUnlockScreenshots != true || string.IsNullOrWhiteSpace(baseDir))
++            var custom = ProviderRegistry.Settings<LocalSettings>();
++            var useCustomNaming = ShouldUseCustomScreenshotNaming(custom, persisted);
++            var baseDir = useCustomNaming ? custom.EffectiveScreenshotSaveFolder : persisted.UnlockScreenshotDirectory;
++            if (string.IsNullOrWhiteSpace(baseDir) && custom != null)
++            {
++                useCustomNaming = true;
++                baseDir = custom.EffectiveScreenshotSaveFolder;
++            }
++
++            if (string.IsNullOrWhiteSpace(baseDir))
              {
-@@ -1762,6 +1848,11 @@ private async Task SaveWaveScreenshotsAsync(
+                 return null;
+             }
+ 
+             // A manual test fire lands in a separate "Test" subfolder so it never mixes with a
+             // game's genuine unlock captures.
+-            if (first.IsTestFire)
++            if (first.IsTestFire && !useCustomNaming)
+             {
+                 baseDir = System.IO.Path.Combine(baseDir, UnlockScreenshotService.TestFolderName);
+             }
+@@ -1712,6 +1773,9 @@ private WaveScreenshotPlan BuildScreenshotPlan(IReadOnlyList<AchievementToastVie
+                 CleanSuffix = NormalizeSuffix(persisted.UnlockScreenshotSuffixClean),
+                 WithToastSuffix = NormalizeSuffix(persisted.UnlockScreenshotSuffixWithToast),
+                 FramedSuffix = NormalizeSuffix(persisted.UnlockScreenshotSuffixFramed),
++                CustomSettings = useCustomNaming ? custom : null,
++                CaptureDelayMilliseconds = custom?.ScreenshotDelayMilliseconds ?? 0,
++                IsTestFire = first.IsTestFire,
+             };
+             foreach (var vm in wave)
+             {
+@@ -1733,6 +1797,21 @@ private WaveScreenshotPlan BuildScreenshotPlan(IReadOnlyList<AchievementToastVie
+             return plan.Items.Count > 0 ? plan : null;
+         }
+ 
++        private static bool ShouldUseCustomScreenshotNaming(LocalSettings custom, PersistedSettings persisted)
++        {
++            if (custom == null)
++            {
++                return false;
++            }
++
++            return string.IsNullOrWhiteSpace(persisted?.UnlockScreenshotDirectory) ||
++                   !string.IsNullOrWhiteSpace(custom.ScreenshotSaveFolder) ||
++                   !string.Equals(
++                       custom.ScreenshotFilenameTemplate,
++                       LocalSettings.DefaultScreenshotFilenameTemplate,
++                       StringComparison.Ordinal);
++        }
++
+         /// <summary>
+         /// Trims a configured screenshot filename suffix; blank collapses to null so the path
+         /// builder emits no suffix at all.
+@@ -1762,6 +1841,11 @@ private async Task SaveWaveScreenshotsAsync(
                      baseBitmap = await baseCaptureTask.ConfigureAwait(true);
                  }
  
@@ -15571,7 +15590,7 @@ index d5e034ec651d003331ec4db4279ac5b7ebaf22ed..4abaf4dd17cf3fde6d7e7a8b7bc20c33
                  var framedByVm = new Dictionary<AchievementToastViewModel, System.Windows.Media.Imaging.BitmapSource>();
                  if (plan.NeedsFrame && baseBitmap != null)
                  {
-@@ -1818,10 +1909,24 @@ private async Task SaveWaveScreenshotsAsync(
+@@ -1818,27 +1902,65 @@ private async Task SaveWaveScreenshotsAsync(
                              var vm = item.Vm;
                              if ((item.Variants & ScreenshotVariants.Clean) != 0 && clean != null)
                              {
@@ -15579,7 +15598,7 @@ index d5e034ec651d003331ec4db4279ac5b7ebaf22ed..4abaf4dd17cf3fde6d7e7a8b7bc20c33
 -                                    clean, baseDir, vm.ProviderKey, vm.GameName, vm.AchievementName,
 -                                    vm.AchievementNumber, vm.TotalCount,
 -                                    plan.CleanSuffix);
-+                                if (plan.UsesCustomSettings)
++                                if (plan.UsesCustomNaming)
 +                                {
 +                                    _screenshotService.SaveUsingCustomSettings(
 +                                        clean,
@@ -15588,7 +15607,9 @@ index d5e034ec651d003331ec4db4279ac5b7ebaf22ed..4abaf4dd17cf3fde6d7e7a8b7bc20c33
 +                                        vm.ProviderKey,
 +                                        vm.AchievementName,
 +                                        vm.AchievementNumber,
-+                                        vm.TotalCount);
++                                        vm.TotalCount,
++                                        plan.CleanSuffix,
++                                        plan.IsTestFire);
 +                                }
 +                                else
 +                                {
@@ -15600,8 +15621,55 @@ index d5e034ec651d003331ec4db4279ac5b7ebaf22ed..4abaf4dd17cf3fde6d7e7a8b7bc20c33
                              }
  
                              if ((item.Variants & ScreenshotVariants.WithToast) != 0 &&
+                                 toasts != null && toasts.TryGetValue(vm, out var toastShot) && toastShot != null)
+                             {
+-                                _screenshotService.Save(
+-                                    toastShot, baseDir, vm.ProviderKey, vm.GameName, vm.AchievementName,
+-                                    vm.AchievementNumber, vm.TotalCount,
+-                                    plan.WithToastSuffix);
++                                if (plan.UsesCustomNaming)
++                                {
++                                    _screenshotService.SaveUsingCustomSettings(
++                                        toastShot, plan.CustomSettings,
++                                        _api?.Database?.Games?.Get(vm.PlayniteGameId), vm.ProviderKey,
++                                        vm.AchievementName, vm.AchievementNumber, vm.TotalCount,
++                                        plan.WithToastSuffix, plan.IsTestFire);
++                                }
++                                else
++                                {
++                                    _screenshotService.Save(
++                                        toastShot, baseDir, vm.ProviderKey, vm.GameName, vm.AchievementName,
++                                        vm.AchievementNumber, vm.TotalCount,
++                                        plan.WithToastSuffix);
++                                }
+                             }
+ 
+                             if (framedByVm.TryGetValue(vm, out var framed))
+                             {
+-                                _screenshotService.Save(
+-                                    framed, baseDir, vm.ProviderKey, vm.GameName, vm.AchievementName,
+-                                    vm.AchievementNumber, vm.TotalCount,
+-                                    plan.FramedSuffix);
++                                if (plan.UsesCustomNaming)
++                                {
++                                    _screenshotService.SaveUsingCustomSettings(
++                                        framed, plan.CustomSettings,
++                                        _api?.Database?.Games?.Get(vm.PlayniteGameId), vm.ProviderKey,
++                                        vm.AchievementName, vm.AchievementNumber, vm.TotalCount,
++                                        plan.FramedSuffix, plan.IsTestFire);
++                                }
++                                else
++                                {
++                                    _screenshotService.Save(
++                                        framed, baseDir, vm.ProviderKey, vm.GameName, vm.AchievementName,
++                                        vm.AchievementNumber, vm.TotalCount,
++                                        plan.FramedSuffix);
++                                }
+                             }
+                         }
+ 
 diff --git a/source/Services/UI/UnlockScreenshotService.cs b/source/Services/UI/UnlockScreenshotService.cs
-index 53ec251b1ff506dc155a6dd0067beb63bfb24af9..ef3ba57dfa0e3665506124f1a87ee1902e4f2c98 100644
+index 53ec251b1ff506dc155a6dd0067beb63bfb24af9..c0a638eb5411228212eb1f0d571975f87a23fbf6 100644
 --- a/source/Services/UI/UnlockScreenshotService.cs
 +++ b/source/Services/UI/UnlockScreenshotService.cs
 @@ -10,6 +10,9 @@
@@ -15614,7 +15682,7 @@ index 53ec251b1ff506dc155a6dd0067beb63bfb24af9..ef3ba57dfa0e3665506124f1a87ee190
  
  namespace PlayniteAchievements.Services.UI
  {
-@@ -214,6 +217,103 @@ public Bitmap CaptureGameWindow(IntPtr knownHwnd, int? startedProcessId)
+@@ -214,6 +217,162 @@ public Bitmap CaptureGameWindow(IntPtr knownHwnd, int? startedProcessId)
              }
          }
  
@@ -15668,7 +15736,9 @@ index 53ec251b1ff506dc155a6dd0067beb63bfb24af9..ef3ba57dfa0e3665506124f1a87ee190
 +            string providerKey,
 +            string achievementName,
 +            int number,
-+            int total)
++            int total,
++            string variantSuffix = null,
++            bool isTestFire = false)
 +        {
 +            if (bitmap == null || settings == null)
 +            {
@@ -15677,36 +15747,10 @@ index 53ec251b1ff506dc155a6dd0067beb63bfb24af9..ef3ba57dfa0e3665506124f1a87ee190
 +
 +            try
 +            {
-+                var timestamp = DateTime.Now;
-+                var directory = LocalAchievementScreenshotService.ReplaceTokens(
-+                    settings.EffectiveScreenshotSaveFolder,
-+                    game,
-+                    achievementName,
-+                    timestamp,
-+                    Math.Max(1, number),
-+                    Math.Max(1, total),
-+                    sanitizeValues: true,
-+                    providerName: providerKey);
-+                var filename = LocalAchievementScreenshotService.ReplaceTokens(
-+                    settings.ScreenshotFilenameTemplate,
-+                    game,
-+                    achievementName,
-+                    timestamp,
-+                    Math.Max(1, number),
-+                    Math.Max(1, total),
-+                    sanitizeValues: false,
-+                    providerName: providerKey);
-+                filename = LocalAchievementScreenshotService.SanitizeFileName(filename);
-+                Directory.CreateDirectory(directory);
-+                var extension = settings.ScreenshotImageFormat == LocalUnlockScreenshotImageFormat.Jpeg
-+                    ? ".jpg"
-+                    : ".png";
-+                var path = LocalAchievementScreenshotService.BuildUniquePath(directory, filename, extension);
-+                bitmap.Save(
-+                    path,
-+                    settings.ScreenshotImageFormat == LocalUnlockScreenshotImageFormat.Jpeg
-+                        ? ImageFormat.Jpeg
-+                        : ImageFormat.Png);
++                var path = BuildCustomScreenshotPath(
++                    settings, game, providerKey, achievementName, number, total,
++                    variantSuffix, isTestFire);
++                bitmap.Save(path, ImageFormat.Png);
 +                _logger?.Info($"[Screenshot] Saved custom unlock screenshot: {path}");
 +            }
 +            catch (Exception ex)
@@ -15715,10 +15759,93 @@ index 53ec251b1ff506dc155a6dd0067beb63bfb24af9..ef3ba57dfa0e3665506124f1a87ee190
 +            }
 +        }
 +
++        public void SaveUsingCustomSettings(
++            System.Windows.Media.Imaging.BitmapSource source,
++            LocalSettings settings,
++            Game game,
++            string providerKey,
++            string achievementName,
++            int number,
++            int total,
++            string variantSuffix = null,
++            bool isTestFire = false)
++        {
++            if (source == null || settings == null)
++            {
++                return;
++            }
++
++            try
++            {
++                var path = BuildCustomScreenshotPath(
++                    settings, game, providerKey, achievementName, number, total,
++                    variantSuffix, isTestFire);
++                var encoder = new System.Windows.Media.Imaging.PngBitmapEncoder();
++                encoder.Frames.Add(System.Windows.Media.Imaging.BitmapFrame.Create(source));
++                using (var stream = new FileStream(path, FileMode.CreateNew, FileAccess.Write, FileShare.None))
++                {
++                    encoder.Save(stream);
++                }
++                _logger?.Info($"[Screenshot] Saved custom unlock screenshot: {path}");
++            }
++            catch (Exception ex)
++            {
++                _logger?.Debug(ex, "Custom unlock screenshot save failed.");
++            }
++        }
++
++        private static string BuildCustomScreenshotPath(
++            LocalSettings settings,
++            Game game,
++            string providerKey,
++            string achievementName,
++            int number,
++            int total,
++            string variantSuffix,
++            bool isTestFire)
++        {
++            var timestamp = DateTime.Now;
++            var directory = LocalAchievementScreenshotService.ReplaceTokens(
++                settings.EffectiveScreenshotSaveFolder,
++                game,
++                achievementName,
++                timestamp,
++                Math.Max(1, number),
++                Math.Max(1, total),
++                sanitizeValues: true,
++                providerName: providerKey);
++            if (isTestFire)
++            {
++                directory = Path.Combine(directory, TestFolderName);
++            }
++
++            var filename = LocalAchievementScreenshotService.ReplaceTokens(
++                settings.ScreenshotFilenameTemplate,
++                game,
++                achievementName,
++                timestamp,
++                Math.Max(1, number),
++                Math.Max(1, total),
++                sanitizeValues: false,
++                providerName: providerKey);
++            filename = LocalAchievementScreenshotService.SanitizeFileName(filename);
++            if (!string.IsNullOrWhiteSpace(variantSuffix))
++            {
++                var suffix = LocalAchievementScreenshotService.SanitizeFileName(variantSuffix);
++                if (!string.IsNullOrWhiteSpace(suffix))
++                {
++                    filename += "_" + suffix;
++                }
++            }
++
++            Directory.CreateDirectory(directory);
++            return LocalAchievementScreenshotService.BuildUniquePath(directory, filename, ".png");
++        }
++
          /// <summary>
          /// Captures the entire monitor that <paramref name="windowOnMonitor"/> sits on (the
          /// Playnite window when no game is running), so a notification fired out of game captures
-@@ -437,9 +537,8 @@ internal static string SanitizeCaptureGameName(string gameName)
+@@ -437,9 +596,8 @@ internal static string SanitizeCaptureGameName(string gameName)
  
          /// <summary>
          /// Bounds of the monitor hosting the game window (started-process main window, else

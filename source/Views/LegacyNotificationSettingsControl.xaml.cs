@@ -54,6 +54,7 @@ namespace PlayniteAchievements.Views
         private int _lastNotificationTemplateCaretIndex;
         private TextBox _lastScreenshotTemplateTextBox;
         private int _lastScreenshotTemplateCaretIndex;
+        private bool _isRefreshingScreenshotRarities;
         private readonly ObservableCollection<NotificationCustomIconOption> _notificationCustomIconOptions = new ObservableCollection<NotificationCustomIconOption>();
         private readonly Dictionary<string, List<SvgRepoSearchResult>> _svgRepoSearchCache = new Dictionary<string, List<SvgRepoSearchResult>>(StringComparer.OrdinalIgnoreCase);
 
@@ -942,6 +943,102 @@ namespace PlayniteAchievements.Views
             target.GetBindingExpression(TextBox.TextProperty)?.UpdateSource();
         }
 
+        private void NotificationsScreenshotRarity_Checked(object sender, RoutedEventArgs e)
+        {
+            if (_isRefreshingScreenshotRarities || !(sender is CheckBox checkBox) ||
+                !Enum.TryParse(checkBox.Tag as string, true, out RarityTier tier))
+            {
+                return;
+            }
+
+            var variant = ReferenceEquals(checkBox.Parent, NotificationsScreenshotWithToastRaritiesPanel)
+                ? "WithToast"
+                : ReferenceEquals(checkBox.Parent, NotificationsScreenshotFramedRaritiesPanel)
+                    ? "Framed"
+                    : "Clean";
+            var selection = GetScreenshotRarities(variant);
+            var flag = tier.ToFlag();
+            SetScreenshotRarities(
+                variant,
+                checkBox.IsChecked == true ? selection | flag : selection & ~flag);
+        }
+
+        private RaritySelection GetScreenshotRarities(string variant)
+        {
+            var persisted = _settingsViewModel?.Settings?.Persisted;
+            if (persisted == null)
+            {
+                return RaritySelection.None;
+            }
+
+            switch (variant)
+            {
+                case "WithToast":
+                    return persisted.UnlockScreenshotWithToastRarities;
+                case "Framed":
+                    return persisted.UnlockScreenshotFramedRarities;
+                default:
+                    return persisted.UnlockScreenshotCleanRarities;
+            }
+        }
+
+        private void SetScreenshotRarities(string variant, RaritySelection selection)
+        {
+            var persisted = _settingsViewModel?.Settings?.Persisted;
+            if (persisted == null)
+            {
+                return;
+            }
+
+            switch (variant)
+            {
+                case "WithToast":
+                    persisted.UnlockScreenshotWithToastRarities = selection;
+                    break;
+                case "Framed":
+                    persisted.UnlockScreenshotFramedRarities = selection;
+                    break;
+                default:
+                    persisted.UnlockScreenshotCleanRarities = selection;
+                    break;
+            }
+        }
+
+        private void RefreshScreenshotRarityButtons()
+        {
+            _isRefreshingScreenshotRarities = true;
+            try
+            {
+                RefreshScreenshotRarityPanel(
+                    NotificationsScreenshotCleanRaritiesPanel,
+                    GetScreenshotRarities("Clean"));
+                RefreshScreenshotRarityPanel(
+                    NotificationsScreenshotWithToastRaritiesPanel,
+                    GetScreenshotRarities("WithToast"));
+                RefreshScreenshotRarityPanel(
+                    NotificationsScreenshotFramedRaritiesPanel,
+                    GetScreenshotRarities("Framed"));
+            }
+            finally
+            {
+                _isRefreshingScreenshotRarities = false;
+            }
+        }
+
+        private static void RefreshScreenshotRarityPanel(WrapPanel panel, RaritySelection selection)
+        {
+            if (panel == null)
+            {
+                return;
+            }
+
+            foreach (var checkBox in panel.Children.OfType<CheckBox>())
+            {
+                checkBox.IsChecked = Enum.TryParse(checkBox.Tag as string, true, out RarityTier tier) &&
+                    selection.Contains(tier);
+            }
+        }
+
         private void NotificationAddLine_Click(object sender, RoutedEventArgs e)
         {
             var localSettings = _providerRegistry?.GetSettingsForEdit("Local") as Providers.Local.LocalSettings;
@@ -1151,10 +1248,7 @@ namespace PlayniteAchievements.Views
                 NotificationsUnlockSoundLeadMillisecondsTextBox.Text = localSettings.UnlockSoundLeadMilliseconds.ToString();
             }
 
-            if (NotificationsScreenshotDelayMillisecondsTextBox != null)
-            {
-                NotificationsScreenshotDelayMillisecondsTextBox.Text = localSettings.ScreenshotDelayMilliseconds.ToString();
-            }
+            RefreshScreenshotRarityButtons();
 
             RefreshCustomStyleSlotControls(localSettings);
             RefreshNotificationCustomIconOptions(localSettings);
@@ -1557,36 +1651,6 @@ namespace PlayniteAchievements.Views
             if (updateTextBox)
             {
                 NotificationsPollingIntervalSecondsTextBox.Text = localSettings.ActiveGameMonitoringIntervalSeconds.ToString();
-            }
-        }
-
-        private void NotificationsScreenshotDelayMillisecondsTextBox_TextChanged(object sender, TextChangedEventArgs e)
-        {
-            ApplyNotificationsScreenshotDelayFromTextBox(updateTextBox: false);
-        }
-
-        private void NotificationsScreenshotDelayMillisecondsTextBox_LostFocus(object sender, RoutedEventArgs e)
-        {
-            ApplyNotificationsScreenshotDelayFromTextBox(updateTextBox: true);
-        }
-
-        private void ApplyNotificationsScreenshotDelayFromTextBox(bool updateTextBox)
-        {
-            if (NotificationsScreenshotDelayMillisecondsTextBox == null)
-                return;
-
-            var localSettings = _providerRegistry?.GetSettingsForEdit("Local") as Providers.Local.LocalSettings;
-            if (localSettings == null)
-                return;
-
-            if (int.TryParse(NotificationsScreenshotDelayMillisecondsTextBox.Text, out var delay))
-            {
-                localSettings.ScreenshotDelayMilliseconds = delay;
-            }
-
-            if (updateTextBox)
-            {
-                NotificationsScreenshotDelayMillisecondsTextBox.Text = localSettings.ScreenshotDelayMilliseconds.ToString();
             }
         }
 
@@ -8305,6 +8369,14 @@ namespace PlayniteAchievements.Views
             }
 
             if (persisted != null &&
+                (e.PropertyName == nameof(Models.Settings.PersistedSettings.UnlockScreenshotCleanRarities) ||
+                 e.PropertyName == nameof(Models.Settings.PersistedSettings.UnlockScreenshotWithToastRarities) ||
+                 e.PropertyName == nameof(Models.Settings.PersistedSettings.UnlockScreenshotFramedRarities)))
+            {
+                RefreshScreenshotRarityButtons();
+            }
+
+            if (persisted != null &&
                 e.PropertyName == nameof(Models.Settings.PersistedSettings.DefaultAchievementSortMode) &&
                 persisted.DefaultAchievementSortMode == Models.Settings.CompactListSortMode.DisplayOrder &&
                 persisted.DefaultAchievementSortDescending)
@@ -8486,7 +8558,7 @@ namespace PlayniteAchievements.Views
 
             return false;
         }
-        
+
         private void Hyperlink_RequestNavigate(object sender, RequestNavigateEventArgs e)
         {
             Process.Start(e.Uri.AbsoluteUri);

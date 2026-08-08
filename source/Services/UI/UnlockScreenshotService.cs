@@ -267,7 +267,9 @@ namespace PlayniteAchievements.Services.UI
             string providerKey,
             string achievementName,
             int number,
-            int total)
+            int total,
+            string variantSuffix = null,
+            bool isTestFire = false)
         {
             if (bitmap == null || settings == null)
             {
@@ -276,42 +278,99 @@ namespace PlayniteAchievements.Services.UI
 
             try
             {
-                var timestamp = DateTime.Now;
-                var directory = LocalAchievementScreenshotService.ReplaceTokens(
-                    settings.EffectiveScreenshotSaveFolder,
-                    game,
-                    achievementName,
-                    timestamp,
-                    Math.Max(1, number),
-                    Math.Max(1, total),
-                    sanitizeValues: true,
-                    providerName: providerKey);
-                var filename = LocalAchievementScreenshotService.ReplaceTokens(
-                    settings.ScreenshotFilenameTemplate,
-                    game,
-                    achievementName,
-                    timestamp,
-                    Math.Max(1, number),
-                    Math.Max(1, total),
-                    sanitizeValues: false,
-                    providerName: providerKey);
-                filename = LocalAchievementScreenshotService.SanitizeFileName(filename);
-                Directory.CreateDirectory(directory);
-                var extension = settings.ScreenshotImageFormat == LocalUnlockScreenshotImageFormat.Jpeg
-                    ? ".jpg"
-                    : ".png";
-                var path = LocalAchievementScreenshotService.BuildUniquePath(directory, filename, extension);
-                bitmap.Save(
-                    path,
-                    settings.ScreenshotImageFormat == LocalUnlockScreenshotImageFormat.Jpeg
-                        ? ImageFormat.Jpeg
-                        : ImageFormat.Png);
+                var path = BuildCustomScreenshotPath(
+                    settings, game, providerKey, achievementName, number, total,
+                    variantSuffix, isTestFire);
+                bitmap.Save(path, ImageFormat.Png);
                 _logger?.Info($"[Screenshot] Saved custom unlock screenshot: {path}");
             }
             catch (Exception ex)
             {
                 _logger?.Debug(ex, "Custom unlock screenshot save failed.");
             }
+        }
+
+        public void SaveUsingCustomSettings(
+            System.Windows.Media.Imaging.BitmapSource source,
+            LocalSettings settings,
+            Game game,
+            string providerKey,
+            string achievementName,
+            int number,
+            int total,
+            string variantSuffix = null,
+            bool isTestFire = false)
+        {
+            if (source == null || settings == null)
+            {
+                return;
+            }
+
+            try
+            {
+                var path = BuildCustomScreenshotPath(
+                    settings, game, providerKey, achievementName, number, total,
+                    variantSuffix, isTestFire);
+                var encoder = new System.Windows.Media.Imaging.PngBitmapEncoder();
+                encoder.Frames.Add(System.Windows.Media.Imaging.BitmapFrame.Create(source));
+                using (var stream = new FileStream(path, FileMode.CreateNew, FileAccess.Write, FileShare.None))
+                {
+                    encoder.Save(stream);
+                }
+                _logger?.Info($"[Screenshot] Saved custom unlock screenshot: {path}");
+            }
+            catch (Exception ex)
+            {
+                _logger?.Debug(ex, "Custom unlock screenshot save failed.");
+            }
+        }
+
+        private static string BuildCustomScreenshotPath(
+            LocalSettings settings,
+            Game game,
+            string providerKey,
+            string achievementName,
+            int number,
+            int total,
+            string variantSuffix,
+            bool isTestFire)
+        {
+            var timestamp = DateTime.Now;
+            var directory = LocalAchievementScreenshotService.ReplaceTokens(
+                settings.EffectiveScreenshotSaveFolder,
+                game,
+                achievementName,
+                timestamp,
+                Math.Max(1, number),
+                Math.Max(1, total),
+                sanitizeValues: true,
+                providerName: providerKey);
+            if (isTestFire)
+            {
+                directory = Path.Combine(directory, TestFolderName);
+            }
+
+            var filename = LocalAchievementScreenshotService.ReplaceTokens(
+                settings.ScreenshotFilenameTemplate,
+                game,
+                achievementName,
+                timestamp,
+                Math.Max(1, number),
+                Math.Max(1, total),
+                sanitizeValues: false,
+                providerName: providerKey);
+            filename = LocalAchievementScreenshotService.SanitizeFileName(filename);
+            if (!string.IsNullOrWhiteSpace(variantSuffix))
+            {
+                var suffix = LocalAchievementScreenshotService.SanitizeFileName(variantSuffix);
+                if (!string.IsNullOrWhiteSpace(suffix))
+                {
+                    filename += "_" + suffix;
+                }
+            }
+
+            Directory.CreateDirectory(directory);
+            return LocalAchievementScreenshotService.BuildUniquePath(directory, filename, ".png");
         }
 
         /// <summary>

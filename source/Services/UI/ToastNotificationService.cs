@@ -269,19 +269,15 @@ namespace PlayniteAchievements.Services.UI
                 return true;
             }
 
-            var custom = ProviderRegistry.Settings<LocalSettings>();
-            if (custom?.EnableUnlockScreenshots == true &&
-                !string.IsNullOrWhiteSpace(custom.EffectiveScreenshotSaveFolder))
+            var persisted = _settings?.Persisted;
+            if (persisted?.EnableUnlockScreenshots != true)
             {
-                return UnlockCaptureRarityFilter.ShouldCapture(
-                    ResolveRarity(args),
-                    IsCompletionUnlock(args),
-                    custom.ScreenshotRarities,
-                    custom.ScreenshotAlwaysCaptureCompletion);
+                return false;
             }
 
-            var persisted = _settings?.Persisted;
-            if (persisted?.EnableUnlockScreenshots != true ||
+            var custom = ProviderRegistry.Settings<LocalSettings>();
+            var useCustomNaming = ShouldUseCustomScreenshotNaming(custom, persisted);
+            if ((!useCustomNaming || string.IsNullOrWhiteSpace(custom?.EffectiveScreenshotSaveFolder)) &&
                 string.IsNullOrWhiteSpace(persisted.UnlockScreenshotDirectory))
             {
                 return false;
@@ -1188,14 +1184,7 @@ namespace PlayniteAchievements.Services.UI
                     await Task.Delay(plan.CaptureDelayMilliseconds).ConfigureAwait(true);
                 }
 
-                var waveHwnd = ResolveWaveWindowHandle();
-                var processId = _getGameProcessId?.Invoke(_activeWaveGameId);
-                baseCaptureTask = plan.UsesCustomSettings
-                    ? Task.Run(() => _screenshotService.CaptureUsingMode(
-                        plan.CustomSettings.ScreenshotCaptureMode,
-                        waveHwnd,
-                        processId))
-                    : StartWaveSurfaceCapture(waveIsTestFire);
+                baseCaptureTask = StartWaveSurfaceCapture(waveIsTestFire);
             }
 
             // Nothing needs a card: capture and save, no window, no delays. Running this inside
@@ -1714,9 +1703,11 @@ namespace PlayniteAchievements.Services.UI
 
             public LocalSettings CustomSettings { get; set; }
 
-            public bool UsesCustomSettings => CustomSettings != null;
+            public bool UsesCustomNaming => CustomSettings != null;
 
-            public int CaptureDelayMilliseconds => CustomSettings?.ScreenshotDelayMilliseconds ?? 0;
+            public int CaptureDelayMilliseconds { get; set; }
+
+            public bool IsTestFire { get; set; }
 
             public bool NeedsCleanCapture => Items.Any(i =>
                 (i.Variants & (ScreenshotVariants.Clean | ScreenshotVariants.Framed)) != 0);
@@ -1750,44 +1741,28 @@ namespace PlayniteAchievements.Services.UI
             }
 
             var persisted = _settings?.Persisted;
-            var custom = ProviderRegistry.Settings<LocalSettings>();
-            if (custom?.EnableUnlockScreenshots == true &&
-                !string.IsNullOrWhiteSpace(custom.EffectiveScreenshotSaveFolder))
+            if (persisted?.EnableUnlockScreenshots != true)
             {
-                var customPlan = new WaveScreenshotPlan
-                {
-                    BaseDirectory = custom.EffectiveScreenshotSaveFolder,
-                    CustomSettings = custom
-                };
-                foreach (var vm in wave.Where(vm => !vm.IsPreview && !vm.IsFriendUnlock))
-                {
-                    if (UnlockCaptureRarityFilter.ShouldCapture(
-                            vm.Rarity,
-                            vm.IsGameCompleted || vm.IsCompletionAchievement || vm.IsCapstone,
-                            custom.ScreenshotRarities,
-                            custom.ScreenshotAlwaysCaptureCompletion))
-                    {
-                        customPlan.Items.Add((vm, ScreenshotVariants.Clean));
-                    }
-                }
-
-                if (customPlan.Items.Count == 0)
-                {
-                    _logger?.Debug("[Screenshot] Custom screenshot skipped because no unlock cleared the selected rarity policy.");
-                }
-
-                return customPlan.Items.Count > 0 ? customPlan : null;
+                return null;
             }
 
-            var baseDir = persisted?.UnlockScreenshotDirectory;
-            if (persisted?.EnableUnlockScreenshots != true || string.IsNullOrWhiteSpace(baseDir))
+            var custom = ProviderRegistry.Settings<LocalSettings>();
+            var useCustomNaming = ShouldUseCustomScreenshotNaming(custom, persisted);
+            var baseDir = useCustomNaming ? custom.EffectiveScreenshotSaveFolder : persisted.UnlockScreenshotDirectory;
+            if (string.IsNullOrWhiteSpace(baseDir) && custom != null)
+            {
+                useCustomNaming = true;
+                baseDir = custom.EffectiveScreenshotSaveFolder;
+            }
+
+            if (string.IsNullOrWhiteSpace(baseDir))
             {
                 return null;
             }
 
             // A manual test fire lands in a separate "Test" subfolder so it never mixes with a
             // game's genuine unlock captures.
-            if (first.IsTestFire)
+            if (first.IsTestFire && !useCustomNaming)
             {
                 baseDir = System.IO.Path.Combine(baseDir, UnlockScreenshotService.TestFolderName);
             }
@@ -1798,6 +1773,9 @@ namespace PlayniteAchievements.Services.UI
                 CleanSuffix = NormalizeSuffix(persisted.UnlockScreenshotSuffixClean),
                 WithToastSuffix = NormalizeSuffix(persisted.UnlockScreenshotSuffixWithToast),
                 FramedSuffix = NormalizeSuffix(persisted.UnlockScreenshotSuffixFramed),
+                CustomSettings = useCustomNaming ? custom : null,
+                CaptureDelayMilliseconds = custom?.ScreenshotDelayMilliseconds ?? 0,
+                IsTestFire = first.IsTestFire,
             };
             foreach (var vm in wave)
             {
@@ -1817,6 +1795,21 @@ namespace PlayniteAchievements.Services.UI
             }
 
             return plan.Items.Count > 0 ? plan : null;
+        }
+
+        private static bool ShouldUseCustomScreenshotNaming(LocalSettings custom, PersistedSettings persisted)
+        {
+            if (custom == null)
+            {
+                return false;
+            }
+
+            return string.IsNullOrWhiteSpace(persisted?.UnlockScreenshotDirectory) ||
+                   !string.IsNullOrWhiteSpace(custom.ScreenshotSaveFolder) ||
+                   !string.Equals(
+                       custom.ScreenshotFilenameTemplate,
+                       LocalSettings.DefaultScreenshotFilenameTemplate,
+                       StringComparison.Ordinal);
         }
 
         /// <summary>
@@ -1909,7 +1902,7 @@ namespace PlayniteAchievements.Services.UI
                             var vm = item.Vm;
                             if ((item.Variants & ScreenshotVariants.Clean) != 0 && clean != null)
                             {
-                                if (plan.UsesCustomSettings)
+                                if (plan.UsesCustomNaming)
                                 {
                                     _screenshotService.SaveUsingCustomSettings(
                                         clean,
@@ -1918,7 +1911,9 @@ namespace PlayniteAchievements.Services.UI
                                         vm.ProviderKey,
                                         vm.AchievementName,
                                         vm.AchievementNumber,
-                                        vm.TotalCount);
+                                        vm.TotalCount,
+                                        plan.CleanSuffix,
+                                        plan.IsTestFire);
                                 }
                                 else
                                 {
@@ -1932,18 +1927,40 @@ namespace PlayniteAchievements.Services.UI
                             if ((item.Variants & ScreenshotVariants.WithToast) != 0 &&
                                 toasts != null && toasts.TryGetValue(vm, out var toastShot) && toastShot != null)
                             {
-                                _screenshotService.Save(
-                                    toastShot, baseDir, vm.ProviderKey, vm.GameName, vm.AchievementName,
-                                    vm.AchievementNumber, vm.TotalCount,
-                                    plan.WithToastSuffix);
+                                if (plan.UsesCustomNaming)
+                                {
+                                    _screenshotService.SaveUsingCustomSettings(
+                                        toastShot, plan.CustomSettings,
+                                        _api?.Database?.Games?.Get(vm.PlayniteGameId), vm.ProviderKey,
+                                        vm.AchievementName, vm.AchievementNumber, vm.TotalCount,
+                                        plan.WithToastSuffix, plan.IsTestFire);
+                                }
+                                else
+                                {
+                                    _screenshotService.Save(
+                                        toastShot, baseDir, vm.ProviderKey, vm.GameName, vm.AchievementName,
+                                        vm.AchievementNumber, vm.TotalCount,
+                                        plan.WithToastSuffix);
+                                }
                             }
 
                             if (framedByVm.TryGetValue(vm, out var framed))
                             {
-                                _screenshotService.Save(
-                                    framed, baseDir, vm.ProviderKey, vm.GameName, vm.AchievementName,
-                                    vm.AchievementNumber, vm.TotalCount,
-                                    plan.FramedSuffix);
+                                if (plan.UsesCustomNaming)
+                                {
+                                    _screenshotService.SaveUsingCustomSettings(
+                                        framed, plan.CustomSettings,
+                                        _api?.Database?.Games?.Get(vm.PlayniteGameId), vm.ProviderKey,
+                                        vm.AchievementName, vm.AchievementNumber, vm.TotalCount,
+                                        plan.FramedSuffix, plan.IsTestFire);
+                                }
+                                else
+                                {
+                                    _screenshotService.Save(
+                                        framed, baseDir, vm.ProviderKey, vm.GameName, vm.AchievementName,
+                                        vm.AchievementNumber, vm.TotalCount,
+                                        plan.FramedSuffix);
+                                }
                             }
                         }
 

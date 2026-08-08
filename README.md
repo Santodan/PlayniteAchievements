@@ -113,6 +113,7 @@ The entries below are fork-side changes, grouped by date. When a date includes a
   - `Memories` with all the settings for the screenshot and the video recording
 - Made the `Achievement Notification` screenshot and video recording to work independently if the notification is active or not
   - This way it can be used with the original notification from the original fork with the changes to the settings.
+- Changed the Screenshot behavior to be a mirror of the original fork screenshot mechanism with the additional wildcard in the path and name
 
 ## 2026-08-06 - v3.1.0.1
 
