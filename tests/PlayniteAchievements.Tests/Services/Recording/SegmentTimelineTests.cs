@@ -25,6 +25,18 @@ namespace PlayniteAchievements.Services.Tests.Recording
             };
         }
 
+        private static SegmentTimeline.SegmentInfo Sized(DateTime startUtc, int width, int height)
+        {
+            return new SegmentTimeline.SegmentInfo
+            {
+                Path = $@"C:\buf\seg_{startUtc:yyyyMMdd-HHmmss}_{width}x{height}.mp4",
+                StartUtc = startUtc,
+                SizeBytes = 1,
+                Width = width,
+                Height = height
+            };
+        }
+
         // === Filename parsing ===
 
         [TestMethod]
@@ -390,6 +402,138 @@ namespace PlayniteAchievements.Services.Tests.Recording
                 segments, T0.AddSeconds(30), T0.AddSeconds(40), 5));
             Assert.IsNull(SegmentTimeline.PlanClip(
                 new List<SegmentTimeline.SegmentInfo>(), T0, T0.AddSeconds(10), 5));
+        }
+
+        // === Clip planning across a capture resize ===
+
+        [TestMethod]
+        public void PlanClip_UniformDimensions_KeepsEveryOverlappingSegment()
+        {
+            var segments = new List<SegmentTimeline.SegmentInfo>
+            {
+                Sized(T0, 1884, 976),
+                Sized(T0.AddSeconds(5), 1884, 976),
+                Sized(T0.AddSeconds(10), 1884, 976)
+            };
+
+            var plan = SegmentTimeline.PlanClip(
+                segments, T0, T0.AddSeconds(15), 5, T0.AddSeconds(11));
+
+            Assert.IsNotNull(plan);
+            Assert.AreEqual(3, plan.Segments.Count);
+            Assert.IsFalse(plan.TruncatedByResize);
+            Assert.AreEqual(15, plan.DurationSeconds, 0.001);
+            Assert.AreEqual(T0.AddSeconds(15), plan.EndUtc);
+        }
+
+        [TestMethod]
+        public void PlanClip_DimensionChange_KeepsOnlyTheRunHoldingTheUnlock()
+        {
+            var segments = new List<SegmentTimeline.SegmentInfo>
+            {
+                Sized(T0, 1884, 976),
+                Sized(T0.AddSeconds(5), 1884, 976),
+                Sized(T0.AddSeconds(10), 3840, 2160),
+                Sized(T0.AddSeconds(15), 3840, 2160)
+            };
+
+            // The unlock sits in the first (smaller) run even though the later run is just as long.
+            var plan = SegmentTimeline.PlanClip(
+                segments, T0, T0.AddSeconds(20), 5, T0.AddSeconds(6));
+
+            Assert.IsNotNull(plan);
+            Assert.IsTrue(plan.TruncatedByResize);
+            CollectionAssert.AreEqual(new[] { segments[0], segments[1] }, plan.Segments.ToArray());
+            Assert.AreEqual(1884, plan.Segments[0].Width);
+            // Cut at the resize rather than running to the requested window end.
+            Assert.AreEqual(T0.AddSeconds(10), plan.EndUtc);
+            Assert.AreEqual(10, plan.DurationSeconds, 0.001);
+        }
+
+        [TestMethod]
+        public void PlanClip_DimensionChange_AnchorInLaterRunKeepsThatRun()
+        {
+            var segments = new List<SegmentTimeline.SegmentInfo>
+            {
+                Sized(T0, 1884, 976),
+                Sized(T0.AddSeconds(5), 1884, 976),
+                Sized(T0.AddSeconds(10), 3840, 2160)
+            };
+
+            var plan = SegmentTimeline.PlanClip(
+                segments, T0, T0.AddSeconds(15), 5, T0.AddSeconds(12));
+
+            Assert.IsNotNull(plan);
+            Assert.IsTrue(plan.TruncatedByResize);
+            Assert.AreEqual(1, plan.Segments.Count);
+            Assert.AreEqual(3840, plan.Segments[0].Width);
+            // The last kept run reaches the window end, so nothing is cut off it.
+            Assert.AreEqual(T0.AddSeconds(15), plan.EndUtc);
+        }
+
+        [TestMethod]
+        public void PlanClip_DimensionChange_NoAnchor_KeepsTheLongestRun()
+        {
+            var segments = new List<SegmentTimeline.SegmentInfo>
+            {
+                Sized(T0, 1884, 976),
+                Sized(T0.AddSeconds(5), 3840, 2160),
+                Sized(T0.AddSeconds(10), 3840, 2160)
+            };
+
+            var plan = SegmentTimeline.PlanClip(segments, T0, T0.AddSeconds(15), 5);
+
+            Assert.IsNotNull(plan);
+            Assert.IsTrue(plan.TruncatedByResize);
+            CollectionAssert.AreEqual(new[] { segments[1], segments[2] }, plan.Segments.ToArray());
+        }
+
+        [TestMethod]
+        public void ParseSegments_ReadsDimensionsFromSegmentNames()
+        {
+            var segments = SegmentTimeline.ParseSegments(
+                new[]
+                {
+                    (@"C:\buf\seg_20260101-140000_1884x976.mp4", 1L),
+                    (@"C:\buf\seg_20260101-140005_3840x2160.mp4", 1L)
+                },
+                PlusTwo);
+
+            Assert.AreEqual(2, segments.Count);
+            Assert.AreEqual(1884, segments[0].Width);
+            Assert.AreEqual(976, segments[0].Height);
+            Assert.AreEqual(3840, segments[1].Width);
+            Assert.AreEqual(2160, segments[1].Height);
+        }
+
+        [TestMethod]
+        public void ParseSegments_ToleratesTheSameSecondUniquifierAndMissingDimensions()
+        {
+            var segments = SegmentTimeline.ParseSegments(
+                new[]
+                {
+                    // Written when a capture rebuild rolled a second segment in the same second.
+                    (@"C:\buf\seg_20260101-140000_1884x976-1.mp4", 1L),
+                    // A name from before dimensions were part of the format.
+                    (@"C:\buf\seg_20260101-140005.mp4", 1L)
+                },
+                PlusTwo);
+
+            Assert.AreEqual(2, segments.Count);
+            Assert.AreEqual(new DateTime(2026, 1, 1, 12, 0, 0), segments[0].StartUtc);
+            Assert.AreEqual(1884, segments[0].Width);
+            Assert.AreEqual(new DateTime(2026, 1, 1, 12, 0, 5), segments[1].StartUtc);
+            Assert.AreEqual(0, segments[1].Width);
+        }
+
+        [TestMethod]
+        public void ParseSegments_StillRejectsNamesWithAForeignStampSuffix()
+        {
+            var segments = SegmentTimeline.ParseSegments(
+                new[] { (@"C:\buf\seg_20260101-140000x.mp4", 1L) },
+                PlusTwo);
+
+            Assert.AreEqual(0, segments.Count);
         }
 
         // === Pruning ===

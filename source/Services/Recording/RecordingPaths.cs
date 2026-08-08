@@ -1,3 +1,6 @@
+using System;
+using System.Globalization;
+
 namespace PlayniteAchievements.Services.Recording
 {
     /// <summary>
@@ -8,10 +11,28 @@ namespace PlayniteAchievements.Services.Recording
     /// </summary>
     internal static class RecordingPaths
     {
-        /// <summary>Video segment filenames: seg_yyyyMMdd-HHmmss.mp4 (H.264 written by WGC + Media Foundation).</summary>
+        /// <summary>
+        /// Video segment filenames: seg_yyyyMMdd-HHmmss_WxH.mp4 (H.264 written by WGC + Media
+        /// Foundation). The encoded dimensions are part of the name so the timeline can group
+        /// segments by size without opening any of them: a clip is stream-copied against one
+        /// declared media type, so all of its segments must share dimensions.
+        /// </summary>
         public const string SegmentFilePrefix = "seg_";
 
         public const string SegmentFileExtension = ".mp4";
+
+        /// <summary>Separates the wall-clock stamp from the WxH dimension token.</summary>
+        public const char DimensionSeparator = '_';
+
+        /// <summary>The segment file name for a capture of the given size started at a local time.</summary>
+        public static string BuildSegmentFileName(DateTime localStart, int width, int height)
+        {
+            return SegmentFilePrefix +
+                localStart.ToString("yyyyMMdd-HHmmss", CultureInfo.InvariantCulture) +
+                DimensionSeparator +
+                width.ToString(CultureInfo.InvariantCulture) + "x" + height.ToString(CultureInfo.InvariantCulture) +
+                SegmentFileExtension;
+        }
 
         /// <summary>Audio chunk filenames: aud_yyyyMMdd-HHmmss.wav (WASAPI loopback PCM).</summary>
         public const string AudioChunkFilePrefix = "aud_";

@@ -18,6 +18,9 @@ namespace PlayniteAchievements.Services.Recording
         /// <summary>Tolerance (seconds past detection) a trusted unlock timestamp may carry.</summary>
         public const int PreciseLeadSeconds = 5;
 
+        /// <summary>Width of the yyyyMMdd-HHmmss stamp every buffer file name starts with.</summary>
+        private const int StampLength = 15;
+
         /// <summary>Windows that collapse below this are skipped by the caller.</summary>
         public const int MinimumWindowSeconds = 3;
 
@@ -28,6 +31,16 @@ namespace PlayniteAchievements.Services.Recording
             public DateTime StartUtc { get; set; }
 
             public long SizeBytes { get; set; }
+
+            /// <summary>
+            /// Encoded dimensions parsed from the file name, 0 when the name carries none (audio
+            /// chunks, and any segment written before the name included them). Segments that
+            /// report the same pair can be concatenated; a change means the capture was rebuilt at
+            /// a new size mid-session.
+            /// </summary>
+            public int Width { get; set; }
+
+            public int Height { get; set; }
         }
 
         public sealed class ClipPlan
@@ -38,6 +51,19 @@ namespace PlayniteAchievements.Services.Recording
             public double StartOffsetSeconds { get; set; }
 
             public double DurationSeconds { get; set; }
+
+            /// <summary>
+            /// The absolute moment the planned clip ends. Equal to the requested window end unless
+            /// a dimension change cut the plan short, so callers planning a second track over the
+            /// same window (the audio chunks) can clamp to the video they will actually get.
+            /// </summary>
+            public DateTime EndUtc { get; set; }
+
+            /// <summary>
+            /// True when segments overlapping the window were dropped because their dimensions
+            /// differed from the kept run.
+            /// </summary>
+            public bool TruncatedByResize { get; set; }
         }
 
         /// <summary>
@@ -56,9 +82,10 @@ namespace PlayniteAchievements.Services.Recording
 
         /// <summary>
         /// Parses buffer files from their wall-clock filenames (default: the video segments,
-        /// seg_yyyyMMdd-HHmmss.ts; pass the aud_/.wav pair for audio chunks — both are written in
-        /// the machine's local time zone, injected for tests) into UTC-stamped infos ordered
-        /// oldest-first. Unparseable names (and local times invalidated by DST) are skipped.
+        /// seg_yyyyMMdd-HHmmss_WxH.mp4; pass the aud_/.wav pair for audio chunks — both are
+        /// written in the machine's local time zone, injected for tests) into UTC-stamped infos
+        /// ordered oldest-first, carrying the encoded dimensions where the name declares them.
+        /// Unparseable names (and local times invalidated by DST) are skipped.
         /// </summary>
         public static List<SegmentInfo> ParseSegments(
             IEnumerable<(string Path, long SizeBytes)> files,
@@ -69,13 +96,15 @@ namespace PlayniteAchievements.Services.Recording
             var result = new List<SegmentInfo>();
             foreach (var file in files ?? Enumerable.Empty<(string, long)>())
             {
-                if (TryParseSegmentStartUtc(file.Path, localTimeZone, out var startUtc, filePrefix, fileExtension))
+                if (TryParseSegment(file.Path, localTimeZone, out var startUtc, out var width, out var height, filePrefix, fileExtension))
                 {
                     result.Add(new SegmentInfo
                     {
                         Path = file.Path,
                         StartUtc = startUtc,
-                        SizeBytes = file.SizeBytes
+                        SizeBytes = file.SizeBytes,
+                        Width = width,
+                        Height = height
                     });
                 }
             }
@@ -91,7 +120,27 @@ namespace PlayniteAchievements.Services.Recording
             string filePrefix = null,
             string fileExtension = null)
         {
+            return TryParseSegment(path, localTimeZone, out startUtc, out _, out _, filePrefix, fileExtension);
+        }
+
+        /// <summary>
+        /// Splits a buffer file name into its wall-clock stamp and, for video segments, the
+        /// encoded dimensions: prefix + yyyyMMdd-HHmmss + optional _WxH + optional -N (the
+        /// writer's same-second uniquifier) + extension. The stamp is read at its fixed width so
+        /// neither trailing token defeats it.
+        /// </summary>
+        private static bool TryParseSegment(
+            string path,
+            TimeZoneInfo localTimeZone,
+            out DateTime startUtc,
+            out int width,
+            out int height,
+            string filePrefix,
+            string fileExtension)
+        {
             startUtc = default;
+            width = 0;
+            height = 0;
             var prefix = filePrefix ?? RecordingPaths.SegmentFilePrefix;
             var extension = fileExtension ?? RecordingPaths.SegmentFileExtension;
             var name = Path.GetFileName(path ?? string.Empty);
@@ -101,9 +150,22 @@ namespace PlayniteAchievements.Services.Recording
                 return false;
             }
 
-            var stamp = name.Substring(
+            var body = name.Substring(
                 prefix.Length,
                 name.Length - prefix.Length - extension.Length);
+            if (body.Length < StampLength)
+            {
+                return false;
+            }
+
+            var stamp = body.Substring(0, StampLength);
+            var suffix = body.Substring(StampLength);
+            // Only the writer's own suffixes may follow the stamp; anything else is a foreign file.
+            if (suffix.Length > 0 && suffix[0] != RecordingPaths.DimensionSeparator && suffix[0] != '-')
+            {
+                return false;
+            }
+
             if (!DateTime.TryParseExact(
                     stamp,
                     "yyyyMMdd-HHmmss",
@@ -113,6 +175,8 @@ namespace PlayniteAchievements.Services.Recording
             {
                 return false;
             }
+
+            TryParseDimensions(suffix, out width, out height);
 
             try
             {
@@ -125,6 +189,41 @@ namespace PlayniteAchievements.Services.Recording
             {
                 // Skipped or ambiguous local time (DST transition) — drop the segment.
                 return false;
+            }
+        }
+
+        /// <summary>
+        /// Reads the _WxH token from a segment name's suffix, ignoring any trailing -N uniquifier.
+        /// Leaves both at 0 when the suffix carries no dimensions.
+        /// </summary>
+        private static void TryParseDimensions(string suffix, out int width, out int height)
+        {
+            width = 0;
+            height = 0;
+            if (string.IsNullOrEmpty(suffix) || suffix[0] != RecordingPaths.DimensionSeparator)
+            {
+                return;
+            }
+
+            var token = suffix.Substring(1);
+            var uniquifier = token.IndexOf('-');
+            if (uniquifier >= 0)
+            {
+                token = token.Substring(0, uniquifier);
+            }
+
+            var separator = token.IndexOf('x');
+            if (separator <= 0 || separator == token.Length - 1)
+            {
+                return;
+            }
+
+            if (int.TryParse(token.Substring(0, separator), NumberStyles.None, CultureInfo.InvariantCulture, out var w) &&
+                int.TryParse(token.Substring(separator + 1), NumberStyles.None, CultureInfo.InvariantCulture, out var h) &&
+                w > 0 && h > 0)
+            {
+                width = w;
+                height = h;
             }
         }
 
@@ -224,12 +323,19 @@ namespace PlayniteAchievements.Services.Recording
         /// segment overlaps the window. Each segment nominally covers K seconds; interior
         /// segments are bounded by their successor's start so drifting timestamps don't create
         /// coverage gaps.
+        ///
+        /// The result never mixes dimensions. A clip is stream-copied against a single declared
+        /// media type, so a window spanning a mid-session capture rebuild (the game window
+        /// resized) is narrowed to one contiguous same-size run: the one holding
+        /// <paramref name="anchorUtc"/> — the unlock the clip exists to show — else the run
+        /// covering the most time. The clip gets shorter rather than corrupt.
         /// </summary>
         public static ClipPlan PlanClip(
             IReadOnlyList<SegmentInfo> orderedSegments,
             DateTime windowStartUtc,
             DateTime windowEndUtc,
-            int segmentSeconds)
+            int segmentSeconds,
+            DateTime? anchorUtc = null)
         {
             if (orderedSegments == null || orderedSegments.Count == 0 || windowEndUtc <= windowStartUtc)
             {
@@ -238,6 +344,7 @@ namespace PlayniteAchievements.Services.Recording
 
             var k = Math.Max(1, segmentSeconds);
             var selected = new List<SegmentInfo>();
+            var selectedEnds = new List<DateTime>();
             for (var i = 0; i < orderedSegments.Count; i++)
             {
                 var segment = orderedSegments[i];
@@ -247,6 +354,7 @@ namespace PlayniteAchievements.Services.Recording
                 if (segmentEnd > windowStartUtc && segment.StartUtc < windowEndUtc)
                 {
                     selected.Add(segment);
+                    selectedEnds.Add(segmentEnd);
                 }
             }
 
@@ -255,14 +363,84 @@ namespace PlayniteAchievements.Services.Recording
                 return null;
             }
 
-            var first = selected[0];
+            SelectSameSizeRun(selected, selectedEnds, anchorUtc, out var runStart, out var runCount);
+            var truncated = runCount < selected.Count;
+            var run = truncated ? selected.GetRange(runStart, runCount) : selected;
+            var runEnd = selectedEnds[runStart + runCount - 1];
+
+            var first = run[0];
             var effectiveStart = windowStartUtc > first.StartUtc ? windowStartUtc : first.StartUtc;
+            // Only a run cut short by a later dimension change ends before the window does; an
+            // untruncated plan keeps running to the requested end, as it always has.
+            var effectiveEnd = truncated && runEnd < windowEndUtc ? runEnd : windowEndUtc;
+            if (effectiveEnd <= effectiveStart)
+            {
+                return null;
+            }
+
             return new ClipPlan
             {
-                Segments = selected,
+                Segments = run,
                 StartOffsetSeconds = (effectiveStart - first.StartUtc).TotalSeconds,
-                DurationSeconds = (windowEndUtc - effectiveStart).TotalSeconds
+                DurationSeconds = (effectiveEnd - effectiveStart).TotalSeconds,
+                EndUtc = effectiveEnd,
+                TruncatedByResize = truncated
             };
+        }
+
+        /// <summary>
+        /// Locates the contiguous run of equally-sized segments the clip should be built from,
+        /// as an index and length into <paramref name="selected"/>. Segments carrying no
+        /// dimensions (audio chunks) all compare equal, so they always yield a single run.
+        /// </summary>
+        private static void SelectSameSizeRun(
+            IReadOnlyList<SegmentInfo> selected,
+            IReadOnlyList<DateTime> ends,
+            DateTime? anchorUtc,
+            out int runStart,
+            out int runCount)
+        {
+            runStart = 0;
+            runCount = selected.Count;
+
+            var start = 0;
+            var bestStart = -1;
+            var bestCount = 0;
+            var bestSpan = TimeSpan.MinValue;
+            var anchored = false;
+            for (var i = 1; i <= selected.Count; i++)
+            {
+                if (i < selected.Count &&
+                    selected[i].Width == selected[start].Width &&
+                    selected[i].Height == selected[start].Height)
+                {
+                    continue;
+                }
+
+                var count = i - start;
+                var runEnd = ends[i - 1];
+                var holdsAnchor = anchorUtc.HasValue &&
+                    anchorUtc.Value >= selected[start].StartUtc && anchorUtc.Value < runEnd;
+                var span = runEnd - selected[start].StartUtc;
+
+                // A run holding the unlock wins outright; otherwise the longest-covering run does,
+                // and a later run breaks a tie so the freshest footage is kept.
+                if ((holdsAnchor && !anchored) || (holdsAnchor == anchored && span >= bestSpan))
+                {
+                    bestStart = start;
+                    bestCount = count;
+                    bestSpan = span;
+                    anchored |= holdsAnchor;
+                }
+
+                start = i;
+            }
+
+            if (bestStart >= 0)
+            {
+                runStart = bestStart;
+                runCount = bestCount;
+            }
         }
 
         /// <summary>

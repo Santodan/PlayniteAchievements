@@ -1156,15 +1156,27 @@ namespace PlayniteAchievements.Services.Recording
                 TimeZoneInfo.Local,
                 RecordingPaths.SegmentFilePrefix,
                 session.SegmentExtension);
-            var plan = SegmentTimeline.PlanClip(segments, window.StartUtc, window.EndUtc, SegmentSeconds);
+            // The anchor keeps the unlock itself in frame if a mid-session capture rebuild splits
+            // the window into runs of differing dimensions; the plan then covers only that run.
+            var plan = SegmentTimeline.PlanClip(
+                segments, window.StartUtc, window.EndUtc, SegmentSeconds, window.ToastAnchorUtc);
             if (plan == null)
             {
                 _logger?.Debug($"[Recording] No buffered segments overlap the clip window for '{request.AchievementName}'; skipping.");
                 return (null, 0);
             }
 
+            if (plan.TruncatedByResize)
+            {
+                _logger?.Info(
+                    $"[Recording] Clip window for '{request.AchievementName}' spans a capture resize; " +
+                    $"keeping the {plan.Segments.Count} segment(s) around the unlock " +
+                    $"({plan.DurationSeconds:0.0}s at {plan.Segments[0].Width}x{plan.Segments[0].Height}).");
+            }
+
             // Audio rides the same window: plan the loopback WAV chunks over it and fall back to
-            // video-only whenever the recorder never ran or no chunk overlaps.
+            // video-only whenever the recorder never ran or no chunk overlaps. Clamped to the
+            // video's end so a resize-shortened clip never carries an audio tail past its picture.
             SegmentTimeline.ClipPlan audioPlan = null;
             if (session.AudioRecorder != null)
             {
@@ -1176,7 +1188,7 @@ namespace PlayniteAchievements.Services.Recording
                     TimeZoneInfo.Local,
                     RecordingPaths.AudioChunkFilePrefix,
                     RecordingPaths.AudioChunkFileExtension);
-                audioPlan = SegmentTimeline.PlanClip(audioChunks, window.StartUtc, window.EndUtc, SegmentSeconds);
+                audioPlan = SegmentTimeline.PlanClip(audioChunks, window.StartUtc, plan.EndUtc, SegmentSeconds);
             }
 
             LogRecordingTiming(session, request, window, plan.Segments.Count, audioPlan != null);
