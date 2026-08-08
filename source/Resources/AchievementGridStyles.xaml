@@ -641,10 +641,10 @@
         </Setter>
     </Style>
 
-    <!-- Right half of a segmented unit: flat left corners and no left border so it butts flush
-         against a control on its left (e.g. the category-mode toggle), the two reading as one
-         bordered group. Mirrors AchievementSelectorButtonStyle otherwise. -->
-    <Style x:Key="AchievementSelectorButtonConnectedLeftStyle"
+    <!-- Left half of a segmented unit: flat right corners so a control on its right (e.g. the
+         category-mode toggle) butts flush against it, the two reading as one bordered group.
+         Mirrors AchievementSelectorButtonStyle otherwise. -->
+    <Style x:Key="AchievementSelectorButtonConnectedRightStyle"
            TargetType="Button"
            BasedOn="{StaticResource AchievementSelectorButtonStyle}">
         <Setter Property="BorderThickness" Value="1"/>
@@ -655,7 +655,7 @@
                             Background="{TemplateBinding Background}"
                             BorderBrush="{TemplateBinding BorderBrush}"
                             BorderThickness="{TemplateBinding BorderThickness}"
-                            CornerRadius="0,4,4,0">
+                            CornerRadius="4,0,0,4">
                         <Grid>
                             <Grid.ColumnDefinitions>
                                 <ColumnDefinition Width="*"/>
