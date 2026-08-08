@@ -407,12 +407,24 @@ namespace PlayniteAchievements.ViewModels
 
         public bool ComparisonUnlocked { get; private set; }
 
-        public void ApplyComparison(string friendName, string friendAvatarPath, DateTime? unlockTimeUtc, bool unlocked)
+        public string ComparisonOwnerName { get; private set; }
+
+        public string ComparisonOwnerAvatarPath { get; private set; }
+
+        public void ApplyComparison(
+            string friendName,
+            string friendAvatarPath,
+            DateTime? unlockTimeUtc,
+            bool unlocked,
+            string ownerName = null,
+            string ownerAvatarPath = null)
         {
             ComparisonFriendName = friendName;
             ComparisonFriendAvatarPath = friendAvatarPath;
             ComparisonUnlockTimeUtc = unlockTimeUtc;
             ComparisonUnlocked = unlocked;
+            ComparisonOwnerName = ownerName;
+            ComparisonOwnerAvatarPath = ownerAvatarPath;
             HasComparison = true;
         }
 
@@ -423,6 +435,8 @@ namespace PlayniteAchievements.ViewModels
             ComparisonFriendAvatarPath = null;
             ComparisonUnlockTimeUtc = null;
             ComparisonUnlocked = false;
+            ComparisonOwnerName = null;
+            ComparisonOwnerAvatarPath = null;
         }
 
         public static AchievementDisplayItem Create(
