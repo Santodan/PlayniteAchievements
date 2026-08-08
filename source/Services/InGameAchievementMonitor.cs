@@ -959,6 +959,10 @@ namespace PlayniteAchievements.Services
             long elapsedMs)
         {
             var game = state.Game;
+            // Both snapshots take the custom-data overlay. A manual capstone lives in the custom
+            // data store rather than the cache row, so an unhydrated "before" reads as incomplete
+            // and every unlock landing after the capstone looks like it completed the game.
+            HydrateForToast(before);
             HydrateForToast(after);
             var allowed = new HashSet<string>(
                 allowedKeys ?? Array.Empty<string>(),
@@ -975,7 +979,8 @@ namespace PlayniteAchievements.Services
                 $"[InGameMonitor] User progress complete: game={game.Name}, elapsedMs={elapsedMs}, unlocks={unlocks.Count}.");
 
             // This batch completes the game when the data crossed from incomplete to complete
-            // (all unlocked, or the capstone unlocked) with at least one new unlock in hand.
+            // (all unlocked, or the capstone unlocked) with at least one new unlock in hand. Both
+            // snapshots are hydrated above, so the two sides of the comparison agree on capstones.
             var completesGame = unlocks.Count > 0 && before?.IsCompleted != true && after?.IsCompleted == true;
 
             // The single unlock that finished the game: the newly-unlocked capstone (a capstone
