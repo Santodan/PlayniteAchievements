@@ -119,13 +119,16 @@ namespace PlayniteAchievements.Views.Controls
         }
 
         /// <summary>
-        /// How far the burst renders beyond its layout slot, as a multiple of it. At the default the
-        /// long rays reach roughly one icon-width past each edge.
+        /// How far the burst renders beyond its layout slot, as a multiple of it. The default is
+        /// tuned so the rays occupy about the same room as the soft glow they replace — on a 64px
+        /// icon the long rays reach roughly 19px past the edge, against the soft glow's 20px blur.
+        /// Because the overflow is proportional, larger surfaces need a smaller value to stay in
+        /// proportion; completed game art passes one explicitly.
         /// </summary>
         public static readonly DependencyProperty BurstScaleProperty =
             DependencyProperty.Register(
                 nameof(BurstScale), typeof(double), typeof(RarityRayBurst),
-                new PropertyMetadata(2.8, OnBurstScaleChanged));
+                new PropertyMetadata(1.6, OnBurstScaleChanged));
 
         public double BurstScale
         {

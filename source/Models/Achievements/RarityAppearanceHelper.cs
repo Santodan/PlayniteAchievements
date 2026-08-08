@@ -27,14 +27,22 @@ namespace PlayniteAchievements.Models.Achievements
         // Sunburst geometry for the rotating ray glow style, laid out in a 0-100 square with the
         // burst centered. Ray bases sit inside the icon's footprint so they stay hidden behind it
         // and the rays appear to emerge from around the icon. These are the visual tuning knobs.
-        private const int RayCount = 16;
+        //
+        // The radii are calibrated against the soft glow's footprint so switching styles does not
+        // change how much room a glow takes: at the default RarityRayBurst.BurstScale the icon's
+        // edge lands near InnerRayRadius, so the visible part of a long ray is the remaining
+        // ~19 units, matching the soft glow's 20px blur radius. Widening the gap between
+        // InnerRayRadius and LongRayRadius, or raising BurstScale, makes the burst outgrow the
+        // soft glow. Half-angles are kept well under half the 360/RayCount spacing so the rays
+        // stay separated rather than merging into a disc.
+        private const int RayCount = 28;
         private const double RayBurstBox = 100.0;
         private const double RayBurstCenter = RayBurstBox / 2.0;
-        private const double InnerRayRadius = 16.0;
+        private const double InnerRayRadius = 28.0;
         private const double LongRayRadius = 50.0;
-        private const double ShortRayRadius = 34.0;
-        private const double LongRayHalfAngle = 4.5;
-        private const double ShortRayHalfAngle = 3.0;
+        private const double ShortRayRadius = 42.0;
+        private const double LongRayHalfAngle = 2.3;
+        private const double ShortRayHalfAngle = 1.6;
         private const byte RayBaseAlpha = 0xCC;
         private const byte RayMidAlpha = 0x6E;
 
