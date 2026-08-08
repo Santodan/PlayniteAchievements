@@ -1074,7 +1074,7 @@ namespace PlayniteAchievements.Services.Recording
                 + PostFadeTailSeconds;
             // The wave's own chime, read from the Playnite-only sidecar at its real time, mixed
             // in slightly before the composited toast (matching the live sound-to-reveal lead).
-            var chimePcm = TryReadChimePcm(session, request);
+            var chimePcm = await TryReadChimePcmAsync(session, request).ConfigureAwait(false);
             var chimeStartSeconds = toastStartSeconds - ChimeLeadBeforeToastSeconds;
             var tempPath = Path.Combine(session.BufferDirectory, $"clipovl_{Guid.NewGuid():N}.mp4");
             await _reencodeGate.WaitAsync().ConfigureAwait(false);
@@ -1230,8 +1230,15 @@ namespace PlayniteAchievements.Services.Recording
         /// Reads this request's chime from the Playnite-only sidecar chunks at the moment its
         /// wave sound actually played. Null (clip audio ships without a chime) when the sidecar
         /// isn't running, the wave never sounded, or the chunks are gone.
+        ///
+        /// Waits for the chunk covering the end of the chime window to close first, the same way
+        /// the base clip waits for its last video segment. A chunk still being written carries
+        /// placeholder RIFF sizes, and Media Foundation rejects that outright
+        /// (MF_E_UNSUPPORTED_BYTESTREAM_TYPE) — the chime window ends only a few seconds after the
+        /// toast fires, so without the wait the newest chunk is essentially always mid-write and
+        /// every clip silently lost its chime.
         /// </summary>
-        private byte[] TryReadChimePcm(CaptureSession session, ClipRequest request)
+        private async Task<byte[]> TryReadChimePcmAsync(CaptureSession session, ClipRequest request)
         {
             DateTime? ownSound;
             lock (_gate)
@@ -1244,6 +1251,14 @@ namespace PlayniteAchievements.Services.Recording
                 return null;
             }
 
+            var chimeWindowEndUtc = ownSound.Value.AddSeconds(
+                request.EffectiveToastSeconds + ChimeTailBeyondToastSeconds);
+            var wait = chimeWindowEndUtc.AddSeconds(SegmentSeconds + 2) - DateTime.UtcNow;
+            if (wait > TimeSpan.Zero)
+            {
+                await Task.Delay(wait).ConfigureAwait(false);
+            }
+
             var chunks = SegmentTimeline.ParseSegments(
                 ListBufferFiles(
                     session.BufferDirectory,
@@ -1252,9 +1267,8 @@ namespace PlayniteAchievements.Services.Recording
                 TimeZoneInfo.Local,
                 RecordingPaths.ChimeChunkFilePrefix,
                 RecordingPaths.AudioChunkFileExtension);
-            var chimeSpanSeconds = request.EffectiveToastSeconds + ChimeTailBeyondToastSeconds;
             var plan = SegmentTimeline.PlanClip(
-                chunks, ownSound.Value, ownSound.Value.AddSeconds(chimeSpanSeconds), SegmentSeconds);
+                chunks, ownSound.Value, chimeWindowEndUtc, SegmentSeconds);
             var pcm = plan == null ? null : MediaFoundationClipExporter.TryReadPcmWindow(plan, _logger);
             if (pcm != null)
             {
