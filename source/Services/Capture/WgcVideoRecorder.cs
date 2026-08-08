@@ -90,22 +90,14 @@ namespace PlayniteAchievements.Services.Capture
         }
 
         // The encoded-frame size after the resolution cap: caps the height to 1080/720 (aspect
-        // preserving, even dimensions), never upscales; Native keeps the captured client size.
+        // preserving, even dimensions as H.264 requires), never upscales; Native keeps the captured
+        // client size. Shared with the screenshot pipeline, which reads the same options.
         private void ComputeEncodeSize(int clientW, int clientH, out int width, out int height)
         {
-            var cap = _resolution == RecordingResolution.P1080 ? 1080
-                : _resolution == RecordingResolution.P720 ? 720
-                : 0;
-            if (cap <= 0 || clientH <= cap)
-            {
-                width = Math.Max(2, clientW & ~1);
-                height = Math.Max(2, clientH & ~1);
-                return;
-            }
-
-            height = cap;
-            width = Math.Max(2, (int)Math.Round(clientW * (cap / (double)clientH)) & ~1);
-            height &= ~1;
+            var size = ResolutionCapMath.Apply(
+                clientW, clientH, ResolutionCapMath.CapHeightFor(_resolution), evenDimensions: true);
+            width = size.Width;
+            height = size.Height;
         }
 
         private int ComputeBitrate(int width, int height)
