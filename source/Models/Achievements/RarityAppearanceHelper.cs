@@ -24,57 +24,87 @@ namespace PlayniteAchievements.Models.Achievements
 
         private static PersistedSettings _activeSettings;
 
-        // Sunburst geometry for the rotating ray glow style, laid out in a 0-100 square with the
-        // burst centered. Ray bases sit inside the icon's footprint so they stay hidden behind it
-        // and the rays appear to emerge from around the icon. These are the visual tuning knobs.
+        // Sunburst art for the rotating ray glow style, laid out in a 0-100 square with the burst
+        // centered. Filament bases sit inside the icon's footprint so they stay hidden behind it and
+        // the rays appear to emerge from around it.
         //
-        // The radii are calibrated against the soft glow's footprint so switching styles does not
-        // change how much room a glow takes: at the default RarityRayBurst.BurstScale the icon's
-        // edge lands near InnerRayRadius, so a full-length ray shows the remaining ~19 units, which
-        // on a 64px icon matches the soft glow's 20px blur radius. Widening the gap between
-        // InnerRayRadius and OuterRayRadius, or raising BurstScale, makes the burst outgrow the
-        // soft glow. RayHalfAngle is kept well under half the 360/RayCount spacing so the rays stay
-        // separated rather than merging into a disc.
-        private const int RayCount = 28;
+        // The burst is built from many thin filaments rather than a few wedges: at this density they
+        // overlap into a continuous corona instead of reading as countable spikes. Two layers stack,
+        // counter-rotating at different speeds (see RarityRayBurst), so the rim keeps shifting as
+        // they interfere rather than turning as one rigid picture.
+        //
+        // Radii are calibrated against the soft glow's footprint so switching styles does not change
+        // how much room a glow takes: at the default RarityRayBurst.BurstScale the icon's edge lands
+        // near a layer's InnerRadius, so a full-length filament shows the remaining ~19 units, which
+        // on a 64px icon matches the soft glow's 20px blur radius. Widening a layer's radius span, or
+        // raising BurstScale, makes the burst outgrow the soft glow.
         private const double RayBurstBox = 100.0;
         private const double RayBurstCenter = RayBurstBox / 2.0;
-        private const double InnerRayRadius = 28.0;
-        private const double OuterRayRadius = 50.0;
 
-        // Ray lengths follow a smooth swell around the rim rather than a fixed long/short
-        // alternation, so rotation carries the swell around the edge as a travelling wave instead of
-        // spinning a rigid pinwheel. MinRayLengthFraction is the shortest ray as a fraction of the
-        // full span, and the skew biases the distribution toward the long end so the envelope stays
-        // put while neighbouring rays still differ.
-        private const double MinRayLengthFraction = 0.48;
-        private const double RayLengthSkew = 0.7;
+        // Where the light sits: a band, not a disc. At the default RarityRayBurst.BurstScale the
+        // subject's edge falls just inside RingRadius, so the corona reads as light around the art
+        // rather than a wash over it. The band must clear the subject on every axis or it hides
+        // behind it — non-square surfaces pass a larger BurstScale for exactly that reason.
+        private const double CoronaBandInnerStop = 0.42;
+        private const double CoronaBandPeakStop = 0.60;
 
-        // Small deterministic wobble in ray placement, so the spacing does not read as a machined
-        // comb. Derived from the angle, not a random source, to keep the art reproducible.
-        private const double RayAngleJitterDegrees = 1.2;
-
-        // Each ray is drawn twice: a wide faint halo, then a narrower brighter core on top. Two
-        // vector passes stand in for the lateral blur that would otherwise need a BlurEffect, which
-        // would re-rasterize every frame on a rotating layer.
-        private const double RayHalfAngle = 2.4;
-        private const double RayHaloWidthFactor = 2.1;
-        private const byte RayCoreAlpha = 0xC8;
-        private const byte RayHaloAlpha = 0x38;
-        private const byte RayBloomAlpha = 0x2E;
-
-        // Ray sides curve toward the axis instead of running straight from base to tip, which reads
-        // as a soft needle rather than a hard triangle.
-        private const double RaySideCurveInset = 0.6;
-        private const double RaySideCurveAlong = 0.55;
-
-        // WPF on this target has no additive blend mode, so the long rays are blended toward white
-        // to read as light rather than as paint in the flat tier color.
+        // WPF on this target has no additive blend mode, so the corona is blended toward white to
+        // read as light rather than as paint in the flat tier color.
         private const double RayHighlightBlend = 0.35;
 
+        /// <summary>
+        /// One stacked layer of the corona. The two layers deliberately differ in lobe count, phase,
+        /// and radius: matching values would move in lockstep and read as one rigid ring.
+        /// </summary>
+        private sealed class RayLayerSpec
+        {
+            public int LobeCount;
+            public double RingRadius;
+            public double LobeRadius;
+            public double RingWobble;
+            public double LobeSizeVariation;
+            public double Phase;
+            public double AlphaScale;
+            public byte HaloAlpha;
+            public byte LobeAlpha;
+            public bool IncludeHalo;
+        }
+
+        private static readonly RayLayerSpec BaseRayLayer = new RayLayerSpec
+        {
+            LobeCount = 13,
+            RingRadius = 38.0,
+            LobeRadius = 15.0,
+            RingWobble = 0.16,
+            LobeSizeVariation = 0.45,
+            Phase = 0.0,
+            AlphaScale = 1.0,
+            HaloAlpha = 0x4E,
+            LobeAlpha = 0x46,
+            IncludeHalo = true
+        };
+
+        private static readonly RayLayerSpec OverlayRayLayer = new RayLayerSpec
+        {
+            LobeCount = 9,
+            RingRadius = 33.5,
+            LobeRadius = 13.2,
+            RingWobble = 0.16,
+            LobeSizeVariation = 0.45,
+            Phase = 1.7,
+            AlphaScale = 0.8,
+            HaloAlpha = 0x4E,
+            LobeAlpha = 0x46,
+            IncludeHalo = false
+        };
+
         private static readonly object RayBurstCacheLock = new object();
-        private static readonly Dictionary<RarityTier, DrawingImage> RayBurstCache =
+        private static readonly Dictionary<RarityTier, DrawingImage> BaseRayBurstCache =
             new Dictionary<RarityTier, DrawingImage>();
-        private static DrawingImage _completedRayBurstCache;
+        private static readonly Dictionary<RarityTier, DrawingImage> OverlayRayBurstCache =
+            new Dictionary<RarityTier, DrawingImage>();
+        private static DrawingImage _completedBaseRayBurstCache;
+        private static DrawingImage _completedOverlayRayBurstCache;
 
         public static Color GetBaseColor(RarityTier tier, PersistedSettings settings = null)
         {
@@ -339,6 +369,25 @@ namespace PlayniteAchievements.Models.Achievements
         /// </summary>
         public static DrawingImage GetRayBurstImage(RarityTier tier, PersistedSettings settings = null)
         {
+            return GetRayBurstLayer(tier, BaseRayLayer, BaseRayBurstCache, settings);
+        }
+
+        /// <summary>
+        /// The second, sparser filament layer. <see cref="RarityRayBurst"/> stacks it over
+        /// <see cref="GetRayBurstImage"/> and turns the two in opposite directions at different
+        /// speeds, so the rim shimmers instead of rotating rigidly.
+        /// </summary>
+        public static DrawingImage GetRayBurstOverlayImage(RarityTier tier, PersistedSettings settings = null)
+        {
+            return GetRayBurstLayer(tier, OverlayRayLayer, OverlayRayBurstCache, settings);
+        }
+
+        private static DrawingImage GetRayBurstLayer(
+            RarityTier tier,
+            RayLayerSpec spec,
+            Dictionary<RarityTier, DrawingImage> cache,
+            PersistedSettings settings)
+        {
             if (tier == RarityTier.Common)
             {
                 return null;
@@ -348,7 +397,7 @@ namespace PlayniteAchievements.Models.Achievements
             {
                 lock (RayBurstCacheLock)
                 {
-                    if (RayBurstCache.TryGetValue(tier, out var cached))
+                    if (cache.TryGetValue(tier, out var cached))
                     {
                         return cached;
                     }
@@ -356,13 +405,14 @@ namespace PlayniteAchievements.Models.Achievements
             }
 
             var baseColor = GetBaseColor(tier, settings);
-            var image = CreateRayBurstImage(Blend(baseColor, Colors.White, RayHighlightBlend), baseColor);
+            var image = CreateRayBurstImage(
+                Blend(baseColor, Colors.White, RayHighlightBlend), baseColor, spec);
 
             if (settings == null)
             {
                 lock (RayBurstCacheLock)
                 {
-                    RayBurstCache[tier] = image;
+                    cache[tier] = image;
                 }
             }
 
@@ -370,92 +420,151 @@ namespace PlayniteAchievements.Models.Achievements
         }
 
         /// <summary>
-        /// Sunburst art for the completion glow, alternating the completed gradient's end and start
-        /// colors between long and short rays so the burst reads as the same two-tone bloom as the
-        /// stacked <see cref="GetCompletedGlow"/> pair.
+        /// Sunburst art for the completion glow, running between the completed gradient's end and
+        /// start colors so the burst reads as the same two-tone bloom as the stacked
+        /// <see cref="GetCompletedGlow"/> pair.
         /// </summary>
         public static DrawingImage GetCompletedRayBurstImage(PersistedSettings settings = null)
         {
-            if (settings == null)
+            if (settings == null && _completedBaseRayBurstCache != null)
             {
                 lock (RayBurstCacheLock)
                 {
-                    if (_completedRayBurstCache != null)
+                    if (_completedBaseRayBurstCache != null)
                     {
-                        return _completedRayBurstCache;
+                        return _completedBaseRayBurstCache;
                     }
                 }
             }
 
-            var image = CreateRayBurstImage(
-                Blend(GetCompletedEndColor(settings), Colors.White, RayHighlightBlend),
-                GetCompletedStartColor(settings));
-
+            var image = CreateCompletedRayBurstImage(BaseRayLayer, settings);
             if (settings == null)
             {
                 lock (RayBurstCacheLock)
                 {
-                    _completedRayBurstCache = image;
+                    _completedBaseRayBurstCache = image;
                 }
             }
 
             return image;
         }
 
+        /// <summary>Overlay filament layer for the completion glow.</summary>
+        public static DrawingImage GetCompletedRayBurstOverlayImage(PersistedSettings settings = null)
+        {
+            if (settings == null && _completedOverlayRayBurstCache != null)
+            {
+                lock (RayBurstCacheLock)
+                {
+                    if (_completedOverlayRayBurstCache != null)
+                    {
+                        return _completedOverlayRayBurstCache;
+                    }
+                }
+            }
+
+            var image = CreateCompletedRayBurstImage(OverlayRayLayer, settings);
+            if (settings == null)
+            {
+                lock (RayBurstCacheLock)
+                {
+                    _completedOverlayRayBurstCache = image;
+                }
+            }
+
+            return image;
+        }
+
+        private static DrawingImage CreateCompletedRayBurstImage(RayLayerSpec spec, PersistedSettings settings)
+        {
+            return CreateRayBurstImage(
+                Blend(GetCompletedEndColor(settings), Colors.White, RayHighlightBlend),
+                GetCompletedStartColor(settings),
+                spec);
+        }
+
         /// <summary>
-        /// Builds the sunburst as vector rays rather than a blurred bitmap: each is a curve-sided
-        /// needle filled with a gradient fading to fully transparent at its tip, so the art freezes
-        /// once and the rotating layer costs a transform instead of re-rasterizing a blur every
-        /// frame.
+        /// Builds one layer of the corona as overlapping soft blobs rather than discrete spokes: a
+        /// continuous band of light with lumps riding it, so nothing in it reads as a countable
+        /// shape. The lumps sit at varying distance and size around the ring, so the outer edge
+        /// undulates; rotating the layer carries that undulation around the subject, and
+        /// <see cref="RarityRayBurst"/> breathes the whole thing in and out on a separate cycle.
         ///
-        /// Ray length, width, and color all follow one smooth swell around the rim
-        /// (<see cref="RayLengthFraction"/>) instead of a fixed alternation, so rotation reads as a
-        /// wave travelling around the edge rather than a pinwheel spinning. A central bloom seats the
-        /// icon in light rather than on top of bare spokes, and a radial opacity mask fades the whole
-        /// burst out so it never ends on a hard circular edge.
+        /// Every element is a radial gradient with no outline, which is what keeps the result
+        /// amorphous — neighbouring blobs merge into one cloud instead of showing their own edges.
+        /// The art freezes once, so the animation costs only transforms.
         /// </summary>
-        private static DrawingImage CreateRayBurstImage(Color longRayColor, Color shortRayColor)
+        private static DrawingImage CreateRayBurstImage(
+            Color brightColor,
+            Color baseColor,
+            RayLayerSpec spec)
         {
             var group = new DrawingGroup();
 
             // Transparent bounds rectangle pins the drawing's extent to the full square, so the
             // relative-mapped opacity mask below and the consuming Stretch stay predictable
-            // regardless of how far individual rays reach.
+            // regardless of how far the blobs reach.
             group.Children.Add(new GeometryDrawing
             {
                 Geometry = new RectangleGeometry(new Rect(0, 0, RayBurstBox, RayBurstBox)),
                 Brush = Brushes.Transparent
             });
 
-            group.Children.Add(new GeometryDrawing
+            if (spec.IncludeHalo)
             {
-                Geometry = new EllipseGeometry(
-                    new Point(RayBurstCenter, RayBurstCenter),
-                    RayBurstCenter,
-                    RayBurstCenter),
-                Brush = CreateRayBloomBrush(longRayColor)
-            });
+                group.Children.Add(new GeometryDrawing
+                {
+                    Geometry = new EllipseGeometry(
+                        new Point(RayBurstCenter, RayBurstCenter),
+                        RayBurstCenter,
+                        RayBurstCenter),
+                    Brush = CreateCoronaHaloBrush(brightColor, spec)
+                });
+            }
 
-            for (var i = 0; i < RayCount; i++)
+            for (var i = 0; i < spec.LobeCount; i++)
             {
-                var baseAngle = i * (360.0 / RayCount);
-                var theta = baseAngle * Math.PI / 180.0;
-                var angle = baseAngle + (RayAngleJitterDegrees * Math.Sin((7.0 * theta) + 0.5));
+                var theta = (i * 2.0 * Math.PI / spec.LobeCount) + spec.Phase;
 
-                var lengthFraction = RayLengthFraction(theta);
-                var outerRadius = InnerRayRadius + ((OuterRayRadius - InnerRayRadius) * lengthFraction);
-                var halfAngle = RayHalfAngle * (0.6 + (0.55 * lengthFraction));
+                var distanceWave = (0.6 * Math.Sin((3.0 * theta) + spec.Phase)) +
+                                   (0.4 * Math.Sin((5.0 * theta) + (spec.Phase * 1.6)));
+                var sizeWave = (0.6 * Math.Sin((4.0 * theta) + (spec.Phase * 2.1))) +
+                               (0.4 * Math.Sin((7.0 * theta) + spec.Phase));
 
-                // Longer rays run brighter, so the swell reads in intensity as well as reach.
-                var color = Blend(shortRayColor, longRayColor, lengthFraction);
+                var distance = spec.RingRadius * (1.0 + (spec.RingWobble * distanceWave));
+                var radius = spec.LobeRadius * (1.0 + (spec.LobeSizeVariation * sizeWave));
+                if (radius <= 0)
+                {
+                    continue;
+                }
 
-                group.Children.Add(CreateRayDrawing(
-                    angle, outerRadius, halfAngle * RayHaloWidthFactor, color, RayHaloAlpha));
-                group.Children.Add(CreateRayDrawing(
-                    angle, outerRadius, halfAngle, color, RayCoreAlpha));
+                // Bigger lumps run brighter, so the undulation reads in intensity as well as reach.
+                var color = Blend(baseColor, brightColor, 0.5 + (0.5 * sizeWave));
+
+                group.Children.Add(CreateCoronaLobeDrawing(
+                    RayBurstCenter + (distance * Math.Cos(theta)),
+                    RayBurstCenter + (distance * Math.Sin(theta)),
+                    radius,
+                    color,
+                    spec.LobeAlpha * spec.AlphaScale));
             }
 
             group.OpacityMask = CreateRayFalloffBrush();
+
+            // Clip to the layout box, and do not remove this. Lobes pushed out by the wobble reach
+            // past the box, which would leave the drawing's bounds both larger than the box and
+            // off-center; Stretch="Uniform" fits those bounds, not the box, so the corona would sit
+            // visibly off-center and the relative-mapped opacity mask would land crooked. The
+            // transparent rectangle above cannot prevent that — it can only grow bounds, never
+            // contain them. Nothing visible is lost: the mask has already faded to nothing by the
+            // inscribed radius, so everything the clip removes is fully transparent.
+            var clip = new RectangleGeometry(new Rect(0, 0, RayBurstBox, RayBurstBox));
+            if (clip.CanFreeze)
+            {
+                clip.Freeze();
+            }
+
+            group.ClipGeometry = clip;
 
             var image = new DrawingImage(group);
             if (image.CanFreeze)
@@ -467,67 +576,39 @@ namespace PlayniteAchievements.Models.Achievements
         }
 
         /// <summary>
-        /// The shortest-to-longest ray reach at a point on the rim, as a fraction of the full span.
-        /// Two integer harmonics keep the swell continuous all the way around the circle, so the art
-        /// has no seam where it closes, while their sum avoids the regular cadence a single harmonic
-        /// would give.
+        /// One soft lump of light: brightest at its middle and gone by its edge, with no outline at
+        /// all. That is what lets neighbouring lobes merge into a single cloud instead of showing as
+        /// separate shapes. Absolute mapping keeps the gradient centered on the lobe wherever it sits.
         /// </summary>
-        private static double RayLengthFraction(double angleRadians)
-        {
-            var wave = (0.6 * Math.Sin(3.0 * angleRadians)) +
-                       (0.4 * Math.Sin((5.0 * angleRadians) + 1.1));
-            var shaped = Math.Pow((wave + 1.0) / 2.0, RayLengthSkew);
-            return MinRayLengthFraction + ((1.0 - MinRayLengthFraction) * shaped);
-        }
-
-        private static GeometryDrawing CreateRayDrawing(
-            double angleDegrees,
-            double outerRadius,
-            double halfAngleDegrees,
+        private static GeometryDrawing CreateCoronaLobeDrawing(
+            double centerX,
+            double centerY,
+            double radius,
             Color color,
-            byte baseAlpha)
+            double alpha)
         {
-            var tip = PolarPoint(angleDegrees, outerRadius);
-
-            // Quadratic sides with their control points partway along the ray and pulled toward its
-            // axis, so the silhouette tapers as a soft needle instead of a straight-edged triangle.
-            var controlRadius = InnerRayRadius + ((outerRadius - InnerRayRadius) * RaySideCurveAlong);
-            var leftControl = PolarPoint(angleDegrees - (halfAngleDegrees * RaySideCurveInset), controlRadius);
-            var rightControl = PolarPoint(angleDegrees + (halfAngleDegrees * RaySideCurveInset), controlRadius);
-
-            var figure = new PathFigure
-            {
-                StartPoint = PolarPoint(angleDegrees - halfAngleDegrees, InnerRayRadius),
-                IsClosed = true,
-                IsFilled = true
-            };
-            figure.Segments.Add(new QuadraticBezierSegment(leftControl, tip, true));
-            figure.Segments.Add(new QuadraticBezierSegment(
-                rightControl,
-                PolarPoint(angleDegrees + halfAngleDegrees, InnerRayRadius),
-                true));
-
-            var geometry = new PathGeometry();
-            geometry.Figures.Add(figure);
-            if (geometry.CanFreeze)
-            {
-                geometry.Freeze();
-            }
-
-            // Absolute mapping so the gradient runs along the ray itself; relative-to-bounding-box
-            // mapping would skew the direction differently for every rotation angle.
-            var brush = new LinearGradientBrush
+            var origin = new Point(centerX, centerY);
+            var brush = new RadialGradientBrush
             {
                 MappingMode = BrushMappingMode.Absolute,
-                StartPoint = PolarPoint(angleDegrees, InnerRayRadius),
-                EndPoint = tip
+                Center = origin,
+                GradientOrigin = origin,
+                RadiusX = radius,
+                RadiusY = radius
             };
-            brush.GradientStops.Add(new GradientStop(WithAlpha(color, baseAlpha), 0.00));
-            brush.GradientStops.Add(new GradientStop(WithAlpha(color, (byte)(baseAlpha * 0.55)), 0.45));
-            brush.GradientStops.Add(new GradientStop(WithAlpha(color, 0x00), 1.00));
+
+            brush.GradientStops.Add(new GradientStop(WithAlpha(color, alpha), 0.00));
+            brush.GradientStops.Add(new GradientStop(WithAlpha(color, alpha * 0.55), 0.45));
+            brush.GradientStops.Add(new GradientStop(WithAlpha(color, 0.0), 1.00));
             if (brush.CanFreeze)
             {
                 brush.Freeze();
+            }
+
+            var geometry = new EllipseGeometry(origin, radius, radius);
+            if (geometry.CanFreeze)
+            {
+                geometry.Freeze();
             }
 
             return new GeometryDrawing
@@ -537,7 +618,12 @@ namespace PlayniteAchievements.Models.Achievements
             };
         }
 
-        private static Brush CreateRayBloomBrush(Color color)
+        /// <summary>
+        /// The continuous band the lobes ride on: clear where the subject sits, brightest just outside
+        /// its edge, gone by the rim. Without it the lobes would read as separate clouds rather than
+        /// one corona.
+        /// </summary>
+        private static Brush CreateCoronaHaloBrush(Color color, RayLayerSpec spec)
         {
             var brush = new RadialGradientBrush
             {
@@ -547,11 +633,11 @@ namespace PlayniteAchievements.Models.Achievements
                 RadiusY = 0.5
             };
 
-            // Kept faint: the rays' own halo pass now supplies most of the diffuse light, so a
-            // stronger bloom here would flatten the swell into an undifferentiated cloud.
-            brush.GradientStops.Add(new GradientStop(WithAlpha(color, RayBloomAlpha), 0.00));
-            brush.GradientStops.Add(new GradientStop(WithAlpha(color, (byte)(RayBloomAlpha * 0.6)), 0.42));
-            brush.GradientStops.Add(new GradientStop(WithAlpha(color, 0x00), 1.00));
+            var peak = spec.HaloAlpha * spec.AlphaScale;
+            brush.GradientStops.Add(new GradientStop(WithAlpha(color, 0.0), 0.00));
+            brush.GradientStops.Add(new GradientStop(WithAlpha(color, peak * 0.35), CoronaBandInnerStop));
+            brush.GradientStops.Add(new GradientStop(WithAlpha(color, peak), CoronaBandPeakStop));
+            brush.GradientStops.Add(new GradientStop(WithAlpha(color, 0.0), 1.00));
             if (brush.CanFreeze)
             {
                 brush.Freeze();
@@ -570,11 +656,10 @@ namespace PlayniteAchievements.Models.Achievements
                 RadiusY = 0.5
             };
 
-            // The opaque region reaches almost to the edge: each ray already fades to transparent at
-            // its own tip, so this mask exists only to kill any hard edge at the burst boundary.
-            // Bringing the falloff in closer double-fades the rays and visibly truncates them.
+            // Catches anything that reaches the rim — a lobe pushed out by the wobble, say — so the
+            // layer never ends on a visible circle.
             brush.GradientStops.Add(new GradientStop(Colors.White, 0.00));
-            brush.GradientStops.Add(new GradientStop(Colors.White, 0.88));
+            brush.GradientStops.Add(new GradientStop(Colors.White, 0.72));
             brush.GradientStops.Add(new GradientStop(Color.FromArgb(0x00, 0xFF, 0xFF, 0xFF), 1.00));
             if (brush.CanFreeze)
             {
@@ -592,9 +677,14 @@ namespace PlayniteAchievements.Models.Achievements
                 RayBurstCenter + (radius * Math.Sin(radians)));
         }
 
-        private static Color WithAlpha(Color color, byte alpha)
+        /// <summary>
+        /// Takes a double because the corona scales its alphas by per-layer factors; clamping here
+        /// keeps every caller from repeating the range check.
+        /// </summary>
+        private static Color WithAlpha(Color color, double alpha)
         {
-            return Color.FromArgb(alpha, color.R, color.G, color.B);
+            var clamped = alpha < 0.0 ? 0.0 : (alpha > 255.0 ? 255.0 : alpha);
+            return Color.FromArgb((byte)clamped, color.R, color.G, color.B);
         }
 
         public static void ApplyBadgeApplicationResources(PersistedSettings settings)
@@ -633,8 +723,10 @@ namespace PlayniteAchievements.Models.Achievements
             // re-resolve their art on AppearanceChanged below.
             lock (RayBurstCacheLock)
             {
-                RayBurstCache.Clear();
-                _completedRayBurstCache = null;
+                BaseRayBurstCache.Clear();
+                OverlayRayBurstCache.Clear();
+                _completedBaseRayBurstCache = null;
+                _completedOverlayRayBurstCache = null;
             }
 
             ApplyBadgeResources(resources, settings);
