@@ -599,14 +599,23 @@ namespace PlayniteAchievements.Services.UI
                 return null;
             }
 
-            // Confirmed against a DualSense, a DualSense Edge, and a DualShock 4: rumble emulation
-            // on its own works, and additionally setting the audio-haptics-disable bit (0x02) — as
-            // SDL does — silences the motors instead. So only bit 0 is set, which also means audio
-            // haptics are never disturbed and no follow-up release report is needed.
+            // A DualSense has two rumble paths and SDL chooses between them by reading the firmware
+            // version out of a feature report: emulation via ucEnableBits1 bit 0 with the magnitude
+            // halved on older firmware, or improved rumble via ucEnableBits3 bit 2 at full magnitude
+            // on 2.24 and newer. Rather than probe the firmware, both enable bits are set — each
+            // path reads the same two magnitude bytes, so whichever one the pad implements drives
+            // the motors and the other is ignored. This is what makes a wireless adapter work, since
+            // an adapter need not implement the same path as a directly connected pad.
             //
-            // The bits stay set for a stop as well: a zero magnitude with emulation still enabled is
+            // Confirmed on a DualSense, a DualSense Edge and a DualShock 4: additionally setting the
+            // audio-haptics-disable bit (0x02), as SDL does, silences the motors instead of driving
+            // them, so it is left alone. That also means audio haptics are never disturbed and no
+            // follow-up release report is needed.
+            //
+            // The bits stay set for a stop as well: a zero magnitude with the paths still enabled is
             // what halts the motors.
-            report[offset] = 0x01;                        // Enable rumble emulation.
+            report[offset] = 0x01;                        // ucEnableBits1: rumble emulation.
+            report[offset + 38] = 0x04;                   // ucEnableBits3: improved rumble.
             var magnitude = (byte)(speed >> 8);
             report[offset + 2] = magnitude;               // ucRumbleRight
             report[offset + 3] = magnitude;               // ucRumbleLeft
