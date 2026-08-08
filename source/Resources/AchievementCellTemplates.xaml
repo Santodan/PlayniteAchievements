@@ -508,12 +508,36 @@
 
     <!-- Unlock Date / Progress Template -->
     <DataTemplate x:Key="AchievementUnlockDateTemplate">
-        <Grid HorizontalAlignment="Stretch">
+        <!-- The tooltip names both sides of the comparison, so it covers the whole cell rather
+             than only the friend's row. It resolves to null outside compare mode. -->
+        <Grid HorizontalAlignment="Stretch"
+              Background="Transparent"
+              ToolTip="{Binding ComparisonToolTip, Mode=OneWay}">
             <Grid.RowDefinitions>
                 <RowDefinition Height="Auto"/>
                 <RowDefinition Height="Auto"/>
             </Grid.RowDefinitions>
-            <TextBlock HorizontalAlignment="{Binding RelativeSource={RelativeSource AncestorType={x:Type DataGridCell}}, Path=Column.(helpers:DataGridAlignmentBehavior.CellHorizontalAlignment)}"
+            <!-- Column 0 carries the row owner's avatar in compare mode and collapses to zero
+                 width otherwise, so the non-compare layout is unchanged. -->
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="Auto"/>
+                <ColumnDefinition Width="*"/>
+            </Grid.ColumnDefinitions>
+
+            <Border Width="16"
+                    Height="16"
+                    CornerRadius="8"
+                    Margin="0,0,5,0"
+                    ClipToBounds="True"
+                    VerticalAlignment="Center"
+                    Visibility="{Binding HasComparison, Converter={StaticResource BoolToVis}}">
+                <Image Stretch="Uniform"
+                       helpers:AsyncImage.Uri="{Binding ComparisonOwnerAvatarPath}"
+                       helpers:AsyncImage.DecodePixel="32"/>
+            </Border>
+
+            <TextBlock Grid.Column="1"
+                    HorizontalAlignment="{Binding RelativeSource={RelativeSource AncestorType={x:Type DataGridCell}}, Path=Column.(helpers:DataGridAlignmentBehavior.CellHorizontalAlignment)}"
                     VerticalAlignment="{Binding RelativeSource={RelativeSource AncestorType={x:Type DataGridCell}}, Path=Column.(helpers:DataGridAlignmentBehavior.CellVerticalAlignment)}"
                     Style="{DynamicResource PlayAch.TextBlock.BaseStyle}"
                     Foreground="{DynamicResource PlayAch.Brush.Text}"
@@ -529,7 +553,8 @@
                 </TextBlock.Text>
             </TextBlock>
 
-            <Grid Visibility="{Binding ShowLockedProgress, Converter={StaticResource BoolToVis}}"
+            <Grid Grid.Column="1"
+                Visibility="{Binding ShowLockedProgress, Converter={StaticResource BoolToVis}}"
                 Margin="4,0"
                 HorizontalAlignment="Stretch"
                 VerticalAlignment="{Binding RelativeSource={RelativeSource AncestorType={x:Type DataGridCell}}, Path=Column.(helpers:DataGridAlignmentBehavior.CellVerticalAlignment)}">
@@ -549,10 +574,10 @@
 
             <!-- Comparison row: the compare friend's avatar + unlock date (or Locked) -->
             <StackPanel Grid.Row="1"
+                        Grid.ColumnSpan="2"
                         Orientation="Horizontal"
                         Margin="0,2,0,0"
                         HorizontalAlignment="{Binding RelativeSource={RelativeSource AncestorType={x:Type DataGridCell}}, Path=Column.(helpers:DataGridAlignmentBehavior.CellHorizontalAlignment)}"
-                        ToolTip="{Binding ComparisonToolTip, Mode=OneWay}"
                         Visibility="{Binding HasComparison, Converter={StaticResource BoolToVis}}">
                 <Border Width="16"
                         Height="16"
