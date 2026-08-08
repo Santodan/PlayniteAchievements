@@ -99,6 +99,9 @@ The entries below are fork-side changes, grouped by date. When a date includes a
 
 ## Next release - TBD
 
+
+## 2026-08-08 - v3.1.1.1
+
 - v3.1.1 merge
 - Fixed Hidden achievements description not respecting the language setting
 - Added the option to apply a selected subset to the RA Game ID Override

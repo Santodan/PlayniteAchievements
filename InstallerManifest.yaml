@@ -1,5 +1,26 @@
 AddonId: PlayniteAchievementsSantodan
 Packages:
+  - Version: 3.1.1.1
+    RequiredApiVersion: 6.14.0
+    ReleaseDate: 2026-08-06
+    PackageUrl: https://github.com/santodan/PlayniteAchievements/releases/download/v3.1.1.1/PlayniteAchievementsSantodan_3_1_1_1.pext
+    Changelog:
+    - "v3.1.1 merge"
+    - "Fixed Hidden achievements description not respecting the language setting"
+    - "Added the option to apply a selected subset to the RA Game ID Override"
+    - "Fixed the achievement refresh to `New Game` when adding a new game to playnite"
+    - "Fixed the `clear` in the `Manage Achievements` not clearing the `Provider Override` selection"
+    - "Changed the `Inline real-time preview` to show the WebView2 preview instead of the WPF"
+    - "Added `Font` to the `Line` customization"
+    - "Added `Text formatting` below the `Corners` and `Opacity` settings"
+    - "Changed the `Achievement Notification` UI, it now has two tabs:"
+      - "`General`"
+      - "`Notification Style` with all the settings for the custom notification"
+      - "`Memories` with all the settings for the screenshot and the video recording"
+    - "Made the `Achievement Notification` screenshot and video recording to work independently if the notification is active or not"
+      - "This way it can be used with the original notification from the original fork with the changes to the settings."
+    - "Changed the Screenshot behavior to be a mirror of the original fork screenshot mechanism with the additional wildcard in the path and name"
+
   - Version: 3.1.0.1
     RequiredApiVersion: 6.14.0
     ReleaseDate: 2026-08-06
