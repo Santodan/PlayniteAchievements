@@ -1033,25 +1033,12 @@ namespace PlayniteAchievements.Views.Controls
 
             if (!ReferenceEquals(_controlBarWithToggle, ControlBar))
             {
-                // The category-label dropdown is the last multi-select filter BEFORE the
-                // unlock-state toggles (Type is added first; dropdowns after the toggles,
-                // like Compare, are unrelated). It becomes the right half of the segmented
-                // unit in flat mode.
-                GridMultiSelectFilter labelFilter = null;
-                for (var i = 0; i < ControlBar.Items.Count; i++)
-                {
-                    if (ControlBar.Items[i] is GridToggleFilter)
-                    {
-                        break;
-                    }
-
-                    if (ControlBar.Items[i] is GridMultiSelectFilter filter)
-                    {
-                        labelFilter = filter;
-                    }
-                }
-
-                _connectedCategoryFilter = labelFilter;
+                // The category-label dropdown is the last category-scoped filter (Type is added
+                // first); achievement-scoped dropdowns like Compare leave IsCategoryFilter false.
+                // It becomes the left half of the segmented unit in flat mode.
+                _connectedCategoryFilter = ControlBar.Items
+                    .OfType<GridMultiSelectFilter>()
+                    .LastOrDefault(filter => filter.IsCategoryFilter);
                 _controlBarWithToggle = ControlBar;
             }
 
@@ -1106,10 +1093,10 @@ namespace PlayniteAchievements.Views.Controls
             }
         }
 
-        // Positions the category-mode Back and toggle controls for the current mode. The toggle always
-        // stays in the trailing (right-side) items, spliced beside the category dropdown in flat mode;
-        // it never relocates across the bar. Only the Back button moves to the leading zone, left of
-        // the search box, while in category mode.
+        // Positions the category-mode Back and toggle controls. The toggle always stays in the
+        // trailing (right-side) items, spliced beside the category dropdown; it never relocates
+        // across the bar. Only the Back button moves to the leading zone, left of the search box,
+        // while in category mode.
         private void UpdateModeControlPlacement()
         {
             var bar = _controlBarWithToggle;
@@ -1120,51 +1107,42 @@ namespace PlayniteAchievements.Views.Controls
 
             if (!bar.Items.Contains(_modeToggle))
             {
-                // Splice the toggle immediately before the category-label dropdown: the last
-                // multi-select filter before the unlock-state toggles (dropdowns after the
-                // toggles, like Compare, must not attract the segmented unit).
-                var insertIndex = bar.Items.Count;
-                for (var i = 0; i < bar.Items.Count; i++)
-                {
-                    if (bar.Items[i] is GridToggleFilter)
-                    {
-                        break;
-                    }
-
-                    if (bar.Items[i] is GridMultiSelectFilter)
-                    {
-                        insertIndex = i;
-                    }
-                }
-
-                bar.Items.Insert(Math.Min(insertIndex, bar.Items.Count), _modeToggle);
+                // Splice the toggle immediately after the category-label dropdown, forming the
+                // right half of the segmented unit.
+                var anchor = _connectedCategoryFilter == null ? -1 : bar.Items.IndexOf(_connectedCategoryFilter);
+                bar.Items.Insert(anchor >= 0 ? anchor + 1 : bar.Items.Count, _modeToggle);
             }
 
             if (_isCategoryMode)
             {
-                if (_connectedCategoryFilter != null)
-                {
-                    _connectedCategoryFilter.ConnectedLeft = false;
-                }
-
                 if (_backButton != null && !bar.LeadingItems.Contains(_backButton))
                 {
                     bar.LeadingItems.Insert(0, _backButton);
                 }
             }
-            else
+            else if (_backButton != null)
             {
-                if (_backButton != null)
-                {
-                    bar.LeadingItems.Remove(_backButton);
-                }
+                bar.LeadingItems.Remove(_backButton);
+            }
+        }
 
-                if (_connectedCategoryFilter != null)
-                {
-                    // Only adopt the segmented style when the toggle is actually shown beside it;
-                    // otherwise the dropdown reverts to its standalone bordered style.
-                    _connectedCategoryFilter.ConnectedLeft = _modeToggle.EffectiveIsVisible;
-                }
+        // Flips both halves of the category dropdown / mode toggle segment together, adopting the
+        // segmented styling only while both are actually shown so a flat edge is never left facing
+        // empty space. Runs after the per-item visibility pass, which is what it keys off.
+        private void SyncSegmentedUnit()
+        {
+            var connected =
+                _modeToggle?.EffectiveIsVisible == true &&
+                _connectedCategoryFilter?.EffectiveIsVisible == true;
+
+            if (_connectedCategoryFilter != null)
+            {
+                _connectedCategoryFilter.ConnectedRight = connected;
+            }
+
+            if (_modeToggle != null)
+            {
+                _modeToggle.Connected = connected;
             }
         }
 
@@ -1185,7 +1163,7 @@ namespace PlayniteAchievements.Views.Controls
                 if (item is GridMultiSelectFilter filter)
                 {
                     filter.IsVisible = true;
-                    filter.ConnectedLeft = false;
+                    filter.ConnectedRight = false;
                 }
                 else if (item is GridToggleFilter toggle)
                 {
@@ -1194,6 +1172,10 @@ namespace PlayniteAchievements.Views.Controls
             }
 
             _connectedCategoryFilter = null;
+            if (_modeToggle != null)
+            {
+                _modeToggle.Connected = false;
+            }
 
             if (_originalSearch != null && ReferenceEquals(bar.Search, _categorySearch))
             {
@@ -1219,28 +1201,25 @@ namespace PlayniteAchievements.Views.Controls
             // Reflow Back/toggle between the leading zone and the segmented unit for the current mode.
             UpdateModeControlPlacement();
 
-            // Dropdowns placed before the unlock-state toggles are the category Type/Label filters
-            // (same ordering rule UpdateModeControlPlacement uses to splice the mode toggle);
-            // dropdowns after the toggles, like Compare, act on achievements.
-            var pastToggles = false;
             foreach (var item in bar.Items)
             {
                 if (item is GridToggleFilter)
                 {
-                    pastToggles = true;
-
                     // The Unlocked/Locked/Hidden toggles filter achievements, so hide them in the
                     // category list (rows are categories) but restore them flat and when drilled in.
                     item.IsVisible = !list;
                 }
-                else if (item is GridMultiSelectFilter)
+                else if (item is GridMultiSelectFilter filter)
                 {
-                    // Achievement-scoped dropdowns follow the toggles; the category dropdowns are
-                    // redundant while grouping is in effect. Both stay shown when grouping is not
-                    // effective (e.g. a single-category game falling back to the flat grid).
-                    item.IsVisible = pastToggles ? !list : !grouping;
+                    // The category dropdowns are redundant while grouping is in effect;
+                    // achievement-scoped dropdowns like Compare follow the toggles instead. Both
+                    // stay shown when grouping is not effective (e.g. a single-category game
+                    // falling back to the flat grid).
+                    filter.IsVisible = filter.IsCategoryFilter ? !grouping : !list;
                 }
             }
+
+            SyncSegmentedUnit();
 
             if (_backButton != null)
             {
