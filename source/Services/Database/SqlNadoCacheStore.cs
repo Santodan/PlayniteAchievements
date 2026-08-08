@@ -4489,47 +4489,50 @@ namespace PlayniteAchievements.Services.Database
             {
                 return WithDb(db =>
                 {
-                    // UX_Users_CurrentPerProvider allows one IsCurrentUser row per provider, so a
-                    // stale row under a previous account id has to be demoted first or the insert
-                    // below is silently ignored. Mirrors UpsertCurrentUser's demote step.
-                    db.ExecuteNonQuery(
-                        @"UPDATE Users
-                          SET IsCurrentUser = 0,
-                              UpdatedUtc = ?
-                          WHERE ProviderKey = ?
-                            AND IsCurrentUser = 1
-                            AND ExternalUserId <> ?;",
-                        nowIso,
-                        providerKey,
-                        externalUserId);
+                    db.RunTransaction(() =>
+                    {
+                        // UX_Users_CurrentPerProvider allows one IsCurrentUser row per provider, so
+                        // a stale row under a previous account id has to be demoted first or the
+                        // insert below is silently ignored. Mirrors UpsertCurrentUser's demote step.
+                        db.ExecuteNonQuery(
+                            @"UPDATE Users
+                              SET IsCurrentUser = 0,
+                                  UpdatedUtc = ?
+                              WHERE ProviderKey = ?
+                                AND IsCurrentUser = 1
+                                AND ExternalUserId <> ?;",
+                            nowIso,
+                            providerKey,
+                            externalUserId);
 
-                    db.ExecuteNonQuery(
-                        @"INSERT OR IGNORE INTO Users
-                            (ProviderKey, ExternalUserId, DisplayName, IsCurrentUser, AvatarUrl, AvatarPath, CreatedUtc, UpdatedUtc)
-                          VALUES
-                            (?, ?, ?, 1, ?, ?, ?, ?);",
-                        providerKey,
-                        externalUserId,
-                        DbValue(displayName ?? externalUserId),
-                        DbValue(self.AvatarUrl),
-                        DbValue(avatarPath),
-                        nowIso,
-                        nowIso);
+                        db.ExecuteNonQuery(
+                            @"INSERT OR IGNORE INTO Users
+                                (ProviderKey, ExternalUserId, DisplayName, IsCurrentUser, AvatarUrl, AvatarPath, CreatedUtc, UpdatedUtc)
+                              VALUES
+                                (?, ?, ?, 1, ?, ?, ?, ?);",
+                            providerKey,
+                            externalUserId,
+                            DbValue(displayName ?? externalUserId),
+                            DbValue(self.AvatarUrl),
+                            DbValue(avatarPath),
+                            nowIso,
+                            nowIso);
 
-                    db.ExecuteNonQuery(
-                        @"UPDATE Users
-                          SET DisplayName = COALESCE(?, DisplayName),
-                              AvatarUrl = ?,
-                              AvatarPath = COALESCE(?, AvatarPath),
-                              UpdatedUtc = ?
-                          WHERE ProviderKey = ?
-                            AND ExternalUserId = ?;",
-                        DbValue(displayName),
-                        DbValue(self.AvatarUrl),
-                        DbValue(avatarPath),
-                        nowIso,
-                        providerKey,
-                        externalUserId);
+                        db.ExecuteNonQuery(
+                            @"UPDATE Users
+                              SET DisplayName = COALESCE(?, DisplayName),
+                                  AvatarUrl = ?,
+                                  AvatarPath = COALESCE(?, AvatarPath),
+                                  UpdatedUtc = ?
+                              WHERE ProviderKey = ?
+                                AND ExternalUserId = ?;",
+                            DbValue(displayName),
+                            DbValue(self.AvatarUrl),
+                            DbValue(avatarPath),
+                            nowIso,
+                            providerKey,
+                            externalUserId);
+                    });
 
                     return true;
                 });
