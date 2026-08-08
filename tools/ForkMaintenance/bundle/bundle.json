@@ -1,6 +1,6 @@
 {
     "schemaVersion":  1,
-    "generatedUtc":  "2026-08-08T08:19:31.6439931Z",
+    "generatedUtc":  "2026-08-08T08:31:44.5048600Z",
     "baselineRef":  "upstream/main",
     "baselineCommit":  "f28ac5faae69739e2a7193a5c1af98ac55b9030f",
     "protectedPaths":  [
@@ -309,7 +309,7 @@
                          },
                          {
                              "path":  "source/Views/LegacyNotificationSettingsControl.xaml",
-                             "sha256":  "7D0FEC4B6023244C23A5D9529BEF6022778888B0397A53921624E9FF16D4C695"
+                             "sha256":  "9B982434DC533CADFF33BF0FA69FE10A02DF0EC15C7BF92F6D79B94D12A353EC"
                          },
                          {
                              "path":  "source/Views/LegacyNotificationSettingsControl.xaml.cs",

@@ -108,7 +108,8 @@ The entries below are fork-side changes, grouped by date. When a date includes a
 - Added `Font` to the `Line` customization
 - Added `Text formatting` below the `Corners` and `Opacity` settings
 - Changed the `Achievement Notification` UI, it now has two tabs:
-  - `General` with everything besides screenshot and video recording settings
+  - `General`
+  - `Notification Style` with all the settings for the custom notification
   - `Memories` with all the settings for the screenshot and the video recording
 - Made the `Achievement Notification` screenshot and video recording to work independently if the notification is active or not
   - This way it can be used with the original notification from the original fork with the changes to the settings.
