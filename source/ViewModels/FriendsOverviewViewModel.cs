@@ -91,12 +91,10 @@ namespace PlayniteAchievements.ViewModels
         private bool _hasPairLocked;
         private bool _hasPairHiddenLocked;
         // Compare-friend selection for the pair view: session-only, dropped whenever the
-        // friend+game pair changes. Applied comparisons are tracked so they can be cleared
-        // from item instances that survive selection changes (snapshot/pair caches).
-        private FriendSummaryItem _compareFriend;
+        // friend+game pair changes.
+        private readonly FriendVsFriendCompareController _friendCompare;
         private FriendSummaryItem _comparePairFriend;
         private FriendGameSummaryItem _comparePairGame;
-        private readonly List<AchievementDisplayItem> _compareAppliedItems = new List<AchievementDisplayItem>();
         private readonly HashSet<string> _selectedOwnershipFilters = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
         private readonly HashSet<string> _selectedFriendProviderFilters = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
         private ObservableCollection<ProviderFilterGroup> _gamePlatformFilterGroups =
@@ -184,6 +182,11 @@ namespace PlayniteAchievements.ViewModels
             FriendProviderFilterOptions = new ObservableCollection<string>();
             FriendSummariesControlBar = CreateFriendSummariesControlBar();
             GameSummariesControlBar = CreateGameSummariesControlBar();
+            // The pair row source spans every game, so the comparison is scoped to the selected one.
+            _friendCompare = new FriendVsFriendCompareController(
+                () => SelectedFriend,
+                GetCompareFriendOptions,
+                row => IsSameGame(row, SelectedGame));
             AchievementsControlBar = CreateAchievementsControlBar();
             FriendRefreshModes = new ObservableCollection<RefreshMode>(CreateFriendRefreshModes());
 
@@ -315,12 +318,8 @@ namespace PlayniteAchievements.ViewModels
         public bool HasAnySelection => SelectedFriend != null || SelectedGame != null;
         public bool HasFriendGameSelection => SelectedFriend != null && SelectedGame != null;
 
-        public string CompareSelectionText => _compareFriend?.DisplayName
-            ?? ResourceProvider.GetString("LOCPlayAch_Filter_CompareSelectorPlaceholder");
-
-        public bool IsCompareAvailable => HasFriendGameSelection && GetCompareFriendOptions().Count > 0;
-
         // Friends other than the selected one that have cached data for the selected game.
+        // The controller caches this, so it is walked once per selection or row rebuild.
         private IReadOnlyList<FriendSummaryItem> GetCompareFriendOptions()
         {
             if (!HasFriendGameSelection)
@@ -333,25 +332,6 @@ namespace PlayniteAchievements.ViewModels
                     !IsSameFriend(friend, SelectedFriend) &&
                     HasFriendGamePairData(friend, SelectedGame))
                 .ToList();
-        }
-
-        private void SetCompareFriend(FriendSummaryItem friend)
-        {
-            if (friend != null && IsSameFriend(friend, SelectedFriend))
-            {
-                friend = null;
-            }
-
-            if (ReferenceEquals(_compareFriend, friend))
-            {
-                return;
-            }
-
-            _compareFriend = friend;
-            NotifyCompareStateChanged();
-            UpdateCompareState(HasFriendGameSelection
-                ? ResolvePairAchievementSource()
-                : (IReadOnlyList<FriendAchievementDisplayItem>)Array.Empty<FriendAchievementDisplayItem>());
         }
         public string AchievementColumnSettingsKey
         {
@@ -776,15 +756,15 @@ namespace PlayniteAchievements.ViewModels
                 IsCategoryFilter = true
             });
             controlBar.Items.Add(new GridMultiSelectFilter(
-                this,
-                nameof(CompareSelectionText),
-                () => CompareSelectionText,
-                () => GetCompareFriendOptions().Select(FriendOverviewProjection.GetFriendScopeKey),
-                IsCompareKeySelected,
-                SetCompareKeySelected,
-                GetCompareFriendDisplayName,
-                () => IsCompareAvailable,
-                IsCompareKeyFavorite)
+                _friendCompare,
+                nameof(FriendVsFriendCompareController.CompareSelectionText),
+                () => _friendCompare.CompareSelectionText,
+                () => _friendCompare.OptionKeys,
+                _friendCompare.IsKeySelected,
+                _friendCompare.SelectKey,
+                _friendCompare.GetDisplayNameForKey,
+                () => _friendCompare.IsCompareAvailable,
+                _friendCompare.IsKeyFavorite)
             {
                 Width = 140,
                 ToolTip = ResourceProvider.GetString("LOCPlayAch_Filter_CompareSelectorPlaceholder")
@@ -814,50 +794,6 @@ namespace PlayniteAchievements.ViewModels
                 GridToggleFilterIcon.Hidden,
                 () => _hasPairHiddenLocked));
             return controlBar;
-        }
-
-        private bool IsCompareKeySelected(string key)
-        {
-            return _compareFriend != null && string.Equals(
-                FriendOverviewProjection.GetFriendScopeKey(_compareFriend),
-                key,
-                StringComparison.OrdinalIgnoreCase);
-        }
-
-        private bool IsCompareKeyFavorite(string key)
-        {
-            return _allFriends.FirstOrDefault(friend => friend != null && string.Equals(
-                FriendOverviewProjection.GetFriendScopeKey(friend),
-                key,
-                StringComparison.OrdinalIgnoreCase))?.IsFavorite == true;
-        }
-
-        // Single-select semantics over checkable menu items: checking a friend replaces any
-        // other selection; unchecking the selected friend clears the comparison.
-        private void SetCompareKeySelected(string key, bool isSelected)
-        {
-            if (!isSelected)
-            {
-                if (IsCompareKeySelected(key))
-                {
-                    SetCompareFriend(null);
-                }
-
-                return;
-            }
-
-            SetCompareFriend(GetCompareFriendOptions().FirstOrDefault(friend => string.Equals(
-                FriendOverviewProjection.GetFriendScopeKey(friend),
-                key,
-                StringComparison.OrdinalIgnoreCase)));
-        }
-
-        private string GetCompareFriendDisplayName(string key)
-        {
-            return GetCompareFriendOptions().FirstOrDefault(friend => string.Equals(
-                FriendOverviewProjection.GetFriendScopeKey(friend),
-                key,
-                StringComparison.OrdinalIgnoreCase))?.DisplayName ?? key;
         }
 
         public Task LoadAsync()
@@ -2544,22 +2480,16 @@ namespace PlayniteAchievements.ViewModels
         }
 
         // Keeps the compare-friend enrichment in sync with the pair rows: drops the compare
-        // selection when the friend+game pair changes, and (re)applies the comparison fields
-        // to the selected friend's rows from the compare friend's rows in the same source.
-        // Rows absent for the compare friend (or present locked) render as locked.
+        // selection when the friend+game pair changes, then hands the rows to the shared
+        // controller, which clears the previous comparison and applies the current one.
         private void UpdateCompareState(IReadOnlyList<FriendAchievementDisplayItem> achievementSource)
         {
             if (!HasFriendGameSelection)
             {
                 _comparePairFriend = null;
                 _comparePairGame = null;
-                if (_compareFriend != null)
-                {
-                    _compareFriend = null;
-                    NotifyCompareStateChanged();
-                }
-
-                ClearAppliedComparisons();
+                _friendCompare.ClearSelection();
+                _friendCompare.UpdateRows(null, null);
                 return;
             }
 
@@ -2567,87 +2497,14 @@ namespace PlayniteAchievements.ViewModels
                               !IsSameGame(_comparePairGame, SelectedGame);
             _comparePairFriend = SelectedFriend;
             _comparePairGame = SelectedGame;
-            if (pairChanged && _compareFriend != null)
+            if (pairChanged)
             {
-                _compareFriend = null;
-                NotifyCompareStateChanged();
+                _friendCompare.ClearSelection();
             }
 
-            ClearAppliedComparisons();
-            if (_compareFriend == null || achievementSource == null)
-            {
-                return;
-            }
-
-            var compareRows = new Dictionary<string, FriendAchievementDisplayItem>(StringComparer.OrdinalIgnoreCase);
-            foreach (var row in achievementSource)
-            {
-                if (row == null ||
-                    string.IsNullOrWhiteSpace(row.ApiName) ||
-                    !IsSameFriend(row, _compareFriend) ||
-                    !IsSameGame(row, SelectedGame))
-                {
-                    continue;
-                }
-
-                if (!compareRows.TryGetValue(row.ApiName, out var existing) ||
-                    (row.Unlocked && !existing.Unlocked))
-                {
-                    compareRows[row.ApiName] = row;
-                }
-            }
-
-            var compareName = _compareFriend.DisplayName;
-            var compareAvatar = _compareFriend.AvatarPath;
-            // In the pair view the rows belong to the selected friend, so that friend is the owner
-            // of the comparison's own side rather than the current user.
-            var ownerName = SelectedFriend?.DisplayName;
-            var ownerAvatar = SelectedFriend?.AvatarPath;
-            foreach (var item in achievementSource)
-            {
-                if (item == null ||
-                    !IsSameFriend(item, SelectedFriend) ||
-                    !IsSameGame(item, SelectedGame))
-                {
-                    continue;
-                }
-
-                FriendAchievementDisplayItem compareRow = null;
-                if (!string.IsNullOrWhiteSpace(item.ApiName))
-                {
-                    compareRows.TryGetValue(item.ApiName, out compareRow);
-                }
-
-                item.ApplyComparison(
-                    compareName,
-                    compareAvatar ?? compareRow?.FriendAvatarPath,
-                    compareRow?.UnlockTimeUtc,
-                    compareRow?.Unlocked == true,
-                    ownerName ?? item.FriendName,
-                    ownerAvatar ?? item.FriendAvatarPath);
-                _compareAppliedItems.Add(item);
-            }
-        }
-
-        private void ClearAppliedComparisons()
-        {
-            if (_compareAppliedItems.Count == 0)
-            {
-                return;
-            }
-
-            foreach (var item in _compareAppliedItems)
-            {
-                item?.ClearComparison();
-            }
-
-            _compareAppliedItems.Clear();
-        }
-
-        private void NotifyCompareStateChanged()
-        {
-            OnPropertyChanged(nameof(CompareSelectionText));
-            OnPropertyChanged(nameof(IsCompareAvailable));
+            // One list serves as both pool and target: the compare friend's rows and the selected
+            // friend's rows live side by side in it, filtered apart by the controller.
+            _friendCompare.UpdateRows(achievementSource, achievementSource);
         }
 
         // Type and category options reflect only the achievements currently in scope. They only
@@ -2780,7 +2637,8 @@ namespace PlayniteAchievements.ViewModels
             OnPropertyChanged(nameof(GameSectionTitle));
             OnPropertyChanged(nameof(AchievementSectionTitle));
             OnPropertyChanged(nameof(AchievementCountText));
-            OnPropertyChanged(nameof(IsCompareAvailable));
+            // Both the option list and its availability follow the selection.
+            _friendCompare.Refresh();
         }
 
         private void RaiseRefreshCanExecuteChanged()

@@ -19,24 +19,32 @@ namespace PlayniteAchievements.ViewModels
     {
         private readonly Func<FriendSummaryItem> _getSelectedFriend;
         private readonly Func<IReadOnlyList<FriendSummaryItem>> _getCandidates;
+        private readonly Func<FriendAchievementDisplayItem, bool> _isRowInScope;
         private readonly List<FriendAchievementDisplayItem> _appliedItems =
             new List<FriendAchievementDisplayItem>();
 
         private FriendSummaryItem _compareFriend;
         private IReadOnlyList<FriendAchievementDisplayItem> _rowPool;
         private IReadOnlyList<FriendAchievementDisplayItem> _targetRows;
+        private IReadOnlyList<FriendSummaryItem> _candidates;
 
         /// <param name="getSelectedFriend">The friend whose rows the comparison is applied to.</param>
         /// <param name="getCandidates">
         /// The friends offered as comparison targets. Callers exclude the selected friend and any
         /// friend without cached rows for the game in scope.
         /// </param>
+        /// <param name="isRowInScope">
+        /// Optional filter for callers whose row pool spans more than the game being compared.
+        /// Omit when the pool is already scoped to one game.
+        /// </param>
         public FriendVsFriendCompareController(
             Func<FriendSummaryItem> getSelectedFriend,
-            Func<IReadOnlyList<FriendSummaryItem>> getCandidates)
+            Func<IReadOnlyList<FriendSummaryItem>> getCandidates,
+            Func<FriendAchievementDisplayItem, bool> isRowInScope = null)
         {
             _getSelectedFriend = getSelectedFriend ?? throw new ArgumentNullException(nameof(getSelectedFriend));
             _getCandidates = getCandidates ?? throw new ArgumentNullException(nameof(getCandidates));
+            _isRowInScope = isRowInScope;
         }
 
         public bool IsCompareAvailable => _getSelectedFriend() != null && Candidates.Count > 0;
@@ -47,8 +55,10 @@ namespace PlayniteAchievements.ViewModels
         public IEnumerable<string> OptionKeys =>
             Candidates.Select(FriendOverviewProjection.GetFriendScopeKey);
 
+        // The dropdown reads availability on every control-bar refresh, and building the candidate
+        // list walks every friend, so it is cached until Refresh or a row rebuild invalidates it.
         private IReadOnlyList<FriendSummaryItem> Candidates =>
-            _getCandidates() ?? Array.Empty<FriendSummaryItem>();
+            _candidates ?? (_candidates = _getCandidates() ?? Array.Empty<FriendSummaryItem>());
 
         public bool IsKeySelected(string key)
         {
@@ -99,6 +109,7 @@ namespace PlayniteAchievements.ViewModels
         {
             _rowPool = rowPool;
             _targetRows = targetRows;
+            _candidates = null;
             ApplySelection();
         }
 
@@ -123,7 +134,8 @@ namespace PlayniteAchievements.ViewModels
             {
                 if (row == null ||
                     string.IsNullOrWhiteSpace(row.ApiName) ||
-                    !FriendOverviewProjection.IsSameFriend(row, _compareFriend))
+                    !FriendOverviewProjection.IsSameFriend(row, _compareFriend) ||
+                    !IsInScope(row))
                 {
                     continue;
                 }
@@ -141,7 +153,9 @@ namespace PlayniteAchievements.ViewModels
             var ownerAvatar = selectedFriend.AvatarPath;
             foreach (var item in targetRows)
             {
-                if (item == null || !FriendOverviewProjection.IsSameFriend(item, selectedFriend))
+                if (item == null ||
+                    !FriendOverviewProjection.IsSameFriend(item, selectedFriend) ||
+                    !IsInScope(item))
                 {
                     continue;
                 }
@@ -165,12 +179,18 @@ namespace PlayniteAchievements.ViewModels
             }
         }
 
+        private bool IsInScope(FriendAchievementDisplayItem row)
+        {
+            return _isRowInScope == null || _isRowInScope(row);
+        }
+
         /// <summary>
         /// Re-raises the dropdown's bindings after the candidate list changes without the
         /// selection changing (e.g. a refresh brings new friends into scope).
         /// </summary>
         public void Refresh()
         {
+            _candidates = null;
             NotifyCompareStateChanged();
         }
 
