@@ -1202,8 +1202,8 @@ namespace PlayniteAchievements.Views.Controls
         }
 
         // Shows/hides the injected items and swaps the search box to match the active nested grid:
-        // category dropdowns are hidden in category mode, Back shows only when drilled, and the
-        // search box filters category names in the list but achievements once drilled in.
+        // category dropdowns are hidden while grouping is in effect, Back shows only when drilled,
+        // and the search box filters category names in the list but achievements once drilled in.
         private void ApplyControlBarModeState()
         {
             var bar = _controlBarWithToggle;
@@ -1219,17 +1219,26 @@ namespace PlayniteAchievements.Views.Controls
             // Reflow Back/toggle between the leading zone and the segmented unit for the current mode.
             UpdateModeControlPlacement();
 
+            // Dropdowns placed before the unlock-state toggles are the category Type/Label filters
+            // (same ordering rule UpdateModeControlPlacement uses to splice the mode toggle);
+            // dropdowns after the toggles, like Compare, act on achievements.
+            var pastToggles = false;
             foreach (var item in bar.Items)
             {
-                if (item is GridMultiSelectFilter)
+                if (item is GridToggleFilter)
                 {
-                    item.IsVisible = !_isCategoryMode;
-                }
-                else if (item is GridToggleFilter)
-                {
+                    pastToggles = true;
+
                     // The Unlocked/Locked/Hidden toggles filter achievements, so hide them in the
                     // category list (rows are categories) but restore them flat and when drilled in.
                     item.IsVisible = !list;
+                }
+                else if (item is GridMultiSelectFilter)
+                {
+                    // Achievement-scoped dropdowns follow the toggles; the category dropdowns are
+                    // redundant while grouping is in effect. Both stay shown when grouping is not
+                    // effective (e.g. a single-category game falling back to the flat grid).
+                    item.IsVisible = pastToggles ? !list : !grouping;
                 }
             }
 
