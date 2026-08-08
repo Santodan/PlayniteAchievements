@@ -387,6 +387,7 @@ namespace PlayniteAchievements.ViewModels
                 AchievementCategoryTypeHelper.ToCategoryTypeDisplayText)
             {
                 Width = 120,
+                IsCategoryFilter = true,
                 ToolTip = L("LOCPlayAch_ManageAchievements_Category_Filter_Type")
             });
             controlBar.Items.Add(new GridMultiSelectFilter(
@@ -399,8 +400,24 @@ namespace PlayniteAchievements.ViewModels
                 AchievementCategoryTypeHelper.ToCategoryLabelDisplayText)
             {
                 Width = 140,
+                IsCategoryFilter = true,
                 ToolTip = L("LOCPlayAch_ManageAchievements_Category_Filter_Label")
             });
+            _friendCompareFilter = new GridMultiSelectFilter(
+                this,
+                null,
+                () => _friendCompare?.CompareSelectionText ?? L("LOCPlayAch_Filter_CompareSelectorPlaceholder"),
+                () => _friendCompare?.OptionKeys ?? Enumerable.Empty<string>(),
+                key => _friendCompare?.IsKeySelected(key) == true,
+                (key, isSelected) => _friendCompare?.SelectKey(key, isSelected),
+                key => _friendCompare?.GetDisplayNameForKey(key) ?? key,
+                () => _friendCompare?.IsCompareAvailable == true,
+                key => _friendCompare?.IsKeyFavorite(key) == true)
+            {
+                Width = 140,
+                ToolTip = L("LOCPlayAch_Filter_CompareSelectorPlaceholder")
+            };
+            controlBar.Items.Add(_friendCompareFilter);
             controlBar.Items.Add(new GridToggleFilter(
                 this,
                 nameof(ShowUnlocked),
@@ -425,21 +442,6 @@ namespace PlayniteAchievements.ViewModels
                 value => ShowHidden = value,
                 GridToggleFilterIcon.Hidden,
                 () => _hasHiddenLocked));
-            _friendCompareFilter = new GridMultiSelectFilter(
-                this,
-                null,
-                () => _friendCompare?.CompareSelectionText ?? L("LOCPlayAch_Filter_CompareSelectorPlaceholder"),
-                () => _friendCompare?.OptionKeys ?? Enumerable.Empty<string>(),
-                key => _friendCompare?.IsKeySelected(key) == true,
-                (key, isSelected) => _friendCompare?.SelectKey(key, isSelected),
-                key => _friendCompare?.GetDisplayNameForKey(key) ?? key,
-                () => _friendCompare?.IsCompareAvailable == true,
-                key => _friendCompare?.IsKeyFavorite(key) == true)
-            {
-                Width = 140,
-                ToolTip = L("LOCPlayAch_Filter_CompareSelectorPlaceholder")
-            };
-            controlBar.Items.Add(_friendCompareFilter);
             return controlBar;
         }
 
