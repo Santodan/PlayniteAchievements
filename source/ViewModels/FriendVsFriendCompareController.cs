@@ -23,6 +23,8 @@ namespace PlayniteAchievements.ViewModels
             new List<FriendAchievementDisplayItem>();
 
         private FriendSummaryItem _compareFriend;
+        private IReadOnlyList<FriendAchievementDisplayItem> _rowPool;
+        private IReadOnlyList<FriendAchievementDisplayItem> _targetRows;
 
         /// <param name="getSelectedFriend">The friend whose rows the comparison is applied to.</param>
         /// <param name="getCandidates">
@@ -95,8 +97,19 @@ namespace PlayniteAchievements.ViewModels
             IReadOnlyList<FriendAchievementDisplayItem> rowPool,
             IReadOnlyList<FriendAchievementDisplayItem> targetRows)
         {
+            _rowPool = rowPool;
+            _targetRows = targetRows;
+            ApplySelection();
+        }
+
+        // Re-applies the current selection to the rows last handed to UpdateRows, so picking a
+        // friend takes effect immediately instead of waiting for the next rebuild.
+        private void ApplySelection()
+        {
             ClearApplied();
 
+            var rowPool = _rowPool;
+            var targetRows = _targetRows;
             var selectedFriend = _getSelectedFriend();
             if (_compareFriend == null || selectedFriend == null || rowPool == null || targetRows == null)
             {
@@ -168,6 +181,7 @@ namespace PlayniteAchievements.ViewModels
 
             _compareFriend = next;
             NotifyCompareStateChanged();
+            ApplySelection();
         }
 
         private FriendSummaryItem FindCandidate(string key)

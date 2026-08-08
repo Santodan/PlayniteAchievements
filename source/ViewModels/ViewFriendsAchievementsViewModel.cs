@@ -43,6 +43,11 @@ namespace PlayniteAchievements.ViewModels
                 friend?.ExternalUserId));
         private readonly List<FriendSummaryItem> _allFriends = new List<FriendSummaryItem>();
         private readonly List<FriendAchievementDisplayItem> _allAchievements = new List<FriendAchievementDisplayItem>();
+        // Friend scope keys that have at least one row for this game, so the compare dropdown can
+        // offer only friends the comparison can actually resolve without rescanning the rows.
+        private readonly HashSet<string> _friendsWithAchievements =
+            new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        private readonly FriendVsFriendCompareController _friendCompare;
         private FriendGameSummaryItem _summaryItem;
         private FriendOverviewProjection _projection;
         private FriendSummaryItem _selectedFriend;
@@ -78,6 +83,12 @@ namespace PlayniteAchievements.ViewModels
             FriendSummariesControlBar = CreateFriendSummariesControlBar();
             AchievementsControlBar = _achievementControlBar.ControlBar;
             _achievementControlBar.FilterChanged += (_, __) => ApplyFilters();
+            // The game is fixed here, so a selected friend forms a pair the same way the Friends
+            // Overview pair view does: compare them against another friend with data for it.
+            _friendCompare = new FriendVsFriendCompareController(
+                () => SelectedFriend,
+                GetCompareFriendOptions);
+            _achievementControlBar.AttachFriendCompare(_friendCompare);
 
             RefreshCommand = new RelayCommand(async _ => await RefreshAllFriendsForGameAsync(), _ => !IsRefreshing);
             RefreshSelectedFriendCommand = new RelayCommand(
@@ -148,6 +159,11 @@ namespace PlayniteAchievements.ViewModels
                         // unchecked Unlocked toggle would empty it, so restore the defaults.
                         _achievementControlBar.ResetVisibilityToggles();
                     }
+
+                    // The comparison is scoped to one friend+game pair, so a different friend
+                    // starts over; the option list changes with the selection either way.
+                    _friendCompare.ClearSelection();
+                    _friendCompare.Refresh();
 
                     OnPropertyChanged(nameof(HasFriendSelection));
                     OnPropertyChanged(nameof(AchievementColumnSettingsKey));
@@ -459,6 +475,12 @@ namespace PlayniteAchievements.ViewModels
             _allAchievements.AddRange((snapshot?.AllAchievements ?? new List<FriendAchievementDisplayItem>())
                 .Where(achievement => achievement?.PlayniteGameId == _gameId));
 
+            _friendsWithAchievements.Clear();
+            foreach (var achievement in _allAchievements)
+            {
+                _friendsWithAchievements.Add(FriendOverviewProjection.GetFriendScopeKey(achievement));
+            }
+
             _projection = snapshot?.Projection;
             _summaryItem = (snapshot?.Games ?? new List<FriendGameSummaryItem>())
                 .FirstOrDefault(game => game?.PlayniteGameId == _gameId);
@@ -477,8 +499,24 @@ namespace PlayniteAchievements.ViewModels
             UpdateSummaryItems();
 
             _friendSearchIndex.Rebuild(_allFriends);
+            _friendCompare.Refresh();
             OnPropertyChanged(nameof(HasAchievements));
             ApplyFilters();
+        }
+
+        // Friends other than the selected one that have cached rows for this window's game.
+        private IReadOnlyList<FriendSummaryItem> GetCompareFriendOptions()
+        {
+            if (SelectedFriend == null)
+            {
+                return Array.Empty<FriendSummaryItem>();
+            }
+
+            return _allFriends
+                .Where(friend => friend != null &&
+                    !FriendOverviewProjection.IsSameFriend(friend, SelectedFriend) &&
+                    _friendsWithAchievements.Contains(FriendOverviewProjection.GetFriendScopeKey(friend)))
+                .ToList();
         }
 
         // Mirrors the Friends Overview game-summary pair: the aggregate all-friends row when no
@@ -520,6 +558,11 @@ namespace PlayniteAchievements.ViewModels
                     FriendOverviewProjection.IsSameFriend(achievement, SelectedFriend))
                 : _allAchievements.Where(achievement => achievement?.Unlocked == true))
                 .ToList();
+
+            // Re-apply the comparison before the rows reach the grid: the display items are rebuilt
+            // on every pass, so the previously enriched instances are gone. Reads the compare
+            // friend's unlock state from the full row pool, which spans every friend.
+            _friendCompare.UpdateRows(_allAchievements, source);
 
             // Rescope control-bar options (and the unlocked/locked/hidden toggle availability) to
             // the current source: the aggregated view carries no locked rows, so the unlock-state
