@@ -2520,6 +2520,18 @@ namespace PlayniteAchievements.Services.Tests
             public List<FriendIdentity> LoadFriendIdentities(string providerKey) =>
                 CachedFriends.ToList();
 
+            public List<FriendIdentity> CurrentUsers { get; } = new List<FriendIdentity>();
+
+            public List<FriendIdentity> SavedCurrentUsers { get; } = new List<FriendIdentity>();
+
+            public List<FriendIdentity> LoadCurrentUserIdentities() => CurrentUsers.ToList();
+
+            public bool SaveCurrentUserProfile(string providerKey, FriendIdentity self)
+            {
+                SavedCurrentUsers.Add(self);
+                return true;
+            }
+
             public DateTime? GetMostRecentFriendLastRefreshedUtc() => null;
 
             public List<FriendRefreshCandidate> LoadFriendRefreshCandidates(
@@ -2827,6 +2839,7 @@ namespace PlayniteAchievements.Services.Tests
             private int _beginCalls;
             private int _endCalls;
             private int _getFriendsCalls;
+            private int _getCurrentUserCalls;
             private int _getOwnedGamesCalls;
             private int _getSteamOwnedGamesCalls;
             private int _getFriendGameAchievementsCalls;
@@ -2916,6 +2929,18 @@ namespace PlayniteAchievements.Services.Tests
             {
                 Interlocked.Increment(ref _getFriendsCalls);
                 return Task.FromResult(FriendsProviderResult<IReadOnlyList<FriendIdentity>>.FromData(FriendsToReturn));
+            }
+
+            public FriendIdentity CurrentUserToReturn { get; set; }
+
+            public int GetCurrentUserCalls => _getCurrentUserCalls;
+
+            public Task<FriendsProviderResult<FriendIdentity>> GetCurrentUserAsync(CancellationToken cancel)
+            {
+                Interlocked.Increment(ref _getCurrentUserCalls);
+                return Task.FromResult(CurrentUserToReturn == null
+                    ? FriendsProviderResult<FriendIdentity>.Failed("No current user configured.")
+                    : FriendsProviderResult<FriendIdentity>.FromData(CurrentUserToReturn));
             }
 
             public async Task<FriendsProviderResult<IReadOnlyList<FriendGameOwnership>>> GetOwnedGamesAsync(
