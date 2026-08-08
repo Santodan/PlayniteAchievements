@@ -187,6 +187,9 @@ namespace PlayniteAchievements.Services.Capture
             }
         }
 
+        // MF_E_INVALIDSTREAMNUMBER: what selecting the first audio stream returns on a video-only clip.
+        private const uint MfInvalidStreamNumber = 0xC00D36B3;
+
         /// <summary>
         /// Adds an audio stream when the base clip has one; returns -1 (and a null reader) for
         /// video-only clips. Passthrough mode stream-copies the native AAC; PCM mode (chime mix)
@@ -237,6 +240,14 @@ namespace PlayniteAchievements.Services.Capture
                     reader.Dispose();
                     throw;
                 }
+            }
+            catch (SharpDX.SharpDXException ex) when ((uint)ex.HResult == MfInvalidStreamNumber)
+            {
+                // Expected whenever the session recorded no audio (loopback capture disabled or
+                // unavailable): the base clip is video-only, so there is no first audio stream to
+                // select. Not a failure, and not worth a stack trace once a clip per unlock.
+                _logger?.Debug("[Recording] Base clip has no audio stream; re-encoding video only.");
+                return -1;
             }
             catch (Exception ex)
             {
