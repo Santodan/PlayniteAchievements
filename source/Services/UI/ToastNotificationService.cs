@@ -269,11 +269,15 @@ namespace PlayniteAchievements.Services.UI
                 return true;
             }
 
-            if (_usesCustomNotification?.Invoke(args) == true)
+            var custom = ProviderRegistry.Settings<LocalSettings>();
+            if (custom?.EnableUnlockScreenshots == true &&
+                !string.IsNullOrWhiteSpace(custom.EffectiveScreenshotSaveFolder))
             {
-                var custom = ProviderRegistry.Settings<LocalSettings>();
-                return custom?.EnableUnlockScreenshots == true &&
-                       !string.IsNullOrWhiteSpace(custom.EffectiveScreenshotSaveFolder);
+                return UnlockCaptureRarityFilter.ShouldCapture(
+                    ResolveRarity(args),
+                    IsCompletionUnlock(args),
+                    custom.ScreenshotRarities,
+                    custom.ScreenshotAlwaysCaptureCompletion);
             }
 
             var persisted = _settings?.Persisted;
@@ -1747,20 +1751,9 @@ namespace PlayniteAchievements.Services.UI
 
             var persisted = _settings?.Persisted;
             var custom = ProviderRegistry.Settings<LocalSettings>();
-            if (_usesCustomNotification?.Invoke(new AchievementUnlockedEventArgs
-                {
-                    PlayniteGameId = first.PlayniteGameId,
-                    ProviderKey = first.ProviderKey,
-                    IsFriendUnlock = first.IsFriendUnlock,
-                    IsGameCompleted = first.IsGameCompleted
-                }) == true)
+            if (custom?.EnableUnlockScreenshots == true &&
+                !string.IsNullOrWhiteSpace(custom.EffectiveScreenshotSaveFolder))
             {
-                if (custom?.EnableUnlockScreenshots != true ||
-                    string.IsNullOrWhiteSpace(custom.EffectiveScreenshotSaveFolder))
-                {
-                    return null;
-                }
-
                 var customPlan = new WaveScreenshotPlan
                 {
                     BaseDirectory = custom.EffectiveScreenshotSaveFolder,

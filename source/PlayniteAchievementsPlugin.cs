@@ -375,15 +375,14 @@ namespace PlayniteAchievements
         {
             var custom = ProviderRegistry.Settings<Providers.Local.LocalSettings>();
             var persisted = _settingsViewModel?.Settings?.Persisted;
-            if (custom?.EnableActiveGameMonitoring != true || persisted == null)
+            if (custom == null || persisted == null)
             {
                 return;
             }
 
             // The persisted recording switch is the runtime master and the safe source of truth.
-            // Keep the Local notification editor's duplicate switch aligned with it; copying in
-            // the opposite direction here allowed a stale Local `true` to resurrect recordings at
-            // startup after the user disabled them on the main Notifications tab.
+            // Keep the Memories editor's duplicate switch and detailed capture options aligned
+            // with it independently of whether the custom notification renderer is enabled.
             custom.EnableUnlockRecordings = persisted.EnableUnlockRecordings;
             persisted.UnlockRecordingDirectory = custom.RecordingSaveFolder;
             persisted.RecordingClipSeconds = custom.RecordingClipSeconds;

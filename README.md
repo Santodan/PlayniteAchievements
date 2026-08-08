@@ -103,6 +103,10 @@ The entries below are fork-side changes, grouped by date. When a date includes a
 - Fixed Hidden achievements description not respecting the language setting
 - Added the option to apply a selected subset to the RA Game ID Override
 - Fixed the achievement refresh to `New Game` when adding a new game to playnite
+- Fixed the `clear` in the `Manage Achievements` not clearing the `Provider Override` selection
+- Changed the `Inline real-time preview` to show the WebView2 preview instead of the WPF
+- Added `Font` to the `Line` customization
+- Added `Text formatting` below the `Corners` and `Opacity` settings
 - Changed the `Achievement Notification` UI, it now has two tabs:
   - `General` with everything besides screenshot and video recording settings
   - `Memories` with all the settings for the screenshot and the video recording
@@ -117,10 +121,6 @@ The entries below are fork-side changes, grouped by date. When a date includes a
 - Added logs for the screenshot and for the video from the `Achievement Notification`
 - Removed the always on overlay for the `Achievement Notification`
 - Fixed the `<rarity>` wildcard showing the rarity tier instead of percentage.
-- Fixed the `clear` in the `Manage Achievements` not clearing the `Provider Override` selection
-- Changed the `Inline real-time preview` to show the WebView2 preview instead of the WPF
-- Added `Font` to the `Line` customization
-- Added `Text formatting` below the `Corners` and `Opacity` settings
 
 ## 2026-08-02 - v3.0.0.1
 

@@ -1290,7 +1290,7 @@ namespace PlayniteAchievements.Services.Recording
             try
             {
                 var custom = ProviderRegistry.Settings<LocalSettings>();
-                if (custom?.EnableActiveGameMonitoring == true)
+                if (custom?.EnableUnlockRecordings == true)
                 {
                     var game = _api?.Database?.Games?.Get(request.PlayniteGameId);
                     var timestamp = DateTime.Now;

@@ -1,6 +1,6 @@
 {
     "schemaVersion":  1,
-    "generatedUtc":  "2026-08-08T08:13:38.2823374Z",
+    "generatedUtc":  "2026-08-08T08:19:31.6439931Z",
     "baselineRef":  "upstream/main",
     "baselineCommit":  "f28ac5faae69739e2a7193a5c1af98ac55b9030f",
     "protectedPaths":  [
@@ -10,7 +10,7 @@
                        ],
     "patch":  {
                   "path":  "fork-changes.patch",
-                  "sha256":  "8827FAA12FB1C9CDD91F49AA9ADBB58E2F625903A082037EB39E4947544E8DDF"
+                  "sha256":  "3B5AA26273CB2A1FB0653D192F24C5AEDAF32CECA1E049E468E838EDC8A000A9"
               },
     "localizationRecipes":  {
                                 "path":  "localization-recipes.json",
@@ -309,7 +309,7 @@
                          },
                          {
                              "path":  "source/Views/LegacyNotificationSettingsControl.xaml",
-                             "sha256":  "17893133BA6B184057B9924EA9E7B383EA7FFEA3D6D524F379DFA26B251454B2"
+                             "sha256":  "7D0FEC4B6023244C23A5D9529BEF6022778888B0397A53921624E9FF16D4C695"
                          },
                          {
                              "path":  "source/Views/LegacyNotificationSettingsControl.xaml.cs",

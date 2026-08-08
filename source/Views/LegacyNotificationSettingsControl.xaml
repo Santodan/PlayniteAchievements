@@ -4139,10 +4139,9 @@
                                                TextWrapping="Wrap"/>
 
                                 <!-- Screenshots -->
-                                <Border Style="{StaticResource SettingGroupCardStyle}"
-                                        IsEnabled="{Binding EnableActiveGameMonitoring}">
+                                <Border Style="{StaticResource SettingGroupCardStyle}">
                                     <StackPanel>
-                                        <CheckBox Content="Save a screenshot when a new Local achievement is detected"
+                                        <CheckBox Content="Save a screenshot when a new achievement is detected"
                                                   IsChecked="{Binding EnableUnlockScreenshots, Mode=TwoWay}"
                                                   Margin="0,0,0,12"/>
 
@@ -4268,8 +4267,7 @@
 
                                 <Separator Margin="0,16,0,16"/>
 
-                                <Border Style="{StaticResource SettingGroupCardStyle}"
-                                        IsEnabled="{Binding EnableActiveGameMonitoring}">
+                                <Border Style="{StaticResource SettingGroupCardStyle}">
                                     <StackPanel>
                                         <CheckBox Content="Save a video clip when an achievement is detected"
                                                   IsChecked="{Binding EnableUnlockRecordings, Mode=TwoWay}"
