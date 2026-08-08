@@ -904,7 +904,7 @@ index 49f7ff62a1120efabe5fec552b23b3589a8e3d0c..f1def6c118dc602e46db4ee2df9c6d57
          {
              _resourceService.EnsureAchievementResourcesLoaded(_settingsViewModel.Settings);
 diff --git a/source/PlayniteAchievementsPlugin.cs b/source/PlayniteAchievementsPlugin.cs
-index 222d988c8b2f9b3cf0247f351e319f0561290019..8ea3e812a3d0b1854f4067d69bcc3634b0368250 100644
+index 222d988c8b2f9b3cf0247f351e319f0561290019..d152ce5966d8bdac94d97aa9f178e9548ae234d5 100644
 --- a/source/PlayniteAchievementsPlugin.cs
 +++ b/source/PlayniteAchievementsPlugin.cs
 @@ -38,6 +38,7 @@
@@ -1042,7 +1042,7 @@ index 222d988c8b2f9b3cf0247f351e319f0561290019..8ea3e812a3d0b1854f4067d69bcc3634
          private void TryWarmCustomDataCache()
          {
              if (_gameCustomDataStore == null)
-@@ -254,9 +346,22 @@ private string GetPluginLocalizationDirectory()
+@@ -254,6 +346,18 @@ private string GetPluginLocalizationDirectory()
          }
  
          public void PersistSettingsForUi()
@@ -1061,43 +1061,16 @@ index 222d988c8b2f9b3cf0247f351e319f0561290019..8ea3e812a3d0b1854f4067d69bcc3634
          {
              try
              {
-+                ApplyCustomRecordingSettings();
-                 _providerRegistry?.PersistAllProviderSettings(false);
-                 SavePluginSettings(_settingsViewModel.Settings);
-             }
-@@ -264,8 +369,30 @@ public void PersistSettingsForUi()
+@@ -264,8 +368,6 @@ public void PersistSettingsForUi()
              {
                  _logger?.Warn(ex, "Failed to persist plugin settings.");
              }
-+        }
- 
+-
 -            NotifySettingsSaved();
-+        private void ApplyCustomRecordingSettings()
-+        {
-+            var custom = ProviderRegistry.Settings<Providers.Local.LocalSettings>();
-+            var persisted = _settingsViewModel?.Settings?.Persisted;
-+            if (custom == null || persisted == null)
-+            {
-+                return;
-+            }
-+
-+            // The persisted recording switch is the runtime master and the safe source of truth.
-+            // Keep the Memories editor's duplicate switch and detailed capture options aligned
-+            // with it independently of whether the custom notification renderer is enabled.
-+            custom.EnableUnlockRecordings = persisted.EnableUnlockRecordings;
-+            persisted.UnlockRecordingDirectory = custom.RecordingSaveFolder;
-+            persisted.RecordingClipSeconds = custom.RecordingClipSeconds;
-+            persisted.RecordingFps = custom.RecordingFps;
-+            persisted.RecordingResolution = custom.RecordingResolution;
-+            persisted.RecordingIncludeAudio = custom.RecordingIncludeAudio;
-+            persisted.RecordingAudioSource = custom.RecordingAudioSource;
-+            persisted.RecordingIncludeMicrophone = custom.RecordingIncludeMicrophone;
-+            persisted.UnlockRecordingRarities = custom.RecordingRarities;
-+            persisted.UnlockRecordingAlwaysCaptureCompletion = custom.RecordingAlwaysCaptureCompletion;
          }
  
          // Public bridge method for external helpers/themes that used to target SuccessStory via reflection.
-@@ -423,8 +550,22 @@ public PlayniteAchievementsPlugin(IPlayniteAPI api) : base(api)
+@@ -423,8 +525,22 @@ public PlayniteAchievementsPlugin(IPlayniteAPI api) : base(api)
                  _manualSourceRegistry = new ManualSourceRegistry(_logger, settings, PlayniteApi, pluginUserDataPath);
  
                  // Create provider registry
@@ -1121,15 +1094,7 @@ index 222d988c8b2f9b3cf0247f351e319f0561290019..8ea3e812a3d0b1854f4067d69bcc3634
                  settings.Persisted?.MigrateLegacyProviderFriends();
                  _gameCustomDataStore = _settingsViewModel.GameCustomDataStore;
                  _gameCustomDataStore.AttachRuntimeSettings(settings);
-@@ -526,6 +667,7 @@ public PlayniteAchievementsPlugin(IPlayniteAPI api) : base(api)
-                     }
- 
-                     _notifications = new NotificationPublisher(api, settings, _logger);
-+                    ApplyCustomRecordingSettings();
-                     _refreshCoordinator = new RefreshEntryPoint(
-                         _refreshService,
-                         _logger,
-@@ -542,7 +684,9 @@ public PlayniteAchievementsPlugin(IPlayniteAPI api) : base(api)
+@@ -542,7 +658,9 @@ public PlayniteAchievementsPlugin(IPlayniteAPI api) : base(api)
                          // Late-bound: the recording service is constructed just below, but the
                          // toast service only ever invokes this from an unlock handler, long after
                          // the field is assigned.
@@ -1140,7 +1105,7 @@ index 222d988c8b2f9b3cf0247f351e319f0561290019..8ea3e812a3d0b1854f4067d69bcc3634
                      _unlockRecordings = new Services.Recording.UnlockRecordingService(
                          PlayniteApi,
                          settings,
-@@ -562,7 +706,7 @@ public PlayniteAchievementsPlugin(IPlayniteAPI api) : base(api)
+@@ -562,7 +680,7 @@ public PlayniteAchievementsPlugin(IPlayniteAPI api) : base(api)
                          _cacheManager,
                          _refreshService,
                          (request, policy) => _refreshCoordinator.ExecuteAsync(request, policy),
@@ -1149,7 +1114,7 @@ index 222d988c8b2f9b3cf0247f351e319f0561290019..8ea3e812a3d0b1854f4067d69bcc3634
                      _backgroundUpdates = new BackgroundUpdater(_refreshCoordinator, _refreshService, _cacheManager, settings, _logger, _notifications, null);
  
                      // Create tag sync service
-@@ -721,7 +865,7 @@ public override IEnumerable<SidebarItem> GetSidebarItems()
+@@ -721,7 +839,7 @@ public override IEnumerable<SidebarItem> GetSidebarItems()
                  Opened = () =>
                  {
                      return new OverviewHostControl(
@@ -1158,7 +1123,7 @@ index 222d988c8b2f9b3cf0247f351e319f0561290019..8ea3e812a3d0b1854f4067d69bcc3634
                          _logger,
                          PlayniteApi,
                          _refreshService,
-@@ -1110,6 +1254,11 @@ private void PersistedSettings_PropertyChanged(object sender, PropertyChangedEve
+@@ -1110,6 +1228,11 @@ private void PersistedSettings_PropertyChanged(object sender, PropertyChangedEve
                  ReconfigureInGameMonitor();
              }
  
@@ -1170,7 +1135,7 @@ index 222d988c8b2f9b3cf0247f351e319f0561290019..8ea3e812a3d0b1854f4067d69bcc3634
              if (e.PropertyName == nameof(PersistedSettings.UseUniformRarityBadges) ||
                  e.PropertyName == nameof(PersistedSettings.RarityColors))
              {
-@@ -1229,6 +1378,37 @@ private void ReconfigureInGameMonitor()
+@@ -1229,6 +1352,38 @@ private void ReconfigureInGameMonitor()
              }
          }
  
@@ -1183,7 +1148,8 @@ index 222d988c8b2f9b3cf0247f351e319f0561290019..8ea3e812a3d0b1854f4067d69bcc3634
 +                    return;
 +                }
 +
-+                if (_settingsViewModel?.Settings?.Persisted?.EnableUnlockRecordings == true)
++                if (_settingsViewModel?.Settings?.Persisted?.EnableUnlockRecordings == true ||
++                    ProviderRegistry.Settings<Providers.Local.LocalSettings>()?.EnableUnlockRecordings == true)
 +                {
 +                    var game = ResolveRecordingHandoffGame() ?? PlayniteApi?.Database?.Games?
 +                        .Where(candidate => candidate?.IsRunning == true)
@@ -1208,7 +1174,7 @@ index 222d988c8b2f9b3cf0247f351e319f0561290019..8ea3e812a3d0b1854f4067d69bcc3634
          public override void OnApplicationStopped(OnApplicationStoppedEventArgs args)
          {
              _logger.Info("OnApplicationStopped called.");
-@@ -1265,6 +1445,7 @@ public override void OnApplicationStopped(OnApplicationStoppedEventArgs args)
+@@ -1265,6 +1420,7 @@ public override void OnApplicationStopped(OnApplicationStoppedEventArgs args)
              DisposeStartPageViews();
  
              // Shutdown logging system
@@ -1216,7 +1182,7 @@ index 222d988c8b2f9b3cf0247f351e319f0561290019..8ea3e812a3d0b1854f4067d69bcc3634
              try { PluginLogger.Shutdown(); } catch (Exception ex) { System.Diagnostics.Trace.TraceError($"Failed to shutdown logger: {ex}"); }
          }
  
-@@ -1576,6 +1757,17 @@ private void Games_ItemCollectionChanged(object sender, ItemCollectionChangedEve
+@@ -1576,6 +1732,17 @@ private void Games_ItemCollectionChanged(object sender, ItemCollectionChangedEve
                          continue;
                      }
  
@@ -1234,7 +1200,7 @@ index 222d988c8b2f9b3cf0247f351e319f0561290019..8ea3e812a3d0b1854f4067d69bcc3634
                      addedGameIds.Add(game.Id);
                  }
  
-@@ -1595,6 +1787,11 @@ private void Games_ItemCollectionChanged(object sender, ItemCollectionChangedEve
+@@ -1595,6 +1762,11 @@ private void Games_ItemCollectionChanged(object sender, ItemCollectionChangedEve
                          continue;
                      }
  
@@ -1246,7 +1212,7 @@ index 222d988c8b2f9b3cf0247f351e319f0561290019..8ea3e812a3d0b1854f4067d69bcc3634
                      _ = TriggerRemovedGameCleanupAsync(game);
                  }
              }
-@@ -1606,6 +1803,35 @@ private void Games_ItemUpdated(object sender, ItemUpdatedEventArgs<Game> e)
+@@ -1606,6 +1778,40 @@ private void Games_ItemUpdated(object sender, ItemUpdatedEventArgs<Game> e)
              // invalidate so the cached overview/start-page projection is rebuilt with fresh values.
              // Invalidate() coalesces bursts (e.g. library scans) via its warm debounce.
              _libraryProjectionService?.Invalidate();
@@ -1279,6 +1245,11 @@ index 222d988c8b2f9b3cf0247f351e319f0561290019..8ea3e812a3d0b1854f4067d69bcc3634
 +                _logger.Info($"Detected {readyGameIds.Count} completed manual game(s); starting batched refresh.");
 +                _ = TriggerNewGamesRefreshAsync(readyGameIds);
 +            }
++        }
++
++        internal void ReconfigureUnlockRecordingForSettingsSave()
++        {
++            ReconfigureUnlockRecording();
          }
  
          private Task TriggerNewGamesRefreshAsync(List<Guid> gameIds)
@@ -13672,7 +13643,7 @@ index 116f3176a8d3c2c0163668e6979073c5547ac491..e603f4be2ddb24f2bc61e8b683100e5a
  
          private static string BuildRecentGameKey(CachedRecentUnlockData recent)
 diff --git a/source/Services/Recording/UnlockRecordingService.cs b/source/Services/Recording/UnlockRecordingService.cs
-index 78081aea47e3cdbd6eec78a818747cf2947d9a60..24cab134e2c6a3ac624a26d59e45eac06d69044f 100644
+index 78081aea47e3cdbd6eec78a818747cf2947d9a60..d86a3099dac9c6cdfbe46b0823c17140f7a6a924 100644
 --- a/source/Services/Recording/UnlockRecordingService.cs
 +++ b/source/Services/Recording/UnlockRecordingService.cs
 @@ -12,6 +12,9 @@
@@ -13685,7 +13656,17 @@ index 78081aea47e3cdbd6eec78a818747cf2947d9a60..24cab134e2c6a3ac624a26d59e45eac0
  
  namespace PlayniteAchievements.Services.Recording
  {
-@@ -187,6 +190,7 @@ private sealed class CaptureSession
+@@ -162,6 +165,9 @@ private sealed class CaptureSession
+             public string BufferDirectory;
+             public Guid OwnerGameId;
+             public string GameName;
++            public PersistedSettings EffectiveSettings;
++            public bool UsesCustomSettings;
++            public LocalSettings CustomSettings;
+             public DateTime CaptureStartUtc;
+             // The WGC + Media Foundation capture engine: occlusion-independent, HDR-correct,
+             // GPU-resident. Writes .mp4 segments the Media Foundation export/prune consume.
+@@ -187,6 +193,7 @@ private sealed class CaptureSession
          private sealed class ClipRequest
          {
              public CaptureSession Session;
@@ -13693,30 +13674,63 @@ index 78081aea47e3cdbd6eec78a818747cf2947d9a60..24cab134e2c6a3ac624a26d59e45eac0
              public string ProviderKey;
              public string GameName;
              public string AchievementName;
-@@ -225,6 +229,7 @@ public void OnGameStarted(Playnite.SDK.Models.Game game)
-             var persisted = _settings?.Persisted;
+@@ -222,9 +229,11 @@ public void OnGameStarted(Playnite.SDK.Models.Game game)
+             // A single capture session exists at a time; the most recently started game owns it.
+             StopCurrentSession();
+ 
+-            var persisted = _settings?.Persisted;
++            var persisted = ResolveEffectiveRecordingSettings(
++                out var usesCustomSettings, out var customSettings);
              if (persisted?.EnableUnlockRecordings != true)
              {
 +                _logger?.Info($"[Recording] Capture not started for '{game?.Name}': unlock recordings are disabled.");
                  return;
              }
  
-@@ -655,8 +660,10 @@ private ClipEligibility EvaluateClipEligibility(
+@@ -254,6 +263,9 @@ public void OnGameStarted(Playnite.SDK.Models.Game game)
+                         "-" + Guid.NewGuid().ToString("N").Substring(0, 8)),
+                 OwnerGameId = game?.Id ?? Guid.Empty,
+                 GameName = game?.Name,
++                EffectiveSettings = persisted,
++                UsesCustomSettings = usesCustomSettings,
++                CustomSettings = customSettings,
+                 Cts = new CancellationTokenSource()
+             };
+ 
+@@ -437,7 +449,7 @@ private async Task StartCaptureWhenWindowResolvesAsync(CaptureSession session)
+                     return;
+                 }
+ 
+-                var persisted = _settings?.Persisted;
++                var persisted = session.EffectiveSettings;
+                 if (persisted == null)
+                 {
+                     return;
+@@ -655,11 +667,6 @@ private ClipEligibility EvaluateClipEligibility(
                  return ClipEligibility.NotRecordable;
              }
  
 -            if (_settings?.Persisted?.EnableUnlockRecordings != true)
-+            var persisted = _settings?.Persisted;
-+            if (persisted?.EnableUnlockRecordings != true)
+-            {
+-                return ClipEligibility.NotRecordable;
+-            }
+-
+             lock (_gate)
              {
-+                _logger?.Debug($"[Recording] Unlock '{e.DisplayName}' ignored; unlock recordings are disabled.");
-                 return ClipEligibility.NotRecordable;
+                 session = _session;
+@@ -671,12 +678,19 @@ private ClipEligibility EvaluateClipEligibility(
+                 return ClipEligibility.CaptureInactive;
              }
  
-@@ -673,10 +680,11 @@ private ClipEligibility EvaluateClipEligibility(
- 
-             if (_isProviderRecordingEnabled?.Invoke(e.ProviderKey) == false)
+-            if (_isProviderRecordingEnabled?.Invoke(e.ProviderKey) == false)
++            var persisted = session.EffectiveSettings;
++            if (persisted?.EnableUnlockRecordings != true)
              {
++                return ClipEligibility.NotRecordable;
++            }
++
++            if (!session.UsesCustomSettings && _isProviderRecordingEnabled?.Invoke(e.ProviderKey) == false)
++            {
 +                _logger?.Debug(
 +                    $"[Recording] Unlock '{e.DisplayName}' ignored; recording is disabled for provider '{e.ProviderKey}'.");
                  return ClipEligibility.ProviderDisabled;
@@ -13726,7 +13740,7 @@ index 78081aea47e3cdbd6eec78a818747cf2947d9a60..24cab134e2c6a3ac624a26d59e45eac0
              if (!UnlockCaptureRarityFilter.ShouldCapture(
                      e,
                      persisted.UnlockRecordingRarities,
-@@ -747,6 +755,7 @@ private void OnAchievementUnlocked(object sender, AchievementUnlockedEventArgs e
+@@ -747,6 +761,7 @@ private void OnAchievementUnlocked(object sender, AchievementUnlockedEventArgs e
              var request = new ClipRequest
              {
                  Session = session,
@@ -13734,7 +13748,7 @@ index 78081aea47e3cdbd6eec78a818747cf2947d9a60..24cab134e2c6a3ac624a26d59e45eac0
                  ProviderKey = e.ProviderKey,
                  GameName = e.GameName,
                  // Resolved through the shared helper so completion notifications (no
-@@ -769,6 +778,9 @@ private void OnAchievementUnlocked(object sender, AchievementUnlockedEventArgs e
+@@ -769,6 +784,9 @@ private void OnAchievementUnlocked(object sender, AchievementUnlockedEventArgs e
                  _awaitingTrack.Add(request);
              }
  
@@ -13744,12 +13758,30 @@ index 78081aea47e3cdbd6eec78a818747cf2947d9a60..24cab134e2c6a3ac624a26d59e45eac0
              // Production starts immediately: the clip window is unlock-anchored, so nothing about
              // it depends on when (or whether) the toast displays. Only the overlay composite waits
              // for the track, after the toastless base clip is already safe.
-@@ -1277,6 +1289,42 @@ private string BuildOutputPath(PersistedSettings persisted, ClipRequest request)
+@@ -885,7 +903,7 @@ private async Task ProduceClipAsync(ClipRequest request)
+             try
+             {
+                 var session = request.Session;
+-                var persisted = _settings?.Persisted;
++                var persisted = session.EffectiveSettings;
+                 if (persisted == null)
+                 {
+                     AbandonTrackWait(request);
+@@ -1070,7 +1088,7 @@ private async Task<string> ReencodeWithTrackAsync(
+                 // The rate the segments were captured at, so a base clip whose media type declares no
+                 // frame rate is re-encoded as what it actually is. Falls back to the setting's own
+                 // default, which is what a capture with unreachable settings would have used.
+-                var capturedFps = _settings?.Persisted?.RecordingFps ?? DefaultRecordingFps;
++                var capturedFps = session.EffectiveSettings?.RecordingFps ?? DefaultRecordingFps;
+                 var ok = await Task.Run(() => reencoder.Export(
+                         basePath, track, toastStartSeconds, toastSlotSeconds, videoLeadSeconds,
+                         endSeconds, chimePcm, chimeStartSeconds, tempPath, capturedFps))
+@@ -1277,6 +1295,42 @@ private string BuildOutputPath(PersistedSettings persisted, ClipRequest request)
          {
              try
              {
-+                var custom = ProviderRegistry.Settings<LocalSettings>();
-+                if (custom?.EnableUnlockRecordings == true)
++                var custom = request?.Session?.CustomSettings;
++                if (request?.Session?.UsesCustomSettings == true && custom != null)
 +                {
 +                    var game = _api?.Database?.Games?.Get(request.PlayniteGameId);
 +                    var timestamp = DateTime.Now;
@@ -13787,7 +13819,54 @@ index 78081aea47e3cdbd6eec78a818747cf2947d9a60..24cab134e2c6a3ac624a26d59e45eac0
                  var baseDir = ResolveOutputDirectory(persisted);
                  if (string.IsNullOrWhiteSpace(baseDir))
                  {
-@@ -1584,8 +1632,8 @@ private void NotifyRecordingUnavailableOnce(string stderrTail = null)
+@@ -1331,7 +1385,7 @@ private void PruneTick(CaptureSession session)
+                 // behind other waves.
+                 var clipsOutstanding = Volatile.Read(ref _requestsAwaitingBase) > 0;
+ 
+-                var persisted = _settings?.Persisted;
++                var persisted = session.EffectiveSettings;
+                 var pollInterval = Math.Max(10, persisted?.InGamePollIntervalSeconds ?? DefaultPollIntervalSeconds);
+                 var preRoll = persisted?.RecordingClipSeconds ?? DefaultPreRollSeconds;
+                 // Suspend age-based pruning while clips are outstanding: a clip waiting for a late
+@@ -1526,6 +1580,37 @@ private void CleanupStaleBufferDirectories(string bufferRoot)
+ 
+         // === Helpers ===
+ 
++        private PersistedSettings ResolveEffectiveRecordingSettings(
++            out bool usesCustomSettings, out LocalSettings customSettings)
++        {
++            usesCustomSettings = false;
++            var custom = ProviderRegistry.Settings<LocalSettings>();
++            if (custom?.EnableUnlockRecordings == true)
++            {
++                // Memories is a complete, independent recorder configuration. When explicitly
++                // enabled it owns the session even if the main feature is also enabled.
++                usesCustomSettings = true;
++                customSettings = custom.Clone() as LocalSettings ?? custom;
++                var effective = _settings?.Persisted?.Clone() ?? new PersistedSettings();
++                effective.EnableUnlockRecordings = true;
++                effective.UnlockRecordingDirectory = customSettings.RecordingSaveFolder;
++                effective.UnlockScreenshotDirectory = customSettings.EffectiveScreenshotSaveFolder;
++                effective.RecordingClipSeconds = customSettings.RecordingClipSeconds;
++                effective.RecordingFps = customSettings.RecordingFps;
++                effective.RecordingResolution = customSettings.RecordingResolution;
++                effective.RecordingIncludeAudio = customSettings.RecordingIncludeAudio;
++                effective.RecordingAudioSource = customSettings.RecordingAudioSource;
++                effective.RecordingIncludeMicrophone = customSettings.RecordingIncludeMicrophone;
++                effective.UnlockRecordingRarities = customSettings.RecordingRarities;
++                effective.UnlockRecordingAlwaysCaptureCompletion = customSettings.RecordingAlwaysCaptureCompletion;
++                return effective;
++            }
++
++            customSettings = null;
++            var main = _settings?.Persisted;
++            return main?.EnableUnlockRecordings == true ? main.Clone() : main;
++        }
++
+         private static string ResolveOutputDirectory(PersistedSettings persisted)
+         {
+             var directory = persisted?.UnlockRecordingDirectory;
+@@ -1584,8 +1669,8 @@ private void NotifyRecordingUnavailableOnce(string stderrTail = null)
              {
                  var title = ResourceProvider.GetString("LOCPlayAch_Title_PluginName");
                  var message = ResourceProvider.GetString("LOCPlayAch_Notification_RecordingUnavailable");
@@ -15421,7 +15500,7 @@ index 3b437baab5d9577f8600420361090f5dbd704ab0..524899e89cce24678330630b84c7e7a2
          {
              try
 diff --git a/source/Services/UI/ToastNotificationService.cs b/source/Services/UI/ToastNotificationService.cs
-index d5e034ec651d003331ec4db4279ac5b7ebaf22ed..3666a73db6f0c870158fc9e72857d5ff7d3a86df 100644
+index d5e034ec651d003331ec4db4279ac5b7ebaf22ed..73a39dfd11c547842f819266c07bf38ff69b10ac 100644
 --- a/source/Services/UI/ToastNotificationService.cs
 +++ b/source/Services/UI/ToastNotificationService.cs
 @@ -1,6 +1,7 @@
@@ -15513,23 +15592,40 @@ index d5e034ec651d003331ec4db4279ac5b7ebaf22ed..3666a73db6f0c870158fc9e72857d5ff
              {
                  return true;
              }
-@@ -265,7 +294,14 @@ private bool ShouldProcess(AchievementUnlockedEventArgs args)
+@@ -265,14 +294,28 @@ private bool ShouldProcess(AchievementUnlockedEventArgs args)
              }
  
              var persisted = _settings?.Persisted;
 -            if (persisted?.EnableUnlockScreenshots != true ||
-+            if (persisted?.EnableUnlockScreenshots != true)
+-                string.IsNullOrWhiteSpace(persisted.UnlockScreenshotDirectory))
++            var custom = ProviderRegistry.Settings<LocalSettings>();
++            var useMainSettings = persisted?.EnableUnlockScreenshots == true;
++            if (!useMainSettings && custom?.EnableUnlockScreenshots != true)
 +            {
 +                return false;
 +            }
 +
-+            var custom = ProviderRegistry.Settings<LocalSettings>();
-+            var useCustomNaming = ShouldUseCustomScreenshotNaming(custom, persisted);
-+            if ((!useCustomNaming || string.IsNullOrWhiteSpace(custom?.EffectiveScreenshotSaveFolder)) &&
-                 string.IsNullOrWhiteSpace(persisted.UnlockScreenshotDirectory))
++            if (useMainSettings && string.IsNullOrWhiteSpace(persisted.UnlockScreenshotDirectory))
++            {
++                return false;
++            }
++
++            if (!useMainSettings && string.IsNullOrWhiteSpace(custom.EffectiveScreenshotSaveFolder))
              {
                  return false;
-@@ -296,13 +332,29 @@ private static bool IsCompletionUnlock(AchievementUnlockedEventArgs args) =>
+             }
+ 
+-            return UnlockScreenshotVariantPolicy.Resolve(
+-                ResolveRarity(args), IsCompletionUnlock(args), args.ProviderKey, persisted)
++            return (useMainSettings
++                ? UnlockScreenshotVariantPolicy.Resolve(
++                    ResolveRarity(args), IsCompletionUnlock(args), args.ProviderKey, persisted)
++                : ResolveCustomScreenshotVariants(
++                    ResolveRarity(args), IsCompletionUnlock(args), custom))
+                 != ScreenshotVariants.None;
+         }
+ 
+@@ -296,13 +339,29 @@ private static bool IsCompletionUnlock(AchievementUnlockedEventArgs args) =>
          /// policy ANDs the EnableNotifications master switch into both toast flags and resolves
          /// all-false for null settings.
          /// </summary>
@@ -15560,7 +15656,7 @@ index d5e034ec651d003331ec4db4279ac5b7ebaf22ed..3666a73db6f0c870158fc9e72857d5ff
              var effective = ProviderNotificationPolicy.Resolve(_settings?.Persisted, providerKey);
              return isFriendUnlock
                  ? effective.FriendUnlockToasts
-@@ -523,15 +575,41 @@ private bool TryResolveWaveGame(out IntPtr waveHwnd, out int? processId)
+@@ -523,15 +582,41 @@ private bool TryResolveWaveGame(out IntPtr waveHwnd, out int? processId)
                  var rect = System.Drawing.Rectangle.Empty;
                  if (haveGeometry && itemsControl != null)
                  {
@@ -15607,7 +15703,7 @@ index d5e034ec651d003331ec4db4279ac5b7ebaf22ed..3666a73db6f0c870158fc9e72857d5ff
                              rect = new System.Drawing.Rectangle(ix, iy, physSize.Width, physSize.Height);
                          }
                      }
-@@ -719,6 +797,162 @@ private System.Drawing.Bitmap TryRenderToastItemOverlay(
+@@ -719,6 +804,162 @@ private System.Drawing.Bitmap TryRenderToastItemOverlay(
              return bitmap;
          }
  
@@ -15770,7 +15866,7 @@ index d5e034ec651d003331ec4db4279ac5b7ebaf22ed..3666a73db6f0c870158fc9e72857d5ff
          /// <summary>
          /// The shared geometry for one track operation: the wave's ItemsControl, the game client
          /// rect and toast window rect (physical pixels), and the window's DIP-to-physical factors.
-@@ -770,9 +1004,41 @@ private void SampleWaveTracks(
+@@ -770,9 +1011,41 @@ private void SampleWaveTracks(
  
              for (var i = 0; i < toastItems.Count; i++)
              {
@@ -15815,7 +15911,7 @@ index d5e034ec651d003331ec4db4279ac5b7ebaf22ed..3666a73db6f0c870158fc9e72857d5ff
                  {
                      continue;
                  }
-@@ -785,7 +1051,7 @@ private void SampleWaveTracks(
+@@ -785,7 +1058,7 @@ private void SampleWaveTracks(
                  var relX = windowPhys.X + (int)Math.Round(origin.X * pxPerDipX) - clientPhys.X;
                  var relY = windowPhys.Y + (int)Math.Round(origin.Y * pxPerDipY) - clientPhys.Y;
                  recorder.Sample(
@@ -15824,7 +15920,7 @@ index d5e034ec651d003331ec4db4279ac5b7ebaf22ed..3666a73db6f0c870158fc9e72857d5ff
              }
          }
  
-@@ -808,7 +1074,7 @@ private void SetTrackCornerOffsets(
+@@ -808,7 +1081,7 @@ private void SetTrackCornerOffsets(
  
              foreach (var vm in toastItems)
              {
@@ -15833,7 +15929,7 @@ index d5e034ec651d003331ec4db4279ac5b7ebaf22ed..3666a73db6f0c870158fc9e72857d5ff
                  if (container == null || container.RenderSize.Width <= 0 || container.RenderSize.Height <= 0)
                  {
                      continue;
-@@ -821,9 +1087,8 @@ private void SetTrackCornerOffsets(
+@@ -821,9 +1094,8 @@ private void SetTrackCornerOffsets(
                  var settledRelX = windowPhys.X + (int)Math.Round(bounds.X * pxPerDipX) - clientPhys.X;
                  var settledRelY = windowPhys.Y + (int)Math.Round(bounds.Y * pxPerDipY) - clientPhys.Y;
  
@@ -15845,7 +15941,7 @@ index d5e034ec651d003331ec4db4279ac5b7ebaf22ed..3666a73db6f0c870158fc9e72857d5ff
                  recorder.SetCornerOffset(
                      vm,
                      (cornerX - clientPhys.X) - settledRelX,
-@@ -1082,7 +1347,12 @@ private WavePlan ResolveWavePlan(IReadOnlyList<AchievementToastViewModel> wave)
+@@ -1082,7 +1354,12 @@ private WavePlan ResolveWavePlan(IReadOnlyList<AchievementToastViewModel> wave)
              // toast, items that only produce capture output, or a mix (waves batch by friend/own
              // only).
              var toastItems = wave
@@ -15859,7 +15955,7 @@ index d5e034ec651d003331ec4db4279ac5b7ebaf22ed..3666a73db6f0c870158fc9e72857d5ff
                  .ToList();
              if (toastItems.Count > 0)
              {
-@@ -1122,11 +1392,6 @@ private async Task ShowWaveAsync(IReadOnlyList<AchievementToastViewModel> wave)
+@@ -1122,11 +1399,6 @@ private async Task ShowWaveAsync(IReadOnlyList<AchievementToastViewModel> wave)
  
              var waveIsTestFire = wave[0].IsTestFire;
              _activeToastThemeStylingEnabled = wave[0].ToastUseThemeStyling;
@@ -15871,7 +15967,7 @@ index d5e034ec651d003331ec4db4279ac5b7ebaf22ed..3666a73db6f0c870158fc9e72857d5ff
              // Placement state is per-wave: the correction is measured on this wave's first settled
              // placement, and the anomaly warning is emitted at most once for it.
              _placementCorrection = default(ToastWindowPlacer.PlacementCorrection);
-@@ -1138,6 +1403,20 @@ private async Task ShowWaveAsync(IReadOnlyList<AchievementToastViewModel> wave)
+@@ -1138,6 +1410,20 @@ private async Task ShowWaveAsync(IReadOnlyList<AchievementToastViewModel> wave)
              var cardItems = wavePlan.CardItems;
              var visible = wavePlan.IsVisible;
              var plan = wavePlan.Screenshots;
@@ -15892,7 +15988,7 @@ index d5e034ec651d003331ec4db4279ac5b7ebaf22ed..3666a73db6f0c870158fc9e72857d5ff
  
              // The base capture must precede window.Show(); overlapping it with the sound-align
              // delay below adds no latency to the toast itself. It feeds every variant: clean saves
-@@ -1146,6 +1425,11 @@ private async Task ShowWaveAsync(IReadOnlyList<AchievementToastViewModel> wave)
+@@ -1146,6 +1432,11 @@ private async Task ShowWaveAsync(IReadOnlyList<AchievementToastViewModel> wave)
              Task<System.Drawing.Bitmap> baseCaptureTask = null;
              if (plan != null)
              {
@@ -15904,7 +16000,7 @@ index d5e034ec651d003331ec4db4279ac5b7ebaf22ed..3666a73db6f0c870158fc9e72857d5ff
                  baseCaptureTask = StartWaveSurfaceCapture(waveIsTestFire);
              }
  
-@@ -1200,9 +1484,56 @@ private async Task ShowWaveAsync(IReadOnlyList<AchievementToastViewModel> wave)
+@@ -1200,9 +1491,56 @@ private async Task ShowWaveAsync(IReadOnlyList<AchievementToastViewModel> wave)
              var previewSource = cardItems
                  .Select(vm => vm.PreviewTemplateSource)
                  .FirstOrDefault(source => source.HasValue);
@@ -15964,7 +16060,17 @@ index d5e034ec651d003331ec4db4279ac5b7ebaf22ed..3666a73db6f0c870158fc9e72857d5ff
  
              LogWaveDiagnostics(cardItems, template, wavePlan.Mode);
  
-@@ -1473,7 +1804,7 @@ private async Task ShowWaveAsync(IReadOnlyList<AchievementToastViewModel> wave)
+@@ -1348,7 +1686,8 @@ private async Task ShowWaveAsync(IReadOnlyList<AchievementToastViewModel> wave)
+                 // only — a test fire out of game has no video — and only with recordings enabled, since
+                 // nothing else consumes a track.
+                 if (_activeIsGame && _activeReferenceHwnd != IntPtr.Zero &&
+-                    (_settings?.Persisted?.EnableUnlockRecordings ?? false))
++                    ((_settings?.Persisted?.EnableUnlockRecordings ?? false) ||
++                     (ProviderRegistry.Settings<LocalSettings>()?.EnableUnlockRecordings ?? false)))
+                 {
+                     var sampleIntervalMs = TrackSampleIntervalMs();
+                     trackRecorder = new ToastOverlayTrackRecorder(_logger, sampleIntervalMs);
+@@ -1473,7 +1812,7 @@ private async Task ShowWaveAsync(IReadOnlyList<AchievementToastViewModel> wave)
                      CompositionTarget.Rendering += onRendering;
                  }
  
@@ -15973,7 +16079,7 @@ index d5e034ec651d003331ec4db4279ac5b7ebaf22ed..3666a73db6f0c870158fc9e72857d5ff
                  var remainingMs = Math.Max(0, durationMs - captureDelayMs);
                  try
                  {
-@@ -1543,6 +1874,10 @@ private async Task ShowWaveAsync(IReadOnlyList<AchievementToastViewModel> wave)
+@@ -1543,6 +1882,10 @@ private async Task ShowWaveAsync(IReadOnlyList<AchievementToastViewModel> wave)
                  _activeIsGame = false;
                  _activeSuppressZOrder = false;
                  _activeMonitorScale = 1.0;
@@ -15984,7 +16090,7 @@ index d5e034ec651d003331ec4db4279ac5b7ebaf22ed..3666a73db6f0c870158fc9e72857d5ff
  
                  try
                  {
-@@ -1663,12 +1998,22 @@ private sealed class WaveScreenshotPlan
+@@ -1663,12 +2006,22 @@ private sealed class WaveScreenshotPlan
  
              public string FramedSuffix { get; set; }
  
@@ -16011,25 +16117,23 @@ index d5e034ec651d003331ec4db4279ac5b7ebaf22ed..3666a73db6f0c870158fc9e72857d5ff
              public bool NeedsFrame => Items.Any(i =>
                  (i.Variants & ScreenshotVariants.Framed) != 0);
          }
-@@ -1693,15 +2038,28 @@ private WaveScreenshotPlan BuildScreenshotPlan(IReadOnlyList<AchievementToastVie
+@@ -1693,15 +2046,26 @@ private WaveScreenshotPlan BuildScreenshotPlan(IReadOnlyList<AchievementToastVie
              }
  
              var persisted = _settings?.Persisted;
 -            var baseDir = persisted?.UnlockScreenshotDirectory;
 -            if (persisted?.EnableUnlockScreenshots != true || string.IsNullOrWhiteSpace(baseDir))
-+            if (persisted?.EnableUnlockScreenshots != true)
++            var custom = ProviderRegistry.Settings<LocalSettings>();
++            var useMainSettings = persisted?.EnableUnlockScreenshots == true;
++            if (!useMainSettings && custom?.EnableUnlockScreenshots != true)
 +            {
 +                return null;
 +            }
 +
-+            var custom = ProviderRegistry.Settings<LocalSettings>();
-+            var useCustomNaming = ShouldUseCustomScreenshotNaming(custom, persisted);
-+            var baseDir = useCustomNaming ? custom.EffectiveScreenshotSaveFolder : persisted.UnlockScreenshotDirectory;
-+            if (string.IsNullOrWhiteSpace(baseDir) && custom != null)
-+            {
-+                useCustomNaming = true;
-+                baseDir = custom.EffectiveScreenshotSaveFolder;
-+            }
++            var useCustomNaming = !useMainSettings;
++            var baseDir = useMainSettings
++                ? persisted.UnlockScreenshotDirectory
++                : custom.EffectiveScreenshotSaveFolder;
 +
 +            if (string.IsNullOrWhiteSpace(baseDir))
              {
@@ -16043,39 +16147,78 @@ index d5e034ec651d003331ec4db4279ac5b7ebaf22ed..3666a73db6f0c870158fc9e72857d5ff
              {
                  baseDir = System.IO.Path.Combine(baseDir, UnlockScreenshotService.TestFolderName);
              }
-@@ -1712,6 +2070,9 @@ private WaveScreenshotPlan BuildScreenshotPlan(IReadOnlyList<AchievementToastVie
-                 CleanSuffix = NormalizeSuffix(persisted.UnlockScreenshotSuffixClean),
-                 WithToastSuffix = NormalizeSuffix(persisted.UnlockScreenshotSuffixWithToast),
-                 FramedSuffix = NormalizeSuffix(persisted.UnlockScreenshotSuffixFramed),
+@@ -1709,20 +2073,22 @@ private WaveScreenshotPlan BuildScreenshotPlan(IReadOnlyList<AchievementToastVie
+             var plan = new WaveScreenshotPlan
+             {
+                 BaseDirectory = baseDir,
+-                CleanSuffix = NormalizeSuffix(persisted.UnlockScreenshotSuffixClean),
+-                WithToastSuffix = NormalizeSuffix(persisted.UnlockScreenshotSuffixWithToast),
+-                FramedSuffix = NormalizeSuffix(persisted.UnlockScreenshotSuffixFramed),
++                CleanSuffix = NormalizeSuffix(useMainSettings ? persisted.UnlockScreenshotSuffixClean : custom.ScreenshotSuffixClean),
++                WithToastSuffix = NormalizeSuffix(useMainSettings ? persisted.UnlockScreenshotSuffixWithToast : custom.ScreenshotSuffixWithNotification),
++                FramedSuffix = NormalizeSuffix(useMainSettings ? persisted.UnlockScreenshotSuffixFramed : custom.ScreenshotSuffixFramed),
 +                CustomSettings = useCustomNaming ? custom : null,
-+                CaptureDelayMilliseconds = custom?.ScreenshotDelayMilliseconds ?? 0,
++                CaptureDelayMilliseconds = useCustomNaming ? custom.ScreenshotDelayMilliseconds : 0,
 +                IsTestFire = first.IsTestFire,
              };
              foreach (var vm in wave)
              {
-@@ -1733,6 +2094,21 @@ private WaveScreenshotPlan BuildScreenshotPlan(IReadOnlyList<AchievementToastVie
+                 // Each variant is gated independently by its own per-variant rarity threshold and
+                 // completion bypass. The policy ANDs the EnableUnlockScreenshots master switch into
+                 // each variant flag.
+-                var variants = UnlockScreenshotVariantPolicy.Resolve(
+-                    vm.Rarity,
+-                    vm.IsGameCompleted || vm.IsCompletionAchievement || vm.IsCapstone,
+-                    vm.ProviderKey,
+-                    persisted);
++                var isCompletion = vm.IsGameCompleted || vm.IsCompletionAchievement || vm.IsCapstone;
++                var variants = useMainSettings
++                    ? UnlockScreenshotVariantPolicy.Resolve(vm.Rarity, isCompletion, vm.ProviderKey, persisted)
++                    : ResolveCustomScreenshotVariants(vm.Rarity, isCompletion, custom);
+ 
+                 if (variants != ScreenshotVariants.None)
+                 {
+@@ -1733,6 +2099,39 @@ private WaveScreenshotPlan BuildScreenshotPlan(IReadOnlyList<AchievementToastVie
              return plan.Items.Count > 0 ? plan : null;
          }
  
-+        private static bool ShouldUseCustomScreenshotNaming(LocalSettings custom, PersistedSettings persisted)
++        private static ScreenshotVariants ResolveCustomScreenshotVariants(
++            RarityTier rarity, bool isCompletion, LocalSettings custom)
 +        {
 +            if (custom == null)
 +            {
-+                return false;
++                return ScreenshotVariants.None;
 +            }
 +
-+            return string.IsNullOrWhiteSpace(persisted?.UnlockScreenshotDirectory) ||
-+                   !string.IsNullOrWhiteSpace(custom.ScreenshotSaveFolder) ||
-+                   !string.Equals(
-+                       custom.ScreenshotFilenameTemplate,
-+                       LocalSettings.DefaultScreenshotFilenameTemplate,
-+                       StringComparison.Ordinal);
++            var variants = ScreenshotVariants.None;
++            if (custom.ScreenshotClean && UnlockCaptureRarityFilter.ShouldCapture(
++                    rarity, isCompletion, custom.ScreenshotCleanRarities,
++                    custom.ScreenshotCleanAlwaysCaptureCompletion))
++            {
++                variants |= ScreenshotVariants.Clean;
++            }
++
++            if (custom.ScreenshotWithNotification && UnlockCaptureRarityFilter.ShouldCapture(
++                    rarity, isCompletion, custom.ScreenshotWithNotificationRarities,
++                    custom.ScreenshotWithNotificationAlwaysCaptureCompletion))
++            {
++                variants |= ScreenshotVariants.WithToast;
++            }
++
++            if (custom.ScreenshotFramed && UnlockCaptureRarityFilter.ShouldCapture(
++                    rarity, isCompletion, custom.ScreenshotFramedRarities,
++                    custom.ScreenshotFramedAlwaysCaptureCompletion))
++            {
++                variants |= ScreenshotVariants.Framed;
++            }
++
++            return variants;
 +        }
 +
          /// <summary>
          /// Trims a configured screenshot filename suffix; blank collapses to null so the path
          /// builder emits no suffix at all.
-@@ -1762,6 +2138,11 @@ private async Task SaveWaveScreenshotsAsync(
+@@ -1762,6 +2161,11 @@ private async Task SaveWaveScreenshotsAsync(
                      baseBitmap = await baseCaptureTask.ConfigureAwait(true);
                  }
  
@@ -16087,7 +16230,7 @@ index d5e034ec651d003331ec4db4279ac5b7ebaf22ed..3666a73db6f0c870158fc9e72857d5ff
                  var framedByVm = new Dictionary<AchievementToastViewModel, System.Windows.Media.Imaging.BitmapSource>();
                  if (plan.NeedsFrame && baseBitmap != null)
                  {
-@@ -1818,27 +2199,65 @@ private async Task SaveWaveScreenshotsAsync(
+@@ -1818,27 +2222,65 @@ private async Task SaveWaveScreenshotsAsync(
                              var vm = item.Vm;
                              if ((item.Variants & ScreenshotVariants.Clean) != 0 && clean != null)
                              {
@@ -16165,7 +16308,7 @@ index d5e034ec651d003331ec4db4279ac5b7ebaf22ed..3666a73db6f0c870158fc9e72857d5ff
                              }
                          }
  
-@@ -2039,7 +2458,43 @@ private bool AlignBottom()
+@@ -2039,7 +2481,43 @@ private bool AlignBottom()
          // margin, so the body sits a constant distance from the corner whether or not the glow is on.
          private double EffectiveGapDip()
          {
@@ -16210,7 +16353,7 @@ index d5e034ec651d003331ec4db4279ac5b7ebaf22ed..3666a73db6f0c870158fc9e72857d5ff
          }
  
          /// <summary>
-@@ -2084,10 +2539,22 @@ private bool TryPlacePhysical(Window window, bool measure, out ToastWindowPlacer
+@@ -2084,10 +2562,22 @@ private bool TryPlacePhysical(Window window, bool measure, out ToastWindowPlacer
              }
  
              var renderScale = ToastWindowPlacer.RenderScale(window);
@@ -16237,7 +16380,7 @@ index d5e034ec651d003331ec4db4279ac5b7ebaf22ed..3666a73db6f0c870158fc9e72857d5ff
  
              // Keep the toast directly above the game window in the z-order (not owned, so the game is
              // never raised). Re-asserted every placement/follow frame so it stays interleaved as the
-@@ -2168,6 +2635,14 @@ private bool TryComputeRestingCorner(Window window, out int x, out int y)
+@@ -2168,6 +2658,14 @@ private bool TryComputeRestingCorner(Window window, out int x, out int y)
              }
  
              var renderScale = ToastWindowPlacer.RenderScale(window);
@@ -16252,7 +16395,7 @@ index d5e034ec651d003331ec4db4279ac5b7ebaf22ed..3666a73db6f0c870158fc9e72857d5ff
              return ToastWindowPlacer.TryComputeCorner(
                  window, anchorPhys, renderScale, _activeMonitorScale, AlignRight(), AlignBottom(), EffectiveGapDip(),
                  out x, out y, out _);
-@@ -2637,6 +3112,18 @@ private int EffectiveDurationSeconds()
+@@ -2637,6 +3135,18 @@ private int EffectiveDurationSeconds()
              return setting;
          }
  
@@ -18080,10 +18223,10 @@ index 41e7709bdba3c13083ba85929b20dfbb23e6fe46..3dc80c2ecee5ffd89b07b041f498cca3
              _refreshDebounceTimer?.Stop();
              _deltaBatchTimer?.Stop();
 diff --git a/source/ViewModels/SettingsViewModel.cs b/source/ViewModels/SettingsViewModel.cs
-index 97e069074eb3a7f04293a0e489a199a9ad39ca79..26a4dda88dc7c5ad85f02219652d818697c0f125 100644
+index 97e069074eb3a7f04293a0e489a199a9ad39ca79..f80eeef3f07c308ac6be6895d8909d22c67b5c88 100644
 --- a/source/ViewModels/SettingsViewModel.cs
 +++ b/source/ViewModels/SettingsViewModel.cs
-@@ -154,20 +154,24 @@ public void CancelEdit()
+@@ -154,6 +154,7 @@ public void CancelEdit()
  
              _plugin.ProviderRegistry?.CancelEditSession();
              _plugin.ProviderRegistry?.SyncFromSettings(Settings.Persisted);
@@ -18091,20 +18234,16 @@ index 97e069074eb3a7f04293a0e489a199a9ad39ca79..26a4dda88dc7c5ad85f02219652d8186
              GameCustomDataStore?.SyncRuntimeCaches();
              ApplyThemeResources();
          }
- 
+@@ -161,13 +162,12 @@ public void CancelEdit()
          public void EndEdit()
          {
-+            ReconcileUnlockRecordingSetting();
              _plugin.ProviderRegistry?.CommitEditSession(false);
 -            _plugin.ProviderRegistry?.PersistAllProviderSettings(false);
 -
 -            // Save the settings via the plugin
 -            _plugin.SavePluginSettings(Settings);
-+            // Persist the committed provider settings and mirror the Achievement Notification
-+            // recording options into the runtime master settings before saving. Without this,
-+            // enabling recordings in the Local notification editor only takes effect after the
-+            // next Playnite restart, when the startup synchronization runs.
 +            _plugin.PersistSettingsForUiSilently();
++            _plugin.ReconfigureUnlockRecordingForSettingsSave();
  
              // Sync provider registry from the updated settings
              _plugin.ProviderRegistry?.SyncFromSettings(Settings.Persisted);
@@ -18112,51 +18251,7 @@ index 97e069074eb3a7f04293a0e489a199a9ad39ca79..26a4dda88dc7c5ad85f02219652d8186
              GameCustomDataStore?.SyncRuntimeCaches();
              ApplyThemeResources();
  
-@@ -175,6 +179,43 @@ public void EndEdit()
-             PlayniteAchievementsPlugin.NotifySettingsSaved();
-         }
- 
-+        private void ReconcileUnlockRecordingSetting()
-+        {
-+            var persisted = Settings?.Persisted;
-+            if (persisted == null)
-+            {
-+                return;
-+            }
-+
-+            var editedLocal = _plugin.ProviderRegistry?.GetSettingsForEdit("Local")
-+                as Providers.Local.LocalSettings;
-+            var liveLocal = _plugin.ProviderRegistry?.GetSettings<Providers.Local.LocalSettings>();
-+            if (editedLocal == null || liveLocal == null)
-+            {
-+                return;
-+            }
-+
-+            var masterChanged = _editingClone?.Persisted != null &&
-+                persisted.EnableUnlockRecordings != _editingClone.Persisted.EnableUnlockRecordings;
-+            var localChanged = editedLocal.EnableUnlockRecordings != liveLocal.EnableUnlockRecordings;
-+
-+            if (masterChanged)
-+            {
-+                // An explicit change on the main Notifications tab wins over a stale duplicate.
-+                editedLocal.EnableUnlockRecordings = persisted.EnableUnlockRecordings;
-+            }
-+            else if (localChanged)
-+            {
-+                // A change made in Achievement Notifications updates the runtime master.
-+                persisted.EnableUnlockRecordings = editedLocal.EnableUnlockRecordings;
-+            }
-+            else
-+            {
-+                // Heal settings written by older versions without changing the safe master value.
-+                editedLocal.EnableUnlockRecordings = persisted.EnableUnlockRecordings;
-+            }
-+        }
-+
-         public bool VerifySettings(out List<string> errors)
-         {
-             errors = new List<string>();
-@@ -188,6 +229,17 @@ public bool VerifySettings(out List<string> errors)
+@@ -188,6 +188,17 @@ public bool VerifySettings(out List<string> errors)
              return errors.Count == 0;
          }
  

@@ -381,6 +381,18 @@ namespace PlayniteAchievements.Providers.Local
         private LocalUnlockScreenshotImageFormat _screenshotImageFormat = LocalUnlockScreenshotImageFormat.Png;
         private RaritySelection _screenshotRarities = RaritySelection.All;
         private bool _screenshotAlwaysCaptureCompletion = true;
+        private bool _screenshotClean;
+        private bool _screenshotWithNotification = true;
+        private bool _screenshotFramed;
+        private string _screenshotSuffixClean = "clean";
+        private string _screenshotSuffixWithNotification = "notification";
+        private string _screenshotSuffixFramed = "framed";
+        private RaritySelection _screenshotCleanRarities = RaritySelection.All;
+        private bool _screenshotCleanAlwaysCaptureCompletion = true;
+        private RaritySelection _screenshotWithNotificationRarities = RaritySelection.All;
+        private bool _screenshotWithNotificationAlwaysCaptureCompletion = true;
+        private RaritySelection _screenshotFramedRarities = RaritySelection.All;
+        private bool _screenshotFramedAlwaysCaptureCompletion = true;
         private bool _enableUnlockRecordings;
         private string _recordingSaveFolder = string.Empty;
         private string _recordingFilenameTemplate = DefaultRecordingFilenameTemplate;
@@ -695,6 +707,19 @@ namespace PlayniteAchievements.Providers.Local
             get => _screenshotAlwaysCaptureCompletion;
             set => SetValue(ref _screenshotAlwaysCaptureCompletion, value);
         }
+
+        public bool ScreenshotClean { get => _screenshotClean; set => SetValue(ref _screenshotClean, value); }
+        public bool ScreenshotWithNotification { get => _screenshotWithNotification; set => SetValue(ref _screenshotWithNotification, value); }
+        public bool ScreenshotFramed { get => _screenshotFramed; set => SetValue(ref _screenshotFramed, value); }
+        public string ScreenshotSuffixClean { get => _screenshotSuffixClean; set => SetValue(ref _screenshotSuffixClean, value ?? string.Empty); }
+        public string ScreenshotSuffixWithNotification { get => _screenshotSuffixWithNotification; set => SetValue(ref _screenshotSuffixWithNotification, value ?? string.Empty); }
+        public string ScreenshotSuffixFramed { get => _screenshotSuffixFramed; set => SetValue(ref _screenshotSuffixFramed, value ?? string.Empty); }
+        public RaritySelection ScreenshotCleanRarities { get => _screenshotCleanRarities; set => SetValue(ref _screenshotCleanRarities, value); }
+        public bool ScreenshotCleanAlwaysCaptureCompletion { get => _screenshotCleanAlwaysCaptureCompletion; set => SetValue(ref _screenshotCleanAlwaysCaptureCompletion, value); }
+        public RaritySelection ScreenshotWithNotificationRarities { get => _screenshotWithNotificationRarities; set => SetValue(ref _screenshotWithNotificationRarities, value); }
+        public bool ScreenshotWithNotificationAlwaysCaptureCompletion { get => _screenshotWithNotificationAlwaysCaptureCompletion; set => SetValue(ref _screenshotWithNotificationAlwaysCaptureCompletion, value); }
+        public RaritySelection ScreenshotFramedRarities { get => _screenshotFramedRarities; set => SetValue(ref _screenshotFramedRarities, value); }
+        public bool ScreenshotFramedAlwaysCaptureCompletion { get => _screenshotFramedAlwaysCaptureCompletion; set => SetValue(ref _screenshotFramedAlwaysCaptureCompletion, value); }
 
         [JsonIgnore]
         public bool ScreenshotCaptureCommon { get => ScreenshotRarities.Contains(RarityTier.Common); set => SetScreenshotRarity(RaritySelection.Common, value); }

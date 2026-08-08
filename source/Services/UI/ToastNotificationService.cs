@@ -294,21 +294,28 @@ namespace PlayniteAchievements.Services.UI
             }
 
             var persisted = _settings?.Persisted;
-            if (persisted?.EnableUnlockScreenshots != true)
-            {
-                return false;
-            }
-
             var custom = ProviderRegistry.Settings<LocalSettings>();
-            var useCustomNaming = ShouldUseCustomScreenshotNaming(custom, persisted);
-            if ((!useCustomNaming || string.IsNullOrWhiteSpace(custom?.EffectiveScreenshotSaveFolder)) &&
-                string.IsNullOrWhiteSpace(persisted.UnlockScreenshotDirectory))
+            var useMainSettings = persisted?.EnableUnlockScreenshots == true;
+            if (!useMainSettings && custom?.EnableUnlockScreenshots != true)
             {
                 return false;
             }
 
-            return UnlockScreenshotVariantPolicy.Resolve(
-                ResolveRarity(args), IsCompletionUnlock(args), args.ProviderKey, persisted)
+            if (useMainSettings && string.IsNullOrWhiteSpace(persisted.UnlockScreenshotDirectory))
+            {
+                return false;
+            }
+
+            if (!useMainSettings && string.IsNullOrWhiteSpace(custom.EffectiveScreenshotSaveFolder))
+            {
+                return false;
+            }
+
+            return (useMainSettings
+                ? UnlockScreenshotVariantPolicy.Resolve(
+                    ResolveRarity(args), IsCompletionUnlock(args), args.ProviderKey, persisted)
+                : ResolveCustomScreenshotVariants(
+                    ResolveRarity(args), IsCompletionUnlock(args), custom))
                 != ScreenshotVariants.None;
         }
 
@@ -1679,7 +1686,8 @@ namespace PlayniteAchievements.Services.UI
                 // only — a test fire out of game has no video — and only with recordings enabled, since
                 // nothing else consumes a track.
                 if (_activeIsGame && _activeReferenceHwnd != IntPtr.Zero &&
-                    (_settings?.Persisted?.EnableUnlockRecordings ?? false))
+                    ((_settings?.Persisted?.EnableUnlockRecordings ?? false) ||
+                     (ProviderRegistry.Settings<LocalSettings>()?.EnableUnlockRecordings ?? false)))
                 {
                     var sampleIntervalMs = TrackSampleIntervalMs();
                     trackRecorder = new ToastOverlayTrackRecorder(_logger, sampleIntervalMs);
@@ -2038,19 +2046,17 @@ namespace PlayniteAchievements.Services.UI
             }
 
             var persisted = _settings?.Persisted;
-            if (persisted?.EnableUnlockScreenshots != true)
+            var custom = ProviderRegistry.Settings<LocalSettings>();
+            var useMainSettings = persisted?.EnableUnlockScreenshots == true;
+            if (!useMainSettings && custom?.EnableUnlockScreenshots != true)
             {
                 return null;
             }
 
-            var custom = ProviderRegistry.Settings<LocalSettings>();
-            var useCustomNaming = ShouldUseCustomScreenshotNaming(custom, persisted);
-            var baseDir = useCustomNaming ? custom.EffectiveScreenshotSaveFolder : persisted.UnlockScreenshotDirectory;
-            if (string.IsNullOrWhiteSpace(baseDir) && custom != null)
-            {
-                useCustomNaming = true;
-                baseDir = custom.EffectiveScreenshotSaveFolder;
-            }
+            var useCustomNaming = !useMainSettings;
+            var baseDir = useMainSettings
+                ? persisted.UnlockScreenshotDirectory
+                : custom.EffectiveScreenshotSaveFolder;
 
             if (string.IsNullOrWhiteSpace(baseDir))
             {
@@ -2067,11 +2073,11 @@ namespace PlayniteAchievements.Services.UI
             var plan = new WaveScreenshotPlan
             {
                 BaseDirectory = baseDir,
-                CleanSuffix = NormalizeSuffix(persisted.UnlockScreenshotSuffixClean),
-                WithToastSuffix = NormalizeSuffix(persisted.UnlockScreenshotSuffixWithToast),
-                FramedSuffix = NormalizeSuffix(persisted.UnlockScreenshotSuffixFramed),
+                CleanSuffix = NormalizeSuffix(useMainSettings ? persisted.UnlockScreenshotSuffixClean : custom.ScreenshotSuffixClean),
+                WithToastSuffix = NormalizeSuffix(useMainSettings ? persisted.UnlockScreenshotSuffixWithToast : custom.ScreenshotSuffixWithNotification),
+                FramedSuffix = NormalizeSuffix(useMainSettings ? persisted.UnlockScreenshotSuffixFramed : custom.ScreenshotSuffixFramed),
                 CustomSettings = useCustomNaming ? custom : null,
-                CaptureDelayMilliseconds = custom?.ScreenshotDelayMilliseconds ?? 0,
+                CaptureDelayMilliseconds = useCustomNaming ? custom.ScreenshotDelayMilliseconds : 0,
                 IsTestFire = first.IsTestFire,
             };
             foreach (var vm in wave)
@@ -2079,11 +2085,10 @@ namespace PlayniteAchievements.Services.UI
                 // Each variant is gated independently by its own per-variant rarity threshold and
                 // completion bypass. The policy ANDs the EnableUnlockScreenshots master switch into
                 // each variant flag.
-                var variants = UnlockScreenshotVariantPolicy.Resolve(
-                    vm.Rarity,
-                    vm.IsGameCompleted || vm.IsCompletionAchievement || vm.IsCapstone,
-                    vm.ProviderKey,
-                    persisted);
+                var isCompletion = vm.IsGameCompleted || vm.IsCompletionAchievement || vm.IsCapstone;
+                var variants = useMainSettings
+                    ? UnlockScreenshotVariantPolicy.Resolve(vm.Rarity, isCompletion, vm.ProviderKey, persisted)
+                    : ResolveCustomScreenshotVariants(vm.Rarity, isCompletion, custom);
 
                 if (variants != ScreenshotVariants.None)
                 {
@@ -2094,19 +2099,37 @@ namespace PlayniteAchievements.Services.UI
             return plan.Items.Count > 0 ? plan : null;
         }
 
-        private static bool ShouldUseCustomScreenshotNaming(LocalSettings custom, PersistedSettings persisted)
+        private static ScreenshotVariants ResolveCustomScreenshotVariants(
+            RarityTier rarity, bool isCompletion, LocalSettings custom)
         {
             if (custom == null)
             {
-                return false;
+                return ScreenshotVariants.None;
             }
 
-            return string.IsNullOrWhiteSpace(persisted?.UnlockScreenshotDirectory) ||
-                   !string.IsNullOrWhiteSpace(custom.ScreenshotSaveFolder) ||
-                   !string.Equals(
-                       custom.ScreenshotFilenameTemplate,
-                       LocalSettings.DefaultScreenshotFilenameTemplate,
-                       StringComparison.Ordinal);
+            var variants = ScreenshotVariants.None;
+            if (custom.ScreenshotClean && UnlockCaptureRarityFilter.ShouldCapture(
+                    rarity, isCompletion, custom.ScreenshotCleanRarities,
+                    custom.ScreenshotCleanAlwaysCaptureCompletion))
+            {
+                variants |= ScreenshotVariants.Clean;
+            }
+
+            if (custom.ScreenshotWithNotification && UnlockCaptureRarityFilter.ShouldCapture(
+                    rarity, isCompletion, custom.ScreenshotWithNotificationRarities,
+                    custom.ScreenshotWithNotificationAlwaysCaptureCompletion))
+            {
+                variants |= ScreenshotVariants.WithToast;
+            }
+
+            if (custom.ScreenshotFramed && UnlockCaptureRarityFilter.ShouldCapture(
+                    rarity, isCompletion, custom.ScreenshotFramedRarities,
+                    custom.ScreenshotFramedAlwaysCaptureCompletion))
+            {
+                variants |= ScreenshotVariants.Framed;
+            }
+
+            return variants;
         }
 
         /// <summary>

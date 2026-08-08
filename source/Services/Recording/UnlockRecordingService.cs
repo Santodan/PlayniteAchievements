@@ -165,6 +165,9 @@ namespace PlayniteAchievements.Services.Recording
             public string BufferDirectory;
             public Guid OwnerGameId;
             public string GameName;
+            public PersistedSettings EffectiveSettings;
+            public bool UsesCustomSettings;
+            public LocalSettings CustomSettings;
             public DateTime CaptureStartUtc;
             // The WGC + Media Foundation capture engine: occlusion-independent, HDR-correct,
             // GPU-resident. Writes .mp4 segments the Media Foundation export/prune consume.
@@ -226,7 +229,8 @@ namespace PlayniteAchievements.Services.Recording
             // A single capture session exists at a time; the most recently started game owns it.
             StopCurrentSession();
 
-            var persisted = _settings?.Persisted;
+            var persisted = ResolveEffectiveRecordingSettings(
+                out var usesCustomSettings, out var customSettings);
             if (persisted?.EnableUnlockRecordings != true)
             {
                 _logger?.Info($"[Recording] Capture not started for '{game?.Name}': unlock recordings are disabled.");
@@ -259,6 +263,9 @@ namespace PlayniteAchievements.Services.Recording
                         "-" + Guid.NewGuid().ToString("N").Substring(0, 8)),
                 OwnerGameId = game?.Id ?? Guid.Empty,
                 GameName = game?.Name,
+                EffectiveSettings = persisted,
+                UsesCustomSettings = usesCustomSettings,
+                CustomSettings = customSettings,
                 Cts = new CancellationTokenSource()
             };
 
@@ -442,7 +449,7 @@ namespace PlayniteAchievements.Services.Recording
                     return;
                 }
 
-                var persisted = _settings?.Persisted;
+                var persisted = session.EffectiveSettings;
                 if (persisted == null)
                 {
                     return;
@@ -660,13 +667,6 @@ namespace PlayniteAchievements.Services.Recording
                 return ClipEligibility.NotRecordable;
             }
 
-            var persisted = _settings?.Persisted;
-            if (persisted?.EnableUnlockRecordings != true)
-            {
-                _logger?.Debug($"[Recording] Unlock '{e.DisplayName}' ignored; unlock recordings are disabled.");
-                return ClipEligibility.NotRecordable;
-            }
-
             lock (_gate)
             {
                 session = _session;
@@ -678,7 +678,13 @@ namespace PlayniteAchievements.Services.Recording
                 return ClipEligibility.CaptureInactive;
             }
 
-            if (_isProviderRecordingEnabled?.Invoke(e.ProviderKey) == false)
+            var persisted = session.EffectiveSettings;
+            if (persisted?.EnableUnlockRecordings != true)
+            {
+                return ClipEligibility.NotRecordable;
+            }
+
+            if (!session.UsesCustomSettings && _isProviderRecordingEnabled?.Invoke(e.ProviderKey) == false)
             {
                 _logger?.Debug(
                     $"[Recording] Unlock '{e.DisplayName}' ignored; recording is disabled for provider '{e.ProviderKey}'.");
@@ -897,7 +903,7 @@ namespace PlayniteAchievements.Services.Recording
             try
             {
                 var session = request.Session;
-                var persisted = _settings?.Persisted;
+                var persisted = session.EffectiveSettings;
                 if (persisted == null)
                 {
                     AbandonTrackWait(request);
@@ -1082,7 +1088,7 @@ namespace PlayniteAchievements.Services.Recording
                 // The rate the segments were captured at, so a base clip whose media type declares no
                 // frame rate is re-encoded as what it actually is. Falls back to the setting's own
                 // default, which is what a capture with unreachable settings would have used.
-                var capturedFps = _settings?.Persisted?.RecordingFps ?? DefaultRecordingFps;
+                var capturedFps = session.EffectiveSettings?.RecordingFps ?? DefaultRecordingFps;
                 var ok = await Task.Run(() => reencoder.Export(
                         basePath, track, toastStartSeconds, toastSlotSeconds, videoLeadSeconds,
                         endSeconds, chimePcm, chimeStartSeconds, tempPath, capturedFps))
@@ -1289,8 +1295,8 @@ namespace PlayniteAchievements.Services.Recording
         {
             try
             {
-                var custom = ProviderRegistry.Settings<LocalSettings>();
-                if (custom?.EnableUnlockRecordings == true)
+                var custom = request?.Session?.CustomSettings;
+                if (request?.Session?.UsesCustomSettings == true && custom != null)
                 {
                     var game = _api?.Database?.Games?.Get(request.PlayniteGameId);
                     var timestamp = DateTime.Now;
@@ -1379,7 +1385,7 @@ namespace PlayniteAchievements.Services.Recording
                 // behind other waves.
                 var clipsOutstanding = Volatile.Read(ref _requestsAwaitingBase) > 0;
 
-                var persisted = _settings?.Persisted;
+                var persisted = session.EffectiveSettings;
                 var pollInterval = Math.Max(10, persisted?.InGamePollIntervalSeconds ?? DefaultPollIntervalSeconds);
                 var preRoll = persisted?.RecordingClipSeconds ?? DefaultPreRollSeconds;
                 // Suspend age-based pruning while clips are outstanding: a clip waiting for a late
@@ -1573,6 +1579,37 @@ namespace PlayniteAchievements.Services.Recording
         }
 
         // === Helpers ===
+
+        private PersistedSettings ResolveEffectiveRecordingSettings(
+            out bool usesCustomSettings, out LocalSettings customSettings)
+        {
+            usesCustomSettings = false;
+            var custom = ProviderRegistry.Settings<LocalSettings>();
+            if (custom?.EnableUnlockRecordings == true)
+            {
+                // Memories is a complete, independent recorder configuration. When explicitly
+                // enabled it owns the session even if the main feature is also enabled.
+                usesCustomSettings = true;
+                customSettings = custom.Clone() as LocalSettings ?? custom;
+                var effective = _settings?.Persisted?.Clone() ?? new PersistedSettings();
+                effective.EnableUnlockRecordings = true;
+                effective.UnlockRecordingDirectory = customSettings.RecordingSaveFolder;
+                effective.UnlockScreenshotDirectory = customSettings.EffectiveScreenshotSaveFolder;
+                effective.RecordingClipSeconds = customSettings.RecordingClipSeconds;
+                effective.RecordingFps = customSettings.RecordingFps;
+                effective.RecordingResolution = customSettings.RecordingResolution;
+                effective.RecordingIncludeAudio = customSettings.RecordingIncludeAudio;
+                effective.RecordingAudioSource = customSettings.RecordingAudioSource;
+                effective.RecordingIncludeMicrophone = customSettings.RecordingIncludeMicrophone;
+                effective.UnlockRecordingRarities = customSettings.RecordingRarities;
+                effective.UnlockRecordingAlwaysCaptureCompletion = customSettings.RecordingAlwaysCaptureCompletion;
+                return effective;
+            }
+
+            customSettings = null;
+            var main = _settings?.Persisted;
+            return main?.EnableUnlockRecordings == true ? main.Clone() : main;
+        }
 
         private static string ResolveOutputDirectory(PersistedSettings persisted)
         {

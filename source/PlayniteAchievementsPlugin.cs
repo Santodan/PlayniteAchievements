@@ -361,7 +361,6 @@ namespace PlayniteAchievements
         {
             try
             {
-                ApplyCustomRecordingSettings();
                 _providerRegistry?.PersistAllProviderSettings(false);
                 SavePluginSettings(_settingsViewModel.Settings);
             }
@@ -369,30 +368,6 @@ namespace PlayniteAchievements
             {
                 _logger?.Warn(ex, "Failed to persist plugin settings.");
             }
-        }
-
-        private void ApplyCustomRecordingSettings()
-        {
-            var custom = ProviderRegistry.Settings<Providers.Local.LocalSettings>();
-            var persisted = _settingsViewModel?.Settings?.Persisted;
-            if (custom == null || persisted == null)
-            {
-                return;
-            }
-
-            // The persisted recording switch is the runtime master and the safe source of truth.
-            // Keep the Memories editor's duplicate switch and detailed capture options aligned
-            // with it independently of whether the custom notification renderer is enabled.
-            custom.EnableUnlockRecordings = persisted.EnableUnlockRecordings;
-            persisted.UnlockRecordingDirectory = custom.RecordingSaveFolder;
-            persisted.RecordingClipSeconds = custom.RecordingClipSeconds;
-            persisted.RecordingFps = custom.RecordingFps;
-            persisted.RecordingResolution = custom.RecordingResolution;
-            persisted.RecordingIncludeAudio = custom.RecordingIncludeAudio;
-            persisted.RecordingAudioSource = custom.RecordingAudioSource;
-            persisted.RecordingIncludeMicrophone = custom.RecordingIncludeMicrophone;
-            persisted.UnlockRecordingRarities = custom.RecordingRarities;
-            persisted.UnlockRecordingAlwaysCaptureCompletion = custom.RecordingAlwaysCaptureCompletion;
         }
 
         // Public bridge method for external helpers/themes that used to target SuccessStory via reflection.
@@ -667,7 +642,6 @@ namespace PlayniteAchievements
                     }
 
                     _notifications = new NotificationPublisher(api, settings, _logger);
-                    ApplyCustomRecordingSettings();
                     _refreshCoordinator = new RefreshEntryPoint(
                         _refreshService,
                         _logger,
@@ -1387,7 +1361,8 @@ namespace PlayniteAchievements
                     return;
                 }
 
-                if (_settingsViewModel?.Settings?.Persisted?.EnableUnlockRecordings == true)
+                if (_settingsViewModel?.Settings?.Persisted?.EnableUnlockRecordings == true ||
+                    ProviderRegistry.Settings<Providers.Local.LocalSettings>()?.EnableUnlockRecordings == true)
                 {
                     var game = ResolveRecordingHandoffGame() ?? PlayniteApi?.Database?.Games?
                         .Where(candidate => candidate?.IsRunning == true)
@@ -1832,6 +1807,11 @@ namespace PlayniteAchievements
                 _logger.Info($"Detected {readyGameIds.Count} completed manual game(s); starting batched refresh.");
                 _ = TriggerNewGamesRefreshAsync(readyGameIds);
             }
+        }
+
+        internal void ReconfigureUnlockRecordingForSettingsSave()
+        {
+            ReconfigureUnlockRecording();
         }
 
         private Task TriggerNewGamesRefreshAsync(List<Guid> gameIds)

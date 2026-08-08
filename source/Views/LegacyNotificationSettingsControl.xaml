@@ -4174,16 +4174,16 @@
                                 <Border Style="{StaticResource SettingGroupCardStyle}">
                                     <StackPanel>
                                         <CheckBox Content="Save a screenshot when a new achievement is detected"
-                                                  IsChecked="{Binding DataContext.Persisted.EnableUnlockScreenshots, ElementName=LegacyNotificationSettingsControlRoot, Mode=TwoWay}"
+                                                  IsChecked="{Binding EnableUnlockScreenshots, Mode=TwoWay}"
                                                   Margin="0,0,0,12"/>
 
                                         <StackPanel Margin="18,0,0,0"
-                                                    IsEnabled="{Binding DataContext.Persisted.EnableUnlockScreenshots, ElementName=LegacyNotificationSettingsControlRoot}">
+                                                    IsEnabled="{Binding EnableUnlockScreenshots}">
                                             <CheckBox Content="Clean"
-                                                      IsChecked="{Binding DataContext.Persisted.UnlockScreenshotClean, ElementName=LegacyNotificationSettingsControlRoot, Mode=TwoWay}"
+                                                      IsChecked="{Binding ScreenshotClean, Mode=TwoWay}"
                                                       Margin="0,0,0,4"/>
                                             <StackPanel Margin="18,0,0,10"
-                                                        IsEnabled="{Binding DataContext.Persisted.UnlockScreenshotClean, ElementName=LegacyNotificationSettingsControlRoot}">
+                                                        IsEnabled="{Binding ScreenshotClean}">
                                                 <StackPanel Margin="0,0,0,6">
                                                     <TextBlock Text="Capture rarities:" Margin="0,0,0,4"/>
                                                     <WrapPanel x:Name="NotificationsScreenshotCleanRaritiesPanel">
@@ -4194,14 +4194,14 @@
                                                     </WrapPanel>
                                                 </StackPanel>
                                                 <CheckBox Content="Always capture game completion"
-                                                          IsChecked="{Binding DataContext.Persisted.UnlockScreenshotCleanAlwaysCaptureCompletion, ElementName=LegacyNotificationSettingsControlRoot, Mode=TwoWay}"/>
+                                                          IsChecked="{Binding ScreenshotCleanAlwaysCaptureCompletion, Mode=TwoWay}"/>
                                             </StackPanel>
 
                                             <CheckBox Content="With notification"
-                                                      IsChecked="{Binding DataContext.Persisted.UnlockScreenshotWithToast, ElementName=LegacyNotificationSettingsControlRoot, Mode=TwoWay}"
+                                                      IsChecked="{Binding ScreenshotWithNotification, Mode=TwoWay}"
                                                       Margin="0,0,0,4"/>
                                             <StackPanel Margin="18,0,0,10"
-                                                        IsEnabled="{Binding DataContext.Persisted.UnlockScreenshotWithToast, ElementName=LegacyNotificationSettingsControlRoot}">
+                                                        IsEnabled="{Binding ScreenshotWithNotification}">
                                                 <StackPanel Margin="0,0,0,6">
                                                     <TextBlock Text="Capture rarities:" Margin="0,0,0,4"/>
                                                     <WrapPanel x:Name="NotificationsScreenshotWithToastRaritiesPanel">
@@ -4212,14 +4212,14 @@
                                                     </WrapPanel>
                                                 </StackPanel>
                                                 <CheckBox Content="Always capture game completion"
-                                                          IsChecked="{Binding DataContext.Persisted.UnlockScreenshotWithToastAlwaysCaptureCompletion, ElementName=LegacyNotificationSettingsControlRoot, Mode=TwoWay}"/>
+                                                          IsChecked="{Binding ScreenshotWithNotificationAlwaysCaptureCompletion, Mode=TwoWay}"/>
                                             </StackPanel>
 
                                             <CheckBox Content="Framed"
-                                                      IsChecked="{Binding DataContext.Persisted.UnlockScreenshotFramed, ElementName=LegacyNotificationSettingsControlRoot, Mode=TwoWay}"
+                                                      IsChecked="{Binding ScreenshotFramed, Mode=TwoWay}"
                                                       Margin="0,0,0,4"/>
                                             <StackPanel Margin="18,0,0,10"
-                                                        IsEnabled="{Binding DataContext.Persisted.UnlockScreenshotFramed, ElementName=LegacyNotificationSettingsControlRoot}">
+                                                        IsEnabled="{Binding ScreenshotFramed}">
                                                 <StackPanel Margin="0,0,0,6">
                                                     <TextBlock Text="Capture rarities:" Margin="0,0,0,4"/>
                                                     <WrapPanel x:Name="NotificationsScreenshotFramedRaritiesPanel">
@@ -4230,7 +4230,7 @@
                                                     </WrapPanel>
                                                 </StackPanel>
                                                 <CheckBox Content="Always capture game completion"
-                                                          IsChecked="{Binding DataContext.Persisted.UnlockScreenshotFramedAlwaysCaptureCompletion, ElementName=LegacyNotificationSettingsControlRoot, Mode=TwoWay}"/>
+                                                          IsChecked="{Binding ScreenshotFramedAlwaysCaptureCompletion, Mode=TwoWay}"/>
                                             </StackPanel>
 
                                             <TextBlock Text="Filename suffixes" FontWeight="SemiBold" Margin="0,0,0,4"/>
@@ -4246,13 +4246,13 @@
                                                 </Grid.RowDefinitions>
                                                 <TextBlock Grid.Row="0" Text="Clean" VerticalAlignment="Center" Margin="0,0,8,6"/>
                                                 <TextBox Grid.Row="0" Grid.Column="1" Margin="0,0,0,6"
-                                                         Text="{Binding DataContext.Persisted.UnlockScreenshotSuffixClean, ElementName=LegacyNotificationSettingsControlRoot, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"/>
+                                                         Text="{Binding ScreenshotSuffixClean, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"/>
                                                 <TextBlock Grid.Row="1" Text="With notification" VerticalAlignment="Center" Margin="0,0,8,6"/>
                                                 <TextBox Grid.Row="1" Grid.Column="1" Margin="0,0,0,6"
-                                                         Text="{Binding DataContext.Persisted.UnlockScreenshotSuffixWithToast, ElementName=LegacyNotificationSettingsControlRoot, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"/>
+                                                         Text="{Binding ScreenshotSuffixWithNotification, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"/>
                                                 <TextBlock Grid.Row="2" Text="Framed" VerticalAlignment="Center" Margin="0,0,8,6"/>
                                                 <TextBox Grid.Row="2" Grid.Column="1" Margin="0,0,0,6"
-                                                         Text="{Binding DataContext.Persisted.UnlockScreenshotSuffixFramed, ElementName=LegacyNotificationSettingsControlRoot, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"/>
+                                                         Text="{Binding ScreenshotSuffixFramed, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"/>
                                             </Grid>
 
                                             <DockPanel Margin="0,0,0,6">
