@@ -100,6 +100,7 @@ namespace PlayniteAchievements.ViewModels
         internal Services.UI.NotificationTemplatePreviewSource? PreviewTemplateSource => _args.PreviewTemplateSource;
         internal string AchievementName => ResolveAchievementName(_args);
         internal int AchievementNumber => _args.AchievementNumber;
+        internal AchievementUnlockedEventArgs SourceEventArgs => _args;
 
         /// <summary>
         /// Whether this unlock is being cut into a clip, so its card must be realized and sampled

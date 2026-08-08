@@ -904,7 +904,7 @@ index 49f7ff62a1120efabe5fec552b23b3589a8e3d0c..f1def6c118dc602e46db4ee2df9c6d57
          {
              _resourceService.EnsureAchievementResourcesLoaded(_settingsViewModel.Settings);
 diff --git a/source/PlayniteAchievementsPlugin.cs b/source/PlayniteAchievementsPlugin.cs
-index 222d988c8b2f9b3cf0247f351e319f0561290019..b93e5f74f123e0e7836e7a3cfdc7341756203e62 100644
+index 222d988c8b2f9b3cf0247f351e319f0561290019..8ea3e812a3d0b1854f4067d69bcc3634b0368250 100644
 --- a/source/PlayniteAchievementsPlugin.cs
 +++ b/source/PlayniteAchievementsPlugin.cs
 @@ -38,6 +38,7 @@
@@ -1129,17 +1129,18 @@ index 222d988c8b2f9b3cf0247f351e319f0561290019..b93e5f74f123e0e7836e7a3cfdc73417
                      _refreshCoordinator = new RefreshEntryPoint(
                          _refreshService,
                          _logger,
-@@ -542,7 +684,8 @@ public PlayniteAchievementsPlugin(IPlayniteAPI api) : base(api)
+@@ -542,7 +684,9 @@ public PlayniteAchievementsPlugin(IPlayniteAPI api) : base(api)
                          // Late-bound: the recording service is constructed just below, but the
                          // toast service only ever invokes this from an unlock handler, long after
                          // the field is assigned.
 -                        e => _unlockRecordings?.WouldRequestClip(e) ?? false);
 +                        e => _unlockRecordings?.WouldRequestClip(e) ?? false,
-+                        UsesCustomAchievementNotification);
++                        UsesCustomAchievementNotification,
++                        e => _notifications?.CreateAchievementCaptureContent(e));
                      _unlockRecordings = new Services.Recording.UnlockRecordingService(
                          PlayniteApi,
                          settings,
-@@ -562,7 +705,7 @@ public PlayniteAchievementsPlugin(IPlayniteAPI api) : base(api)
+@@ -562,7 +706,7 @@ public PlayniteAchievementsPlugin(IPlayniteAPI api) : base(api)
                          _cacheManager,
                          _refreshService,
                          (request, policy) => _refreshCoordinator.ExecuteAsync(request, policy),
@@ -1148,7 +1149,7 @@ index 222d988c8b2f9b3cf0247f351e319f0561290019..b93e5f74f123e0e7836e7a3cfdc73417
                      _backgroundUpdates = new BackgroundUpdater(_refreshCoordinator, _refreshService, _cacheManager, settings, _logger, _notifications, null);
  
                      // Create tag sync service
-@@ -721,7 +864,7 @@ public override IEnumerable<SidebarItem> GetSidebarItems()
+@@ -721,7 +865,7 @@ public override IEnumerable<SidebarItem> GetSidebarItems()
                  Opened = () =>
                  {
                      return new OverviewHostControl(
@@ -1157,7 +1158,7 @@ index 222d988c8b2f9b3cf0247f351e319f0561290019..b93e5f74f123e0e7836e7a3cfdc73417
                          _logger,
                          PlayniteApi,
                          _refreshService,
-@@ -1110,6 +1253,11 @@ private void PersistedSettings_PropertyChanged(object sender, PropertyChangedEve
+@@ -1110,6 +1254,11 @@ private void PersistedSettings_PropertyChanged(object sender, PropertyChangedEve
                  ReconfigureInGameMonitor();
              }
  
@@ -1169,7 +1170,7 @@ index 222d988c8b2f9b3cf0247f351e319f0561290019..b93e5f74f123e0e7836e7a3cfdc73417
              if (e.PropertyName == nameof(PersistedSettings.UseUniformRarityBadges) ||
                  e.PropertyName == nameof(PersistedSettings.RarityColors))
              {
-@@ -1229,6 +1377,37 @@ private void ReconfigureInGameMonitor()
+@@ -1229,6 +1378,37 @@ private void ReconfigureInGameMonitor()
              }
          }
  
@@ -1207,7 +1208,7 @@ index 222d988c8b2f9b3cf0247f351e319f0561290019..b93e5f74f123e0e7836e7a3cfdc73417
          public override void OnApplicationStopped(OnApplicationStoppedEventArgs args)
          {
              _logger.Info("OnApplicationStopped called.");
-@@ -1265,6 +1444,7 @@ public override void OnApplicationStopped(OnApplicationStoppedEventArgs args)
+@@ -1265,6 +1445,7 @@ public override void OnApplicationStopped(OnApplicationStoppedEventArgs args)
              DisposeStartPageViews();
  
              // Shutdown logging system
@@ -1215,7 +1216,7 @@ index 222d988c8b2f9b3cf0247f351e319f0561290019..b93e5f74f123e0e7836e7a3cfdc73417
              try { PluginLogger.Shutdown(); } catch (Exception ex) { System.Diagnostics.Trace.TraceError($"Failed to shutdown logger: {ex}"); }
          }
  
-@@ -1576,6 +1756,17 @@ private void Games_ItemCollectionChanged(object sender, ItemCollectionChangedEve
+@@ -1576,6 +1757,17 @@ private void Games_ItemCollectionChanged(object sender, ItemCollectionChangedEve
                          continue;
                      }
  
@@ -1233,7 +1234,7 @@ index 222d988c8b2f9b3cf0247f351e319f0561290019..b93e5f74f123e0e7836e7a3cfdc73417
                      addedGameIds.Add(game.Id);
                  }
  
-@@ -1595,6 +1786,11 @@ private void Games_ItemCollectionChanged(object sender, ItemCollectionChangedEve
+@@ -1595,6 +1787,11 @@ private void Games_ItemCollectionChanged(object sender, ItemCollectionChangedEve
                          continue;
                      }
  
@@ -1245,7 +1246,7 @@ index 222d988c8b2f9b3cf0247f351e319f0561290019..b93e5f74f123e0e7836e7a3cfdc73417
                      _ = TriggerRemovedGameCleanupAsync(game);
                  }
              }
-@@ -1606,6 +1802,35 @@ private void Games_ItemUpdated(object sender, ItemUpdatedEventArgs<Game> e)
+@@ -1606,6 +1803,35 @@ private void Games_ItemUpdated(object sender, ItemUpdatedEventArgs<Game> e)
              // invalidate so the cached overview/start-page projection is rebuilt with fresh values.
              // Invalidate() coalesces bursts (e.g. library scans) via its warm debounce.
              _libraryProjectionService?.Invalidate();
@@ -5391,7 +5392,7 @@ index 11ca94e019cfaf99cdc80b4904455f0fc62e802b..4a4abc1ceae8235972f43175044a1825
          {
              token.ThrowIfCancellationRequested();
 diff --git a/source/Services/NotificationPublisher.cs b/source/Services/NotificationPublisher.cs
-index 44ae3dd84cc37e070ab9e77a4800b18c9646d63a..ca186ccfe46c9f696f4ccceb31fc18a5d0d3479b 100644
+index 44ae3dd84cc37e070ab9e77a4800b18c9646d63a..301cc8443aabbf4fb4ec6ce78425fc957d12f886 100644
 --- a/source/Services/NotificationPublisher.cs
 +++ b/source/Services/NotificationPublisher.cs
 @@ -1,23 +1,82 @@
@@ -5477,7 +5478,7 @@ index 44ae3dd84cc37e070ab9e77a4800b18c9646d63a..ca186ccfe46c9f696f4ccceb31fc18a5
          }
  
          /// <summary>
-@@ -85,6 +144,591 @@ public void ShowThemeAutoMigrated(string themeName)
+@@ -85,6 +144,644 @@ public void ShowThemeAutoMigrated(string themeName)
              }
          }
  
@@ -5867,6 +5868,58 @@ index 44ae3dd84cc37e070ab9e77a4800b18c9646d63a..ca186ccfe46c9f696f4ccceb31fc18a5
 +            return frame;
 +        }
 +
++        /// <summary>
++        /// Builds the same custom achievement surface used by the live overlay. SAN/WebView2
++        /// selections remain WebView2 here; the media pipeline captures the browser pixels directly
++        /// instead of substituting the WPF compatibility renderer.
++        /// </summary>
++        internal FrameworkElement CreateAchievementCaptureContent(AchievementUnlockedEventArgs args)
++        {
++            if (args == null)
++            {
++                return null;
++            }
++
++            var settings = ProviderRegistry.Settings<LocalSettings>() ?? new LocalSettings();
++            var game = _api?.Database?.Games?.Get(args.PlayniteGameId);
++            var rarity = args.GlobalPercent.HasValue
++                ? AchievementRarityResolver.GetDetailText(
++                    args.GlobalPercent,
++                    RarityTierExtensions.TryParse(args.RarityTier, out var rarityTier)
++                        ? rarityTier
++                        : RarityTier.Common)
++                : args.RarityTier;
++            var sanContent = CreateSanWebViewPreviewContent(
++                args.GameName ?? game?.Name,
++                args.DisplayName ?? args.ApiName,
++                args.IconPath,
++                args.ProviderKey,
++                settings,
++                game,
++                args.Description,
++                args.Points ?? args.ScaledPoints,
++                rarity,
++                args.TrophyType,
++                isInlinePreview: false);
++            if (sanContent != null)
++            {
++                return sanContent;
++            }
++
++            return CreateOverlayPreviewContent(
++                args.GameName ?? game?.Name,
++                args.DisplayName ?? args.ApiName,
++                NotificationStyleCustom,
++                args.ProviderKey,
++                settings,
++                args.IconPath,
++                game,
++                args.Description,
++                args.Points ?? args.ScaledPoints,
++                rarity,
++                args.TrophyType);
++        }
++
 +        private FrameworkElement CreateSanWebViewPreviewContent(
 +            string gameName,
 +            string achievementName,
@@ -5877,7 +5930,8 @@ index 44ae3dd84cc37e070ab9e77a4800b18c9646d63a..ca186ccfe46c9f696f4ccceb31fc18a5
 +            string achievementDescription,
 +            int? achievementPoints,
 +            string achievementRarity,
-+            string achievementTrophy)
++            string achievementTrophy,
++            bool isInlinePreview = true)
 +        {
 +            var hasSanSelection = settings != null &&
 +                (IsSanTransitionStyle(settings.UnlockOverlayTransitionStyle) ||
@@ -5961,7 +6015,7 @@ index 44ae3dd84cc37e070ab9e77a4800b18c9646d63a..ca186ccfe46c9f696f4ccceb31fc18a5
 +                        durationMs,
 +                        width,
 +                        height,
-+                        isInlinePreview: true);
++                        isInlinePreview: isInlinePreview);
 +                    var htmlPath = WriteSanWebViewDocumentToTempFile(html);
 +                    if (generation != loadGeneration || !host.IsLoaded)
 +                    {
@@ -6069,7 +6123,7 @@ index 44ae3dd84cc37e070ab9e77a4800b18c9646d63a..ca186ccfe46c9f696f4ccceb31fc18a5
          private static string AuthNotificationId(string providerKey) => $"PlayAch-AuthFailed-{providerKey}";
  
          public void ShowProviderAuthFailed(List<string> providerKeys)
-@@ -163,5 +807,7395 @@ private void OpenPluginSettingsForProvider(string providerKey)
+@@ -163,5 +860,7395 @@ private void OpenPluginSettingsForProvider(string providerKey)
                  _logger?.Debug(ex, "Failed to open plugin settings from notification click.");
              }
          }
@@ -15367,10 +15421,27 @@ index 3b437baab5d9577f8600420361090f5dbd704ab0..524899e89cce24678330630b84c7e7a2
          {
              try
 diff --git a/source/Services/UI/ToastNotificationService.cs b/source/Services/UI/ToastNotificationService.cs
-index d5e034ec651d003331ec4db4279ac5b7ebaf22ed..e86e135ee040338744a135668d615a70115bd127 100644
+index d5e034ec651d003331ec4db4279ac5b7ebaf22ed..3666a73db6f0c870158fc9e72857d5ff7d3a86df 100644
 --- a/source/Services/UI/ToastNotificationService.cs
 +++ b/source/Services/UI/ToastNotificationService.cs
-@@ -16,6 +16,8 @@
+@@ -1,6 +1,7 @@
+ using System;
+ using System.Collections.Generic;
+ using System.Diagnostics;
++using System.IO;
+ using System.Linq;
+ using System.Threading.Tasks;
+ using System.Windows;
+@@ -9,6 +10,8 @@
+ using System.Windows.Media;
+ using System.Windows.Media.Animation;
+ using System.Windows.Threading;
++using Microsoft.Web.WebView2.Core;
++using Microsoft.Web.WebView2.Wpf;
+ using Playnite.SDK;
+ using PlayniteAchievements.Models;
+ using PlayniteAchievements.Models.Achievements;
+@@ -16,6 +19,8 @@
  using PlayniteAchievements.Services.GameCustomData;
  using PlayniteAchievements.ViewModels;
  using PlayniteAchievements.Views.Helpers;
@@ -15379,33 +15450,61 @@ index d5e034ec651d003331ec4db4279ac5b7ebaf22ed..e86e135ee040338744a135668d615a70
  
  namespace PlayniteAchievements.Services.UI
  {
-@@ -33,6 +35,7 @@ internal sealed class ToastNotificationService : IDisposable
+@@ -33,6 +38,8 @@ internal sealed class ToastNotificationService : IDisposable
          // Whether an unlock is being cut into a clip, so its card must be rendered into an overlay
          // track even when nothing about it shows on screen. Supplied by the recording service.
          private readonly Func<AchievementUnlockedEventArgs, bool> _needsOverlayTrack;
 +        private readonly Func<AchievementUnlockedEventArgs, bool> _usesCustomNotification;
++        private readonly Func<AchievementUnlockedEventArgs, FrameworkElement> _createCustomNotificationContent;
          private readonly UnlockScreenshotService _screenshotService;
          private readonly ScreenshotFrameCompositor _frameCompositor;
          private readonly AchievementToastTemplateResolver _templateResolver;
-@@ -104,7 +107,8 @@ public ToastNotificationService(
+@@ -95,6 +102,24 @@ internal sealed class ToastNotificationService : IDisposable
+         // this wave has already logged that its placement needed rescuing.
+         private ToastWindowPlacer.PlacementCorrection _placementCorrection;
+         private bool _placementAnomalyLogged;
++        private bool _activeUsesCustomMediaSurface;
++        private bool _activeCenterHorizontally;
++        private Dictionary<AchievementToastViewModel, FrameworkElement> _activeCardItems;
++        private readonly Dictionary<AchievementToastViewModel, WebViewCaptureState> _activeWebViewFrames =
++            new Dictionary<AchievementToastViewModel, WebViewCaptureState>();
++
++        private sealed class WebViewCapturedFrame
++        {
++            public byte[] Pixels { get; set; }
++            public int Width { get; set; }
++            public int Height { get; set; }
++        }
++
++        private sealed class WebViewCaptureState
++        {
++            public bool Capturing { get; set; }
++            public WebViewCapturedFrame Latest { get; set; }
++        }
+ 
+         public ToastNotificationService(
+             IPlayniteAPI api,
+@@ -104,7 +129,9 @@ public ToastNotificationService(
              Func<Guid?, int?> getGameProcessId = null,
              ActiveGameWindowTracker windowTracker = null,
              GameCustomDataStore gameCustomDataStore = null,
 -            Func<AchievementUnlockedEventArgs, bool> needsOverlayTrack = null)
 +            Func<AchievementUnlockedEventArgs, bool> needsOverlayTrack = null,
-+            Func<AchievementUnlockedEventArgs, bool> usesCustomNotification = null)
++            Func<AchievementUnlockedEventArgs, bool> usesCustomNotification = null,
++            Func<AchievementUnlockedEventArgs, FrameworkElement> createCustomNotificationContent = null)
          {
              _api = api;
              _settings = settings;
-@@ -114,6 +118,7 @@ public ToastNotificationService(
+@@ -114,6 +141,8 @@ public ToastNotificationService(
              _windowTracker = windowTracker;
              _gameCustomDataStore = gameCustomDataStore;
              _needsOverlayTrack = needsOverlayTrack;
 +            _usesCustomNotification = usesCustomNotification;
++            _createCustomNotificationContent = createCustomNotificationContent;
              _screenshotService = new UnlockScreenshotService(logger);
              _frameCompositor = new ScreenshotFrameCompositor(logger);
              _templateResolver = new AchievementToastTemplateResolver(
-@@ -247,7 +252,7 @@ private bool ShouldProcess(AchievementUnlockedEventArgs args)
+@@ -247,7 +276,7 @@ private bool ShouldProcess(AchievementUnlockedEventArgs args)
                  return false;
              }
  
@@ -15414,7 +15513,7 @@ index d5e034ec651d003331ec4db4279ac5b7ebaf22ed..e86e135ee040338744a135668d615a70
              {
                  return true;
              }
-@@ -265,7 +270,14 @@ private bool ShouldProcess(AchievementUnlockedEventArgs args)
+@@ -265,7 +294,14 @@ private bool ShouldProcess(AchievementUnlockedEventArgs args)
              }
  
              var persisted = _settings?.Persisted;
@@ -15430,7 +15529,7 @@ index d5e034ec651d003331ec4db4279ac5b7ebaf22ed..e86e135ee040338744a135668d615a70
                  string.IsNullOrWhiteSpace(persisted.UnlockScreenshotDirectory))
              {
                  return false;
-@@ -296,13 +308,29 @@ private static bool IsCompletionUnlock(AchievementUnlockedEventArgs args) =>
+@@ -296,13 +332,29 @@ private static bool IsCompletionUnlock(AchievementUnlockedEventArgs args) =>
          /// policy ANDs the EnableNotifications master switch into both toast flags and resolves
          /// all-false for null settings.
          /// </summary>
@@ -15461,7 +15560,292 @@ index d5e034ec651d003331ec4db4279ac5b7ebaf22ed..e86e135ee040338744a135668d615a70
              var effective = ProviderNotificationPolicy.Resolve(_settings?.Persisted, providerKey);
              return isFriendUnlock
                  ? effective.FriendUnlockToasts
-@@ -1082,7 +1110,12 @@ private WavePlan ResolveWavePlan(IReadOnlyList<AchievementToastViewModel> wave)
+@@ -523,15 +575,41 @@ private bool TryResolveWaveGame(out IntPtr waveHwnd, out int? processId)
+                 var rect = System.Drawing.Rectangle.Empty;
+                 if (haveGeometry && itemsControl != null)
+                 {
+-                    var container = itemsControl.ItemContainerGenerator.ContainerFromItem(vm) as FrameworkElement;
++                    var container = ResolveCardContainer(itemsControl, vm);
+                     if (container != null)
+                     {
+-                        overlay = TryRenderToastItemOverlay(window, container, out var physSize);
++                        var webView = FindWebView(container);
++                        System.Drawing.Size physSize;
++                        if (webView != null)
++                        {
++                            WebViewCaptureState captureState = null;
++                            if (_activeWebViewFrames.TryGetValue(vm, out captureState))
++                            {
++                                for (var wait = 0; wait < 100 && captureState.Capturing; wait++)
++                                {
++                                    await Task.Delay(10).ConfigureAwait(true);
++                                }
++                            }
++
++                            var frame = captureState?.Capturing == true
++                                ? captureState.Latest
++                                : await CaptureWebViewFrameAsync(webView).ConfigureAwait(true);
++                            overlay = frame != null
++                                ? CreatePArgbBitmap(frame.Pixels, frame.Width, frame.Height)
++                                : null;
++                            physSize = frame != null
++                                ? new System.Drawing.Size(frame.Width, frame.Height)
++                                : System.Drawing.Size.Empty;
++                        }
++                        else
++                        {
++                            overlay = TryRenderToastItemOverlay(window, container, out physSize);
++                        }
++
+                         if (overlay != null)
+                         {
+-                            ToastWindowPlacer.ComputeCorner(
+-                                anchorPhys, physSize.Width, physSize.Height, _activeMonitorScale,
+-                                AlignRight(), AlignBottom(), EffectiveGapDip(), out var ix, out var iy);
++                            ComputeActiveCorner(
++                                anchorPhys, physSize.Width, physSize.Height, out var ix, out var iy);
+                             rect = new System.Drawing.Rectangle(ix, iy, physSize.Width, physSize.Height);
+                         }
+                     }
+@@ -719,6 +797,162 @@ private System.Drawing.Bitmap TryRenderToastItemOverlay(
+             return bitmap;
+         }
+ 
++        private FrameworkElement ResolveCardContainer(
++            ItemsControl itemsControl, AchievementToastViewModel vm)
++        {
++            if (itemsControl == null || vm == null)
++            {
++                return null;
++            }
++
++            object item = vm;
++            if (_activeCardItems != null && _activeCardItems.TryGetValue(vm, out var customItem))
++            {
++                item = customItem;
++            }
++
++            return itemsControl.ItemContainerGenerator.ContainerFromItem(item) as FrameworkElement
++                ?? item as FrameworkElement;
++        }
++
++        private static WebView2 FindWebView(DependencyObject root)
++        {
++            if (root == null)
++            {
++                return null;
++            }
++
++            if (root is WebView2 webView)
++            {
++                return webView;
++            }
++
++            for (var i = 0; i < VisualTreeHelper.GetChildrenCount(root); i++)
++            {
++                var found = FindWebView(VisualTreeHelper.GetChild(root, i));
++                if (found != null)
++                {
++                    return found;
++                }
++            }
++
++            return null;
++        }
++
++        private async Task<WebViewCapturedFrame> CaptureWebViewFrameAsync(WebView2 webView)
++        {
++            if (webView == null)
++            {
++                return null;
++            }
++
++            // WebView2 is initialized asynchronously from the host's Loaded handler. Wait for both
++            // the controller and the document before taking the first media frame; later samples
++            // pass through immediately.
++            for (var attempt = 0; attempt < 40; attempt++)
++            {
++                var core = webView.CoreWebView2;
++                if (core != null)
++                {
++                    try
++                    {
++                        var ready = await core.ExecuteScriptAsync("document.readyState").ConfigureAwait(true);
++                        if (string.Equals(ready, "\"complete\"", StringComparison.OrdinalIgnoreCase) ||
++                            string.Equals(ready, "\"interactive\"", StringComparison.OrdinalIgnoreCase))
++                        {
++                            break;
++                        }
++                    }
++                    catch
++                    {
++                        // Navigation may be between documents; retry briefly.
++                    }
++                }
++
++                await Task.Delay(50).ConfigureAwait(true);
++            }
++
++            if (webView.CoreWebView2 == null)
++            {
++                return null;
++            }
++
++            try
++            {
++                using (var stream = new MemoryStream())
++                {
++                    await webView.CoreWebView2.CapturePreviewAsync(
++                        CoreWebView2CapturePreviewImageFormat.Png, stream).ConfigureAwait(true);
++                    stream.Position = 0;
++                    var decoder = System.Windows.Media.Imaging.BitmapDecoder.Create(
++                        stream,
++                        System.Windows.Media.Imaging.BitmapCreateOptions.PreservePixelFormat,
++                        System.Windows.Media.Imaging.BitmapCacheOption.OnLoad);
++                    var source = decoder.Frames.FirstOrDefault();
++                    if (source == null || source.PixelWidth <= 0 || source.PixelHeight <= 0)
++                    {
++                        return null;
++                    }
++
++                    var converted = new System.Windows.Media.Imaging.FormatConvertedBitmap(
++                        source, PixelFormats.Pbgra32, null, 0);
++                    converted.Freeze();
++                    var stride = converted.PixelWidth * 4;
++                    var pixels = new byte[stride * converted.PixelHeight];
++                    converted.CopyPixels(pixels, stride, 0);
++                    var opacity = Math.Max(
++                        0.35,
++                        Math.Min(1.0,
++                            ProviderRegistry.Settings<LocalSettings>()?.OverlayCustomOpacity ?? 1.0));
++                    if (opacity < 0.999)
++                    {
++                        // Pbgra32 is premultiplied, so scale color and alpha together exactly as
++                        // the live overlay window's Opacity property does at its settled value.
++                        for (var i = 0; i < pixels.Length; i++)
++                        {
++                            pixels[i] = (byte)Math.Round(pixels[i] * opacity);
++                        }
++                    }
++
++                    return new WebViewCapturedFrame
++                    {
++                        Pixels = pixels,
++                        Width = converted.PixelWidth,
++                        Height = converted.PixelHeight,
++                    };
++                }
++            }
++            catch (Exception ex)
++            {
++                _logger?.Debug(ex, "WebView2 notification frame capture failed.");
++                return null;
++            }
++        }
++
++        private async Task RefreshWebViewFrameAsync(
++            AchievementToastViewModel vm, WebView2 webView, WebViewCaptureState state)
++        {
++            if (vm == null || webView == null || state == null || state.Capturing)
++            {
++                return;
++            }
++
++            state.Capturing = true;
++            try
++            {
++                var frame = await CaptureWebViewFrameAsync(webView).ConfigureAwait(true);
++                if (frame != null && _activeWebViewFrames.TryGetValue(vm, out var active) &&
++                    ReferenceEquals(active, state))
++                {
++                    state.Latest = frame;
++                }
++            }
++            finally
++            {
++                state.Capturing = false;
++            }
++        }
++
+         /// <summary>
+         /// The shared geometry for one track operation: the wave's ItemsControl, the game client
+         /// rect and toast window rect (physical pixels), and the window's DIP-to-physical factors.
+@@ -770,9 +1004,41 @@ private void SampleWaveTracks(
+ 
+             for (var i = 0; i < toastItems.Count; i++)
+             {
+-                var container = itemsControl.ItemContainerGenerator.ContainerFromIndex(i) as FrameworkElement;
+-                if (container == null ||
+-                    !TryRenderToastItemBytes(window, container, out var pixels, out var pw, out var ph))
++                var vm = toastItems[i];
++                var container = ResolveCardContainer(itemsControl, vm);
++                if (container == null)
++                {
++                    continue;
++                }
++
++                byte[] pixels;
++                int pw;
++                int ph;
++                var webView = FindWebView(container);
++                if (webView != null)
++                {
++                    if (!_activeWebViewFrames.TryGetValue(vm, out var state))
++                    {
++                        state = new WebViewCaptureState();
++                        _activeWebViewFrames[vm] = state;
++                    }
++
++                    if (!state.Capturing)
++                    {
++                        _ = RefreshWebViewFrameAsync(vm, webView, state);
++                    }
++
++                    var frame = state.Latest;
++                    if (frame == null)
++                    {
++                        continue;
++                    }
++
++                    pixels = frame.Pixels;
++                    pw = frame.Width;
++                    ph = frame.Height;
++                }
++                else if (!TryRenderToastItemBytes(window, container, out pixels, out pw, out ph))
+                 {
+                     continue;
+                 }
+@@ -785,7 +1051,7 @@ private void SampleWaveTracks(
+                 var relX = windowPhys.X + (int)Math.Round(origin.X * pxPerDipX) - clientPhys.X;
+                 var relY = windowPhys.Y + (int)Math.Round(origin.Y * pxPerDipY) - clientPhys.Y;
+                 recorder.Sample(
+-                    toastItems[i], pixels, pw, ph, relX, relY, clientPhys.Width, clientPhys.Height, elapsedMs);
++                    vm, pixels, pw, ph, relX, relY, clientPhys.Width, clientPhys.Height, elapsedMs);
+             }
+         }
+ 
+@@ -808,7 +1074,7 @@ private void SetTrackCornerOffsets(
+ 
+             foreach (var vm in toastItems)
+             {
+-                var container = itemsControl.ItemContainerGenerator.ContainerFromItem(vm) as FrameworkElement;
++                var container = ResolveCardContainer(itemsControl, vm);
+                 if (container == null || container.RenderSize.Width <= 0 || container.RenderSize.Height <= 0)
+                 {
+                     continue;
+@@ -821,9 +1087,8 @@ private void SetTrackCornerOffsets(
+                 var settledRelX = windowPhys.X + (int)Math.Round(bounds.X * pxPerDipX) - clientPhys.X;
+                 var settledRelY = windowPhys.Y + (int)Math.Round(bounds.Y * pxPerDipY) - clientPhys.Y;
+ 
+-                ToastWindowPlacer.ComputeCorner(
+-                    clientPhys, physW, physH, _activeMonitorScale,
+-                    AlignRight(), AlignBottom(), EffectiveGapDip(), out var cornerX, out var cornerY);
++                ComputeActiveCorner(
++                    clientPhys, physW, physH, out var cornerX, out var cornerY);
+                 recorder.SetCornerOffset(
+                     vm,
+                     (cornerX - clientPhys.X) - settledRelX,
+@@ -1082,7 +1347,12 @@ private WavePlan ResolveWavePlan(IReadOnlyList<AchievementToastViewModel> wave)
              // toast, items that only produce capture output, or a mix (waves batch by friend/own
              // only).
              var toastItems = wave
@@ -15475,7 +15859,40 @@ index d5e034ec651d003331ec4db4279ac5b7ebaf22ed..e86e135ee040338744a135668d615a70
                  .ToList();
              if (toastItems.Count > 0)
              {
-@@ -1146,6 +1179,11 @@ private async Task ShowWaveAsync(IReadOnlyList<AchievementToastViewModel> wave)
+@@ -1122,11 +1392,6 @@ private async Task ShowWaveAsync(IReadOnlyList<AchievementToastViewModel> wave)
+ 
+             var waveIsTestFire = wave[0].IsTestFire;
+             _activeToastThemeStylingEnabled = wave[0].ToastUseThemeStyling;
+-            // Resolve the corner once for this wave: a theme override wins, otherwise the plugin
+-            // setting. Positioning (including the per-frame game-window follow) and slide direction
+-            // both read the resolved value.
+-            _activePosition = EffectivePosition();
+-            _activeCardGlow = wave[0].ToastGlowMargin.Top;
+             // Placement state is per-wave: the correction is measured on this wave's first settled
+             // placement, and the anomaly warning is emitted at most once for it.
+             _placementCorrection = default(ToastWindowPlacer.PlacementCorrection);
+@@ -1138,6 +1403,20 @@ private async Task ShowWaveAsync(IReadOnlyList<AchievementToastViewModel> wave)
+             var cardItems = wavePlan.CardItems;
+             var visible = wavePlan.IsVisible;
+             var plan = wavePlan.Screenshots;
++            _activeUsesCustomMediaSurface = !visible && cardItems.Count > 0 &&
++                _createCustomNotificationContent != null &&
++                cardItems.All(vm => _usesCustomNotification?.Invoke(vm.SourceEventArgs) == true);
++            var customPosition = ProviderRegistry.Settings<LocalSettings>()?.UnlockOverlayPosition
++                ?? LocalUnlockOverlayPosition.BottomRight;
++            _activeCenterHorizontally = _activeUsesCustomMediaSurface &&
++                (customPosition == LocalUnlockOverlayPosition.TopCenter ||
++                 customPosition == LocalUnlockOverlayPosition.BottomCenter);
++            // Media-only waves owned by the custom renderer use its configured corner and have no
++            // upstream glow margin. Ordinary waves retain the theme/plugin toast placement.
++            _activePosition = _activeUsesCustomMediaSurface
++                ? ResolveCustomMediaPosition()
++                : EffectivePosition();
++            _activeCardGlow = _activeUsesCustomMediaSurface ? 0 : wave[0].ToastGlowMargin.Top;
+ 
+             // The base capture must precede window.Show(); overlapping it with the sound-align
+             // delay below adds no latency to the toast itself. It feeds every variant: clean saves
+@@ -1146,6 +1425,11 @@ private async Task ShowWaveAsync(IReadOnlyList<AchievementToastViewModel> wave)
              Task<System.Drawing.Bitmap> baseCaptureTask = null;
              if (plan != null)
              {
@@ -15487,7 +15904,87 @@ index d5e034ec651d003331ec4db4279ac5b7ebaf22ed..e86e135ee040338744a135668d615a70
                  baseCaptureTask = StartWaveSurfaceCapture(waveIsTestFire);
              }
  
-@@ -1663,12 +1701,22 @@ private sealed class WaveScreenshotPlan
+@@ -1200,9 +1484,56 @@ private async Task ShowWaveAsync(IReadOnlyList<AchievementToastViewModel> wave)
+             var previewSource = cardItems
+                 .Select(vm => vm.PreviewTemplateSource)
+                 .FirstOrDefault(source => source.HasValue);
+-            var template = ToastSurfaceFactory.ResolveToastTemplate(
+-                _templateResolver, cardItems, ToastThemeStylingEnabled, waveProviderKey, waveScopeGameId);
+-            var items = ToastSurfaceFactory.BuildToastSurface(cardItems, template);
++            DataTemplate template = null;
++            ItemsControl items = null;
++            _activeCardItems = null;
++            if (_activeUsesCustomMediaSurface)
++            {
++                var customItems = new ItemsControl();
++                var customMap = new Dictionary<AchievementToastViewModel, FrameworkElement>();
++                foreach (var vm in cardItems)
++                {
++                    FrameworkElement content = null;
++                    try
++                    {
++                        content = _createCustomNotificationContent(vm.SourceEventArgs);
++                    }
++                    catch (Exception ex)
++                    {
++                        _logger?.Debug(ex, "Custom notification media surface failed; using the original toast surface.");
++                    }
++
++                    if (content == null)
++                    {
++                        customItems = null;
++                        customMap = null;
++                        break;
++                    }
++
++                    customItems.Items.Add(content);
++                    customMap[vm] = content;
++                }
++
++                if (customItems != null)
++                {
++                    items = customItems;
++                    _activeCardItems = customMap;
++                }
++                else
++                {
++                    _activeUsesCustomMediaSurface = false;
++                    _activeCenterHorizontally = false;
++                    _activePosition = EffectivePosition();
++                    _activeCardGlow = wave[0].ToastGlowMargin.Top;
++                }
++            }
++
++            if (items == null)
++            {
++                template = ToastSurfaceFactory.ResolveToastTemplate(
++                    _templateResolver, cardItems, ToastThemeStylingEnabled, waveProviderKey, waveScopeGameId);
++                items = ToastSurfaceFactory.BuildToastSurface(cardItems, template);
++            }
+ 
+             LogWaveDiagnostics(cardItems, template, wavePlan.Mode);
+ 
+@@ -1473,7 +1804,7 @@ private async Task ShowWaveAsync(IReadOnlyList<AchievementToastViewModel> wave)
+                     CompositionTarget.Rendering += onRendering;
+                 }
+ 
+-                var durationMs = EffectiveDurationSeconds() * 1000;
++                var durationMs = EffectiveWaveDurationMilliseconds();
+                 var remainingMs = Math.Max(0, durationMs - captureDelayMs);
+                 try
+                 {
+@@ -1543,6 +1874,10 @@ private async Task ShowWaveAsync(IReadOnlyList<AchievementToastViewModel> wave)
+                 _activeIsGame = false;
+                 _activeSuppressZOrder = false;
+                 _activeMonitorScale = 1.0;
++                _activeUsesCustomMediaSurface = false;
++                _activeCenterHorizontally = false;
++                _activeCardItems = null;
++                _activeWebViewFrames.Clear();
+ 
+                 try
+                 {
+@@ -1663,12 +1998,22 @@ private sealed class WaveScreenshotPlan
  
              public string FramedSuffix { get; set; }
  
@@ -15514,7 +16011,7 @@ index d5e034ec651d003331ec4db4279ac5b7ebaf22ed..e86e135ee040338744a135668d615a70
              public bool NeedsFrame => Items.Any(i =>
                  (i.Variants & ScreenshotVariants.Framed) != 0);
          }
-@@ -1693,15 +1741,28 @@ private WaveScreenshotPlan BuildScreenshotPlan(IReadOnlyList<AchievementToastVie
+@@ -1693,15 +2038,28 @@ private WaveScreenshotPlan BuildScreenshotPlan(IReadOnlyList<AchievementToastVie
              }
  
              var persisted = _settings?.Persisted;
@@ -15546,7 +16043,7 @@ index d5e034ec651d003331ec4db4279ac5b7ebaf22ed..e86e135ee040338744a135668d615a70
              {
                  baseDir = System.IO.Path.Combine(baseDir, UnlockScreenshotService.TestFolderName);
              }
-@@ -1712,6 +1773,9 @@ private WaveScreenshotPlan BuildScreenshotPlan(IReadOnlyList<AchievementToastVie
+@@ -1712,6 +2070,9 @@ private WaveScreenshotPlan BuildScreenshotPlan(IReadOnlyList<AchievementToastVie
                  CleanSuffix = NormalizeSuffix(persisted.UnlockScreenshotSuffixClean),
                  WithToastSuffix = NormalizeSuffix(persisted.UnlockScreenshotSuffixWithToast),
                  FramedSuffix = NormalizeSuffix(persisted.UnlockScreenshotSuffixFramed),
@@ -15556,7 +16053,7 @@ index d5e034ec651d003331ec4db4279ac5b7ebaf22ed..e86e135ee040338744a135668d615a70
              };
              foreach (var vm in wave)
              {
-@@ -1733,6 +1797,21 @@ private WaveScreenshotPlan BuildScreenshotPlan(IReadOnlyList<AchievementToastVie
+@@ -1733,6 +2094,21 @@ private WaveScreenshotPlan BuildScreenshotPlan(IReadOnlyList<AchievementToastVie
              return plan.Items.Count > 0 ? plan : null;
          }
  
@@ -15578,7 +16075,7 @@ index d5e034ec651d003331ec4db4279ac5b7ebaf22ed..e86e135ee040338744a135668d615a70
          /// <summary>
          /// Trims a configured screenshot filename suffix; blank collapses to null so the path
          /// builder emits no suffix at all.
-@@ -1762,6 +1841,11 @@ private async Task SaveWaveScreenshotsAsync(
+@@ -1762,6 +2138,11 @@ private async Task SaveWaveScreenshotsAsync(
                      baseBitmap = await baseCaptureTask.ConfigureAwait(true);
                  }
  
@@ -15590,7 +16087,7 @@ index d5e034ec651d003331ec4db4279ac5b7ebaf22ed..e86e135ee040338744a135668d615a70
                  var framedByVm = new Dictionary<AchievementToastViewModel, System.Windows.Media.Imaging.BitmapSource>();
                  if (plan.NeedsFrame && baseBitmap != null)
                  {
-@@ -1818,27 +1902,65 @@ private async Task SaveWaveScreenshotsAsync(
+@@ -1818,27 +2199,65 @@ private async Task SaveWaveScreenshotsAsync(
                              var vm = item.Vm;
                              if ((item.Variants & ScreenshotVariants.Clean) != 0 && clean != null)
                              {
@@ -15668,6 +16165,112 @@ index d5e034ec651d003331ec4db4279ac5b7ebaf22ed..e86e135ee040338744a135668d615a70
                              }
                          }
  
+@@ -2039,7 +2458,43 @@ private bool AlignBottom()
+         // margin, so the body sits a constant distance from the corner whether or not the glow is on.
+         private double EffectiveGapDip()
+         {
+-            return CornerGapDip - _activeCardGlow;
++            return (_activeUsesCustomMediaSurface ? 16d : CornerGapDip) - _activeCardGlow;
++        }
++
++        private void ComputeActiveCorner(
++            System.Drawing.Rectangle anchorPhys, int width, int height, out int x, out int y)
++        {
++            if (_activeCenterHorizontally)
++            {
++                var gap = (int)Math.Round(EffectiveGapDip() * Math.Max(0.1, _activeMonitorScale));
++                x = anchorPhys.Left + ((anchorPhys.Width - width) / 2);
++                y = AlignBottom()
++                    ? anchorPhys.Bottom - height - gap
++                    : anchorPhys.Top + gap;
++                return;
++            }
++
++            ToastWindowPlacer.ComputeCorner(
++                anchorPhys, width, height, _activeMonitorScale,
++                AlignRight(), AlignBottom(), EffectiveGapDip(), out x, out y);
++        }
++
++        private ToastScreenCorner ResolveCustomMediaPosition()
++        {
++            switch (ProviderRegistry.Settings<LocalSettings>()?.UnlockOverlayPosition)
++            {
++                case LocalUnlockOverlayPosition.TopLeft:
++                    return ToastScreenCorner.TopLeft;
++                case LocalUnlockOverlayPosition.BottomLeft:
++                    return ToastScreenCorner.BottomLeft;
++                case LocalUnlockOverlayPosition.TopCenter:
++                case LocalUnlockOverlayPosition.TopRight:
++                    return ToastScreenCorner.TopRight;
++                case LocalUnlockOverlayPosition.BottomCenter:
++                case LocalUnlockOverlayPosition.BottomRight:
++                default:
++                    return ToastScreenCorner.BottomRight;
++            }
+         }
+ 
+         /// <summary>
+@@ -2084,10 +2539,22 @@ private bool TryPlacePhysical(Window window, bool measure, out ToastWindowPlacer
+             }
+ 
+             var renderScale = ToastWindowPlacer.RenderScale(window);
+-            var placed = ToastWindowPlacer.PositionPhysical(
+-                window, anchorPhys, renderScale, _activeMonitorScale, AlignRight(), AlignBottom(), EffectiveGapDip(),
+-                measure, ref _placementCorrection, out outcome);
+-            LogPlacementAnomaly(window, anchorPhys, renderScale, outcome);
++            bool placed;
++            if (_activeCenterHorizontally && window.ActualWidth > 0 && window.ActualHeight > 0)
++            {
++                var width = Math.Max(1, (int)Math.Round(window.ActualWidth * renderScale));
++                var height = Math.Max(1, (int)Math.Round(window.ActualHeight * renderScale));
++                ComputeActiveCorner(anchorPhys, width, height, out var x, out var y);
++                ToastWindowPlacer.MovePhysical(window, x, y);
++                placed = true;
++            }
++            else
++            {
++                placed = ToastWindowPlacer.PositionPhysical(
++                    window, anchorPhys, renderScale, _activeMonitorScale, AlignRight(), AlignBottom(), EffectiveGapDip(),
++                    measure, ref _placementCorrection, out outcome);
++                LogPlacementAnomaly(window, anchorPhys, renderScale, outcome);
++            }
+ 
+             // Keep the toast directly above the game window in the z-order (not owned, so the game is
+             // never raised). Re-asserted every placement/follow frame so it stays interleaved as the
+@@ -2168,6 +2635,14 @@ private bool TryComputeRestingCorner(Window window, out int x, out int y)
+             }
+ 
+             var renderScale = ToastWindowPlacer.RenderScale(window);
++            if (_activeCenterHorizontally && window.ActualWidth > 0 && window.ActualHeight > 0)
++            {
++                var width = Math.Max(1, (int)Math.Round(window.ActualWidth * renderScale));
++                var height = Math.Max(1, (int)Math.Round(window.ActualHeight * renderScale));
++                ComputeActiveCorner(anchorPhys, width, height, out x, out y);
++                return true;
++            }
++
+             return ToastWindowPlacer.TryComputeCorner(
+                 window, anchorPhys, renderScale, _activeMonitorScale, AlignRight(), AlignBottom(), EffectiveGapDip(),
+                 out x, out y, out _);
+@@ -2637,6 +3112,18 @@ private int EffectiveDurationSeconds()
+             return setting;
+         }
+ 
++        private int EffectiveWaveDurationMilliseconds()
++        {
++            if (_activeUsesCustomMediaSurface)
++            {
++                return Math.Max(
++                    1200,
++                    ProviderRegistry.Settings<LocalSettings>()?.UnlockOverlayDurationMilliseconds ?? 3400);
++            }
++
++            return EffectiveDurationSeconds() * 1000;
++        }
++
+         /// <summary>
+         /// Animates every countdown bar in the wave (one per toast) from full to empty over the
+         /// display duration, so it reads as an auto-dismiss timer. The animation's shape (from/to,
 diff --git a/source/Services/UI/UnlockScreenshotService.cs b/source/Services/UI/UnlockScreenshotService.cs
 index 53ec251b1ff506dc155a6dd0067beb63bfb24af9..c0a638eb5411228212eb1f0d571975f87a23fbf6 100644
 --- a/source/Services/UI/UnlockScreenshotService.cs
@@ -15857,6 +16460,18 @@ index 53ec251b1ff506dc155a6dd0067beb63bfb24af9..c0a638eb5411228212eb1f0d571975f8
          /// </summary>
          public Rectangle? TryGetGameMonitorBounds(int? startedProcessId)
          {
+diff --git a/source/ViewModels/AchievementToastViewModel.cs b/source/ViewModels/AchievementToastViewModel.cs
+index 86abe7b68040e445dd59807d02e2ffb2c695c970..173f04dc34fea23e2680af41ea82d0bd159334b7 100644
+--- a/source/ViewModels/AchievementToastViewModel.cs
++++ b/source/ViewModels/AchievementToastViewModel.cs
+@@ -100,6 +100,7 @@ public AchievementToastViewModel(
+         internal Services.UI.NotificationTemplatePreviewSource? PreviewTemplateSource => _args.PreviewTemplateSource;
+         internal string AchievementName => ResolveAchievementName(_args);
+         internal int AchievementNumber => _args.AchievementNumber;
++        internal AchievementUnlockedEventArgs SourceEventArgs => _args;
+ 
+         /// <summary>
+         /// Whether this unlock is being cut into a clip, so its card must be realized and sampled
 diff --git a/source/ViewModels/Items/AchievementDisplayItem.cs b/source/ViewModels/Items/AchievementDisplayItem.cs
 index 2f44b9f9179bda223bbbe4cb5d6b514a9d44986d..83efe530cb28916c0e008e3764fc0b9cadd7bf87 100644
 --- a/source/ViewModels/Items/AchievementDisplayItem.cs

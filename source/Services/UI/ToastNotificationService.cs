@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Diagnostics;
+using System.IO;
 using System.Linq;
 using System.Threading.Tasks;
 using System.Windows;
@@ -9,6 +10,8 @@ using System.Windows.Interop;
 using System.Windows.Media;
 using System.Windows.Media.Animation;
 using System.Windows.Threading;
+using Microsoft.Web.WebView2.Core;
+using Microsoft.Web.WebView2.Wpf;
 using Playnite.SDK;
 using PlayniteAchievements.Models;
 using PlayniteAchievements.Models.Achievements;
@@ -36,6 +39,7 @@ namespace PlayniteAchievements.Services.UI
         // track even when nothing about it shows on screen. Supplied by the recording service.
         private readonly Func<AchievementUnlockedEventArgs, bool> _needsOverlayTrack;
         private readonly Func<AchievementUnlockedEventArgs, bool> _usesCustomNotification;
+        private readonly Func<AchievementUnlockedEventArgs, FrameworkElement> _createCustomNotificationContent;
         private readonly UnlockScreenshotService _screenshotService;
         private readonly ScreenshotFrameCompositor _frameCompositor;
         private readonly AchievementToastTemplateResolver _templateResolver;
@@ -98,6 +102,24 @@ namespace PlayniteAchievements.Services.UI
         // this wave has already logged that its placement needed rescuing.
         private ToastWindowPlacer.PlacementCorrection _placementCorrection;
         private bool _placementAnomalyLogged;
+        private bool _activeUsesCustomMediaSurface;
+        private bool _activeCenterHorizontally;
+        private Dictionary<AchievementToastViewModel, FrameworkElement> _activeCardItems;
+        private readonly Dictionary<AchievementToastViewModel, WebViewCaptureState> _activeWebViewFrames =
+            new Dictionary<AchievementToastViewModel, WebViewCaptureState>();
+
+        private sealed class WebViewCapturedFrame
+        {
+            public byte[] Pixels { get; set; }
+            public int Width { get; set; }
+            public int Height { get; set; }
+        }
+
+        private sealed class WebViewCaptureState
+        {
+            public bool Capturing { get; set; }
+            public WebViewCapturedFrame Latest { get; set; }
+        }
 
         public ToastNotificationService(
             IPlayniteAPI api,
@@ -108,7 +130,8 @@ namespace PlayniteAchievements.Services.UI
             ActiveGameWindowTracker windowTracker = null,
             GameCustomDataStore gameCustomDataStore = null,
             Func<AchievementUnlockedEventArgs, bool> needsOverlayTrack = null,
-            Func<AchievementUnlockedEventArgs, bool> usesCustomNotification = null)
+            Func<AchievementUnlockedEventArgs, bool> usesCustomNotification = null,
+            Func<AchievementUnlockedEventArgs, FrameworkElement> createCustomNotificationContent = null)
         {
             _api = api;
             _settings = settings;
@@ -119,6 +142,7 @@ namespace PlayniteAchievements.Services.UI
             _gameCustomDataStore = gameCustomDataStore;
             _needsOverlayTrack = needsOverlayTrack;
             _usesCustomNotification = usesCustomNotification;
+            _createCustomNotificationContent = createCustomNotificationContent;
             _screenshotService = new UnlockScreenshotService(logger);
             _frameCompositor = new ScreenshotFrameCompositor(logger);
             _templateResolver = new AchievementToastTemplateResolver(
@@ -551,15 +575,41 @@ namespace PlayniteAchievements.Services.UI
                 var rect = System.Drawing.Rectangle.Empty;
                 if (haveGeometry && itemsControl != null)
                 {
-                    var container = itemsControl.ItemContainerGenerator.ContainerFromItem(vm) as FrameworkElement;
+                    var container = ResolveCardContainer(itemsControl, vm);
                     if (container != null)
                     {
-                        overlay = TryRenderToastItemOverlay(window, container, out var physSize);
+                        var webView = FindWebView(container);
+                        System.Drawing.Size physSize;
+                        if (webView != null)
+                        {
+                            WebViewCaptureState captureState = null;
+                            if (_activeWebViewFrames.TryGetValue(vm, out captureState))
+                            {
+                                for (var wait = 0; wait < 100 && captureState.Capturing; wait++)
+                                {
+                                    await Task.Delay(10).ConfigureAwait(true);
+                                }
+                            }
+
+                            var frame = captureState?.Capturing == true
+                                ? captureState.Latest
+                                : await CaptureWebViewFrameAsync(webView).ConfigureAwait(true);
+                            overlay = frame != null
+                                ? CreatePArgbBitmap(frame.Pixels, frame.Width, frame.Height)
+                                : null;
+                            physSize = frame != null
+                                ? new System.Drawing.Size(frame.Width, frame.Height)
+                                : System.Drawing.Size.Empty;
+                        }
+                        else
+                        {
+                            overlay = TryRenderToastItemOverlay(window, container, out physSize);
+                        }
+
                         if (overlay != null)
                         {
-                            ToastWindowPlacer.ComputeCorner(
-                                anchorPhys, physSize.Width, physSize.Height, _activeMonitorScale,
-                                AlignRight(), AlignBottom(), EffectiveGapDip(), out var ix, out var iy);
+                            ComputeActiveCorner(
+                                anchorPhys, physSize.Width, physSize.Height, out var ix, out var iy);
                             rect = new System.Drawing.Rectangle(ix, iy, physSize.Width, physSize.Height);
                         }
                     }
@@ -747,6 +797,162 @@ namespace PlayniteAchievements.Services.UI
             return bitmap;
         }
 
+        private FrameworkElement ResolveCardContainer(
+            ItemsControl itemsControl, AchievementToastViewModel vm)
+        {
+            if (itemsControl == null || vm == null)
+            {
+                return null;
+            }
+
+            object item = vm;
+            if (_activeCardItems != null && _activeCardItems.TryGetValue(vm, out var customItem))
+            {
+                item = customItem;
+            }
+
+            return itemsControl.ItemContainerGenerator.ContainerFromItem(item) as FrameworkElement
+                ?? item as FrameworkElement;
+        }
+
+        private static WebView2 FindWebView(DependencyObject root)
+        {
+            if (root == null)
+            {
+                return null;
+            }
+
+            if (root is WebView2 webView)
+            {
+                return webView;
+            }
+
+            for (var i = 0; i < VisualTreeHelper.GetChildrenCount(root); i++)
+            {
+                var found = FindWebView(VisualTreeHelper.GetChild(root, i));
+                if (found != null)
+                {
+                    return found;
+                }
+            }
+
+            return null;
+        }
+
+        private async Task<WebViewCapturedFrame> CaptureWebViewFrameAsync(WebView2 webView)
+        {
+            if (webView == null)
+            {
+                return null;
+            }
+
+            // WebView2 is initialized asynchronously from the host's Loaded handler. Wait for both
+            // the controller and the document before taking the first media frame; later samples
+            // pass through immediately.
+            for (var attempt = 0; attempt < 40; attempt++)
+            {
+                var core = webView.CoreWebView2;
+                if (core != null)
+                {
+                    try
+                    {
+                        var ready = await core.ExecuteScriptAsync("document.readyState").ConfigureAwait(true);
+                        if (string.Equals(ready, "\"complete\"", StringComparison.OrdinalIgnoreCase) ||
+                            string.Equals(ready, "\"interactive\"", StringComparison.OrdinalIgnoreCase))
+                        {
+                            break;
+                        }
+                    }
+                    catch
+                    {
+                        // Navigation may be between documents; retry briefly.
+                    }
+                }
+
+                await Task.Delay(50).ConfigureAwait(true);
+            }
+
+            if (webView.CoreWebView2 == null)
+            {
+                return null;
+            }
+
+            try
+            {
+                using (var stream = new MemoryStream())
+                {
+                    await webView.CoreWebView2.CapturePreviewAsync(
+                        CoreWebView2CapturePreviewImageFormat.Png, stream).ConfigureAwait(true);
+                    stream.Position = 0;
+                    var decoder = System.Windows.Media.Imaging.BitmapDecoder.Create(
+                        stream,
+                        System.Windows.Media.Imaging.BitmapCreateOptions.PreservePixelFormat,
+                        System.Windows.Media.Imaging.BitmapCacheOption.OnLoad);
+                    var source = decoder.Frames.FirstOrDefault();
+                    if (source == null || source.PixelWidth <= 0 || source.PixelHeight <= 0)
+                    {
+                        return null;
+                    }
+
+                    var converted = new System.Windows.Media.Imaging.FormatConvertedBitmap(
+                        source, PixelFormats.Pbgra32, null, 0);
+                    converted.Freeze();
+                    var stride = converted.PixelWidth * 4;
+                    var pixels = new byte[stride * converted.PixelHeight];
+                    converted.CopyPixels(pixels, stride, 0);
+                    var opacity = Math.Max(
+                        0.35,
+                        Math.Min(1.0,
+                            ProviderRegistry.Settings<LocalSettings>()?.OverlayCustomOpacity ?? 1.0));
+                    if (opacity < 0.999)
+                    {
+                        // Pbgra32 is premultiplied, so scale color and alpha together exactly as
+                        // the live overlay window's Opacity property does at its settled value.
+                        for (var i = 0; i < pixels.Length; i++)
+                        {
+                            pixels[i] = (byte)Math.Round(pixels[i] * opacity);
+                        }
+                    }
+
+                    return new WebViewCapturedFrame
+                    {
+                        Pixels = pixels,
+                        Width = converted.PixelWidth,
+                        Height = converted.PixelHeight,
+                    };
+                }
+            }
+            catch (Exception ex)
+            {
+                _logger?.Debug(ex, "WebView2 notification frame capture failed.");
+                return null;
+            }
+        }
+
+        private async Task RefreshWebViewFrameAsync(
+            AchievementToastViewModel vm, WebView2 webView, WebViewCaptureState state)
+        {
+            if (vm == null || webView == null || state == null || state.Capturing)
+            {
+                return;
+            }
+
+            state.Capturing = true;
+            try
+            {
+                var frame = await CaptureWebViewFrameAsync(webView).ConfigureAwait(true);
+                if (frame != null && _activeWebViewFrames.TryGetValue(vm, out var active) &&
+                    ReferenceEquals(active, state))
+                {
+                    state.Latest = frame;
+                }
+            }
+            finally
+            {
+                state.Capturing = false;
+            }
+        }
+
         /// <summary>
         /// The shared geometry for one track operation: the wave's ItemsControl, the game client
         /// rect and toast window rect (physical pixels), and the window's DIP-to-physical factors.
@@ -798,9 +1004,41 @@ namespace PlayniteAchievements.Services.UI
 
             for (var i = 0; i < toastItems.Count; i++)
             {
-                var container = itemsControl.ItemContainerGenerator.ContainerFromIndex(i) as FrameworkElement;
-                if (container == null ||
-                    !TryRenderToastItemBytes(window, container, out var pixels, out var pw, out var ph))
+                var vm = toastItems[i];
+                var container = ResolveCardContainer(itemsControl, vm);
+                if (container == null)
+                {
+                    continue;
+                }
+
+                byte[] pixels;
+                int pw;
+                int ph;
+                var webView = FindWebView(container);
+                if (webView != null)
+                {
+                    if (!_activeWebViewFrames.TryGetValue(vm, out var state))
+                    {
+                        state = new WebViewCaptureState();
+                        _activeWebViewFrames[vm] = state;
+                    }
+
+                    if (!state.Capturing)
+                    {
+                        _ = RefreshWebViewFrameAsync(vm, webView, state);
+                    }
+
+                    var frame = state.Latest;
+                    if (frame == null)
+                    {
+                        continue;
+                    }
+
+                    pixels = frame.Pixels;
+                    pw = frame.Width;
+                    ph = frame.Height;
+                }
+                else if (!TryRenderToastItemBytes(window, container, out pixels, out pw, out ph))
                 {
                     continue;
                 }
@@ -813,7 +1051,7 @@ namespace PlayniteAchievements.Services.UI
                 var relX = windowPhys.X + (int)Math.Round(origin.X * pxPerDipX) - clientPhys.X;
                 var relY = windowPhys.Y + (int)Math.Round(origin.Y * pxPerDipY) - clientPhys.Y;
                 recorder.Sample(
-                    toastItems[i], pixels, pw, ph, relX, relY, clientPhys.Width, clientPhys.Height, elapsedMs);
+                    vm, pixels, pw, ph, relX, relY, clientPhys.Width, clientPhys.Height, elapsedMs);
             }
         }
 
@@ -836,7 +1074,7 @@ namespace PlayniteAchievements.Services.UI
 
             foreach (var vm in toastItems)
             {
-                var container = itemsControl.ItemContainerGenerator.ContainerFromItem(vm) as FrameworkElement;
+                var container = ResolveCardContainer(itemsControl, vm);
                 if (container == null || container.RenderSize.Width <= 0 || container.RenderSize.Height <= 0)
                 {
                     continue;
@@ -849,9 +1087,8 @@ namespace PlayniteAchievements.Services.UI
                 var settledRelX = windowPhys.X + (int)Math.Round(bounds.X * pxPerDipX) - clientPhys.X;
                 var settledRelY = windowPhys.Y + (int)Math.Round(bounds.Y * pxPerDipY) - clientPhys.Y;
 
-                ToastWindowPlacer.ComputeCorner(
-                    clientPhys, physW, physH, _activeMonitorScale,
-                    AlignRight(), AlignBottom(), EffectiveGapDip(), out var cornerX, out var cornerY);
+                ComputeActiveCorner(
+                    clientPhys, physW, physH, out var cornerX, out var cornerY);
                 recorder.SetCornerOffset(
                     vm,
                     (cornerX - clientPhys.X) - settledRelX,
@@ -1155,11 +1392,6 @@ namespace PlayniteAchievements.Services.UI
 
             var waveIsTestFire = wave[0].IsTestFire;
             _activeToastThemeStylingEnabled = wave[0].ToastUseThemeStyling;
-            // Resolve the corner once for this wave: a theme override wins, otherwise the plugin
-            // setting. Positioning (including the per-frame game-window follow) and slide direction
-            // both read the resolved value.
-            _activePosition = EffectivePosition();
-            _activeCardGlow = wave[0].ToastGlowMargin.Top;
             // Placement state is per-wave: the correction is measured on this wave's first settled
             // placement, and the anomaly warning is emitted at most once for it.
             _placementCorrection = default(ToastWindowPlacer.PlacementCorrection);
@@ -1171,6 +1403,20 @@ namespace PlayniteAchievements.Services.UI
             var cardItems = wavePlan.CardItems;
             var visible = wavePlan.IsVisible;
             var plan = wavePlan.Screenshots;
+            _activeUsesCustomMediaSurface = !visible && cardItems.Count > 0 &&
+                _createCustomNotificationContent != null &&
+                cardItems.All(vm => _usesCustomNotification?.Invoke(vm.SourceEventArgs) == true);
+            var customPosition = ProviderRegistry.Settings<LocalSettings>()?.UnlockOverlayPosition
+                ?? LocalUnlockOverlayPosition.BottomRight;
+            _activeCenterHorizontally = _activeUsesCustomMediaSurface &&
+                (customPosition == LocalUnlockOverlayPosition.TopCenter ||
+                 customPosition == LocalUnlockOverlayPosition.BottomCenter);
+            // Media-only waves owned by the custom renderer use its configured corner and have no
+            // upstream glow margin. Ordinary waves retain the theme/plugin toast placement.
+            _activePosition = _activeUsesCustomMediaSurface
+                ? ResolveCustomMediaPosition()
+                : EffectivePosition();
+            _activeCardGlow = _activeUsesCustomMediaSurface ? 0 : wave[0].ToastGlowMargin.Top;
 
             // The base capture must precede window.Show(); overlapping it with the sound-align
             // delay below adds no latency to the toast itself. It feeds every variant: clean saves
@@ -1238,9 +1484,56 @@ namespace PlayniteAchievements.Services.UI
             var previewSource = cardItems
                 .Select(vm => vm.PreviewTemplateSource)
                 .FirstOrDefault(source => source.HasValue);
-            var template = ToastSurfaceFactory.ResolveToastTemplate(
-                _templateResolver, cardItems, ToastThemeStylingEnabled, waveProviderKey, waveScopeGameId);
-            var items = ToastSurfaceFactory.BuildToastSurface(cardItems, template);
+            DataTemplate template = null;
+            ItemsControl items = null;
+            _activeCardItems = null;
+            if (_activeUsesCustomMediaSurface)
+            {
+                var customItems = new ItemsControl();
+                var customMap = new Dictionary<AchievementToastViewModel, FrameworkElement>();
+                foreach (var vm in cardItems)
+                {
+                    FrameworkElement content = null;
+                    try
+                    {
+                        content = _createCustomNotificationContent(vm.SourceEventArgs);
+                    }
+                    catch (Exception ex)
+                    {
+                        _logger?.Debug(ex, "Custom notification media surface failed; using the original toast surface.");
+                    }
+
+                    if (content == null)
+                    {
+                        customItems = null;
+                        customMap = null;
+                        break;
+                    }
+
+                    customItems.Items.Add(content);
+                    customMap[vm] = content;
+                }
+
+                if (customItems != null)
+                {
+                    items = customItems;
+                    _activeCardItems = customMap;
+                }
+                else
+                {
+                    _activeUsesCustomMediaSurface = false;
+                    _activeCenterHorizontally = false;
+                    _activePosition = EffectivePosition();
+                    _activeCardGlow = wave[0].ToastGlowMargin.Top;
+                }
+            }
+
+            if (items == null)
+            {
+                template = ToastSurfaceFactory.ResolveToastTemplate(
+                    _templateResolver, cardItems, ToastThemeStylingEnabled, waveProviderKey, waveScopeGameId);
+                items = ToastSurfaceFactory.BuildToastSurface(cardItems, template);
+            }
 
             LogWaveDiagnostics(cardItems, template, wavePlan.Mode);
 
@@ -1511,7 +1804,7 @@ namespace PlayniteAchievements.Services.UI
                     CompositionTarget.Rendering += onRendering;
                 }
 
-                var durationMs = EffectiveDurationSeconds() * 1000;
+                var durationMs = EffectiveWaveDurationMilliseconds();
                 var remainingMs = Math.Max(0, durationMs - captureDelayMs);
                 try
                 {
@@ -1581,6 +1874,10 @@ namespace PlayniteAchievements.Services.UI
                 _activeIsGame = false;
                 _activeSuppressZOrder = false;
                 _activeMonitorScale = 1.0;
+                _activeUsesCustomMediaSurface = false;
+                _activeCenterHorizontally = false;
+                _activeCardItems = null;
+                _activeWebViewFrames.Clear();
 
                 try
                 {
@@ -2161,7 +2458,43 @@ namespace PlayniteAchievements.Services.UI
         // margin, so the body sits a constant distance from the corner whether or not the glow is on.
         private double EffectiveGapDip()
         {
-            return CornerGapDip - _activeCardGlow;
+            return (_activeUsesCustomMediaSurface ? 16d : CornerGapDip) - _activeCardGlow;
+        }
+
+        private void ComputeActiveCorner(
+            System.Drawing.Rectangle anchorPhys, int width, int height, out int x, out int y)
+        {
+            if (_activeCenterHorizontally)
+            {
+                var gap = (int)Math.Round(EffectiveGapDip() * Math.Max(0.1, _activeMonitorScale));
+                x = anchorPhys.Left + ((anchorPhys.Width - width) / 2);
+                y = AlignBottom()
+                    ? anchorPhys.Bottom - height - gap
+                    : anchorPhys.Top + gap;
+                return;
+            }
+
+            ToastWindowPlacer.ComputeCorner(
+                anchorPhys, width, height, _activeMonitorScale,
+                AlignRight(), AlignBottom(), EffectiveGapDip(), out x, out y);
+        }
+
+        private ToastScreenCorner ResolveCustomMediaPosition()
+        {
+            switch (ProviderRegistry.Settings<LocalSettings>()?.UnlockOverlayPosition)
+            {
+                case LocalUnlockOverlayPosition.TopLeft:
+                    return ToastScreenCorner.TopLeft;
+                case LocalUnlockOverlayPosition.BottomLeft:
+                    return ToastScreenCorner.BottomLeft;
+                case LocalUnlockOverlayPosition.TopCenter:
+                case LocalUnlockOverlayPosition.TopRight:
+                    return ToastScreenCorner.TopRight;
+                case LocalUnlockOverlayPosition.BottomCenter:
+                case LocalUnlockOverlayPosition.BottomRight:
+                default:
+                    return ToastScreenCorner.BottomRight;
+            }
         }
 
         /// <summary>
@@ -2206,10 +2539,22 @@ namespace PlayniteAchievements.Services.UI
             }
 
             var renderScale = ToastWindowPlacer.RenderScale(window);
-            var placed = ToastWindowPlacer.PositionPhysical(
-                window, anchorPhys, renderScale, _activeMonitorScale, AlignRight(), AlignBottom(), EffectiveGapDip(),
-                measure, ref _placementCorrection, out outcome);
-            LogPlacementAnomaly(window, anchorPhys, renderScale, outcome);
+            bool placed;
+            if (_activeCenterHorizontally && window.ActualWidth > 0 && window.ActualHeight > 0)
+            {
+                var width = Math.Max(1, (int)Math.Round(window.ActualWidth * renderScale));
+                var height = Math.Max(1, (int)Math.Round(window.ActualHeight * renderScale));
+                ComputeActiveCorner(anchorPhys, width, height, out var x, out var y);
+                ToastWindowPlacer.MovePhysical(window, x, y);
+                placed = true;
+            }
+            else
+            {
+                placed = ToastWindowPlacer.PositionPhysical(
+                    window, anchorPhys, renderScale, _activeMonitorScale, AlignRight(), AlignBottom(), EffectiveGapDip(),
+                    measure, ref _placementCorrection, out outcome);
+                LogPlacementAnomaly(window, anchorPhys, renderScale, outcome);
+            }
 
             // Keep the toast directly above the game window in the z-order (not owned, so the game is
             // never raised). Re-asserted every placement/follow frame so it stays interleaved as the
@@ -2290,6 +2635,14 @@ namespace PlayniteAchievements.Services.UI
             }
 
             var renderScale = ToastWindowPlacer.RenderScale(window);
+            if (_activeCenterHorizontally && window.ActualWidth > 0 && window.ActualHeight > 0)
+            {
+                var width = Math.Max(1, (int)Math.Round(window.ActualWidth * renderScale));
+                var height = Math.Max(1, (int)Math.Round(window.ActualHeight * renderScale));
+                ComputeActiveCorner(anchorPhys, width, height, out x, out y);
+                return true;
+            }
+
             return ToastWindowPlacer.TryComputeCorner(
                 window, anchorPhys, renderScale, _activeMonitorScale, AlignRight(), AlignBottom(), EffectiveGapDip(),
                 out x, out y, out _);
@@ -2757,6 +3110,18 @@ namespace PlayniteAchievements.Services.UI
             }
 
             return setting;
+        }
+
+        private int EffectiveWaveDurationMilliseconds()
+        {
+            if (_activeUsesCustomMediaSurface)
+            {
+                return Math.Max(
+                    1200,
+                    ProviderRegistry.Settings<LocalSettings>()?.UnlockOverlayDurationMilliseconds ?? 3400);
+            }
+
+            return EffectiveDurationSeconds() * 1000;
         }
 
         /// <summary>

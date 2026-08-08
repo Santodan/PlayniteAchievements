@@ -530,6 +530,58 @@ namespace PlayniteAchievements.Services
             return frame;
         }
 
+        /// <summary>
+        /// Builds the same custom achievement surface used by the live overlay. SAN/WebView2
+        /// selections remain WebView2 here; the media pipeline captures the browser pixels directly
+        /// instead of substituting the WPF compatibility renderer.
+        /// </summary>
+        internal FrameworkElement CreateAchievementCaptureContent(AchievementUnlockedEventArgs args)
+        {
+            if (args == null)
+            {
+                return null;
+            }
+
+            var settings = ProviderRegistry.Settings<LocalSettings>() ?? new LocalSettings();
+            var game = _api?.Database?.Games?.Get(args.PlayniteGameId);
+            var rarity = args.GlobalPercent.HasValue
+                ? AchievementRarityResolver.GetDetailText(
+                    args.GlobalPercent,
+                    RarityTierExtensions.TryParse(args.RarityTier, out var rarityTier)
+                        ? rarityTier
+                        : RarityTier.Common)
+                : args.RarityTier;
+            var sanContent = CreateSanWebViewPreviewContent(
+                args.GameName ?? game?.Name,
+                args.DisplayName ?? args.ApiName,
+                args.IconPath,
+                args.ProviderKey,
+                settings,
+                game,
+                args.Description,
+                args.Points ?? args.ScaledPoints,
+                rarity,
+                args.TrophyType,
+                isInlinePreview: false);
+            if (sanContent != null)
+            {
+                return sanContent;
+            }
+
+            return CreateOverlayPreviewContent(
+                args.GameName ?? game?.Name,
+                args.DisplayName ?? args.ApiName,
+                NotificationStyleCustom,
+                args.ProviderKey,
+                settings,
+                args.IconPath,
+                game,
+                args.Description,
+                args.Points ?? args.ScaledPoints,
+                rarity,
+                args.TrophyType);
+        }
+
         private FrameworkElement CreateSanWebViewPreviewContent(
             string gameName,
             string achievementName,
@@ -540,7 +592,8 @@ namespace PlayniteAchievements.Services
             string achievementDescription,
             int? achievementPoints,
             string achievementRarity,
-            string achievementTrophy)
+            string achievementTrophy,
+            bool isInlinePreview = true)
         {
             var hasSanSelection = settings != null &&
                 (IsSanTransitionStyle(settings.UnlockOverlayTransitionStyle) ||
@@ -624,7 +677,7 @@ namespace PlayniteAchievements.Services
                         durationMs,
                         width,
                         height,
-                        isInlinePreview: true);
+                        isInlinePreview: isInlinePreview);
                     var htmlPath = WriteSanWebViewDocumentToTempFile(html);
                     if (generation != loadGeneration || !host.IsLoaded)
                     {
