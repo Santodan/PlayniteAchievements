@@ -549,10 +549,26 @@
     <!-- Unlock Date / Progress Template -->
     <DataTemplate x:Key="AchievementUnlockDateTemplate">
         <!-- The tooltip names both sides of the comparison, so it covers the whole cell rather
-             than only the friend's row. It resolves to null outside compare mode. -->
-        <Grid HorizontalAlignment="Stretch"
-              Background="Transparent"
+             than only the friend's row. It resolves to null outside compare mode.
+
+             Outside compare mode the grid stretches and the date aligns itself inside the star
+             column, as it always has. In compare mode the grid instead sizes to its content and
+             takes the column's alignment itself, so the avatar+date block moves as one unit:
+             centered centers the whole pair, right pushes the whole pair right. Aligning each row
+             on its own instead would leave the two avatars at different offsets, since the rows
+             hold different text. -->
+        <Grid Background="Transparent"
               ToolTip="{Binding ComparisonToolTip, Mode=OneWay}">
+            <Grid.Style>
+                <Style TargetType="Grid">
+                    <Setter Property="HorizontalAlignment" Value="Stretch"/>
+                    <Style.Triggers>
+                        <DataTrigger Binding="{Binding HasComparison}" Value="True">
+                            <Setter Property="HorizontalAlignment" Value="{Binding RelativeSource={RelativeSource AncestorType={x:Type DataGridCell}}, Path=Column.(helpers:DataGridAlignmentBehavior.CellHorizontalAlignment)}"/>
+                        </DataTrigger>
+                    </Style.Triggers>
+                </Style>
+            </Grid.Style>
             <Grid.RowDefinitions>
                 <RowDefinition Height="Auto"/>
                 <RowDefinition Height="Auto"/>
@@ -576,11 +592,11 @@
                        helpers:AsyncImage.DecodePixel="32"/>
             </Border>
 
-            <!-- In compare mode the text is pinned left so it sits beside its avatar; a centered
-                 or right-aligned column would otherwise push it away from the avatar and leave the
-                 two rows' avatars at different offsets. Outside compare mode the column's
-                 configured alignment applies as before. Both rows use this same wrapper style, so
-                 their text starts at the same x. -->
+            <!-- Inside the block the text sits hard against its avatar; the block as a whole is
+                 what carries the column's alignment (see the grid style above). Letting the text
+                 align itself here as well would slide it away from the avatar and stagger the two
+                 rows. Outside compare mode there is no block to align, so the column's configured
+                 alignment applies to the text directly, as it always has. -->
             <Grid Grid.Column="1"
                   Visibility="{Binding ShowUnlockDate, Converter={StaticResource BoolToVis}}">
                 <Grid.Style>
@@ -613,6 +629,19 @@
                 Margin="4,0"
                 HorizontalAlignment="Stretch"
                 VerticalAlignment="{Binding RelativeSource={RelativeSource AncestorType={x:Type DataGridCell}}, Path=Column.(helpers:DataGridAlignmentBehavior.CellVerticalAlignment)}">
+                <!-- The column stops stretching once the cell sizes to its content in compare
+                     mode, so the bar needs a floor there or it shrinks to the width of whatever
+                     text the friend row happens to carry. Left unconstrained otherwise, where the
+                     star column still drives its width. -->
+                <Grid.Style>
+                    <Style TargetType="Grid">
+                        <Style.Triggers>
+                            <DataTrigger Binding="{Binding HasComparison}" Value="True">
+                                <Setter Property="MinWidth" Value="80"/>
+                            </DataTrigger>
+                        </Style.Triggers>
+                    </Style>
+                </Grid.Style>
 
                 <ProgressBar Style="{StaticResource GameProgressBar}"
                             Value="{Binding ProgressPercent, Mode=OneWay}"
