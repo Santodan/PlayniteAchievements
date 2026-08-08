@@ -333,7 +333,7 @@ namespace PlayniteAchievements.Manual.Tests
         {
             var provider = File.ReadAllText(FindRepoFile("source", "Providers", "Manual", "ManualAchievementsProvider.cs"));
 
-            StringAssert.Contains(provider, "source.ResolveProviderPlatformKey(link.SourceGameId)");
+            StringAssert.Contains(provider, "ManualDisplayPlatformResolver.Resolve(source, link)");
             Assert.AreEqual(
                 2,
                 CountOccurrences(provider, "ProviderPlatformKey = providerPlatformKey"),
