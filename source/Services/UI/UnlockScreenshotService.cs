@@ -181,11 +181,12 @@ namespace PlayniteAchievements.Services.UI
                 return source;
             }
 
+            Bitmap scaled = null;
             try
             {
                 var size = ResolutionCapMath.Apply(
                     source.Width, source.Height, capHeight, evenDimensions: false);
-                var scaled = new Bitmap(size.Width, size.Height, source.PixelFormat);
+                scaled = new Bitmap(size.Width, size.Height, source.PixelFormat);
                 using (var graphics = Graphics.FromImage(scaled))
                 // TileFlipXY: the default wrap mode samples past the source edge on a downscale and
                 // leaves a half-transparent border row and column.
@@ -210,6 +211,7 @@ namespace PlayniteAchievements.Services.UI
             catch (Exception ex)
             {
                 // A failed downscale must not cost the screenshot: keep the full-size capture.
+                scaled?.Dispose();
                 _logger?.Debug(ex, "Unlock screenshot downscale failed; keeping the captured size.");
                 return source;
             }
