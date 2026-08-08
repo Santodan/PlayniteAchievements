@@ -3,6 +3,7 @@ using System.Drawing;
 using System.Drawing.Imaging;
 using System.Runtime.InteropServices;
 using System.Threading;
+using PlayniteAchievements.Common;
 using Windows.Foundation;
 using Windows.Graphics.Capture;
 using Windows.Graphics.DirectX;
@@ -74,49 +75,25 @@ namespace PlayniteAchievements.Services.Capture
         }
 
         /// <summary>
-        /// Crops a full-window capture down to the client area. Measures the client rect against the
-        /// DWM extended frame bounds (the region WGC captures) and scales into the captured bitmap's
-        /// pixel space, so it stays correct under per-monitor DPI. Returns the input unchanged when
-        /// the client already fills the frame or anything can't be resolved.
+        /// Crops a full-window capture down to the client area, using the same measurement and
+        /// geometry the video recorder crops its frames with — see <see cref="CaptureCropMath"/>
+        /// for how the captured texture is related back to the window. Returns the input unchanged
+        /// when the client already fills the frame or nothing can be resolved.
         /// </summary>
         private static Bitmap CropToClient(Bitmap full, IntPtr hwnd)
         {
             try
             {
-                if (DwmGetWindowAttribute(hwnd, DWMWA_EXTENDED_FRAME_BOUNDS, out var frame, Marshal.SizeOf(typeof(RECT))) != 0)
-                {
-                    return full;
-                }
-
-                var fw = frame.Right - frame.Left;
-                var fh = frame.Bottom - frame.Top;
-                if (fw <= 0 || fh <= 0 || !GetClientRect(hwnd, out var client))
-                {
-                    return full;
-                }
-
-                var cw = client.Right - client.Left;
-                var ch = client.Bottom - client.Top;
-                var origin = new POINT { X = 0, Y = 0 };
-                if (cw <= 0 || ch <= 0 || !ClientToScreen(hwnd, ref origin))
-                {
-                    return full;
-                }
-
-                var sx = (double)full.Width / fw;
-                var sy = (double)full.Height / fh;
-                var x = Math.Max(0, Math.Min((int)Math.Round((origin.X - frame.Left) * sx), full.Width - 1));
-                var y = Math.Max(0, Math.Min((int)Math.Round((origin.Y - frame.Top) * sy), full.Height - 1));
-                var w = Math.Max(1, Math.Min((int)Math.Round(cw * sx), full.Width - x));
-                var h = Math.Max(1, Math.Min((int)Math.Round(ch * sy), full.Height - y));
+                var crop = CaptureCropMath.ClientCrop(
+                    full.Width, full.Height, WindowRectangles.Measure(hwnd), evenDimensions: false);
 
                 // Borderless / fullscreen: the client already fills the frame — nothing to crop.
-                if (x == 0 && y == 0 && w == full.Width && h == full.Height)
+                if (crop.IsEmpty || (crop.X == 0 && crop.Y == 0 && crop.Width == full.Width && crop.Height == full.Height))
                 {
                     return full;
                 }
 
-                var cropped = full.Clone(new Rectangle(x, y, w, h), full.PixelFormat);
+                var cropped = full.Clone(crop, full.PixelFormat);
                 full.Dispose();
                 return cropped;
             }

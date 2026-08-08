@@ -69,31 +69,10 @@ namespace PlayniteAchievements.Services.Capture
         [return: MarshalAs(UnmanagedType.Bool)]
         internal static extern bool IsWindow(IntPtr hWnd);
 
-        [DllImport("user32.dll", SetLastError = true)]
-        [return: MarshalAs(UnmanagedType.Bool)]
-        internal static extern bool GetWindowRect(IntPtr hWnd, out RECT lpRect);
-
-        [DllImport("user32.dll")]
-        [return: MarshalAs(UnmanagedType.Bool)]
-        internal static extern bool GetClientRect(IntPtr hWnd, out RECT lpRect);
-
-        [DllImport("user32.dll")]
-        [return: MarshalAs(UnmanagedType.Bool)]
-        internal static extern bool ClientToScreen(IntPtr hWnd, ref POINT lpPoint);
-
-        // Visible window bounds excluding the invisible resize border/shadow — this matches the
-        // region WGC CreateForWindow captures, so client-area cropping measures against it.
-        [DllImport("dwmapi.dll")]
-        internal static extern int DwmGetWindowAttribute(IntPtr hwnd, int dwAttribute, out RECT pvAttribute, int cbAttribute);
-
-        internal const int DWMWA_EXTENDED_FRAME_BOUNDS = 9;
-
-        [StructLayout(LayoutKind.Sequential)]
-        internal struct POINT
-        {
-            public int X;
-            public int Y;
-        }
+        // Window rectangles are measured by Common.WindowRectangles, which reads them all in one
+        // per-monitor-aware scope so they share a coordinate space. Do not re-declare those reads
+        // here: a second copy is how the recorder and the still-capture path came to disagree about
+        // DPI handling.
 
         [DllImport("user32.dll")]
         [return: MarshalAs(UnmanagedType.Bool)]

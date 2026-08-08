@@ -8,6 +8,7 @@ using System.Runtime.InteropServices;
 using System.Text;
 using System.Windows.Forms;
 using Playnite.SDK;
+using PlayniteAchievements.Common;
 using PlayniteAchievements.Services.Capture;
 using PlayniteAchievements.Services.Images;
 
@@ -39,118 +40,17 @@ namespace PlayniteAchievements.Services.UI
         [DllImport("user32.dll")]
         private static extern IntPtr GetForegroundWindow();
 
-        [DllImport("user32.dll")]
-        [return: MarshalAs(UnmanagedType.Bool)]
-        private static extern bool GetWindowRect(IntPtr hWnd, out RECT lpRect);
-
-        [DllImport("dwmapi.dll")]
-        private static extern int DwmGetWindowAttribute(IntPtr hwnd, int dwAttribute, out RECT pvAttribute, int cbAttribute);
-
-        [DllImport("user32.dll")]
-        [return: MarshalAs(UnmanagedType.Bool)]
-        private static extern bool GetClientRect(IntPtr hWnd, out RECT lpRect);
-
-        [DllImport("user32.dll")]
-        [return: MarshalAs(UnmanagedType.Bool)]
-        private static extern bool ClientToScreen(IntPtr hWnd, ref POINT lpPoint);
-
-        // Excludes the invisible resize border/shadow that GetWindowRect includes, so the capture
-        // matches the visible window instead of bleeding a few pixels onto the desktop.
-        private const int DWMWA_EXTENDED_FRAME_BOUNDS = 9;
-
-        [StructLayout(LayoutKind.Sequential)]
-        private struct RECT
-        {
-            public int Left;
-            public int Top;
-            public int Right;
-            public int Bottom;
-        }
-
-        [StructLayout(LayoutKind.Sequential)]
-        private struct POINT
-        {
-            public int X;
-            public int Y;
-        }
-
         /// <summary>
-        /// Resolves the window's capture rectangle (physical pixels). Prefers the client area so
-        /// window chrome (title bar, borders) is excluded for non-fullscreen windows; a
-        /// borderless/fullscreen game's client area is the whole window. Falls back to the DWM
-        /// extended frame bounds, then GetWindowRect. Returns false if none yields a positive rect.
+        /// Resolves the window's capture rectangle (physical pixels) via
+        /// <see cref="WindowRectangles"/> — the shared measurement, so this path and the recorder's
+        /// cannot drift apart on DPI handling again. Prefers the client area so window chrome is
+        /// excluded for non-fullscreen windows; a borderless/fullscreen game's client area is the
+        /// whole window. Returns false if nothing yields a positive rect.
         /// </summary>
         private static bool TryGetWindowRectangle(IntPtr hwnd, out Rectangle rectangle)
         {
-            rectangle = Rectangle.Empty;
-            if (hwnd == IntPtr.Zero)
-            {
-                return false;
-            }
-
-            if (TryGetClientRectangle(hwnd, out var client))
-            {
-                rectangle = client;
-                return true;
-            }
-
-            try
-            {
-                if (DwmGetWindowAttribute(hwnd, DWMWA_EXTENDED_FRAME_BOUNDS, out var dwm, Marshal.SizeOf(typeof(RECT))) == 0)
-                {
-                    var frame = Rectangle.FromLTRB(dwm.Left, dwm.Top, dwm.Right, dwm.Bottom);
-                    if (frame.Width > 0 && frame.Height > 0)
-                    {
-                        rectangle = frame;
-                        return true;
-                    }
-                }
-            }
-            catch
-            {
-                // DWM unavailable — fall back to GetWindowRect below.
-            }
-
-            if (GetWindowRect(hwnd, out var win))
-            {
-                var rect = Rectangle.FromLTRB(win.Left, win.Top, win.Right, win.Bottom);
-                if (rect.Width > 0 && rect.Height > 0)
-                {
-                    rectangle = rect;
-                    return true;
-                }
-            }
-
-            return false;
-        }
-
-        /// <summary>
-        /// The window's client area (game content, no title bar or borders) in physical screen
-        /// pixels, via GetClientRect + ClientToScreen.
-        /// </summary>
-        private static bool TryGetClientRectangle(IntPtr hwnd, out Rectangle rectangle)
-        {
-            rectangle = Rectangle.Empty;
-            if (!GetClientRect(hwnd, out var client))
-            {
-                return false;
-            }
-
-            var width = client.Right - client.Left;
-            var height = client.Bottom - client.Top;
-            if (width <= 0 || height <= 0)
-            {
-                return false;
-            }
-
-            var origin = new POINT { X = client.Left, Y = client.Top };
-            if (!ClientToScreen(hwnd, ref origin))
-            {
-                return false;
-            }
-
-            rectangle = new Rectangle(origin.X, origin.Y, width, height);
-            return true;
+            rectangle = WindowRectangles.Measure(hwnd).PreferredCaptureArea;
+            return !rectangle.IsEmpty;
         }
 
         /// <summary>
@@ -498,15 +398,11 @@ namespace PlayniteAchievements.Services.UI
                 return false;
             }
 
-            // Physical pixels on both sides of the intersection below (the scope is re-entrant, so
-            // callers that already established one are unaffected).
-            Rectangle window;
-            using (Common.DpiAwarenessScope.PerMonitorV2())
+            // Physical pixels on both sides of the intersection below: the measurement is
+            // per-monitor-aware by construction and ResolveMonitorBounds returns the same space.
+            if (!TryGetWindowRectangle(hwnd, out var window))
             {
-                if (!TryGetWindowRectangle(hwnd, out window))
-                {
-                    return false;
-                }
+                return false;
             }
 
             var monitor = ResolveMonitorBounds(hwnd);
@@ -548,17 +444,11 @@ namespace PlayniteAchievements.Services.UI
                 return false;
             }
 
-            // Read the window rect in the same physical (device) pixels ResolveMonitorBounds returns,
-            // so the intersection below stays in one coordinate space. Capture works in physical
-            // pixels throughout; without this scope a system-aware read would be virtualized and the
-            // captured region would be wrong on a monitor scaled above 100%.
-            Rectangle window;
-            using (Common.DpiAwarenessScope.PerMonitorV2())
+            // Both sides of the intersection below are physical (device) pixels: the measurement is
+            // per-monitor-aware by construction and ResolveMonitorBounds returns the same space.
+            if (!TryGetWindowRectangle(hwnd, out var window))
             {
-                if (!TryGetWindowRectangle(hwnd, out window))
-                {
-                    return false;
-                }
+                return false;
             }
 
             var monitor = ResolveMonitorBounds(hwnd);
