@@ -21,7 +21,7 @@ namespace PlayniteAchievements.ViewModels
     /// friend's unlock state onto the self display items' comparison fields. Selection is
     /// session-only and clears whenever the game changes.
     /// </summary>
-    public sealed class FriendCompareController : ObservableObject
+    public sealed class FriendCompareController : ObservableObject, IGridCompareSource
     {
         public sealed class Option
         {

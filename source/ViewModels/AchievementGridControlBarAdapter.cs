@@ -28,7 +28,7 @@ namespace PlayniteAchievements.ViewModels
         private bool _hasUnlocked;
         private bool _hasLocked;
         private bool _hasHiddenLocked;
-        private FriendCompareController _friendCompare;
+        private IGridCompareSource _friendCompare;
         private GridMultiSelectFilter _friendCompareFilter;
 
         public AchievementGridControlBarAdapter()
@@ -43,19 +43,21 @@ namespace PlayniteAchievements.ViewModels
         public GridControlBarViewModel ControlBar { get; }
 
         /// <summary>
-        /// Wires the compare-friend controller into the bar's pre-built Compare dropdown (the
-        /// last item, after the unlock-state toggles). The slot exists on every adapter bar and
-        /// stays hidden until a controller is attached and a friend has data for the game.
+        /// Wires a compare source into the bar's pre-built Compare dropdown (the item just ahead
+        /// of the unlock-state toggles). The slot exists on every adapter bar and stays hidden
+        /// until a source is attached and reports itself available. Accepts either compare flavor:
+        /// friend-onto-self (<see cref="FriendCompareController"/>) or friend-onto-friend
+        /// (<see cref="FriendVsFriendCompareController"/>).
         /// </summary>
-        public void AttachFriendCompare(FriendCompareController controller)
+        public void AttachFriendCompare(IGridCompareSource source)
         {
-            if (controller == null || _friendCompare != null)
+            if (source == null || _friendCompare != null)
             {
                 return;
             }
 
-            _friendCompare = controller;
-            controller.PropertyChanged += (_, __) => _friendCompareFilter?.Refresh();
+            _friendCompare = source;
+            source.PropertyChanged += (_, __) => _friendCompareFilter?.Refresh();
             _friendCompareFilter?.Refresh();
         }
 
