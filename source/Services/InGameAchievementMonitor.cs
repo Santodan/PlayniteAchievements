@@ -1280,11 +1280,12 @@ namespace PlayniteAchievements.Services
                 return false;
             }
 
-            if (persisted.FirstTimeSetupCompleted != true || persisted.SeenThemeMigration != true)
-            {
-                if (logReason) _logger?.Debug("[InGameMonitor] Skipped: first-time setup/theme migration is incomplete.");
-                return false;
-            }
+            // Onboarding state (FirstTimeSetupCompleted / SeenThemeMigration) deliberately does not
+            // gate polling. It gates the periodic background updater, which runs unattended while
+            // the landing page is up; this monitor only runs while a game the user launched is
+            // running, and it is the sole path by which an unlock is detected during play — so
+            // gating it on onboarding left in-game notifications and unlock clips silently dead
+            // until setup was finished, while test notifications (which bypass this) still worked.
 
             // Monitoring issues automatic Single/multi-game refreshes, which bypass user exclusions;
             // an excluded game must not be refreshed while it runs, so gate it here.
