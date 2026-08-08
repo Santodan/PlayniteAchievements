@@ -4,6 +4,7 @@ using Playnite.SDK;
 using System;
 using System.Collections.Generic;
 using System.Diagnostics;
+using System.IO;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
@@ -432,6 +433,7 @@ namespace PlayniteAchievements.Services.Refresh
                 }
 
                 await DownloadFriendAvatarsAsync(context.ProviderKey, context.Friends, cancel).ConfigureAwait(false);
+                await RefreshCurrentUserProfileAsync(friendsProvider, forceRefetch: true, cancel).ConfigureAwait(false);
                 var saved = SaveFriendList(context, payload: null);
                 return Math.Max(0, saved);
             }
@@ -725,6 +727,8 @@ namespace PlayniteAchievements.Services.Refresh
             {
                 context.CanContinue = false;
             }
+
+            await RefreshCurrentUserProfileAsync(friendsProvider, forceRefetch: false, cancel).ConfigureAwait(false);
 
             progress?.ReportProviderRosterLoaded(providerKey);
             return context;
@@ -2133,6 +2137,94 @@ namespace PlayniteAchievements.Services.Refresh
                         }
                     }))
                 .ConfigureAwait(false);
+        }
+
+        // Caches the signed-in account's own avatar next to the friend avatars, so the compare
+        // grids can show both sides of a comparison. Never fails the friend refresh: every failure
+        // path just leaves the current user without a cached avatar.
+        //
+        // The roster refresh always re-fetches (it is the explicit "refresh friends list" action,
+        // and the avatar filename is stable so a changed avatar is only picked up here). The full
+        // refresh only bootstraps a missing avatar, keeping its per-provider request count
+        // unchanged once one is cached.
+        private async Task RefreshCurrentUserProfileAsync(
+            IFriendsProvider friendsProvider,
+            bool forceRefetch,
+            CancellationToken cancel)
+        {
+            var providerKey = friendsProvider?.ProviderKey;
+            if (friendsProvider == null || string.IsNullOrWhiteSpace(providerKey) || _friendCache == null)
+            {
+                return;
+            }
+
+            try
+            {
+                var persisted = LoadPersistedCurrentUser(providerKey);
+                // AvatarPath falls back to the source URL when no file is cached, so test the file
+                // itself rather than the string.
+                if (!forceRefetch && HasCachedAvatarFile(persisted?.AvatarPath))
+                {
+                    return;
+                }
+
+                var result = await friendsProvider.GetCurrentUserAsync(cancel).ConfigureAwait(false);
+                var self = result?.Data;
+                if (result?.Success != true || self == null)
+                {
+                    _logger?.Debug(
+                        $"Current user profile unavailable for {providerKey}: {result?.ErrorMessage ?? "no data"}.");
+                    return;
+                }
+
+                if (DiskImageService.IsCacheableImageSource(self.AvatarUrl))
+                {
+                    await _achievementIconService
+                        .PopulateFriendAvatarIconCacheAsync(providerKey, self, persisted?.AvatarUrl, cancel)
+                        .ConfigureAwait(false);
+                }
+
+                _friendCache.SaveCurrentUserProfile(providerKey, self);
+            }
+            catch (OperationCanceledException) { throw; }
+            catch (Exception ex)
+            {
+                _logger?.Debug(ex, $"Failed to cache the current user avatar for {providerKey}.");
+            }
+        }
+
+        private static bool HasCachedAvatarFile(string avatarPath)
+        {
+            if (string.IsNullOrWhiteSpace(avatarPath))
+            {
+                return false;
+            }
+
+            try
+            {
+                return File.Exists(avatarPath);
+            }
+            catch
+            {
+                return false;
+            }
+        }
+
+        private FriendIdentity LoadPersistedCurrentUser(string providerKey)
+        {
+            try
+            {
+                return _friendCache?.LoadCurrentUserIdentities()
+                    ?.FirstOrDefault(identity => string.Equals(
+                        identity?.ProviderKey,
+                        providerKey,
+                        StringComparison.OrdinalIgnoreCase));
+            }
+            catch (Exception ex)
+            {
+                _logger?.Debug(ex, $"Failed to load the persisted current user for {providerKey}.");
+                return null;
+            }
         }
 
         private Dictionary<string, string> LoadPersistedAvatarUrls(string providerKey)
