@@ -389,6 +389,9 @@ namespace PlayniteAchievements.Services.Tests
             public Task<FriendsProviderResult<IReadOnlyList<FriendIdentity>>> GetFriendsAsync(CancellationToken cancel) =>
                 Task.FromResult(FriendsProviderResult<IReadOnlyList<FriendIdentity>>.FromData(Array.Empty<FriendIdentity>()));
 
+            public Task<FriendsProviderResult<FriendIdentity>> GetCurrentUserAsync(CancellationToken cancel) =>
+                Task.FromResult(FriendsProviderResult<FriendIdentity>.Failed("No current user configured."));
+
             public Task<FriendsProviderResult<IReadOnlyList<FriendGameOwnership>>> GetOwnedGamesAsync(
                 FriendIdentity friend,
                 CancellationToken cancel) =>
