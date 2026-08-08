@@ -13,6 +13,7 @@ using Playnite.SDK;
 using PlayniteAchievements.Models;
 using PlayniteAchievements.Models.Achievements;
 using PlayniteAchievements.Models.Settings;
+using PlayniteAchievements.Services.Capture;
 using PlayniteAchievements.Services.GameCustomData;
 using PlayniteAchievements.ViewModels;
 using PlayniteAchievements.Views.Helpers;
@@ -425,25 +426,32 @@ namespace PlayniteAchievements.Services.UI
         /// <summary>
         /// Starts the screen capture for the current wave. The running game's window is captured
         /// when one is resolvable. Out of game a real unlock keeps the foreground-window fallback
-        /// (inside <see cref="UnlockScreenshotService.CaptureGameWindow(IntPtr, int?)"/>), but a
-        /// manual test fire captures the whole monitor the Playnite window sits on, since the
+        /// (inside <see cref="UnlockScreenshotService.CaptureGameWindow(IntPtr, int?, int)"/>), but
+        /// a manual test fire captures the whole monitor the Playnite window sits on, since the
         /// notification is placed there and there is no game screen to show. Window handles are
         /// resolved here on the UI thread; the blit runs on the pool.
+        /// <para>
+        /// The configured resolution cap is read per wave, so a settings change takes effect on the
+        /// next unlock. Capping the base capture here — rather than the saved files — is what makes
+        /// the notification card and frame chrome scale with a downscaled screenshot.
+        /// </para>
         /// </summary>
         private Task<System.Drawing.Bitmap> StartWaveSurfaceCapture(bool isTestFire)
         {
+            var capHeight = ResolutionCapMath.CapHeightFor(
+                _settings?.Persisted?.ScreenshotResolution ?? ScreenshotResolution.Native);
             var gameRunning = TryResolveWaveGame(out var waveHwnd, out var processId);
             if (!gameRunning && isTestFire)
             {
                 var appHwnd = ResolveAppWindowHandle();
-                return Task.Run(() => _screenshotService.CaptureMonitor(appHwnd));
+                return Task.Run(() => _screenshotService.CaptureMonitor(appHwnd, capHeight));
             }
 
             // All running-game shots capture the game window (WGC per-window, HDR-correct, client
             // area). The with-notification card is composited onto this same capture per item (see
             // ComposeWaveWithToastAsync) — the toast is a separate window; a monitor capture would
             // grab whatever is actually on top, not the game.
-            return Task.Run(() => _screenshotService.CaptureGameWindow(waveHwnd, processId));
+            return Task.Run(() => _screenshotService.CaptureGameWindow(waveHwnd, processId, capHeight));
         }
 
         /// <summary>
