@@ -157,6 +157,12 @@ namespace PlayniteAchievements.ViewModels
         public bool AnimateRarityGlows => _settings.AnimateRarityGlows;
 
         /// <summary>
+        /// Which look the notification's rarity/completed glow takes. Mirrors the global display
+        /// setting; the card's outer border glow stays a soft drop shadow under either style.
+        /// </summary>
+        public RarityGlowStyle RarityGlowStyle => _settings.RarityGlowStyle;
+
+        /// <summary>
         /// True on a real achievement unlock when the game is complete after it (all
         /// achievements unlocked, or the capstone unlocked) — computed for your own unlocks and
         /// friend unlocks alike, so a template can restyle the unlock that finished the game.
@@ -438,6 +444,23 @@ namespace PlayniteAchievements.ViewModels
         public Effect RarityGlowEffect => _style.Toast.ShowRarityGlow && !IsHardcore
             ? RarityAppearanceHelper.GetGlow(_rarity, 20, _settings)
             : null;
+
+        /// <summary>
+        /// True when the notification icon carries the rotating sunburst instead of the soft halo:
+        /// the Rays style is selected, this surface shows rarity glows, and the unlock is not
+        /// Hardcore (which keeps its crisp border under either style). Gating this here keeps the
+        /// template markup to a single binding.
+        /// </summary>
+        public bool ShowRayBurst =>
+            _settings.RarityGlowStyle == Models.Settings.RarityGlowStyle.Rays &&
+            _style.Toast.ShowRarityGlow &&
+            !IsHardcore;
+
+        /// <summary>Screenshot-frame counterpart to <see cref="ShowRayBurst"/>.</summary>
+        public bool FrameShowRayBurst =>
+            _settings.RarityGlowStyle == Models.Settings.RarityGlowStyle.Rays &&
+            _style.Frame.ShowRarityGlow &&
+            !IsHardcore;
 
         // Rarity-colored glow on the toast card border (replaces the default drop shadow when
         // the border-glow option is on). Toast surface only. Completion uses the completed glow.

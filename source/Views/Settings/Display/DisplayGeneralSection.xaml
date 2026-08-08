@@ -118,6 +118,21 @@
                                        Style="{StaticResource MutedTextStyle}"
                                        Margin="24,0,0,10"
                                        TextWrapping="Wrap"/>
+                            <StackPanel Orientation="Horizontal" Margin="{StaticResource PlayAch.Thickness.Bottom.Xs}">
+                                <TextBlock Text="{DynamicResource LOCPlayAch_Settings_RarityGlowStyle}"
+                                           VerticalAlignment="Center"/>
+                                <ComboBox SelectedValue="{Binding Persisted.RarityGlowStyle, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                          SelectedValuePath="Tag"
+                                          MinWidth="140"
+                                          Margin="{StaticResource PlayAch.Thickness.Left.Sm}">
+                                    <ComboBoxItem Content="{DynamicResource LOCPlayAch_Settings_RarityGlowStyle_Soft}" Tag="{x:Static settings:RarityGlowStyle.Soft}"/>
+                                    <ComboBoxItem Content="{DynamicResource LOCPlayAch_Settings_RarityGlowStyle_Rays}" Tag="{x:Static settings:RarityGlowStyle.Rays}"/>
+                                </ComboBox>
+                            </StackPanel>
+                            <TextBlock Text="{DynamicResource LOCPlayAch_Settings_RarityGlowStyle_Help}"
+                                       Style="{StaticResource MutedTextStyle}"
+                                       Margin="0,0,0,10"
+                                       TextWrapping="Wrap"/>
                             <CheckBox Content="{DynamicResource LOCPlayAch_Settings_AnimateRarityGlows}"
                                       IsChecked="{Binding Persisted.AnimateRarityGlows}"
                                       Margin="{StaticResource PlayAch.Thickness.Bottom.Xs}"/>

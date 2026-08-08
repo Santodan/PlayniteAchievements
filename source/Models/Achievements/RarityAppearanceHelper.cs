@@ -24,6 +24,29 @@ namespace PlayniteAchievements.Models.Achievements
 
         private static PersistedSettings _activeSettings;
 
+        // Sunburst geometry for the rotating ray glow style, laid out in a 0-100 square with the
+        // burst centered. Ray bases sit inside the icon's footprint so they stay hidden behind it
+        // and the rays appear to emerge from around the icon. These are the visual tuning knobs.
+        private const int RayCount = 16;
+        private const double RayBurstBox = 100.0;
+        private const double RayBurstCenter = RayBurstBox / 2.0;
+        private const double InnerRayRadius = 16.0;
+        private const double LongRayRadius = 50.0;
+        private const double ShortRayRadius = 34.0;
+        private const double LongRayHalfAngle = 4.5;
+        private const double ShortRayHalfAngle = 3.0;
+        private const byte RayBaseAlpha = 0xCC;
+        private const byte RayMidAlpha = 0x6E;
+
+        // WPF on this target has no additive blend mode, so the long rays are blended toward white
+        // to read as light rather than as paint in the flat tier color.
+        private const double RayHighlightBlend = 0.35;
+
+        private static readonly object RayBurstCacheLock = new object();
+        private static readonly Dictionary<RarityTier, DrawingImage> RayBurstCache =
+            new Dictionary<RarityTier, DrawingImage>();
+        private static DrawingImage _completedRayBurstCache;
+
         public static Color GetBaseColor(RarityTier tier, PersistedSettings settings = null)
         {
             var persisted = settings ?? _activeSettings;
@@ -223,13 +246,30 @@ namespace PlayniteAchievements.Models.Achievements
         /// </summary>
         public static void BindAnimateRarityGlows(FrameworkElement element, DependencyProperty property)
         {
+            BindPersistedSetting(element, property, nameof(PersistedSettings.AnimateRarityGlows));
+        }
+
+        /// <summary>
+        /// Binds a control's RarityGlowStyle dependency property to the single global setting, so the
+        /// soft-halo/sunburst choice reaches every glow surface the same way the pulse toggle does.
+        /// </summary>
+        public static void BindRarityGlowStyle(FrameworkElement element, DependencyProperty property)
+        {
+            BindPersistedSetting(element, property, nameof(PersistedSettings.RarityGlowStyle));
+        }
+
+        private static void BindPersistedSetting(
+            FrameworkElement element,
+            DependencyProperty property,
+            string settingName)
+        {
             var persisted = PlayniteAchievementsPlugin.Instance?.Settings?.Persisted;
             if (element == null || property == null || persisted == null)
             {
                 return;
             }
 
-            element.SetBinding(property, new Binding(nameof(PersistedSettings.AnimateRarityGlows))
+            element.SetBinding(property, new Binding(settingName)
             {
                 Source = persisted,
                 Mode = BindingMode.OneWay
@@ -258,6 +298,235 @@ namespace PlayniteAchievements.Models.Achievements
             }
 
             return effect;
+        }
+
+        /// <summary>
+        /// Frozen sunburst art for the rotating ray glow style, in the tier color. The rays are the
+        /// same radial graphic for every tier; only the color changes, so the result is cached per
+        /// tier (the cache is bypassed when an explicit settings instance is supplied, as the
+        /// settings mockups do, and cleared whenever appearance settings are applied).
+        ///
+        /// Common returns null, matching <see cref="GetGlow"/>, so the lowest tier stays glowless.
+        /// </summary>
+        public static DrawingImage GetRayBurstImage(RarityTier tier, PersistedSettings settings = null)
+        {
+            if (tier == RarityTier.Common)
+            {
+                return null;
+            }
+
+            if (settings == null)
+            {
+                lock (RayBurstCacheLock)
+                {
+                    if (RayBurstCache.TryGetValue(tier, out var cached))
+                    {
+                        return cached;
+                    }
+                }
+            }
+
+            var baseColor = GetBaseColor(tier, settings);
+            var image = CreateRayBurstImage(Blend(baseColor, Colors.White, RayHighlightBlend), baseColor);
+
+            if (settings == null)
+            {
+                lock (RayBurstCacheLock)
+                {
+                    RayBurstCache[tier] = image;
+                }
+            }
+
+            return image;
+        }
+
+        /// <summary>
+        /// Sunburst art for the completion glow, alternating the completed gradient's end and start
+        /// colors between long and short rays so the burst reads as the same two-tone bloom as the
+        /// stacked <see cref="GetCompletedGlow"/> pair.
+        /// </summary>
+        public static DrawingImage GetCompletedRayBurstImage(PersistedSettings settings = null)
+        {
+            if (settings == null)
+            {
+                lock (RayBurstCacheLock)
+                {
+                    if (_completedRayBurstCache != null)
+                    {
+                        return _completedRayBurstCache;
+                    }
+                }
+            }
+
+            var image = CreateRayBurstImage(
+                Blend(GetCompletedEndColor(settings), Colors.White, RayHighlightBlend),
+                GetCompletedStartColor(settings));
+
+            if (settings == null)
+            {
+                lock (RayBurstCacheLock)
+                {
+                    _completedRayBurstCache = image;
+                }
+            }
+
+            return image;
+        }
+
+        /// <summary>
+        /// Builds the sunburst as vector wedges rather than a blurred bitmap: each ray is a triangle
+        /// filled with a gradient fading to fully transparent at its tip, so the art freezes once and
+        /// the rotating layer costs a transform instead of re-rasterizing a blur every frame.
+        /// Alternating long and short rays give the burst its cadence, a central bloom seats the icon
+        /// in light rather than on top of bare spokes, and a radial opacity mask fades the whole
+        /// burst out so it never ends on a hard circular edge.
+        /// </summary>
+        private static DrawingImage CreateRayBurstImage(Color longRayColor, Color shortRayColor)
+        {
+            var group = new DrawingGroup();
+
+            // Transparent bounds rectangle pins the drawing's extent to the full square, so the
+            // relative-mapped opacity mask below and the consuming Stretch stay predictable
+            // regardless of how far individual rays reach.
+            group.Children.Add(new GeometryDrawing
+            {
+                Geometry = new RectangleGeometry(new Rect(0, 0, RayBurstBox, RayBurstBox)),
+                Brush = Brushes.Transparent
+            });
+
+            group.Children.Add(new GeometryDrawing
+            {
+                Geometry = new EllipseGeometry(
+                    new Point(RayBurstCenter, RayBurstCenter),
+                    RayBurstCenter,
+                    RayBurstCenter),
+                Brush = CreateRayBloomBrush(longRayColor)
+            });
+
+            for (var i = 0; i < RayCount; i++)
+            {
+                var isLongRay = i % 2 == 0;
+                group.Children.Add(CreateRayDrawing(
+                    i * (360.0 / RayCount),
+                    isLongRay ? LongRayRadius : ShortRayRadius,
+                    isLongRay ? LongRayHalfAngle : ShortRayHalfAngle,
+                    isLongRay ? longRayColor : shortRayColor));
+            }
+
+            group.OpacityMask = CreateRayFalloffBrush();
+
+            var image = new DrawingImage(group);
+            if (image.CanFreeze)
+            {
+                image.Freeze();
+            }
+
+            return image;
+        }
+
+        private static GeometryDrawing CreateRayDrawing(
+            double angleDegrees,
+            double outerRadius,
+            double halfAngleDegrees,
+            Color color)
+        {
+            var tip = PolarPoint(angleDegrees, outerRadius);
+
+            var figure = new PathFigure
+            {
+                StartPoint = PolarPoint(angleDegrees - halfAngleDegrees, InnerRayRadius),
+                IsClosed = true,
+                IsFilled = true
+            };
+            figure.Segments.Add(new LineSegment(tip, true));
+            figure.Segments.Add(new LineSegment(PolarPoint(angleDegrees + halfAngleDegrees, InnerRayRadius), true));
+
+            var geometry = new PathGeometry();
+            geometry.Figures.Add(figure);
+            if (geometry.CanFreeze)
+            {
+                geometry.Freeze();
+            }
+
+            // Absolute mapping so the gradient runs along the ray itself; relative-to-bounding-box
+            // mapping would skew the direction differently for every rotation angle.
+            var brush = new LinearGradientBrush
+            {
+                MappingMode = BrushMappingMode.Absolute,
+                StartPoint = PolarPoint(angleDegrees, InnerRayRadius),
+                EndPoint = tip
+            };
+            brush.GradientStops.Add(new GradientStop(WithAlpha(color, RayBaseAlpha), 0.00));
+            brush.GradientStops.Add(new GradientStop(WithAlpha(color, RayMidAlpha), 0.45));
+            brush.GradientStops.Add(new GradientStop(WithAlpha(color, 0x00), 1.00));
+            if (brush.CanFreeze)
+            {
+                brush.Freeze();
+            }
+
+            return new GeometryDrawing
+            {
+                Geometry = geometry,
+                Brush = brush
+            };
+        }
+
+        private static Brush CreateRayBloomBrush(Color color)
+        {
+            var brush = new RadialGradientBrush
+            {
+                Center = new Point(0.5, 0.5),
+                GradientOrigin = new Point(0.5, 0.5),
+                RadiusX = 0.5,
+                RadiusY = 0.5
+            };
+
+            brush.GradientStops.Add(new GradientStop(WithAlpha(color, 0x3A), 0.00));
+            brush.GradientStops.Add(new GradientStop(WithAlpha(color, 0x1C), 0.42));
+            brush.GradientStops.Add(new GradientStop(WithAlpha(color, 0x00), 1.00));
+            if (brush.CanFreeze)
+            {
+                brush.Freeze();
+            }
+
+            return brush;
+        }
+
+        private static Brush CreateRayFalloffBrush()
+        {
+            var brush = new RadialGradientBrush
+            {
+                Center = new Point(0.5, 0.5),
+                GradientOrigin = new Point(0.5, 0.5),
+                RadiusX = 0.5,
+                RadiusY = 0.5
+            };
+
+            // The opaque region reaches almost to the edge: each ray already fades to transparent at
+            // its own tip, so this mask exists only to kill any hard edge at the burst boundary.
+            // Bringing the falloff in closer double-fades the rays and visibly truncates them.
+            brush.GradientStops.Add(new GradientStop(Colors.White, 0.00));
+            brush.GradientStops.Add(new GradientStop(Colors.White, 0.88));
+            brush.GradientStops.Add(new GradientStop(Color.FromArgb(0x00, 0xFF, 0xFF, 0xFF), 1.00));
+            if (brush.CanFreeze)
+            {
+                brush.Freeze();
+            }
+
+            return brush;
+        }
+
+        private static Point PolarPoint(double angleDegrees, double radius)
+        {
+            var radians = angleDegrees * Math.PI / 180.0;
+            return new Point(
+                RayBurstCenter + (radius * Math.Cos(radians)),
+                RayBurstCenter + (radius * Math.Sin(radians)));
+        }
+
+        private static Color WithAlpha(Color color, byte alpha)
+        {
+            return Color.FromArgb(alpha, color.R, color.G, color.B);
         }
 
         public static void ApplyBadgeApplicationResources(PersistedSettings settings)
@@ -291,6 +560,14 @@ namespace PlayniteAchievements.Models.Achievements
             }
 
             _activeSettings = settings;
+
+            // Drop the cached sunbursts so the next resolve picks up recolored tiers. Consumers
+            // re-resolve their art on AppearanceChanged below.
+            lock (RayBurstCacheLock)
+            {
+                RayBurstCache.Clear();
+                _completedRayBurstCache = null;
+            }
 
             ApplyBadgeResources(resources, settings);
 

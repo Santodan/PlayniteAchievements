@@ -1,6 +1,7 @@
 <ResourceDictionary xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
                     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
                     xmlns:helpers="clr-namespace:PlayniteAchievements.Views.Helpers;assembly=PlayniteAchievements"
+                    xmlns:controls="clr-namespace:PlayniteAchievements.Views.Controls;assembly=PlayniteAchievements"
                     xmlns:vm="clr-namespace:PlayniteAchievements.ViewModels;assembly=PlayniteAchievements">
     <!--
         Default achievement toast template. Single source of truth: this same file is what the
@@ -193,7 +194,16 @@
                             Margin="0,0,14,0">
                     <Grid Width="{Binding ToastIconSize}"
                           Height="{Binding ToastIconSize}"
+                          ClipToBounds="False"
                           HorizontalAlignment="Center">
+                        <!-- Rays glow style: a rotating sunburst behind the icon, replacing the soft
+                             halo on the backing layer below. PhaseLock is off for live waves so
+                             every notification (and its screenshot/clip) starts at the same angle. -->
+                        <controls:RarityRayBurst Rarity="{Binding Rarity}"
+                                                 UseCompletedColors="{Binding IsGameCompleted}"
+                                                 IsActive="{Binding AnimateRarityGlows}"
+                                                 PhaseLock="{Binding IsPreview}"
+                                                 Visibility="{Binding ShowRayBurst, Converter={StaticResource BooleanToVisibilityConverter}}"/>
                         <!-- Completion notifications swap the achievement icon for the
                              completed-game badge and the completed glow. The glow lives on this
                              backing layer (a crisp front copy sits on top); it renders un-cached so
@@ -217,6 +227,14 @@
                                         <!-- Fade in/out pulse when AnimateRarityGlows is on. -->
                                         <DataTrigger Binding="{Binding AnimateRarityGlows}" Value="True">
                                             <Setter Property="helpers:RarityGlowPulse.IsActive" Value="True"/>
+                                        </DataTrigger>
+                                        <!-- Rays style: the sunburst above carries the glow, so this
+                                             backing copy stands down. Last, so it outranks the
+                                             completion and pulse setters above. -->
+                                        <DataTrigger Binding="{Binding ShowRayBurst}" Value="True">
+                                            <Setter Property="Visibility" Value="Collapsed"/>
+                                            <Setter Property="Effect" Value="{x:Null}"/>
+                                            <Setter Property="helpers:RarityGlowPulse.IsActive" Value="False"/>
                                         </DataTrigger>
                                     </Style.Triggers>
                                 </Style>

@@ -4,6 +4,7 @@
              xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
              xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
              xmlns:helpers="clr-namespace:PlayniteAchievements.Views.Helpers"
+             xmlns:controls="clr-namespace:PlayniteAchievements.Views.Controls"
              xmlns:converters="clr-namespace:PlayniteAchievements.Views.Converters"
              xmlns:vm="clr-namespace:PlayniteAchievements.ViewModels.Items"
              xmlns:modern="clr-namespace:PlayniteAchievements.Views.ThemeIntegration.Modern"
@@ -108,6 +109,38 @@
               ClipToBounds="False"
               UseLayoutRounding="True"
               SnapsToDevicePixels="True">
+            <!-- Rays glow style: a rotating sunburst behind the icon, replacing the soft halo. -->
+            <controls:RarityRayBurst Rarity="{Binding Rarity}">
+                <controls:RarityRayBurst.Style>
+                    <Style TargetType="controls:RarityRayBurst">
+                        <Setter Property="Visibility" Value="Collapsed"/>
+                        <Style.Triggers>
+                            <MultiDataTrigger>
+                                <MultiDataTrigger.Conditions>
+                                    <Condition Binding="{Binding Unlocked}" Value="True"/>
+                                    <Condition Binding="{Binding ShowRarityGlow, RelativeSource={RelativeSource AncestorType=modern:AchievementCompactListControlBase}}" Value="True"/>
+                                    <Condition Binding="{Binding RarityGlowStyle, RelativeSource={RelativeSource AncestorType=modern:AchievementCompactListControlBase}}" Value="Rays"/>
+                                </MultiDataTrigger.Conditions>
+                                <Setter Property="Visibility" Value="Visible"/>
+                            </MultiDataTrigger>
+                            <MultiDataTrigger>
+                                <MultiDataTrigger.Conditions>
+                                    <Condition Binding="{Binding Unlocked}" Value="True"/>
+                                    <Condition Binding="{Binding ShowRarityGlow, RelativeSource={RelativeSource AncestorType=modern:AchievementCompactListControlBase}}" Value="True"/>
+                                    <Condition Binding="{Binding RarityGlowStyle, RelativeSource={RelativeSource AncestorType=modern:AchievementCompactListControlBase}}" Value="Rays"/>
+                                    <Condition Binding="{Binding AnimateRarityGlows, RelativeSource={RelativeSource AncestorType=modern:AchievementCompactListControlBase}}" Value="True"/>
+                                </MultiDataTrigger.Conditions>
+                                <Setter Property="IsActive" Value="True"/>
+                            </MultiDataTrigger>
+                            <!-- Hardcore achievements use a solid border instead of any glow. -->
+                            <DataTrigger Binding="{Binding IsHardcore}" Value="True">
+                                <Setter Property="Visibility" Value="Collapsed"/>
+                                <Setter Property="IsActive" Value="False"/>
+                            </DataTrigger>
+                        </Style.Triggers>
+                    </Style>
+                </controls:RarityRayBurst.Style>
+            </controls:RarityRayBurst>
             <Image Stretch="Uniform"
                    RenderOptions.BitmapScalingMode="HighQuality"
                    SnapsToDevicePixels="True"
@@ -126,6 +159,7 @@
                                 <MultiDataTrigger.Conditions>
                                     <Condition Binding="{Binding Unlocked}" Value="True"/>
                                     <Condition Binding="{Binding ShowRarityGlow, RelativeSource={RelativeSource AncestorType=modern:AchievementCompactListControlBase}}" Value="True"/>
+                                    <Condition Binding="{Binding RarityGlowStyle, RelativeSource={RelativeSource AncestorType=modern:AchievementCompactListControlBase}}" Value="Soft"/>
                                 </MultiDataTrigger.Conditions>
                                 <Setter Property="Visibility" Value="Visible"/>
                                 <Setter Property="Effect" Value="{Binding Rarity, Converter={StaticResource CompactPercentToRarityGlow}}"/>
@@ -145,6 +179,7 @@
                                 <MultiDataTrigger.Conditions>
                                     <Condition Binding="{Binding Unlocked}" Value="True"/>
                                     <Condition Binding="{Binding ShowRarityGlow, RelativeSource={RelativeSource AncestorType=modern:AchievementCompactListControlBase}}" Value="True"/>
+                                    <Condition Binding="{Binding RarityGlowStyle, RelativeSource={RelativeSource AncestorType=modern:AchievementCompactListControlBase}}" Value="Soft"/>
                                     <Condition Binding="{Binding AnimateRarityGlows, RelativeSource={RelativeSource AncestorType=modern:AchievementCompactListControlBase}}" Value="True"/>
                                 </MultiDataTrigger.Conditions>
                                 <Setter Property="helpers:RarityGlowPulse.IsActive" Value="True"/>

@@ -85,6 +85,23 @@ namespace PlayniteAchievements.Views.ThemeIntegration.Modern
             set => SetValue(AnimateRarityGlowsProperty, value);
         }
 
+        /// <summary>
+        /// Identifies the RarityGlowStyle dependency property. Selects the soft halo or the rotating
+        /// sunburst for this list's glows. Self-bound to the global setting in the constructor.
+        /// </summary>
+        public static readonly DependencyProperty RarityGlowStyleProperty =
+            DependencyProperty.Register(nameof(RarityGlowStyle), typeof(RarityGlowStyle),
+                typeof(AchievementCompactListControlBase), new PropertyMetadata(RarityGlowStyle.Soft));
+
+        /// <summary>
+        /// Gets or sets which look this list's rarity glows take.
+        /// </summary>
+        public RarityGlowStyle RarityGlowStyle
+        {
+            get => (RarityGlowStyle)GetValue(RarityGlowStyleProperty);
+            set => SetValue(RarityGlowStyleProperty, value);
+        }
+
         #endregion
 
         #region VisibleCount Property
@@ -185,6 +202,7 @@ namespace PlayniteAchievements.Views.ThemeIntegration.Modern
         {
             DataContext = this;
             RarityAppearanceHelper.BindAnimateRarityGlows(this, AnimateRarityGlowsProperty);
+            RarityAppearanceHelper.BindRarityGlowStyle(this, RarityGlowStyleProperty);
             Loaded += OnLoaded;
             Unloaded += OnUnloaded;
         }

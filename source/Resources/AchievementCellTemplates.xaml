@@ -356,6 +356,44 @@
               UseLayoutRounding="True"
               SnapsToDevicePixels="True">
 
+            <!-- Rays glow style: a rotating sunburst behind the icon, replacing the soft halo. It
+                 overflows this cell via RenderTransform, which is why the Grid sets
+                 ClipToBounds="False". Hardcore keeps its crisp shine border instead, and Common
+                 resolves to no art at all. -->
+            <controls:RarityRayBurst Rarity="{Binding Rarity}">
+                <controls:RarityRayBurst.Style>
+                    <Style TargetType="controls:RarityRayBurst">
+                        <Setter Property="Visibility" Value="Collapsed"/>
+                        <Style.Triggers>
+                            <MultiDataTrigger>
+                                <MultiDataTrigger.Conditions>
+                                    <Condition Binding="{Binding Unlocked}" Value="True"/>
+                                    <Condition Binding="{Binding ShowRarityGlow, RelativeSource={RelativeSource AncestorType=controls:AchievementDataGridControl}}" Value="True"/>
+                                    <Condition Binding="{Binding RarityGlowStyle, RelativeSource={RelativeSource AncestorType=controls:AchievementDataGridControl}}" Value="Rays"/>
+                                </MultiDataTrigger.Conditions>
+                                <Setter Property="Visibility" Value="Visible"/>
+                            </MultiDataTrigger>
+                            <!-- Turn only while the global animation toggle is on; otherwise the
+                                 burst still shows, just held still. -->
+                            <MultiDataTrigger>
+                                <MultiDataTrigger.Conditions>
+                                    <Condition Binding="{Binding Unlocked}" Value="True"/>
+                                    <Condition Binding="{Binding ShowRarityGlow, RelativeSource={RelativeSource AncestorType=controls:AchievementDataGridControl}}" Value="True"/>
+                                    <Condition Binding="{Binding RarityGlowStyle, RelativeSource={RelativeSource AncestorType=controls:AchievementDataGridControl}}" Value="Rays"/>
+                                    <Condition Binding="{Binding AnimateRarityGlows, RelativeSource={RelativeSource AncestorType=controls:AchievementDataGridControl}}" Value="True"/>
+                                </MultiDataTrigger.Conditions>
+                                <Setter Property="IsActive" Value="True"/>
+                            </MultiDataTrigger>
+                            <!-- Hardcore achievements use a solid border instead of any glow. -->
+                            <DataTrigger Binding="{Binding IsHardcore}" Value="True">
+                                <Setter Property="Visibility" Value="Collapsed"/>
+                                <Setter Property="IsActive" Value="False"/>
+                            </DataTrigger>
+                        </Style.Triggers>
+                    </Style>
+                </controls:RarityRayBurst.Style>
+            </controls:RarityRayBurst>
+
             <!-- BitmapCache stores the blurred glow output so scrolling composites a
                  cached texture instead of re-rasterizing the DropShadowEffect per frame. -->
             <Border IsHitTestVisible="False">
@@ -370,6 +408,7 @@
                                 <MultiDataTrigger.Conditions>
                                     <Condition Binding="{Binding Unlocked}" Value="True"/>
                                     <Condition Binding="{Binding ShowRarityGlow, RelativeSource={RelativeSource AncestorType=controls:AchievementDataGridControl}}" Value="True"/>
+                                    <Condition Binding="{Binding RarityGlowStyle, RelativeSource={RelativeSource AncestorType=controls:AchievementDataGridControl}}" Value="Soft"/>
                                     <Condition Binding="{Binding AnimateRarityGlows, RelativeSource={RelativeSource AncestorType=controls:AchievementDataGridControl}}" Value="True"/>
                                 </MultiDataTrigger.Conditions>
                                 <Setter Property="helpers:RarityGlowPulse.IsActive" Value="True"/>
@@ -393,6 +432,7 @@
                                     <MultiDataTrigger.Conditions>
                                         <Condition Binding="{Binding Unlocked}" Value="True"/>
                                         <Condition Binding="{Binding ShowRarityGlow, RelativeSource={RelativeSource AncestorType=controls:AchievementDataGridControl}}" Value="True"/>
+                                        <Condition Binding="{Binding RarityGlowStyle, RelativeSource={RelativeSource AncestorType=controls:AchievementDataGridControl}}" Value="Soft"/>
                                     </MultiDataTrigger.Conditions>
                                     <Setter Property="Visibility" Value="Visible"/>
                                     <Setter Property="Effect" Value="{Binding Rarity, Converter={StaticResource PercentToRarityGlow}}"/>

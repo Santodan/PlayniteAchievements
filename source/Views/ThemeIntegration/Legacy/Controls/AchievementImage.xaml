@@ -5,6 +5,7 @@
              xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
              xmlns:local="clr-namespace:PlayniteAchievements.Views.ThemeIntegration.Legacy.Controls"
              xmlns:helpers="clr-namespace:PlayniteAchievements.Views.Helpers"
+             xmlns:controls="clr-namespace:PlayniteAchievements.Views.Controls"
              xmlns:converters="clr-namespace:PlayniteAchievements.Views.Converters"
              xmlns:sys="clr-namespace:System;assembly=mscorlib"
              mc:Ignorable="d" d:DesignHeight="48" d:DesignWidth="48"
@@ -34,6 +35,40 @@
             <Grid ClipToBounds="False"
                   UseLayoutRounding="True"
                   SnapsToDevicePixels="True">
+                <!-- Rays glow style: a rotating sunburst behind the icon, replacing the soft halo. -->
+                <controls:RarityRayBurst Rarity="{Binding RelativeSource={RelativeSource AncestorType=UserControl}, Path=Rarity}">
+                    <controls:RarityRayBurst.Style>
+                        <Style TargetType="controls:RarityRayBurst">
+                            <Setter Property="Visibility" Value="Collapsed"/>
+                            <Style.Triggers>
+                                <MultiDataTrigger>
+                                    <MultiDataTrigger.Conditions>
+                                        <Condition Binding="{Binding RelativeSource={RelativeSource AncestorType=UserControl}, Path=EnableRaretyIndicator}" Value="True"/>
+                                        <Condition Binding="{Binding RelativeSource={RelativeSource AncestorType=UserControl}, Path=IsLocked}" Value="False"/>
+                                        <Condition Binding="{Binding RelativeSource={RelativeSource AncestorType=UserControl}, Path=ShowRarityGlow}" Value="True"/>
+                                        <Condition Binding="{Binding RelativeSource={RelativeSource AncestorType=UserControl}, Path=RarityGlowStyle}" Value="Rays"/>
+                                    </MultiDataTrigger.Conditions>
+                                    <Setter Property="Visibility" Value="Visible"/>
+                                </MultiDataTrigger>
+                                <MultiDataTrigger>
+                                    <MultiDataTrigger.Conditions>
+                                        <Condition Binding="{Binding RelativeSource={RelativeSource AncestorType=UserControl}, Path=EnableRaretyIndicator}" Value="True"/>
+                                        <Condition Binding="{Binding RelativeSource={RelativeSource AncestorType=UserControl}, Path=IsLocked}" Value="False"/>
+                                        <Condition Binding="{Binding RelativeSource={RelativeSource AncestorType=UserControl}, Path=ShowRarityGlow}" Value="True"/>
+                                        <Condition Binding="{Binding RelativeSource={RelativeSource AncestorType=UserControl}, Path=RarityGlowStyle}" Value="Rays"/>
+                                        <Condition Binding="{Binding RelativeSource={RelativeSource AncestorType=UserControl}, Path=AnimateRarityGlows}" Value="True"/>
+                                    </MultiDataTrigger.Conditions>
+                                    <Setter Property="IsActive" Value="True"/>
+                                </MultiDataTrigger>
+                                <!-- Hardcore achievements use a solid border instead of any glow. -->
+                                <DataTrigger Binding="{Binding RelativeSource={RelativeSource AncestorType=UserControl}, Path=IsHardcore}" Value="True">
+                                    <Setter Property="Visibility" Value="Collapsed"/>
+                                    <Setter Property="IsActive" Value="False"/>
+                                </DataTrigger>
+                            </Style.Triggers>
+                        </Style>
+                    </controls:RarityRayBurst.Style>
+                </controls:RarityRayBurst>
                 <Image Stretch="Uniform"
                        RenderOptions.BitmapScalingMode="HighQuality"
                        helpers:AsyncImage.DecodePixel="256"
@@ -60,6 +95,7 @@
                                         <Condition Binding="{Binding RelativeSource={RelativeSource AncestorType=UserControl}, Path=EnableRaretyIndicator}" Value="True"/>
                                         <Condition Binding="{Binding RelativeSource={RelativeSource AncestorType=UserControl}, Path=IsLocked}" Value="False"/>
                                         <Condition Binding="{Binding RelativeSource={RelativeSource AncestorType=UserControl}, Path=ShowRarityGlow}" Value="True"/>
+                                        <Condition Binding="{Binding RelativeSource={RelativeSource AncestorType=UserControl}, Path=RarityGlowStyle}" Value="Soft"/>
                                     </MultiDataTrigger.Conditions>
                                     <Setter Property="Visibility" Value="Visible"/>
                                     <Setter Property="Effect" Value="{Binding RelativeSource={RelativeSource AncestorType=UserControl}, Path=Rarity, Converter={StaticResource PercentToRarityGlowConverter}}"/>
@@ -81,6 +117,7 @@
                                         <Condition Binding="{Binding RelativeSource={RelativeSource AncestorType=UserControl}, Path=EnableRaretyIndicator}" Value="True"/>
                                         <Condition Binding="{Binding RelativeSource={RelativeSource AncestorType=UserControl}, Path=IsLocked}" Value="False"/>
                                         <Condition Binding="{Binding RelativeSource={RelativeSource AncestorType=UserControl}, Path=ShowRarityGlow}" Value="True"/>
+                                        <Condition Binding="{Binding RelativeSource={RelativeSource AncestorType=UserControl}, Path=RarityGlowStyle}" Value="Soft"/>
                                         <Condition Binding="{Binding RelativeSource={RelativeSource AncestorType=UserControl}, Path=AnimateRarityGlows}" Value="True"/>
                                     </MultiDataTrigger.Conditions>
                                     <Setter Property="helpers:RarityGlowPulse.IsActive" Value="True"/>

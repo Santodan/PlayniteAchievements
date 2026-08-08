@@ -456,6 +456,23 @@ namespace PlayniteAchievements.Views.Controls
         }
 
         /// <summary>
+        /// Identifies the RarityGlowStyle dependency property. Selects the soft halo or the rotating
+        /// sunburst for this grid's glows. Self-bound to the global setting in the constructor.
+        /// </summary>
+        public static readonly DependencyProperty RarityGlowStyleProperty =
+            DependencyProperty.Register(nameof(RarityGlowStyle), typeof(RarityGlowStyle),
+                typeof(AchievementDataGridControl), new PropertyMetadata(RarityGlowStyle.Soft));
+
+        /// <summary>
+        /// Gets or sets which look this grid's rarity glows take.
+        /// </summary>
+        public RarityGlowStyle RarityGlowStyle
+        {
+            get => (RarityGlowStyle)GetValue(RarityGlowStyleProperty);
+            set => SetValue(RarityGlowStyleProperty, value);
+        }
+
+        /// <summary>
         /// Identifies the ColorNamesByRarity dependency property.
         /// When true, achievement name text in this grid is colored by rarity tier (capstone
         /// achievements use the completed color) instead of the default text color.
@@ -1821,6 +1838,7 @@ namespace PlayniteAchievements.Views.Controls
         {
             InitializeComponent();
             RarityAppearanceHelper.BindAnimateRarityGlows(this, AnimateRarityGlowsProperty);
+            RarityAppearanceHelper.BindRarityGlowStyle(this, RarityGlowStyleProperty);
             DataContextChanged += OnDataContextChanged;
             Unloaded += OnUnloaded;
             UpdateColumnHeadersVisibility();

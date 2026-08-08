@@ -1,5 +1,6 @@
 <ResourceDictionary xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
                     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+                    xmlns:controls="clr-namespace:PlayniteAchievements.Views.Controls;assembly=PlayniteAchievements"
                     xmlns:vm="clr-namespace:PlayniteAchievements.ViewModels;assembly=PlayniteAchievements">
     <!--
         Default screenshot frame template. Single source of truth: this same file is what the
@@ -83,7 +84,14 @@
                                 VerticalAlignment="Center">
                         <Grid Width="{Binding FrameIconSize}"
                               Height="{Binding FrameIconSize}"
+                              ClipToBounds="False"
                               HorizontalAlignment="Center">
+                            <!-- Rays glow style: a sunburst behind the icon, replacing the soft halo.
+                                 Deliberately not animated — the frame is rendered offscreen to a
+                                 still image, so the burst is held at a fixed angle. -->
+                            <controls:RarityRayBurst Rarity="{Binding Rarity}"
+                                                     UseCompletedColors="{Binding IsGameCompleted}"
+                                                     Visibility="{Binding FrameShowRayBurst, Converter={StaticResource BooleanToVisibilityConverter}}"/>
                             <!-- Completion notifications swap the achievement icon for the
                                  completed-game badge and the completed glow (all sync-loaded, as
                                  offscreen rendering requires). -->
@@ -97,6 +105,12 @@
                                             <DataTrigger Binding="{Binding IsGameCompleted}" Value="True">
                                                 <Setter Property="Source" Value="{Binding FrameCompletedBadgeImage}"/>
                                                 <Setter Property="Effect" Value="{Binding FrameCompletedGlowEffect}"/>
+                                            </DataTrigger>
+                                            <!-- Rays style: the sunburst above carries the glow, so
+                                                 drop this layer's halo. Last, so it outranks the
+                                                 completion setter above. -->
+                                            <DataTrigger Binding="{Binding FrameShowRayBurst}" Value="True">
+                                                <Setter Property="Effect" Value="{x:Null}"/>
                                             </DataTrigger>
                                         </Style.Triggers>
                                     </Style>

@@ -331,6 +331,23 @@ namespace PlayniteAchievements.Views.Controls
             set => SetValue(AnimateRarityGlowsProperty, value);
         }
 
+        /// <summary>
+        /// Selects the soft halo or the rotating sunburst for the completion glow on completed game
+        /// art. Self-bound to the global setting in the constructor.
+        /// </summary>
+        public static readonly DependencyProperty RarityGlowStyleProperty =
+            DependencyProperty.Register(
+                nameof(RarityGlowStyle),
+                typeof(RarityGlowStyle),
+                typeof(GameSummariesGridControl),
+                new PropertyMetadata(RarityGlowStyle.Soft));
+
+        public RarityGlowStyle RarityGlowStyle
+        {
+            get => (RarityGlowStyle)GetValue(RarityGlowStyleProperty);
+            set => SetValue(RarityGlowStyleProperty, value);
+        }
+
         public static readonly DependencyProperty ColumnSettingsKeyProperty =
             DependencyProperty.Register(
                 nameof(ColumnSettingsKey),
@@ -514,6 +531,7 @@ namespace PlayniteAchievements.Views.Controls
         {
             InitializeComponent();
             RarityAppearanceHelper.BindAnimateRarityGlows(this, AnimateRarityGlowsProperty);
+            RarityAppearanceHelper.BindRarityGlowStyle(this, RarityGlowStyleProperty);
             UpdateColumnHeadersVisibility();
         }
 

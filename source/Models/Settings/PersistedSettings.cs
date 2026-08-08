@@ -137,6 +137,7 @@ namespace PlayniteAchievements.Models.Settings
         private bool _modernCompactListShowRarityGlow = true;
         private bool _modernUnlockedListShowRarityGlow = true;
         private bool _animateRarityGlows = true;
+        private RarityGlowStyle _rarityGlowStyle = RarityGlowStyle.Soft;
         private double _rarityGlowPulseMinOpacity = 0.6;
         private double _rarityGlowPulseMaxOpacity = 1.0;
         private double _rarityGlowPulseSpeed = 0.5;
@@ -1594,12 +1595,23 @@ namespace PlayniteAchievements.Models.Settings
 
         /// <summary>
         /// When true, rarity glows gently fade in and out (a subtle opacity pulse) wherever they
-        /// appear. When false, glows render at static full opacity. Applies globally.
+        /// appear, and the <see cref="RarityGlowStyle.Rays"/> sunburst also turns. When false, glows
+        /// render at static full opacity and the sunburst is held still. Applies globally.
         /// </summary>
         public bool AnimateRarityGlows
         {
             get => _animateRarityGlows;
             set => SetValue(ref _animateRarityGlows, value);
+        }
+
+        /// <summary>
+        /// Which look the rarity and completion glows take wherever they appear: the original soft
+        /// halo or a rotating sunburst. Applies globally.
+        /// </summary>
+        public RarityGlowStyle RarityGlowStyle
+        {
+            get => _rarityGlowStyle;
+            set => SetValue(ref _rarityGlowStyle, value);
         }
 
         /// <summary>
@@ -2665,6 +2677,7 @@ namespace PlayniteAchievements.Models.Settings
                 ModernCompactListShowRarityGlow = this.ModernCompactListShowRarityGlow,
                 ModernUnlockedListShowRarityGlow = this.ModernUnlockedListShowRarityGlow,
                 AnimateRarityGlows = this.AnimateRarityGlows,
+                RarityGlowStyle = this.RarityGlowStyle,
                 RarityGlowPulseMinOpacity = this.RarityGlowPulseMinOpacity,
                 RarityGlowPulseMaxOpacity = this.RarityGlowPulseMaxOpacity,
                 RarityGlowPulseSpeed = this.RarityGlowPulseSpeed,
@@ -2819,6 +2832,7 @@ namespace PlayniteAchievements.Models.Settings
             ModernCompactListShowRarityGlow = defaults.ModernCompactListShowRarityGlow;
             ModernUnlockedListShowRarityGlow = defaults.ModernUnlockedListShowRarityGlow;
             AnimateRarityGlows = defaults.AnimateRarityGlows;
+            RarityGlowStyle = defaults.RarityGlowStyle;
             RarityGlowPulseMinOpacity = defaults.RarityGlowPulseMinOpacity;
             RarityGlowPulseMaxOpacity = defaults.RarityGlowPulseMaxOpacity;
             RarityGlowPulseSpeed = defaults.RarityGlowPulseSpeed;

@@ -135,6 +135,38 @@
                               SnapsToDevicePixels="True"
                               HorizontalAlignment="{Binding RelativeSource={RelativeSource AncestorType={x:Type DataGridCell}}, Path=Column.(helpers:DataGridAlignmentBehavior.CellHorizontalAlignment)}"
                               VerticalAlignment="{Binding RelativeSource={RelativeSource AncestorType={x:Type DataGridCell}}, Path=Column.(helpers:DataGridAlignmentBehavior.CellVerticalAlignment)}">
+                            <!-- Rays glow style: a rotating sunburst behind the art in the completed
+                                 gradient's colors, replacing the two-tone bloom below. Scaled
+                                 tighter than the icon sites because game art is already large and
+                                 this cell's overflow draws over neighboring rows. -->
+                            <controls:RarityRayBurst UseCompletedColors="True"
+                                                     BurstScale="1.6">
+                                <controls:RarityRayBurst.Style>
+                                    <Style TargetType="controls:RarityRayBurst">
+                                        <Setter Property="Visibility" Value="Collapsed"/>
+                                        <Style.Triggers>
+                                            <MultiDataTrigger>
+                                                <MultiDataTrigger.Conditions>
+                                                    <Condition Binding="{Binding IsCompleted}" Value="True"/>
+                                                    <Condition Binding="{Binding ShowCompletionGlow, RelativeSource={RelativeSource AncestorType=controls:GameSummariesGridControl}}" Value="True"/>
+                                                    <Condition Binding="{Binding RarityGlowStyle, RelativeSource={RelativeSource AncestorType=controls:GameSummariesGridControl}}" Value="Rays"/>
+                                                </MultiDataTrigger.Conditions>
+                                                <Setter Property="Visibility" Value="Visible"/>
+                                            </MultiDataTrigger>
+                                            <MultiDataTrigger>
+                                                <MultiDataTrigger.Conditions>
+                                                    <Condition Binding="{Binding IsCompleted}" Value="True"/>
+                                                    <Condition Binding="{Binding ShowCompletionGlow, RelativeSource={RelativeSource AncestorType=controls:GameSummariesGridControl}}" Value="True"/>
+                                                    <Condition Binding="{Binding RarityGlowStyle, RelativeSource={RelativeSource AncestorType=controls:GameSummariesGridControl}}" Value="Rays"/>
+                                                    <Condition Binding="{Binding AnimateRarityGlows, RelativeSource={RelativeSource AncestorType=controls:GameSummariesGridControl}}" Value="True"/>
+                                                </MultiDataTrigger.Conditions>
+                                                <Setter Property="IsActive" Value="True"/>
+                                            </MultiDataTrigger>
+                                        </Style.Triggers>
+                                    </Style>
+                                </controls:RarityRayBurst.Style>
+                            </controls:RarityRayBurst>
+
                             <!-- Backing completion-glow layer: two art copies carrying the
                                  completed-gradient start/end glows, cached as one bitmap so the
                                  blur is not re-rasterized while scrolling. Sits outside the
@@ -149,6 +181,7 @@
                                                 <MultiDataTrigger.Conditions>
                                                     <Condition Binding="{Binding IsCompleted}" Value="True"/>
                                                     <Condition Binding="{Binding ShowCompletionGlow, RelativeSource={RelativeSource AncestorType=controls:GameSummariesGridControl}}" Value="True"/>
+                                                    <Condition Binding="{Binding RarityGlowStyle, RelativeSource={RelativeSource AncestorType=controls:GameSummariesGridControl}}" Value="Soft"/>
                                                 </MultiDataTrigger.Conditions>
                                                 <Setter Property="Visibility" Value="Visible"/>
                                             </MultiDataTrigger>
@@ -157,6 +190,7 @@
                                                 <MultiDataTrigger.Conditions>
                                                     <Condition Binding="{Binding IsCompleted}" Value="True"/>
                                                     <Condition Binding="{Binding ShowCompletionGlow, RelativeSource={RelativeSource AncestorType=controls:GameSummariesGridControl}}" Value="True"/>
+                                                    <Condition Binding="{Binding RarityGlowStyle, RelativeSource={RelativeSource AncestorType=controls:GameSummariesGridControl}}" Value="Soft"/>
                                                     <Condition Binding="{Binding AnimateRarityGlows, RelativeSource={RelativeSource AncestorType=controls:GameSummariesGridControl}}" Value="True"/>
                                                 </MultiDataTrigger.Conditions>
                                                 <Setter Property="helpers:RarityGlowPulse.IsActive" Value="True"/>
