@@ -576,22 +576,37 @@
                        helpers:AsyncImage.DecodePixel="32"/>
             </Border>
 
-            <TextBlock Grid.Column="1"
-                    HorizontalAlignment="{Binding RelativeSource={RelativeSource AncestorType={x:Type DataGridCell}}, Path=Column.(helpers:DataGridAlignmentBehavior.CellHorizontalAlignment)}"
-                    VerticalAlignment="{Binding RelativeSource={RelativeSource AncestorType={x:Type DataGridCell}}, Path=Column.(helpers:DataGridAlignmentBehavior.CellVerticalAlignment)}"
-                    Style="{DynamicResource PlayAch.TextBlock.BaseStyle}"
-                    Foreground="{DynamicResource PlayAch.Brush.Text}"
-                    Opacity="{StaticResource PlayAch.Opacity.Subtle}"
-                    TextWrapping="Wrap"
-                    TextAlignment="{Binding RelativeSource={RelativeSource AncestorType={x:Type DataGridCell}}, Path=Column.(helpers:DataGridAlignmentBehavior.CellTextAlignment)}"
-                    Visibility="{Binding ShowUnlockDate, Converter={StaticResource BoolToVis}}">
-                <TextBlock.Text>
-                    <MultiBinding Converter="{StaticResource DateDisplayMode}">
-                        <Binding Path="UnlockTimeLocal"/>
-                        <Binding Path="UnlockDateMode" RelativeSource="{RelativeSource AncestorType=controls:AchievementDataGridControl}"/>
-                    </MultiBinding>
-                </TextBlock.Text>
-            </TextBlock>
+            <!-- In compare mode the text is pinned left so it sits beside its avatar; a centered
+                 or right-aligned column would otherwise push it away from the avatar and leave the
+                 two rows' avatars at different offsets. Outside compare mode the column's
+                 configured alignment applies as before. Both rows use this same wrapper style, so
+                 their text starts at the same x. -->
+            <Grid Grid.Column="1"
+                  Visibility="{Binding ShowUnlockDate, Converter={StaticResource BoolToVis}}">
+                <Grid.Style>
+                    <Style TargetType="Grid">
+                        <Setter Property="HorizontalAlignment" Value="{Binding RelativeSource={RelativeSource AncestorType={x:Type DataGridCell}}, Path=Column.(helpers:DataGridAlignmentBehavior.CellHorizontalAlignment)}"/>
+                        <Style.Triggers>
+                            <DataTrigger Binding="{Binding HasComparison}" Value="True">
+                                <Setter Property="HorizontalAlignment" Value="Left"/>
+                            </DataTrigger>
+                        </Style.Triggers>
+                    </Style>
+                </Grid.Style>
+                <TextBlock VerticalAlignment="{Binding RelativeSource={RelativeSource AncestorType={x:Type DataGridCell}}, Path=Column.(helpers:DataGridAlignmentBehavior.CellVerticalAlignment)}"
+                        Style="{DynamicResource PlayAch.TextBlock.BaseStyle}"
+                        Foreground="{DynamicResource PlayAch.Brush.Text}"
+                        Opacity="{StaticResource PlayAch.Opacity.Subtle}"
+                        TextWrapping="Wrap"
+                        TextAlignment="{Binding RelativeSource={RelativeSource AncestorType={x:Type DataGridCell}}, Path=Column.(helpers:DataGridAlignmentBehavior.CellTextAlignment)}">
+                    <TextBlock.Text>
+                        <MultiBinding Converter="{StaticResource DateDisplayMode}">
+                            <Binding Path="UnlockTimeLocal"/>
+                            <Binding Path="UnlockDateMode" RelativeSource="{RelativeSource AncestorType=controls:AchievementDataGridControl}"/>
+                        </MultiBinding>
+                    </TextBlock.Text>
+                </TextBlock>
+            </Grid>
 
             <Grid Grid.Column="1"
                 Visibility="{Binding ShowLockedProgress, Converter={StaticResource BoolToVis}}"
@@ -612,23 +627,58 @@
                         Visibility="{Binding HasProgress, Converter={StaticResource BoolToVis}}"/>
             </Grid>
 
-            <!-- Comparison row: the compare friend's avatar + unlock date (or Locked) -->
+            <!-- Owner's Locked label, compare mode only. ShowLockedProgress is just !Unlocked, and
+                 the progress bar inside it only renders when HasProgress, so a locked achievement
+                 with no progress data leaves this row empty. Beside an avatar that reads as a
+                 stray image, so the friend row's Locked label is mirrored here. -->
+            <Grid Grid.Column="1" HorizontalAlignment="Left">
+                <Grid.Style>
+                    <Style TargetType="Grid">
+                        <Setter Property="Visibility" Value="Collapsed"/>
+                        <Style.Triggers>
+                            <MultiDataTrigger>
+                                <MultiDataTrigger.Conditions>
+                                    <Condition Binding="{Binding HasComparison}" Value="True"/>
+                                    <Condition Binding="{Binding Unlocked}" Value="False"/>
+                                    <Condition Binding="{Binding HasProgress}" Value="False"/>
+                                </MultiDataTrigger.Conditions>
+                                <Setter Property="Visibility" Value="Visible"/>
+                            </MultiDataTrigger>
+                        </Style.Triggers>
+                    </Style>
+                </Grid.Style>
+                <TextBlock Text="{DynamicResource LOCPlayAch_Common_Locked}"
+                        VerticalAlignment="Center"
+                        Style="{DynamicResource PlayAch.TextBlock.BaseStyle}"
+                        Foreground="{DynamicResource PlayAch.Brush.Text}"
+                        Opacity="{StaticResource PlayAch.Opacity.Placeholder}"/>
+            </Grid>
+
+            <!-- Comparison row: the compare friend's avatar + unlock date (or Locked). The avatar
+                 sits in the same Auto column as the owner's above it, so the two line up by
+                 construction instead of each row aligning itself independently. -->
+            <Border Grid.Row="1"
+                    Grid.Column="0"
+                    Width="16"
+                    Height="16"
+                    CornerRadius="8"
+                    Margin="0,2,5,0"
+                    ClipToBounds="True"
+                    VerticalAlignment="Center"
+                    Visibility="{Binding HasComparison, Converter={StaticResource BoolToVis}}">
+                <Image Stretch="Uniform"
+                       helpers:AsyncImage.Uri="{Binding ComparisonFriendAvatarPath}"
+                       helpers:AsyncImage.DecodePixel="32"/>
+            </Border>
+
+            <!-- Left, matching the owner's text above: this row only exists in compare mode, where
+                 both sides are pinned left against their shared avatar column. -->
             <StackPanel Grid.Row="1"
-                        Grid.ColumnSpan="2"
+                        Grid.Column="1"
                         Orientation="Horizontal"
                         Margin="0,2,0,0"
-                        HorizontalAlignment="{Binding RelativeSource={RelativeSource AncestorType={x:Type DataGridCell}}, Path=Column.(helpers:DataGridAlignmentBehavior.CellHorizontalAlignment)}"
+                        HorizontalAlignment="Left"
                         Visibility="{Binding HasComparison, Converter={StaticResource BoolToVis}}">
-                <Border Width="16"
-                        Height="16"
-                        CornerRadius="8"
-                        Margin="0,0,5,0"
-                        ClipToBounds="True"
-                        VerticalAlignment="Center">
-                    <Image Stretch="Uniform"
-                           helpers:AsyncImage.Uri="{Binding ComparisonFriendAvatarPath}"
-                           helpers:AsyncImage.DecodePixel="32"/>
-                </Border>
                 <TextBlock VerticalAlignment="Center"
                         Style="{DynamicResource PlayAch.TextBlock.BaseStyle}"
                         Foreground="{DynamicResource PlayAch.Brush.Text}"
