@@ -30,21 +30,42 @@ namespace PlayniteAchievements.Models.Achievements
         //
         // The radii are calibrated against the soft glow's footprint so switching styles does not
         // change how much room a glow takes: at the default RarityRayBurst.BurstScale the icon's
-        // edge lands near InnerRayRadius, so the visible part of a long ray is the remaining
-        // ~19 units, matching the soft glow's 20px blur radius. Widening the gap between
-        // InnerRayRadius and LongRayRadius, or raising BurstScale, makes the burst outgrow the
-        // soft glow. Half-angles are kept well under half the 360/RayCount spacing so the rays
-        // stay separated rather than merging into a disc.
+        // edge lands near InnerRayRadius, so a full-length ray shows the remaining ~19 units, which
+        // on a 64px icon matches the soft glow's 20px blur radius. Widening the gap between
+        // InnerRayRadius and OuterRayRadius, or raising BurstScale, makes the burst outgrow the
+        // soft glow. RayHalfAngle is kept well under half the 360/RayCount spacing so the rays stay
+        // separated rather than merging into a disc.
         private const int RayCount = 28;
         private const double RayBurstBox = 100.0;
         private const double RayBurstCenter = RayBurstBox / 2.0;
         private const double InnerRayRadius = 28.0;
-        private const double LongRayRadius = 50.0;
-        private const double ShortRayRadius = 42.0;
-        private const double LongRayHalfAngle = 2.3;
-        private const double ShortRayHalfAngle = 1.6;
-        private const byte RayBaseAlpha = 0xCC;
-        private const byte RayMidAlpha = 0x6E;
+        private const double OuterRayRadius = 50.0;
+
+        // Ray lengths follow a smooth swell around the rim rather than a fixed long/short
+        // alternation, so rotation carries the swell around the edge as a travelling wave instead of
+        // spinning a rigid pinwheel. MinRayLengthFraction is the shortest ray as a fraction of the
+        // full span, and the skew biases the distribution toward the long end so the envelope stays
+        // put while neighbouring rays still differ.
+        private const double MinRayLengthFraction = 0.48;
+        private const double RayLengthSkew = 0.7;
+
+        // Small deterministic wobble in ray placement, so the spacing does not read as a machined
+        // comb. Derived from the angle, not a random source, to keep the art reproducible.
+        private const double RayAngleJitterDegrees = 1.2;
+
+        // Each ray is drawn twice: a wide faint halo, then a narrower brighter core on top. Two
+        // vector passes stand in for the lateral blur that would otherwise need a BlurEffect, which
+        // would re-rasterize every frame on a rotating layer.
+        private const double RayHalfAngle = 2.4;
+        private const double RayHaloWidthFactor = 2.1;
+        private const byte RayCoreAlpha = 0xC8;
+        private const byte RayHaloAlpha = 0x38;
+        private const byte RayBloomAlpha = 0x2E;
+
+        // Ray sides curve toward the axis instead of running straight from base to tip, which reads
+        // as a soft needle rather than a hard triangle.
+        private const double RaySideCurveInset = 0.6;
+        private const double RaySideCurveAlong = 0.55;
 
         // WPF on this target has no additive blend mode, so the long rays are blended toward white
         // to read as light rather than as paint in the flat tier color.
@@ -382,11 +403,15 @@ namespace PlayniteAchievements.Models.Achievements
         }
 
         /// <summary>
-        /// Builds the sunburst as vector wedges rather than a blurred bitmap: each ray is a triangle
-        /// filled with a gradient fading to fully transparent at its tip, so the art freezes once and
-        /// the rotating layer costs a transform instead of re-rasterizing a blur every frame.
-        /// Alternating long and short rays give the burst its cadence, a central bloom seats the icon
-        /// in light rather than on top of bare spokes, and a radial opacity mask fades the whole
+        /// Builds the sunburst as vector rays rather than a blurred bitmap: each is a curve-sided
+        /// needle filled with a gradient fading to fully transparent at its tip, so the art freezes
+        /// once and the rotating layer costs a transform instead of re-rasterizing a blur every
+        /// frame.
+        ///
+        /// Ray length, width, and color all follow one smooth swell around the rim
+        /// (<see cref="RayLengthFraction"/>) instead of a fixed alternation, so rotation reads as a
+        /// wave travelling around the edge rather than a pinwheel spinning. A central bloom seats the
+        /// icon in light rather than on top of bare spokes, and a radial opacity mask fades the whole
         /// burst out so it never ends on a hard circular edge.
         /// </summary>
         private static DrawingImage CreateRayBurstImage(Color longRayColor, Color shortRayColor)
@@ -413,12 +438,21 @@ namespace PlayniteAchievements.Models.Achievements
 
             for (var i = 0; i < RayCount; i++)
             {
-                var isLongRay = i % 2 == 0;
+                var baseAngle = i * (360.0 / RayCount);
+                var theta = baseAngle * Math.PI / 180.0;
+                var angle = baseAngle + (RayAngleJitterDegrees * Math.Sin((7.0 * theta) + 0.5));
+
+                var lengthFraction = RayLengthFraction(theta);
+                var outerRadius = InnerRayRadius + ((OuterRayRadius - InnerRayRadius) * lengthFraction);
+                var halfAngle = RayHalfAngle * (0.6 + (0.55 * lengthFraction));
+
+                // Longer rays run brighter, so the swell reads in intensity as well as reach.
+                var color = Blend(shortRayColor, longRayColor, lengthFraction);
+
                 group.Children.Add(CreateRayDrawing(
-                    i * (360.0 / RayCount),
-                    isLongRay ? LongRayRadius : ShortRayRadius,
-                    isLongRay ? LongRayHalfAngle : ShortRayHalfAngle,
-                    isLongRay ? longRayColor : shortRayColor));
+                    angle, outerRadius, halfAngle * RayHaloWidthFactor, color, RayHaloAlpha));
+                group.Children.Add(CreateRayDrawing(
+                    angle, outerRadius, halfAngle, color, RayCoreAlpha));
             }
 
             group.OpacityMask = CreateRayFalloffBrush();
@@ -432,13 +466,34 @@ namespace PlayniteAchievements.Models.Achievements
             return image;
         }
 
+        /// <summary>
+        /// The shortest-to-longest ray reach at a point on the rim, as a fraction of the full span.
+        /// Two integer harmonics keep the swell continuous all the way around the circle, so the art
+        /// has no seam where it closes, while their sum avoids the regular cadence a single harmonic
+        /// would give.
+        /// </summary>
+        private static double RayLengthFraction(double angleRadians)
+        {
+            var wave = (0.6 * Math.Sin(3.0 * angleRadians)) +
+                       (0.4 * Math.Sin((5.0 * angleRadians) + 1.1));
+            var shaped = Math.Pow((wave + 1.0) / 2.0, RayLengthSkew);
+            return MinRayLengthFraction + ((1.0 - MinRayLengthFraction) * shaped);
+        }
+
         private static GeometryDrawing CreateRayDrawing(
             double angleDegrees,
             double outerRadius,
             double halfAngleDegrees,
-            Color color)
+            Color color,
+            byte baseAlpha)
         {
             var tip = PolarPoint(angleDegrees, outerRadius);
+
+            // Quadratic sides with their control points partway along the ray and pulled toward its
+            // axis, so the silhouette tapers as a soft needle instead of a straight-edged triangle.
+            var controlRadius = InnerRayRadius + ((outerRadius - InnerRayRadius) * RaySideCurveAlong);
+            var leftControl = PolarPoint(angleDegrees - (halfAngleDegrees * RaySideCurveInset), controlRadius);
+            var rightControl = PolarPoint(angleDegrees + (halfAngleDegrees * RaySideCurveInset), controlRadius);
 
             var figure = new PathFigure
             {
@@ -446,8 +501,11 @@ namespace PlayniteAchievements.Models.Achievements
                 IsClosed = true,
                 IsFilled = true
             };
-            figure.Segments.Add(new LineSegment(tip, true));
-            figure.Segments.Add(new LineSegment(PolarPoint(angleDegrees + halfAngleDegrees, InnerRayRadius), true));
+            figure.Segments.Add(new QuadraticBezierSegment(leftControl, tip, true));
+            figure.Segments.Add(new QuadraticBezierSegment(
+                rightControl,
+                PolarPoint(angleDegrees + halfAngleDegrees, InnerRayRadius),
+                true));
 
             var geometry = new PathGeometry();
             geometry.Figures.Add(figure);
@@ -464,8 +522,8 @@ namespace PlayniteAchievements.Models.Achievements
                 StartPoint = PolarPoint(angleDegrees, InnerRayRadius),
                 EndPoint = tip
             };
-            brush.GradientStops.Add(new GradientStop(WithAlpha(color, RayBaseAlpha), 0.00));
-            brush.GradientStops.Add(new GradientStop(WithAlpha(color, RayMidAlpha), 0.45));
+            brush.GradientStops.Add(new GradientStop(WithAlpha(color, baseAlpha), 0.00));
+            brush.GradientStops.Add(new GradientStop(WithAlpha(color, (byte)(baseAlpha * 0.55)), 0.45));
             brush.GradientStops.Add(new GradientStop(WithAlpha(color, 0x00), 1.00));
             if (brush.CanFreeze)
             {
@@ -489,8 +547,10 @@ namespace PlayniteAchievements.Models.Achievements
                 RadiusY = 0.5
             };
 
-            brush.GradientStops.Add(new GradientStop(WithAlpha(color, 0x3A), 0.00));
-            brush.GradientStops.Add(new GradientStop(WithAlpha(color, 0x1C), 0.42));
+            // Kept faint: the rays' own halo pass now supplies most of the diffuse light, so a
+            // stronger bloom here would flatten the swell into an undifferentiated cloud.
+            brush.GradientStops.Add(new GradientStop(WithAlpha(color, RayBloomAlpha), 0.00));
+            brush.GradientStops.Add(new GradientStop(WithAlpha(color, (byte)(RayBloomAlpha * 0.6)), 0.42));
             brush.GradientStops.Add(new GradientStop(WithAlpha(color, 0x00), 1.00));
             if (brush.CanFreeze)
             {
