@@ -2599,6 +2599,10 @@ namespace PlayniteAchievements.ViewModels
 
             var compareName = _compareFriend.DisplayName;
             var compareAvatar = _compareFriend.AvatarPath;
+            // In the pair view the rows belong to the selected friend, so that friend is the owner
+            // of the comparison's own side rather than the current user.
+            var ownerName = SelectedFriend?.DisplayName;
+            var ownerAvatar = SelectedFriend?.AvatarPath;
             foreach (var item in achievementSource)
             {
                 if (item == null ||
@@ -2618,7 +2622,9 @@ namespace PlayniteAchievements.ViewModels
                     compareName,
                     compareAvatar ?? compareRow?.FriendAvatarPath,
                     compareRow?.UnlockTimeUtc,
-                    compareRow?.Unlocked == true);
+                    compareRow?.Unlocked == true,
+                    ownerName ?? item.FriendName,
+                    ownerAvatar ?? item.FriendAvatarPath);
                 _compareAppliedItems.Add(item);
             }
         }
