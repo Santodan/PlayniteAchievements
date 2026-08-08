@@ -16,12 +16,12 @@
 
             <BooleanToVisibilityConverter x:Key="GridControlBarBoolToVis"/>
 
-            <!-- Toolbar mode toggle (category-summaries mode), rendered as the left half of a
+            <!-- Toolbar mode toggle (category-summaries mode), rendered as the right half of a
                  segmented unit: a bordered, icon-only button that butts flush against the category
-                 dropdown on its right. The glyph stays a fixed color; the checked state uses the
+                 dropdown on its left. The glyph stays a fixed color; the checked state uses the
                  same selected background + accent border as the Unlocked/Locked/Hidden filter
-                 toggles. When on, the adjacent dropdown is hidden so the segment rounds all four
-                 corners. -->
+                 toggles. Whenever the adjacent dropdown is not shown the segment stands alone and
+                 rounds all four corners. -->
             <Style x:Key="GridModeToggleButtonStyle" TargetType="ToggleButton">
                 <Setter Property="Foreground" Value="{DynamicResource PlayAch.Brush.Text}"/>
                 <Setter Property="Cursor" Value="Hand"/>
@@ -35,7 +35,7 @@
                                     Background="{DynamicResource PlayAch.Brush.Button.Background}"
                                     BorderBrush="{DynamicResource PlayAch.Brush.Button.Border}"
                                     BorderThickness="1"
-                                    CornerRadius="4,0,0,4"
+                                    CornerRadius="4"
                                     Padding="8,0"
                                     SnapsToDevicePixels="True">
                                 <Viewbox Width="15" Height="15" VerticalAlignment="Center">
@@ -49,8 +49,10 @@
                                     <Setter TargetName="Seg" Property="BorderBrush" Value="{DynamicResource PlayAch.Brush.Accent}"/>
                                     <Setter TargetName="Seg" Property="Background" Value="{DynamicResource PlayAch.Brush.Button.Background.Hover}"/>
                                 </Trigger>
+                                <DataTrigger Binding="{Binding Connected}" Value="True">
+                                    <Setter TargetName="Seg" Property="CornerRadius" Value="0,4,4,0"/>
+                                </DataTrigger>
                                 <Trigger Property="IsChecked" Value="True">
-                                    <Setter TargetName="Seg" Property="CornerRadius" Value="4"/>
                                     <Setter TargetName="Seg" Property="Background" Value="{DynamicResource PlayAch.Brush.Button.Background.Selected}"/>
                                     <Setter TargetName="Seg" Property="BorderBrush" Value="{DynamicResource PlayAch.Brush.Accent}"/>
                                 </Trigger>
@@ -291,12 +293,10 @@
                     </Button.ContextMenu>
                 </Button>
                 <DataTemplate.Triggers>
-                    <!-- Segmented with the mode toggle on its left: flat left edge, no gap. -->
-                    <DataTrigger Binding="{Binding ConnectedLeft}" Value="True">
-                        <Setter TargetName="FilterButton" Property="Style" Value="{StaticResource AchievementSelectorButtonConnectedLeftStyle}"/>
-                        <!-- Overlap the toggle's right border by 1px so the restored left border reads
-                             as a single seam and recolors on the dropdown's own hover/focus. -->
-                        <Setter TargetName="FilterButton" Property="Margin" Value="-1,0,0,0"/>
+                    <!-- Segmented with the mode toggle on its right: flat right edge. The toggle
+                         carries the 1px overlap that closes the seam. -->
+                    <DataTrigger Binding="{Binding ConnectedRight}" Value="True">
+                        <Setter TargetName="FilterButton" Property="Style" Value="{StaticResource AchievementSelectorButtonConnectedRightStyle}"/>
                     </DataTrigger>
                 </DataTemplate.Triggers>
             </DataTemplate>
@@ -476,13 +476,21 @@
             </DataTemplate>
 
             <DataTemplate DataType="{x:Type vm:GridModeToggle}">
-                <ToggleButton Style="{StaticResource GridModeToggleButtonStyle}"
+                <ToggleButton x:Name="ModeToggleButton"
+                              Style="{StaticResource GridModeToggleButtonStyle}"
                               IsChecked="{Binding IsChecked, Mode=TwoWay}"
                               Height="{StaticResource PlayAch.Size.Control.Height}"
                               Margin="{StaticResource PlayAch.Thickness.Left.Xs}"
                               VerticalAlignment="Center"
                               ToolTip="{Binding ToolTip}"
                               Visibility="{Binding EffectiveIsVisible, Converter={StaticResource GridControlBarBoolToVis}}"/>
+                <DataTemplate.Triggers>
+                    <!-- Overlap the dropdown's right border by 1px so the seam reads as a single
+                         line and recolors on the toggle's own hover/checked state. -->
+                    <DataTrigger Binding="{Binding Connected}" Value="True">
+                        <Setter TargetName="ModeToggleButton" Property="Margin" Value="-1,0,0,0"/>
+                    </DataTrigger>
+                </DataTemplate.Triggers>
             </DataTemplate>
         </ResourceDictionary>
     </UserControl.Resources>
