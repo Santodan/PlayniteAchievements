@@ -2615,9 +2615,66 @@
                         <TextBlock Text="Achievement Notifications" VerticalAlignment="Center"/>
                     </StackPanel>
                 </TabItem.Header>
-                <ScrollViewer VerticalScrollBarVisibility="Auto"
-                              HorizontalScrollBarVisibility="Disabled">
-                    <StackPanel Margin="20">
+                <Grid Background="{DynamicResource PanelBackgroundBrush}">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="220" MinWidth="190" MaxWidth="260"/>
+                        <ColumnDefinition Width="*"/>
+                    </Grid.ColumnDefinitions>
+
+                    <Border Grid.Column="0"
+                            BorderBrush="{DynamicResource NormalBorderBrush}"
+                            BorderThickness="0,0,1,0"
+                            Background="{DynamicResource ControlBackgroundBrush}">
+                        <ListBox BorderThickness="0"
+                                 Background="Transparent"
+                                 ScrollViewer.HorizontalScrollBarVisibility="Disabled"
+                                 ScrollViewer.VerticalScrollBarVisibility="Auto"
+                                 Padding="0">
+                            <ListBoxItem x:Name="AchievementNotificationsGeneralNavigationItem"
+                                         Style="{StaticResource ProviderNavigationItemContainerStyle}"
+                                         IsSelected="True">
+                                <Grid Margin="8,3" MinHeight="32">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="Auto"/>
+                                        <ColumnDefinition Width="*"/>
+                                    </Grid.ColumnDefinitions>
+                                    <TextBlock Text="&#xE713;"
+                                               FontFamily="Segoe MDL2 Assets"
+                                               FontSize="14"
+                                               Margin="0,0,8,0"
+                                               VerticalAlignment="Center"/>
+                                    <TextBlock Grid.Column="1"
+                                               Text="General"
+                                               FontWeight="SemiBold"
+                                               VerticalAlignment="Center"/>
+                                </Grid>
+                            </ListBoxItem>
+                            <ListBoxItem x:Name="AchievementNotificationsMemoriesNavigationItem"
+                                         Style="{StaticResource ProviderNavigationItemContainerStyle}">
+                                <Grid Margin="8,3" MinHeight="32">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="Auto"/>
+                                        <ColumnDefinition Width="*"/>
+                                    </Grid.ColumnDefinitions>
+                                    <TextBlock Text="&#xE91B;"
+                                               FontFamily="Segoe MDL2 Assets"
+                                               FontSize="14"
+                                               Margin="0,0,8,0"
+                                               VerticalAlignment="Center"/>
+                                    <TextBlock Grid.Column="1"
+                                               Text="Memories"
+                                               FontWeight="SemiBold"
+                                               VerticalAlignment="Center"/>
+                                </Grid>
+                            </ListBoxItem>
+                        </ListBox>
+                    </Border>
+
+                    <ScrollViewer Grid.Column="1"
+                                  VerticalScrollBarVisibility="Auto"
+                                  HorizontalScrollBarVisibility="Disabled"
+                                  Visibility="{Binding IsSelected, ElementName=AchievementNotificationsGeneralNavigationItem, Converter={StaticResource BoolToVis}}">
+                        <StackPanel Margin="20">
 
                         <!-- ================== LOCAL ACHIEVEMENT NOTIFICATIONS SECTION ================== -->
                         <Border Style="{StaticResource SectionBorderStyle}">
@@ -4061,7 +4118,25 @@
                                     </StackPanel>
                                 </Border>
 
-                                <Separator Margin="0,16,0,16"/>
+                            </StackPanel>
+                        </Border>
+                        </StackPanel>
+                    </ScrollViewer>
+
+                    <ScrollViewer Grid.Column="1"
+                                  VerticalScrollBarVisibility="Auto"
+                                  HorizontalScrollBarVisibility="Disabled"
+                                  Visibility="{Binding IsSelected, ElementName=AchievementNotificationsMemoriesNavigationItem, Converter={StaticResource BoolToVis}}">
+                        <StackPanel Margin="20">
+                            <Border Style="{StaticResource SectionBorderStyle}">
+                                <StackPanel>
+                                    <TextBlock Text="Memories"
+                                               Style="{StaticResource SectionHeaderStyle}"
+                                               Margin="0,0,0,12"/>
+                                    <TextBlock Text="Capture screenshots and video clips when achievements are unlocked."
+                                               Style="{StaticResource MutedTextStyle}"
+                                               Margin="0,0,0,16"
+                                               TextWrapping="Wrap"/>
 
                                 <!-- Screenshots -->
                                 <Border Style="{StaticResource SettingGroupCardStyle}"
@@ -4279,8 +4354,9 @@
                             </StackPanel>
                         </Border>
 
-                    </StackPanel>
-                </ScrollViewer>
+                        </StackPanel>
+                    </ScrollViewer>
+                </Grid>
             </TabItem>
 
             <!-- ================== TAB: PROVIDERS ================== -->

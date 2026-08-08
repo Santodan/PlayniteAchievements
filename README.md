@@ -103,6 +103,11 @@ The entries below are fork-side changes, grouped by date. When a date includes a
 - Fixed Hidden achievements description not respecting the language setting
 - Added the option to apply a selected subset to the RA Game ID Override
 - Fixed the achievement refresh to `New Game` when adding a new game to playnite
+- Changed the `Achievement Notification` UI, it now has two tabs:
+  - `General` with everything besides screenshot and video recording settings
+  - `Memories` with all the settings for the screenshot and the video recording
+- Made the `Achievement Notification` screenshot and video recording to work independently if the notification is active or not
+  - This way it can be used with the original notification from the original fork with the changes to the settings.
 
 ## 2026-08-06 - v3.1.0.1
 
