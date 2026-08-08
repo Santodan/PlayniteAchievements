@@ -1,9 +1,9 @@
 using System;
-using System.Globalization;
 using System.IO;
 using System.Runtime.InteropServices;
 using System.Threading;
 using Playnite.SDK;
+using PlayniteAchievements.Common;
 using PlayniteAchievements.Models.Settings;
 using PlayniteAchievements.Services.Recording;
 using Windows.Foundation;
@@ -29,8 +29,6 @@ namespace PlayniteAchievements.Services.Capture
     /// </summary>
     internal sealed class WgcVideoRecorder : IDisposable
     {
-        private const string SegmentStrftime = "yyyyMMdd-HHmmss";
-
         // Resolves the game window to capture, re-checked each second so the recorder follows the
         // learned game window (idle until it's known, re-target if it changes) instead of grabbing
         // whatever is foreground at start.
@@ -180,7 +178,7 @@ namespace PlayniteAchievements.Services.Capture
                     _logger?.Debug(
                         ex,
                         $"[Recording] WGC-MF could not create a capture item for game window 0x{hwnd.ToInt64():X} " +
-                        $"({DescribeWindow(hwnd)}); retrying every second until it becomes capturable.");
+                        $"({DescribeWindow(hwnd, 0, 0)}); retrying every second until it becomes capturable.");
                 }
 
                 return;
@@ -222,30 +220,29 @@ namespace PlayniteAchievements.Services.Capture
             _logger?.Info(
                 $"[Recording] WGC-MF capturing game window 0x{hwnd.ToInt64():X} (hdr={_hdr}, " +
                 $"{item.Size.Width}x{item.Size.Height}@{_fps}, crop={_cropW}x{_cropH}+{_cropX}+{_cropY}, " +
-                $"{DescribeWindow(hwnd)}).");
+                $"{DescribeWindow(hwnd, item.Size.Width, item.Size.Height)}).");
         }
 
         /// <summary>
-        /// A compact description of a window for capture diagnostics: its outer rect, the DWM frame
-        /// bounds and client size WGC cropping measures against, and the true scale of the monitor
-        /// it is on. All rects are read per-monitor-aware, so they are the same physical pixels the
-        /// capture works in. Never throws.
+        /// A compact description of a window for capture diagnostics: the rects the crop is derived
+        /// from, the monitor's true scale, and — the part that explains a mis-cropped clip — which
+        /// rect the texture was matched to and at what scale. A texture-to-screen scale other than
+        /// 1 means the window is DPI-unaware on a scaled display; "none" means no rect described
+        /// the texture and the whole frame was kept. Never throws.
         /// </summary>
-        private static string DescribeWindow(IntPtr hwnd)
+        private static string DescribeWindow(IntPtr hwnd, int capturedW, int capturedH)
         {
             try
             {
-                using (Common.DpiAwarenessScope.PerMonitorV2())
-                {
-                    var window = GetWindowRect(hwnd, out var wr) ? wr.ToString() : "?";
-                    var frame = DwmGetWindowAttribute(hwnd, DWMWA_EXTENDED_FRAME_BOUNDS, out var fr, Marshal.SizeOf(typeof(RECT))) == 0
-                        ? fr.ToString()
-                        : "?";
-                    var client = GetClientRect(hwnd, out var cr) ? $"{cr.Width}x{cr.Height}" : "?";
-                    var scale = UI.ToastWindowPlacer.ResolveMonitorScale(hwnd);
-                    return $"window={window} frame={frame} client={client} monitorScale={scale:0.##} " +
-                        $"visible={IsWindowVisible(hwnd)} iconic={IsIconic(hwnd)}";
-                }
+                var rects = WindowRectangles.Measure(hwnd);
+                // Only meaningful once there is a texture to relate the window to; a window that
+                // could not be captured at all has none, and reporting "no rect matched" there
+                // would read as a mapping failure rather than an absent capture.
+                var mapping = capturedW > 0 && capturedH > 0
+                    ? CaptureCropMath.ResolveMapping(capturedW, capturedH, rects.FrameBounds, rects.OuterRect).ToString()
+                    : "anchor=n/a";
+                return $"{rects} monitorScale={UI.ToastWindowPlacer.ResolveMonitorScale(hwnd):0.##} {mapping} " +
+                    $"visible={IsWindowVisible(hwnd)} iconic={IsIconic(hwnd)}";
             }
             catch
             {
@@ -264,65 +261,18 @@ namespace PlayniteAchievements.Services.Capture
 
         /// <summary>
         /// The client-area sub-region within the captured window texture (excludes chrome), in
-        /// captured pixels — measured against the DWM extended frame bounds (what WGC captures) and
-        /// scaled into the texture, with even dimensions for H.264. Falls back to the full frame.
-        ///
-        /// Every window read runs per-monitor-aware, matching the screenshot path: the host process
-        /// is system-DPI-aware, so on a monitor whose effective DPI differs from the system DPI the
-        /// client rect would come back virtualized while the DWM bounds and the captured texture are
-        /// physical pixels — and the crop derived from mixing the two spaces would keep only a
-        /// fraction of the frame.
+        /// captured pixels. The window is measured by <see cref="WindowRectangles"/> and the region
+        /// derived by <see cref="CaptureCropMath"/>, which owns the reasoning about how a texture
+        /// relates to the window it was captured from — the same pair the still-capture path uses.
         /// </summary>
         private static void ComputeClientCrop(IntPtr hwnd, int capturedW, int capturedH, out int x, out int y, out int w, out int h)
         {
-            x = 0;
-            y = 0;
-            w = capturedW;
-            h = capturedH;
-            try
-            {
-                using (Common.DpiAwarenessScope.PerMonitorV2())
-                {
-                    if (DwmGetWindowAttribute(hwnd, DWMWA_EXTENDED_FRAME_BOUNDS, out var frame, Marshal.SizeOf(typeof(RECT))) != 0)
-                    {
-                        return;
-                    }
-
-                    var fw = frame.Right - frame.Left;
-                    var fh = frame.Bottom - frame.Top;
-                    if (fw <= 0 || fh <= 0 || !GetClientRect(hwnd, out var client))
-                    {
-                        return;
-                    }
-
-                    var cw = client.Right - client.Left;
-                    var ch = client.Bottom - client.Top;
-                    var origin = new POINT { X = 0, Y = 0 };
-                    if (cw <= 0 || ch <= 0 || !ClientToScreen(hwnd, ref origin))
-                    {
-                        return;
-                    }
-
-                    var sx = (double)capturedW / fw;
-                    var sy = (double)capturedH / fh;
-                    var cx = Math.Max(0, Math.Min((int)Math.Round((origin.X - frame.Left) * sx), capturedW - 2));
-                    var cy = Math.Max(0, Math.Min((int)Math.Round((origin.Y - frame.Top) * sy), capturedH - 2));
-                    var cwp = Math.Max(2, Math.Min((int)Math.Round(cw * sx), capturedW - cx)) & ~1;
-                    var chp = Math.Max(2, Math.Min((int)Math.Round(ch * sy), capturedH - cy)) & ~1;
-
-                    x = cx;
-                    y = cy;
-                    w = cwp;
-                    h = chp;
-                }
-            }
-            catch
-            {
-                x = 0;
-                y = 0;
-                w = capturedW & ~1;
-                h = capturedH & ~1;
-            }
+            var crop = CaptureCropMath.ClientCrop(
+                capturedW, capturedH, WindowRectangles.Measure(hwnd), evenDimensions: true);
+            x = crop.X;
+            y = crop.Y;
+            w = crop.Width;
+            h = crop.Height;
         }
 
         private void PumpLoop()
@@ -559,7 +509,10 @@ namespace PlayniteAchievements.Services.Capture
             // size in ComposeFrame when a cap applies.
             ComputeEncodeSize(_latest.Description.Width, _latest.Description.Height, out _encW, out _encH);
 
-            var name = RecordingPaths.SegmentFilePrefix + DateTime.Now.ToString(SegmentStrftime, CultureInfo.InvariantCulture) + RecordingPaths.SegmentFileExtension;
+            // The dimensions ride in the name so the clip planner can group segments by size
+            // without opening them — a capture rebuilt at a new size starts a run the planner
+            // will not concatenate with the old one.
+            var name = RecordingPaths.BuildSegmentFileName(DateTime.Now, _encW, _encH);
             var path = EnsureUniqueSegment(Path.Combine(_bufferDirectory, name));
             _encoder = new MediaFoundationH264Encoder(
                 _device, path, _encW, _encH, _fps, ComputeBitrate(_encW, _encH));
