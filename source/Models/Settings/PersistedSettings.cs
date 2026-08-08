@@ -90,6 +90,7 @@ namespace PlayniteAchievements.Models.Settings
         private string _unlockScreenshotSuffixWithToast = "notification";
         private string _unlockScreenshotSuffixFramed = "framed";
         private string _unlockScreenshotDirectory;
+        private ScreenshotResolution _screenshotResolution = ScreenshotResolution.Native;
         private RaritySelection _unlockScreenshotCleanRarities = RaritySelection.All;
         private bool _unlockScreenshotCleanAlwaysCaptureCompletion = true;
         private RaritySelection _unlockScreenshotWithToastRarities = RaritySelection.All;
@@ -1192,6 +1193,16 @@ namespace PlayniteAchievements.Models.Settings
         {
             get => _unlockScreenshotDirectory;
             set => SetValue(ref _unlockScreenshotDirectory, value);
+        }
+
+        /// <summary>
+        /// Output height of unlock screenshots. The base capture is downscaled before the
+        /// notification card and frame are composited, so every variant shares the reduced size.
+        /// </summary>
+        public ScreenshotResolution ScreenshotResolution
+        {
+            get => _screenshotResolution;
+            set => SetValue(ref _screenshotResolution, value);
         }
 
         /// <summary>
@@ -2606,6 +2617,7 @@ namespace PlayniteAchievements.Models.Settings
                 UnlockScreenshotSuffixWithToast = this.UnlockScreenshotSuffixWithToast,
                 UnlockScreenshotSuffixFramed = this.UnlockScreenshotSuffixFramed,
                 UnlockScreenshotDirectory = this.UnlockScreenshotDirectory,
+                ScreenshotResolution = this.ScreenshotResolution,
                 UnlockScreenshotCleanRarities = this.UnlockScreenshotCleanRarities,
                 UnlockScreenshotCleanAlwaysCaptureCompletion = this.UnlockScreenshotCleanAlwaysCaptureCompletion,
                 UnlockScreenshotWithToastRarities = this.UnlockScreenshotWithToastRarities,
