@@ -58,17 +58,18 @@ namespace PlayniteAchievements.Services.UI
         /// same resolution toast placement uses), clamped to that window's monitor. Falls back to
         /// the whole monitor if the window rect is unavailable. Returns null on failure.
         /// </summary>
-        public Bitmap CaptureGameWindow(int? startedProcessId)
+        public Bitmap CaptureGameWindow(int? startedProcessId, int capHeight)
         {
-            return CaptureGameWindow(IntPtr.Zero, startedProcessId);
+            return CaptureGameWindow(IntPtr.Zero, startedProcessId, capHeight);
         }
 
         /// <summary>
         /// Capture overload for callers that already resolved the game window (e.g. via the
         /// foreground tracker): a valid <paramref name="knownHwnd"/> wins, the started-process
-        /// resolution is the fallback.
+        /// resolution is the fallback. <paramref name="capHeight"/> caps the returned bitmap's
+        /// height (0 for none) — see <see cref="ApplyResolutionCap"/>.
         /// </summary>
-        public Bitmap CaptureGameWindow(IntPtr knownHwnd, int? startedProcessId)
+        public Bitmap CaptureGameWindow(IntPtr knownHwnd, int? startedProcessId, int capHeight)
         {
             try
             {
@@ -85,7 +86,7 @@ namespace PlayniteAchievements.Services.UI
                         var captured = wgc.CaptureWindow(hwnd);
                         if (captured?.Bitmap != null)
                         {
-                            return captured.Bitmap;
+                            return ApplyResolutionCap(captured.Bitmap, capHeight);
                         }
                     }
                 }
@@ -105,7 +106,7 @@ namespace PlayniteAchievements.Services.UI
                     CopyScreenPhysical(graphics, bounds);
                 }
 
-                return bitmap;
+                return ApplyResolutionCap(bitmap, capHeight);
             }
             catch (Exception ex)
             {
@@ -120,7 +121,7 @@ namespace PlayniteAchievements.Services.UI
         /// the whole screen where it appears rather than just the Playnite window. Falls back to the
         /// primary monitor when the handle is zero. Returns null on failure.
         /// </summary>
-        public Bitmap CaptureMonitor(IntPtr windowOnMonitor)
+        public Bitmap CaptureMonitor(IntPtr windowOnMonitor, int capHeight)
         {
             try
             {
@@ -135,7 +136,7 @@ namespace PlayniteAchievements.Services.UI
                         var captured = wgc.CaptureMonitorForWindow(windowOnMonitor);
                         if (captured?.Bitmap != null)
                         {
-                            return captured.Bitmap;
+                            return ApplyResolutionCap(captured.Bitmap, capHeight);
                         }
                     }
                 }
@@ -152,12 +153,65 @@ namespace PlayniteAchievements.Services.UI
                     CopyScreenPhysical(graphics, bounds);
                 }
 
-                return bitmap;
+                return ApplyResolutionCap(bitmap, capHeight);
             }
             catch (Exception ex)
             {
                 _logger?.Debug(ex, "Unlock monitor capture failed.");
                 return null;
+            }
+        }
+
+        /// <summary>
+        /// Downscales a capture to the configured height cap, preserving the aspect ratio and never
+        /// upscaling. Returns <paramref name="source"/> itself when no cap applies, and disposes it
+        /// when it is replaced, so callers always own exactly the bitmap they get back.
+        /// <para>
+        /// Applied to the base capture, before the notification card is composited and before the
+        /// frame is rendered: both derive their geometry from the base bitmap's dimensions, so card
+        /// and frame chrome scale with the image rather than staying at capture size.
+        /// </para>
+        /// The replacement keeps the source's pixel format. That matters for the GDI fallback's
+        /// Format32bppRgb — an Argb buffer there would carry alpha=0 and save transparent PNGs.
+        /// </summary>
+        private Bitmap ApplyResolutionCap(Bitmap source, int capHeight)
+        {
+            if (source == null || capHeight <= 0 || source.Height <= capHeight)
+            {
+                return source;
+            }
+
+            try
+            {
+                var size = ResolutionCapMath.Apply(
+                    source.Width, source.Height, capHeight, evenDimensions: false);
+                var scaled = new Bitmap(size.Width, size.Height, source.PixelFormat);
+                using (var graphics = Graphics.FromImage(scaled))
+                // TileFlipXY: the default wrap mode samples past the source edge on a downscale and
+                // leaves a half-transparent border row and column.
+                using (var attributes = new ImageAttributes())
+                {
+                    attributes.SetWrapMode(System.Drawing.Drawing2D.WrapMode.TileFlipXY);
+                    graphics.InterpolationMode = System.Drawing.Drawing2D.InterpolationMode.HighQualityBicubic;
+                    graphics.PixelOffsetMode = System.Drawing.Drawing2D.PixelOffsetMode.HighQuality;
+                    graphics.SmoothingMode = System.Drawing.Drawing2D.SmoothingMode.HighQuality;
+                    graphics.CompositingMode = System.Drawing.Drawing2D.CompositingMode.SourceCopy;
+                    graphics.DrawImage(
+                        source,
+                        new Rectangle(0, 0, size.Width, size.Height),
+                        0, 0, source.Width, source.Height,
+                        GraphicsUnit.Pixel,
+                        attributes);
+                }
+
+                source.Dispose();
+                return scaled;
+            }
+            catch (Exception ex)
+            {
+                // A failed downscale must not cost the screenshot: keep the full-size capture.
+                _logger?.Debug(ex, "Unlock screenshot downscale failed; keeping the captured size.");
+                return source;
             }
         }
 
