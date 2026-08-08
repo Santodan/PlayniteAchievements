@@ -337,6 +337,25 @@
                                          Width="160"
                                          Margin="0,0,0,8"/>
                             </Grid>
+                            <Grid Margin="0,0,0,8">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*"/>
+                                    <ColumnDefinition Width="Auto"/>
+                                </Grid.ColumnDefinitions>
+                                <TextBlock Grid.Column="0"
+                                           Text="{DynamicResource LOCPlayAch_Settings_RecordingResolution}"
+                                           Foreground="{DynamicResource PlayAch.Brush.Text}"
+                                           VerticalAlignment="Center"
+                                           Margin="0,0,8,0"/>
+                                <ComboBox Grid.Column="1"
+                                          SelectedValue="{Binding Persisted.ScreenshotResolution, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                          SelectedValuePath="Tag"
+                                          MinWidth="140">
+                                    <ComboBoxItem Content="{DynamicResource LOCPlayAch_Settings_RecordingResolutionNative}" Tag="{x:Static settings:ScreenshotResolution.Native}"/>
+                                    <ComboBoxItem Content="1080p" Tag="{x:Static settings:ScreenshotResolution.P1080}"/>
+                                    <ComboBoxItem Content="720p" Tag="{x:Static settings:ScreenshotResolution.P720}"/>
+                                </ComboBox>
+                            </Grid>
                             <TextBlock Text="{DynamicResource LOCPlayAch_Settings_ScreenshotDirectory}"
                                        Foreground="{DynamicResource PlayAch.Brush.Text}"
                                        Margin="0,0,0,4"/>
