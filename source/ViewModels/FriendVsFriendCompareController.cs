@@ -137,6 +137,8 @@ namespace PlayniteAchievements.ViewModels
 
             var compareName = _compareFriend.DisplayName;
             var compareAvatar = _compareFriend.AvatarPath;
+            var ownerName = selectedFriend.DisplayName;
+            var ownerAvatar = selectedFriend.AvatarPath;
             foreach (var item in targetRows)
             {
                 if (item == null || !FriendOverviewProjection.IsSameFriend(item, selectedFriend))
@@ -150,11 +152,15 @@ namespace PlayniteAchievements.ViewModels
                     compareRows.TryGetValue(item.ApiName, out compareRow);
                 }
 
+                // The rows belong to the selected friend, so that friend owns the comparison's own
+                // side rather than the current user.
                 item.ApplyComparison(
                     compareName,
                     compareAvatar ?? compareRow?.FriendAvatarPath,
                     compareRow?.UnlockTimeUtc,
-                    compareRow?.Unlocked == true);
+                    compareRow?.Unlocked == true,
+                    ownerName ?? item.FriendName,
+                    ownerAvatar ?? item.FriendAvatarPath);
                 _appliedItems.Add(item);
             }
         }
