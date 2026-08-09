@@ -18,9 +18,6 @@ namespace PlayniteAchievements.Services.Recording
         /// <summary>Tolerance (seconds past detection) a trusted unlock timestamp may carry.</summary>
         public const int PreciseLeadSeconds = 5;
 
-        /// <summary>Width of the yyyyMMdd-HHmmss stamp every buffer file name starts with.</summary>
-        private const int StampLength = 15;
-
         /// <summary>Windows that collapse below this are skipped by the caller.</summary>
         public const int MinimumWindowSeconds = 3;
 
@@ -125,9 +122,10 @@ namespace PlayniteAchievements.Services.Recording
 
         /// <summary>
         /// Splits a buffer file name into its wall-clock stamp and, for video segments, the
-        /// encoded dimensions: prefix + yyyyMMdd-HHmmss + optional _WxH + optional -N (the
-        /// writer's same-second uniquifier) + extension. The stamp is read at its fixed width so
-        /// neither trailing token defeats it.
+        /// encoded dimensions: prefix + yyyyMMdd-HHmmssfff + optional _WxH + optional -N (the
+        /// writer's same-instant uniquifier) + extension. The stamp is read at its fixed width so
+        /// neither trailing token defeats it, falling back to the second-resolution stamp buffers
+        /// written before milliseconds were included carry.
         /// </summary>
         private static bool TryParseSegment(
             string path,
@@ -153,25 +151,7 @@ namespace PlayniteAchievements.Services.Recording
             var body = name.Substring(
                 prefix.Length,
                 name.Length - prefix.Length - extension.Length);
-            if (body.Length < StampLength)
-            {
-                return false;
-            }
-
-            var stamp = body.Substring(0, StampLength);
-            var suffix = body.Substring(StampLength);
-            // Only the writer's own suffixes may follow the stamp; anything else is a foreign file.
-            if (suffix.Length > 0 && suffix[0] != RecordingPaths.DimensionSeparator && suffix[0] != '-')
-            {
-                return false;
-            }
-
-            if (!DateTime.TryParseExact(
-                    stamp,
-                    "yyyyMMdd-HHmmss",
-                    CultureInfo.InvariantCulture,
-                    DateTimeStyles.None,
-                    out var local))
+            if (!TryParseStamp(body, out var local, out var suffix))
             {
                 return false;
             }
@@ -190,6 +170,44 @@ namespace PlayniteAchievements.Services.Recording
                 // Skipped or ambiguous local time (DST transition) — drop the segment.
                 return false;
             }
+        }
+
+        /// <summary>
+        /// Reads the leading wall-clock stamp from a file name's body, yielding the local time and
+        /// whatever follows it. Tries the millisecond stamp first, then the second-resolution one
+        /// buffers written before milliseconds were included carry. Only the writers' own suffixes
+        /// may follow — anything else is a foreign file that happens to share the prefix.
+        /// </summary>
+        private static bool TryParseStamp(string body, out DateTime local, out string suffix)
+        {
+            local = default;
+            suffix = string.Empty;
+            foreach (var length in new[] { RecordingPaths.StampLength, RecordingPaths.LegacyStampLength })
+            {
+                if (body.Length < length)
+                {
+                    continue;
+                }
+
+                var candidate = body.Substring(0, length);
+                var rest = body.Substring(length);
+                if (rest.Length > 0 && rest[0] != RecordingPaths.DimensionSeparator && rest[0] != '-')
+                {
+                    continue;
+                }
+
+                var format = length == RecordingPaths.StampLength
+                    ? RecordingPaths.StampFormat
+                    : "yyyyMMdd-HHmmss";
+                if (DateTime.TryParseExact(
+                        candidate, format, CultureInfo.InvariantCulture, DateTimeStyles.None, out local))
+                {
+                    suffix = rest;
+                    return true;
+                }
+            }
+
+            return false;
         }
 
         /// <summary>

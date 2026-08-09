@@ -375,9 +375,7 @@ namespace PlayniteAchievements.Services.Recording
             var prefix = _capturePlayniteChimes
                 ? RecordingPaths.ChimeChunkFilePrefix
                 : RecordingPaths.AudioChunkFilePrefix;
-            var name = prefix +
-                       DateTime.Now.ToString("yyyyMMdd-HHmmss", CultureInfo.InvariantCulture) +
-                       RecordingPaths.AudioChunkFileExtension;
+            var name = RecordingPaths.BuildAudioChunkFileName(prefix, DateTime.Now);
             _chunkStartWallClockSamples = TotalFramesWritten();
             _writer = new WaveFileWriter(Path.Combine(_bufferDirectory, name), _outputFormat);
             _chunkSamplesWritten = 0;

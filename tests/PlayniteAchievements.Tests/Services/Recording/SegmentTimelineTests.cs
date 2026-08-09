@@ -624,6 +624,88 @@ namespace PlayniteAchievements.Services.Tests.Recording
         }
 
         [TestMethod]
+        public void ParseSegments_ReadsMillisecondsFromTheStamp()
+        {
+            // Sub-second precision is what keeps audio aligned to picture: the exporter trims each
+            // stream by the offset from its file's stamp to the window start, so a stamp rounded to
+            // the second shifts that stream by up to a second.
+            var segments = SegmentTimeline.ParseSegments(
+                new[]
+                {
+                    (@"C:\buf\seg_20260101-140000437_1884x976.mp4", 1L),
+                    (@"C:\buf\seg_20260101-140005150_1884x976.mp4", 1L)
+                },
+                PlusTwo);
+
+            Assert.AreEqual(2, segments.Count);
+            Assert.AreEqual(new DateTime(2026, 1, 1, 12, 0, 0, 437), segments[0].StartUtc);
+            Assert.AreEqual(new DateTime(2026, 1, 1, 12, 0, 5, 150), segments[1].StartUtc);
+            Assert.AreEqual(1884, segments[0].Width);
+        }
+
+        [TestMethod]
+        public void ParseSegments_ReadsMillisecondsFromAudioChunkNames()
+        {
+            var chunks = SegmentTimeline.ParseSegments(
+                new[] { (@"C:\buf\aud_20260101-140002875.wav", 1L) },
+                PlusTwo,
+                "aud_",
+                ".wav");
+
+            Assert.AreEqual(1, chunks.Count);
+            Assert.AreEqual(new DateTime(2026, 1, 1, 12, 0, 2, 875), chunks[0].StartUtc);
+        }
+
+        [TestMethod]
+        public void ParseSegments_StillReadsSecondResolutionStamps()
+        {
+            // Buffers written before milliseconds were included must keep parsing.
+            var segments = SegmentTimeline.ParseSegments(
+                new[]
+                {
+                    (@"C:\buf\seg_20260101-140000.mp4", 1L),
+                    (@"C:\buf\seg_20260101-140005_1884x976.mp4", 1L)
+                },
+                PlusTwo);
+
+            Assert.AreEqual(2, segments.Count);
+            Assert.AreEqual(new DateTime(2026, 1, 1, 12, 0, 0), segments[0].StartUtc);
+            Assert.AreEqual(new DateTime(2026, 1, 1, 12, 0, 5), segments[1].StartUtc);
+            Assert.AreEqual(1884, segments[1].Width);
+        }
+
+        [TestMethod]
+        public void BuildSegmentFileName_RoundTripsThroughTheParser()
+        {
+            var localStart = new DateTime(2026, 1, 1, 14, 0, 7, 42);
+            var name = RecordingPaths.BuildSegmentFileName(localStart, 1884, 976);
+
+            var segments = SegmentTimeline.ParseSegments(
+                new[] { ($@"C:\buf\{name}", 1L) }, PlusTwo);
+
+            Assert.AreEqual(1, segments.Count);
+            Assert.AreEqual(new DateTime(2026, 1, 1, 12, 0, 7, 42), segments[0].StartUtc);
+            Assert.AreEqual(1884, segments[0].Width);
+            Assert.AreEqual(976, segments[0].Height);
+        }
+
+        [TestMethod]
+        public void BuildAudioChunkFileName_RoundTripsThroughTheParser()
+        {
+            var localStart = new DateTime(2026, 1, 1, 14, 0, 3, 601);
+            var name = RecordingPaths.BuildAudioChunkFileName(RecordingPaths.AudioChunkFilePrefix, localStart);
+
+            var chunks = SegmentTimeline.ParseSegments(
+                new[] { ($@"C:\buf\{name}", 1L) },
+                PlusTwo,
+                RecordingPaths.AudioChunkFilePrefix,
+                RecordingPaths.AudioChunkFileExtension);
+
+            Assert.AreEqual(1, chunks.Count);
+            Assert.AreEqual(new DateTime(2026, 1, 1, 12, 0, 3, 601), chunks[0].StartUtc);
+        }
+
+        [TestMethod]
         public void ParseSegments_StillRejectsNamesWithAForeignStampSuffix()
         {
             var segments = SegmentTimeline.ParseSegments(

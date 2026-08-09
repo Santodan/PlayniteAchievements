@@ -24,14 +24,38 @@ namespace PlayniteAchievements.Services.Recording
         /// <summary>Separates the wall-clock stamp from the WxH dimension token.</summary>
         public const char DimensionSeparator = '_';
 
+        /// <summary>
+        /// Wall-clock stamp every buffer file name carries. Milliseconds matter: the exporter trims
+        /// each stream by the offset from its file's stamp to the window start, while the samples
+        /// inside are timed from the file's true beginning. A stamp rounded to the second therefore
+        /// shifts that stream by up to a second, and because video segments and audio chunks roll
+        /// at unrelated instants their roundings differ — which lands as audio drifting against
+        /// picture by whatever the two errors differ by.
+        /// </summary>
+        public const string StampFormat = "yyyyMMdd-HHmmssfff";
+
+        /// <summary>Length of <see cref="StampFormat"/>, and of the second-resolution stamp before it.</summary>
+        public const int StampLength = 18;
+
+        /// <summary>Legacy second-resolution stamp length, still parsed for buffers written earlier.</summary>
+        public const int LegacyStampLength = 15;
+
         /// <summary>The segment file name for a capture of the given size started at a local time.</summary>
         public static string BuildSegmentFileName(DateTime localStart, int width, int height)
         {
             return SegmentFilePrefix +
-                localStart.ToString("yyyyMMdd-HHmmss", CultureInfo.InvariantCulture) +
+                localStart.ToString(StampFormat, CultureInfo.InvariantCulture) +
                 DimensionSeparator +
                 width.ToString(CultureInfo.InvariantCulture) + "x" + height.ToString(CultureInfo.InvariantCulture) +
                 SegmentFileExtension;
+        }
+
+        /// <summary>The audio chunk file name for <paramref name="prefix"/> started at a local time.</summary>
+        public static string BuildAudioChunkFileName(string prefix, DateTime localStart)
+        {
+            return prefix +
+                localStart.ToString(StampFormat, CultureInfo.InvariantCulture) +
+                AudioChunkFileExtension;
         }
 
         /// <summary>Audio chunk filenames: aud_yyyyMMdd-HHmmss.wav (WASAPI loopback PCM).</summary>
