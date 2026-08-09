@@ -41,6 +41,16 @@ namespace PlayniteAchievements.Services.Recording
         private const string BufferRootFolderName = "RecordingBuffer";
         private const long MinFreeBytesToStart = 2L * 1024 * 1024 * 1024;
         private const long MinFreeBytesToContinue = 500L * 1024 * 1024;
+        /// <summary>
+        /// Disk the rolling buffer may use. This is the buffer's size, not its duration: how far
+        /// back it reaches is whatever the budget buys at the current capture settings, which is
+        /// why one number serves every resolution. 2 GB is the smallest figure that still holds
+        /// more than two minutes at the encoder's bitrate ceiling — roughly 26 minutes at 1080p30,
+        /// 4.6 at 4K60, 2.3 at the cap — so the buffer can always reach back past a platform that
+        /// reports an unlock minutes before the player sees it. Only what is actually written is
+        /// occupied; the budget is a ceiling, and it is clamped further when the drive is short.
+        /// </summary>
+        private const long BufferBudgetBytes = 2L * 1024 * 1024 * 1024;
         // Toast-slot allowance used only by the prune floor, which must keep a clip window's worth
         // of footage whatever the budget says. Generous enough to cover any toast-duration setting.
         private const double MaxToastSlotAllowanceSeconds = 30.0;
@@ -84,7 +94,6 @@ namespace PlayniteAchievements.Services.Recording
         private const int DefaultPollIntervalSeconds = 15;
         private const int DefaultPreRollSeconds = 15;
         private const int DefaultRecordingFps = 30;
-        private const int DefaultBufferBudgetMb = 512;
         private const string UnavailableNotificationId = "PlayAch-RecordingUnavailable";
 
         private readonly IPlayniteAPI _api;
@@ -1400,7 +1409,7 @@ namespace PlayniteAchievements.Services.Recording
 
                 var cutoff = SegmentTimeline.ResolveBudgetCutoffUtc(
                     allFiles,
-                    ResolveBufferBudgetBytes(session, persisted),
+                    ResolveBufferBudgetBytes(session),
                     ResolveMinimumKeepFromUtc(preRoll));
 
                 LogCaptureHealth(session, segments, allFiles, cutoff);
@@ -1434,15 +1443,13 @@ namespace PlayniteAchievements.Services.Recording
         }
 
         /// <summary>
-        /// The buffer's storage budget in bytes: the user's setting, clamped down so it can never
-        /// exceed what the drive can actually give (leaving the stop-capture reserve free). Logged
-        /// once per session when the clamp bites, since the buffer then reaches back less far than
-        /// the user asked for.
+        /// The buffer's storage budget in bytes, clamped down so it can never exceed what the drive
+        /// can actually give (leaving the stop-capture reserve free). Logged once per session when
+        /// the clamp bites, since the buffer then reaches back less far than <see cref="BufferBudgetBytes"/>.
         /// </summary>
-        private long ResolveBufferBudgetBytes(CaptureSession session, PersistedSettings persisted)
+        private long ResolveBufferBudgetBytes(CaptureSession session)
         {
-            var requested = (long)Math.Max(1, persisted?.RecordingBufferBudgetMb ?? DefaultBufferBudgetMb)
-                * 1024 * 1024;
+            const long requested = BufferBudgetBytes;
             try
             {
                 var root = Path.GetPathRoot(Path.GetFullPath(session.BufferDirectory));

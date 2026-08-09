@@ -100,7 +100,6 @@ namespace PlayniteAchievements.Models.Settings
         private bool _enableUnlockRecordings = false;
         private string _unlockRecordingDirectory;
         private int _recordingClipSeconds = 15;
-        private int _recordingBufferBudgetMb = 512;
         private int _recordingFps = 30;
         private RecordingResolution _recordingResolution = RecordingResolution.Native;
         private bool _recordingIncludeAudio = false;
@@ -1294,18 +1293,6 @@ namespace PlayniteAchievements.Models.Settings
         {
             get => _recordingClipSeconds;
             set => SetValue(ref _recordingClipSeconds, Math.Min(60, Math.Max(5, value)));
-        }
-
-        /// <summary>
-        /// Disk the rolling capture buffer may use, in megabytes. This is the buffer's size — how
-        /// far back it reaches is whatever the budget buys at the current capture settings, so one
-        /// number works across resolutions (512 MB is roughly 6 minutes at 1080p30 and 65 seconds
-        /// at 4K60). Clamped down to the drive's free space at prune time.
-        /// </summary>
-        public int RecordingBufferBudgetMb
-        {
-            get => _recordingBufferBudgetMb;
-            set => SetValue(ref _recordingBufferBudgetMb, Math.Min(20480, Math.Max(128, value)));
         }
 
         public int RecordingFps
@@ -2652,7 +2639,6 @@ namespace PlayniteAchievements.Models.Settings
                 EnableUnlockRecordings = this.EnableUnlockRecordings,
                 UnlockRecordingDirectory = this.UnlockRecordingDirectory,
                 RecordingClipSeconds = this.RecordingClipSeconds,
-                RecordingBufferBudgetMb = this.RecordingBufferBudgetMb,
                 RecordingFps = this.RecordingFps,
                 RecordingResolution = this.RecordingResolution,
                 RecordingIncludeAudio = this.RecordingIncludeAudio,

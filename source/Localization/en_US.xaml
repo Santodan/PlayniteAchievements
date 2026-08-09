@@ -646,7 +646,6 @@
     <sys:String x:Key="LOCPlayAch_Settings_RecordingDirectoryHint">Blank = use the screenshot folder.</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_RecordingClipSeconds">Seconds before unlock</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_RecordingFps">Frame rate (FPS)</sys:String>
-    <sys:String x:Key="LOCPlayAch_Settings_RecordingBufferBudgetMb">Buffer size (MB)</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_RecordingResolution">Resolution</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_RecordingResolutionNative">Native</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_RecordingIncludeAudio">Record sound</sys:String>
