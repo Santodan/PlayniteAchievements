@@ -4,6 +4,7 @@
              xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
              xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
              xmlns:helpers="clr-namespace:PlayniteAchievements.Views.Helpers"
+             xmlns:controls="clr-namespace:PlayniteAchievements.Views.Controls"
              xmlns:captures="clr-namespace:PlayniteAchievements.Services.Captures"
              mc:Ignorable="d"
              d:DesignHeight="640"
@@ -262,51 +263,9 @@
                                        Foreground="{DynamicResource PlayAch.Brush.Text}"
                                        Text="{DynamicResource LOCPlayAch_Captures_VideoError}"/>
 
-                            <Border Grid.Row="1"
-                                    Background="#B0000000"
-                                    CornerRadius="6"
-                                    Padding="6,3"
-                                    Margin="12,0,12,12">
-                                <Grid>
-                                    <Grid.ColumnDefinitions>
-                                        <ColumnDefinition Width="Auto"/>
-                                        <ColumnDefinition Width="Auto"/>
-                                        <ColumnDefinition Width="*"/>
-                                        <ColumnDefinition Width="Auto"/>
-                                        <ColumnDefinition Width="Auto"/>
-                                    </Grid.ColumnDefinitions>
-
-                                    <Button x:Name="PlayPauseButton"
-                                            Grid.Column="0"
-                                            Content="&#xE768;"
-                                            Style="{StaticResource CaptureGlyphButtonStyle}"
-                                            Click="PlayPauseButton_Click"/>
-                                    <Button x:Name="StopButton"
-                                            Grid.Column="1"
-                                            Content="&#xE71A;"
-                                            Style="{StaticResource CaptureGlyphButtonStyle}"
-                                            Click="StopButton_Click"/>
-                                    <Slider x:Name="PositionSlider"
-                                            Grid.Column="2"
-                                            Margin="10,0"
-                                            VerticalAlignment="Center"
-                                            Minimum="0"
-                                            Maximum="1"
-                                            IsMoveToPointEnabled="True"
-                                            Thumb.DragStarted="PositionSlider_DragStarted"
-                                            Thumb.DragCompleted="PositionSlider_DragCompleted"/>
-                                    <TextBlock x:Name="TimeText"
-                                               Grid.Column="3"
-                                               VerticalAlignment="Center"
-                                               Margin="4,0,8,0"
-                                               Foreground="White"/>
-                                    <Button x:Name="MuteButton"
-                                            Grid.Column="4"
-                                            Content="&#xE767;"
-                                            Style="{StaticResource CaptureGlyphButtonStyle}"
-                                            Click="MuteButton_Click"/>
-                                </Grid>
-                            </Border>
+                            <controls:MediaTransportBar x:Name="Transport"
+                                                        Grid.Row="1"
+                                                        Margin="12,0,12,12"/>
                         </Grid>
 
                         <!-- Empty state for a variant with no capture -->
