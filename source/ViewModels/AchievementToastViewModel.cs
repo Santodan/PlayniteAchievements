@@ -1089,7 +1089,7 @@ namespace PlayniteAchievements.ViewModels
         /// sound takes precedence over everything when enabled, then capstone and the completion
         /// notification, and otherwise the rarity tier is used. Note this order is deliberately the
         /// inverse of <see cref="SoundTierRank"/>'s, which keeps capstone at the top: a hidden
-        /// capstone plays the hidden sound but does not outrank a plain capstone in the same wave.
+        /// capstone plays the hidden sound while still ranking as a capstone in its wave.
         /// </summary>
         public string SoundTierSegment
         {
