@@ -135,15 +135,14 @@
                               SnapsToDevicePixels="True"
                               HorizontalAlignment="{Binding RelativeSource={RelativeSource AncestorType={x:Type DataGridCell}}, Path=Column.(helpers:DataGridAlignmentBehavior.CellHorizontalAlignment)}"
                               VerticalAlignment="{Binding RelativeSource={RelativeSource AncestorType={x:Type DataGridCell}}, Path=Column.(helpers:DataGridAlignmentBehavior.CellVerticalAlignment)}">
-                            <!-- Rays glow style: a rotating corona behind the art in the completed
-                                 gradient's colors, replacing the two-tone bloom below. Needs a
-                                 larger scale than a square icon, not a smaller one: the light sits
-                                 in a band away from the center, and game art is wide or tall, so a
-                                 tighter scale leaves that band inside the image and hidden behind
-                                 it. The control spreads the band to the art's proportions; this
-                                 value is what lifts it clear of every edge. -->
+                            <!-- Rays glow style: a rotating sunburst behind the art in the completed
+                                 gradient's colors, replacing the two-tone bloom below. Scaled
+                                 tighter than the icon sites: the overflow is proportional to the
+                                 slot, and game art is much larger than an icon, so matching the
+                                 completion glow's 14px bloom takes a smaller multiple. This cell's
+                                 overflow also draws over neighboring rows. -->
                             <controls:RarityRayBurst UseCompletedColors="True"
-                                                     BurstScale="1.55">
+                                                     BurstScale="1.2">
                                 <controls:RarityRayBurst.Style>
                                     <Style TargetType="controls:RarityRayBurst">
                                         <Setter Property="Visibility" Value="Collapsed"/>
