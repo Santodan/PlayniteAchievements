@@ -3,6 +3,7 @@ using System.Runtime.ExceptionServices;
 using System.Runtime.InteropServices;
 using System.Threading;
 using Playnite.SDK;
+using PlayniteAchievements.Models.Settings;
 using SharpDX.MediaFoundation;
 
 namespace PlayniteAchievements.Services.Capture
@@ -61,7 +62,7 @@ namespace PlayniteAchievements.Services.Capture
             string baseClipPath, ToastOverlayTrack track,
             double toastStartSeconds, double toastMaxSeconds, double trimLeadSeconds,
             double endSeconds, byte[] chimePcm, double chimeStartSeconds, string outputPath,
-            int configuredFps)
+            int configuredFps, RecordingQuality quality)
         {
             if (string.IsNullOrEmpty(baseClipPath) || track == null ||
                 track.Samples.Count == 0 || string.IsNullOrEmpty(outputPath))
@@ -121,7 +122,7 @@ namespace PlayniteAchievements.Services.Capture
                                     sink = MediaFactory.CreateSinkWriterFromURL(outputPath, null, sinkAttributes);
                                 }
 
-                                var videoStream = AddVideoStream(sink, decodedType, frameW, frameH, fps);
+                                var videoStream = AddVideoStream(sink, decodedType, frameW, frameH, fps, quality);
                                 var audioStream = TryAddAudio(
                                     sink, baseClipPath, decodeToPcm: chimePcm != null, out var audioReader);
                                 using (audioReader)
@@ -163,7 +164,7 @@ namespace PlayniteAchievements.Services.Capture
             }
         }
 
-        private static int AddVideoStream(SinkWriter sink, MediaType decodedType, int frameW, int frameH, int fps)
+        private static int AddVideoStream(SinkWriter sink, MediaType decodedType, int frameW, int frameH, int fps, RecordingQuality quality)
         {
             using (var outputType = new MediaType())
             {
@@ -171,7 +172,7 @@ namespace PlayniteAchievements.Services.Capture
                 outputType.Set(MediaTypeAttributeKeys.Subtype, VideoFormatGuids.H264);
                 outputType.Set(
                     MediaTypeAttributeKeys.AvgBitrate,
-                    MediaFoundationH264Encoder.ComputeBitrate(frameW, frameH, fps));
+                    MediaFoundationH264Encoder.ComputeBitrate(frameW, frameH, fps, quality));
                 outputType.Set(MediaTypeAttributeKeys.MaxKeyframeSpacing, fps);
                 outputType.Set(MediaTypeAttributeKeys.InterlaceMode, (int)VideoInterlaceMode.Progressive);
                 outputType.Set(MediaTypeAttributeKeys.FrameSize, Pack(frameW, frameH));

@@ -40,6 +40,7 @@ namespace PlayniteAchievements.Services.Capture
         private readonly int _fps;
         private readonly int _segmentSeconds;
         private readonly RecordingResolution _resolution;
+        private readonly RecordingQuality _quality;
         private readonly ILogger _logger;
 
         private D3D11.Device _device;
@@ -78,13 +79,14 @@ namespace PlayniteAchievements.Services.Capture
 
         public WgcVideoRecorder(
             Func<IntPtr> resolveHwnd, string bufferDirectory, int fps, int segmentSeconds,
-            RecordingResolution resolution, ILogger logger)
+            RecordingResolution resolution, RecordingQuality quality, ILogger logger)
         {
             _resolveHwnd = resolveHwnd;
             _bufferDirectory = bufferDirectory;
             _fps = Math.Max(1, fps);
             _segmentSeconds = Math.Max(1, segmentSeconds);
             _resolution = resolution;
+            _quality = quality;
             _logger = logger;
             _frameDuration100ns = 10_000_000L / _fps;
         }
@@ -102,7 +104,7 @@ namespace PlayniteAchievements.Services.Capture
 
         private int ComputeBitrate(int width, int height)
         {
-            return MediaFoundationH264Encoder.ComputeBitrate(width, height, _fps);
+            return MediaFoundationH264Encoder.ComputeBitrate(width, height, _fps, _quality);
         }
 
         public static bool IsSupported => GraphicsCaptureSession.IsSupported();

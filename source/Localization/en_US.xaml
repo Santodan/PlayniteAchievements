@@ -648,6 +648,10 @@
     <sys:String x:Key="LOCPlayAch_Settings_RecordingFps">Frame rate (FPS)</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_RecordingResolution">Resolution</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_RecordingResolutionNative">Native</sys:String>
+    <sys:String x:Key="LOCPlayAch_Settings_RecordingQuality">Quality</sys:String>
+    <sys:String x:Key="LOCPlayAch_Settings_RecordingQualityHigh">High</sys:String>
+    <sys:String x:Key="LOCPlayAch_Settings_RecordingQualityMedium">Medium</sys:String>
+    <sys:String x:Key="LOCPlayAch_Settings_RecordingQualityLow">Low</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_RecordingIncludeAudio">Record sound</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_RecordingAudioSource">Audio source</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_RecordingAudioSourceFull">Full system audio</sys:String>

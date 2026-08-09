@@ -102,6 +102,7 @@ namespace PlayniteAchievements.Models.Settings
         private int _recordingClipSeconds = 15;
         private int _recordingFps = 30;
         private RecordingResolution _recordingResolution = RecordingResolution.Native;
+        private RecordingQuality _recordingQuality = RecordingQuality.Native;
         private bool _recordingIncludeAudio = false;
         private RecordingAudioSource _recordingAudioSource = RecordingAudioSource.FullSystem;
         private bool _recordingIncludeMicrophone = false;
@@ -1305,6 +1306,17 @@ namespace PlayniteAchievements.Models.Settings
         {
             get => _recordingResolution;
             set => SetValue(ref _recordingResolution, value);
+        }
+
+        /// <summary>
+        /// Encoding quality of unlock clips: the size-versus-picture trade. Native is the bitrate
+        /// the plugin derives from resolution and frame rate; lower tiers scale it down, which also
+        /// lets the fixed capture buffer hold more footage.
+        /// </summary>
+        public RecordingQuality RecordingQuality
+        {
+            get => _recordingQuality;
+            set => SetValue(ref _recordingQuality, value);
         }
 
         /// <summary>
@@ -2641,6 +2653,7 @@ namespace PlayniteAchievements.Models.Settings
                 RecordingClipSeconds = this.RecordingClipSeconds,
                 RecordingFps = this.RecordingFps,
                 RecordingResolution = this.RecordingResolution,
+                RecordingQuality = this.RecordingQuality,
                 RecordingIncludeAudio = this.RecordingIncludeAudio,
                 RecordingAudioSource = this.RecordingAudioSource,
                 RecordingIncludeMicrophone = this.RecordingIncludeMicrophone,

@@ -1,5 +1,6 @@
 using System;
 using System.IO;
+using PlayniteAchievements.Models.Settings;
 using SharpDX.MediaFoundation;
 using D3D11 = SharpDX.Direct3D11;
 
@@ -78,15 +79,10 @@ namespace PlayniteAchievements.Services.Capture
             return _available.Value;
         }
 
-        /// <summary>
-        /// Target H.264 bitrate from resolution and fps (~0.12 bits/pixel/frame): ~15 Mbps at
-        /// 1080p60, ~27 at 1440p60, ~60 at 4K60. Clamped to a sane range. Shared by the live
-        /// segment encoder and the export-time overlay re-encoder so clip quality matches.
-        /// </summary>
-        internal static int ComputeBitrate(int width, int height, int fps)
+        /// <summary>Target H.264 bitrate — see <see cref="BitrateMath"/>.</summary>
+        internal static int ComputeBitrate(int width, int height, int fps, RecordingQuality quality)
         {
-            var bits = (long)(width * (double)height * fps * 0.12);
-            return (int)Math.Max(8_000_000L, Math.Min(120_000_000L, bits));
+            return BitrateMath.Compute(width, height, fps, quality);
         }
 
         public MediaFoundationH264Encoder(

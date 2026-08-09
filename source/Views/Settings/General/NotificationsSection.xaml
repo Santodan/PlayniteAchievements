@@ -449,6 +449,7 @@
                                     <RowDefinition Height="Auto"/>
                                     <RowDefinition Height="Auto"/>
                                     <RowDefinition Height="Auto"/>
+                                    <RowDefinition Height="Auto"/>
                                 </Grid.RowDefinitions>
 
                                 <TextBlock Grid.Row="0" Grid.Column="0"
@@ -486,6 +487,22 @@
                                     <ComboBoxItem Content="{DynamicResource LOCPlayAch_Settings_RecordingResolutionNative}" Tag="{x:Static settings:RecordingResolution.Native}"/>
                                     <ComboBoxItem Content="1080p" Tag="{x:Static settings:RecordingResolution.P1080}"/>
                                     <ComboBoxItem Content="720p" Tag="{x:Static settings:RecordingResolution.P720}"/>
+                                </ComboBox>
+
+                                <TextBlock Grid.Row="3" Grid.Column="0"
+                                           Text="{DynamicResource LOCPlayAch_Settings_RecordingQuality}"
+                                           Foreground="{DynamicResource PlayAch.Brush.Text}"
+                                           VerticalAlignment="Center"
+                                           Margin="0,0,8,8"/>
+                                <ComboBox Grid.Row="3" Grid.Column="1"
+                                          SelectedValue="{Binding Persisted.RecordingQuality, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                          SelectedValuePath="Tag"
+                                          MinWidth="140"
+                                          Margin="0,0,0,8">
+                                    <ComboBoxItem Content="{DynamicResource LOCPlayAch_Settings_RecordingResolutionNative}" Tag="{x:Static settings:RecordingQuality.Native}"/>
+                                    <ComboBoxItem Content="{DynamicResource LOCPlayAch_Settings_RecordingQualityHigh}" Tag="{x:Static settings:RecordingQuality.High}"/>
+                                    <ComboBoxItem Content="{DynamicResource LOCPlayAch_Settings_RecordingQualityMedium}" Tag="{x:Static settings:RecordingQuality.Medium}"/>
+                                    <ComboBoxItem Content="{DynamicResource LOCPlayAch_Settings_RecordingQualityLow}" Tag="{x:Static settings:RecordingQuality.Low}"/>
                                 </ComboBox>
                             </Grid>
 

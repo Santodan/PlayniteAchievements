@@ -128,6 +128,7 @@ namespace PlayniteAchievements.Models.Settings
             target.RecordingClipSeconds = source.RecordingClipSeconds;
             target.RecordingFps = source.RecordingFps;
             target.RecordingResolution = source.RecordingResolution;
+            target.RecordingQuality = source.RecordingQuality;
             target.RecordingIncludeAudio = source.RecordingIncludeAudio;
             target.RecordingAudioSource = source.RecordingAudioSource;
             target.RecordingIncludeMicrophone = source.RecordingIncludeMicrophone;

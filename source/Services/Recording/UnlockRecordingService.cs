@@ -557,7 +557,7 @@ namespace PlayniteAchievements.Services.Recording
 
                 var recorder = new WgcVideoRecorder(
                     resolveHwnd, session.BufferDirectory, persisted.RecordingFps, SegmentSeconds,
-                    persisted.RecordingResolution, _logger);
+                    persisted.RecordingResolution, persisted.RecordingQuality, _logger);
                 if (!recorder.Start())
                 {
                     recorder.Dispose();
@@ -1110,9 +1110,12 @@ namespace PlayniteAchievements.Services.Recording
                 // frame rate is re-encoded as what it actually is. Falls back to the setting's own
                 // default, which is what a capture with unreachable settings would have used.
                 var capturedFps = _settings?.Persisted?.RecordingFps ?? DefaultRecordingFps;
+                // Re-encode at the quality the segments were captured at, so compositing the toast
+                // does not quietly change the clip's bitrate.
+                var capturedQuality = _settings?.Persisted?.RecordingQuality ?? RecordingQuality.Native;
                 var ok = await Task.Run(() => reencoder.Export(
                         basePath, track, toastStartSeconds, toastSlotSeconds, videoLeadSeconds,
-                        endSeconds, chimePcm, chimeStartSeconds, tempPath, capturedFps))
+                        endSeconds, chimePcm, chimeStartSeconds, tempPath, capturedFps, capturedQuality))
                     .ConfigureAwait(false);
                 if (ok)
                 {
