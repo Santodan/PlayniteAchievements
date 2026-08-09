@@ -28,18 +28,18 @@ namespace PlayniteAchievements.Models.Achievements
         // burst centered. Ray bases sit inside the icon's footprint so they stay hidden behind it
         // and the rays appear to emerge from around the icon. These are the visual tuning knobs.
         //
-        // The radii are calibrated against the soft glow's footprint so switching styles does not
-        // change how much room a glow takes: at the default RarityRayBurst.BurstScale the icon's
-        // edge lands near InnerRayRadius, so the visible part of a long ray is the remaining
-        // ~19 units, matching the soft glow's 20px blur radius. Widening the gap between
-        // InnerRayRadius and LongRayRadius, or raising BurstScale, makes the burst outgrow the
-        // soft glow. Half-angles are kept well under half the 360/RayCount spacing so the rays
-        // stay separated rather than merging into a disc.
+        // The radii are calibrated against the soft glow the rays sit behind, so the two read as one
+        // effect: at the default RarityRayBurst.BurstScale the icon's edge lands near InnerRayRadius,
+        // so the visible part of a long ray is the remaining ~18 units, which on a 64px icon reaches
+        // just inside the soft glow's 20px blur rather than past it. Widening the gap between
+        // InnerRayRadius and LongRayRadius, or raising BurstScale, pushes the rays out beyond that
+        // halo. Half-angles are kept well under half the 360/RayCount spacing so the rays stay
+        // separated rather than merging into a disc.
         private const int RayCount = 28;
         private const double RayBurstBox = 100.0;
         private const double RayBurstCenter = RayBurstBox / 2.0;
         private const double InnerRayRadius = 28.0;
-        private const double LongRayRadius = 50.0;
+        private const double LongRayRadius = 46.0;
         private const double ShortRayRadius = 42.0;
         private const double LongRayHalfAngle = 2.3;
         private const double ShortRayHalfAngle = 1.6;
