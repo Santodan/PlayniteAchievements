@@ -398,6 +398,7 @@
     <Compile Include="..\..\source\Services\Cache\ICacheManager.cs" Link="Source\Services\Cache\ICacheManager.cs" />
     <Compile Include="..\..\source\Services\Cache\CachedSummaryData.cs" Link="Source\Services\Cache\CachedSummaryData.cs" />
     <Compile Include="..\..\source\Services\Achievements\AchievementUnlockDiffer.cs" Link="Source\Services\Achievements\AchievementUnlockDiffer.cs" />
+    <Compile Include="..\..\source\Services\Refresh\AchievementWriteGuard.cs" Link="Source\Services\Refresh\AchievementWriteGuard.cs" />
     <Compile Include="..\..\source\Services\Refresh\BulkRefreshGameFilter.cs" Link="Source\Services\Refresh\BulkRefreshGameFilter.cs" />
     <Compile Include="..\..\source\Services\Refresh\ProviderRefreshExecutor.cs" Link="Source\Services\Refresh\ProviderRefreshExecutor.cs" />
     <Compile Include="..\..\source\Services\Refresh\RebuildOutcome.cs" Link="Source\Services\Refresh\RebuildOutcome.cs" />
