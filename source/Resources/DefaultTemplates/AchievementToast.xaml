@@ -169,8 +169,11 @@
                                        Text="{Binding PercentText}"
                                        Style="{DynamicResource PlayAch.TextBlock.BaseStyle}"
                                        Foreground="{DynamicResource PlayAch.Brush.Text}"
-                                       FontSize="{Binding ToastRarityFontSize}"
-                                       FontFamily="{Binding ToastFontFamily}"
+                                       FontSize="{Binding ToastRarityText.FontSize}"
+                                       FontFamily="{Binding ToastRarityText.FontFamily}"
+                                       FontWeight="{Binding ToastRarityText.FontWeight}"
+                                       FontStyle="{Binding ToastRarityText.FontStyle}"
+                                       TextDecorations="{Binding ToastRarityText.TextDecorations}"
                                        Effect="{Binding ToastContentShadowInner}"/>
                         </Grid>
                     </StackPanel>
@@ -295,8 +298,11 @@
                                 <TextBlock Text="{Binding PercentText}"
                                            Style="{DynamicResource PlayAch.TextBlock.BaseStyle}"
                                            Foreground="{DynamicResource PlayAch.Brush.Text}"
-                                           FontSize="{Binding ToastRarityFontSize}"
-                                           FontFamily="{Binding ToastFontFamily}"
+                                           FontSize="{Binding ToastRarityText.FontSize}"
+                                           FontFamily="{Binding ToastRarityText.FontFamily}"
+                                           FontWeight="{Binding ToastRarityText.FontWeight}"
+                                           FontStyle="{Binding ToastRarityText.FontStyle}"
+                                           TextDecorations="{Binding ToastRarityText.TextDecorations}"
                                            Effect="{Binding ToastContentShadowInner}"/>
                             </Grid>
                         </StackPanel>
