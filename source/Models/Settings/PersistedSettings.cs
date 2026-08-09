@@ -82,6 +82,7 @@ namespace PlayniteAchievements.Models.Settings
         private bool _enableControllerVibration = false;
         private int _controllerVibrationStrengthPercent = 50;
         private int _controllerVibrationDurationMs = 650;
+        private bool _useHiddenUnlockSound = false;
         private bool _enableUnlockScreenshots = false;
         private bool _unlockScreenshotClean = false;
         private bool _unlockScreenshotWithToast = true;
@@ -1116,6 +1117,18 @@ namespace PlayniteAchievements.Models.Settings
         {
             get => _controllerVibrationDurationMs;
             set => SetValue(ref _controllerVibrationDurationMs, Math.Max(100, Math.Min(5000, value)));
+        }
+
+        /// <summary>
+        /// Request UniPlaySong's hidden-achievement sound instead of the rarity sound when a hidden
+        /// achievement unlocks. Off by default: UniPlaySong plays nothing for a sound it has no
+        /// audio assigned to, so enabling this before assigning one silences hidden unlocks rather
+        /// than falling back to the rarity sound.
+        /// </summary>
+        public bool UseHiddenUnlockSound
+        {
+            get => _useHiddenUnlockSound;
+            set => SetValue(ref _useHiddenUnlockSound, value);
         }
 
         /// <summary>
@@ -2633,6 +2646,7 @@ namespace PlayniteAchievements.Models.Settings
                 EnableControllerVibration = this.EnableControllerVibration,
                 ControllerVibrationStrengthPercent = this.ControllerVibrationStrengthPercent,
                 ControllerVibrationDurationMs = this.ControllerVibrationDurationMs,
+                UseHiddenUnlockSound = this.UseHiddenUnlockSound,
                 EnableUnlockScreenshots = this.EnableUnlockScreenshots,
                 UnlockScreenshotClean = this.UnlockScreenshotClean,
                 UnlockScreenshotWithToast = this.UnlockScreenshotWithToast,
