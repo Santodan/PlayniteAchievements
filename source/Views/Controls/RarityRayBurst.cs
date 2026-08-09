@@ -46,12 +46,15 @@ namespace PlayniteAchievements.Views.Controls
             // enlarging that slot, so the rays overflow the icon's cell by a fixed proportion at
             // every call site — grid cells and toast icons alike — with no per-site sizing and no
             // converter-computed dimensions. The host Grid already sets ClipToBounds="False".
+            //
+            // Rotation comes first and the scale second. The scale is what fits the burst to a
+            // non-square slot, so applying it last keeps that envelope fixed and lets the rays sweep
+            // through it; scaling first would instead tumble a squashed ellipse end over end.
             RenderTransformOrigin = new Point(0.5, 0.5);
             var transforms = new TransformGroup();
-            transforms.Children.Add(_scale);
             transforms.Children.Add(_rotation);
+            transforms.Children.Add(_scale);
             RenderTransform = transforms;
-            ApplyBurstScale();
 
             Loaded += OnLoaded;
             Unloaded += OnUnloaded;
@@ -120,10 +123,12 @@ namespace PlayniteAchievements.Views.Controls
 
         /// <summary>
         /// How far the burst renders beyond its layout slot, as a multiple of it. The default is
-        /// tuned so the rays occupy about the same room as the soft glow they replace — on a 64px
+        /// tuned so the rays occupy about the same room as the soft glow they sit behind — on a 64px
         /// icon the long rays reach roughly 19px past the edge, against the soft glow's 20px blur.
-        /// Because the overflow is proportional, larger surfaces need a smaller value to stay in
-        /// proportion; completed game art passes one explicitly.
+        ///
+        /// The reach is proportional to the slot and applied per axis, so a value that suits a square
+        /// icon also keeps the rays clear of a wide or tall image. Completed game art still passes its
+        /// own value, because it is much larger than an icon and its glow is a tighter bloom.
         /// </summary>
         public static readonly DependencyProperty BurstScaleProperty =
             DependencyProperty.Register(
@@ -156,7 +161,8 @@ namespace PlayniteAchievements.Views.Controls
 
         private static void OnBurstScaleChanged(DependencyObject d, DependencyPropertyChangedEventArgs e)
         {
-            (d as RarityRayBurst)?.ApplyBurstScale();
+            // The scale depends on the arranged slot, so recompute it there rather than inline.
+            (d as RarityRayBurst)?.InvalidateArrange();
         }
 
         private static void OnIsActiveChanged(DependencyObject d, DependencyPropertyChangedEventArgs e)
@@ -220,16 +226,37 @@ namespace PlayniteAchievements.Views.Controls
             }
         }
 
-        private void ApplyBurstScale()
+        protected override Size ArrangeOverride(Size finalSize)
         {
+            var result = base.ArrangeOverride(finalSize);
+            ApplyBurstScale(finalSize);
+            return result;
+        }
+
+        /// <summary>
+        /// Fits the burst to the arranged slot. The art is square and drawn with Uniform stretch, so
+        /// inside a non-square slot it would otherwise shrink to the smaller side — on wide game-logo
+        /// art that leaves the rays buried inside the image instead of reaching past it. Scaling each
+        /// axis by that slot's own extent spreads the burst into an ellipse tracking the art's
+        /// proportions, and reduces to a plain uniform scale whenever the slot is square, which is
+        /// every icon site.
+        /// </summary>
+        private void ApplyBurstScale(Size finalSize)
+        {
+            var side = Math.Min(finalSize.Width, finalSize.Height);
+            if (side <= 0 || double.IsNaN(side) || double.IsInfinity(side))
+            {
+                return;
+            }
+
             var scale = BurstScale;
             if (double.IsNaN(scale) || double.IsInfinity(scale) || scale <= 0)
             {
                 scale = 1.0;
             }
 
-            _scale.ScaleX = scale;
-            _scale.ScaleY = scale;
+            _scale.ScaleX = scale * finalSize.Width / side;
+            _scale.ScaleY = scale * finalSize.Height / side;
         }
 
         private void Activate()
