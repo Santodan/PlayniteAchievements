@@ -76,6 +76,7 @@
                     VerticalAlignment="Center"
                     Minimum="0"
                     Maximum="1"
+                    Focusable="False"
                     IsMoveToPointEnabled="True"
                     ValueChanged="PositionSlider_ValueChanged"
                     Thumb.DragStarted="PositionSlider_DragStarted"

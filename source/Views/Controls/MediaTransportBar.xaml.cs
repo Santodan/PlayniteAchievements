@@ -2,6 +2,7 @@ using System;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Controls.Primitives;
+using System.Windows.Input;
 using System.Windows.Threading;
 
 namespace PlayniteAchievements.Views.Controls
@@ -31,10 +32,14 @@ namespace PlayniteAchievements.Views.Controls
 
         private readonly DispatcherTimer _positionTimer;
         private MediaElement _player;
+        private Track _track;
         private bool _isPlaying;
 
         // The user is holding the thumb: the timer must not overwrite the value under them.
         private bool _isScrubbing;
+
+        // The press landed on the track rather than the thumb, so this control owns the drag.
+        private bool _isTrackScrubbing;
 
         // The slider's value is being written programmatically: ignore the resulting ValueChanged
         // instead of seeking back to where the player already is.
@@ -47,6 +52,22 @@ namespace PlayniteAchievements.Views.Controls
             _positionTimer = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(250) };
             _positionTimer.Tick += PositionTimer_Tick;
             Unloaded += (_, __) => _positionTimer.Stop();
+
+            // Registered with handledEventsToo because Slider's move-to-point class handler marks
+            // the press handled before any instance handler would normally see it.
+            PositionSlider.AddHandler(
+                PreviewMouseLeftButtonDownEvent,
+                new MouseButtonEventHandler(PositionSlider_PreviewMouseLeftButtonDown),
+                true);
+            PositionSlider.AddHandler(
+                PreviewMouseMoveEvent,
+                new MouseEventHandler(PositionSlider_PreviewMouseMove),
+                true);
+            PositionSlider.AddHandler(
+                PreviewMouseLeftButtonUpEvent,
+                new MouseButtonEventHandler(PositionSlider_PreviewMouseLeftButtonUp),
+                true);
+            PositionSlider.LostMouseCapture += (_, __) => EndTrackScrub();
         }
 
         /// <summary>True while the attached player is playing.</summary>
@@ -272,6 +293,84 @@ namespace PlayniteAchievements.Views.Controls
         {
             // The seek itself already landed through ValueChanged as the thumb moved.
             _isScrubbing = false;
+        }
+
+        /// <summary>
+        /// Starts a scrub for a press that landed on the track. Slider's move-to-point handling
+        /// jumps the value to the click point but hands the mouse to nobody, so without this the
+        /// most natural gesture -- press on the track and drag -- would go nowhere.
+        /// </summary>
+        private void PositionSlider_PreviewMouseLeftButtonDown(object sender, MouseButtonEventArgs e)
+        {
+            var track = GetTrack();
+            if (track?.Thumb == null || track.Thumb.IsMouseOver)
+            {
+                // A press on the thumb starts a real Thumb drag, reported by DragStarted.
+                return;
+            }
+
+            _isTrackScrubbing = true;
+            _isScrubbing = true;
+            PositionSlider.CaptureMouse();
+        }
+
+        private void PositionSlider_PreviewMouseMove(object sender, MouseEventArgs e)
+        {
+            if (!_isTrackScrubbing)
+            {
+                return;
+            }
+
+            if (e.LeftButton != MouseButtonState.Pressed)
+            {
+                EndTrackScrub();
+                return;
+            }
+
+            var track = GetTrack();
+            if (track == null)
+            {
+                return;
+            }
+
+            var value = track.ValueFromPoint(e.GetPosition(track));
+            if (!double.IsNaN(value) && !double.IsInfinity(value))
+            {
+                // Routed through the slider so the seek runs on the one ValueChanged path.
+                PositionSlider.Value = value;
+            }
+        }
+
+        private void PositionSlider_PreviewMouseLeftButtonUp(object sender, MouseButtonEventArgs e)
+        {
+            EndTrackScrub();
+        }
+
+        private void EndTrackScrub()
+        {
+            if (!_isTrackScrubbing)
+            {
+                return;
+            }
+
+            _isTrackScrubbing = false;
+            _isScrubbing = false;
+
+            if (PositionSlider.IsMouseCaptured)
+            {
+                PositionSlider.ReleaseMouseCapture();
+            }
+        }
+
+        private Track GetTrack()
+        {
+            if (_track == null)
+            {
+                PositionSlider.ApplyTemplate();
+                _track = PositionSlider.Template?.FindName("PART_Track", PositionSlider) as Track;
+            }
+
+            return _track;
         }
 
         private void PlayPauseButton_Click(object sender, RoutedEventArgs e)
