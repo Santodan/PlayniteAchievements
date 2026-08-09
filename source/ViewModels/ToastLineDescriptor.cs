@@ -1,3 +1,4 @@
+using System;
 using System.Windows;
 using System.Windows.Media;
 using System.Windows.Media.Effects;
@@ -87,10 +88,57 @@ namespace PlayniteAchievements.ViewModels
         public double VerticalPadding { get; set; }
 
         /// <summary>
-        /// The line's container margin: the <see cref="LeftIndent"/> on the left and the
-        /// <see cref="VerticalPadding"/> on top and bottom.
+        /// Whether this is the bottom-most visible line of its surface, set by the owning view
+        /// model once the user's line order is resolved. Only that line needs
+        /// <see cref="DescenderSlack"/>: a line with another line under it overhangs into the
+        /// next line box's empty top leading, which nothing clips.
         /// </summary>
-        public Thickness LeftIndentMargin => new Thickness(LeftIndent, VerticalPadding, 0, VerticalPadding);
+        public bool IsBottomLine { get; set; }
+
+        /// <summary>
+        /// Glyph ink can fall below a TextBlock's measured height, so a descender (p, q, g, y) on
+        /// the bottom line renders outside the bounds that the line host's ClipToBounds, the
+        /// description's <see cref="ToastDescriptionLine.MaxTextHeight"/> clamp, and the overlay
+        /// capture's layout-bounds viewbox all cut at. This reserves room for that overhang.
+        /// <para>
+        /// Measured across 18 font families at 8-48 DIP in every weight/style combination, the
+        /// overhang peaks at 0.993 DIP and shrinks as the font grows (it is largely a sub-pixel
+        /// baseline-placement residual, not the font's descent), so one DIP covers every case. The
+        /// font's own descent caps it, since ink can never fall further than that.
+        /// </para>
+        /// </summary>
+        public double DescenderSlack =>
+            IsBottomLine ? Math.Min(FontDescent, MaxDescenderOverhangDip) : 0;
+
+        private const double MaxDescenderOverhangDip = 1d;
+
+        /// <summary>
+        /// The font's declared descent (DIPs) at this line's size. FontFamily.LineSpacing and
+        /// .Baseline are both em-relative, so their difference is the descent in ems.
+        /// </summary>
+        public double FontDescent
+        {
+            get
+            {
+                var family = FontFamily;
+                if (family == null)
+                {
+                    return 0;
+                }
+
+                var descent = family.LineSpacing - family.Baseline;
+                return descent > 0 ? FontSize * descent : 0;
+            }
+        }
+
+        /// <summary>
+        /// The line's container margin: the <see cref="LeftIndent"/> on the left, the
+        /// <see cref="VerticalPadding"/> on top and bottom, and <see cref="DescenderSlack"/> added
+        /// below. Carrying the slack on the container (rather than inside each line's own markup)
+        /// covers every line type at once, because the line host sizes to its items' margins.
+        /// </summary>
+        public Thickness LeftIndentMargin =>
+            new Thickness(LeftIndent, VerticalPadding, 0, VerticalPadding + DescenderSlack);
 
         /// <summary>
         /// Whether this line renders at all. Bound on the item container so an empty line collapses
@@ -253,9 +301,12 @@ namespace PlayniteAchievements.ViewModels
 
         /// <summary>
         /// The clamp height for <see cref="MaxLines"/> pinned line boxes. A sub-pixel epsilon guards
-        /// against floating-point equality shaving the final line box.
+        /// against floating-point equality shaving the final line box. A description longer than its
+        /// line budget is arranged at exactly this height and layout-clipped to it, so the bottom
+        /// line's <see cref="ToastLineDescriptor.DescenderSlack"/> has to raise the ceiling too --
+        /// the container margin that covers every other line sits outside this clip.
         /// </summary>
-        public double MaxTextHeight => (LineBoxHeight * MaxLines) + 0.5;
+        public double MaxTextHeight => (LineBoxHeight * MaxLines) + DescenderSlack + 0.5;
 
         // Collapses when the description is hidden or the achievement has no description text.
         public override Visibility LineVisibility =>
