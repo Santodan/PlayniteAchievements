@@ -177,8 +177,10 @@
 
                         <!-- Unlock sounds are fired as a URI that UniPlaySong handles; this plugin
                              plays no audio itself and cannot tell whether a sound was heard. -->
+                        <!-- Full strength rather than the usual muted hint styling: this is the
+                             only place that says sounds come from a separate extension. -->
                         <TextBlock Text="{DynamicResource LOCPlayAch_Settings_UnlockSoundHint}"
-                                   Style="{StaticResource MutedTextStyle}"
+                                   Foreground="{DynamicResource PlayAch.Brush.Text}"
                                    TextWrapping="Wrap"
                                    Margin="0,14,0,6"/>
                         <CheckBox Content="{DynamicResource LOCPlayAch_Settings_UseHiddenUnlockSound}"
