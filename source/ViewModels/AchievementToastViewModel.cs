@@ -927,6 +927,19 @@ namespace PlayniteAchievements.ViewModels
                     emphasis, LineDecorationBrush(line, textBrush));
             }
 
+            // Only the bottom-most line that actually renders needs descender room: every line
+            // above one overhangs into the next line box's empty top leading, which nothing clips.
+            // Resolved here rather than assumed, because the line order is user-reorderable and any
+            // line can collapse when it has no content.
+            for (var i = lines.Count - 1; i >= 0; i--)
+            {
+                if (lines[i].LineVisibility == Visibility.Visible)
+                {
+                    lines[i].IsBottomLine = true;
+                    break;
+                }
+            }
+
             return lines;
         }
 
