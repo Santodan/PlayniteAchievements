@@ -24,6 +24,13 @@ namespace PlayniteAchievements.Models
         public string RarityTier { get; set; }
         public string TrophyType { get; set; }
         public bool IsHardcore { get; set; }
+
+        /// <summary>
+        /// The achievement is flagged hidden (secret) in the provider's schema. This describes the
+        /// achievement definition, so it stays true after the achievement is unlocked and revealed.
+        /// </summary>
+        public bool IsHidden { get; set; }
+
         public int? Points { get; set; }
         public int? ScaledPoints { get; set; }
         public DateTime? UnlockTimeUtc { get; set; }
