@@ -28,9 +28,11 @@ namespace PlayniteAchievements.Views.Controls
     {
         // Slow and fast ends of the rotation period, mapped from the shared 0-1
         // RarityGlowPulseSpeed setting. Deliberately not the pulse's own 10s-to-0.1s half-cycle
-        // range, which reads as a blur rather than a rotation.
-        private const double SlowRotationSeconds = 60.0;
-        private const double FastRotationSeconds = 4.0;
+        // range, which reads as a blur rather than a rotation. Both ends are stretched together so
+        // the whole slider turns slower rather than only its middle: at the default speed a
+        // revolution takes about 38s.
+        private const double SlowRotationSeconds = 72.0;
+        private const double FastRotationSeconds = 5.0;
 
         private readonly RotateTransform _rotation = new RotateTransform();
         private readonly ScaleTransform _scale = new ScaleTransform();
