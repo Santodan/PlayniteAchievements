@@ -4,6 +4,7 @@
              xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
              xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
              xmlns:helpers="clr-namespace:PlayniteAchievements.Views.Helpers"
+             xmlns:controls="clr-namespace:PlayniteAchievements.Views.Controls"
              mc:Ignorable="d"
              d:DesignHeight="720"
              d:DesignWidth="1280"
@@ -55,6 +56,7 @@
                       LoadedBehavior="Manual"
                       UnloadedBehavior="Stop"
                       ScrubbingEnabled="True"
+                      MediaOpened="Player_MediaOpened"
                       MediaEnded="Player_MediaEnded"
                       MediaFailed="Player_MediaFailed"/>
 
@@ -71,6 +73,14 @@
                    Foreground="White"
                    Visibility="Collapsed"
                    Text="{DynamicResource LOCPlayAch_Captures_VideoError}"/>
+
+        <!-- Declared after the click layer so the transport takes its own clicks instead of
+             toggling playback through the layer beneath it. -->
+        <controls:MediaTransportBar x:Name="Transport"
+                                    VerticalAlignment="Bottom"
+                                    Margin="24"
+                                    MaxWidth="900"
+                                    Visibility="Collapsed"/>
 
         <Button x:Name="CloseButton"
                 HorizontalAlignment="Right"
