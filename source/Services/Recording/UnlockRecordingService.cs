@@ -1076,11 +1076,27 @@ namespace PlayniteAchievements.Services.Recording
             SegmentTimeline.ClipWindow window, double toastSlotSeconds, double videoLeadSeconds)
         {
             // Toast position within the BASE clip's timeline: the base starts `videoLeadSeconds`
-            // before the window start (keyframe snap), and the anchor sits inside the window.
-            var toastStartSeconds = videoLeadSeconds + (window.ToastAnchorUtc - window.StartUtc).TotalSeconds;
-            var endSeconds = toastStartSeconds
-                + Math.Min(toastSlotSeconds, track.DurationSeconds)
-                + PostFadeTailSeconds;
+            // before the window start (keyframe snap), and the overlay sits inside the window.
+            //
+            // The card goes where it genuinely appeared rather than on the anchor. An unlock is
+            // detected a little before its card is actually on screen — the poll notices the file,
+            // then the wave is built and shown — so compositing on the anchor pops the toast
+            // marginally early against the footage behind it. The track stamps its own first
+            // rendered frame, which is that moment exactly.
+            //
+            // Bounded on both sides: never before the anchor (the clip is built around it), and
+            // never so late that the card would run past the clip's end. A toast held back for the
+            // game to regain focus can appear long after the window, and those keep the anchor
+            // rather than sliding off the end.
+            var overlaySeconds = Math.Min(toastSlotSeconds, track.DurationSeconds) + PostFadeTailSeconds;
+            var latestOverlayStartUtc = window.EndUtc.AddSeconds(-overlaySeconds);
+            var overlayStartUtc =
+                track.StartUtc > window.ToastAnchorUtc && track.StartUtc <= latestOverlayStartUtc
+                    ? track.StartUtc
+                    : window.ToastAnchorUtc;
+
+            var toastStartSeconds = videoLeadSeconds + (overlayStartUtc - window.StartUtc).TotalSeconds;
+            var endSeconds = toastStartSeconds + overlaySeconds;
             // The wave's own chime, read from the Playnite-only sidecar at its real time, mixed
             // in slightly before the composited toast (matching the live sound-to-reveal lead).
             var chimePcm = await TryReadChimePcmAsync(session, request).ConfigureAwait(false);
