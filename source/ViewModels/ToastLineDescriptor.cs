@@ -385,4 +385,23 @@ namespace PlayniteAchievements.ViewModels
         public override Visibility LineVisibility =>
             HasGameCategoryContent ? Visibility.Visible : Visibility.Collapsed;
     }
+
+    /// <summary>
+    /// The rarity percent text. Not a reorderable line: the surface templates draw the percent
+    /// themselves (under the icon footer or under the right-side badge) and gate it on their own
+    /// visibility flags, so this never joins the line list and takes no part in the line order or
+    /// the bottom-line descender pass. It reuses the descriptor purely to carry the same resolved
+    /// font values the real lines do, so the percent honors the same family and emphasis options.
+    /// </summary>
+    public sealed class ToastRarityTextLine : ToastLineDescriptor
+    {
+        public ToastRarityTextLine(
+            AchievementToastViewModel parent,
+            double fontSize,
+            FontFamily fontFamily,
+            Effect textShadow)
+            : base(parent, fontSize, fontFamily, textShadow)
+        {
+        }
+    }
 }
