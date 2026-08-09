@@ -159,7 +159,6 @@
                                 <MultiDataTrigger.Conditions>
                                     <Condition Binding="{Binding Unlocked}" Value="True"/>
                                     <Condition Binding="{Binding ShowRarityGlow, RelativeSource={RelativeSource AncestorType=modern:AchievementCompactListControlBase}}" Value="True"/>
-                                    <Condition Binding="{Binding RarityGlowStyle, RelativeSource={RelativeSource AncestorType=modern:AchievementCompactListControlBase}}" Value="Soft"/>
                                 </MultiDataTrigger.Conditions>
                                 <Setter Property="Visibility" Value="Visible"/>
                                 <Setter Property="Effect" Value="{Binding Rarity, Converter={StaticResource CompactPercentToRarityGlow}}"/>
@@ -179,7 +178,6 @@
                                 <MultiDataTrigger.Conditions>
                                     <Condition Binding="{Binding Unlocked}" Value="True"/>
                                     <Condition Binding="{Binding ShowRarityGlow, RelativeSource={RelativeSource AncestorType=modern:AchievementCompactListControlBase}}" Value="True"/>
-                                    <Condition Binding="{Binding RarityGlowStyle, RelativeSource={RelativeSource AncestorType=modern:AchievementCompactListControlBase}}" Value="Soft"/>
                                     <Condition Binding="{Binding AnimateRarityGlows, RelativeSource={RelativeSource AncestorType=modern:AchievementCompactListControlBase}}" Value="True"/>
                                 </MultiDataTrigger.Conditions>
                                 <Setter Property="helpers:RarityGlowPulse.IsActive" Value="True"/>

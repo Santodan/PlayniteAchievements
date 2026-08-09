@@ -196,9 +196,10 @@
                           Height="{Binding ToastIconSize}"
                           ClipToBounds="False"
                           HorizontalAlignment="Center">
-                        <!-- Rays glow style: a rotating sunburst behind the icon, replacing the soft
-                             halo on the backing layer below. PhaseLock is off for live waves so
-                             every notification (and its screenshot/clip) starts at the same angle. -->
+                        <!-- Rays glow style: a rotating sunburst behind the soft halo on the backing
+                             layer below, which keeps rendering under both styles. PhaseLock is off
+                             for live waves so every notification (and its screenshot/clip) starts at
+                             the same angle. -->
                         <controls:RarityRayBurst Rarity="{Binding Rarity}"
                                                  UseCompletedColors="{Binding IsGameCompleted}"
                                                  IsActive="{Binding AnimateRarityGlows}"
@@ -227,14 +228,6 @@
                                         <!-- Fade in/out pulse when AnimateRarityGlows is on. -->
                                         <DataTrigger Binding="{Binding AnimateRarityGlows}" Value="True">
                                             <Setter Property="helpers:RarityGlowPulse.IsActive" Value="True"/>
-                                        </DataTrigger>
-                                        <!-- Rays style: the sunburst above carries the glow, so this
-                                             backing copy stands down. Last, so it outranks the
-                                             completion and pulse setters above. -->
-                                        <DataTrigger Binding="{Binding ShowRayBurst}" Value="True">
-                                            <Setter Property="Visibility" Value="Collapsed"/>
-                                            <Setter Property="Effect" Value="{x:Null}"/>
-                                            <Setter Property="helpers:RarityGlowPulse.IsActive" Value="False"/>
                                         </DataTrigger>
                                     </Style.Triggers>
                                 </Style>

@@ -86,9 +86,10 @@
                               Height="{Binding FrameIconSize}"
                               ClipToBounds="False"
                               HorizontalAlignment="Center">
-                            <!-- Rays glow style: a sunburst behind the icon, replacing the soft halo.
-                                 Deliberately not animated — the frame is rendered offscreen to a
-                                 still image, so the burst is held at a fixed angle. -->
+                            <!-- Rays glow style: a sunburst behind the icon's soft halo, which keeps
+                                 rendering under both styles. Deliberately not animated — the frame is
+                                 rendered offscreen to a still image, so the burst is held at a fixed
+                                 angle. -->
                             <controls:RarityRayBurst Rarity="{Binding Rarity}"
                                                      UseCompletedColors="{Binding IsGameCompleted}"
                                                      Visibility="{Binding FrameShowRayBurst, Converter={StaticResource BooleanToVisibilityConverter}}"/>
@@ -105,12 +106,6 @@
                                             <DataTrigger Binding="{Binding IsGameCompleted}" Value="True">
                                                 <Setter Property="Source" Value="{Binding FrameCompletedBadgeImage}"/>
                                                 <Setter Property="Effect" Value="{Binding FrameCompletedGlowEffect}"/>
-                                            </DataTrigger>
-                                            <!-- Rays style: the sunburst above carries the glow, so
-                                                 drop this layer's halo. Last, so it outranks the
-                                                 completion setter above. -->
-                                            <DataTrigger Binding="{Binding FrameShowRayBurst}" Value="True">
-                                                <Setter Property="Effect" Value="{x:Null}"/>
                                             </DataTrigger>
                                         </Style.Triggers>
                                     </Style>

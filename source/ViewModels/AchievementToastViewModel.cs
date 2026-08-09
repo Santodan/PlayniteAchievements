@@ -446,9 +446,10 @@ namespace PlayniteAchievements.ViewModels
             : null;
 
         /// <summary>
-        /// True when the notification icon carries the rotating sunburst instead of the soft halo:
-        /// the Rays style is selected, this surface shows rarity glows, and the unlock is not
-        /// Hardcore (which keeps its crisp border under either style). Gating this here keeps the
+        /// True when the notification icon carries the rotating sunburst behind its soft halo: the
+        /// Rays style is selected, this surface shows rarity glows, and the unlock is not Hardcore
+        /// (which keeps its crisp border under either style). The halo itself is not conditional on
+        /// the style — Rays adds the burst rather than replacing it. Gating this here keeps the
         /// template markup to a single binding.
         /// </summary>
         public bool ShowRayBurst =>

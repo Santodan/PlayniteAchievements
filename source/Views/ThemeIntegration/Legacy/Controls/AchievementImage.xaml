@@ -95,7 +95,6 @@
                                         <Condition Binding="{Binding RelativeSource={RelativeSource AncestorType=UserControl}, Path=EnableRaretyIndicator}" Value="True"/>
                                         <Condition Binding="{Binding RelativeSource={RelativeSource AncestorType=UserControl}, Path=IsLocked}" Value="False"/>
                                         <Condition Binding="{Binding RelativeSource={RelativeSource AncestorType=UserControl}, Path=ShowRarityGlow}" Value="True"/>
-                                        <Condition Binding="{Binding RelativeSource={RelativeSource AncestorType=UserControl}, Path=RarityGlowStyle}" Value="Soft"/>
                                     </MultiDataTrigger.Conditions>
                                     <Setter Property="Visibility" Value="Visible"/>
                                     <Setter Property="Effect" Value="{Binding RelativeSource={RelativeSource AncestorType=UserControl}, Path=Rarity, Converter={StaticResource PercentToRarityGlowConverter}}"/>
@@ -117,7 +116,6 @@
                                         <Condition Binding="{Binding RelativeSource={RelativeSource AncestorType=UserControl}, Path=EnableRaretyIndicator}" Value="True"/>
                                         <Condition Binding="{Binding RelativeSource={RelativeSource AncestorType=UserControl}, Path=IsLocked}" Value="False"/>
                                         <Condition Binding="{Binding RelativeSource={RelativeSource AncestorType=UserControl}, Path=ShowRarityGlow}" Value="True"/>
-                                        <Condition Binding="{Binding RelativeSource={RelativeSource AncestorType=UserControl}, Path=RarityGlowStyle}" Value="Soft"/>
                                         <Condition Binding="{Binding RelativeSource={RelativeSource AncestorType=UserControl}, Path=AnimateRarityGlows}" Value="True"/>
                                     </MultiDataTrigger.Conditions>
                                     <Setter Property="helpers:RarityGlowPulse.IsActive" Value="True"/>
