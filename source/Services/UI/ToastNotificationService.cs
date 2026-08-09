@@ -1607,13 +1607,6 @@ namespace PlayniteAchievements.Services.UI
         }
 
         /// <summary>
-        /// Fires a single UniPlaySong sound for the wave, using the rarest tier present so a burst
-        /// of unlocks does not stack overlapping sounds. UniPlaySong owns enablement and audio
-        /// selection for the "playniteachievements/&lt;tier&gt;" URI; if it is not installed the URI
-        /// is unhandled and the call is ignored. Returns the launch moment (null when no sound
-        /// fired) so the recording service can locate the chime in its sidecar audio track.
-        /// </summary>
-        /// <summary>
         /// Pulses connected controllers when enabled, called after SoundAlignmentDelayMs so the
         /// motors start with the chime rather than ahead of it. Fires for every toast wave — own
         /// unlocks, friend unlocks, and fire-tests — so the strength setting can be tuned live
@@ -1633,6 +1626,13 @@ namespace PlayniteAchievements.Services.UI
                 _logger);
         }
 
+        /// <summary>
+        /// Fires a single UniPlaySong sound for the wave, using the highest-ranked tier present so
+        /// a burst of unlocks does not stack overlapping sounds. UniPlaySong owns enablement and
+        /// audio selection for the "playniteachievements/&lt;tier&gt;" URI; if it is not installed
+        /// the URI is unhandled and the call is ignored. Returns the launch moment (null when no
+        /// sound fired) so the recording service can locate the chime in its sidecar audio track.
+        /// </summary>
         private DateTime? PlayWaveSound(IReadOnlyList<AchievementToastViewModel> wave)
         {
             var tier = wave?
