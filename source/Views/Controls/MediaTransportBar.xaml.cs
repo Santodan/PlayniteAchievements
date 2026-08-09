@@ -30,7 +30,12 @@ namespace PlayniteAchievements.Views.Controls
 
         private const double DurationTolerance = 0.001;
 
+        // Seeking on every mouse move stalls the player, so a drag only previews once the pointer
+        // settles for this long; the drop point is always seeked on release regardless.
+        private static readonly TimeSpan ScrubPreviewDelay = TimeSpan.FromMilliseconds(120);
+
         private readonly DispatcherTimer _positionTimer;
+        private readonly DispatcherTimer _scrubPreviewTimer;
         private MediaElement _player;
         private Track _track;
         private bool _isPlaying;
@@ -45,13 +50,24 @@ namespace PlayniteAchievements.Views.Controls
         // instead of seeking back to where the player already is.
         private bool _suppressSeek;
 
+        // Where an in-progress scrub currently points, pending a preview or the final seek.
+        private double? _pendingSeekSeconds;
+
         public MediaTransportBar()
         {
             InitializeComponent();
 
             _positionTimer = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(250) };
             _positionTimer.Tick += PositionTimer_Tick;
-            Unloaded += (_, __) => _positionTimer.Stop();
+
+            _scrubPreviewTimer = new DispatcherTimer { Interval = ScrubPreviewDelay };
+            _scrubPreviewTimer.Tick += ScrubPreviewTimer_Tick;
+
+            Unloaded += (_, __) =>
+            {
+                _positionTimer.Stop();
+                _scrubPreviewTimer.Stop();
+            };
 
             // Registered with handledEventsToo because Slider's move-to-point class handler marks
             // the press handled before any instance handler would normally see it.
@@ -104,8 +120,11 @@ namespace PlayniteAchievements.Views.Controls
         public void Reset()
         {
             _positionTimer.Stop();
+            _scrubPreviewTimer.Stop();
+            _pendingSeekSeconds = null;
             _isPlaying = false;
             _isScrubbing = false;
+            _isTrackScrubbing = false;
             UpdatePlayPauseGlyph();
             SetSliderValueWithoutSeek(0);
             UpdateTimeText(TimeSpan.Zero);
@@ -179,7 +198,26 @@ namespace PlayniteAchievements.Views.Controls
                 ? _player.NaturalDuration.TimeSpan
                 : TimeSpan.Zero;
 
+        /// <summary>
+        /// Seeks and moves the slider with it. For callers that are not the slider itself:
+        /// keyboard seeks and the restart-on-play.
+        /// </summary>
         private void SeekTo(double seconds)
+        {
+            var duration = Duration;
+            if (duration <= TimeSpan.Zero)
+            {
+                return;
+            }
+
+            var clamped = Clamp(seconds, duration);
+            ApplyPosition(clamped);
+            SetSliderValueWithoutSeek(clamped);
+            UpdateTimeText(TimeSpan.FromSeconds(clamped));
+        }
+
+        /// <summary>Moves the player only, leaving the slider alone because it is the source.</summary>
+        private void ApplyPosition(double seconds)
         {
             var duration = Duration;
             if (_player == null || _player.Source == null || duration <= TimeSpan.Zero)
@@ -187,22 +225,18 @@ namespace PlayniteAchievements.Views.Controls
                 return;
             }
 
-            var clamped = Math.Max(0, Math.Min(seconds, duration.TotalSeconds));
-            var position = TimeSpan.FromSeconds(clamped);
-
             try
             {
-                _player.Position = position;
+                _player.Position = TimeSpan.FromSeconds(Clamp(seconds, duration));
             }
             catch
             {
                 // Ignore teardown races.
-                return;
             }
-
-            SetSliderValueWithoutSeek(clamped);
-            UpdateTimeText(position);
         }
+
+        private static double Clamp(double seconds, TimeSpan duration) =>
+            Math.Max(0, Math.Min(seconds, duration.TotalSeconds));
 
         private void RestartIfFinished()
         {
@@ -281,7 +315,28 @@ namespace PlayniteAchievements.Views.Controls
                 return;
             }
 
-            SeekTo(e.NewValue);
+            // The readout follows the thumb immediately either way: it costs nothing and it is the
+            // feedback that makes a debounced scrub feel responsive.
+            UpdateTimeText(TimeSpan.FromSeconds(e.NewValue));
+
+            if (_isScrubbing)
+            {
+                _pendingSeekSeconds = e.NewValue;
+                _scrubPreviewTimer.Stop();
+                _scrubPreviewTimer.Start();
+                return;
+            }
+
+            ApplyPosition(e.NewValue);
+        }
+
+        private void ScrubPreviewTimer_Tick(object sender, EventArgs e)
+        {
+            _scrubPreviewTimer.Stop();
+            if (_pendingSeekSeconds.HasValue)
+            {
+                ApplyPosition(_pendingSeekSeconds.Value);
+            }
         }
 
         private void PositionSlider_DragStarted(object sender, DragStartedEventArgs e)
@@ -291,8 +346,20 @@ namespace PlayniteAchievements.Views.Controls
 
         private void PositionSlider_DragCompleted(object sender, DragCompletedEventArgs e)
         {
-            // The seek itself already landed through ValueChanged as the thumb moved.
+            FinishScrub();
+        }
+
+        /// <summary>Ends a scrub by seeking to where it actually stopped.</summary>
+        private void FinishScrub()
+        {
+            _scrubPreviewTimer.Stop();
             _isScrubbing = false;
+
+            if (_pendingSeekSeconds.HasValue)
+            {
+                ApplyPosition(_pendingSeekSeconds.Value);
+                _pendingSeekSeconds = null;
+            }
         }
 
         /// <summary>
@@ -333,12 +400,31 @@ namespace PlayniteAchievements.Views.Controls
                 return;
             }
 
-            var value = track.ValueFromPoint(e.GetPosition(track));
-            if (!double.IsNaN(value) && !double.IsInfinity(value))
+            var value = ValueFromTrackPoint(track, e.GetPosition(track));
+            if (!double.IsNaN(value))
             {
                 // Routed through the slider so the seek runs on the one ValueChanged path.
                 PositionSlider.Value = value;
             }
+        }
+
+        /// <summary>
+        /// Absolute slider value for a point over the track. Track.ValueFromPoint is deliberately
+        /// not used here: it returns the current Value plus the offset from the thumb's last
+        /// laid-out center, so calling it once per mouse move compounds against a layout that has
+        /// not caught up yet and sends the value somewhere unrelated to the pointer.
+        /// </summary>
+        private double ValueFromTrackPoint(Track track, Point point)
+        {
+            var thumbWidth = track.Thumb?.ActualWidth ?? 0;
+            var usable = track.ActualWidth - thumbWidth;
+            if (usable <= 0)
+            {
+                return double.NaN;
+            }
+
+            var ratio = Math.Max(0, Math.Min(1, (point.X - (thumbWidth / 2)) / usable));
+            return PositionSlider.Minimum + (ratio * (PositionSlider.Maximum - PositionSlider.Minimum));
         }
 
         private void PositionSlider_PreviewMouseLeftButtonUp(object sender, MouseButtonEventArgs e)
@@ -354,7 +440,7 @@ namespace PlayniteAchievements.Views.Controls
             }
 
             _isTrackScrubbing = false;
-            _isScrubbing = false;
+            FinishScrub();
 
             if (PositionSlider.IsMouseCaptured)
             {
