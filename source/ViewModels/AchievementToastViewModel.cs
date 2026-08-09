@@ -52,6 +52,8 @@ namespace PlayniteAchievements.ViewModels
         private readonly RarityTier _rarity;
         private IReadOnlyList<ToastLineDescriptor> _toastLines;
         private IReadOnlyList<ToastLineDescriptor> _frameLines;
+        private ToastRarityTextLine _toastRarityText;
+        private ToastRarityTextLine _frameRarityText;
 
         public AchievementToastViewModel(
             AchievementUnlockedEventArgs args,
@@ -811,15 +813,23 @@ namespace PlayniteAchievements.ViewModels
         public IReadOnlyList<ToastLineDescriptor> FrameLines =>
             _frameLines ?? (_frameLines = BuildLines(isFrame: true));
 
+        /// <summary>
+        /// The toast's rarity percent font values (family, size, weight, style, decorations).
+        /// </summary>
+        public ToastRarityTextLine ToastRarityText =>
+            _toastRarityText ?? (_toastRarityText = BuildRarityText(isFrame: false));
+
+        /// <summary>
+        /// The frame's rarity percent font values.
+        /// </summary>
+        public ToastRarityTextLine FrameRarityText =>
+            _frameRarityText ?? (_frameRarityText = BuildRarityText(isFrame: true));
+
         private IReadOnlyList<ToastLineDescriptor> BuildLines(bool isFrame)
         {
             var surface = isFrame ? _style.Frame : _style.Toast;
-            var family = isFrame ? FrameFontFamily : ToastFontFamily;
 
-            // A line's family override wins over the surface family (which itself falls back
-            // to the theme-derived family).
-            FontFamily LineFamily(string overrideFamily) =>
-                string.IsNullOrWhiteSpace(overrideFamily) ? family : ResolveFontFamily(overrideFamily);
+            FontFamily LineFamily(string overrideFamily) => ResolveLineFontFamily(overrideFamily, isFrame);
             var headerSize = isFrame ? FrameHeaderFontSize : ToastHeaderFontSize;
             var titleSize = isFrame ? FrameTitleFontSize : ToastTitleFontSize;
             var bodySize = surface.BodyFontSize ??
@@ -909,22 +919,8 @@ namespace PlayniteAchievements.ViewModels
             {
                 line.LeftIndent = line is ToastTitleLine ? titleIndent : otherIndent;
                 line.VerticalPadding = linePadding;
-                line.TextShadowInner = innerShadow;
                 line.ImageShadow = imageShadow;
-
-                var emphasis = ResolveLineEmphasis(surface, line);
-                // The title line's base weight is SemiBold, which fonts without a SemiBold
-                // face (e.g. Trebuchet MS) already render with their Bold face — so its bold
-                // toggle jumps all the way to Black, the farthest heavy face, to stay visible
-                // across font families. WPF picks the nearest existing face per weight.
-                line.FontWeight = (emphasis & NotificationLineEmphasis.Bold) != 0
-                    ? (line is ToastTitleLine ? FontWeights.Black : FontWeights.Bold)
-                    : (line is ToastTitleLine ? FontWeights.SemiBold : FontWeights.Normal);
-                line.FontStyle = (emphasis & NotificationLineEmphasis.Italic) != 0
-                    ? FontStyles.Italic
-                    : FontStyles.Normal;
-                line.TextDecorations = BuildLineDecorations(
-                    emphasis, LineDecorationBrush(line, textBrush));
+                ApplyLineEmphasis(line, surface, innerShadow, textBrush);
             }
 
             // Only the bottom-most line that actually renders needs descender room: every line
@@ -941,6 +937,68 @@ namespace PlayniteAchievements.ViewModels
             }
 
             return lines;
+        }
+
+        /// <summary>
+        /// Resolves a line's font family: the line's own override wins over the surface family,
+        /// which itself falls back to the theme-derived family.
+        /// </summary>
+        private FontFamily ResolveLineFontFamily(string overrideFamily, bool isFrame)
+        {
+            return string.IsNullOrWhiteSpace(overrideFamily)
+                ? (isFrame ? FrameFontFamily : ToastFontFamily)
+                : ResolveFontFamily(overrideFamily);
+        }
+
+        /// <summary>
+        /// Applies a surface's per-line emphasis (bold/italic/underline/strikethrough) and the
+        /// inner shadow layer onto a descriptor. Shared by the reorderable lines and the rarity
+        /// percent so the percent honors the same toggles.
+        /// </summary>
+        private void ApplyLineEmphasis(
+            ToastLineDescriptor line,
+            NotificationSurfaceStyle surface,
+            Effect innerShadow,
+            Brush textBrush)
+        {
+            line.TextShadowInner = innerShadow;
+
+            var emphasis = ResolveLineEmphasis(surface, line);
+            // The title line's base weight is SemiBold, which fonts without a SemiBold
+            // face (e.g. Trebuchet MS) already render with their Bold face — so its bold
+            // toggle jumps all the way to Black, the farthest heavy face, to stay visible
+            // across font families. WPF picks the nearest existing face per weight.
+            line.FontWeight = (emphasis & NotificationLineEmphasis.Bold) != 0
+                ? (line is ToastTitleLine ? FontWeights.Black : FontWeights.Bold)
+                : (line is ToastTitleLine ? FontWeights.SemiBold : FontWeights.Normal);
+            line.FontStyle = (emphasis & NotificationLineEmphasis.Italic) != 0
+                ? FontStyles.Italic
+                : FontStyles.Normal;
+            line.TextDecorations = BuildLineDecorations(
+                emphasis, LineDecorationBrush(line, textBrush));
+        }
+
+        /// <summary>
+        /// Builds the rarity percent's resolved font values for a surface. Kept out of the line
+        /// list: the templates draw the percent themselves and gate it on their own flags.
+        /// </summary>
+        private ToastRarityTextLine BuildRarityText(bool isFrame)
+        {
+            var surface = isFrame ? _style.Frame : _style.Toast;
+            var line = new ToastRarityTextLine(
+                this,
+                isFrame ? FrameRarityFontSize : ToastRarityFontSize,
+                ResolveLineFontFamily(surface.RarityFontFamily, isFrame),
+                isFrame ? FrameContentShadow : ToastContentShadow);
+
+            var textBrush = Application.Current?.TryFindResource("PlayAch.Brush.Text") as Brush
+                ?? Brushes.White;
+            ApplyLineEmphasis(
+                line,
+                surface,
+                isFrame ? FrameContentShadowInner : ToastContentShadowInner,
+                textBrush);
+            return line;
         }
 
         /// <summary>
@@ -967,6 +1025,8 @@ namespace PlayniteAchievements.ViewModels
                     return surface.BodyEmphasis;
                 case ToastGameCategoryLine _:
                     return surface.GameCategoryEmphasis;
+                case ToastRarityTextLine _:
+                    return surface.RarityEmphasis;
                 default:
                     return NotificationLineEmphasis.None;
             }
