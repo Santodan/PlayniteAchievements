@@ -1072,15 +1072,34 @@ namespace PlayniteAchievements.ViewModels
             }
         }
 
+        // UniPlaySong's URI segment for hidden achievements. Named because UniPlaySong may rename
+        // it; the four rarity segments and capstone are inline in SoundTierSegment below.
+        public const string HiddenSoundSegment = "hidden";
+
         /// <summary>
-        /// UniPlaySong URI segment for this unlock's tier (e.g. "rareachievement"). Capstone and
-        /// the completion notification take precedence over rarity; otherwise the rarity tier is
-        /// used.
+        /// Whether this unlock plays UniPlaySong's hidden-achievement sound: the achievement is
+        /// hidden and the user opted into the hidden sound. Shared by
+        /// <see cref="SoundTierSegment"/> and <see cref="SoundTierRank"/> so the two cannot
+        /// disagree about which unlocks are hidden.
+        /// </summary>
+        private bool UseHiddenSound => _settings.UseHiddenUnlockSound && _args.IsHidden;
+
+        /// <summary>
+        /// UniPlaySong URI segment for this unlock's tier (e.g. "rareachievement"). The hidden
+        /// sound takes precedence over everything when enabled, then capstone and the completion
+        /// notification, and otherwise the rarity tier is used. Note this order is deliberately the
+        /// inverse of <see cref="SoundTierRank"/>'s, which keeps capstone at the top: a hidden
+        /// capstone plays the hidden sound but does not outrank a plain capstone in the same wave.
         /// </summary>
         public string SoundTierSegment
         {
             get
             {
+                if (UseHiddenSound)
+                {
+                    return HiddenSoundSegment;
+                }
+
                 if (IsCapstone || IsGameCompleted)
                 {
                     return "capstoneachievement";
@@ -1102,14 +1121,19 @@ namespace PlayniteAchievements.ViewModels
 
         /// <summary>
         /// Rarity ranking used to pick a single representative sound when several unlocks show at
-        /// once. Higher is rarer; capstone and the completion notification outrank all rarity
-        /// tiers.
+        /// once. Higher is rarer; capstone and the completion notification outrank everything, and
+        /// a hidden unlock sits between them and the rarity tiers.
         /// </summary>
         public int SoundTierRank
         {
             get
             {
                 if (IsCapstone || IsGameCompleted)
+                {
+                    return 6;
+                }
+
+                if (UseHiddenSound)
                 {
                     return 5;
                 }
