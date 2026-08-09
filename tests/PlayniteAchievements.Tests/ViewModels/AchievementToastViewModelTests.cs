@@ -65,7 +65,65 @@ namespace PlayniteAchievements.Tests.ViewModels
             Assert.IsFalse(viewModel.FrameShowBadge);
             // The capstone-tier sound covers the completion notification.
             Assert.AreEqual("capstoneachievement", viewModel.SoundTierSegment);
-            Assert.AreEqual(5, viewModel.SoundTierRank);
+            Assert.AreEqual(6, viewModel.SoundTierRank);
+        }
+
+        [TestMethod]
+        public void HiddenUnlock_UsesHiddenSoundOnlyWhenTheSettingIsOn()
+        {
+            var args = new AchievementUnlockedEventArgs
+            {
+                RarityTier = "Rare",
+                IsHidden = true
+            };
+
+            var optedOut = new AchievementToastViewModel(
+                args,
+                new PersistedSettings { UseHiddenUnlockSound = false });
+
+            Assert.AreEqual("rareachievement", optedOut.SoundTierSegment);
+            Assert.AreEqual(3, optedOut.SoundTierRank);
+
+            var optedIn = new AchievementToastViewModel(
+                args,
+                new PersistedSettings { UseHiddenUnlockSound = true });
+
+            Assert.AreEqual(AchievementToastViewModel.HiddenSoundSegment, optedIn.SoundTierSegment);
+            // Hidden outranks every rarity tier so it wins its wave, but stays under capstone.
+            Assert.AreEqual(5, optedIn.SoundTierRank);
+        }
+
+        [TestMethod]
+        public void HiddenUnlock_LeavesNonHiddenUnlocksOnTheirRarityTier()
+        {
+            var viewModel = new AchievementToastViewModel(
+                new AchievementUnlockedEventArgs
+                {
+                    RarityTier = "UltraRare",
+                    IsHidden = false
+                },
+                new PersistedSettings { UseHiddenUnlockSound = true });
+
+            Assert.AreEqual("ultrarareachievement", viewModel.SoundTierSegment);
+            Assert.AreEqual(4, viewModel.SoundTierRank);
+        }
+
+        [TestMethod]
+        public void HiddenCapstone_PlaysHiddenButKeepsCapstoneWaveRank()
+        {
+            var viewModel = new AchievementToastViewModel(
+                new AchievementUnlockedEventArgs
+                {
+                    RarityTier = "Rare",
+                    IsHidden = true,
+                    IsCapstone = true
+                },
+                new PersistedSettings { UseHiddenUnlockSound = true });
+
+            // The segment order puts hidden first, the rank order keeps capstone on top: a hidden
+            // capstone plays the hidden sound while still ranking as a capstone in its wave.
+            Assert.AreEqual(AchievementToastViewModel.HiddenSoundSegment, viewModel.SoundTierSegment);
+            Assert.AreEqual(6, viewModel.SoundTierRank);
         }
 
         [TestMethod]
