@@ -143,8 +143,11 @@
                                 <TextBlock Text="{Binding PercentText}"
                                            Style="{DynamicResource PlayAch.TextBlock.BaseStyle}"
                                            Foreground="{DynamicResource PlayAch.Brush.Text}"
-                                           FontSize="{Binding FrameRarityFontSize}"
-                                           FontFamily="{Binding FrameFontFamily}"
+                                           FontSize="{Binding FrameRarityText.FontSize}"
+                                           FontFamily="{Binding FrameRarityText.FontFamily}"
+                                           FontWeight="{Binding FrameRarityText.FontWeight}"
+                                           FontStyle="{Binding FrameRarityText.FontStyle}"
+                                           TextDecorations="{Binding FrameRarityText.TextDecorations}"
                                            Effect="{Binding FrameContentShadowInner}"/>
                             </Grid>
                         </StackPanel>
@@ -208,8 +211,11 @@
                                 <TextBlock Text="{Binding PercentText}"
                                            Style="{DynamicResource PlayAch.TextBlock.BaseStyle}"
                                            Foreground="{DynamicResource PlayAch.Brush.Text}"
-                                           FontSize="{Binding FrameRarityFontSize}"
-                                           FontFamily="{Binding FrameFontFamily}"
+                                           FontSize="{Binding FrameRarityText.FontSize}"
+                                           FontFamily="{Binding FrameRarityText.FontFamily}"
+                                           FontWeight="{Binding FrameRarityText.FontWeight}"
+                                           FontStyle="{Binding FrameRarityText.FontStyle}"
+                                           TextDecorations="{Binding FrameRarityText.TextDecorations}"
                                            Effect="{Binding FrameContentShadowInner}"/>
                             </Grid>
                         </StackPanel>
