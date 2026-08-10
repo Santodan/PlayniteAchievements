@@ -126,6 +126,7 @@ namespace PlayniteAchievements.Services.Capture
                                 var videoStream = AddVideoStream(sink, decodedType, frameW, frameH, fps, quality);
                                 var audioStream = TryAddAudio(
                                     sink, baseClipPath, decodeToPcm: chimePcm != null, out var audioReader);
+                                using (var compositor = new CpuOverlayCompositor(frameW, frameH, stride))
                                 using (audioReader)
                                 {
                                     sink.BeginWriting();
@@ -134,7 +135,7 @@ namespace PlayniteAchievements.Services.Capture
                                         sink, videoStream, videoReader, audioStream, audioReader,
                                         track, toastStartSeconds, toastMaxSeconds, trimLeadSeconds,
                                         endSeconds, audioStream >= 0 ? chimePcm : null, chimeStartSeconds,
-                                        frameW, frameH, stride);
+                                        frameW, frameH, compositor);
                                     sink.Finalize();
                                     LogPassCost(timer, counts, frameW, frameH);
                                 }
@@ -270,7 +271,7 @@ namespace PlayniteAchievements.Services.Capture
             ToastOverlayTrack track,
             double toastStartSeconds, double toastMaxSeconds, double trimLeadSeconds,
             double endSeconds, byte[] chimePcm, double chimeStartSeconds,
-            int frameW, int frameH, int stride)
+            int frameW, int frameH, IOverlayCompositor compositor)
         {
             var trimLead = ToTicks(trimLeadSeconds);
             var toastStart = ToTicks(toastStartSeconds);
@@ -281,9 +282,6 @@ namespace PlayniteAchievements.Services.Capture
             // which the mix offsets handle by skipping the chime's head.
             var chimeStartOut = ToTicks(chimeStartSeconds) - trimLead;
 
-            var absStride = Math.Abs(stride);
-            var bottomUp = stride < 0;
-            var frameBuffer = new byte[absStride * frameH];
             byte[] inflated = null;
             var inflatedIndex = -1;
 
@@ -344,9 +342,8 @@ namespace PlayniteAchievements.Services.Capture
                                     trackSample.RelX + track.OffsetX, trackSample.RelY + track.OffsetY,
                                     overlayFrame.Width, overlayFrame.Height,
                                     trackSample.ClientW, trackSample.ClientH, frameW, frameH);
-                                outSample = ComposeSample(
-                                    sample, frameBuffer, absStride, bottomUp, frameW, frameH,
-                                    inflated, overlayFrame.Width, overlayFrame.Height, destRect);
+                                outSample = compositor.Compose(
+                                    sample, inflated, overlayFrame.Width, overlayFrame.Height, destRect);
                             }
                         }
 
@@ -546,69 +543,6 @@ namespace PlayniteAchievements.Services.Capture
         }
 
         /// <summary>
-        /// Blends the overlay into a copy of the decoded frame and wraps it in a fresh sample —
-        /// ConvertToContiguousBuffer may hand back a detached copy, so mutating in place is not
-        /// reliable. Timestamps are copied by the caller.
-        /// </summary>
-        private static Sample ComposeSample(
-            Sample source, byte[] frameBuffer, int absStride, bool bottomUp, int frameW, int frameH,
-            byte[] overlay, int overlayW, int overlayH, System.Drawing.Rectangle destRect)
-        {
-            using (var buffer = source.ConvertToContiguousBuffer())
-            {
-                var ptr = buffer.Lock(out _, out var currentLength);
-                try
-                {
-                    var length = Math.Min(currentLength, frameBuffer.Length);
-                    Marshal.Copy(ptr, frameBuffer, 0, length);
-                }
-                finally
-                {
-                    buffer.Unlock();
-                }
-            }
-
-            // A negative stride means bottom-up rows: normalize to top-down, blit, restore.
-            if (bottomUp)
-            {
-                FlipRows(frameBuffer, absStride, frameH);
-            }
-
-            OverlayBlitMath.BlendOnto(frameBuffer, frameW, frameH, absStride, overlay, overlayW, overlayH, destRect);
-
-            if (bottomUp)
-            {
-                FlipRows(frameBuffer, absStride, frameH);
-            }
-
-            var outBuffer = MediaFactory.CreateMemoryBuffer(frameBuffer.Length);
-            try
-            {
-                var outPtr = outBuffer.Lock(out _, out _);
-                try
-                {
-                    Marshal.Copy(frameBuffer, 0, outPtr, frameBuffer.Length);
-                }
-                finally
-                {
-                    outBuffer.Unlock();
-                }
-
-                outBuffer.CurrentLength = frameBuffer.Length;
-
-                // Time and duration are stamped by the caller, which knows where this frame lands on
-                // the output timeline and how far it is to the next one.
-                var outSample = MediaFactory.CreateSample();
-                outSample.AddBuffer(outBuffer);
-                return outSample;
-            }
-            finally
-            {
-                outBuffer.Dispose();
-            }
-        }
-
-        /// <summary>
         /// The track frame for a sample, reconstructed lazily and cached (tracks are sampled per
         /// recording frame, but consecutive samples share a frame whenever the card's pixels did not
         /// change, and frames are stored as XOR deltas against their predecessor). Samples are walked
@@ -688,17 +622,6 @@ namespace PlayniteAchievements.Services.Capture
             finally
             {
                 sample.Dispose();
-            }
-        }
-
-        private static void FlipRows(byte[] buffer, int stride, int height)
-        {
-            var temp = new byte[stride];
-            for (int top = 0, bottom = height - 1; top < bottom; top++, bottom--)
-            {
-                Buffer.BlockCopy(buffer, top * stride, temp, 0, stride);
-                Buffer.BlockCopy(buffer, bottom * stride, buffer, top * stride, stride);
-                Buffer.BlockCopy(temp, 0, buffer, bottom * stride, stride);
             }
         }
 
