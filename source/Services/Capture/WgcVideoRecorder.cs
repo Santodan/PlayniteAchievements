@@ -26,9 +26,11 @@ namespace PlayniteAchievements.Services.Capture
     /// export and prune consume. Segments hold clean game footage only — each achievement's toast is
     /// composited into its clip at export from the recorded overlay track.
     ///
-    /// A single pacing thread drives capture→tonemap→encode so there is no cross-thread GPU sharing:
-    /// each tick pulls the latest WGC frame (re-using the last one for a static scene, matching a
-    /// constant-fps screen capture), tone-maps it if HDR, and writes it to the current segment.
+    /// A single pacing thread drives capture→tonemap→encode: each tick pulls the latest WGC frame
+    /// (re-using the last one for a static scene, and repeating it as many times as a stall calls for, so
+    /// frame count always matches elapsed time), tone-maps it if HDR, and writes it to the current
+    /// segment. The one other thread that touches the capture device builds the next segment's writer
+    /// ahead of a rotation, which is why the device is multithread-protected.
     /// </summary>
     internal sealed class WgcVideoRecorder : IDisposable
     {
