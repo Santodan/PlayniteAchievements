@@ -91,67 +91,56 @@ namespace PlayniteAchievements.Tests.Views
         public void ArrowHeight01_StaysInRangeAndClosesOnTheLoop()
         {
             // The alternating component is weighted against the rest rather than added on top, so the
-            // total still needs no clamping. Its lobe count is integral so the loop has no seam, which
-            // has to hold for an odd arrow count too, where the alternation cannot be exact.
+            // total still needs no clamping, and only the travelling part depends on position, so the
+            // loop has no seam.
             foreach (var count in new[] { 3, 8, 21, 22, 32 })
             {
-                for (var i = 0; i <= 4000; i++)
+                for (var index = 0; index < count; index++)
                 {
-                    var u = -2.0 + (i * 4.0 / 4000);
-                    var value = RayArrowLayout.ArrowHeight01(u, count);
-                    Assert.IsTrue(value >= -1e-12 && value <= 1.0 + 1e-12, $"h({u}, {count}) = {value}");
-                }
+                    for (var i = 0; i <= 400; i++)
+                    {
+                        var u = -2.0 + (i * 4.0 / 400);
+                        var value = RayArrowLayout.ArrowHeight01(u, index, count);
+                        Assert.IsTrue(
+                            value >= -1e-12 && value <= 1.0 + 1e-12, $"h({u}, {index}, {count}) = {value}");
+                    }
 
-                for (var i = 0; i < 200; i++)
-                {
-                    var u = i / 200.0;
-                    Assert.AreEqual(
-                        RayArrowLayout.ArrowHeight01(u, count),
-                        RayArrowLayout.ArrowHeight01(u + 1.0, count),
-                        1e-9,
-                        $"the wave does not meet itself at the seam for {count} arrows");
+                    for (var i = 0; i < 50; i++)
+                    {
+                        var u = i / 50.0;
+                        Assert.AreEqual(
+                            RayArrowLayout.ArrowHeight01(u, index, count),
+                            RayArrowLayout.ArrowHeight01(u + 1.0, index, count),
+                            1e-9,
+                            $"the wave does not meet itself at the seam for {count} arrows");
+                    }
                 }
             }
         }
 
         [TestMethod]
-        public void AlternationLobes_StayBelowTheSamplingLimitAndCoprime()
+        public void ArrowHeight01_AlternatesByArrowRatherThanByPosition()
         {
-            // Exactly half the arrow count puts neighbours perfectly out of phase but collapses every
-            // arrow onto the same two phases, so the whole ring flattens and inverts together instead of
-            // the zigzag travelling round it. The frequency has to stay under that limit and share no
-            // factor with the arrow count, so each arrow gets a phase of its own.
-            foreach (var count in new[] { 4, 8, 12, 16, 20, 21, 22, 24, 26, 32, 36 })
+            // Keyed to a position, the tall and short arrows traded places every time the travelling
+            // wave swept past. Keyed to the arrow, an arrow's share of the zigzag is the same wherever
+            // the wave happens to be, so a tall one stays tall as it travels.
+            foreach (var count in new[] { 8, 22, 32 })
             {
-                var lobes = RayArrowLayout.AlternationLobes(count);
+                for (var index = 0; index < count; index++)
+                {
+                    var reference = RayArrowLayout.ArrowHeight01(0.0, index, count)
+                                    - RayArrowLayout.ArrowHeight01(0.0, (index + 1) % count, count);
 
-                Assert.IsTrue(lobes >= 1, $"{count} arrows produced {lobes} lobes");
-                Assert.IsTrue(
-                    lobes * 2 < count || count < 4,
-                    $"{count} arrows alternate at {lobes} lobes, at or past the sampling limit");
-                Assert.AreEqual(
-                    1,
-                    Gcd(lobes, count),
-                    $"{lobes} lobes shares a factor with {count} arrows, so arrows repeat phases");
+                    foreach (var u in new[] { 0.13, 0.37, 0.62, 0.88 })
+                    {
+                        var gap = RayArrowLayout.ArrowHeight01(u, index, count)
+                                  - RayArrowLayout.ArrowHeight01(u, (index + 1) % count, count);
+                        Assert.AreEqual(
+                            reference, gap, 1e-9,
+                            $"arrow {index} of {count} changes its share of the zigzag with the wave");
+                    }
+                }
             }
-
-            // The chosen count should be near the limit; a low frequency would not alternate at all.
-            var chosen = RayArrowLayout.AlternationLobes(Count);
-            Assert.IsTrue(
-                chosen * 2 > Count - 6,
-                $"{chosen} lobes is too slow to make neighbours differ across {Count} arrows");
-        }
-
-        private static int Gcd(int a, int b)
-        {
-            while (b != 0)
-            {
-                var remainder = a % b;
-                a = b;
-                b = remainder;
-            }
-
-            return a;
         }
 
         [TestMethod]
@@ -194,6 +183,39 @@ namespace PlayniteAchievements.Tests.Views
             Assert.IsTrue(
                 reversals > written / 2,
                 $"the ring only changes direction {reversals} times over {written} arrows");
+        }
+
+        [TestMethod]
+        public void BuildSpines_ArrowsKeepTheirPlaceInTheZigzag()
+        {
+            // A taller arrow must stay taller than its neighbours for as long as it exists. The
+            // travelling wave changes every arrow's height, so this only holds while the alternation
+            // outweighs how much that wave can differ between one arrow and the next.
+            var mapped = Square();
+            var spines = new RayArrowLayout.RayArrowSpine[Count];
+            var firstOrdering = new int[Count];
+
+            for (var step = 0; step <= 600; step++)
+            {
+                RayArrowLayout.BuildSpines(mapped, step * 0.004, 1.55, Count, spines);
+
+                for (var i = 0; i < Count; i++)
+                {
+                    var ordering = Math.Sign(spines[i].Height - spines[(i + 1) % Count].Height);
+                    Assert.AreNotEqual(0, ordering, $"arrows {i} and {i + 1} came out the same height");
+
+                    if (step == 0)
+                    {
+                        firstOrdering[i] = ordering;
+                        continue;
+                    }
+
+                    Assert.AreEqual(
+                        firstOrdering[i],
+                        ordering,
+                        $"arrows {i} and {i + 1} swapped order once the wave moved");
+                }
+            }
         }
 
         [TestMethod]
