@@ -31,7 +31,7 @@ namespace PlayniteAchievements.Views.Controls.RayGlow
         /// Coprime with every lobe count of the wave. A count that shared a factor would have arrows
         /// sampling the same few heights forever, and the burst would read as a rigid scallop.
         /// </summary>
-        public const int DefaultArrowCount = 22;
+        public const int DefaultArrowCount = 14;
 
         // Lobe counts of the wave. All coprime with the arrow count on purpose: a count that divided it
         // would have every arrow sampling the same few heights forever, and the burst would read as a
@@ -95,11 +95,17 @@ namespace PlayniteAchievements.Views.Controls.RayGlow
 
         private const double MinInwardDip = 5.0;
 
-        /// <summary>Base width as a fraction of the gap between arrows, leaving them clearly separate.</summary>
-        private const double WidthFraction = 0.55;
+        /// <summary>
+        /// Base width as a fraction of the gap between arrows. Deliberately narrow, because softening
+        /// works by stacking copies out to several times this width: an arrow's edge is only as soft as
+        /// the distance between its faintest copy and its brightest, and every one of those widths is a
+        /// multiple of this. A fat base would leave the widest copy overlapping its neighbour long
+        /// before the falloff had anywhere to happen.
+        /// </summary>
+        private const double WidthFraction = 0.34;
 
-        /// <summary>Tips stay blunt: a needle antialiases into a thorn, a sliver into a ray.</summary>
-        private const double TipWidthFraction = 0.14;
+        /// <summary>Tips taper almost to nothing, so the far end fades out rather than ending.</summary>
+        private const double TipWidthFraction = 0.06;
 
         /// <summary>A <see cref="RayTrack"/> placed on a specific layout slot, in device units.</summary>
         public sealed class MappedTrack

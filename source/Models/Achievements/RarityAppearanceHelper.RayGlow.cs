@@ -50,12 +50,16 @@ namespace PlayniteAchievements.Models.Achievements
             public IReadOnlyList<RayGlowLayer> Layers { get; }
         }
 
-        // Width multiplier, length fraction and alpha per copy. The widest stays under the gap between
-        // neighbouring arrows so they stay separate rays rather than blurring into a collar, and the
-        // alphas are low enough that the outermost copy reads as a haze rather than an outline.
-        private static readonly double[] RayLayerWidths = { 1.60, 1.28, 0.98, 0.70, 0.44 };
-        private static readonly double[] RayLayerHeights = { 1.00, 0.90, 0.78, 0.64, 0.48 };
-        private static readonly byte[] RayLayerAlphas = { 0x20, 0x2A, 0x38, 0x4A, 0x5E };
+        // Width multiplier, length fraction and alpha per copy, widest and faintest first.
+        //
+        // How soft a ray looks comes down to two things: how many copies there are, and how far the
+        // widest sits from the narrowest. Every copy has a hard polygon edge, so the outermost one has
+        // to be faint enough that its edge cannot be picked out — a few percent, not a tenth — and there
+        // have to be enough steps in between that no single one shows as a band. The widest still stays
+        // under the gap to the next arrow, or neighbours blur into a collar.
+        private static readonly double[] RayLayerWidths = { 2.60, 2.05, 1.60, 1.22, 0.90, 0.60, 0.35 };
+        private static readonly double[] RayLayerHeights = { 1.00, 0.94, 0.87, 0.78, 0.68, 0.56, 0.42 };
+        private static readonly byte[] RayLayerAlphas = { 0x10, 0x16, 0x1E, 0x2A, 0x3A, 0x50, 0x66 };
 
         /// <summary>How far the innermost copy is lifted toward white, so the spine reads as heat
         /// rather than as more of the same color.</summary>
