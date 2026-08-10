@@ -112,6 +112,9 @@
     <Compile Include="..\..\source\Services\Images\WebpAnimationInfo.cs" Link="Source\Services\Images\WebpAnimationInfo.cs" />
     <Compile Include="..\..\source\Services\Images\WebpCodecProbe.cs" Link="Source\Services\Images\WebpCodecProbe.cs" />
     <Compile Include="..\..\source\Services\Images\MemoryImageService.cs" Link="Source\Services\Images\MemoryImageService.cs" />
+    <Compile Include="..\..\source\Services\Images\RayTrack.cs" Link="Source\Services\Images\RayTrack.cs" />
+    <Compile Include="..\..\source\Services\Images\RayTrackBuilder.cs" Link="Source\Services\Images\RayTrackBuilder.cs" />
+    <Compile Include="..\..\source\Services\Images\RayTrackService.cs" Link="Source\Services\Images\RayTrackService.cs" />
     <Compile Include="..\..\source\Views\Helpers\AnimatedImageHelper.cs" Link="Source\Views\Helpers\AnimatedImageHelper.cs" />
     <Compile Include="..\..\source\Services\Images\ManagedCustomIconService.cs" Link="Source\Services\Images\ManagedCustomIconService.cs" />
     <Compile Include="..\..\source\Services\Images\AchievementIconService.cs" Link="Source\Services\Images\AchievementIconService.cs" />
