@@ -26,6 +26,12 @@ namespace PlayniteAchievements.Services.Recording
         private const int IncludeTargetProcessTree = 0;
         private const int ExcludeTargetProcessTree = 1;
 
+        // AUDCLNT_BUFFERFLAGS_SILENT: the packet is digital silence, so its zeroed buffer stands.
+        private const int BufferFlagsSilent = 0x2;
+
+        // The most dropped audio one gap will stand silence in for.
+        private const int MaxGapSeconds = 5;
+
         private static readonly Guid IID_IAudioClient = new Guid("1CB9AD4C-DBFA-4C32-B178-C2F568A703B2");
         private static readonly Guid IID_IAudioCaptureClient = new Guid("C8ADBD64-E71E-48A0-A4DE-185C395CD317");
 
@@ -54,6 +60,42 @@ namespace PlayniteAchievements.Services.Recording
         public DateTime? FirstPacketCaptureUtc => _firstPacketCaptureUtc;
 
         private DateTime? _firstPacketCaptureUtc;
+
+        /// <summary>
+        /// Frames of silence delivered in place of audio the engine dropped, over this capture's life.
+        /// Non-zero means the track carries real glitches — worth reporting before a listener blames
+        /// the gaps on a sync bug.
+        /// </summary>
+        public long PaddedGapFrames => _paddedGapFrames;
+
+        private long _paddedGapFrames;
+
+        // The device frame position the next packet should begin at; -1 until the first one fixes it.
+        private long _nextDevicePosition = -1;
+
+        /// <summary>
+        /// Frames missing between where the previous packet ended and where this one begins, per the
+        /// device's own frame counter, and advances that counter past this packet.
+        /// <para>
+        /// A jump is audio the engine dropped before it reached us — the glitch
+        /// AUDCLNT_BUFFERFLAGS_DATA_DISCONTINUITY reports, whose size only the position reveals. The
+        /// result is capped so a driver reporting a nonsense position cannot make us insert an
+        /// unbounded run of silence, and drivers that never move the position simply report no gaps.
+        /// </para>
+        /// </summary>
+        private long TakeGapBefore(long devicePosition, uint framesAvailable)
+        {
+            var expected = _nextDevicePosition;
+            _nextDevicePosition = devicePosition + framesAvailable;
+            if (expected < 0 || devicePosition <= expected)
+            {
+                return 0;
+            }
+
+            var gap = devicePosition - expected;
+            var cap = (long)WaveFormat.SampleRate * MaxGapSeconds;
+            return gap > cap ? cap : gap;
+        }
 
         /// <summary>
         /// Converts a GetBuffer QPC stamp (100-ns units on the performance counter's timebase) to
@@ -231,7 +273,9 @@ namespace PlayniteAchievements.Services.Recording
 
                     while (frames > 0)
                     {
-                        if (_captureClient.GetBuffer(out var dataPtr, out var framesAvailable, out var flags, out _, out var qpcPosition) != 0)
+                        if (_captureClient.GetBuffer(
+                                out var dataPtr, out var framesAvailable, out var flags,
+                                out var devicePosition, out var qpcPosition) != 0)
                         {
                             break;
                         }
@@ -243,14 +287,26 @@ namespace PlayniteAchievements.Services.Recording
                             _firstPacketCaptureUtc = QpcToUtc(qpcPosition);
                         }
 
+                        var gapFrames = TakeGapBefore(devicePosition, framesAvailable);
+
                         var buffer = new byte[bytes];
-                        // AUDCLNT_BUFFERFLAGS_SILENT = 0x2: the packet is silence; leave the zeroed buffer.
-                        if ((flags & 0x2) == 0 && dataPtr != IntPtr.Zero && bytes > 0)
+                        if ((flags & BufferFlagsSilent) == 0 && dataPtr != IntPtr.Zero && bytes > 0)
                         {
                             Marshal.Copy(dataPtr, buffer, 0, bytes);
                         }
 
                         _captureClient.ReleaseBuffer(framesAvailable);
+
+                        // Stand silence in for what the engine dropped, before the packet that follows
+                        // it. Delivering the packets back to back instead would pull all later audio
+                        // permanently early against picture — A/V drift that never recovers.
+                        if (gapFrames > 0)
+                        {
+                            _paddedGapFrames += gapFrames;
+                            var gapBytes = (int)gapFrames * blockAlign;
+                            DataAvailable?.Invoke(this, new WaveInEventArgs(new byte[gapBytes], gapBytes));
+                        }
+
                         if (bytes > 0)
                         {
                             DataAvailable?.Invoke(this, new WaveInEventArgs(buffer, bytes));
