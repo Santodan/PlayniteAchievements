@@ -14,7 +14,7 @@ namespace PlayniteAchievements.Services.Capture
     /// </summary>
     internal sealed class CpuOverlayCompositor : IOverlayCompositor
     {
-        private readonly byte[] _frameBuffer;
+        private byte[] _frameBuffer;
         private readonly int _absStride;
         private readonly bool _bottomUp;
         private readonly int _frameW;
@@ -30,7 +30,6 @@ namespace PlayniteAchievements.Services.Capture
             _frameH = frameH;
             _absStride = Math.Abs(stride);
             _bottomUp = stride < 0;
-            _frameBuffer = new byte[_absStride * frameH];
         }
 
         public Sample Compose(Sample source, byte[] overlay, int overlayW, int overlayH, Rectangle destRect)
@@ -38,6 +37,13 @@ namespace PlayniteAchievements.Services.Capture
             if (source == null || overlay == null)
             {
                 return null;
+            }
+
+            // Allocated on first use: this is the fallback path, and a full frame at 1440p is a 14 MB
+            // large-object allocation not worth making on every export that never touches it.
+            if (_frameBuffer == null)
+            {
+                _frameBuffer = new byte[_absStride * _frameH];
             }
 
             using (var buffer = source.ConvertToContiguousBuffer())

@@ -6,20 +6,28 @@ using System.Threading;
 using Playnite.SDK;
 using PlayniteAchievements.Models.Settings;
 using SharpDX.MediaFoundation;
+using D3D11 = SharpDX.Direct3D11;
 
 namespace PlayniteAchievements.Services.Capture
 {
     /// <summary>
     /// Re-encodes an already-exported unlock clip with one achievement's toast overlay track
-    /// composited in: the base clip's video decodes to RGB32 through a SourceReader (advanced
+    /// composited in: the base clip's video decodes to BGRA through a SourceReader (advanced
     /// video processing inserts the H.264 decoder and color converter), frames inside the toast
-    /// interval get the track's card blended in on the CPU at its recorded client-relative
-    /// position (translated to the synthetic single-toast corner), and everything re-encodes
-    /// through a SinkWriter H.264 stream (hardware MFT where present). Audio passes through as
-    /// native AAC, stream-copied. Samples before <c>trimLeadSeconds</c> (the base clip's keyframe
-    /// lead) are dropped and the rest re-stamped, so the output starts exactly at the clip
-    /// window. Any failure returns false — the caller keeps the toastless base clip, so a
-    /// re-encode failure can never lose a clip.
+    /// interval get the track's card blended in at its recorded client-relative position
+    /// (translated to the synthetic single-toast corner), and everything re-encodes through a
+    /// SinkWriter H.264 stream (hardware MFT where present). Audio passes through as native AAC,
+    /// stream-copied. Samples before <c>trimLeadSeconds</c> (the base clip's keyframe lead) are
+    /// dropped and the rest re-stamped, so the output starts exactly at the clip window. Any
+    /// failure returns false — the caller keeps the toastless base clip, so a re-encode failure
+    /// can never lose a clip.
+    /// <para>
+    /// The reader and sink share one D3D11 device, so decoded frames arrive as textures, the card is
+    /// blended by <see cref="GpuOverlayCompositor"/>, and the encoder reads them without a trip
+    /// through system memory. Where that device or those textures are unavailable the card is
+    /// composited by <see cref="CpuOverlayCompositor"/> instead — measurably slower, but the pass
+    /// still produces the same clip.
+    /// </para>
     /// </summary>
     internal sealed class MediaFoundationOverlayReencoder
     {
@@ -72,24 +80,50 @@ namespace PlayniteAchievements.Services.Capture
             }
 
             MediaManager.Startup();
+            D3D11.Device device = null;
+            DXGIDeviceManager deviceManager = null;
             try
             {
-                using (var readerAttributes = new MediaAttributes(1))
+                // One device shared by the decoder and the encoder, so frames can stay in video memory
+                // for the whole pass. Optional: without it the reader decodes into system memory and the
+                // CPU compositor handles the card, which is what this pass always used to do.
+                TryCreateDeviceManager(out device, out deviceManager);
+
+                using (var readerAttributes = new MediaAttributes(2))
                 {
                     // Advanced video processing lets the reader chain the H.264 decoder plus a
-                    // color converter so it can hand us RGB32 directly.
+                    // color converter so it can hand us BGRA directly.
                     readerAttributes.Set(SourceReaderAttributeKeys.EnableAdvancedVideoProcessing, true);
+                    if (deviceManager != null)
+                    {
+                        readerAttributes.Set(SourceReaderAttributeKeys.D3DManager, deviceManager);
+                    }
+
                     using (var videoReader = new SourceReader(baseClipPath, readerAttributes))
                     {
                         videoReader.SetStreamSelection((int)SourceReaderIndex.AllStreams, false);
                         videoReader.SetStreamSelection((int)SourceReaderIndex.FirstVideoStream, true);
 
                         int frameW, frameH, fps;
-                        using (var rgbRequest = new MediaType())
+                        using (var request = new MediaType())
                         {
-                            rgbRequest.Set(MediaTypeAttributeKeys.MajorType, MediaTypeGuids.Video);
-                            rgbRequest.Set(MediaTypeAttributeKeys.Subtype, VideoFormatGuids.Rgb32);
-                            videoReader.SetCurrentMediaType((int)SourceReaderIndex.FirstVideoStream, rgbRequest);
+                            // BGRA either way, but ARGB32 is the subtype MF pairs with D3D11 BGRA
+                            // surfaces, so ask for that when the reader has a device and fall back to
+                            // RGB32 if the video processor refuses it.
+                            request.Set(MediaTypeAttributeKeys.MajorType, MediaTypeGuids.Video);
+                            request.Set(
+                                MediaTypeAttributeKeys.Subtype,
+                                deviceManager != null ? VideoFormatGuids.Argb32 : VideoFormatGuids.Rgb32);
+                            try
+                            {
+                                videoReader.SetCurrentMediaType((int)SourceReaderIndex.FirstVideoStream, request);
+                            }
+                            catch (Exception ex) when (deviceManager != null)
+                            {
+                                _logger?.Debug(ex, "[Recording] ARGB32 output refused; asking for RGB32.");
+                                request.Set(MediaTypeAttributeKeys.Subtype, VideoFormatGuids.Rgb32);
+                                videoReader.SetCurrentMediaType((int)SourceReaderIndex.FirstVideoStream, request);
+                            }
                         }
 
                         int stride;
@@ -117,16 +151,27 @@ namespace PlayniteAchievements.Services.Capture
                             SinkWriter sink = null;
                             try
                             {
-                                using (var sinkAttributes = new MediaAttributes(1))
+                                using (var sinkAttributes = new MediaAttributes(3))
                                 {
                                     sinkAttributes.Set(SinkWriterAttributeKeys.ReadwriteEnableHardwareTransforms, 1);
+                                    if (deviceManager != null)
+                                    {
+                                        sinkAttributes.Set(SinkWriterAttributeKeys.D3DManager, deviceManager);
+                                        // Let the sink fall back to software rather than failing outright
+                                        // if the hardware encoder will not take our device.
+                                        sinkAttributes.Set(SinkWriterAttributeKeys.ReadwriteD3DOptional, 1);
+                                    }
+
                                     sink = MediaFactory.CreateSinkWriterFromURL(outputPath, null, sinkAttributes);
                                 }
 
                                 var videoStream = AddVideoStream(sink, decodedType, frameW, frameH, fps, quality);
                                 var audioStream = TryAddAudio(
                                     sink, baseClipPath, decodeToPcm: chimePcm != null, out var audioReader);
-                                using (var compositor = new CpuOverlayCompositor(frameW, frameH, stride))
+                                using (var gpuCompositor = device != null
+                                    ? new GpuOverlayCompositor(device, frameW, frameH)
+                                    : null)
+                                using (var cpuCompositor = new CpuOverlayCompositor(frameW, frameH, stride))
                                 using (audioReader)
                                 {
                                     sink.BeginWriting();
@@ -135,7 +180,7 @@ namespace PlayniteAchievements.Services.Capture
                                         sink, videoStream, videoReader, audioStream, audioReader,
                                         track, toastStartSeconds, toastMaxSeconds, trimLeadSeconds,
                                         endSeconds, audioStream >= 0 ? chimePcm : null, chimeStartSeconds,
-                                        frameW, frameH, compositor);
+                                        frameW, frameH, gpuCompositor, cpuCompositor);
                                     sink.Finalize();
                                     LogPassCost(timer, counts, frameW, frameH);
                                 }
@@ -157,6 +202,9 @@ namespace PlayniteAchievements.Services.Capture
             }
             finally
             {
+                deviceManager?.Dispose();
+                device?.ImmediateContext?.Dispose();
+                device?.Dispose();
                 try
                 {
                     MediaManager.Shutdown();
@@ -165,6 +213,42 @@ namespace PlayniteAchievements.Services.Capture
                 {
                     // Startup/Shutdown are refcounted per process; ignore an unbalanced shutdown.
                 }
+            }
+        }
+
+        /// <summary>
+        /// Creates the D3D11 device the decoder and encoder share, or leaves both null when the machine
+        /// cannot give us one — a software-only or otherwise restricted setup, where the pass still runs
+        /// through system memory as it always did.
+        /// </summary>
+        private void TryCreateDeviceManager(out D3D11.Device device, out DXGIDeviceManager manager)
+        {
+            device = null;
+            manager = null;
+            try
+            {
+                device = new D3D11.Device(
+                    SharpDX.Direct3D.DriverType.Hardware,
+                    D3D11.DeviceCreationFlags.BgraSupport | D3D11.DeviceCreationFlags.VideoSupport);
+
+                // Media Foundation serializes its own use of the device across threads only if told the
+                // device is multithread-safe; the decoder and our blitter both touch it.
+                using (var multithread = device.QueryInterface<D3D11.Multithread>())
+                {
+                    multithread.SetMultithreadProtected(true);
+                }
+
+                manager = new DXGIDeviceManager();
+                manager.ResetDevice(device);
+            }
+            catch (Exception ex)
+            {
+                _logger?.Debug(
+                    ex, "[Recording] No shared D3D11 device for the toast composite; it runs on the CPU.");
+                manager?.Dispose();
+                manager = null;
+                device?.Dispose();
+                device = null;
             }
         }
 
@@ -271,7 +355,8 @@ namespace PlayniteAchievements.Services.Capture
             ToastOverlayTrack track,
             double toastStartSeconds, double toastMaxSeconds, double trimLeadSeconds,
             double endSeconds, byte[] chimePcm, double chimeStartSeconds,
-            int frameW, int frameH, IOverlayCompositor compositor)
+            int frameW, int frameH,
+            IOverlayCompositor gpuCompositor, IOverlayCompositor cpuCompositor)
         {
             var trimLead = ToTicks(trimLeadSeconds);
             var toastStart = ToTicks(toastStartSeconds);
@@ -342,8 +427,23 @@ namespace PlayniteAchievements.Services.Capture
                                     trackSample.RelX + track.OffsetX, trackSample.RelY + track.OffsetY,
                                     overlayFrame.Width, overlayFrame.Height,
                                     trackSample.ClientW, trackSample.ClientH, frameW, frameH);
-                                outSample = compositor.Compose(
+                                outSample = gpuCompositor?.Compose(
                                     sample, inflated, overlayFrame.Width, overlayFrame.Height, destRect);
+                                if (outSample != null)
+                                {
+                                    counts.GpuComposited++;
+                                }
+                                else
+                                {
+                                    // The frame came back in system memory: compose it there rather than
+                                    // dropping the card off this frame.
+                                    outSample = cpuCompositor.Compose(
+                                        sample, inflated, overlayFrame.Width, overlayFrame.Height, destRect);
+                                    if (outSample != null)
+                                    {
+                                        counts.CpuComposited++;
+                                    }
+                                }
                             }
                         }
 
@@ -353,10 +453,6 @@ namespace PlayniteAchievements.Services.Capture
                             outSample = sample;
                             sample = null;
                             counts.PassedThrough++;
-                        }
-                        else
-                        {
-                            counts.Composited++;
                         }
                     }
                     finally
@@ -406,7 +502,8 @@ namespace PlayniteAchievements.Services.Capture
         /// <summary>What one pass wrote, for the cost line below.</summary>
         private struct CompositeCounts
         {
-            public int Composited;
+            public int GpuComposited;
+            public int CpuComposited;
             public int PassedThrough;
         }
 
@@ -417,11 +514,15 @@ namespace PlayniteAchievements.Services.Capture
         /// </summary>
         private void LogPassCost(Stopwatch timer, CompositeCounts counts, int frameW, int frameH)
         {
-            var frames = counts.Composited + counts.PassedThrough;
+            var carded = counts.GpuComposited + counts.CpuComposited;
+            var frames = carded + counts.PassedThrough;
             var seconds = Math.Max(0.001, timer.Elapsed.TotalSeconds);
+            var where = counts.CpuComposited == 0
+                ? (counts.GpuComposited > 0 ? "GPU" : "none")
+                : (counts.GpuComposited > 0 ? $"GPU+CPU ({counts.CpuComposited} on the CPU)" : "CPU");
             _logger?.Debug(
-                $"[Recording] Toast composite: {frames} frames ({counts.Composited} with the card) at " +
-                $"{frameW}x{frameH} in {timer.ElapsedMilliseconds}ms ({frames / seconds:0.0} fps).");
+                $"[Recording] Toast composite: {frames} frames ({carded} with the card, composited on " +
+                $"{where}) at {frameW}x{frameH} in {timer.ElapsedMilliseconds}ms ({frames / seconds:0.0} fps).");
         }
 
         /// <summary>
