@@ -285,78 +285,105 @@ namespace PlayniteAchievements.Services.Capture
             var inflatedIndex = -1;
 
             var pendingAudio = audioStream >= 0 ? ReadNextAudio(audioReader, trimLead) : null;
-            while (true)
+
+            // Video is held back one frame so each duration can span the gap to the next frame's
+            // output time. The sink builds the track by accumulating durations and ignores the times
+            // stamped here, so passing the decoder's duration through unchanged would re-flatten the
+            // base clip's real-time spacing onto a rigid fps grid.
+            Sample pendingVideo = null;
+            var pendingVideoTime = 0L;
+
+            try
             {
-                var sample = videoReader.ReadSample(
-                    (int)SourceReaderIndex.FirstVideoStream, SourceReaderControlFlags.None,
-                    out _, out var flags, out _);
-                if (sample == null || (flags & SourceReaderFlags.Endofstream) != 0)
+                while (true)
                 {
-                    sample?.Dispose();
-                    break;
-                }
-
-                var time = sample.SampleTime;
-                if (time < trimLead)
-                {
-                    sample.Dispose();
-                    continue;
-                }
-
-                if (time - trimLead > endLimit)
-                {
-                    sample.Dispose();
-                    break;
-                }
-
-                // Drain audio up to this video timestamp so both streams advance together.
-                while (pendingAudio != null && pendingAudio.SampleTime <= time - trimLead)
-                {
-                    WriteAndDispose(sink, audioStream, MixChime(pendingAudio, chimePcm, chimeStartOut));
-                    pendingAudio = ReadNextAudio(audioReader, trimLead);
-                }
-
-                Sample outSample = null;
-                try
-                {
-                    if (time >= toastStart && time <= toastEnd)
+                    var sample = videoReader.ReadSample(
+                        (int)SourceReaderIndex.FirstVideoStream, SourceReaderControlFlags.None,
+                        out _, out var flags, out _);
+                    if (sample == null || (flags & SourceReaderFlags.Endofstream) != 0)
                     {
-                        var sampleIndex = track.FindSampleIndexAtOrBefore((time - toastStart) / (double)OneSecond100ns);
-                        if (sampleIndex >= 0 &&
-                            TryGetOverlay(track, sampleIndex, ref inflated, ref inflatedIndex, out var overlayFrame))
+                        sample?.Dispose();
+                        break;
+                    }
+
+                    var time = sample.SampleTime;
+                    if (time < trimLead)
+                    {
+                        sample.Dispose();
+                        continue;
+                    }
+
+                    if (time - trimLead > endLimit)
+                    {
+                        sample.Dispose();
+                        break;
+                    }
+
+                    // Drain audio up to this video timestamp so both streams advance together.
+                    while (pendingAudio != null && pendingAudio.SampleTime <= time - trimLead)
+                    {
+                        WriteAndDispose(sink, audioStream, MixChime(pendingAudio, chimePcm, chimeStartOut));
+                        pendingAudio = ReadNextAudio(audioReader, trimLead);
+                    }
+
+                    Sample outSample = null;
+                    try
+                    {
+                        if (time >= toastStart && time <= toastEnd)
                         {
-                            var trackSample = track.Samples[sampleIndex];
-                            var destRect = OverlayBlitMath.ScaleRect(
-                                trackSample.RelX + track.OffsetX, trackSample.RelY + track.OffsetY,
-                                overlayFrame.Width, overlayFrame.Height,
-                                trackSample.ClientW, trackSample.ClientH, frameW, frameH);
-                            outSample = ComposeSample(
-                                sample, frameBuffer, absStride, bottomUp, frameW, frameH,
-                                inflated, overlayFrame.Width, overlayFrame.Height, destRect);
+                            var sampleIndex = track.FindSampleIndexAtOrBefore((time - toastStart) / (double)OneSecond100ns);
+                            if (sampleIndex >= 0 &&
+                                TryGetOverlay(track, sampleIndex, ref inflated, ref inflatedIndex, out var overlayFrame))
+                            {
+                                var trackSample = track.Samples[sampleIndex];
+                                var destRect = OverlayBlitMath.ScaleRect(
+                                    trackSample.RelX + track.OffsetX, trackSample.RelY + track.OffsetY,
+                                    overlayFrame.Width, overlayFrame.Height,
+                                    trackSample.ClientW, trackSample.ClientH, frameW, frameH);
+                                outSample = ComposeSample(
+                                    sample, frameBuffer, absStride, bottomUp, frameW, frameH,
+                                    inflated, overlayFrame.Width, overlayFrame.Height, destRect);
+                            }
+                        }
+
+                        if (outSample == null)
+                        {
+                            // Outside the toast interval (or no overlay): pass the frame through.
+                            outSample = sample;
+                            sample = null;
                         }
                     }
-
-                    if (outSample == null)
+                    finally
                     {
-                        // Outside the toast interval (or no overlay): re-stamp and pass through.
-                        sample.SampleTime = time - trimLead;
-                        outSample = sample;
-                        sample = null;
-                    }
-                    else
-                    {
-                        outSample.SampleTime = time - trimLead;
+                        sample?.Dispose();
                     }
 
-                    sink.WriteSample(videoStream, outSample);
+                    // Take ownership of the new frame before writing the previous one, so a throw
+                    // leaves exactly one frame for the finally below.
+                    var ready = pendingVideo;
+                    var readyTime = pendingVideoTime;
+                    pendingVideo = outSample;
+                    pendingVideoTime = time - trimLead;
+                    if (ready != null)
+                    {
+                        WriteVideoAndDispose(sink, videoStream, ready, readyTime, pendingVideoTime - readyTime);
+                    }
+
+                    WaitForEncoderQueue(sink, videoStream);
                 }
-                finally
+
+                if (pendingVideo != null)
                 {
-                    sample?.Dispose();
-                    outSample?.Dispose();
+                    // The last frame runs to the end cut rather than for one frame's worth, so the
+                    // track ends where the clip does.
+                    var last = pendingVideo;
+                    pendingVideo = null;
+                    WriteVideoAndDispose(sink, videoStream, last, pendingVideoTime, endLimit - pendingVideoTime);
                 }
-
-                WaitForEncoderQueue(sink, videoStream);
+            }
+            finally
+            {
+                pendingVideo?.Dispose();
             }
 
             // Trailing audio after the last video sample, up to the end cut.
@@ -367,6 +394,24 @@ namespace PlayniteAchievements.Services.Capture
             }
 
             pendingAudio?.Dispose();
+        }
+
+        /// <summary>
+        /// Stamps a frame onto the output timeline and writes it. Durations are floored at one tick.
+        /// </summary>
+        private static void WriteVideoAndDispose(
+            SinkWriter sink, int streamIndex, Sample sample, long time, long duration)
+        {
+            try
+            {
+                sample.SampleTime = time;
+                sample.SampleDuration = Math.Max(1, duration);
+                sink.WriteSample(streamIndex, sample);
+            }
+            finally
+            {
+                sample.Dispose();
+            }
         }
 
         /// <summary>
@@ -520,9 +565,10 @@ namespace PlayniteAchievements.Services.Capture
 
                 outBuffer.CurrentLength = frameBuffer.Length;
 
+                // Time and duration are stamped by the caller, which knows where this frame lands on
+                // the output timeline and how far it is to the next one.
                 var outSample = MediaFactory.CreateSample();
                 outSample.AddBuffer(outBuffer);
-                outSample.SampleDuration = Math.Max(0, source.SampleDuration);
                 return outSample;
             }
             finally
