@@ -30,25 +30,34 @@ namespace PlayniteAchievements.Models.Achievements
         //
         // The radii are calibrated against the soft glow the rays sit behind, so the two read as one
         // effect: at the default RarityRayBurst.BurstScale the icon's edge lands near InnerRayRadius,
-        // so the visible part of a long ray is the remaining ~18 units, which on a 64px icon reaches
-        // just inside the soft glow's 20px blur rather than past it. Widening the gap between
+        // so the visible part of a long ray is the remaining ~15 units, which on a 64px icon stays
+        // inside the soft glow's 20px blur rather than reaching past it. Widening the gap between
         // InnerRayRadius and LongRayRadius, or raising BurstScale, pushes the rays out beyond that
-        // halo. Half-angles are kept well under half the 360/RayCount spacing so the rays stay
-        // separated rather than merging into a disc.
+        // halo. Half-angles are kept well under half the 360/RayCount spacing so the cores stay
+        // separated rather than merging into a disc — the wide halo pass is allowed to overlap.
         private const int RayCount = 28;
         private const double RayBurstBox = 100.0;
         private const double RayBurstCenter = RayBurstBox / 2.0;
         private const double InnerRayRadius = 28.0;
-        private const double LongRayRadius = 46.0;
-        private const double ShortRayRadius = 42.0;
+        private const double LongRayRadius = 43.0;
+        private const double ShortRayRadius = 39.0;
         private const double LongRayHalfAngle = 2.3;
         private const double ShortRayHalfAngle = 1.6;
-        private const byte RayBaseAlpha = 0xCC;
-        private const byte RayMidAlpha = 0x6E;
+
+        // Core pass, then the wider faint pass beneath it that softens the ray's edges. The mid stop
+        // is a fraction of whichever alpha the pass is drawn at, so both passes fade alike.
+        private const byte RayBaseAlpha = 0xC0;
+        private const double RayMidAlphaFactor = 0.55;
+        private const double RayHaloWidthFactor = 2.6;
+        private const byte RayHaloAlpha = 0x3C;
 
         // WPF on this target has no additive blend mode, so the long rays are blended toward white
         // to read as light rather than as paint in the flat tier color.
         private const double RayHighlightBlend = 0.35;
+
+        // The rim is lifted further toward white than the rays: it is a thin hard edge, and at the
+        // tier color alone it reads as an outline drawn around the icon rather than light on it.
+        private const double RimHighlightBlend = 0.5;
 
         private static readonly object RayBurstCacheLock = new object();
         private static readonly Dictionary<RarityTier, DrawingImage> RayBurstCache =
@@ -258,12 +267,28 @@ namespace PlayniteAchievements.Models.Achievements
         }
 
         /// <summary>
-        /// Binds a control's RarityGlowStyle dependency property to the single global setting, so the
-        /// soft-halo/sunburst choice reaches every glow surface the same way the pulse toggle does.
+        /// Binds a control's soft-glow tier selection to the global setting, so the per-tier choice
+        /// reaches every glow surface the same way the pulse toggle does — and so changing it updates
+        /// glows already on screen.
         /// </summary>
-        public static void BindRarityGlowStyle(FrameworkElement element, DependencyProperty property)
+        public static void BindSoftGlowTiers(FrameworkElement element, DependencyProperty property)
         {
-            BindPersistedSetting(element, property, nameof(PersistedSettings.RarityGlowStyle));
+            BindPersistedSetting(element, property, nameof(PersistedSettings.RarityGlowSoftTiers));
+        }
+
+        /// <summary>Ray counterpart to <see cref="BindSoftGlowTiers"/>.</summary>
+        public static void BindRayGlowTiers(FrameworkElement element, DependencyProperty property)
+        {
+            BindPersistedSetting(element, property, nameof(PersistedSettings.RarityGlowRayTiers));
+        }
+
+        /// <summary>
+        /// Binds a control's ShowHardcoreBorder dependency property to the global setting, so turning
+        /// the Hardcore border off hands those unlocks back to the normal glow everywhere at once.
+        /// </summary>
+        public static void BindShowHardcoreBorder(FrameworkElement element, DependencyProperty property)
+        {
+            BindPersistedSetting(element, property, nameof(PersistedSettings.ShowHardcoreBorder));
         }
 
         private static void BindPersistedSetting(
@@ -316,6 +341,27 @@ namespace PlayniteAchievements.Models.Achievements
         ///
         /// Common returns null, matching <see cref="GetGlow"/>, so the lowest tier stays glowless.
         /// </summary>
+        /// <summary>
+        /// Bright solid brush for the glowing rim drawn tight around an unlocked icon, in the tier
+        /// color lifted toward white so the edge reads as lit rather than merely outlined. Common
+        /// returns null, matching <see cref="GetGlow"/>.
+        /// </summary>
+        public static Brush GetRimBrush(RarityTier tier, PersistedSettings settings = null)
+        {
+            if (tier == RarityTier.Common)
+            {
+                return null;
+            }
+
+            return CreateSolidBrush(Blend(GetBaseColor(tier, settings), Colors.White, RimHighlightBlend));
+        }
+
+        /// <summary>Completion counterpart to <see cref="GetRimBrush"/>.</summary>
+        public static Brush GetCompletedRimBrush(PersistedSettings settings = null)
+        {
+            return CreateSolidBrush(Blend(GetCompletedEndColor(settings), Colors.White, RimHighlightBlend));
+        }
+
         public static DrawingImage GetRayBurstImage(RarityTier tier, PersistedSettings settings = null)
         {
             if (tier == RarityTier.Common)
@@ -414,11 +460,19 @@ namespace PlayniteAchievements.Models.Achievements
             for (var i = 0; i < RayCount; i++)
             {
                 var isLongRay = i % 2 == 0;
+                var angle = i * (360.0 / RayCount);
+                var radius = isLongRay ? LongRayRadius : ShortRayRadius;
+                var halfAngle = isLongRay ? LongRayHalfAngle : ShortRayHalfAngle;
+                var color = isLongRay ? longRayColor : shortRayColor;
+
+                // Each ray is drawn twice: a wide faint pass, then a narrower brighter core over it.
+                // The pair reads as a soft-edged ray, standing in for the lateral blur a BlurEffect
+                // would give — which is not an option here, since blurring rotating content
+                // re-rasterizes the whole layer every frame.
                 group.Children.Add(CreateRayDrawing(
-                    i * (360.0 / RayCount),
-                    isLongRay ? LongRayRadius : ShortRayRadius,
-                    isLongRay ? LongRayHalfAngle : ShortRayHalfAngle,
-                    isLongRay ? longRayColor : shortRayColor));
+                    angle, radius, halfAngle * RayHaloWidthFactor, color, RayHaloAlpha));
+                group.Children.Add(CreateRayDrawing(
+                    angle, radius, halfAngle, color, RayBaseAlpha));
             }
 
             group.OpacityMask = CreateRayFalloffBrush();
@@ -436,7 +490,8 @@ namespace PlayniteAchievements.Models.Achievements
             double angleDegrees,
             double outerRadius,
             double halfAngleDegrees,
-            Color color)
+            Color color,
+            byte baseAlpha)
         {
             var tip = PolarPoint(angleDegrees, outerRadius);
 
@@ -464,8 +519,8 @@ namespace PlayniteAchievements.Models.Achievements
                 StartPoint = PolarPoint(angleDegrees, InnerRayRadius),
                 EndPoint = tip
             };
-            brush.GradientStops.Add(new GradientStop(WithAlpha(color, RayBaseAlpha), 0.00));
-            brush.GradientStops.Add(new GradientStop(WithAlpha(color, RayMidAlpha), 0.45));
+            brush.GradientStops.Add(new GradientStop(WithAlpha(color, baseAlpha), 0.00));
+            brush.GradientStops.Add(new GradientStop(WithAlpha(color, (byte)(baseAlpha * RayMidAlphaFactor)), 0.45));
             brush.GradientStops.Add(new GradientStop(WithAlpha(color, 0x00), 1.00));
             if (brush.CanFreeze)
             {
