@@ -432,7 +432,6 @@
     <Compile Include="..\..\source\Services\Recording\RecordingPaths.cs" Link="Source\Services\Recording\RecordingPaths.cs" />
     <Compile Include="..\..\source\Services\Capture\ToastOverlayTrack.cs" Link="Source\Services\Capture\ToastOverlayTrack.cs" />
     <Compile Include="..\..\source\Services\Capture\OverlayBlitMath.cs" Link="Source\Services\Capture\OverlayBlitMath.cs" />
-    <Compile Include="..\..\source\Services\Capture\ClipSpliceMath.cs" Link="Source\Services\Capture\ClipSpliceMath.cs" />
     <Compile Include="..\..\source\Services\Capture\CaptureCropMath.cs" Link="Source\Services\Capture\CaptureCropMath.cs" />
     <Compile Include="..\..\source\Services\Capture\ResolutionCapMath.cs" Link="Source\Services\Capture\ResolutionCapMath.cs" />
     <Compile Include="..\..\source\Services\Capture\BitrateMath.cs" Link="Source\Services\Capture\BitrateMath.cs" />
