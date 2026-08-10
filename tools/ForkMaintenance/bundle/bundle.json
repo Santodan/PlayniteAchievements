@@ -1,6 +1,6 @@
 {
     "schemaVersion":  1,
-    "generatedUtc":  "2026-08-08T09:45:26.8684519Z",
+    "generatedUtc":  "2026-08-10T07:36:35.3424335Z",
     "baselineRef":  "upstream/main",
     "baselineCommit":  "f28ac5faae69739e2a7193a5c1af98ac55b9030f",
     "protectedPaths":  [
@@ -10,7 +10,7 @@
                        ],
     "patch":  {
                   "path":  "fork-changes.patch",
-                  "sha256":  "321CF3BA304E9EF01542307D7BE1E1708FAC83895CA1C27BFF405A2ADE194CC8"
+                  "sha256":  "BD3C9A64C0661132BDA688A52B241CE5ABEF9391A5309BA05AD5FD71C425AF79"
               },
     "localizationRecipes":  {
                                 "path":  "localization-recipes.json",
@@ -133,7 +133,7 @@
                          },
                          {
                              "path":  "source/Providers/Local/LocalSavesProvider.cs",
-                             "sha256":  "58D9905308D7DD7734A250B97E968502B24DB77F0351102EC6DF2CBC78A9E326"
+                             "sha256":  "208D60644EC01BA3152A51D4F6FCD29D7F87B626E6E9A5E3272FCA6359B9D4ED"
                          },
                          {
                              "path":  "source/Providers/Local/LocalSettings.cs",

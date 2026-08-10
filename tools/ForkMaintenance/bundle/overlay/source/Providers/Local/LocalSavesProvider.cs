@@ -8910,8 +8910,29 @@ namespace PlayniteAchievements.Providers.Local
                     return null;
                 }
 
-                var steamCommunitySchema = await TryGetSteamCommunityStatsSchemaAsync(httpClient, appId).ConfigureAwait(false);
+                SchemaAndPercentages localizedPublicSchema = null;
                 if (ShouldPreferLocalizedSteamText())
+                {
+                    var publicApiClient = new SteamApiClient(httpClient, _logger);
+                    localizedPublicSchema = await publicApiClient
+                        .GetPublicSchemaForGameDetailedAsync(appId, GetSteamLanguage(), CancellationToken.None)
+                        .ConfigureAwait(false);
+                    if (localizedPublicSchema?.Achievements?.Count > 0)
+                    {
+                        MergeSchemaMetadata(
+                            achievements,
+                            localizedPublicSchema.Achievements,
+                            preferSourceText: true);
+                        Log(
+                            $"STEAMHUNTERS SCHEMA LOCALIZED: appId={appId} " +
+                            $"language={GetSteamLanguage()} source=steam-public-api " +
+                            $"count={localizedPublicSchema.Achievements.Count}");
+                    }
+                }
+
+                var steamCommunitySchema = await TryGetSteamCommunityStatsSchemaAsync(httpClient, appId).ConfigureAwait(false);
+                if (ShouldPreferLocalizedSteamText() &&
+                    (localizedPublicSchema?.Achievements == null || localizedPublicSchema.Achievements.Count == 0))
                 {
                     var steamCommunityEnglishSchema = await TryGetSteamCommunityStatsSchemaAsync(httpClient, appId, "english").ConfigureAwait(false);
                     var localizedBridge = BuildCommunityLocalizedBridge(

@@ -232,6 +232,41 @@ namespace PlayniteAchievements.Steam.Tests
             Assert.AreEqual("Already localized description", result.Achievements.Single(item => item.Name == "VISIBLE_1").Description);
         }
 
+        [TestMethod]
+        public async Task GetPublicSchemaForGameDetailedAsync_UsesLanguageWithoutCredential()
+        {
+            Uri capturedUri = null;
+            using var httpClient = new HttpClient(new StubHttpMessageHandler(request =>
+            {
+                capturedUri = request.RequestUri;
+                return new HttpResponseMessage(HttpStatusCode.OK)
+                {
+                    Content = new StringContent(
+                        "{ \"response\": { \"achievements\": [ { " +
+                        "\"internal_name\": \"SECRET_1\", " +
+                        "\"localized_name\": \"Vais Precisar de Ajuda\", " +
+                        "\"localized_desc\": \"Conclui Tensão Superficial\", " +
+                        "\"hidden\": true } ] } }",
+                        Encoding.UTF8,
+                        "application/json")
+                };
+            }));
+
+            var client = new SteamApiClient(httpClient, logger: null);
+            var result = await client.GetPublicSchemaForGameDetailedAsync(
+                2651280,
+                "portuguese",
+                CancellationToken.None).ConfigureAwait(false);
+
+            Assert.IsNotNull(capturedUri);
+            Assert.AreEqual("/IPlayerService/GetGameAchievements/v1/", capturedUri.AbsolutePath);
+            StringAssert.Contains(capturedUri.Query, "appid=2651280");
+            StringAssert.Contains(capturedUri.Query, "language=portuguese");
+            Assert.IsFalse(capturedUri.Query.Contains("access_token="));
+            Assert.AreEqual("Conclui Tensão Superficial", result.Achievements.Single().Description);
+            Assert.AreEqual(1, result.Achievements.Single().Hidden);
+        }
+
         private sealed class StubHttpMessageHandler : HttpMessageHandler
         {
             private readonly Func<HttpRequestMessage, HttpResponseMessage> _responseFactory;

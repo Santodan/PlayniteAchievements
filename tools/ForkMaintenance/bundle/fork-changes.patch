@@ -1748,7 +1748,7 @@ index cafda68eecf58131dbaca3141dd7bd59c05d78cd..96ad408668920a9e3b52b62bf9e3ccb4
      }
  
 diff --git a/source/Providers/Steam/SteamAPIClient.cs b/source/Providers/Steam/SteamAPIClient.cs
-index d5c12912d535ec845f794103e6b2b51b7fabd3ee..6c5ce921d7074d0aebec47c57fa694ec642df0e8 100644
+index d5c12912d535ec845f794103e6b2b51b7fabd3ee..37b24f7d0285e51d440d9a3f9be819376f8d7822 100644
 --- a/source/Providers/Steam/SteamAPIClient.cs
 +++ b/source/Providers/Steam/SteamAPIClient.cs
 @@ -23,7 +23,14 @@ public SteamApiClient(HttpClient apiHttp, ILogger logger)
@@ -1766,10 +1766,21 @@ index d5c12912d535ec845f794103e6b2b51b7fabd3ee..6c5ce921d7074d0aebec47c57fa694ec
              if (result == null && !string.Equals(language, "english", StringComparison.OrdinalIgnoreCase))
              {
                  _logger?.Info($"Schema fetch failed for '{language}', retrying with 'english' for appId={appId}");
-@@ -32,6 +39,106 @@ public async Task<SchemaAndPercentages> GetSchemaForGameDetailedAsync(string acc
+@@ -32,6 +39,117 @@ public async Task<SchemaAndPercentages> GetSchemaForGameDetailedAsync(string acc
              return result;
          }
  
++        /// <summary>
++        /// Fetches Steam's public achievement schema without requiring a Steam account or API key.
++        /// Unlike the Community global-achievements page, this endpoint includes localized text
++        /// for hidden achievements.
++        /// </summary>
++        public Task<SchemaAndPercentages> GetPublicSchemaForGameDetailedAsync(int appId, string language, CancellationToken ct)
++        {
++            language = string.IsNullOrWhiteSpace(language) ? "english" : language.Trim();
++            return GetSchemaForGameDetailedInternalAsync(null, appId, language, ct);
++        }
++
 +        private async Task<IReadOnlyList<SchemaAchievement>> GetLocalizedSchemaForGameInternalAsync(
 +            string accessToken,
 +            int appId,
@@ -1873,6 +1884,33 @@ index d5c12912d535ec845f794103e6b2b51b7fabd3ee..6c5ce921d7074d0aebec47c57fa694ec
          public async Task<bool?> GetGameHasAchievementsAsync(string accessToken, int appId, string language, CancellationToken ct)
          {
              if (string.IsNullOrWhiteSpace(accessToken) || appId <= 0)
+@@ -136,9 +254,9 @@ public async Task<IReadOnlyList<SteamOwnedGame>> GetOwnedGamesAsync(
+ 
+         private async Task<SchemaAndPercentages> GetSchemaForGameDetailedInternalAsync(string accessToken, int appId, string language, CancellationToken ct)
+         {
+-            if (string.IsNullOrWhiteSpace(accessToken) || appId <= 0)
++            if (appId <= 0)
+             {
+-                _logger?.Warn("GetSchemaForGameDetailedInternalAsync: Invalid accessToken or appId={appId}");
++                _logger?.Warn("GetSchemaForGameDetailedInternalAsync: Invalid appId={appId}");
+                 return null;
+             }
+ 
+@@ -146,9 +264,12 @@ private async Task<SchemaAndPercentages> GetSchemaForGameDetailedInternalAsync(s
+             {
+                 language = string.IsNullOrWhiteSpace(language) ? "english" : language;
+                 var url = $"https://api.steampowered.com/IPlayerService/GetGameAchievements/v1/" +
+-                          $"?access_token={Uri.EscapeDataString(accessToken)}" +
+-                          $"&appid={appId}" +
++                          $"?appid={appId}" +
+                           $"&language={Uri.EscapeDataString(language)}";
++                if (!string.IsNullOrWhiteSpace(accessToken))
++                {
++                    url += $"&access_token={Uri.EscapeDataString(accessToken)}";
++                }
+ 
+                 using (var req = new HttpRequestMessage(HttpMethod.Get, url))
+                 using (var resp = await _apiHttp.SendAsync(req, ct).ConfigureAwait(false))
 diff --git a/source/Providers/Steam/SteamDataProvider.cs b/source/Providers/Steam/SteamDataProvider.cs
 index 2944b43b85b0e4d1be185585c01c40c1e93d3378..aea8695b3e242972b8b7ad3058a892f337e88c21 100644
 --- a/source/Providers/Steam/SteamDataProvider.cs
@@ -21846,10 +21884,10 @@ index 6d4695ba4e4ec7df1f79cfa27c7639cba5a30d6b..8eeb2b8c24d47f6a4825d264106b2774
          {
              var root = Path.Combine(
 diff --git a/tests/PlayniteAchievements.Tests/Steam/SteamApiClientTests.cs b/tests/PlayniteAchievements.Tests/Steam/SteamApiClientTests.cs
-index 29c665447a7f891c79f35e812da2bdd0ed14821b..8a266a06aa24dcd2cc45f4a11812c2ff7d4875b7 100644
+index 29c665447a7f891c79f35e812da2bdd0ed14821b..777a17368846cf095ae1c8ff1e018d66759f0f67 100644
 --- a/tests/PlayniteAchievements.Tests/Steam/SteamApiClientTests.cs
 +++ b/tests/PlayniteAchievements.Tests/Steam/SteamApiClientTests.cs
-@@ -184,6 +184,54 @@ public async Task GetSchemaForGameDetailedAsync_TrimsLocalizedText_AndBuildsIcon
+@@ -184,6 +184,89 @@ public async Task GetSchemaForGameDetailedAsync_TrimsLocalizedText_AndBuildsIcon
              Assert.AreEqual(5.1d, result.GlobalPercentages["E1FINISHSTORY"]);
          }
  
@@ -21899,6 +21937,41 @@ index 29c665447a7f891c79f35e812da2bdd0ed14821b..8a266a06aa24dcd2cc45f4a11812c2ff
 +            Assert.AreEqual("Секрет", result.Achievements.Single(item => item.Name == "SECRET_1").DisplayName);
 +            Assert.AreEqual("Скрытое описание", result.Achievements.Single(item => item.Name == "SECRET_1").Description);
 +            Assert.AreEqual("Already localized description", result.Achievements.Single(item => item.Name == "VISIBLE_1").Description);
++        }
++
++        [TestMethod]
++        public async Task GetPublicSchemaForGameDetailedAsync_UsesLanguageWithoutCredential()
++        {
++            Uri capturedUri = null;
++            using var httpClient = new HttpClient(new StubHttpMessageHandler(request =>
++            {
++                capturedUri = request.RequestUri;
++                return new HttpResponseMessage(HttpStatusCode.OK)
++                {
++                    Content = new StringContent(
++                        "{ \"response\": { \"achievements\": [ { " +
++                        "\"internal_name\": \"SECRET_1\", " +
++                        "\"localized_name\": \"Vais Precisar de Ajuda\", " +
++                        "\"localized_desc\": \"Conclui Tensão Superficial\", " +
++                        "\"hidden\": true } ] } }",
++                        Encoding.UTF8,
++                        "application/json")
++                };
++            }));
++
++            var client = new SteamApiClient(httpClient, logger: null);
++            var result = await client.GetPublicSchemaForGameDetailedAsync(
++                2651280,
++                "portuguese",
++                CancellationToken.None).ConfigureAwait(false);
++
++            Assert.IsNotNull(capturedUri);
++            Assert.AreEqual("/IPlayerService/GetGameAchievements/v1/", capturedUri.AbsolutePath);
++            StringAssert.Contains(capturedUri.Query, "appid=2651280");
++            StringAssert.Contains(capturedUri.Query, "language=portuguese");
++            Assert.IsFalse(capturedUri.Query.Contains("access_token="));
++            Assert.AreEqual("Conclui Tensão Superficial", result.Achievements.Single().Description);
++            Assert.AreEqual(1, result.Achievements.Single().Hidden);
 +        }
 +
          private sealed class StubHttpMessageHandler : HttpMessageHandler

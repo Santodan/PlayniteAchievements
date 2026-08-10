@@ -157,7 +157,10 @@ Primary fork areas:
 - Steam browser authentication and Web API-key accounts both work.
 - With a non-English achievement language selected, refreshing a Steam game
   obtains localized hidden-achievement titles and descriptions from Steam's
-  full schema. Revealing a locked hidden achievement uses the extension
+  full schema. This also works without a Steam account in the extension when
+  SteamHunters supplies the base schema: the official anonymous Steam schema
+  overlays its localized hidden text, with the Community-page bridge retained
+  as fallback. Revealing a locked hidden achievement uses the extension
   language rather than English, the Windows locale, or the Playnite UI
   language, while already-localized visible achievement text remains intact.
 - Per-game Steam-account overrides use the correct account.

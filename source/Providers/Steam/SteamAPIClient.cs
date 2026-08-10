@@ -39,6 +39,17 @@ namespace PlayniteAchievements.Providers.Steam
             return result;
         }
 
+        /// <summary>
+        /// Fetches Steam's public achievement schema without requiring a Steam account or API key.
+        /// Unlike the Community global-achievements page, this endpoint includes localized text
+        /// for hidden achievements.
+        /// </summary>
+        public Task<SchemaAndPercentages> GetPublicSchemaForGameDetailedAsync(int appId, string language, CancellationToken ct)
+        {
+            language = string.IsNullOrWhiteSpace(language) ? "english" : language.Trim();
+            return GetSchemaForGameDetailedInternalAsync(null, appId, language, ct);
+        }
+
         private async Task<IReadOnlyList<SchemaAchievement>> GetLocalizedSchemaForGameInternalAsync(
             string accessToken,
             int appId,
@@ -243,9 +254,9 @@ namespace PlayniteAchievements.Providers.Steam
 
         private async Task<SchemaAndPercentages> GetSchemaForGameDetailedInternalAsync(string accessToken, int appId, string language, CancellationToken ct)
         {
-            if (string.IsNullOrWhiteSpace(accessToken) || appId <= 0)
+            if (appId <= 0)
             {
-                _logger?.Warn("GetSchemaForGameDetailedInternalAsync: Invalid accessToken or appId={appId}");
+                _logger?.Warn("GetSchemaForGameDetailedInternalAsync: Invalid appId={appId}");
                 return null;
             }
 
@@ -253,9 +264,12 @@ namespace PlayniteAchievements.Providers.Steam
             {
                 language = string.IsNullOrWhiteSpace(language) ? "english" : language;
                 var url = $"https://api.steampowered.com/IPlayerService/GetGameAchievements/v1/" +
-                          $"?access_token={Uri.EscapeDataString(accessToken)}" +
-                          $"&appid={appId}" +
+                          $"?appid={appId}" +
                           $"&language={Uri.EscapeDataString(language)}";
+                if (!string.IsNullOrWhiteSpace(accessToken))
+                {
+                    url += $"&access_token={Uri.EscapeDataString(accessToken)}";
+                }
 
                 using (var req = new HttpRequestMessage(HttpMethod.Get, url))
                 using (var resp = await _apiHttp.SendAsync(req, ct).ConfigureAwait(false))
