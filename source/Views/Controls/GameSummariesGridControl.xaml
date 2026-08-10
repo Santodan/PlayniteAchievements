@@ -135,16 +135,14 @@
                               SnapsToDevicePixels="True"
                               HorizontalAlignment="{Binding RelativeSource={RelativeSource AncestorType={x:Type DataGridCell}}, Path=Column.(helpers:DataGridAlignmentBehavior.CellHorizontalAlignment)}"
                               VerticalAlignment="{Binding RelativeSource={RelativeSource AncestorType={x:Type DataGridCell}}, Path=Column.(helpers:DataGridAlignmentBehavior.CellVerticalAlignment)}">
-                            <!-- Rays glow style: a rotating sunburst behind the art in the completed
-                                 gradient's colors, under the two-tone bloom below rather than in
-                                 place of it. The control already spreads the burst to the art's
-                                 proportions, so this value only sets how far past the edges it
-                                 reaches: tuned so the shorter axis clears the art by roughly the
-                                 completion bloom's 14px blur. Kept tighter than the icon sites
-                                 because game art is already large and this cell's overflow draws
-                                 over neighboring rows. -->
+                            <!-- Rays glow style: arrows riding the art's own silhouette in the
+                                 completed gradient's colors, under the two-tone bloom below rather
+                                 than in place of it. The same reach as the icon sites, because reach
+                                 scales with the artwork: a tighter value here left cover rays looking
+                                 stunted beside the same rays on an icon. Only the corner rounding
+                                 differs, matching the rounded card this art is clipped to. -->
                             <controls:RarityRayBurst UseCompletedColors="True"
-                                                     BurstScale="1.45"
+                                                     BurstScale="1.55"
                                                      CornerRadiusRatio="0.14">
                                 <controls:RarityRayBurst.Style>
                                     <Style TargetType="controls:RarityRayBurst">
