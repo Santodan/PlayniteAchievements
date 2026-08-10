@@ -7,35 +7,58 @@ namespace PlayniteAchievements.Models.Achievements
     /// <summary>
     /// Brushes for the rays glow.
     ///
-    /// The rays fade toward their tips through two fill passes rather than a gradient. A gradient
-    /// anchored at the middle of the subject only works when the rays are a circular fan around that
-    /// point, which is what an earlier sunburst was: on a silhouette loop, a corner arrow's base sits
+    /// A ray is built from several translucent copies of itself, each narrower, shorter and stronger
+    /// than the last. Where they overlap they accumulate, so the ray comes out bright along its spine
+    /// and falling away to nothing at its edges and tip — a soft ray drawn entirely with flat fills.
+    ///
+    /// It is done this way because the two things that would normally soften an edge are both barred
+    /// here. A blur is a bitmap effect, and this layer moves every frame: WPF would re-render it to an
+    /// intermediate surface per row per frame, which is the same cost that made a populated grid lag.
+    /// And a gradient anchored at the middle of the subject only works when the rays are a circular fan
+    /// around that point, which an earlier sunburst was: on a silhouette loop a corner arrow's base sits
     /// half again as far out as an edge arrow's, so any ramp that fades the edge arrows correctly has
-    /// already run to nothing before the corner arrows even begin. Measuring the fade along each arrow
-    /// instead keeps it right whatever shape the loop is.
+    /// already run to nothing before the corner arrows even begin. Stacking copies measures the falloff
+    /// along each arrow, so it stays right whatever shape the loop is.
     /// </summary>
     public static partial class RarityAppearanceHelper
     {
-        /// <summary>The two fills that make up a ray: a wide soft one at full length, and a narrow
-        /// bright one that stops short.</summary>
-        public sealed class RayGlowPalette
+        /// <summary>One translucent copy of a ray: how wide, how far along, and in what.</summary>
+        public sealed class RayGlowLayer
         {
-            public RayGlowPalette(SolidColorBrush halo, SolidColorBrush core)
+            public RayGlowLayer(SolidColorBrush brush, double widthMultiplier, double heightFraction)
             {
-                Halo = halo;
-                Core = core;
+                Brush = brush;
+                WidthMultiplier = widthMultiplier;
+                HeightFraction = heightFraction;
             }
 
-            public SolidColorBrush Halo { get; }
+            public SolidColorBrush Brush { get; }
 
-            public SolidColorBrush Core { get; }
+            public double WidthMultiplier { get; }
+
+            public double HeightFraction { get; }
         }
 
-        private const byte RayHaloAlpha = 0x46;
-        private const byte RayCoreAlpha = 0xB0;
+        /// <summary>The stack of copies that makes up a ray, widest and faintest first.</summary>
+        public sealed class RayGlowPalette
+        {
+            public RayGlowPalette(IReadOnlyList<RayGlowLayer> layers)
+            {
+                Layers = layers;
+            }
 
-        /// <summary>How far the bright core is lifted toward white, so it reads as heat rather than
-        /// just more of the same color.</summary>
+            public IReadOnlyList<RayGlowLayer> Layers { get; }
+        }
+
+        // Width multiplier, length fraction and alpha per copy. The widest stays under the gap between
+        // neighbouring arrows so they stay separate rays rather than blurring into a collar, and the
+        // alphas are low enough that the outermost copy reads as a haze rather than an outline.
+        private static readonly double[] RayLayerWidths = { 1.60, 1.28, 0.98, 0.70, 0.44 };
+        private static readonly double[] RayLayerHeights = { 1.00, 0.90, 0.78, 0.64, 0.48 };
+        private static readonly byte[] RayLayerAlphas = { 0x20, 0x2A, 0x38, 0x4A, 0x5E };
+
+        /// <summary>How far the innermost copy is lifted toward white, so the spine reads as heat
+        /// rather than as more of the same color.</summary>
         private const double RayCoreWhiteBlend = 0.28;
 
         // Resolved from OnRender, so UI thread only and no lock is needed.
@@ -89,15 +112,38 @@ namespace PlayniteAchievements.Models.Achievements
             RayGlowPaletteGeneration++;
         }
 
-        private static RayGlowPalette CreateRayGlowPalette(Color haloColor, Color coreColor)
+        private static RayGlowPalette CreateRayGlowPalette(Color outerColor, Color innerColor)
         {
-            return new RayGlowPalette(
-                CreateSolidBrush(Color.FromArgb(RayHaloAlpha, haloColor.R, haloColor.G, haloColor.B)),
-                CreateSolidBrush(Color.FromArgb(
-                    RayCoreAlpha,
-                    TowardWhite(coreColor.R),
-                    TowardWhite(coreColor.G),
-                    TowardWhite(coreColor.B))));
+            var layers = new RayGlowLayer[RayLayerWidths.Length];
+            var last = layers.Length - 1;
+
+            for (var i = 0; i < layers.Length; i++)
+            {
+                // Copies run outermost to innermost, so they cross from the outer color to the inner one
+                // and the innermost also picks up the lift toward white.
+                var blend = last > 0 ? i / (double)last : 1.0;
+                var color = Lerp(outerColor, innerColor, blend);
+                if (i == last)
+                {
+                    color = Color.FromRgb(
+                        TowardWhite(color.R), TowardWhite(color.G), TowardWhite(color.B));
+                }
+
+                layers[i] = new RayGlowLayer(
+                    CreateSolidBrush(Color.FromArgb(RayLayerAlphas[i], color.R, color.G, color.B)),
+                    RayLayerWidths[i],
+                    RayLayerHeights[i]);
+            }
+
+            return new RayGlowPalette(layers);
+        }
+
+        private static Color Lerp(Color from, Color to, double amount)
+        {
+            return Color.FromRgb(
+                (byte)(from.R + ((to.R - from.R) * amount)),
+                (byte)(from.G + ((to.G - from.G) * amount)),
+                (byte)(from.B + ((to.B - from.B) * amount)));
         }
 
         private static byte TowardWhite(byte channel)

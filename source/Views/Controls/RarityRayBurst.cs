@@ -57,14 +57,6 @@ namespace PlayniteAchievements.Views.Controls
         private RayArrowLayout.RayArrowSpine[] _spines;
         private RayArrowLayout.RayArrowQuad[] _quads;
 
-        // The two fills that make a ray fade toward its tip. They differ in width as well as length, so
-        // the seam between them runs diagonally along the arrow's flanks, where it lands on the
-        // antialiased taper, rather than straight across it as a visible crossbar.
-        private const double HaloWidthMultiplier = 1.35;
-        private const double HaloHeightFraction = 1.0;
-        private const double CoreWidthMultiplier = 0.55;
-        private const double CoreHeightFraction = 0.62;
-
         public RarityRayBurst()
         {
             IsHitTestVisible = false;
@@ -583,17 +575,20 @@ namespace PlayniteAchievements.Views.Controls
                     return;
                 }
 
-                DrawPass(context, written, palette.Halo, HaloWidthMultiplier, HaloHeightFraction);
-                DrawPass(context, written, palette.Core, CoreWidthMultiplier, CoreHeightFraction);
+                // Widest and faintest first, so the narrower copies accumulate on top and the ray comes
+                // out soft at its edges and bright along its spine.
+                for (var i = 0; i < palette.Layers.Count; i++)
+                {
+                    DrawPass(context, written, palette.Layers[i]);
+                }
             }
         }
 
-        private void DrawPass(
-            DrawingContext context, int count, Brush brush, double widthMultiplier, double heightFraction)
+        private void DrawPass(DrawingContext context, int count, RarityAppearanceHelper.RayGlowLayer layer)
         {
-            RayArrowLayout.Emit(_spines, count, widthMultiplier, heightFraction, _quads);
+            RayArrowLayout.Emit(_spines, count, layer.WidthMultiplier, layer.HeightFraction, _quads);
 
-            // One geometry for every arrow in the pass, so the whole layer costs two draws however many
+            // One geometry for every arrow in the copy, so a copy costs a single draw however many
             // arrows it carries.
             var geometry = new StreamGeometry { FillRule = FillRule.Nonzero };
             using (var writer = geometry.Open())
@@ -609,7 +604,7 @@ namespace PlayniteAchievements.Views.Controls
             }
 
             geometry.Freeze();
-            context.DrawGeometry(brush, null, geometry);
+            context.DrawGeometry(layer.Brush, null, geometry);
         }
 
         private RayArrowLayout.MappedTrack EnsureMappedTrack()
