@@ -88,6 +88,15 @@ namespace PlayniteAchievements.Services.Capture
         // it would mean writing seconds of duplicates.
         private static readonly TimeSpan MaxRotationCarry = TimeSpan.FromSeconds(1);
 
+        // How far before a boundary the next segment's writer starts being built. Building measured
+        // ~105 ms; this leaves room for a slow build without holding two writers open for long.
+        private static readonly TimeSpan PrepareLead = TimeSpan.FromMilliseconds(750);
+
+        // The next segment's writer, built ahead of the boundary; see MaybePrepareNextSegment.
+        private readonly object _prepareGate = new object();
+        private PreparedSegment _prepared;
+        private Task _prepareTask;
+
 
         public WgcVideoRecorder(
             Func<IntPtr> resolveHwnd, string bufferDirectory, int fps, int segmentSeconds,
@@ -138,6 +147,13 @@ namespace PlayniteAchievements.Services.Capture
 
                 _device = new D3D11.Device(SharpDX.Direct3D.DriverType.Hardware,
                     D3D11.DeviceCreationFlags.BgraSupport | D3D11.DeviceCreationFlags.VideoSupport);
+
+                // The next segment's writer is built on a background thread while the pump is encoding
+                // into the current one, so two threads touch this device.
+                using (var multithread = _device.QueryInterface<D3D11.Multithread>())
+                {
+                    multithread.SetMultithreadProtected(true);
+                }
                 using (var dxgiDevice = _device.QueryInterface<DXGI.Device>())
                 {
                     CreateDirect3D11DeviceFromDXGIDevice(dxgiDevice.NativePointer, out var inspectable)
@@ -399,6 +415,10 @@ namespace PlayniteAchievements.Services.Capture
                             {
                                 _logger?.Debug(ex, "[Recording] WGC-MF frame encode failed.");
                             }
+
+                            // Build the next segment's writer before we need it, so the rotation above
+                            // never stops capture.
+                            MaybePrepareNextSegment();
                         }
                     }
 
@@ -430,6 +450,8 @@ namespace PlayniteAchievements.Services.Capture
             finally
             {
                 pacer.Dispose();
+                // A writer prepared for a segment that will never open still owns a file.
+                DiscardPrepared(TakePreparedSegment());
                 FinalizeSegment();
                 TearDownCapture();
             }
@@ -558,10 +580,12 @@ namespace PlayniteAchievements.Services.Capture
         private void RotateSegment()
         {
             var rotate = Stopwatch.StartNew();
+            var prepared = TakePreparedSegment();
             FinalizeSegment();
             if (_latest == null)
             {
                 // No frame yet; defer segment creation until we know the size.
+                DiscardPrepared(prepared);
                 return;
             }
 
@@ -593,23 +617,156 @@ namespace PlayniteAchievements.Services.Capture
                 _segmentStartUtc = now;
             }
 
-            // The dimensions ride in the name so the clip planner can group segments by size
-            // without opening them — a capture rebuilt at a new size starts a run the planner
-            // will not concatenate with the old one.
-            var name = RecordingPaths.BuildSegmentFileName(_segmentStartUtc.ToLocalTime(), _encW, _encH);
-            var path = EnsureUniqueSegment(Path.Combine(_bufferDirectory, name));
-            _encoder = new MediaFoundationH264Encoder(
-                _device, path, _encW, _encH, _fps, ComputeBitrate(_encW, _encH));
+            // Use the writer prepared during the previous segment when it is for exactly this segment;
+            // building one costs ~105ms, which on this thread is frames of frozen picture.
+            string path;
+            var reused = false;
+            if (prepared != null &&
+                prepared.Width == _encW && prepared.Height == _encH && prepared.StartUtc == _segmentStartUtc)
+            {
+                _encoder = prepared.Encoder;
+                path = prepared.Path;
+                reused = true;
+            }
+            else
+            {
+                // Wrong size (a capture rebuild) or a start the prediction missed: throw it away and pay
+                // the build here, as before.
+                DiscardPrepared(prepared);
+
+                // The dimensions ride in the name so the clip planner can group segments by size
+                // without opening them — a capture rebuilt at a new size starts a run the planner
+                // will not concatenate with the old one.
+                var name = RecordingPaths.BuildSegmentFileName(_segmentStartUtc.ToLocalTime(), _encW, _encH);
+                path = EnsureUniqueSegment(Path.Combine(_bufferDirectory, name));
+                _encoder = new MediaFoundationH264Encoder(
+                    _device, path, _encW, _encH, _fps, ComputeBitrate(_encW, _encH));
+            }
+
             _segmentFrameIndex = 0;
             _segmentCount++;
             if (_segmentCount <= 2 || _segmentCount % 12 == 0)
             {
-                // The rotation cost is the pump time no frame could be captured in, so it is worth
-                // seeing: it lands as the previous frame held for that long, once per segment.
+                // The rotation cost is pump time no frame could be captured in, so it is worth seeing:
+                // whatever is left of it lands as the previous frame held that long, once per segment.
                 _logger?.Debug(
                     $"[Recording] WGC-MF segment #{_segmentCount} started ({Path.GetFileName(path)}, {_encW}x{_encH}, " +
-                    $"rotate={rotate.ElapsedMilliseconds}ms).");
+                    $"rotate={rotate.ElapsedMilliseconds}ms, prepared={reused}).");
             }
+        }
+
+        /// <summary>
+        /// Starts building the next segment's writer on a background thread, shortly before the boundary
+        /// it is for, so the rotation itself costs nothing. The pump keeps capturing into the current
+        /// segment while this runs. Only meaningful because the constant-rate pacing makes a full
+        /// segment exactly <c>_segmentSeconds * _fps</c> frames, which is what lets the next segment's
+        /// start instant — and therefore its file name — be known before it begins.
+        /// </summary>
+        private void MaybePrepareNextSegment()
+        {
+            if (_encoder == null || _prepareTask != null || _latest == null)
+            {
+                return;
+            }
+
+            lock (_prepareGate)
+            {
+                if (_prepared != null)
+                {
+                    return;
+                }
+            }
+
+            var boundary = _segmentStartUtc.AddTicks(PtsForFrame((long)_segmentSeconds * _fps));
+            if (DateTime.UtcNow < boundary - PrepareLead)
+            {
+                return;
+            }
+
+            var width = _encW;
+            var height = _encH;
+            var name = RecordingPaths.BuildSegmentFileName(boundary.ToLocalTime(), width, height);
+            var path = EnsureUniqueSegment(Path.Combine(_bufferDirectory, name));
+            _prepareTask = Task.Run(() =>
+            {
+                try
+                {
+                    var encoder = new MediaFoundationH264Encoder(
+                        _device, path, width, height, _fps, ComputeBitrate(width, height));
+                    lock (_prepareGate)
+                    {
+                        _prepared = new PreparedSegment
+                        {
+                            Encoder = encoder,
+                            Path = path,
+                            StartUtc = boundary,
+                            Width = width,
+                            Height = height,
+                        };
+                    }
+                }
+                catch (Exception ex)
+                {
+                    _logger?.Debug(ex, "[Recording] Preparing the next capture segment failed; it will be built inline.");
+                    TryDeleteSegmentFile(path);
+                }
+            });
+        }
+
+        /// <summary>Hands over the prepared segment, waiting briefly if it is still being built.</summary>
+        private PreparedSegment TakePreparedSegment()
+        {
+            var task = _prepareTask;
+            if (task != null && !task.IsCompleted)
+            {
+                // Should not happen: preparation starts PrepareLead before the boundary and takes about
+                // a tenth of that. If it does, waiting still beats building a second one.
+                try { task.Wait(TimeSpan.FromSeconds(2)); } catch { }
+            }
+
+            _prepareTask = null;
+            lock (_prepareGate)
+            {
+                var prepared = _prepared;
+                _prepared = null;
+                return prepared;
+            }
+        }
+
+        /// <summary>Throws away a prepared segment that turned out not to fit, file included.</summary>
+        private void DiscardPrepared(PreparedSegment prepared)
+        {
+            if (prepared == null)
+            {
+                return;
+            }
+
+            try { prepared.Encoder.Dispose(); } catch { }
+            TryDeleteSegmentFile(prepared.Path);
+        }
+
+        private void TryDeleteSegmentFile(string path)
+        {
+            try
+            {
+                if (path != null && File.Exists(path))
+                {
+                    File.Delete(path);
+                }
+            }
+            catch (Exception ex)
+            {
+                _logger?.Debug(ex, "[Recording] Could not remove an unused prepared segment file.");
+            }
+        }
+
+        private sealed class PreparedSegment
+        {
+            public MediaFoundationH264Encoder Encoder;
+            public string Path;
+            public DateTime StartUtc;
+            public int Width;
+            public int Height;
         }
 
         /// <summary>
