@@ -516,7 +516,11 @@ namespace PlayniteAchievements.Views.Controls
             return UseCompletedColors || RayGlowTiers.Contains(Rarity);
         }
 
-        private double CurrentPhase01(PersistedSettings persisted)
+        /// <summary>
+        /// Laps completed, left unwrapped: the wave travels at its own rate relative to the arrows, so
+        /// wrapping here would jerk it back every time the arrows crossed the start of the loop.
+        /// </summary>
+        private double CurrentLaps(PersistedSettings persisted)
         {
             var period = RayAnimationDriver.LapPeriodMs(persisted);
             if (!(period > 0))
@@ -528,19 +532,19 @@ namespace PlayniteAchievements.Views.Controls
             // same wave and a recycled row picks it up mid-cycle instead of restarting.
             if (PhaseLock)
             {
-                return Frac(GlowAnimationClock.ElapsedMilliseconds / period);
+                return GlowAnimationClock.ElapsedMilliseconds / period;
             }
 
             // Opted out: a per-instance epoch stamped at the first paint, so the wave always starts from
-            // phase zero. A surface that never animates therefore renders phase zero every time, which
-            // is what makes a capture reproducible.
+            // the beginning. A surface that never animates therefore renders that same first frame every
+            // time, which is what makes a capture reproducible.
             if (!_localEpochSet)
             {
                 _localEpochMs = GlowAnimationClock.ElapsedMilliseconds;
                 _localEpochSet = true;
             }
 
-            return Frac((GlowAnimationClock.ElapsedMilliseconds - _localEpochMs) / period);
+            return (GlowAnimationClock.ElapsedMilliseconds - _localEpochMs) / period;
         }
 
         private void Redraw()
@@ -573,7 +577,7 @@ namespace PlayniteAchievements.Views.Controls
                 }
 
                 var written = RayArrowLayout.BuildSpines(
-                    mapped, CurrentPhase01(persisted), BurstScale, count, _spines);
+                    mapped, CurrentLaps(persisted), BurstScale, count, _spines);
                 if (written <= 0)
                 {
                     return;
@@ -650,17 +654,6 @@ namespace PlayniteAchievements.Views.Controls
                 : RarityAppearanceHelper.GetRayGlowPalette(Rarity, persisted);
 
             return _palette;
-        }
-
-        private static double Frac(double value)
-        {
-            if (double.IsNaN(value) || double.IsInfinity(value))
-            {
-                return 0.0;
-            }
-
-            var fraction = value - Math.Floor(value);
-            return fraction < 0 || fraction >= 1.0 ? 0.0 : fraction;
         }
     }
 }

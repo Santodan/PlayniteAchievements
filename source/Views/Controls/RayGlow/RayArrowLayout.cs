@@ -30,12 +30,39 @@ namespace PlayniteAchievements.Views.Controls.RayGlow
         /// </summary>
         public const int DefaultArrowCount = 32;
 
-        // Lobe counts of the standing wave. Both are coprime with the arrow count on purpose: a count
-        // that divided it would have every arrow sampling the same few heights forever, and the burst
-        // would read as a rigid scallop instead of a wave.
-        private const int PrimaryLobes = 5;
-        private const int SecondaryLobes = 7;
-        private const double SecondaryPhase = 1.1;
+        // Lobe counts of the wave. All coprime with the arrow count on purpose: a count that divided it
+        // would have every arrow sampling the same few heights forever, and the burst would read as a
+        // rigid scallop instead of a wave.
+        //
+        // Three of them, with no dominant term, because two were not enough to look irregular: when one
+        // carried most of the amplitude the envelope came out very nearly mirrored, and since the loop
+        // starts at a fixed place on the artwork that mirror line landed on the same part of every icon.
+        //
+        // The phases are chosen so no such mirror line exists. Subtracting the wave from its own
+        // reflection gives -SUM(amplitude * sin(2*pi*lobes*centre + phase) * sin(2*pi*lobes*offset)), so
+        // the envelope mirrors about a point exactly when every one of those sines vanishes there at
+        // once. Turning the upper two harmonics into sines is what keeps them from ever doing so
+        // together: it triples the worst-case gap compared with rounder-looking offsets.
+        private const int PrimaryLobes = 3;
+        private const int SecondaryLobes = 5;
+        private const int TertiaryLobes = 7;
+        private const double PrimaryAmplitude = 0.42;
+        private const double SecondaryAmplitude = 0.33;
+        private const double TertiaryAmplitude = 0.25;
+        private const double PrimaryPhase = 0.0;
+        private const double SecondaryPhase = Math.PI / 2.0;
+        private const double TertiaryPhase = Math.PI / 2.0;
+
+        /// <summary>
+        /// How fast the wave itself travels around the loop, relative to the arrows.
+        ///
+        /// Zero would hold it still against the artwork, which is what made the shape of the burst a
+        /// fixed property of each icon rather than something happening to it. Matching the arrows would
+        /// carry it along with them and no arrow would ever change size. Between the two, arrows drift
+        /// through the crests and swell and shrink as they go, and nothing lines up with the icon
+        /// underneath for long enough to look deliberate.
+        /// </summary>
+        private const double EnvelopeDriftRatio = 0.38;
 
         /// <summary>
         /// Height of the shortest arrow as a fraction of the tallest. Keeps the crests and troughs
@@ -189,24 +216,29 @@ namespace PlayniteAchievements.Views.Controls.RayGlow
         }
 
         /// <summary>
-        /// Crest height at position u around the loop, in 0..1. Both harmonics have an integer frequency
-        /// so the wave closes on itself around the loop, and the coefficients sum to one so the result
-        /// stays in range without being clamped.
+        /// Crest height at position u around the wave, in 0..1. Every harmonic has an integer frequency
+        /// so the wave closes on itself, and the amplitudes sum to one so the result stays in range
+        /// without being clamped.
         /// </summary>
         public static double WaveHeight01(double u)
         {
-            var wave = (0.62 * Math.Cos(TwoPi * PrimaryLobes * u))
-                     + (0.38 * Math.Cos((TwoPi * SecondaryLobes * u) + SecondaryPhase));
+            var wave = (PrimaryAmplitude * Math.Cos((TwoPi * PrimaryLobes * u) + PrimaryPhase))
+                     + (SecondaryAmplitude * Math.Cos((TwoPi * SecondaryLobes * u) + SecondaryPhase))
+                     + (TertiaryAmplitude * Math.Cos((TwoPi * TertiaryLobes * u) + TertiaryPhase));
             return 0.5 + (0.5 * wave);
         }
 
         /// <summary>
-        /// Fills <paramref name="buffer"/> with the arrow spines for a phase and returns how many were
-        /// written. Every dimension scales off the subject's short side, so one set of constants serves
-        /// a 48 px compact icon and a full-size cover alike.
+        /// Fills <paramref name="buffer"/> with the arrow spines and returns how many were written.
+        /// Every dimension scales off the subject's short side, so one set of constants serves a 48 px
+        /// compact icon and a full-size cover alike.
         /// </summary>
+        /// <param name="laps">
+        /// Laps completed, not a wrapped fraction: the wave travels at its own rate, so it needs to know
+        /// how far round the arrows have actually been rather than where in the current lap they are.
+        /// </param>
         public static int BuildSpines(
-            MappedTrack track, double phase01, double burstScale, int arrowCount, RayArrowSpine[] buffer)
+            MappedTrack track, double laps, double burstScale, int arrowCount, RayArrowSpine[] buffer)
         {
             if (track == null || buffer == null)
             {
@@ -223,12 +255,17 @@ namespace PlayniteAchievements.Views.Controls.RayGlow
             var reach = (scale - 1.0) * 0.5 * track.SubjectMin;
             var inward = Math.Max(MinInwardDip, InwardFraction * track.SubjectMin);
             var spacing = track.Perimeter / count;
-            var phase = Frac(Sane(phase01, 0.0, -1e9, 1e9));
+            var travelled = Sane(laps, 0.0, -1e9, 1e9);
+            var phase = Frac(travelled);
+
+            // The wave runs at its own rate, so an arrow's height depends on where it sits relative to
+            // the wave rather than on where it sits on the artwork.
+            var envelope = Frac(travelled * EnvelopeDriftRatio);
 
             for (var i = 0; i < count; i++)
             {
                 var u = Frac((i / (double)count) + phase);
-                var wave = WaveHeight01(u);
+                var wave = WaveHeight01(u - envelope);
                 SampleAt(track, u, out var basePoint, out var normal);
 
                 buffer[i].Base = basePoint;
