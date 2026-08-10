@@ -84,25 +84,26 @@ namespace PlayniteAchievements.Views.Controls.RayGlow
         private const double MinHeightFraction = 0.62;
 
         /// <summary>
-        /// Width of the shortest arrow as a fraction of the tallest. Arrows are drawn in one colour, so
-        /// thinning the short ones is what makes them read as faint next to the tall ones rather than
-        /// merely stubby.
+        /// Half-width of an arrow as a fraction of its own length, which is what keeps a ray looking
+        /// like a ray whatever it is drawn on.
+        ///
+        /// Width used to come from the gap between arrows instead. That gap grows with the perimeter
+        /// while the reach grows with the artwork, so a bigger or more elongated subject — a cover, in
+        /// particular, whose outline is half again as long as a square icon's for the same width — got
+        /// arrows just as short but far wider, and they read as bumps around the edge rather than as
+        /// rays coming off it. Tying width to length keeps that ratio fixed; the gap only comes into it
+        /// as a ceiling, below.
         /// </summary>
-        private const double MinWidthScale = 0.50;
+        private const double SlendernessRatio = 0.17;
+
+        /// <summary>Most of the gap to the next arrow that one arrow's body may occupy, whatever its
+        /// length says, so a short outline cannot push neighbours into each other.</summary>
+        private const double MaxWidthFraction = 0.34;
 
         /// <summary>How far inside the loop a base sits, as a fraction of the subject's short side.</summary>
         private const double InwardFraction = 0.22;
 
         private const double MinInwardDip = 5.0;
-
-        /// <summary>
-        /// Base width as a fraction of the gap between arrows. Deliberately narrow, because softening
-        /// works by stacking copies out to several times this width: an arrow's edge is only as soft as
-        /// the distance between its faintest copy and its brightest, and every one of those widths is a
-        /// multiple of this. A fat base would leave the widest copy overlapping its neighbour long
-        /// before the falloff had anywhere to happen.
-        /// </summary>
-        private const double WidthFraction = 0.34;
 
         /// <summary>Tips taper almost to nothing, so the far end fades out rather than ending.</summary>
         private const double TipWidthFraction = 0.06;
@@ -115,8 +116,18 @@ namespace PlayniteAchievements.Views.Controls.RayGlow
             public Point Centroid;
             public double Perimeter;
 
-            /// <summary>Short side of the drawn artwork, the yardstick every arrow dimension scales by.</summary>
+            /// <summary>Short side of the drawn artwork. What an arrow has to reach across to stay
+            /// hidden under it, so it governs how far inside the outline a base sits.</summary>
             public double SubjectMin;
+
+            /// <summary>
+            /// Overall size of the drawn artwork, as the geometric mean of its sides, which is what
+            /// arrow length scales by. Measuring reach off the short side instead left rays on a tall
+            /// cover looking stunted next to the same rays on a square icon, because the eye judges
+            /// them against the whole picture rather than against its narrower axis. For square art —
+            /// most icons — the two are the same number.
+            /// </summary>
+            public double SubjectScale;
         }
 
         public struct RayArrowSpine
@@ -195,7 +206,8 @@ namespace PlayniteAchievements.Views.Controls.RayGlow
                     centerX + ((track.Centroid.X - 0.5) * side),
                     centerY + ((track.Centroid.Y - 0.5) * side)),
                 Perimeter = track.NormalizedPerimeter * side,
-                SubjectMin = Math.Min(artWidth, artHeight)
+                SubjectMin = Math.Min(artWidth, artHeight),
+                SubjectScale = Math.Sqrt(artWidth * artHeight)
             };
         }
 
@@ -303,15 +315,20 @@ namespace PlayniteAchievements.Views.Controls.RayGlow
             }
 
             var count = Math.Min(arrowCount, buffer.Length);
-            if (count <= 0 || !IsUsable(track.Perimeter) || !IsUsable(track.SubjectMin))
+            if (count <= 0 || !IsUsable(track.Perimeter) || !IsUsable(track.SubjectMin)
+                || !IsUsable(track.SubjectScale))
             {
                 return 0;
             }
 
             var scale = Sane(burstScale, 1.0, 1.0, 8.0);
-            var reach = (scale - 1.0) * 0.5 * track.SubjectMin;
+            var reach = (scale - 1.0) * 0.5 * track.SubjectScale;
             var inward = Math.Max(MinInwardDip, InwardFraction * track.SubjectMin);
             var spacing = track.Perimeter / count;
+
+            // Width follows each arrow's own length, so short arrows are thin without being told to and
+            // a ray keeps its proportions on any subject. The gap only caps it.
+            var widthCeiling = 0.5 * MaxWidthFraction * spacing;
             var travelled = Sane(laps, 0.0, -1e9, 1e9);
             var phase = Frac(travelled);
 
@@ -331,9 +348,10 @@ namespace PlayniteAchievements.Views.Controls.RayGlow
                 // Counterclockwise tangent, so an arrow's left and right flanks stay on consistent sides
                 // all the way around the loop.
                 buffer[i].Tangent = new Vector(-normal.Y, normal.X);
-                buffer[i].Height = reach * (MinHeightFraction + ((1.0 - MinHeightFraction) * wave));
-                buffer[i].HalfWidth = 0.5 * WidthFraction * spacing
-                                          * (MinWidthScale + ((1.0 - MinWidthScale) * wave));
+
+                var height = reach * (MinHeightFraction + ((1.0 - MinHeightFraction) * wave));
+                buffer[i].Height = height;
+                buffer[i].HalfWidth = Math.Min(SlendernessRatio * height, widthCeiling);
                 buffer[i].Inward = inward;
             }
 
