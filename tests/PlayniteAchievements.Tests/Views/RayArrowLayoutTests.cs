@@ -1,6 +1,7 @@
 using System;
 using System.Windows;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
+using PlayniteAchievements.Models.Achievements;
 using PlayniteAchievements.Services.Images;
 using PlayniteAchievements.Views.Controls.RayGlow;
 
@@ -84,6 +85,141 @@ namespace PlayniteAchievements.Tests.Views
             }
 
             Assert.IsTrue(moved > Count / 2, $"only {moved} of {Count} arrows changed height over a lap");
+        }
+
+        [TestMethod]
+        public void ArrowHeight01_StaysInRangeAndClosesOnTheLoop()
+        {
+            // The alternating component is weighted against the rest rather than added on top, so the
+            // total still needs no clamping. Its lobe count is integral so the loop has no seam, which
+            // has to hold for an odd arrow count too, where the alternation cannot be exact.
+            foreach (var count in new[] { 3, 8, 21, 22, 32 })
+            {
+                for (var i = 0; i <= 4000; i++)
+                {
+                    var u = -2.0 + (i * 4.0 / 4000);
+                    var value = RayArrowLayout.ArrowHeight01(u, count);
+                    Assert.IsTrue(value >= -1e-12 && value <= 1.0 + 1e-12, $"h({u}, {count}) = {value}");
+                }
+
+                for (var i = 0; i < 200; i++)
+                {
+                    var u = i / 200.0;
+                    Assert.AreEqual(
+                        RayArrowLayout.ArrowHeight01(u, count),
+                        RayArrowLayout.ArrowHeight01(u + 1.0, count),
+                        1e-9,
+                        $"the wave does not meet itself at the seam for {count} arrows");
+                }
+            }
+        }
+
+        [TestMethod]
+        public void BuildSpines_NeighbouringArrowsDifferSharply()
+        {
+            // The slow harmonics alone only separate arrows that are far apart on the loop. A component
+            // at half the arrow count is what makes each arrow differ from the ones either side of it.
+            var mapped = Square();
+            var spines = new RayArrowLayout.RayArrowSpine[Count];
+            var written = RayArrowLayout.BuildSpines(mapped, 0.0, 1.55, Count, spines);
+
+            double shortest = double.MaxValue, tallest = 0.0, stepTotal = 0.0;
+            var reversals = 0;
+            var previousSign = 0;
+
+            for (var i = 0; i < written; i++)
+            {
+                shortest = Math.Min(shortest, spines[i].Height);
+                tallest = Math.Max(tallest, spines[i].Height);
+
+                var step = spines[(i + 1) % written].Height - spines[i].Height;
+                stepTotal += Math.Abs(step);
+
+                var sign = Math.Sign(step);
+                if (previousSign != 0 && sign != 0 && sign != previousSign)
+                {
+                    reversals++;
+                }
+
+                if (sign != 0)
+                {
+                    previousSign = sign;
+                }
+            }
+
+            var meanStep = stepTotal / written;
+            Assert.IsTrue(
+                meanStep > 0.25 * (tallest - shortest),
+                $"neighbours differ by only {meanStep:N2} against a {tallest - shortest:N2} range");
+            Assert.IsTrue(
+                reversals > written / 2,
+                $"the ring only changes direction {reversals} times over {written} arrows");
+        }
+
+        [TestMethod]
+        public void BuildSpines_SizePatternRunsAgainstTheArrows()
+        {
+            // The wave travels backwards relative to the conveyor, so arrows meet the crests head-on.
+            var mapped = Square();
+            var spines = new RayArrowLayout.RayArrowSpine[Count];
+
+            double crestTravel = 0.0, arrowTravel = 0.0;
+            double previousCrest = 0.0, previousArrow = 0.0;
+
+            for (var step = 0; step <= 400; step++)
+            {
+                RayArrowLayout.BuildSpines(mapped, step * 0.0025, 1.55, Count, spines);
+
+                var tallest = 0;
+                for (var i = 1; i < Count; i++)
+                {
+                    if (spines[i].Height > spines[tallest].Height)
+                    {
+                        tallest = i;
+                    }
+                }
+
+                var crest = AngleAbout(mapped, spines[tallest].Base);
+                var arrow = AngleAbout(mapped, spines[0].Base);
+
+                if (step > 0)
+                {
+                    crest = Unwrap(crest, previousCrest);
+                    arrow = Unwrap(arrow, previousArrow);
+                    crestTravel += crest - previousCrest;
+                    arrowTravel += arrow - previousArrow;
+                }
+
+                previousCrest = crest;
+                previousArrow = arrow;
+            }
+
+            Assert.IsTrue(Math.Abs(arrowTravel) > 1.0, "the arrows barely moved, so the test proves nothing");
+            Assert.IsTrue(Math.Abs(crestTravel) > 0.5, "the size pattern barely moved");
+            Assert.AreNotEqual(
+                Math.Sign(arrowTravel),
+                Math.Sign(crestTravel),
+                $"arrows went {arrowTravel:N2} rad and the size pattern went {crestTravel:N2} rad");
+        }
+
+        private static double AngleAbout(RayArrowLayout.MappedTrack track, Point point)
+        {
+            return Math.Atan2(point.Y - track.Centroid.Y, point.X - track.Centroid.X);
+        }
+
+        private static double Unwrap(double angle, double previous)
+        {
+            while (angle - previous > Math.PI)
+            {
+                angle -= 2.0 * Math.PI;
+            }
+
+            while (angle - previous < -Math.PI)
+            {
+                angle += 2.0 * Math.PI;
+            }
+
+            return angle;
         }
 
         [TestMethod]
@@ -209,12 +345,19 @@ namespace PlayniteAchievements.Tests.Views
         }
 
         [TestMethod]
-        public void BuildSpines_KeepsAdjacentArrowsApart()
+        public void BuildSpines_KeepsAdjacentArrowsApartEvenAtTheWidestLayer()
         {
-            // Arrows that touch read as a collar rather than as rays.
+            // Rays are softened by stacking progressively wider translucent copies, so it is the widest
+            // of those, not the arrow's own width, that decides whether neighbours merge into a collar.
             var mapped = Square();
             var spines = new RayArrowLayout.RayArrowSpine[Count];
             var written = RayArrowLayout.BuildSpines(mapped, 0.0, 1.9, Count, spines);
+
+            var widestLayer = 0.0;
+            foreach (var layer in RarityAppearanceHelper.GetRayGlowPalette(RarityTier.Rare).Layers)
+            {
+                widestLayer = Math.Max(widestLayer, layer.WidthMultiplier);
+            }
 
             var widest = 0.0;
             for (var i = 0; i < written; i++)
@@ -222,7 +365,40 @@ namespace PlayniteAchievements.Tests.Views
                 widest = Math.Max(widest, spines[i].HalfWidth);
             }
 
-            Assert.IsTrue(2.0 * widest * 1.35 < mapped.Perimeter / Count, "the widest halo arrow fills its gap");
+            Assert.IsTrue(
+                2.0 * widest * widestLayer < mapped.Perimeter / Count,
+                "the widest copy of an arrow fills the gap to its neighbour");
+        }
+
+        [TestMethod]
+        public void RayGlowPalette_StacksIntoASoftEdge()
+        {
+            // A blur is out of reach here: it is a bitmap effect, and this layer moves every frame, so
+            // WPF would re-render it to an intermediate surface per row per frame. The softness has to
+            // come from the copies instead, which means each one must be narrower, shorter and stronger
+            // than the one before it.
+            var layers = RarityAppearanceHelper.GetRayGlowPalette(RarityTier.Rare).Layers;
+
+            Assert.IsTrue(layers.Count >= 3, "too few copies to read as a falloff rather than a step");
+
+            for (var i = 1; i < layers.Count; i++)
+            {
+                Assert.IsTrue(
+                    layers[i].WidthMultiplier < layers[i - 1].WidthMultiplier,
+                    $"copy {i} is not narrower than the one outside it");
+                Assert.IsTrue(
+                    layers[i].HeightFraction < layers[i - 1].HeightFraction,
+                    $"copy {i} is not shorter than the one outside it");
+                Assert.IsTrue(
+                    layers[i].Brush.Color.A > layers[i - 1].Brush.Color.A,
+                    $"copy {i} is not stronger than the one outside it");
+            }
+
+            Assert.IsTrue(layers[0].Brush.Color.A < 0x40, "the outermost copy should be a haze, not an outline");
+            foreach (var layer in layers)
+            {
+                Assert.IsTrue(layer.Brush.IsFrozen, "layer brushes are shared across rows and must be frozen");
+            }
         }
 
         [TestMethod]
