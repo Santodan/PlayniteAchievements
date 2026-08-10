@@ -158,8 +158,9 @@ namespace PlayniteAchievements.Services.Capture
                                     {
                                         sinkAttributes.Set(SinkWriterAttributeKeys.D3DManager, deviceManager);
                                         // Let the sink fall back to software rather than failing outright
-                                        // if the hardware encoder will not take our device.
-                                        sinkAttributes.Set(SinkWriterAttributeKeys.ReadwriteD3DOptional, 1);
+                                        // if the hardware encoder will not take our device. This key is
+                                        // typed bool, unlike the int-typed hardware-transforms one above.
+                                        sinkAttributes.Set(SinkWriterAttributeKeys.ReadwriteD3DOptional, true);
                                     }
 
                                     sink = MediaFactory.CreateSinkWriterFromURL(outputPath, null, sinkAttributes);
