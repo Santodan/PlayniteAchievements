@@ -9,10 +9,13 @@ namespace PlayniteAchievements.Services.Capture
     /// Composites the toast card in system memory: the decoded frame is copied into a managed buffer,
     /// blended by <see cref="OverlayBlitMath"/>, and copied into a fresh Media Foundation buffer. Costs
     /// three full-frame copies plus (for bottom-up rows) two row flips per composited frame — about
-    /// 44 MB of memcpy at 1440p — so it is the fallback for machines where the decoder and encoder
-    /// cannot share a D3D11 device.
+    /// 44 MB of memcpy at 1440p. Only the frames the card covers pay that, and the pass around it is
+    /// dominated by decode and encode, so it costs about 95 ms on a 15 s clip; the GPU-resident version
+    /// that replaced it was far faster per frame but composited the wrong frames, so this is the one
+    /// that ships. Kept separate from the write loop so which frames get a card stays independent of how
+    /// the pixels are touched.
     /// </summary>
-    internal sealed class CpuOverlayCompositor : IOverlayCompositor
+    internal sealed class OverlayCompositor
     {
         private byte[] _frameBuffer;
         private readonly int _absStride;
@@ -24,7 +27,7 @@ namespace PlayniteAchievements.Services.Capture
         /// The decoded type's default stride. Negative means bottom-up rows, which the blend has to be
         /// normalized around: <see cref="OverlayBlitMath.BlendOnto"/> works top-down.
         /// </param>
-        public CpuOverlayCompositor(int frameW, int frameH, int stride)
+        public OverlayCompositor(int frameW, int frameH, int stride)
         {
             _frameW = frameW;
             _frameH = frameH;
@@ -99,15 +102,6 @@ namespace PlayniteAchievements.Services.Capture
             }
         }
 
-        /// <summary>
-        /// Null: a system-memory frame needs no copy, and this path has always passed them straight
-        /// through. The pooled-surface hazard the GPU path guards against is a video-memory one.
-        /// </summary>
-        public Sample CopyForOutput(Sample source)
-        {
-            return null;
-        }
-
         private static void FlipRows(byte[] buffer, int stride, int height)
         {
             var temp = new byte[stride];
@@ -119,9 +113,6 @@ namespace PlayniteAchievements.Services.Capture
             }
         }
 
-        public void Dispose()
-        {
-            // The frame buffer is managed; nothing native is held.
-        }
     }
 }
+
