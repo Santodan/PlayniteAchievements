@@ -407,19 +407,15 @@ namespace PlayniteAchievements.Tests.Views
         }
 
         [TestMethod]
-        public void BuildSpines_KeepsAdjacentArrowsApartEvenAtTheWidestLayer()
+        public void BuildSpines_KeepsTheReadablePartOfEachRayWithinItsGap()
         {
-            // Rays are softened by stacking progressively wider translucent copies, so it is the widest
-            // of those, not the arrow's own width, that decides whether neighbours merge into a collar.
+            // Rays are softened by stacking progressively wider translucent copies. The faint outer ones
+            // are meant to spill into their neighbours — that is what blurring anything does — but every
+            // copy strong enough to read as part of a particular ray has to stay inside the gap, or the
+            // rays stop being separate rays.
             var mapped = Square();
             var spines = new RayArrowLayout.RayArrowSpine[Count];
             var written = RayArrowLayout.BuildSpines(mapped, 0.0, 1.9, Count, spines);
-
-            var widestLayer = 0.0;
-            foreach (var layer in RarityAppearanceHelper.GetRayGlowPalette(RarityTier.Rare).Layers)
-            {
-                widestLayer = Math.Max(widestLayer, layer.WidthMultiplier);
-            }
 
             var widest = 0.0;
             for (var i = 0; i < written; i++)
@@ -427,9 +423,26 @@ namespace PlayniteAchievements.Tests.Views
                 widest = Math.Max(widest, spines[i].HalfWidth);
             }
 
-            Assert.IsTrue(
-                2.0 * widest * widestLayer < mapped.Perimeter / Count,
-                "the widest copy of an arrow fills the gap to its neighbour");
+            var gap = mapped.Perimeter / Count;
+            var spilled = false;
+
+            foreach (var layer in RarityAppearanceHelper.GetRayGlowPalette(RarityTier.Rare).Layers)
+            {
+                var width = 2.0 * widest * layer.WidthMultiplier;
+
+                if (layer.Brush.Color.A >= RarityAppearanceHelper.RayReadableAlpha)
+                {
+                    Assert.IsTrue(
+                        width < gap,
+                        $"a copy at alpha {layer.Brush.Color.A:X2} spans {width:N1} of a {gap:N1} gap");
+                }
+                else if (width > gap)
+                {
+                    spilled = true;
+                }
+            }
+
+            Assert.IsTrue(spilled, "no copy reaches past the gap, so the rays have no soft tails at all");
         }
 
         [TestMethod]
