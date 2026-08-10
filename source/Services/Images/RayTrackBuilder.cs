@@ -27,9 +27,30 @@ namespace PlayniteAchievements.Services.Images
         /// </summary>
         internal const byte AlphaThreshold = 16;
 
-        /// <summary>Corner-cutting passes. Two takes the visible angle off a hull corner; a third moves
-        /// the boundary by well under a percent and is thrown away by the resample.</summary>
+        /// <summary>Corner-cutting passes, which take the faceting off a hull. Two is enough here
+        /// because the real corner rounding happens later, on evenly spaced samples.</summary>
         private const int ChaikinIterations = 2;
+
+        /// <summary>
+        /// Samples the loop is smoothed at. Deliberately the final count rather than something denser:
+        /// the filter's reach grows with the square root of the pass count but shrinks with the sample
+        /// count, so smoothing a dense copy spends passes rounding detail that the final resample
+        /// throws away instead of opening up the corner.
+        /// </summary>
+        private const int SmoothingSampleCount = RayTrack.SampleCount;
+
+        /// <summary>
+        /// Passes of the three-tap filter that rounds corners for travel.
+        ///
+        /// Chaikin alone cannot do this. It cuts each corner by a fraction of the edges either side, so
+        /// how round a corner ends up depends on how long its neighbouring edges happen to be — and
+        /// rasterizing a sharp tip leaves short edges right at the tip, which is exactly where the
+        /// rounding is needed. A diamond came out of Chaikin still turning about forty degrees between
+        /// one sample and the next, so an arrow rounding the tip visibly snapped round rather than
+        /// travelling. Filtering evenly spaced samples instead makes the rounding depend on distance
+        /// along the loop rather than on where the hull happened to put its vertices.
+        /// </summary>
+        private const int SmoothingPasses = 40;
 
         // Analysis runs at a small decode, so anything this large means an unexpected native-resolution
         // decode. Scanning it would cost more than the effect is worth.
@@ -89,7 +110,18 @@ namespace PlayniteAchievements.Services.Images
                 smoothed = Chaikin(smoothed);
             }
 
-            var resampled = ResampleByArcLength(smoothed, RayTrack.SampleCount);
+            // Smooth on a dense, evenly spaced copy, then reduce: the filter needs uniform spacing to
+            // round corners by distance rather than by vertex count, and the final resample restores
+            // the even spacing that lets consumers index the loop directly.
+            var dense = ResampleByArcLength(smoothed, SmoothingSampleCount);
+            if (dense == null)
+            {
+                return RayTrack.RoundedRect(aspect, 0.0);
+            }
+
+            SmoothClosedLoop(dense, SmoothingPasses);
+
+            var resampled = ResampleByArcLength(dense, RayTrack.SampleCount);
             if (resampled == null)
             {
                 return RayTrack.RoundedRect(aspect, 0.0);
@@ -365,6 +397,39 @@ namespace PlayniteAchievements.Services.Images
             }
 
             return result;
+        }
+
+        /// <summary>
+        /// Rounds the loop in place by repeatedly replacing each sample with a weighted average of
+        /// itself and its neighbours.
+        ///
+        /// Every new point is a convex combination of three points already on the loop, so the result
+        /// stays inside the old polygon and a convex loop stays convex — the same guarantee that made
+        /// corner cutting safe. It pulls the loop very slightly inward, which costs nothing here since
+        /// arrows are anchored well inside the silhouette anyway.
+        /// </summary>
+        private static void SmoothClosedLoop(Point[] points, int passes)
+        {
+            var n = points.Length;
+            if (n < 3 || passes <= 0)
+            {
+                return;
+            }
+
+            var scratch = new Point[n];
+            for (var pass = 0; pass < passes; pass++)
+            {
+                for (var i = 0; i < n; i++)
+                {
+                    var previous = points[((i - 1) + n) % n];
+                    var next = points[(i + 1) % n];
+                    scratch[i] = new Point(
+                        (0.25 * previous.X) + (0.5 * points[i].X) + (0.25 * next.X),
+                        (0.25 * previous.Y) + (0.5 * points[i].Y) + (0.25 * next.Y));
+                }
+
+                Array.Copy(scratch, points, n);
+            }
         }
 
         /// <summary>
