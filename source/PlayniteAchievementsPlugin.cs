@@ -81,6 +81,7 @@ namespace PlayniteAchievements
         private readonly FriendsRecentUnlocksDataCoordinator _friendsRecentUnlocksDataCoordinator;
         private readonly MemoryImageService _imageService;
         private readonly DiskImageService _diskImageService;
+        private readonly RayTrackService _rayTrackService;
         private readonly ManagedCustomIconService _managedCustomIconService;
         private readonly NotificationImageStore _notificationImageStore;
         private NotificationStylePortableStore _notificationStylePortableStore;
@@ -141,6 +142,7 @@ namespace PlayniteAchievements
         public AchievementDataService AchievementDataService => _achievementDataService;
         public MemoryImageService ImageService => _imageService;
         public DiskImageService DiskImageService => _diskImageService;
+        public RayTrackService RayTrackService => _rayTrackService;
         internal Services.Captures.CaptureLibraryService CaptureLibraryService => _captureLibraryService;
         public ManagedCustomIconService ManagedCustomIconService => _managedCustomIconService;
         public ICacheManager CacheManager => _cacheManager;
@@ -445,6 +447,7 @@ namespace PlayniteAchievements
                     GameSummaryArtResolver.ManagedCustomIconServiceAccessor = () => _managedCustomIconService;
                     _notificationImageStore = new NotificationImageStore(_diskImageService, _logger);
                     _imageService = new MemoryImageService(_logger, _diskImageService);
+                    _rayTrackService = new RayTrackService(_logger, _imageService);
                     _gameCustomDataStore.AttachManagedCustomIconService(_managedCustomIconService);
                     _gameCustomDataStore.AttachNotificationImageStore(_notificationImageStore);
 
@@ -1253,6 +1256,7 @@ namespace PlayniteAchievements
             try { _achievementHotkeyService?.Dispose(); } catch (Exception ex) { _logger?.Debug(ex, "Failed to dispose achievementHotkeyService"); }
             try { _windowService?.Dispose(); } catch (Exception ex) { _logger?.Debug(ex, "Failed to dispose windowService"); }
             try { _libraryProjectionService?.Dispose(); } catch (Exception ex) { _logger?.Debug(ex, "Failed to dispose libraryProjectionService"); }
+            try { _rayTrackService?.Dispose(); } catch (Exception ex) { _logger?.Debug(ex, "Failed to dispose rayTrackService"); }
             try { _imageService?.Dispose(); } catch (Exception ex) { _logger?.Debug(ex, "Failed to dispose imageService"); }
             try { _diskImageService?.Dispose(); } catch (Exception ex) { _logger?.Debug(ex, "Failed to dispose diskImageService"); }
             try { _manualSourceRegistry?.Dispose(); } catch (Exception ex) { _logger?.Debug(ex, "Failed to dispose manualSourceRegistry"); }
