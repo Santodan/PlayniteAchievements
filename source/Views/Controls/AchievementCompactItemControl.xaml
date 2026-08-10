@@ -128,7 +128,7 @@
                                     <Condition Binding="{Binding ShowRarityGlow, RelativeSource={RelativeSource AncestorType=modern:AchievementCompactListControlBase}}" Value="True"/>
                                     <Condition Binding="{Binding AnimateRarityGlows, RelativeSource={RelativeSource AncestorType=modern:AchievementCompactListControlBase}}" Value="True"/>
                                 </MultiDataTrigger.Conditions>
-                                <Setter Property="helpers:RarityGlowPulse.IsActive" Value="True"/>
+                                <Setter Property="IsActive" Value="True"/>
                             </MultiDataTrigger>
                             <!-- Hardcore achievements use a solid border instead of any glow, unless
                                  the user has turned that border off. -->
@@ -138,7 +138,7 @@
                                     <Condition Binding="{Binding ShowHardcoreBorder, RelativeSource={RelativeSource AncestorType=modern:AchievementCompactListControlBase}}" Value="True"/>
                                 </MultiDataTrigger.Conditions>
                                 <Setter Property="Visibility" Value="Collapsed"/>
-                                <Setter Property="helpers:RarityGlowPulse.IsActive" Value="False"/>
+                                <Setter Property="IsActive" Value="False"/>
                             </MultiDataTrigger>
                         </Style.Triggers>
                     </Style>

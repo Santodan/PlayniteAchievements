@@ -163,7 +163,7 @@
                                                     <Condition Binding="{Binding ShowCompletionGlow, RelativeSource={RelativeSource AncestorType=controls:GameSummariesGridControl}}" Value="True"/>
                                                     <Condition Binding="{Binding AnimateRarityGlows, RelativeSource={RelativeSource AncestorType=controls:GameSummariesGridControl}}" Value="True"/>
                                                 </MultiDataTrigger.Conditions>
-                                                <Setter Property="helpers:RarityGlowPulse.IsActive" Value="True"/>
+                                                <Setter Property="IsActive" Value="True"/>
                                             </MultiDataTrigger>
                                             <!-- Completed art has no rarity tier of its own, so it
                                                  follows the selection's own completion entry rather
@@ -171,7 +171,7 @@
                                                  above. -->
                                             <DataTrigger Binding="{Binding RayGlowTiers, RelativeSource={RelativeSource AncestorType=controls:GameSummariesGridControl}, Converter={StaticResource RaritySelectionIncludesCompleted}}" Value="False">
                                                 <Setter Property="Visibility" Value="Collapsed"/>
-                                                <Setter Property="helpers:RarityGlowPulse.IsActive" Value="False"/>
+                                                <Setter Property="IsActive" Value="False"/>
                                             </DataTrigger>
                                         </Style.Triggers>
                                     </Style>

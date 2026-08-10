@@ -29,36 +29,38 @@ namespace PlayniteAchievements.Models.Achievements
         // and the rays appear to emerge from around the icon. These are the visual tuning knobs.
         //
         // The radii are calibrated against the soft glow the rays sit behind, so the two read as one
-        // effect: at the default RarityRayBurst.BurstScale the icon's edge lands near InnerRayRadius,
-        // so the visible part of a long ray is the remaining ~15 units, which on a 64px icon stays
-        // inside the soft glow's 20px blur rather than reaching past it. Widening the gap between
-        // InnerRayRadius and LongRayRadius, or raising BurstScale, pushes the rays out beyond that
-        // halo. Half-angles are kept well under half the 360/RayCount spacing so the cores stay
-        // separated rather than merging into a disc — the wide halo pass is allowed to overlap.
+        // effect. Half-angles are kept well under half the 360/RayCount spacing so the rays stay
+        // separated rather than merging into a disc.
+        //
+        // One flat pass per ray, with a linear gradient along it. A second wider pass was tried to
+        // soften the edges and is deliberately not here: it doubles the geometry drawn under a
+        // continuously rotating layer, for every row on screen, every frame.
         private const int RayCount = 28;
         private const double RayBurstBox = 100.0;
         private const double RayBurstCenter = RayBurstBox / 2.0;
-        private const double InnerRayRadius = 28.0;
-        private const double LongRayRadius = 50.0;
-        private const double ShortRayRadius = 44.0;
+
+        // Half the subject's own width in these coordinates, and how far past a true rectangle edge a
+        // ray base may travel toward the corners. Together they describe the outline the rays stand off
+        // from — a rounded rectangle, which suits square, rounded, and round subjects alike. Must stay
+        // consistent with RarityRayBurst.BurstScale's default: that is what maps this box onto the
+        // subject's cell, and it is why the subject's edge lands here rather than at the box edge.
+        private const double SubjectHalfExtent = 28.0;
+        private const double SubjectCornerCap = 1.3;
+
+        // How far a ray stands off the outline, rather than where it ends: bases sit at different radii
+        // around the outline, so a fixed outer radius would make corner rays stubby and edge rays long.
+        private const double LongRaySpan = 13.0;
+        private const double ShortRaySpan = 8.0;
+
         private const double LongRayHalfAngle = 2.3;
         private const double ShortRayHalfAngle = 1.6;
-
-        // Core pass, then the wider faint pass beneath it that softens the ray's edges. The mid stop
-        // is a fraction of whichever alpha the pass is drawn at, so both passes fade alike.
-        private const byte RayBaseAlpha = 0xC0;
-        private const double RayMidAlphaFactor = 0.55;
-        private const double RayHaloWidthFactor = 2.6;
-        private const byte RayHaloAlpha = 0x3C;
+        private const byte RayBaseAlpha = 0xCC;
+        private const byte RayMidAlpha = 0x6E;
 
         // WPF on this target has no additive blend mode, so the long rays are blended toward white
         // to read as light rather than as paint in the flat tier color.
         private const double RayHighlightBlend = 0.35;
 
-        // Blur radius for the tight edge glow the templates draw from the icon's own alpha, so the
-        // emphasis follows a circular or cut-out icon instead of boxing it. Much tighter than the soft
-        // halo's 20px, so it reads as an edge rather than a wash.
-        public const double RimGlowBlurRadius = 6.0;
 
         private static readonly object RayBurstCacheLock = new object();
         private static readonly Dictionary<RarityTier, DrawingImage> RayBurstCache =
@@ -437,8 +439,11 @@ namespace PlayniteAchievements.Models.Achievements
                 Brush = CreateRayBloomBrush(longRayColor)
             });
 
-            AddRayPass(group, longRayColor, LongRayRadius, LongRayHalfAngle, longRays: true);
-            AddRayPass(group, shortRayColor, ShortRayRadius, ShortRayHalfAngle, longRays: false);
+            // One merged geometry per length, filled by one brush: every ray radiates from the same
+            // center, so a single center-anchored radial gradient fades them all along their length
+            // exactly as a gradient per ray would, without a drawing per ray.
+            AddRayPass(group, longRayColor, LongRaySpan, LongRayHalfAngle, longRays: true);
+            AddRayPass(group, shortRayColor, ShortRaySpan, ShortRayHalfAngle, longRays: false);
 
             group.OpacityMask = CreateRayFalloffBrush();
 
@@ -465,24 +470,18 @@ namespace PlayniteAchievements.Models.Achievements
         private static void AddRayPass(
             DrawingGroup group,
             Color color,
-            double outerRadius,
+            double raySpan,
             double halfAngleDegrees,
             bool longRays)
         {
             group.Children.Add(new GeometryDrawing
             {
-                Geometry = BuildRayGeometry(outerRadius, halfAngleDegrees * RayHaloWidthFactor, longRays),
-                Brush = CreateRayFadeBrush(color, outerRadius, RayHaloAlpha)
-            });
-
-            group.Children.Add(new GeometryDrawing
-            {
-                Geometry = BuildRayGeometry(outerRadius, halfAngleDegrees, longRays),
-                Brush = CreateRayFadeBrush(color, outerRadius, RayBaseAlpha)
+                Geometry = BuildRayGeometry(raySpan, halfAngleDegrees, longRays),
+                Brush = CreateRayFadeBrush(color, raySpan)
             });
         }
 
-        private static Geometry BuildRayGeometry(double outerRadius, double halfAngleDegrees, bool longRays)
+        private static Geometry BuildRayGeometry(double raySpan, double halfAngleDegrees, bool longRays)
         {
             var geometry = new PathGeometry();
             for (var i = 0; i < RayCount; i++)
@@ -494,14 +493,16 @@ namespace PlayniteAchievements.Models.Achievements
                 }
 
                 var angle = i * (360.0 / RayCount);
+                var baseRadius = SubjectEdgeRadius(angle);
+
                 var figure = new PathFigure
                 {
-                    StartPoint = PolarPoint(angle - halfAngleDegrees, InnerRayRadius),
+                    StartPoint = PolarPoint(angle - halfAngleDegrees, baseRadius),
                     IsClosed = true,
                     IsFilled = true
                 };
-                figure.Segments.Add(new LineSegment(PolarPoint(angle, outerRadius), true));
-                figure.Segments.Add(new LineSegment(PolarPoint(angle + halfAngleDegrees, InnerRayRadius), true));
+                figure.Segments.Add(new LineSegment(PolarPoint(angle, baseRadius + raySpan), true));
+                figure.Segments.Add(new LineSegment(PolarPoint(angle + halfAngleDegrees, baseRadius), true));
                 geometry.Figures.Add(figure);
             }
 
@@ -514,13 +515,42 @@ namespace PlayniteAchievements.Models.Achievements
         }
 
         /// <summary>
+        /// How far from the center the subject's own edge lies at a given angle, so rays start on that
+        /// edge and stand off it by a constant amount. Anchoring them all at one radius instead put
+        /// their bases on a circle, which reads correctly only on a round subject: on the rectangular
+        /// icons this actually draws, the rays near the corners floated well clear of the artwork while
+        /// the ones at the edge midpoints sat right against it.
+        ///
+        /// The straight rectangle edge is capped by <see cref="SubjectCornerCap"/>, which rounds the
+        /// outline off: a true rectangle's corners are the half-diagonal out, and letting the bases
+        /// reach that far would push the tips past the art's own bounds.
+        /// </summary>
+        private static double SubjectEdgeRadius(double angleDegrees)
+        {
+            var radians = angleDegrees * Math.PI / 180.0;
+            var cos = Math.Abs(Math.Cos(radians));
+            var sin = Math.Abs(Math.Sin(radians));
+
+            // Whichever side the ray leaves through first.
+            var horizontal = cos < 1e-6 ? double.MaxValue : SubjectHalfExtent / cos;
+            var vertical = sin < 1e-6 ? double.MaxValue : SubjectHalfExtent / sin;
+
+            return Math.Min(Math.Min(horizontal, vertical), SubjectHalfExtent * SubjectCornerCap);
+        }
+
+        /// <summary>
         /// One brush that fades every ray of a pass from its base to its tip. Anchored at the burst's
         /// center with an absolute radius matching that pass's ray length, so the fade lands on each
         /// ray's own tip; a pass whose rays are shorter gets its own brush rather than being cut off
         /// part-way through a longer pass's gradient.
         /// </summary>
-        private static Brush CreateRayFadeBrush(Color color, double outerRadius, byte baseAlpha)
+        private static Brush CreateRayFadeBrush(Color color, double raySpan)
         {
+            // Spans from the nearest subject edge out to the furthest ray tip, so one brush fades a
+            // whole pass. Ray bases now sit at different radii — they follow the subject's outline —
+            // so a corner ray starts slightly further along this fade than an edge one, which reads as
+            // the corners being a touch softer.
+            var outerRadius = (SubjectHalfExtent * SubjectCornerCap) + raySpan;
             var center = new Point(RayBurstCenter, RayBurstCenter);
             var brush = new RadialGradientBrush
             {
@@ -531,10 +561,10 @@ namespace PlayniteAchievements.Models.Achievements
                 RadiusY = outerRadius
             };
 
-            var baseOffset = InnerRayRadius / outerRadius;
-            brush.GradientStops.Add(new GradientStop(WithAlpha(color, baseAlpha), baseOffset));
+            var baseOffset = SubjectHalfExtent / outerRadius;
+            brush.GradientStops.Add(new GradientStop(WithAlpha(color, RayBaseAlpha), baseOffset));
             brush.GradientStops.Add(new GradientStop(
-                WithAlpha(color, (byte)(baseAlpha * RayMidAlphaFactor)),
+                WithAlpha(color, RayMidAlpha),
                 baseOffset + ((1.0 - baseOffset) * 0.45)));
             brush.GradientStops.Add(new GradientStop(WithAlpha(color, 0x00), 1.00));
             if (brush.CanFreeze)

@@ -1,68 +1,62 @@
 using System;
+using System.ComponentModel;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Media;
+using System.Windows.Media.Animation;
 using PlayniteAchievements.Models.Achievements;
+using PlayniteAchievements.Models.Settings;
 using PlayniteAchievements.Views.Helpers;
 
 namespace PlayniteAchievements.Views.Controls
 {
     /// <summary>
-    /// Sunburst layer for the rays rarity glow style, sitting behind the soft halo. Drop it in as the
-    /// first child of the same <c>ClipToBounds="False"</c> Grid that already holds a glow layer and a
-    /// crisp front icon; it sizes and positions itself from that cell with no explicit dimensions.
+    /// Rotating sunburst layer for the Rays rarity glow style — the counterpart to the soft
+    /// <see cref="System.Windows.Media.Effects.DropShadowEffect"/> halo that
+    /// <see cref="RarityGlowPulse"/> fades. Drop it in as the first child of the same
+    /// <c>ClipToBounds="False"</c> Grid that already holds a glow layer and a crisp front icon; it
+    /// sizes and positions itself from that cell with no explicit dimensions.
     ///
-    /// Every burst turns on one shared clock. A burst used to own its own rotation animation, and that
-    /// is what made a populated grid lag: thirty visible rows meant thirty independent timelines, each
-    /// ticking and dirtying its own layer. One animated transform shared by all of them is a single
-    /// timeline for the whole application no matter how many bursts are on screen, and it has the side
-    /// benefit that every burst turns in step. The art itself is frozen and kept to a handful of
-    /// geometries so redrawing it under the transform stays cheap; see the constructor for why this
-    /// layer must not be bitmap-cached even though the static glow layers are.
+    /// The art comes frozen from <see cref="RarityAppearanceHelper.GetRayBurstImage"/>, so rotation
+    /// costs a render-thread transform rather than re-rasterizing an effect each frame. Rotation
+    /// starts and stops with <see cref="IsActive"/> and with load/unload, so virtualized rows never
+    /// leave forever-animations running off-screen, and it phase-locks to
+    /// <see cref="GlowAnimationClock"/> so recycled rows resume mid-turn instead of snapping back to
+    /// zero.
     /// </summary>
-    public class RarityRayBurst : Panel
+    public class RarityRayBurst : Image
     {
-        // How far the burst may be stretched to follow a non-square slot's proportions. Matching them
-        // exactly makes the rays look visibly pulled on wide or tall art, so past this the burst stays
-        // this shape and simply does not reach the long edges.
-        private const double MaxAspectStretch = 1.5;
+        // Slow and fast ends of the rotation period, mapped from the shared 0-1
+        // RarityGlowPulseSpeed setting. Deliberately not the pulse's own 10s-to-0.1s half-cycle
+        // range, which reads as a blur rather than a rotation. Both ends are stretched together so
+        // the whole slider turns slower rather than only its middle: at the default speed a
+        // revolution takes about 38s.
+        private const double SlowRotationSeconds = 72.0;
+        private const double FastRotationSeconds = 5.0;
 
+        private readonly RotateTransform _rotation = new RotateTransform();
         private readonly ScaleTransform _scale = new ScaleTransform();
-        private readonly TransformGroup _turning;
-        private readonly Image _rays;
+        private PropertyChangedEventHandler _settingsHandler;
 
         public RarityRayBurst()
         {
+            Stretch = System.Windows.Media.Stretch.Uniform;
             IsHitTestVisible = false;
             Focusable = false;
 
-            // Shared rotation first, then this element's own aspect correction, which is 1:1 for every
-            // square icon. The reach comes from the arranged size instead (see ArrangeRays), so nothing
-            // here has to scale the art up.
-            _turning = new TransformGroup();
-            _turning.Children.Add(RayBurstRotation.Transform);
-            _turning.Children.Add(_scale);
-
-            _rays = new Image
-            {
-                Stretch = System.Windows.Media.Stretch.Uniform,
-                IsHitTestVisible = false,
-                Visibility = Visibility.Collapsed,
-                RenderTransformOrigin = new Point(0.5, 0.5),
-
-                // Starts on the still transform. The animated one is attached only once there is art
-                // to turn — see ResolveArt.
-                RenderTransform = _scale
-
-                // Deliberately NOT bitmap-cached, and do not add it back. A cache is the right tool
-                // for the static glow layers, but this layer turns continuously, and WPF re-rasterizes
-                // a cache when the element's transform changes — so caching a rotating layer replaces
-                // cheap vector redraw with a full bitmap re-rasterization, per row, per frame. Adding
-                // it here is what made ray mode lag; the art is a handful of frozen geometries, which
-                // is cheaper to redraw than to cache.
-            };
-
-            Children.Add(_rays);
+            // RenderTransform is deliberate: it scales the burst past its layout slot without
+            // enlarging that slot, so the rays overflow the icon's cell by a fixed proportion at
+            // every call site — grid cells and toast icons alike — with no per-site sizing and no
+            // converter-computed dimensions. The host Grid already sets ClipToBounds="False".
+            //
+            // Rotation comes first and the scale second. The scale is what fits the burst to a
+            // non-square slot, so applying it last keeps that envelope fixed and lets the rays sweep
+            // through it; scaling first would instead tumble a squashed ellipse end over end.
+            RenderTransformOrigin = new Point(0.5, 0.5);
+            var transforms = new TransformGroup();
+            transforms.Children.Add(_rotation);
+            transforms.Children.Add(_scale);
+            RenderTransform = transforms;
 
             RarityAppearanceHelper.BindRayGlowTiers(this, RayGlowTiersProperty);
 
@@ -101,10 +95,10 @@ namespace PlayniteAchievements.Views.Controls
         }
 
         /// <summary>
-        /// Which rarity tiers show the rays. Self-bound to the global setting in the constructor, so
-        /// the call sites need no per-tier markup and changing the selection updates bursts already on
-        /// screen. Ignored when <see cref="UseCompletedColors"/> is set, since completed art has no
-        /// tier of its own and the call site gates it on the selection's completion entry.
+        /// Which rarity tiers show the rays. Self-bound to the global setting in the constructor, so the
+        /// call sites need no per-tier markup and changing the selection updates bursts already on
+        /// screen. Ignored when <see cref="UseCompletedColors"/> is set, since completed art has no tier
+        /// of its own and the call site gates it on the selection's completion entry.
         /// </summary>
         public static readonly DependencyProperty RayGlowTiersProperty =
             DependencyProperty.Register(
@@ -118,9 +112,44 @@ namespace PlayniteAchievements.Views.Controls
         }
 
         /// <summary>
-        /// How far the burst reaches beyond its layout slot, as a multiple of it. The default is tuned
-        /// so the rays occupy about the same room as the soft glow they sit behind — on a 64px icon the
-        /// longest rays reach roughly 22px past the edge, against the soft glow's 20px blur.
+        /// Whether the burst rotates. A style trigger sets this from the global AnimateRarityGlows
+        /// toggle; when false the burst still renders, just held still.
+        /// </summary>
+        public static readonly DependencyProperty IsActiveProperty =
+            DependencyProperty.Register(
+                nameof(IsActive), typeof(bool), typeof(RarityRayBurst),
+                new PropertyMetadata(false, OnIsActiveChanged));
+
+        public bool IsActive
+        {
+            get => (bool)GetValue(IsActiveProperty);
+            set => SetValue(IsActiveProperty, value);
+        }
+
+        /// <summary>
+        /// When true (default) the rotation phase-locks to the shared epoch, so recreated elements
+        /// resume mid-turn. Notification surfaces bind this to IsPreview and opt out, so every
+        /// captured wave starts from the same angle.
+        /// </summary>
+        public static readonly DependencyProperty PhaseLockProperty =
+            DependencyProperty.Register(
+                nameof(PhaseLock), typeof(bool), typeof(RarityRayBurst),
+                new PropertyMetadata(true));
+
+        public bool PhaseLock
+        {
+            get => (bool)GetValue(PhaseLockProperty);
+            set => SetValue(PhaseLockProperty, value);
+        }
+
+        /// <summary>
+        /// How far the burst renders beyond its layout slot, as a multiple of it. The default is
+        /// tuned so the rays occupy about the same room as the soft glow they sit behind — on a 64px
+        /// icon the long rays reach roughly 19px past the edge, against the soft glow's 20px blur.
+        ///
+        /// The reach is proportional to the slot and applied per axis, so a value that suits a square
+        /// icon also keeps the rays clear of a wide or tall image. Completed game art still passes its
+        /// own value, because it is much larger than an icon and its glow is a tighter bloom.
         /// </summary>
         public static readonly DependencyProperty BurstScaleProperty =
             DependencyProperty.Register(
@@ -133,6 +162,19 @@ namespace PlayniteAchievements.Views.Controls
             set => SetValue(BurstScaleProperty, value);
         }
 
+        /// <summary>
+        /// Reports no desired size so the burst never drives layout. An Image measures to its
+        /// source's natural size, which for this art is its 100x100 coordinate box — enough to
+        /// inflate a 28px icon cell (and its whole DataGrid row) to 100px. Reporting zero leaves the
+        /// icon to establish the cell; the Grid still arranges this Stretch child to the full cell,
+        /// and the RenderTransform then scales the rays past it.
+        /// </summary>
+        protected override Size MeasureOverride(Size availableSize)
+        {
+            base.MeasureOverride(availableSize);
+            return new Size(0, 0);
+        }
+
         private static void OnArtSourceChanged(DependencyObject d, DependencyPropertyChangedEventArgs e)
         {
             (d as RarityRayBurst)?.ResolveArt();
@@ -140,105 +182,45 @@ namespace PlayniteAchievements.Views.Controls
 
         private static void OnBurstScaleChanged(DependencyObject d, DependencyPropertyChangedEventArgs e)
         {
+            // The scale depends on the arranged slot, so recompute it there rather than inline.
             (d as RarityRayBurst)?.InvalidateArrange();
         }
 
-        /// <summary>
-        /// Reports no desired size so the burst never drives layout. An Image measures to its source's
-        /// natural size, which for this art is its 100x100 coordinate box — enough to inflate a 28px
-        /// icon cell (and its whole DataGrid row) to 100px. Reporting zero leaves the subject to
-        /// establish the cell; <see cref="ArrangeOverride"/> then sizes the layer to whatever that cell
-        /// turned out to be.
-        ///
-        /// Children are measured at zero here, not at availableSize: a stretching Image reports
-        /// whatever it is offered as its desired size, and Arrange will not then render it any smaller,
-        /// so measuring against the offered space would lock the layer to the space the parent had free
-        /// rather than the cell the subject settles on.
-        /// </summary>
-        protected override Size MeasureOverride(Size availableSize)
+        private static void OnIsActiveChanged(DependencyObject d, DependencyPropertyChangedEventArgs e)
         {
-            var empty = new Size(0, 0);
-            foreach (UIElement child in InternalChildren)
-            {
-                child.Measure(empty);
-            }
-
-            return empty;
-        }
-
-        protected override Size ArrangeOverride(Size finalSize)
-        {
-            ArrangeRays(finalSize);
-            return finalSize;
-        }
-
-        /// <summary>
-        /// Arranges the ray layer at its full reach, centered on the subject, rather than arranging it
-        /// to the cell and scaling it up — a scale would magnify the bitmap cache and blur the rays.
-        /// The square side comes from the shorter axis, so the art stays circular and only the aspect
-        /// correction is left to the transform.
-        /// </summary>
-        private void ArrangeRays(Size finalSize)
-        {
-            var side = Math.Min(finalSize.Width, finalSize.Height);
-            if (side <= 0 || double.IsNaN(side) || double.IsInfinity(side))
-            {
-                _rays.Arrange(new Rect(0, 0, 0, 0));
-                return;
-            }
-
-            var scale = BurstScale;
-            if (double.IsNaN(scale) || double.IsInfinity(scale) || scale <= 0)
-            {
-                scale = 1.0;
-            }
-
-            var reach = side * scale;
-            _rays.Measure(new Size(reach, reach));
-            _rays.Arrange(new Rect(
-                (finalSize.Width - reach) / 2.0,
-                (finalSize.Height - reach) / 2.0,
-                reach,
-                reach));
-
-            ApplyAspectStretch(finalSize);
-        }
-
-        /// <summary>
-        /// Stretches the burst along the slot's longer axis so it reaches past a wide or tall image
-        /// rather than sitting inside it. This is 1:1 for every square icon, which is why the reach
-        /// itself is applied as layout size instead: leaving only the aspect correction here means the
-        /// icon sites take no scale at all, and so no cache blur.
-        ///
-        /// Capped by <see cref="MaxAspectStretch"/>, because following the proportions exactly visibly
-        /// distorts the rays on strongly non-square art — category art especially.
-        /// </summary>
-        private void ApplyAspectStretch(Size finalSize)
-        {
-            var side = Math.Min(finalSize.Width, finalSize.Height);
-            var longSide = Math.Max(finalSize.Width, finalSize.Height);
-            if (side <= 0)
+            if (!(d is RarityRayBurst burst))
             {
                 return;
             }
 
-            var stretch = Math.Min(longSide / side, MaxAspectStretch);
-            var isWide = finalSize.Width >= finalSize.Height;
-
-            _scale.ScaleX = isWide ? stretch : 1.0;
-            _scale.ScaleY = isWide ? 1.0 : stretch;
+            if ((bool)e.NewValue)
+            {
+                if (burst.IsLoaded)
+                {
+                    burst.Activate();
+                }
+            }
+            else
+            {
+                burst.Deactivate();
+            }
         }
 
         private void OnLoaded(object sender, RoutedEventArgs e)
         {
             RarityAppearanceHelper.AppearanceChanged += OnAppearanceChanged;
             ResolveArt();
-            RayBurstRotation.Ensure();
+
+            if (IsActive)
+            {
+                Activate();
+            }
         }
 
         private void OnUnloaded(object sender, RoutedEventArgs e)
         {
             RarityAppearanceHelper.AppearanceChanged -= OnAppearanceChanged;
+            Deactivate();
         }
 
         private void OnAppearanceChanged(object sender, EventArgs e)
@@ -254,21 +236,133 @@ namespace PlayniteAchievements.Views.Controls
             // decides whether it shows at all.
             var tierSelected = UseCompletedColors || RayGlowTiers.Contains(Rarity);
 
-            _rays.Source = !tierSelected
+            Source = !tierSelected
                 ? null
                 : UseCompletedColors
                     ? RarityAppearanceHelper.GetCompletedRayBurstImage()
                     : RarityAppearanceHelper.GetRayBurstImage(Rarity);
 
-            var hasArt = _rays.Source != null;
+            // A tier with no art — Common, or one the rays are switched off for — has nothing to turn,
+            // and must not leave an animation running.
+            if (Source == null)
+            {
+                StopRotation();
+            }
+            else if (IsActive && IsLoaded)
+            {
+                StartRotation();
+            }
+        }
 
-            // The animated transform is attached only when there is something to turn, and the layer is
-            // collapsed otherwise. This matters more than it looks: the rotation is shared, so every
-            // element referencing it is invalidated on every tick — an element with no art would still
-            // be dirtied 60 times a second, for every row of every tier the rays are switched off for,
-            // and for every row at all while the rays are off entirely.
-            _rays.RenderTransform = hasArt ? (Transform)_turning : _scale;
-            _rays.Visibility = hasArt ? Visibility.Visible : Visibility.Collapsed;
+        protected override Size ArrangeOverride(Size finalSize)
+        {
+            var result = base.ArrangeOverride(finalSize);
+            ApplyBurstScale(finalSize);
+            return result;
+        }
+
+        /// <summary>
+        /// Fits the burst to the arranged slot. The art is square and drawn with Uniform stretch, so
+        /// inside a non-square slot it would otherwise shrink to the smaller side — on wide game-logo
+        /// art that leaves the rays buried inside the image instead of reaching past it. Scaling each
+        /// axis by that slot's own extent spreads the burst into an ellipse tracking the art's
+        /// proportions, and reduces to a plain uniform scale whenever the slot is square, which is
+        /// every icon site.
+        /// </summary>
+        private void ApplyBurstScale(Size finalSize)
+        {
+            var side = Math.Min(finalSize.Width, finalSize.Height);
+            if (side <= 0 || double.IsNaN(side) || double.IsInfinity(side))
+            {
+                return;
+            }
+
+            var scale = BurstScale;
+            if (double.IsNaN(scale) || double.IsInfinity(scale) || scale <= 0)
+            {
+                scale = 1.0;
+            }
+
+            _scale.ScaleX = scale * finalSize.Width / side;
+            _scale.ScaleY = scale * finalSize.Height / side;
+        }
+
+        private void Activate()
+        {
+            StartRotation();
+
+            var persisted = PlayniteAchievementsPlugin.Instance?.Settings?.Persisted;
+            if (persisted == null || _settingsHandler != null)
+            {
+                return;
+            }
+
+            // Restart on a speed change so tuning the slider updates on-screen bursts immediately,
+            // mirroring how RarityGlowPulse tracks its own settings.
+            _settingsHandler = (s, args) =>
+            {
+                if (args.PropertyName == nameof(PersistedSettings.RarityGlowPulseSpeed) && IsActive)
+                {
+                    StartRotation();
+                }
+            };
+
+            persisted.PropertyChanged += _settingsHandler;
+        }
+
+        private void Deactivate()
+        {
+            if (_settingsHandler != null)
+            {
+                var persisted = PlayniteAchievementsPlugin.Instance?.Settings?.Persisted;
+                if (persisted != null)
+                {
+                    persisted.PropertyChanged -= _settingsHandler;
+                }
+
+                _settingsHandler = null;
+            }
+
+            StopRotation();
+        }
+
+        private void StartRotation()
+        {
+            if (Source == null)
+            {
+                return;
+            }
+
+            var seconds = ResolveRotationSeconds();
+            var cycleMilliseconds = seconds * 1000.0;
+            var animation = new DoubleAnimation
+            {
+                From = 0.0,
+                To = 360.0,
+                Duration = new Duration(TimeSpan.FromSeconds(seconds)),
+                RepeatBehavior = RepeatBehavior.Forever
+            };
+
+            // Phase-lock opt-outs start at angle zero, which keeps repeated captures identical.
+            animation.BeginTime = PhaseLock
+                ? GlowAnimationClock.PhaseLockBeginTime(cycleMilliseconds)
+                : TimeSpan.Zero;
+
+            _rotation.BeginAnimation(RotateTransform.AngleProperty, animation);
+        }
+
+        private void StopRotation()
+        {
+            _rotation.BeginAnimation(RotateTransform.AngleProperty, null);
+            _rotation.Angle = 0.0;
+        }
+
+        private static double ResolveRotationSeconds()
+        {
+            var persisted = PlayniteAchievementsPlugin.Instance?.Settings?.Persisted;
+            var speed = persisted?.RarityGlowPulseSpeed ?? 0.5;
+            speed = speed < 0.0 ? 0.0 : (speed > 1.0 ? 1.0 : speed);
+            return SlowRotationSeconds - (speed * (SlowRotationSeconds - FastRotationSeconds));
         }
     }
 }

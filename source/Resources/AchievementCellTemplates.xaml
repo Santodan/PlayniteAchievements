@@ -382,7 +382,7 @@
                                     <Condition Binding="{Binding ShowRarityGlow, RelativeSource={RelativeSource AncestorType=controls:AchievementDataGridControl}}" Value="True"/>
                                     <Condition Binding="{Binding AnimateRarityGlows, RelativeSource={RelativeSource AncestorType=controls:AchievementDataGridControl}}" Value="True"/>
                                 </MultiDataTrigger.Conditions>
-                                <Setter Property="helpers:RarityGlowPulse.IsActive" Value="True"/>
+                                <Setter Property="IsActive" Value="True"/>
                             </MultiDataTrigger>
             <!-- Hardcore achievements use a solid border instead of any glow, unless the user has
                                  turned that border off — then they glow like anything else. -->
@@ -392,71 +392,12 @@
                                     <Condition Binding="{Binding ShowHardcoreBorder, RelativeSource={RelativeSource AncestorType=controls:AchievementDataGridControl}}" Value="True"/>
                                 </MultiDataTrigger.Conditions>
                                 <Setter Property="Visibility" Value="Collapsed"/>
-                                <Setter Property="helpers:RarityGlowPulse.IsActive" Value="False"/>
+                                <Setter Property="IsActive" Value="False"/>
                             </MultiDataTrigger>
                         </Style.Triggers>
                     </Style>
                 </controls:RarityRayBurst.Style>
             </controls:RarityRayBurst>
-
-            <!-- Rays emphasis edge: a second copy of the icon carrying a tight glow, so the bright
-                 edge follows the icon's own alpha and works on round or cut-out art that a drawn
-                 border would box in. Same construction as the soft halo below — cached, static, and
-                 pulsed by opacity — so it costs no per-frame work. Only the ray tiers get it. -->
-            <Border IsHitTestVisible="False">
-                <Border.CacheMode>
-                    <BitmapCache/>
-                </Border.CacheMode>
-                <Image Stretch="Uniform"
-                       Margin="2"
-                       RenderOptions.BitmapScalingMode="HighQuality"
-                       IsHitTestVisible="False"
-                       helpers:AsyncImage.Uri="{Binding DisplayIcon}"
-                       helpers:AsyncImage.DecodePixel="128">
-                    <Image.Style>
-                        <Style TargetType="Image">
-                            <Setter Property="Visibility" Value="Collapsed"/>
-                            <Setter Property="Effect" Value="{x:Null}"/>
-                            <Style.Triggers>
-                                <MultiDataTrigger>
-                                    <MultiDataTrigger.Conditions>
-                                        <Condition Binding="{Binding Unlocked}" Value="True"/>
-                                        <Condition Binding="{Binding ShowRarityGlow, RelativeSource={RelativeSource AncestorType=controls:AchievementDataGridControl}}" Value="True"/>
-                                        <!-- Gated on the tier, not just on having a glow: otherwise this
-                                             layer stays realized and cached on every unlocked row, drawing
-                                             a duplicate icon for tiers that have no rays. -->
-                                        <Condition Value="True">
-                                            <Condition.Binding>
-                                                <MultiBinding Converter="{StaticResource RaritySelectionContainsTier}">
-                                                    <Binding Path="Rarity"/>
-                                                    <Binding Path="RayGlowTiers" RelativeSource="{RelativeSource AncestorType=controls:AchievementDataGridControl}"/>
-                                                </MultiBinding>
-                                            </Condition.Binding>
-                                        </Condition>
-                                    </MultiDataTrigger.Conditions>
-                                    <Setter Property="Visibility" Value="Visible"/>
-                                    <Setter Property="Effect">
-                                        <Setter.Value>
-                                            <MultiBinding Converter="{StaticResource RarityGlowForTiers}" ConverterParameter="6">
-                                                <Binding Path="Rarity"/>
-                                                <Binding Path="RayGlowTiers" RelativeSource="{RelativeSource AncestorType=controls:AchievementDataGridControl}"/>
-                                            </MultiBinding>
-                                        </Setter.Value>
-                                    </Setter>
-                                </MultiDataTrigger>
-                                <MultiDataTrigger>
-                                    <MultiDataTrigger.Conditions>
-                                        <Condition Binding="{Binding IsHardcore}" Value="True"/>
-                                        <Condition Binding="{Binding ShowHardcoreBorder, RelativeSource={RelativeSource AncestorType=controls:AchievementDataGridControl}}" Value="True"/>
-                                    </MultiDataTrigger.Conditions>
-                                    <Setter Property="Visibility" Value="Collapsed"/>
-                                    <Setter Property="Effect" Value="{x:Null}"/>
-                                </MultiDataTrigger>
-                            </Style.Triggers>
-                        </Style>
-                    </Image.Style>
-                </Image>
-            </Border>
 
             <!-- BitmapCache stores the blurred glow output so scrolling composites a
                  cached texture instead of re-rasterizing the DropShadowEffect per frame. -->
