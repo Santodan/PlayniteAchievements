@@ -77,18 +77,18 @@ namespace PlayniteAchievements.Views.Controls.RayGlow
         private const double AlternationAmplitude = 0.50;
 
         /// <summary>
-        /// Height of the shortest arrow as a fraction of the tallest. Keeps the crests and troughs
-        /// close enough together that the ring reads as one band with a wave running through it, rather
-        /// than as tall spikes with gaps between them.
+        /// Height of the shortest arrow as a fraction of the tallest. This is a floor under the trough,
+        /// not just a contrast control: it decides how far an arrow deflates as the wave leaves it, and
+        /// set too low the short ones read as collapsing rather than dipping.
         /// </summary>
-        private const double MinHeightFraction = 0.45;
+        private const double MinHeightFraction = 0.62;
 
         /// <summary>
         /// Width of the shortest arrow as a fraction of the tallest. Arrows are drawn in one colour, so
         /// thinning the short ones is what makes them read as faint next to the tall ones rather than
         /// merely stubby.
         /// </summary>
-        private const double MinWidthScale = 0.40;
+        private const double MinWidthScale = 0.50;
 
         /// <summary>How far inside the loop a base sits, as a fraction of the subject's short side.</summary>
         private const double InwardFraction = 0.22;
