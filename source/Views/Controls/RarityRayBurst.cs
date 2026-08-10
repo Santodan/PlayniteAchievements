@@ -154,7 +154,7 @@ namespace PlayniteAchievements.Views.Controls
         public static readonly DependencyProperty BurstScaleProperty =
             DependencyProperty.Register(
                 nameof(BurstScale), typeof(double), typeof(RarityRayBurst),
-                new PropertyMetadata(1.6, OnBurstScaleChanged));
+                new PropertyMetadata(1.9, OnBurstScaleChanged));
 
         public double BurstScale
         {
