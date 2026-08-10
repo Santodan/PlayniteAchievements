@@ -373,13 +373,12 @@ namespace PlayniteAchievements.Services.Capture
         private static IEnumerable<TimedSample> VideoSamples(
             SegmentTimeline.ClipPlan plan, long keyframeStart, long clipEnd)
         {
-            long prefix = 0; // concat time at the start of the current segment
             var started = false;
 
             foreach (var segment in plan.Segments)
             {
+                var prefix = SegmentPrefix(plan, segment);
                 long firstTime = -1;
-                long segSpanEnd = 0;
                 var reachedEnd = false;
 
                 using (var reader = new SourceReader(segment.Path))
@@ -404,7 +403,6 @@ namespace PlayniteAchievements.Services.Capture
                         }
 
                         var concat = prefix + (sample.SampleTime - firstTime);
-                        segSpanEnd = concat + Math.Max(0, sample.SampleDuration);
 
                         if (concat >= clipEnd)
                         {
@@ -433,9 +431,27 @@ namespace PlayniteAchievements.Services.Capture
                 {
                     yield break;
                 }
-
-                prefix = segSpanEnd;
             }
+        }
+
+        /// <summary>
+        /// Where a segment starts on the clip's concatenated timeline, measured from the first
+        /// planned segment's recorded start.
+        /// <para>
+        /// Taken from the recorded wall-clock start rather than by accumulating each file's media
+        /// span. A segment's media span is shorter than the time it covers whenever capture stalled
+        /// before it rotated -- an alt-tab, a loading screen, a capture rebuild -- because its last
+        /// frame lands well before the boundary and carries only a nominal frame duration.
+        /// Accumulating those spans pulled every later segment earlier and drifted video ahead of
+        /// audio by the total stalled time. Both streams stamp their files from the same wall
+        /// clock, so anchoring to it keeps them on one basis and cannot accumulate.
+        /// </para>
+        /// </summary>
+        private static long SegmentPrefix(SegmentTimeline.ClipPlan plan, SegmentTimeline.SegmentInfo segment)
+        {
+            // DateTime ticks are already 100-ns units, MF's own.
+            var offset = (segment.StartUtc - plan.Segments[0].StartUtc).Ticks;
+            return offset > 0 ? offset : 0;
         }
 
         /// <summary>
@@ -447,13 +463,12 @@ namespace PlayniteAchievements.Services.Capture
         {
             var clipStart = ToTicks(plan.StartOffsetSeconds);
             var clipEnd = clipStart + ToTicks(plan.DurationSeconds);
-            long prefix = 0;
             var started = false;
 
             foreach (var chunk in plan.Segments)
             {
+                var prefix = SegmentPrefix(plan, chunk);
                 long firstTime = -1;
-                long segSpanEnd = 0;
                 var reachedEnd = false;
 
                 using (var reader = new SourceReader(chunk.Path))
@@ -481,7 +496,6 @@ namespace PlayniteAchievements.Services.Capture
                         }
 
                         var concat = prefix + (sample.SampleTime - firstTime);
-                        segSpanEnd = concat + Math.Max(0, sample.SampleDuration);
 
                         if (concat >= clipEnd)
                         {
@@ -512,8 +526,6 @@ namespace PlayniteAchievements.Services.Capture
                 {
                     yield break;
                 }
-
-                prefix = segSpanEnd;
             }
         }
 
