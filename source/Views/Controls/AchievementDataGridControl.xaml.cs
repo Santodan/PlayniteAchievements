@@ -1125,11 +1125,13 @@ namespace PlayniteAchievements.Views.Controls
             }
         }
 
-        // Positions the category-mode Back and toggle controls. The toggle always stays in the
-        // trailing (right-side) items, spliced beside the category dropdown; it never relocates
-        // across the bar. Only the Back button moves to the leading zone, left of the search box,
-        // while in category mode.
-        private void UpdateModeControlPlacement()
+        // Positions the category-mode Back and toggle controls. The toggle stays in the trailing
+        // (right-side) items but changes slot with the mode: directly after the category dropdown
+        // while the flat grid shows it, forming the segmented unit, and directly ahead of the
+        // unlock-state toggles once grouping hides the category dropdowns, so the visible row reads
+        // [Compare] [Mode] [Unlocked] [Locked] [Hidden]. Only the Back button moves to the leading
+        // zone, left of the search box, while in category mode.
+        private void UpdateModeControlPlacement(bool grouping)
         {
             var bar = _controlBarWithToggle;
             if (bar == null || _modeToggle == null)
@@ -1137,13 +1139,7 @@ namespace PlayniteAchievements.Views.Controls
                 return;
             }
 
-            if (!bar.Items.Contains(_modeToggle))
-            {
-                // Splice the toggle immediately after the category-label dropdown, forming the
-                // right half of the segmented unit.
-                var anchor = _connectedCategoryFilter == null ? -1 : bar.Items.IndexOf(_connectedCategoryFilter);
-                bar.Items.Insert(anchor >= 0 ? anchor + 1 : bar.Items.Count, _modeToggle);
-            }
+            PositionModeToggle(bar, grouping);
 
             if (_isCategoryMode)
             {
@@ -1155,6 +1151,39 @@ namespace PlayniteAchievements.Views.Controls
             else if (_backButton != null)
             {
                 bar.LeadingItems.Remove(_backButton);
+            }
+        }
+
+        // Slots the toggle for the current mode. Moves rather than removes and re-inserts, so the
+        // generated ToggleButton survives the reflow instead of being rebuilt on every state pass.
+        private void PositionModeToggle(GridControlBarViewModel bar, bool grouping)
+        {
+            // Indices are resolved against the bar without the toggle, which is what both
+            // ObservableCollection.Move's target index and a fresh Insert expect.
+            var others = bar.Items.Where(item => !ReferenceEquals(item, _modeToggle)).ToList();
+
+            int target;
+            if (grouping)
+            {
+                // The category dropdowns are hidden, so the toggle sits just ahead of the
+                // unlock-state toggles, leaving Compare on its left.
+                var firstToggleFilter = others.FindIndex(item => item is GridToggleFilter);
+                target = firstToggleFilter >= 0 ? firstToggleFilter : others.Count;
+            }
+            else
+            {
+                var anchor = _connectedCategoryFilter == null ? -1 : others.IndexOf(_connectedCategoryFilter);
+                target = anchor >= 0 ? anchor + 1 : others.Count;
+            }
+
+            var current = bar.Items.IndexOf(_modeToggle);
+            if (current < 0)
+            {
+                bar.Items.Insert(Math.Min(target, bar.Items.Count), _modeToggle);
+            }
+            else if (current != target)
+            {
+                bar.Items.Move(current, target);
             }
         }
 
@@ -1230,8 +1259,8 @@ namespace PlayniteAchievements.Views.Controls
             var drilled = grouping && _drilledCategory != null;
             var list = grouping && !drilled;
 
-            // Reflow Back/toggle between the leading zone and the segmented unit for the current mode.
-            UpdateModeControlPlacement();
+            // Reslot the mode toggle and move Back into or out of the leading zone for this mode.
+            UpdateModeControlPlacement(grouping);
 
             foreach (var item in bar.Items)
             {
