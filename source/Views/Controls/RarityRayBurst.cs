@@ -23,8 +23,12 @@ namespace PlayniteAchievements.Views.Controls
     /// leave forever-animations running off-screen, and it phase-locks to
     /// <see cref="GlowAnimationClock"/> so recycled rows resume mid-turn instead of snapping back to
     /// zero.
+    ///
+    /// It also carries the bright rim that hugs the subject's edge (<see cref="ShowRim"/>). The rim
+    /// lives here rather than in each template so all the call sites pick it up from one place and it
+    /// cannot drift out of alignment with the rays; unlike them it neither turns nor scales.
     /// </summary>
-    public class RarityRayBurst : Image
+    public class RarityRayBurst : Panel
     {
         // Slow and fast ends of the rotation period, mapped from the shared 0-1
         // RarityGlowPulseSpeed setting. Deliberately not the pulse's own 10s-to-0.1s half-cycle
@@ -34,13 +38,23 @@ namespace PlayniteAchievements.Views.Controls
         private const double SlowRotationSeconds = 72.0;
         private const double FastRotationSeconds = 5.0;
 
+        // How far the burst may be stretched to follow a non-square slot's proportions. Matching them
+        // exactly makes the rays look visibly pulled on wide or tall art, so past this the burst stays
+        // this shape and simply does not reach the long edges.
+        private const double MaxAspectStretch = 1.5;
+
+        // Outward bloom on the rim. Tighter than the icon halo's 20px, so it hugs the edge instead of
+        // washing back over the whole subject.
+        private const double RimGlowBlurRadius = 9.0;
+
         private readonly RotateTransform _rotation = new RotateTransform();
         private readonly ScaleTransform _scale = new ScaleTransform();
+        private readonly Image _rays;
+        private readonly Border _rim;
         private PropertyChangedEventHandler _settingsHandler;
 
         public RarityRayBurst()
         {
-            Stretch = System.Windows.Media.Stretch.Uniform;
             IsHitTestVisible = false;
             Focusable = false;
 
@@ -52,11 +66,29 @@ namespace PlayniteAchievements.Views.Controls
             // Rotation comes first and the scale second. The scale is what fits the burst to a
             // non-square slot, so applying it last keeps that envelope fixed and lets the rays sweep
             // through it; scaling first would instead tumble a squashed ellipse end over end.
-            RenderTransformOrigin = new Point(0.5, 0.5);
             var transforms = new TransformGroup();
             transforms.Children.Add(_rotation);
             transforms.Children.Add(_scale);
-            RenderTransform = transforms;
+
+            _rays = new Image
+            {
+                Stretch = System.Windows.Media.Stretch.Uniform,
+                IsHitTestVisible = false,
+                RenderTransformOrigin = new Point(0.5, 0.5),
+                RenderTransform = transforms
+            };
+
+            _rim = new Border
+            {
+                Background = null,
+                IsHitTestVisible = false,
+                Visibility = Visibility.Collapsed
+            };
+
+            Children.Add(_rays);
+            Children.Add(_rim);
+
+            RarityAppearanceHelper.BindRayGlowTiers(this, RayGlowTiersProperty);
 
             Loaded += OnLoaded;
             Unloaded += OnUnloaded;
@@ -144,21 +176,121 @@ namespace PlayniteAchievements.Views.Controls
         }
 
         /// <summary>
-        /// Reports no desired size so the burst never drives layout. An Image measures to its
-        /// source's natural size, which for this art is its 100x100 coordinate box — enough to
-        /// inflate a 28px icon cell (and its whole DataGrid row) to 100px. Reporting zero leaves the
-        /// icon to establish the cell; the Grid still arranges this Stretch child to the full cell,
-        /// and the RenderTransform then scales the rays past it.
+        /// Reports no desired size so the burst never drives layout. An Image measures to its source's
+        /// natural size, which for this art is its 100x100 coordinate box — enough to inflate a 28px
+        /// icon cell (and its whole DataGrid row) to 100px. Reporting zero leaves the subject to
+        /// establish the cell; <see cref="ArrangeOverride"/> then stretches the layers to whatever that
+        /// cell turned out to be.
+        ///
+        /// Children are measured at zero here, not at availableSize: a stretching Image reports
+        /// whatever it is offered as its desired size, and Arrange will not then render it any
+        /// smaller, so measuring against the offered space would lock the layers to the space the
+        /// parent had free rather than the cell the subject settles on.
         /// </summary>
         protected override Size MeasureOverride(Size availableSize)
         {
-            base.MeasureOverride(availableSize);
-            return new Size(0, 0);
+            var empty = new Size(0, 0);
+            foreach (UIElement child in InternalChildren)
+            {
+                child.Measure(empty);
+            }
+
+            return empty;
+        }
+
+        protected override Size ArrangeOverride(Size finalSize)
+        {
+            // Re-measured against the arranged cell, which is the first point the real size is known
+            // and which bounds what Arrange will grant each child.
+            _rays.Measure(finalSize);
+            _rays.Arrange(new Rect(0, 0, finalSize.Width, finalSize.Height));
+
+            // The rim sits just outside the subject rather than over it, so it never eats into the
+            // artwork's own edge pixels.
+            var inset = Math.Max(0.0, RimThickness);
+            var rimBounds = new Rect(
+                -inset,
+                -inset,
+                Math.Max(0.0, finalSize.Width + (inset * 2.0)),
+                Math.Max(0.0, finalSize.Height + (inset * 2.0)));
+            _rim.Measure(new Size(rimBounds.Width, rimBounds.Height));
+            _rim.Arrange(rimBounds);
+
+            ApplyBurstScale(finalSize);
+            return finalSize;
+        }
+
+        /// <summary>
+        /// Which rarity tiers show the rays. Self-bound to the global setting in the constructor, so
+        /// the call sites need no per-tier markup and changing the selection updates bursts already on
+        /// screen. Ignored when <see cref="UseCompletedColors"/> is set, since completed art has no
+        /// tier of its own.
+        /// </summary>
+        public static readonly DependencyProperty RayGlowTiersProperty =
+            DependencyProperty.Register(
+                nameof(RayGlowTiers), typeof(RaritySelection), typeof(RarityRayBurst),
+                new PropertyMetadata(RaritySelection.None, OnArtSourceChanged));
+
+        public RaritySelection RayGlowTiers
+        {
+            get => (RaritySelection)GetValue(RayGlowTiersProperty);
+            set => SetValue(RayGlowTiersProperty, value);
+        }
+
+        /// <summary>
+        /// Whether the bright rim is drawn tight around the subject's edge, for the extra emphasis a
+        /// soft halo alone does not give. Off for surfaces whose subject is not a plain rectangle —
+        /// completed game art, whose corners are rounded and whose proportions vary — where a straight
+        /// rim would not follow the image.
+        /// </summary>
+        public static readonly DependencyProperty ShowRimProperty =
+            DependencyProperty.Register(
+                nameof(ShowRim), typeof(bool), typeof(RarityRayBurst),
+                new PropertyMetadata(true, OnRimChanged));
+
+        public bool ShowRim
+        {
+            get => (bool)GetValue(ShowRimProperty);
+            set => SetValue(ShowRimProperty, value);
+        }
+
+        /// <summary>Rim line thickness. The rim is drawn just outside the subject, so it never eats
+        /// into the artwork.</summary>
+        public static readonly DependencyProperty RimThicknessProperty =
+            DependencyProperty.Register(
+                nameof(RimThickness), typeof(double), typeof(RarityRayBurst),
+                new PropertyMetadata(2.0, OnRimChanged));
+
+        public double RimThickness
+        {
+            get => (double)GetValue(RimThicknessProperty);
+            set => SetValue(RimThicknessProperty, value);
+        }
+
+        /// <summary>Corner rounding for the rim, for subjects that are not square-cornered.</summary>
+        public static readonly DependencyProperty RimCornerRadiusProperty =
+            DependencyProperty.Register(
+                nameof(RimCornerRadius), typeof(CornerRadius), typeof(RarityRayBurst),
+                new PropertyMetadata(default(CornerRadius), OnRimChanged));
+
+        public CornerRadius RimCornerRadius
+        {
+            get => (CornerRadius)GetValue(RimCornerRadiusProperty);
+            set => SetValue(RimCornerRadiusProperty, value);
         }
 
         private static void OnArtSourceChanged(DependencyObject d, DependencyPropertyChangedEventArgs e)
         {
             (d as RarityRayBurst)?.ResolveArt();
+        }
+
+        private static void OnRimChanged(DependencyObject d, DependencyPropertyChangedEventArgs e)
+        {
+            if (d is RarityRayBurst burst)
+            {
+                burst.ResolveArt();
+                burst.InvalidateArrange();
+            }
         }
 
         private static void OnBurstScaleChanged(DependencyObject d, DependencyPropertyChangedEventArgs e)
@@ -213,12 +345,20 @@ namespace PlayniteAchievements.Views.Controls
 
         private void ResolveArt()
         {
-            Source = UseCompletedColors
-                ? RarityAppearanceHelper.GetCompletedRayBurstImage()
-                : RarityAppearanceHelper.GetRayBurstImage(Rarity);
+            // Completed art carries no rarity of its own, so it is not filtered by tier; the call site
+            // decides whether it shows at all.
+            var tierSelected = UseCompletedColors || RayGlowTiers.Contains(Rarity);
+
+            _rays.Source = !tierSelected
+                ? null
+                : UseCompletedColors
+                    ? RarityAppearanceHelper.GetCompletedRayBurstImage()
+                    : RarityAppearanceHelper.GetRayBurstImage(Rarity);
+
+            ResolveRim();
 
             // A tier with no art (Common) has nothing to turn.
-            if (Source == null)
+            if (_rays.Source == null)
             {
                 StopRotation();
             }
@@ -228,11 +368,35 @@ namespace PlayniteAchievements.Views.Controls
             }
         }
 
-        protected override Size ArrangeOverride(Size finalSize)
+        private void ResolveRim()
         {
-            var result = base.ArrangeOverride(finalSize);
-            ApplyBurstScale(finalSize);
-            return result;
+            // The rim belongs to the ray effect, so it follows the same tier selection: a tier with
+            // rays switched off gets no rim either.
+            var brush = _rays.Source == null
+                ? null
+                : UseCompletedColors
+                    ? RarityAppearanceHelper.GetCompletedRimBrush()
+                    : RarityAppearanceHelper.GetRimBrush(Rarity);
+
+            // No rim where there is no glow either: Common has neither, so the tiers stay distinct.
+            if (!ShowRim || brush == null)
+            {
+                _rim.Visibility = Visibility.Collapsed;
+                _rim.BorderBrush = null;
+                _rim.Effect = null;
+                return;
+            }
+
+            _rim.Visibility = Visibility.Visible;
+            _rim.BorderBrush = brush;
+            _rim.BorderThickness = new Thickness(Math.Max(0.0, RimThickness));
+            _rim.CornerRadius = RimCornerRadius;
+
+            // The rim's own outward bloom, on top of the halo the templates already draw. This is
+            // what makes the edge read as lit rather than as a drawn outline.
+            _rim.Effect = UseCompletedColors
+                ? RarityAppearanceHelper.GetCompletedGlow(useEndColor: true)
+                : RarityAppearanceHelper.GetGlow(Rarity, RimGlowBlurRadius);
         }
 
         /// <summary>
@@ -242,10 +406,15 @@ namespace PlayniteAchievements.Views.Controls
         /// axis by that slot's own extent spreads the burst into an ellipse tracking the art's
         /// proportions, and reduces to a plain uniform scale whenever the slot is square, which is
         /// every icon site.
+        ///
+        /// The stretch is capped by <see cref="MaxAspectStretch"/>. Following the proportions exactly
+        /// visibly distorts the rays on strongly non-square art — category art especially — so past
+        /// that ratio the burst stops widening and simply sits inside the long axis instead.
         /// </summary>
         private void ApplyBurstScale(Size finalSize)
         {
             var side = Math.Min(finalSize.Width, finalSize.Height);
+            var longSide = Math.Max(finalSize.Width, finalSize.Height);
             if (side <= 0 || double.IsNaN(side) || double.IsInfinity(side))
             {
                 return;
@@ -257,8 +426,11 @@ namespace PlayniteAchievements.Views.Controls
                 scale = 1.0;
             }
 
-            _scale.ScaleX = scale * finalSize.Width / side;
-            _scale.ScaleY = scale * finalSize.Height / side;
+            var stretch = Math.Min(longSide / side, MaxAspectStretch);
+            var isWide = finalSize.Width >= finalSize.Height;
+
+            _scale.ScaleX = scale * (isWide ? stretch : 1.0);
+            _scale.ScaleY = scale * (isWide ? 1.0 : stretch);
         }
 
         private void Activate()
@@ -302,7 +474,7 @@ namespace PlayniteAchievements.Views.Controls
 
         private void StartRotation()
         {
-            if (Source == null)
+            if (_rays.Source == null)
             {
                 return;
             }
@@ -312,7 +484,7 @@ namespace PlayniteAchievements.Views.Controls
             var animation = new DoubleAnimation
             {
                 From = 0.0,
-                To = 360.0,
+                To = -360.0,
                 Duration = new Duration(TimeSpan.FromSeconds(seconds)),
                 RepeatBehavior = RepeatBehavior.Forever
             };
