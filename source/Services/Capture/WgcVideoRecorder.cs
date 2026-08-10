@@ -71,7 +71,6 @@ namespace PlayniteAchievements.Services.Capture
         private long _lastSegmentPts100ns; // last PTS written in the current segment (strictly increasing)
         private int _segmentCount;
         private DateTime _segmentStartUtc;
-        private readonly long _frameDuration100ns;
 
         private Thread _pumpThread;
         private volatile bool _running;
@@ -88,7 +87,6 @@ namespace PlayniteAchievements.Services.Capture
             _resolution = resolution;
             _quality = quality;
             _logger = logger;
-            _frameDuration100ns = 10_000_000L / _fps;
         }
 
         // The encoded-frame size after the resolution cap: caps the height to 1080/720 (aspect
@@ -338,16 +336,25 @@ namespace PlayniteAchievements.Services.Capture
                                 // a loading screen tears down and rebuilds capture) then shows as the
                                 // last frame held for its real duration, instead of the timeline
                                 // collapsing that gap into a skip — which would also drift audio sync.
+                                var previousPts = _lastSegmentPts100ns;
                                 var pts = (DateTime.UtcNow - _segmentStartUtc).Ticks;
-                                if (pts <= _lastSegmentPts100ns)
+                                if (pts <= previousPts)
                                 {
-                                    pts = _lastSegmentPts100ns + 1;
+                                    pts = previousPts + 1;
                                 }
                                 _lastSegmentPts100ns = pts;
+                                // Each frame's duration is the interval that just elapsed, not the
+                                // nominal one: the MP4 sink lays a track out by accumulating sample
+                                // durations and ignores sample times, so a nominal duration pins the
+                                // timeline to _fps no matter how fast frames really arrived and the
+                                // real times above never reach the file. Summing real intervals makes
+                                // the two agree. A frame therefore covers the span before it rather
+                                // than after, which offsets presentation by one interval — an offset,
+                                // not a drift.
                                 // Segments record the clean game frame only; the unlock toast is
                                 // composited into each achievement's clip at export from its
                                 // recorded overlay track.
-                                _encoder.WriteFrame(ScaleForEncode(_latest), pts, _frameDuration100ns);
+                                _encoder.WriteFrame(ScaleForEncode(_latest), pts, pts - previousPts);
                                 _segmentFrameIndex++;
                             }
                             catch (Exception ex)
