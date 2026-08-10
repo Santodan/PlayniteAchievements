@@ -24,11 +24,14 @@ namespace PlayniteAchievements.Views.Controls.RayGlow
         private const double TwoPi = Math.PI * 2.0;
 
         /// <summary>
-        /// Arrows around the loop. Width is derived from the spacing, so raising this thins the arrows
-        /// to match rather than crowding them: a 64 px icon's hull runs 200-256 DIP, which at this count
-        /// leaves a base around 4 DIP and a clear gap either side.
+        /// Arrows around the loop. Width is derived from the spacing, so lowering this widens the arrows
+        /// to match rather than leaving gaps: a 64 px icon's hull runs 200-256 DIP, which at this count
+        /// leaves a base around 6 DIP with room either side for the soft copies to fall away in.
+        ///
+        /// Coprime with every lobe count of the wave. A count that shared a factor would have arrows
+        /// sampling the same few heights forever, and the burst would read as a rigid scallop.
         /// </summary>
-        public const int DefaultArrowCount = 32;
+        public const int DefaultArrowCount = 22;
 
         // Lobe counts of the wave. All coprime with the arrow count on purpose: a count that divided it
         // would have every arrow sampling the same few heights forever, and the burst would read as a
@@ -54,15 +57,27 @@ namespace PlayniteAchievements.Views.Controls.RayGlow
         private const double TertiaryPhase = Math.PI / 2.0;
 
         /// <summary>
-        /// How fast the wave itself travels around the loop, relative to the arrows.
+        /// How fast the wave itself travels around the loop, relative to the arrows. Negative, so it
+        /// runs against them.
         ///
         /// Zero would hold it still against the artwork, which is what made the shape of the burst a
         /// fixed property of each icon rather than something happening to it. Matching the arrows would
-        /// carry it along with them and no arrow would ever change size. Between the two, arrows drift
-        /// through the crests and swell and shrink as they go, and nothing lines up with the icon
-        /// underneath for long enough to look deliberate.
+        /// carry it along with them and no arrow would ever change size. Running it backwards puts the
+        /// two motions in opposition: arrows meet the crests head-on rather than catching up with them,
+        /// so they swell and shrink faster than either motion alone, and the size pattern visibly
+        /// travels the other way round the icon.
         /// </summary>
-        private const double EnvelopeDriftRatio = 0.38;
+        private const double EnvelopeDriftRatio = -0.40;
+
+        /// <summary>
+        /// Share of the wave given over to a component at half the arrow count.
+        ///
+        /// At that frequency neighbouring arrows sit on opposite phases, so it is the one component that
+        /// makes an arrow differ from the ones either side of it rather than from the ones further round
+        /// the loop. The slower harmonics decide the overall shape; this decides how much the ring
+        /// zigzags from one arrow to the next.
+        /// </summary>
+        private const double AlternationAmplitude = 0.28;
 
         /// <summary>
         /// Height of the shortest arrow as a fraction of the tallest. Keeps the crests and troughs
@@ -229,6 +244,23 @@ namespace PlayniteAchievements.Views.Controls.RayGlow
         }
 
         /// <summary>
+        /// Crest height including the alternating component, which needs to know how many arrows there
+        /// are to sit at their Nyquist frequency. Still 0..1: the two parts are weighted to sum to the
+        /// whole, so nothing has to be clamped.
+        /// </summary>
+        public static double ArrowHeight01(double u, int arrowCount)
+        {
+            // Integer lobes, so the alternation closes on the loop like the rest of the wave. An odd
+            // arrow count cannot alternate perfectly; halving downward keeps the seam continuous, which
+            // matters far more than the last arrow pairing up.
+            var alternationLobes = Math.Max(1, arrowCount / 2);
+
+            var shaped = ((WaveHeight01(u) * 2.0) - 1.0) * (1.0 - AlternationAmplitude);
+            var alternating = AlternationAmplitude * Math.Cos(TwoPi * alternationLobes * u);
+            return 0.5 + (0.5 * (shaped + alternating));
+        }
+
+        /// <summary>
         /// Fills <paramref name="buffer"/> with the arrow spines and returns how many were written.
         /// Every dimension scales off the subject's short side, so one set of constants serves a 48 px
         /// compact icon and a full-size cover alike.
@@ -265,7 +297,7 @@ namespace PlayniteAchievements.Views.Controls.RayGlow
             for (var i = 0; i < count; i++)
             {
                 var u = Frac((i / (double)count) + phase);
-                var wave = WaveHeight01(u - envelope);
+                var wave = ArrowHeight01(u - envelope, count);
                 SampleAt(track, u, out var basePoint, out var normal);
 
                 buffer[i].Base = basePoint;
