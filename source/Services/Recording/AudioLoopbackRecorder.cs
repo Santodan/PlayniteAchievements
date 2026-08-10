@@ -30,6 +30,10 @@ namespace PlayniteAchievements.Services.Recording
         private const int PumpIntervalMs = 50;
         private const int BufferSeconds = 5;
 
+        // How long to wait for the first stamped packet before anchoring to the wall clock
+        // instead. Only reached when the source is silent from the moment capture starts.
+        private const int AnchorTimeoutMs = 750;
+
         private readonly string _bufferDirectory;
         private readonly ILogger _logger;
         private readonly RecordingAudioSource _source;
@@ -145,11 +149,11 @@ namespace PlayniteAchievements.Services.Recording
 
                     _outputFormat = _mix.WaveFormat;
 
-                    OpenChunkLocked();
                     _systemCapture.StartRecording();
                     _micCapture?.StartRecording();
 
-                    _pumpStartUtc = DateTime.UtcNow;
+                    // The timeline is anchored, and the first chunk opened, by the pump once it
+                    // knows when the first packet's audio actually played -- see AwaitAnchor.
                     _running = true;
                     _pumpThread = new Thread(PumpLoop) { IsBackground = true, Name = "PA-AudioPump" };
                     _pumpThread.Start();
@@ -290,6 +294,11 @@ namespace PlayniteAchievements.Services.Recording
 
             try
             {
+                if (!AwaitAnchor())
+                {
+                    return;
+                }
+
                 while (_running)
                 {
                     lock (_gate)
@@ -331,6 +340,53 @@ namespace PlayniteAchievements.Services.Recording
                     FailLocked(ex, "[Recording] Audio pump failed; audio capture stopped for this session.");
                 }
             }
+        }
+
+        /// <summary>
+        /// Fixes the instant that WAV position zero represents, then opens the first chunk.
+        /// Returns false when the recorder stopped before that happened.
+        /// <para>
+        /// Packets arrive later than the audio they carry. Anchoring to the moment capture started
+        /// would zero-fill that delay and, because the pump then drains at exactly real time, the
+        /// backlog never clears -- every sample stays late by the delay for the whole session,
+        /// which is audio lagging video in every clip. Anchoring to when the first packet's audio
+        /// actually played removes the offset instead of carrying it.
+        /// </para>
+        /// <para>
+        /// A source that reports no stamp (the plain-loopback fallback) anchors immediately, as
+        /// before. A process-loopback source that is silent at startup delivers no packets at all,
+        /// so the wait is bounded and falls back to the same behavior; only the pre-roll between
+        /// here and the timeout is given up, and the buffer is many seconds deep.
+        /// </para>
+        /// </summary>
+        private bool AwaitAnchor()
+        {
+            var stamped = _systemCapture as ProcessLoopbackCapture;
+            var deadline = DateTime.UtcNow.AddMilliseconds(AnchorTimeoutMs);
+
+            while (_running)
+            {
+                var packetUtc = stamped?.FirstPacketCaptureUtc;
+                if (stamped == null || packetUtc.HasValue || DateTime.UtcNow >= deadline)
+                {
+                    lock (_gate)
+                    {
+                        if (!_running || _stopped)
+                        {
+                            return false;
+                        }
+
+                        _pumpStartUtc = packetUtc ?? DateTime.UtcNow;
+                        OpenChunkLocked();
+                    }
+
+                    return true;
+                }
+
+                Thread.Sleep(PumpIntervalMs);
+            }
+
+            return false;
         }
 
         // Total per-channel frames written across the whole session (chunk base + current chunk).
@@ -395,8 +451,16 @@ namespace PlayniteAchievements.Services.Recording
             var prefix = _capturePlayniteChimes
                 ? RecordingPaths.ChimeChunkFilePrefix
                 : RecordingPaths.AudioChunkFilePrefix;
-            var name = RecordingPaths.BuildAudioChunkFileName(prefix, DateTime.Now);
             _chunkStartWallClockSamples = TotalFramesWritten();
+
+            // Stamp from the pump's own timeline rather than the wall clock at rotation. Clip
+            // planning maps these names onto sample positions, so the name has to say where in the
+            // timeline the chunk begins, not when the rotation happened to run -- the two differ by
+            // however far past the segment length the last write pushed the chunk.
+            var startUtc = _pumpStartUtc.AddSeconds(
+                _chunkStartWallClockSamples / (double)_outputFormat.SampleRate);
+            var name = RecordingPaths.BuildAudioChunkFileName(prefix, startUtc.ToLocalTime());
+
             _writer = new WaveFileWriter(Path.Combine(_bufferDirectory, name), _outputFormat);
             _chunkSamplesWritten = 0;
         }
