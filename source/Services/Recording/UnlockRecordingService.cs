@@ -499,19 +499,32 @@ namespace PlayniteAchievements.Services.Recording
 
                     // The chime sidecar (Playnite-only) rides alongside so each clip can mix in
                     // exactly its own wave's chime. Best-effort like the main track.
+                    //
+                    // It may only run when the main track actually excluded Playnite's tree. If
+                    // that activation failed, the main track degraded to plain system loopback and
+                    // already contains the chime, so mixing the sidecar in would play it twice --
+                    // once where it really sounded, once re-timed to the composited toast.
                     if (session.AudioRecorder != null && AudioLoopbackRecorder.IsChimeCaptureSupported)
                     {
-                        var chimeRecorder = new AudioLoopbackRecorder(
-                            session.BufferDirectory,
-                            _logger,
-                            capturePlayniteChimes: true);
-                        if (chimeRecorder.Start())
+                        if (!session.AudioRecorder.ExcludesPlayniteAudio)
                         {
-                            session.ChimeRecorder = chimeRecorder;
+                            _logger?.Info(
+                                "[Recording] Main audio track includes Playnite's own audio; skipping the chime sidecar so clip chimes are not doubled.");
                         }
                         else
                         {
-                            chimeRecorder.Dispose();
+                            var chimeRecorder = new AudioLoopbackRecorder(
+                                session.BufferDirectory,
+                                _logger,
+                                capturePlayniteChimes: true);
+                            if (chimeRecorder.Start())
+                            {
+                                session.ChimeRecorder = chimeRecorder;
+                            }
+                            else
+                            {
+                                chimeRecorder.Dispose();
+                            }
                         }
                     }
                 }
