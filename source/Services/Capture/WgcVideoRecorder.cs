@@ -8,6 +8,7 @@ using Playnite.SDK;
 using PlayniteAchievements.Common;
 using PlayniteAchievements.Models.Settings;
 using PlayniteAchievements.Services.Recording;
+using SharpDX.MediaFoundation;
 using Windows.Foundation;
 using Windows.Graphics.Capture;
 using Windows.Graphics.DirectX;
@@ -77,6 +78,7 @@ namespace PlayniteAchievements.Services.Capture
         private Thread _pumpThread;
         private volatile bool _running;
         private bool _disposed;
+        private bool _mediaFoundationStarted;
 
         // Segments are written out off the pump thread; see FinalizeSegment.
         private readonly object _finalizeGate = new object();
@@ -123,6 +125,13 @@ namespace PlayniteAchievements.Services.Capture
         {
             try
             {
+                // One Startup for the whole session, around every segment encoder this recorder builds.
+                // Per-encoder Startup/Shutdown let a segment being written out in the background drop the
+                // refcount to zero while the next segment was starting, and the new writer then never
+                // drained — capture stopped dead on its first frame.
+                MediaManager.Startup();
+                _mediaFoundationStarted = true;
+
                 _device = new D3D11.Device(SharpDX.Direct3D.DriverType.Hardware,
                     D3D11.DeviceCreationFlags.BgraSupport | D3D11.DeviceCreationFlags.VideoSupport);
                 using (var dxgiDevice = _device.QueryInterface<DXGI.Device>())
@@ -696,6 +705,19 @@ namespace PlayniteAchievements.Services.Capture
             _device?.ImmediateContext?.Dispose();
             _device?.Dispose();
             _winrtDevice = null;
+
+            if (_mediaFoundationStarted)
+            {
+                _mediaFoundationStarted = false;
+                try
+                {
+                    MediaManager.Shutdown();
+                }
+                catch
+                {
+                    // Refcounted per process; ignore an unbalanced shutdown at teardown.
+                }
+            }
         }
     }
 }
