@@ -144,7 +144,7 @@
                                  because game art is already large and this cell's overflow draws
                                  over neighboring rows. -->
                             <controls:RarityRayBurst UseCompletedColors="True"
-                                                     BurstScale="1.45"
+                                                     BurstScale="1.7"
 >
                                 <controls:RarityRayBurst.Style>
                                     <Style TargetType="controls:RarityRayBurst">
