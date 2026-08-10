@@ -39,8 +39,8 @@ namespace PlayniteAchievements.Models.Achievements
         private const double RayBurstBox = 100.0;
         private const double RayBurstCenter = RayBurstBox / 2.0;
         private const double InnerRayRadius = 28.0;
-        private const double LongRayRadius = 43.0;
-        private const double ShortRayRadius = 39.0;
+        private const double LongRayRadius = 50.0;
+        private const double ShortRayRadius = 44.0;
         private const double LongRayHalfAngle = 2.3;
         private const double ShortRayHalfAngle = 1.6;
 
@@ -457,23 +457,8 @@ namespace PlayniteAchievements.Models.Achievements
                 Brush = CreateRayBloomBrush(longRayColor)
             });
 
-            for (var i = 0; i < RayCount; i++)
-            {
-                var isLongRay = i % 2 == 0;
-                var angle = i * (360.0 / RayCount);
-                var radius = isLongRay ? LongRayRadius : ShortRayRadius;
-                var halfAngle = isLongRay ? LongRayHalfAngle : ShortRayHalfAngle;
-                var color = isLongRay ? longRayColor : shortRayColor;
-
-                // Each ray is drawn twice: a wide faint pass, then a narrower brighter core over it.
-                // The pair reads as a soft-edged ray, standing in for the lateral blur a BlurEffect
-                // would give — which is not an option here, since blurring rotating content
-                // re-rasterizes the whole layer every frame.
-                group.Children.Add(CreateRayDrawing(
-                    angle, radius, halfAngle * RayHaloWidthFactor, color, RayHaloAlpha));
-                group.Children.Add(CreateRayDrawing(
-                    angle, radius, halfAngle, color, RayBaseAlpha));
-            }
+            AddRayPass(group, longRayColor, LongRayRadius, LongRayHalfAngle, longRays: true);
+            AddRayPass(group, shortRayColor, ShortRayRadius, ShortRayHalfAngle, longRays: false);
 
             group.OpacityMask = CreateRayFalloffBrush();
 
@@ -486,52 +471,98 @@ namespace PlayniteAchievements.Models.Achievements
             return image;
         }
 
-        private static GeometryDrawing CreateRayDrawing(
-            double angleDegrees,
+        /// <summary>
+        /// Adds one length of ray — long or short — as exactly two drawings: a wide faint pass and a
+        /// narrower bright core over it, which together read as a soft-edged ray. The pair stands in
+        /// for lateral blur, which is not an option on a rotating layer.
+        ///
+        /// Every ray of a given length shares one merged geometry and one brush. Drawing them
+        /// individually meant a separate gradient-filled path per ray, and since a rotating layer is
+        /// re-tessellated every frame for every row on screen, that cost showed up as real lag in a
+        /// full grid. Because all rays radiate from the same center, one center-anchored radial
+        /// gradient fades them all along their length exactly as per-ray linear gradients did.
+        /// </summary>
+        private static void AddRayPass(
+            DrawingGroup group,
+            Color color,
             double outerRadius,
             double halfAngleDegrees,
-            Color color,
-            byte baseAlpha)
+            bool longRays)
         {
-            var tip = PolarPoint(angleDegrees, outerRadius);
-
-            var figure = new PathFigure
+            group.Children.Add(new GeometryDrawing
             {
-                StartPoint = PolarPoint(angleDegrees - halfAngleDegrees, InnerRayRadius),
-                IsClosed = true,
-                IsFilled = true
-            };
-            figure.Segments.Add(new LineSegment(tip, true));
-            figure.Segments.Add(new LineSegment(PolarPoint(angleDegrees + halfAngleDegrees, InnerRayRadius), true));
+                Geometry = BuildRayGeometry(outerRadius, halfAngleDegrees * RayHaloWidthFactor, longRays),
+                Brush = CreateRayFadeBrush(color, outerRadius, RayHaloAlpha)
+            });
 
+            group.Children.Add(new GeometryDrawing
+            {
+                Geometry = BuildRayGeometry(outerRadius, halfAngleDegrees, longRays),
+                Brush = CreateRayFadeBrush(color, outerRadius, RayBaseAlpha)
+            });
+        }
+
+        private static Geometry BuildRayGeometry(double outerRadius, double halfAngleDegrees, bool longRays)
+        {
             var geometry = new PathGeometry();
-            geometry.Figures.Add(figure);
+            for (var i = 0; i < RayCount; i++)
+            {
+                // Alternating long and short rays give the burst its cadence.
+                if ((i % 2 == 0) != longRays)
+                {
+                    continue;
+                }
+
+                var angle = i * (360.0 / RayCount);
+                var figure = new PathFigure
+                {
+                    StartPoint = PolarPoint(angle - halfAngleDegrees, InnerRayRadius),
+                    IsClosed = true,
+                    IsFilled = true
+                };
+                figure.Segments.Add(new LineSegment(PolarPoint(angle, outerRadius), true));
+                figure.Segments.Add(new LineSegment(PolarPoint(angle + halfAngleDegrees, InnerRayRadius), true));
+                geometry.Figures.Add(figure);
+            }
+
             if (geometry.CanFreeze)
             {
                 geometry.Freeze();
             }
 
-            // Absolute mapping so the gradient runs along the ray itself; relative-to-bounding-box
-            // mapping would skew the direction differently for every rotation angle.
-            var brush = new LinearGradientBrush
+            return geometry;
+        }
+
+        /// <summary>
+        /// One brush that fades every ray of a pass from its base to its tip. Anchored at the burst's
+        /// center with an absolute radius matching that pass's ray length, so the fade lands on each
+        /// ray's own tip; a pass whose rays are shorter gets its own brush rather than being cut off
+        /// part-way through a longer pass's gradient.
+        /// </summary>
+        private static Brush CreateRayFadeBrush(Color color, double outerRadius, byte baseAlpha)
+        {
+            var center = new Point(RayBurstCenter, RayBurstCenter);
+            var brush = new RadialGradientBrush
             {
                 MappingMode = BrushMappingMode.Absolute,
-                StartPoint = PolarPoint(angleDegrees, InnerRayRadius),
-                EndPoint = tip
+                Center = center,
+                GradientOrigin = center,
+                RadiusX = outerRadius,
+                RadiusY = outerRadius
             };
-            brush.GradientStops.Add(new GradientStop(WithAlpha(color, baseAlpha), 0.00));
-            brush.GradientStops.Add(new GradientStop(WithAlpha(color, (byte)(baseAlpha * RayMidAlphaFactor)), 0.45));
+
+            var baseOffset = InnerRayRadius / outerRadius;
+            brush.GradientStops.Add(new GradientStop(WithAlpha(color, baseAlpha), baseOffset));
+            brush.GradientStops.Add(new GradientStop(
+                WithAlpha(color, (byte)(baseAlpha * RayMidAlphaFactor)),
+                baseOffset + ((1.0 - baseOffset) * 0.45)));
             brush.GradientStops.Add(new GradientStop(WithAlpha(color, 0x00), 1.00));
             if (brush.CanFreeze)
             {
                 brush.Freeze();
             }
 
-            return new GeometryDrawing
-            {
-                Geometry = geometry,
-                Brush = brush
-            };
+            return brush;
         }
 
         private static Brush CreateRayBloomBrush(Color color)
@@ -569,7 +600,7 @@ namespace PlayniteAchievements.Models.Achievements
             // its own tip, so this mask exists only to kill any hard edge at the burst boundary.
             // Bringing the falloff in closer double-fades the rays and visibly truncates them.
             brush.GradientStops.Add(new GradientStop(Colors.White, 0.00));
-            brush.GradientStops.Add(new GradientStop(Colors.White, 0.88));
+            brush.GradientStops.Add(new GradientStop(Colors.White, 0.96));
             brush.GradientStops.Add(new GradientStop(Color.FromArgb(0x00, 0xFF, 0xFF, 0xFF), 1.00));
             if (brush.CanFreeze)
             {

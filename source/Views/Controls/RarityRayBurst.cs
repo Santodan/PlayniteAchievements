@@ -82,7 +82,14 @@ namespace PlayniteAchievements.Views.Controls
             {
                 Background = null,
                 IsHitTestVisible = false,
-                Visibility = Visibility.Collapsed
+                Visibility = Visibility.Collapsed,
+
+                // Bitmap-cached because the rim carries a DropShadowEffect and never moves. Without
+                // the cache its effect is re-rasterized whenever this panel is redrawn — which the
+                // rotating sibling makes happen every frame — and one uncached effect per visible row
+                // is enough to stall a full grid. Caching is lossless here: the rim takes no transform,
+                // so it rasterizes once at its real size.
+                CacheMode = new BitmapCache()
             };
 
             Children.Add(_rays);
