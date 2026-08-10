@@ -369,69 +369,111 @@ namespace PlayniteAchievements.Services.Capture
         /// The kept video samples (stream-copied H.264), concatenated across segments and trimmed to
         /// the window, each stamped with its output time (0 = the start keyframe). Skipped samples are
         /// disposed; yielded samples are the caller's to dispose after writing.
+        /// <para>
+        /// Each frame is held back one step so its duration can span the gap to the next frame's
+        /// output time. The MP4 sink lays a track out by accumulating durations and ignores the
+        /// sample times set here, so without that the wall-clock positions <see cref="SegmentPrefix"/>
+        /// computes never reach the file: the sink packs frames back to back and swallows the dead
+        /// time between one segment being finalized and the next one starting, shortening video
+        /// against real-time audio by that much per rotation.
+        /// </para>
         /// </summary>
         private static IEnumerable<TimedSample> VideoSamples(
             SegmentTimeline.ClipPlan plan, long keyframeStart, long clipEnd)
         {
             var started = false;
+            Sample pending = null;
+            var pendingTime = 0L;
 
-            foreach (var segment in plan.Segments)
+            try
             {
-                var prefix = SegmentPrefix(plan, segment);
-                long firstTime = -1;
-                var reachedEnd = false;
-
-                using (var reader = new SourceReader(segment.Path))
+                foreach (var segment in plan.Segments)
                 {
-                    reader.SetStreamSelection((int)SourceReaderIndex.AllStreams, false);
-                    reader.SetStreamSelection((int)SourceReaderIndex.FirstVideoStream, true);
+                    var prefix = SegmentPrefix(plan, segment);
+                    long firstTime = -1;
+                    var reachedEnd = false;
 
-                    while (true)
+                    using (var reader = new SourceReader(segment.Path))
                     {
-                        var sample = reader.ReadSample(
-                            (int)SourceReaderIndex.FirstVideoStream, SourceReaderControlFlags.None,
-                            out _, out var flags, out _);
-                        if (sample == null || (flags & SourceReaderFlags.Endofstream) != 0)
-                        {
-                            sample?.Dispose();
-                            break;
-                        }
+                        reader.SetStreamSelection((int)SourceReaderIndex.AllStreams, false);
+                        reader.SetStreamSelection((int)SourceReaderIndex.FirstVideoStream, true);
 
-                        if (firstTime < 0)
+                        while (true)
                         {
-                            firstTime = sample.SampleTime;
-                        }
-
-                        var concat = prefix + (sample.SampleTime - firstTime);
-
-                        if (concat >= clipEnd)
-                        {
-                            sample.Dispose();
-                            reachedEnd = true;
-                            break;
-                        }
-
-                        if (!started)
-                        {
-                            if (concat < keyframeStart)
+                            var sample = reader.ReadSample(
+                                (int)SourceReaderIndex.FirstVideoStream, SourceReaderControlFlags.None,
+                                out _, out var flags, out _);
+                            if (sample == null || (flags & SourceReaderFlags.Endofstream) != 0)
                             {
-                                sample.Dispose();
-                                continue;
+                                sample?.Dispose();
+                                break;
                             }
 
-                            started = true;
-                        }
+                            if (firstTime < 0)
+                            {
+                                firstTime = sample.SampleTime;
+                            }
 
-                        sample.SampleTime = concat - keyframeStart;
-                        yield return new TimedSample { Time = sample.SampleTime, Sample = sample };
+                            var concat = prefix + (sample.SampleTime - firstTime);
+
+                            if (concat >= clipEnd)
+                            {
+                                sample.Dispose();
+                                reachedEnd = true;
+                                break;
+                            }
+
+                            if (!started)
+                            {
+                                if (concat < keyframeStart)
+                                {
+                                    sample.Dispose();
+                                    continue;
+                                }
+
+                                started = true;
+                            }
+
+                            // Take ownership of the new frame before yielding the previous one, so an
+                            // abandoned enumeration leaves exactly one sample for the finally below.
+                            var ready = pending;
+                            var readyTime = pendingTime;
+                            pending = sample;
+                            pendingTime = concat - keyframeStart;
+                            if (ready != null)
+                            {
+                                yield return Timed(ready, readyTime, pendingTime - readyTime);
+                            }
+                        }
+                    }
+
+                    if (reachedEnd)
+                    {
+                        break;
                     }
                 }
 
-                if (reachedEnd)
+                if (pending != null)
                 {
-                    yield break;
+                    // The last frame runs to the end of the window rather than for one frame's worth,
+                    // so the track ends where the clip does.
+                    var last = pending;
+                    pending = null;
+                    yield return Timed(last, pendingTime, (clipEnd - keyframeStart) - pendingTime);
                 }
             }
+            finally
+            {
+                pending?.Dispose();
+            }
+        }
+
+        /// <summary>Stamps a sample onto the output timeline. Durations are floored at one tick.</summary>
+        private static TimedSample Timed(Sample sample, long time, long duration)
+        {
+            sample.SampleTime = time;
+            sample.SampleDuration = Math.Max(1, duration);
+            return new TimedSample { Time = time, Sample = sample };
         }
 
         /// <summary>
