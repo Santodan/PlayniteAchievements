@@ -63,8 +63,9 @@ namespace PlayniteAchievements.Services.Capture
         /// </summary>
         /// <param name="configuredFps">
         /// The frame rate the base clip was captured at, used only when its media type does not declare
-        /// one. Output cadence comes from the samples' own timestamps either way; this sets the declared
-        /// rate, the bitrate and the keyframe spacing.
+        /// one. This sets the declared rate, the bitrate and the keyframe spacing — and the declared rate
+        /// is what the output cadence actually follows, because the encoder rewrites per-sample durations
+        /// onto the grid it implies. Capture paces itself to the same rate so that grid is truthful.
         /// </param>
         [HandleProcessCorruptedStateExceptions, System.Security.SecurityCritical]
         public bool Export(
@@ -260,9 +261,11 @@ namespace PlayniteAchievements.Services.Capture
             {
                 outputType.Set(MediaTypeAttributeKeys.MajorType, MediaTypeGuids.Video);
                 outputType.Set(MediaTypeAttributeKeys.Subtype, VideoFormatGuids.H264);
+                // Above the capture bitrate on purpose — this is a second generation of the same
+                // footage; see BitrateMath.ComputeReencode.
                 outputType.Set(
                     MediaTypeAttributeKeys.AvgBitrate,
-                    MediaFoundationH264Encoder.ComputeBitrate(frameW, frameH, fps, quality));
+                    BitrateMath.ComputeReencode(frameW, frameH, fps, quality));
                 outputType.Set(MediaTypeAttributeKeys.MaxKeyframeSpacing, fps);
                 outputType.Set(MediaTypeAttributeKeys.InterlaceMode, (int)VideoInterlaceMode.Progressive);
                 outputType.Set(MediaTypeAttributeKeys.FrameSize, Pack(frameW, frameH));

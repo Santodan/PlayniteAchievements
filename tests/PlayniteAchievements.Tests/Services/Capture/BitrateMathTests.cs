@@ -10,6 +10,61 @@ namespace PlayniteAchievements.Services.Tests.Capture
         private const int Mbps = 1_000_000;
 
         [TestMethod]
+        public void Reencode_AsksForMoreThanCapture_SoASecondGenerationStillLooksLikeTheTier()
+        {
+            foreach (var quality in new[]
+            {
+                RecordingQuality.Native, RecordingQuality.High,
+                RecordingQuality.Medium, RecordingQuality.Low,
+            })
+            {
+                var captured = BitrateMath.Compute(1920, 1080, 60, quality);
+                var reencoded = BitrateMath.ComputeReencode(1920, 1080, 60, quality);
+                Assert.IsTrue(
+                    reencoded > captured,
+                    quality + ": re-encode " + reencoded + " should exceed capture " + captured);
+                Assert.AreEqual(
+                    (int)(captured * BitrateMath.ReencodeHeadroom), reencoded, 1, quality.ToString());
+            }
+        }
+
+        [TestMethod]
+        public void Reencode_KeepsTheTiersDistinct()
+        {
+            Assert.IsTrue(
+                BitrateMath.ComputeReencode(1920, 1080, 30, RecordingQuality.Native) >
+                BitrateMath.ComputeReencode(1920, 1080, 30, RecordingQuality.High));
+            Assert.IsTrue(
+                BitrateMath.ComputeReencode(1920, 1080, 30, RecordingQuality.Medium) >
+                BitrateMath.ComputeReencode(1920, 1080, 30, RecordingQuality.Low));
+        }
+
+        [TestMethod]
+        public void Reencode_NeverExceedsTheTiersCeiling()
+        {
+            // 8K60 is already past every tier's ceiling, so the headroom has nowhere to go.
+            foreach (var quality in new[]
+            {
+                RecordingQuality.Native, RecordingQuality.High,
+                RecordingQuality.Medium, RecordingQuality.Low,
+            })
+            {
+                Assert.AreEqual(
+                    BitrateMath.Compute(7680, 4320, 60, quality),
+                    BitrateMath.ComputeReencode(7680, 4320, 60, quality),
+                    quality.ToString());
+            }
+        }
+
+        [TestMethod]
+        public void Reencode_LiftsTheFlooredRatesToo()
+        {
+            // 1080p30 Native computes below the floor and lands on 8 Mbps; the re-encode still gets more.
+            Assert.AreEqual(8 * Mbps, Bitrate(1920, 1080, 30, RecordingQuality.Native));
+            Assert.AreEqual(12 * Mbps, BitrateMath.ComputeReencode(1920, 1080, 30, RecordingQuality.Native), 100_000);
+        }
+
+        [TestMethod]
         public void Native_MatchesTheRatesTheEncoderHasAlwaysUsed()
         {
             // 0.12 bits per pixel per frame, the reference every other tier scales from.
