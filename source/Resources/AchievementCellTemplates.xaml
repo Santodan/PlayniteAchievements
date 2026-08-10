@@ -370,7 +370,6 @@
                                 <MultiDataTrigger.Conditions>
                                     <Condition Binding="{Binding Unlocked}" Value="True"/>
                                     <Condition Binding="{Binding ShowRarityGlow, RelativeSource={RelativeSource AncestorType=controls:AchievementDataGridControl}}" Value="True"/>
-                                    <Condition Binding="{Binding RarityGlowStyle, RelativeSource={RelativeSource AncestorType=controls:AchievementDataGridControl}}" Value="Rays"/>
                                 </MultiDataTrigger.Conditions>
                                 <Setter Property="Visibility" Value="Visible"/>
                             </MultiDataTrigger>
@@ -380,16 +379,20 @@
                                 <MultiDataTrigger.Conditions>
                                     <Condition Binding="{Binding Unlocked}" Value="True"/>
                                     <Condition Binding="{Binding ShowRarityGlow, RelativeSource={RelativeSource AncestorType=controls:AchievementDataGridControl}}" Value="True"/>
-                                    <Condition Binding="{Binding RarityGlowStyle, RelativeSource={RelativeSource AncestorType=controls:AchievementDataGridControl}}" Value="Rays"/>
                                     <Condition Binding="{Binding AnimateRarityGlows, RelativeSource={RelativeSource AncestorType=controls:AchievementDataGridControl}}" Value="True"/>
                                 </MultiDataTrigger.Conditions>
                                 <Setter Property="IsActive" Value="True"/>
                             </MultiDataTrigger>
-                            <!-- Hardcore achievements use a solid border instead of any glow. -->
-                            <DataTrigger Binding="{Binding IsHardcore}" Value="True">
+            <!-- Hardcore achievements use a solid border instead of any glow, unless the user has
+                                 turned that border off — then they glow like anything else. -->
+                            <MultiDataTrigger>
+                                <MultiDataTrigger.Conditions>
+                                    <Condition Binding="{Binding IsHardcore}" Value="True"/>
+                                    <Condition Binding="{Binding ShowHardcoreBorder, RelativeSource={RelativeSource AncestorType=controls:AchievementDataGridControl}}" Value="True"/>
+                                </MultiDataTrigger.Conditions>
                                 <Setter Property="Visibility" Value="Collapsed"/>
                                 <Setter Property="IsActive" Value="False"/>
-                            </DataTrigger>
+                            </MultiDataTrigger>
                         </Style.Triggers>
                     </Style>
                 </controls:RarityRayBurst.Style>
@@ -434,7 +437,16 @@
                                         <Condition Binding="{Binding ShowRarityGlow, RelativeSource={RelativeSource AncestorType=controls:AchievementDataGridControl}}" Value="True"/>
                                     </MultiDataTrigger.Conditions>
                                     <Setter Property="Visibility" Value="Visible"/>
-                                    <Setter Property="Effect" Value="{Binding Rarity, Converter={StaticResource PercentToRarityGlow}}"/>
+                                    <!-- Multi-bound so the glow follows the per-tier selection and
+                                         re-evaluates when that selection changes. -->
+                                    <Setter Property="Effect">
+                                        <Setter.Value>
+                                            <MultiBinding Converter="{StaticResource RarityGlowForTiers}" ConverterParameter="20">
+                                                <Binding Path="Rarity"/>
+                                                <Binding Path="SoftGlowTiers" RelativeSource="{RelativeSource AncestorType=controls:AchievementDataGridControl}"/>
+                                            </MultiBinding>
+                                        </Setter.Value>
+                                    </Setter>
                                 </MultiDataTrigger>
                                 <!-- Hardcore achievements use a solid border instead of the soft glow. -->
                                 <MultiDataTrigger>
@@ -442,6 +454,7 @@
                                         <Condition Binding="{Binding Unlocked}" Value="True"/>
                                         <Condition Binding="{Binding ShowRarityGlow, RelativeSource={RelativeSource AncestorType=controls:AchievementDataGridControl}}" Value="True"/>
                                         <Condition Binding="{Binding IsHardcore}" Value="True"/>
+                                        <Condition Binding="{Binding ShowHardcoreBorder, RelativeSource={RelativeSource AncestorType=controls:AchievementDataGridControl}}" Value="True"/>
                                     </MultiDataTrigger.Conditions>
                                     <Setter Property="Visibility" Value="Collapsed"/>
                                     <Setter Property="Effect" Value="{x:Null}"/>
@@ -477,6 +490,7 @@
                                     <Condition Binding="{Binding Unlocked}" Value="True"/>
                                     <Condition Binding="{Binding ShowRarityGlow, RelativeSource={RelativeSource AncestorType=controls:AchievementDataGridControl}}" Value="True"/>
                                     <Condition Binding="{Binding IsHardcore}" Value="True"/>
+                                    <Condition Binding="{Binding ShowHardcoreBorder, RelativeSource={RelativeSource AncestorType=controls:AchievementDataGridControl}}" Value="True"/>
                                 </MultiDataTrigger.Conditions>
                                 <Setter Property="Visibility" Value="Visible"/>
                             </MultiDataTrigger>

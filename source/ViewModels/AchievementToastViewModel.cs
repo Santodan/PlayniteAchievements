@@ -159,10 +159,10 @@ namespace PlayniteAchievements.ViewModels
         public bool AnimateRarityGlows => _settings.AnimateRarityGlows;
 
         /// <summary>
-        /// Which look the notification's rarity/completed glow takes. Mirrors the global display
-        /// setting; the card's outer border glow stays a soft drop shadow under either style.
+        /// Whether this unlock's tier is one of the tiers selected for the soft halo. The card's outer
+        /// border glow is unaffected — it is not a per-tier effect.
         /// </summary>
-        public RarityGlowStyle RarityGlowStyle => _settings.RarityGlowStyle;
+        public bool HasSoftGlowTier => _settings.RarityGlowSoftTiers.Contains(_rarity);
 
         /// <summary>
         /// True on a real achievement unlock when the game is complete after it (all
@@ -273,7 +273,7 @@ namespace PlayniteAchievements.ViewModels
         public bool FrameShowBadge => _style.Frame.ShowRarityBadge && !_style.Frame.RightRarityBadge && (IsCapstone || HasTrophy || HasRarityData);
         public bool FrameShowGameName => _style.Frame.ShowGameName && !string.IsNullOrWhiteSpace(_args.GameName);
         public bool FrameShowGameCategorySeparator => FrameShowGameName && FrameShowCategory;
-        public bool FrameShowShineBorder => _style.Frame.ShowRarityGlow && IsHardcore;
+        public bool FrameShowShineBorder => _style.Frame.ShowRarityGlow && HardcoreTakesBorder;
 
         // Frame vignette chrome: the radial edge vignette shows only for Full; the bottom contrast
         // wash shows for Full and Bottom. None removes both, leaving the raw screenshot.
@@ -285,7 +285,7 @@ namespace PlayniteAchievements.ViewModels
             ? AccentBrush
             : Application.Current?.TryFindResource("PlayAch.Brush.Text") as Brush ?? Brushes.White;
 
-        public Effect FrameRarityGlowEffect => _style.Frame.ShowRarityGlow && !IsHardcore
+        public Effect FrameRarityGlowEffect => _style.Frame.ShowRarityGlow && !HardcoreTakesBorder
             ? RarityAppearanceHelper.GetGlow(_rarity, 20, _settings)
             : null;
 
@@ -434,36 +434,44 @@ namespace PlayniteAchievements.ViewModels
         public bool IsHardcore => _args.IsHardcore;
 
         /// <summary>
+        /// Whether this unlock takes the crisp Hardcore border in place of a glow. Hardcore only
+        /// claims the border while the user leaves that behavior on; with it off, a Hardcore unlock is
+        /// glowed like any other, following its rarity tier.
+        /// </summary>
+        private bool HardcoreTakesBorder => IsHardcore && _settings.ShowHardcoreBorder;
+
+        /// <summary>
         /// Hardcore RetroAchievements unlocks get a crisp rarity-colored border in place of the
         /// soft glow, mirroring the datagrids. Both are gated on the rarity-glow toggle.
         /// </summary>
-        public bool ShowShineBorder => _style.Toast.ShowRarityGlow && IsHardcore;
+        public bool ShowShineBorder => _style.Toast.ShowRarityGlow && HardcoreTakesBorder;
 
         // Glossy metallic rarity border (matches RarityToShineBrush used by the datagrids).
         public Brush IconBorderBrush => RarityAppearanceHelper.GetShineBrush(_rarity, _settings);
 
-        // Soft rarity glow for non-hardcore unlocks (matches PercentToRarityGlow, BlurRadius 20).
-        public Effect RarityGlowEffect => _style.Toast.ShowRarityGlow && !IsHardcore
+        // Soft rarity glow for non-hardcore unlocks whose tier is selected for it (matches the
+        // datagrids' glow, BlurRadius 20).
+        public Effect RarityGlowEffect => _style.Toast.ShowRarityGlow && !HardcoreTakesBorder && HasSoftGlowTier
             ? RarityAppearanceHelper.GetGlow(_rarity, 20, _settings)
             : null;
 
         /// <summary>
-        /// True when the notification icon carries the rotating sunburst behind its soft halo: the
-        /// Rays style is selected, this surface shows rarity glows, and the unlock is not Hardcore
-        /// (which keeps its crisp border under either style). The halo itself is not conditional on
-        /// the style — Rays adds the burst rather than replacing it. Gating this here keeps the
-        /// template markup to a single binding.
+        /// True when the notification icon carries the rotating sunburst behind its soft halo: this
+        /// unlock's tier is selected for rays, the surface shows rarity glows, and the unlock is not
+        /// Hardcore (which keeps its crisp border instead of any glow). The two effects are selected
+        /// independently, so a tier can have rays without the halo or the other way round. Gating this
+        /// here keeps the template markup to a single binding.
         /// </summary>
         public bool ShowRayBurst =>
-            _settings.RarityGlowStyle == Models.Settings.RarityGlowStyle.Rays &&
+            _settings.RarityGlowRayTiers.Contains(_rarity) &&
             _style.Toast.ShowRarityGlow &&
-            !IsHardcore;
+            !HardcoreTakesBorder;
 
         /// <summary>Screenshot-frame counterpart to <see cref="ShowRayBurst"/>.</summary>
         public bool FrameShowRayBurst =>
-            _settings.RarityGlowStyle == Models.Settings.RarityGlowStyle.Rays &&
+            _settings.RarityGlowRayTiers.Contains(_rarity) &&
             _style.Frame.ShowRarityGlow &&
-            !IsHardcore;
+            !HardcoreTakesBorder;
 
         // Rarity-colored glow on the toast card border (replaces the default drop shadow when
         // the border-glow option is on). Toast surface only. Completion uses the completed glow.

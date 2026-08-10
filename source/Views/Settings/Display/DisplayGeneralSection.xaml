@@ -119,19 +119,51 @@
                                        Margin="24,0,0,10"
                                        TextWrapping="Wrap"/>
                             <StackPanel Orientation="Horizontal" Margin="{StaticResource PlayAch.Thickness.Bottom.Xs}">
-                                <TextBlock Text="{DynamicResource LOCPlayAch_Settings_RarityGlowStyle}"
-                                           VerticalAlignment="Center"/>
-                                <ComboBox SelectedValue="{Binding Persisted.RarityGlowStyle, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
-                                          SelectedValuePath="Tag"
-                                          MinWidth="140"
-                                          Margin="{StaticResource PlayAch.Thickness.Left.Sm}">
-                                    <ComboBoxItem Content="{DynamicResource LOCPlayAch_Settings_RarityGlowStyle_Soft}" Tag="{x:Static settings:RarityGlowStyle.Soft}"/>
-                                    <ComboBoxItem Content="{DynamicResource LOCPlayAch_Settings_RarityGlowStyle_Rays}" Tag="{x:Static settings:RarityGlowStyle.Rays}"/>
-                                </ComboBox>
+                                <TextBlock Text="{DynamicResource LOCPlayAch_Settings_SoftGlowTiers}"
+                                           Foreground="{DynamicResource PlayAch.Brush.Text}"
+                                           VerticalAlignment="Center"
+                                           Margin="0,0,8,0"/>
+                                <Button x:Name="SoftGlowTiersButton"
+                                        Style="{StaticResource AchievementSelectorButtonStyle}"
+                                        Content="{Binding SoftGlowTiersText, ElementName=DisplayGeneralSectionRoot}"
+                                        Click="SoftGlowTiersButton_Click"
+                                        MinWidth="140"
+                                        Height="{StaticResource PlayAch.Size.Control.Height}"
+                                        HorizontalAlignment="Left">
+                                    <Button.ContextMenu>
+                                        <ContextMenu Style="{StaticResource AchievementSelectorContextMenuStyle}"
+                                                     ItemContainerStyle="{StaticResource AchievementMultiSelectMenuItemStyle}"/>
+                                    </Button.ContextMenu>
+                                </Button>
                             </StackPanel>
-                            <TextBlock Text="{DynamicResource LOCPlayAch_Settings_RarityGlowStyle_Help}"
+                            <StackPanel Orientation="Horizontal" Margin="{StaticResource PlayAch.Thickness.Bottom.Xs}">
+                                <TextBlock Text="{DynamicResource LOCPlayAch_Settings_RayGlowTiers}"
+                                           Foreground="{DynamicResource PlayAch.Brush.Text}"
+                                           VerticalAlignment="Center"
+                                           Margin="0,0,8,0"/>
+                                <Button x:Name="RayGlowTiersButton"
+                                        Style="{StaticResource AchievementSelectorButtonStyle}"
+                                        Content="{Binding RayGlowTiersText, ElementName=DisplayGeneralSectionRoot}"
+                                        Click="RayGlowTiersButton_Click"
+                                        MinWidth="140"
+                                        Height="{StaticResource PlayAch.Size.Control.Height}"
+                                        HorizontalAlignment="Left">
+                                    <Button.ContextMenu>
+                                        <ContextMenu Style="{StaticResource AchievementSelectorContextMenuStyle}"
+                                                     ItemContainerStyle="{StaticResource AchievementMultiSelectMenuItemStyle}"/>
+                                    </Button.ContextMenu>
+                                </Button>
+                            </StackPanel>
+                            <TextBlock Text="{DynamicResource LOCPlayAch_Settings_GlowTiers_Help}"
                                        Style="{StaticResource MutedTextStyle}"
                                        Margin="0,0,0,10"
+                                       TextWrapping="Wrap"/>
+                            <CheckBox Content="{DynamicResource LOCPlayAch_Settings_ShowHardcoreBorder}"
+                                      IsChecked="{Binding Persisted.ShowHardcoreBorder}"
+                                      Margin="{StaticResource PlayAch.Thickness.Bottom.Xs}"/>
+                            <TextBlock Text="{DynamicResource LOCPlayAch_Settings_ShowHardcoreBorder_Help}"
+                                       Style="{StaticResource MutedTextStyle}"
+                                       Margin="24,0,0,10"
                                        TextWrapping="Wrap"/>
                             <CheckBox Content="{DynamicResource LOCPlayAch_Settings_AnimateRarityGlows}"
                                       IsChecked="{Binding Persisted.AnimateRarityGlows}"

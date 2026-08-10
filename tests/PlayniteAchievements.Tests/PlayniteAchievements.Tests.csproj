@@ -311,7 +311,6 @@
     <Compile Include="..\..\source\Models\Settings\RecordingEnums.cs" Link="Source\Models\Settings\RecordingEnums.cs" />
     <Compile Include="..\..\source\Models\Settings\ScreenshotResolution.cs" Link="Source\Models\Settings\ScreenshotResolution.cs" />
     <Compile Include="..\..\source\Models\Settings\RarityColorSettings.cs" Link="Source\Models\Settings\RarityColorSettings.cs" />
-    <Compile Include="..\..\source\Models\Settings\RarityGlowStyle.cs" Link="Source\Models\Settings\RarityGlowStyle.cs" />
     <Compile Include="..\..\source\Models\Settings\ResourceOverrideDescriptor.cs" Link="Source\Models\Settings\ResourceOverrideDescriptor.cs" />
     <Compile Include="..\..\source\Models\Settings\ResourceOverrideMode.cs" Link="Source\Models\Settings\ResourceOverrideMode.cs" />
     <Compile Include="..\..\source\Models\Settings\ResourceOverrideSetting.cs" Link="Source\Models\Settings\ResourceOverrideSetting.cs" />

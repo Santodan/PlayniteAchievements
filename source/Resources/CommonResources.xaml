@@ -23,6 +23,7 @@
     <converters:PercentToRarityGlowConverter x:Key="PercentToRarityGlow"/>
     <converters:PercentToRarityGlowConverter x:Key="PercentToRarityGlowConverter"/>
     <converters:PercentToCompactRarityGlowConverter x:Key="CompactPercentToRarityGlow"/>
+    <converters:RarityGlowForTiersConverter x:Key="RarityGlowForTiers"/>
     <converters:RarityToShineBrushConverter x:Key="RarityToShineBrush"/>
     <converters:PercentToRarityBadgeConverter x:Key="PercentToRarityBadgeConverter"/>
     <converters:LockedIconSelectorConverter x:Key="LockedIconSelectorConverter"/>

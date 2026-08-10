@@ -144,7 +144,8 @@
                                  because game art is already large and this cell's overflow draws
                                  over neighboring rows. -->
                             <controls:RarityRayBurst UseCompletedColors="True"
-                                                     BurstScale="1.45">
+                                                     BurstScale="1.45"
+                                                     ShowRim="False">
                                 <controls:RarityRayBurst.Style>
                                     <Style TargetType="controls:RarityRayBurst">
                                         <Setter Property="Visibility" Value="Collapsed"/>
@@ -153,7 +154,6 @@
                                                 <MultiDataTrigger.Conditions>
                                                     <Condition Binding="{Binding IsCompleted}" Value="True"/>
                                                     <Condition Binding="{Binding ShowCompletionGlow, RelativeSource={RelativeSource AncestorType=controls:GameSummariesGridControl}}" Value="True"/>
-                                                    <Condition Binding="{Binding RarityGlowStyle, RelativeSource={RelativeSource AncestorType=controls:GameSummariesGridControl}}" Value="Rays"/>
                                                 </MultiDataTrigger.Conditions>
                                                 <Setter Property="Visibility" Value="Visible"/>
                                             </MultiDataTrigger>
@@ -161,11 +161,18 @@
                                                 <MultiDataTrigger.Conditions>
                                                     <Condition Binding="{Binding IsCompleted}" Value="True"/>
                                                     <Condition Binding="{Binding ShowCompletionGlow, RelativeSource={RelativeSource AncestorType=controls:GameSummariesGridControl}}" Value="True"/>
-                                                    <Condition Binding="{Binding RarityGlowStyle, RelativeSource={RelativeSource AncestorType=controls:GameSummariesGridControl}}" Value="Rays"/>
                                                     <Condition Binding="{Binding AnimateRarityGlows, RelativeSource={RelativeSource AncestorType=controls:GameSummariesGridControl}}" Value="True"/>
                                                 </MultiDataTrigger.Conditions>
                                                 <Setter Property="IsActive" Value="True"/>
                                             </MultiDataTrigger>
+                                            <!-- Completed art has no rarity tier of its own, so its
+                                                 corona simply follows whether the rays are switched on
+                                                 for any tier at all. Last, so it overrides the
+                                                 triggers above. -->
+                                            <DataTrigger Binding="{Binding RayGlowTiers, RelativeSource={RelativeSource AncestorType=controls:GameSummariesGridControl}}" Value="None">
+                                                <Setter Property="Visibility" Value="Collapsed"/>
+                                                <Setter Property="IsActive" Value="False"/>
+                                            </DataTrigger>
                                         </Style.Triggers>
                                     </Style>
                                 </controls:RarityRayBurst.Style>

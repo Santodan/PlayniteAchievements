@@ -74,16 +74,28 @@ namespace PlayniteAchievements.Views.ThemeIntegration.Legacy.Controls
             set => SetValue(AnimateRarityGlowsProperty, value);
         }
 
-        public static readonly DependencyProperty RarityGlowStyleProperty = DependencyProperty.Register(
-            nameof(RarityGlowStyle),
-            typeof(RarityGlowStyle),
+        public static readonly DependencyProperty SoftGlowTiersProperty = DependencyProperty.Register(
+            nameof(SoftGlowTiers),
+            typeof(RaritySelection),
             typeof(AchievementImage),
-            new FrameworkPropertyMetadata(RarityGlowStyle.Soft)
+            new FrameworkPropertyMetadata(RaritySelection.All)
         );
-        public RarityGlowStyle RarityGlowStyle
+        public RaritySelection SoftGlowTiers
         {
-            get => (RarityGlowStyle)GetValue(RarityGlowStyleProperty);
-            set => SetValue(RarityGlowStyleProperty, value);
+            get => (RaritySelection)GetValue(SoftGlowTiersProperty);
+            set => SetValue(SoftGlowTiersProperty, value);
+        }
+
+        public static readonly DependencyProperty ShowHardcoreBorderProperty = DependencyProperty.Register(
+            nameof(ShowHardcoreBorder),
+            typeof(bool),
+            typeof(AchievementImage),
+            new FrameworkPropertyMetadata(true)
+        );
+        public bool ShowHardcoreBorder
+        {
+            get => (bool)GetValue(ShowHardcoreBorderProperty);
+            set => SetValue(ShowHardcoreBorderProperty, value);
         }
 
         public static readonly DependencyProperty IsHardcoreProperty = DependencyProperty.Register(
@@ -273,7 +285,8 @@ namespace PlayniteAchievements.Views.ThemeIntegration.Legacy.Controls
         {
             InitializeComponent();
             RarityAppearanceHelper.BindAnimateRarityGlows(this, AnimateRarityGlowsProperty);
-            RarityAppearanceHelper.BindRarityGlowStyle(this, RarityGlowStyleProperty);
+            RarityAppearanceHelper.BindSoftGlowTiers(this, SoftGlowTiersProperty);
+            RarityAppearanceHelper.BindShowHardcoreBorder(this, ShowHardcoreBorderProperty);
             NewProperty();
             UpdatePercentUi();
         }

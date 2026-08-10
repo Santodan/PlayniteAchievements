@@ -8,6 +8,7 @@ using PlayniteAchievements.Models.Achievements;
 using PlayniteAchievements.Models.Settings;
 using PlayniteAchievements.Models.ThemeIntegration;
 using PlayniteAchievements.Views.Helpers;
+using PlayniteAchievements.Views.Settings.Controls;
 
 namespace PlayniteAchievements.Views.Settings.Display
 {
@@ -44,9 +45,69 @@ namespace PlayniteAchievements.Views.Settings.Display
             _persistedSubscription = new PersistedSettingsSubscription(
                 _settings,
                 OnPersistedPropertyChanged,
-                RefreshVisibilityPreview);
+                OnSettingsReloaded);
 
             RefreshVisibilityPreview();
+            UpdateGlowTierTexts();
+        }
+
+        /// <summary>Summary text for the soft-glow tier selector button.</summary>
+        public static readonly DependencyProperty SoftGlowTiersTextProperty =
+            DependencyProperty.Register(nameof(SoftGlowTiersText), typeof(string),
+                typeof(DisplayGeneralSection), new PropertyMetadata(string.Empty));
+
+        public string SoftGlowTiersText
+        {
+            get => (string)GetValue(SoftGlowTiersTextProperty);
+            set => SetValue(SoftGlowTiersTextProperty, value);
+        }
+
+        /// <summary>Summary text for the ray tier selector button.</summary>
+        public static readonly DependencyProperty RayGlowTiersTextProperty =
+            DependencyProperty.Register(nameof(RayGlowTiersText), typeof(string),
+                typeof(DisplayGeneralSection), new PropertyMetadata(string.Empty));
+
+        public string RayGlowTiersText
+        {
+            get => (string)GetValue(RayGlowTiersTextProperty);
+            set => SetValue(RayGlowTiersTextProperty, value);
+        }
+
+        private void SoftGlowTiersButton_Click(object sender, RoutedEventArgs e)
+        {
+            RaritySelectorMenu.Open(
+                sender as Button,
+                () => _settings?.Persisted?.RarityGlowSoftTiers ?? RaritySelectorMenu.GlowTiers,
+                value => { if (_settings?.Persisted != null) { _settings.Persisted.RarityGlowSoftTiers = value; } },
+                UpdateGlowTierTexts,
+                includeCommon: false);
+        }
+
+        private void RayGlowTiersButton_Click(object sender, RoutedEventArgs e)
+        {
+            RaritySelectorMenu.Open(
+                sender as Button,
+                () => _settings?.Persisted?.RarityGlowRayTiers ?? RaritySelection.None,
+                value => { if (_settings?.Persisted != null) { _settings.Persisted.RarityGlowRayTiers = value; } },
+                UpdateGlowTierTexts,
+                includeCommon: false);
+        }
+
+        private void UpdateGlowTierTexts()
+        {
+            var persisted = _settings?.Persisted;
+            SoftGlowTiersText = RaritySelectorMenu.Format(
+                persisted?.RarityGlowSoftTiers ?? RaritySelectorMenu.GlowTiers,
+                includeCommon: false);
+            RayGlowTiersText = RaritySelectorMenu.Format(
+                persisted?.RarityGlowRayTiers ?? RaritySelection.None,
+                includeCommon: false);
+        }
+
+        private void OnSettingsReloaded()
+        {
+            RefreshVisibilityPreview();
+            UpdateGlowTierTexts();
         }
 
         /// <summary>

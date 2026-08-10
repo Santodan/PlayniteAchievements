@@ -138,7 +138,9 @@ namespace PlayniteAchievements.Models.Settings
         private bool _modernCompactListShowRarityGlow = true;
         private bool _modernUnlockedListShowRarityGlow = true;
         private bool _animateRarityGlows = true;
-        private RarityGlowStyle _rarityGlowStyle = RarityGlowStyle.Soft;
+        private RaritySelection _rarityGlowSoftTiers = RaritySelection.All;
+        private RaritySelection _rarityGlowRayTiers = RaritySelection.None;
+        private bool _showHardcoreBorder = true;
         private double _rarityGlowPulseMinOpacity = 0.6;
         private double _rarityGlowPulseMaxOpacity = 1.0;
         private double _rarityGlowPulseSpeed = 0.5;
@@ -1607,8 +1609,8 @@ namespace PlayniteAchievements.Models.Settings
 
         /// <summary>
         /// When true, rarity glows gently fade in and out (a subtle opacity pulse) wherever they
-        /// appear, and the <see cref="RarityGlowStyle.Rays"/> sunburst also turns. When false, glows
-        /// render at static full opacity and the sunburst is held still. Applies globally.
+        /// appear, and the rotating sunburst also turns. When false, glows render at static full
+        /// opacity and the sunburst is held still. Applies globally.
         /// </summary>
         public bool AnimateRarityGlows
         {
@@ -1617,13 +1619,36 @@ namespace PlayniteAchievements.Models.Settings
         }
 
         /// <summary>
-        /// Which look the rarity and completion glows take wherever they appear: the original soft
-        /// halo or a rotating sunburst. Applies globally.
+        /// Which rarity tiers get the soft halo around unlocked icons. Membership is exact, so a tier
+        /// with its bit clear shows no halo at all. Defaults to every tier, which is the original
+        /// behavior.
         /// </summary>
-        public RarityGlowStyle RarityGlowStyle
+        public RaritySelection RarityGlowSoftTiers
         {
-            get => _rarityGlowStyle;
-            set => SetValue(ref _rarityGlowStyle, value);
+            get => _rarityGlowSoftTiers;
+            set => SetValue(ref _rarityGlowSoftTiers, value);
+        }
+
+        /// <summary>
+        /// Which rarity tiers additionally get the rotating sunburst behind that halo. Independent of
+        /// <see cref="RarityGlowSoftTiers"/>, so a tier can have either effect, both, or neither.
+        /// Defaults to none, so the rays are opt-in.
+        /// </summary>
+        public RaritySelection RarityGlowRayTiers
+        {
+            get => _rarityGlowRayTiers;
+            set => SetValue(ref _rarityGlowRayTiers, value);
+        }
+
+        /// <summary>
+        /// When true, Hardcore RetroAchievements unlocks get a crisp metallic border in place of any
+        /// glow. When false they are treated like any other unlock, so they take whichever glow their
+        /// rarity tier is selected for. On by default.
+        /// </summary>
+        public bool ShowHardcoreBorder
+        {
+            get => _showHardcoreBorder;
+            set => SetValue(ref _showHardcoreBorder, value);
         }
 
         /// <summary>
@@ -2690,7 +2715,9 @@ namespace PlayniteAchievements.Models.Settings
                 ModernCompactListShowRarityGlow = this.ModernCompactListShowRarityGlow,
                 ModernUnlockedListShowRarityGlow = this.ModernUnlockedListShowRarityGlow,
                 AnimateRarityGlows = this.AnimateRarityGlows,
-                RarityGlowStyle = this.RarityGlowStyle,
+                RarityGlowSoftTiers = this.RarityGlowSoftTiers,
+                RarityGlowRayTiers = this.RarityGlowRayTiers,
+                ShowHardcoreBorder = this.ShowHardcoreBorder,
                 RarityGlowPulseMinOpacity = this.RarityGlowPulseMinOpacity,
                 RarityGlowPulseMaxOpacity = this.RarityGlowPulseMaxOpacity,
                 RarityGlowPulseSpeed = this.RarityGlowPulseSpeed,
@@ -2845,7 +2872,9 @@ namespace PlayniteAchievements.Models.Settings
             ModernCompactListShowRarityGlow = defaults.ModernCompactListShowRarityGlow;
             ModernUnlockedListShowRarityGlow = defaults.ModernUnlockedListShowRarityGlow;
             AnimateRarityGlows = defaults.AnimateRarityGlows;
-            RarityGlowStyle = defaults.RarityGlowStyle;
+            RarityGlowSoftTiers = defaults.RarityGlowSoftTiers;
+            RarityGlowRayTiers = defaults.RarityGlowRayTiers;
+            ShowHardcoreBorder = defaults.ShowHardcoreBorder;
             RarityGlowPulseMinOpacity = defaults.RarityGlowPulseMinOpacity;
             RarityGlowPulseMaxOpacity = defaults.RarityGlowPulseMaxOpacity;
             RarityGlowPulseSpeed = defaults.RarityGlowPulseSpeed;

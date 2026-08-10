@@ -12,6 +12,8 @@ using PlayniteAchievements.Models.Settings;
 using PlayniteAchievements.Services.UI;
 using PlayniteAchievements.ViewModels;
 
+using PlayniteAchievements.Views.Settings.Controls;
+
 namespace PlayniteAchievements.Views.Settings.General
 {
     /// <summary>
@@ -28,16 +30,6 @@ namespace PlayniteAchievements.Views.Settings.General
         private readonly PersistedSettingsSubscription _persistedSubscription;
         private readonly ProviderNotificationSettingsViewModel _providerOverridesViewModel;
         private readonly ILogger _logger;
-
-        // Rarity tiers in ascending order, paired with their display-label keys. Drives both the
-        // multi-select menus and the summary text.
-        private static readonly (RarityTier Tier, string LabelKey)[] RarityOptions =
-        {
-            (RarityTier.Common, "LOCPlayAch_Rarity_Common"),
-            (RarityTier.Uncommon, "LOCPlayAch_Rarity_Uncommon"),
-            (RarityTier.Rare, "LOCPlayAch_Rarity_Rare"),
-            (RarityTier.UltraRare, "LOCPlayAch_Rarity_UltraRare")
-        };
 
         public NotificationsSection()
         {
@@ -191,78 +183,9 @@ namespace PlayniteAchievements.Views.Settings.General
                 value => { if (_settings?.Persisted != null) { _settings.Persisted.UnlockRecordingRarities = value; } });
         }
 
-        /// <summary>
-        /// Builds and opens a checkable rarity menu under <paramref name="button"/>. Each toggle
-        /// reads the current selection fresh (the menu stays open across clicks), flips the tier's
-        /// bit, writes it back, and refreshes the summary text.
-        /// </summary>
         private void OpenRaritySelector(Button button, Func<RaritySelection> get, Action<RaritySelection> set)
         {
-            var menu = button?.ContextMenu;
-            if (menu == null || get == null || set == null)
-            {
-                return;
-            }
-
-            menu.Items.Clear();
-            foreach (var option in RarityOptions)
-            {
-                var flag = option.Tier.ToFlag();
-                var item = CreateMenuItem(
-                    button,
-                    L(option.LabelKey),
-                    get().Contains(option.Tier),
-                    isChecked =>
-                    {
-                        var current = get();
-                        set(isChecked ? current | flag : current & ~flag);
-                        UpdateRarityTexts();
-                    });
-                menu.Items.Add(item);
-            }
-
-            OpenContextMenu(button, menu);
-        }
-
-        private static MenuItem CreateMenuItem(Button button, string header, bool isChecked, Action<bool> onToggle)
-        {
-            var item = new MenuItem
-            {
-                Header = header,
-                IsCheckable = true,
-                StaysOpenOnClick = true,
-                IsChecked = isChecked
-            };
-
-            if (button?.TryFindResource("AchievementMultiSelectMenuItemStyle") is Style itemStyle)
-            {
-                item.Style = itemStyle;
-            }
-
-            item.Click += (_, __) => onToggle?.Invoke(item.IsChecked);
-            return item;
-        }
-
-        private static void OpenContextMenu(Button button, ContextMenu menu)
-        {
-            if (button == null || menu == null || menu.Items.Count == 0)
-            {
-                return;
-            }
-
-            RoutedEventHandler onClosed = null;
-            onClosed = (_, __) =>
-            {
-                menu.Closed -= onClosed;
-                button.ReleaseMouseCapture();
-            };
-
-            menu.Closed += onClosed;
-            menu.PlacementTarget = button;
-            menu.Placement = PlacementMode.Bottom;
-            menu.HorizontalOffset = 0;
-            menu.VerticalOffset = 0;
-            menu.IsOpen = true;
+            RaritySelectorMenu.Open(button, get, set, UpdateRarityTexts);
         }
 
         private void UpdateRarityTexts()
@@ -276,26 +199,7 @@ namespace PlayniteAchievements.Views.Settings.General
 
         private static string FormatRarities(RaritySelection selection)
         {
-            if (selection == RaritySelection.All)
-            {
-                return L("LOCPlayAch_Common_All");
-            }
-
-            if (selection == RaritySelection.None)
-            {
-                return L("LOCPlayAch_Common_None");
-            }
-
-            var labels = new List<string>();
-            foreach (var option in RarityOptions)
-            {
-                if (selection.Contains(option.Tier))
-                {
-                    labels.Add(L(option.LabelKey));
-                }
-            }
-
-            return labels.Count > 0 ? string.Join(", ", labels) : L("LOCPlayAch_Common_None");
+            return RaritySelectorMenu.Format(selection);
         }
 
         private void ScreenshotDirectory_Browse_Click(object sender, RoutedEventArgs e)

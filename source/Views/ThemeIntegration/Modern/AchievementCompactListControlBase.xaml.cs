@@ -86,20 +86,34 @@ namespace PlayniteAchievements.Views.ThemeIntegration.Modern
         }
 
         /// <summary>
-        /// Identifies the RarityGlowStyle dependency property. Selects the soft halo or the rotating
-        /// sunburst for this list's glows. Self-bound to the global setting in the constructor.
+        /// Identifies the SoftGlowTiers dependency property: which rarity tiers show the soft halo in
+        /// this list. Self-bound to the global setting in the constructor.
         /// </summary>
-        public static readonly DependencyProperty RarityGlowStyleProperty =
-            DependencyProperty.Register(nameof(RarityGlowStyle), typeof(RarityGlowStyle),
-                typeof(AchievementCompactListControlBase), new PropertyMetadata(RarityGlowStyle.Soft));
+        public static readonly DependencyProperty SoftGlowTiersProperty =
+            DependencyProperty.Register(nameof(SoftGlowTiers), typeof(RaritySelection),
+                typeof(AchievementCompactListControlBase), new PropertyMetadata(RaritySelection.All));
 
         /// <summary>
-        /// Gets or sets which look this list's rarity glows take.
+        /// Gets or sets which rarity tiers show the soft halo in this list.
         /// </summary>
-        public RarityGlowStyle RarityGlowStyle
+        public RaritySelection SoftGlowTiers
         {
-            get => (RarityGlowStyle)GetValue(RarityGlowStyleProperty);
-            set => SetValue(RarityGlowStyleProperty, value);
+            get => (RaritySelection)GetValue(SoftGlowTiersProperty);
+            set => SetValue(SoftGlowTiersProperty, value);
+        }
+
+        /// <summary>
+        /// Whether Hardcore unlocks take the crisp metallic border in place of a glow. Self-bound to
+        /// the global setting.
+        /// </summary>
+        public static readonly DependencyProperty ShowHardcoreBorderProperty =
+            DependencyProperty.Register(nameof(ShowHardcoreBorder), typeof(bool),
+                typeof(AchievementCompactListControlBase), new PropertyMetadata(true));
+
+        public bool ShowHardcoreBorder
+        {
+            get => (bool)GetValue(ShowHardcoreBorderProperty);
+            set => SetValue(ShowHardcoreBorderProperty, value);
         }
 
         #endregion
@@ -202,7 +216,8 @@ namespace PlayniteAchievements.Views.ThemeIntegration.Modern
         {
             DataContext = this;
             RarityAppearanceHelper.BindAnimateRarityGlows(this, AnimateRarityGlowsProperty);
-            RarityAppearanceHelper.BindRarityGlowStyle(this, RarityGlowStyleProperty);
+            RarityAppearanceHelper.BindSoftGlowTiers(this, SoftGlowTiersProperty);
+            RarityAppearanceHelper.BindShowHardcoreBorder(this, ShowHardcoreBorderProperty);
             Loaded += OnLoaded;
             Unloaded += OnUnloaded;
         }

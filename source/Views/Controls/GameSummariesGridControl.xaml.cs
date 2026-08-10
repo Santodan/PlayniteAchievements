@@ -335,17 +335,22 @@ namespace PlayniteAchievements.Views.Controls
         /// Selects the soft halo or the rotating sunburst for the completion glow on completed game
         /// art. Self-bound to the global setting in the constructor.
         /// </summary>
-        public static readonly DependencyProperty RarityGlowStyleProperty =
+        /// <summary>
+        /// Which rarity tiers have the rotating rays enabled. Completed art carries no rarity of its
+        /// own, so its corona simply follows whether the rays are switched on for anything at all.
+        /// Self-bound to the global setting in the constructor.
+        /// </summary>
+        public static readonly DependencyProperty RayGlowTiersProperty =
             DependencyProperty.Register(
-                nameof(RarityGlowStyle),
-                typeof(RarityGlowStyle),
+                nameof(RayGlowTiers),
+                typeof(RaritySelection),
                 typeof(GameSummariesGridControl),
-                new PropertyMetadata(RarityGlowStyle.Soft));
+                new PropertyMetadata(RaritySelection.None));
 
-        public RarityGlowStyle RarityGlowStyle
+        public RaritySelection RayGlowTiers
         {
-            get => (RarityGlowStyle)GetValue(RarityGlowStyleProperty);
-            set => SetValue(RarityGlowStyleProperty, value);
+            get => (RaritySelection)GetValue(RayGlowTiersProperty);
+            set => SetValue(RayGlowTiersProperty, value);
         }
 
         public static readonly DependencyProperty ColumnSettingsKeyProperty =
@@ -531,7 +536,7 @@ namespace PlayniteAchievements.Views.Controls
         {
             InitializeComponent();
             RarityAppearanceHelper.BindAnimateRarityGlows(this, AnimateRarityGlowsProperty);
-            RarityAppearanceHelper.BindRarityGlowStyle(this, RarityGlowStyleProperty);
+            RarityAppearanceHelper.BindRayGlowTiers(this, RayGlowTiersProperty);
             UpdateColumnHeadersVisibility();
         }
 
