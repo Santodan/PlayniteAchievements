@@ -35,26 +35,85 @@ namespace PlayniteAchievements.Tests.Views
         }
 
         [TestMethod]
-        public void BuildSpines_AtPhasePlusOneOverN_IsThePreviousFrameRotatedByOneArrow()
+        public void BuildSpines_AtLapsPlusOneOverN_MovesEachBaseOntoItsNeighbour()
         {
+            // Positions are pure conveyor, so a step of one arrow-spacing still lands each base exactly
+            // where its neighbour was. Heights deliberately do not follow — see the drift test below.
             var mapped = Square();
 
-            foreach (var phase in new[] { 0.0, 0.017, 0.33, 0.71, 0.999 })
+            foreach (var laps in new[] { 0.0, 0.017, 0.33, 0.71, 0.999, 4.25 })
             {
                 var before = new RayArrowLayout.RayArrowSpine[Count];
                 var after = new RayArrowLayout.RayArrowSpine[Count];
-                RayArrowLayout.BuildSpines(mapped, phase, 1.9, Count, before);
-                RayArrowLayout.BuildSpines(mapped, phase + (1.0 / Count), 1.9, Count, after);
+                RayArrowLayout.BuildSpines(mapped, laps, 1.9, Count, before);
+                RayArrowLayout.BuildSpines(mapped, laps + (1.0 / Count), 1.9, Count, after);
 
                 for (var i = 0; i < Count; i++)
                 {
                     var neighbour = before[(i + 1) % Count];
                     Assert.AreEqual(neighbour.Base.X, after[i].Base.X, 1e-9);
                     Assert.AreEqual(neighbour.Base.Y, after[i].Base.Y, 1e-9);
-                    Assert.AreEqual(neighbour.Height, after[i].Height, 1e-9);
-                    Assert.AreEqual(neighbour.HalfWidth, after[i].HalfWidth, 1e-9);
                 }
             }
+        }
+
+        [TestMethod]
+        public void BuildSpines_WaveIsNotAnchoredToTheArtwork()
+        {
+            // Held still against the artwork, the burst's outline became a fixed property of each icon
+            // and the same part of every icon always carried the tall arrows. The wave travels at its
+            // own rate instead, so a base returning to the same place finds a different height.
+            var mapped = Square();
+            var first = new RayArrowLayout.RayArrowSpine[Count];
+            var later = new RayArrowLayout.RayArrowSpine[Count];
+
+            RayArrowLayout.BuildSpines(mapped, 0.0, 1.9, Count, first);
+            RayArrowLayout.BuildSpines(mapped, 1.0, 1.9, Count, later);
+
+            var moved = 0;
+            for (var i = 0; i < Count; i++)
+            {
+                // A whole lap: every base is back where it started.
+                Assert.AreEqual(first[i].Base.X, later[i].Base.X, 1e-9);
+                Assert.AreEqual(first[i].Base.Y, later[i].Base.Y, 1e-9);
+
+                if (Math.Abs(first[i].Height - later[i].Height) > 1e-6)
+                {
+                    moved++;
+                }
+            }
+
+            Assert.IsTrue(moved > Count / 2, $"only {moved} of {Count} arrows changed height over a lap");
+        }
+
+        [TestMethod]
+        public void WaveHeight01_IsNotMirrorSymmetric()
+        {
+            // A cosine with no phase offset is symmetric about the start of the loop, and the loop starts
+            // at a fixed place on the artwork — so a near-symmetric envelope put a mirror line through
+            // the same part of every icon, which read as deliberate and wrong.
+            var worstSymmetry = double.MaxValue;
+
+            for (var c = 0; c < 360; c++)
+            {
+                var center = c / 360.0;
+                var largestDifference = 0.0;
+
+                for (var d = 1; d <= 60; d++)
+                {
+                    var offset = d / 240.0;
+                    var difference = Math.Abs(
+                        RayArrowLayout.WaveHeight01(center + offset)
+                        - RayArrowLayout.WaveHeight01(center - offset));
+                    largestDifference = Math.Max(largestDifference, difference);
+                }
+
+                worstSymmetry = Math.Min(worstSymmetry, largestDifference);
+            }
+
+            Assert.IsTrue(
+                worstSymmetry > 0.18,
+                $"the envelope mirrors about some point to within {worstSymmetry:N3}");
         }
 
         [TestMethod]
