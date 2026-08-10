@@ -250,53 +250,33 @@ namespace PlayniteAchievements.Views.Controls.RayGlow
         /// are to sit at their Nyquist frequency. Still 0..1: the two parts are weighted to sum to the
         /// whole, so nothing has to be clamped.
         /// </summary>
-        public static double ArrowHeight01(double u, int arrowCount)
+        /// <param name="waveU">Where the arrow sits relative to the travelling wave.</param>
+        /// <param name="arrowIndex">
+        /// Which arrow this is. The alternating part is keyed to this rather than to a position, so an
+        /// arrow keeps its place in the zigzag for as long as it exists: the tall ones stay tall as they
+        /// travel instead of trading places with their neighbours every time the wave sweeps past.
+        /// </param>
+        public static double ArrowHeight01(double waveU, int arrowIndex, int arrowCount)
         {
-            var shaped = ((WaveHeight01(u) * 2.0) - 1.0) * (1.0 - AlternationAmplitude);
+            var shaped = ((WaveHeight01(waveU) * 2.0) - 1.0) * (1.0 - AlternationAmplitude);
             var alternating = AlternationAmplitude
-                * Math.Cos(TwoPi * AlternationLobes(arrowCount) * u);
+                * Math.Cos(TwoPi * AlternationLobes(arrowCount) * arrowIndex / (double)arrowCount);
             return 0.5 + (0.5 * (shaped + alternating));
         }
 
         /// <summary>
-        /// Lobe count of the alternating component: the highest that still lands every arrow on its own
-        /// phase, which is the fastest the ring can zigzag without aliasing.
+        /// Lobe count of the alternating component, as a fraction of a lap.
         ///
-        /// Exactly half the arrow count is the tempting answer and the wrong one. At that frequency
-        /// neighbours sit exactly out of phase, but every arrow also collapses onto the same pair of
-        /// phases, so the whole ring flattens and inverts together as the wave passes rather than the
-        /// zigzag travelling round it. Backing off to the highest coprime frequency below the sampling
-        /// limit keeps neighbours nearly opposite while giving each arrow a distinct phase, so the
-        /// pattern precesses instead of strobing.
+        /// Exactly half the arrow count, which for an even count works out as a clean plus-one
+        /// minus-one between neighbours. That frequency would alias if the component were keyed to a
+        /// position — every arrow would collapse onto the same two phases and the ring would flatten
+        /// and invert as a whole whenever the wave swept past. Keyed to the arrow instead there is no
+        /// time in the expression at all, so there is nothing to alias against and the sharpest possible
+        /// zigzag is simply the best one.
         /// </summary>
         internal static int AlternationLobes(int arrowCount)
         {
-            if (arrowCount < 4)
-            {
-                return 1;
-            }
-
-            for (var lobes = (arrowCount - 1) / 2; lobes > 1; lobes--)
-            {
-                if (GreatestCommonDivisor(lobes, arrowCount) == 1)
-                {
-                    return lobes;
-                }
-            }
-
-            return 1;
-        }
-
-        private static int GreatestCommonDivisor(int a, int b)
-        {
-            while (b != 0)
-            {
-                var remainder = a % b;
-                a = b;
-                b = remainder;
-            }
-
-            return a;
+            return Math.Max(1, arrowCount / 2);
         }
 
         /// <summary>
@@ -336,7 +316,7 @@ namespace PlayniteAchievements.Views.Controls.RayGlow
             for (var i = 0; i < count; i++)
             {
                 var u = Frac((i / (double)count) + phase);
-                var wave = ArrowHeight01(u - envelope, count);
+                var wave = ArrowHeight01(u - envelope, i, count);
                 SampleAt(track, u, out var basePoint, out var normal);
 
                 buffer[i].Base = basePoint;
