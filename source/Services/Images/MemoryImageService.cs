@@ -60,6 +60,16 @@ namespace PlayniteAchievements.Services.Images
             _diskService.ImageFileOverwritten += OnImageFileOverwritten;
         }
 
+        /// <summary>
+        /// Raised for every eviction by uri segment, so caches derived from these bitmaps can drop the
+        /// same entries. Every invalidation signal in the plugin funnels through
+        /// <see cref="EvictByUriSegment"/>, so subscribing here covers all of them.
+        /// </summary>
+        public event Action<string> UriSegmentEvicted;
+
+        /// <summary>Raised when the whole memory cache is dropped.</summary>
+        public event Action CacheCleared;
+
         public void Dispose()
         {
             _diskService.ImageFileOverwritten -= OnImageFileOverwritten;
@@ -72,6 +82,8 @@ namespace PlayniteAchievements.Services.Images
                 _cache.Clear();
                 _lru.Clear();
             }
+
+            CacheCleared?.Invoke();
         }
 
         private void OnImageFileOverwritten(string path)
@@ -95,6 +107,7 @@ namespace PlayniteAchievements.Services.Images
             // The GIF animation frame cache is keyed by the token-stripped file path, so it
             // must drop its entries on the same invalidation signals as the bitmap cache.
             Views.Helpers.AnimatedImageHelper.EvictBySegment(segment);
+            UriSegmentEvicted?.Invoke(segment);
 
             lock (_cacheLock)
             {
@@ -150,7 +163,14 @@ namespace PlayniteAchievements.Services.Images
 
         private const string GrayPrefix = "gray:";
 
-        public Task<BitmapSource> GetAsync(string uri, int decodePixel, CancellationToken cancel)
+        /// <param name="cacheResult">
+        /// When false the decoded bitmap is returned but never enters the LRU. For callers that consume
+        /// a bitmap once and keep only something derived from it — silhouette analysis, say — which
+        /// would otherwise hold a cache slot that an on-screen icon needs. Inflight deduping still
+        /// applies, so a concurrent display request for the same key shares the work either way.
+        /// </param>
+        public Task<BitmapSource> GetAsync(
+            string uri, int decodePixel, CancellationToken cancel, bool cacheResult = true)
         {
             var requestedUri = (uri ?? string.Empty).Trim();
             if (string.IsNullOrWhiteSpace(requestedUri))
@@ -167,7 +187,7 @@ namespace PlayniteAchievements.Services.Images
             }
 
             // Dedupe work per key, but allow UI-level cancellation (we just won't apply the result).
-            var inflight = _inflight.GetOrAdd(key, _ => LoadAndCacheAsync(key, requestedUri, size));
+            var inflight = _inflight.GetOrAdd(key, _ => LoadAndCacheAsync(key, requestedUri, size, cacheResult));
             return inflight.WithCancellation(cancel);
         }
 
@@ -192,7 +212,8 @@ namespace PlayniteAchievements.Services.Images
             return false;
         }
 
-        private async Task<BitmapSource> LoadAndCacheAsync(string key, string requestedUri, int decodePixel)
+        private async Task<BitmapSource> LoadAndCacheAsync(
+            string key, string requestedUri, int decodePixel, bool cacheResult)
         {
             try
             {
@@ -231,7 +252,7 @@ namespace PlayniteAchievements.Services.Images
                     bmp.Freeze();
                 }
 
-                if (bmp != null)
+                if (bmp != null && cacheResult)
                 {
                     AddToCache(key, bmp);
                 }
