@@ -16,9 +16,9 @@ namespace PlayniteAchievements.Views.Controls
     /// is what made a populated grid lag: thirty visible rows meant thirty independent timelines, each
     /// ticking and dirtying its own layer. One animated transform shared by all of them is a single
     /// timeline for the whole application no matter how many bursts are on screen, and it has the side
-    /// benefit that every burst turns in step. Beyond that the layer follows the soft glow's pattern —
-    /// frozen art rasterized once into a bitmap cache — so a frame costs a matrix change on a cached
-    /// texture rather than re-rendering the art.
+    /// benefit that every burst turns in step. The art itself is frozen and kept to a handful of
+    /// geometries so redrawing it under the transform stays cheap; see the constructor for why this
+    /// layer must not be bitmap-cached even though the static glow layers are.
     /// </summary>
     public class RarityRayBurst : Panel
     {
@@ -47,10 +47,14 @@ namespace PlayniteAchievements.Views.Controls
                 Stretch = System.Windows.Media.Stretch.Uniform,
                 IsHitTestVisible = false,
                 RenderTransformOrigin = new Point(0.5, 0.5),
-                RenderTransform = transforms,
+                RenderTransform = transforms
 
-                // Rasterized once, then composited under the transform each frame.
-                CacheMode = new BitmapCache()
+                // Deliberately NOT bitmap-cached, and do not add it back. A cache is the right tool
+                // for the static glow layers, but this layer turns continuously, and WPF re-rasterizes
+                // a cache when the element's transform changes — so caching a rotating layer replaces
+                // cheap vector redraw with a full bitmap re-rasterization, per row, per frame. Adding
+                // it here is what made ray mode lag; the art is a handful of frozen geometries, which
+                // is cheaper to redraw than to cache.
             };
 
             Children.Add(_rays);
