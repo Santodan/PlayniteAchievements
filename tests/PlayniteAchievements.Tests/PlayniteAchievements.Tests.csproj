@@ -358,6 +358,8 @@
     <Compile Include="..\..\source\Models\Settings\ManualAchievementLink.cs" Link="Source\Models\Settings\ManualAchievementLink.cs" />
     <Compile Include="..\..\source\Models\Achievements\AchievementRarityResolver.cs" Link="Source\Models\Achievements\AchievementRarityResolver.cs" />
     <Compile Include="..\..\source\Models\Achievements\RarityAppearanceHelper.cs" Link="Source\Models\Achievements\RarityAppearanceHelper.cs" />
+    <Compile Include="..\..\source\Models\Achievements\RarityAppearanceHelper.RayGlow.cs" Link="Source\Models\Achievements\RarityAppearanceHelper.RayGlow.cs" />
+    <Compile Include="..\..\source\Views\Controls\RayGlow\RayArrowLayout.cs" Link="Source\Views\Controls\RayGlow\RayArrowLayout.cs" />
     <Compile Include="..\..\source\Models\Achievements\AchievementRarityStats.cs" Link="Source\Models\Achievements\AchievementRarityStats.cs" />
     <Compile Include="..\..\source\Models\Achievements\AchievementRarityStatsCombiner.cs" Link="Source\Models\Achievements\AchievementRarityStatsCombiner.cs" />
     <Compile Include="..\..\source\Models\Achievements\AchievementCompletionPercentCalculator.cs" Link="Source\Models\Achievements\AchievementCompletionPercentCalculator.cs" />
