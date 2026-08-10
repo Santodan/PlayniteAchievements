@@ -250,6 +250,9 @@ namespace PlayniteAchievements.Services.Recording
                 return;
             }
 
+            // The device counter is only meaningful within one run: carrying it across a restart would
+            // read as an enormous gap and pad the track with silence that never happened.
+            _nextDevicePosition = -1;
             _audioClient.Start();
             _capturing = true;
             _pollThread = new Thread(PollLoop) { IsBackground = true, Name = "PA-ProcLoopback" };
