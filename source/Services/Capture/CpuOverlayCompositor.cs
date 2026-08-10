@@ -99,6 +99,15 @@ namespace PlayniteAchievements.Services.Capture
             }
         }
 
+        /// <summary>
+        /// Null: a system-memory frame needs no copy, and this path has always passed them straight
+        /// through. The pooled-surface hazard the GPU path guards against is a video-memory one.
+        /// </summary>
+        public Sample CopyForOutput(Sample source)
+        {
+            return null;
+        }
+
         private static void FlipRows(byte[] buffer, int stride, int height)
         {
             var temp = new byte[stride];

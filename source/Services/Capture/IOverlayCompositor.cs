@@ -19,5 +19,17 @@ namespace PlayniteAchievements.Services.Capture
         /// clip. Sample time and duration are stamped by the caller.
         /// </summary>
         Sample Compose(Sample source, byte[] overlay, int overlayW, int overlayH, Rectangle destRect);
+
+        /// <summary>
+        /// Returns a copy of <paramref name="source"/> safe to hand to a sink that may hold it queued, or
+        /// null when the sample can be passed on as it is.
+        /// <para>
+        /// A decoded sample can be one of the reader's own pooled surfaces, which the reader is free to
+        /// reuse for a later frame. A sink writer queues many samples before the encoder drains them, so
+        /// passing such a surface straight through lets a later frame's pixels overwrite an earlier
+        /// frame's slot: the timeline stays right while the picture comes from the wrong moment.
+        /// </para>
+        /// </summary>
+        Sample CopyForOutput(Sample source);
     }
 }

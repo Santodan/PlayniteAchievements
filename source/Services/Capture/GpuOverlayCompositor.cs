@@ -24,6 +24,7 @@ namespace PlayniteAchievements.Services.Capture
 
         private readonly D3D11.Device _device;
         private readonly D3D11.Multithread _multithread;
+        private readonly D3D11.Query _copyDone;
         private readonly GpuOverlayBlitter _blitter;
         private readonly int _frameW;
         private readonly int _frameH;
@@ -42,11 +43,30 @@ namespace PlayniteAchievements.Services.Capture
             // whole sequence the decoder's own context work interleaves into the middle of it, and the
             // card lands on the wrong target or not at all.
             _multithread = device.QueryInterfaceOrNull<D3D11.Multithread>();
+
+            // Used to wait for each copy to actually run on the GPU before the frame it copied from is
+            // handed back; see Take.
+            _copyDone = new D3D11.Query(
+                device, new D3D11.QueryDescription { Type = D3D11.QueryType.Event, Flags = D3D11.QueryFlags.None });
         }
 
         public Sample Compose(Sample source, byte[] overlay, int overlayW, int overlayH, Rectangle destRect)
         {
-            if (_disposed || source == null || overlay == null || source.BufferCount < 1)
+            return overlay == null ? null : Take(source, overlay, overlayW, overlayH, destRect);
+        }
+
+        /// <summary>
+        /// Copies the frame into a texture of our own, with no card blended in. Every frame needs this,
+        /// not just the composited ones: see <see cref="IOverlayCompositor.CopyForOutput"/>.
+        /// </summary>
+        public Sample CopyForOutput(Sample source)
+        {
+            return Take(source, null, 0, 0, Rectangle.Empty);
+        }
+
+        private Sample Take(Sample source, byte[] overlay, int overlayW, int overlayH, Rectangle destRect)
+        {
+            if (_disposed || source == null || source.BufferCount < 1)
             {
                 return null;
             }
@@ -110,7 +130,17 @@ namespace PlayniteAchievements.Services.Capture
                 try
                 {
                     _device.ImmediateContext.CopySubresourceRegion(decoded, subresource, null, target, 0);
-                    _blitter.Blend(target, overlay, overlayW, overlayH, destRect);
+                    if (overlay != null)
+                    {
+                        _blitter.Blend(target, overlay, overlayW, overlayH, destRect);
+                    }
+
+                    // Wait for that to actually run. Queuing the copy and returning would hand the decoded
+                    // surface straight back to the reader, which reuses it for a later frame — and the GPU
+                    // would then execute our copy against whatever had since been written into it. The
+                    // timeline stayed correct while the picture came from the wrong moment, which is the
+                    // frame-order defect this pass had.
+                    WaitForGpu();
                 }
                 finally
                 {
@@ -133,6 +163,32 @@ namespace PlayniteAchievements.Services.Capture
             }
         }
 
+        /// <summary>
+        /// Blocks until the commands queued so far have completed on the GPU. Bounded so a driver that
+        /// never signals cannot wedge the export; a copy that has not landed by then produces one wrong
+        /// frame rather than a hang.
+        /// </summary>
+        private void WaitForGpu()
+        {
+            var context = _device.ImmediateContext;
+            context.End(_copyDone);
+            context.Flush();
+            for (var spin = 0; spin < GpuWaitSpins; spin++)
+            {
+                if (context.IsDataAvailable(_copyDone))
+                {
+                    return;
+                }
+
+                // Yield rather than burn the core: the copy is microseconds of GPU work behind however
+                // much the decoder and encoder already had queued.
+                System.Threading.Thread.Sleep(0);
+            }
+        }
+
+        // ~200k yields is far beyond any real completion time and still returns rather than hanging.
+        private const int GpuWaitSpins = 200_000;
+
         private static DXGIBuffer QueryDxgi(MediaBuffer buffer)
         {
             try
@@ -154,6 +210,7 @@ namespace PlayniteAchievements.Services.Capture
 
             _disposed = true;
             _blitter?.Dispose();
+            _copyDone?.Dispose();
             _multithread?.Dispose();
         }
     }

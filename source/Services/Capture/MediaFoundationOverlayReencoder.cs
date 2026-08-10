@@ -38,6 +38,18 @@ namespace PlayniteAchievements.Services.Capture
         // unthrottled write loop balloons the queue by gigabytes of native memory and the whole
         // export dies with E_OUTOFMEMORY. ~96 MB keeps a handful of frames in flight, plenty to
         // keep the encoder busy.
+        /// <summary>
+        /// Whether to composite on the GPU. Off: it is roughly twenty times faster per frame, but it
+        /// produces frames carrying the wrong picture. Verified by recording a window whose every frame
+        /// shows its own sequence number and reading those numbers back out of the finished clip: the
+        /// composited frames arrive with content from about 2.75 s earlier, so a clip flickers between
+        /// current frames without the card and stale ones with it. Copying out of the reader's surface and
+        /// waiting for the GPU each frame reduced it (twelve misordered frames to four) but did not
+        /// remove it, so the cause is still not understood. The CPU compositor has never shown this.
+        /// Flip this back on only when the harness reports zero order regressions on the composited clip.
+        /// </summary>
+        private const bool UseGpuCompositor = false;
+
         private const int MaxQueuedVideoBytes = 96 * 1024 * 1024;
         private const int QueuePollSleepMs = 10;
         private const int QueuePollMaxIterations = 1000; // give up pacing after ~10s and proceed
@@ -170,7 +182,7 @@ namespace PlayniteAchievements.Services.Capture
                                 var videoStream = AddVideoStream(sink, decodedType, frameW, frameH, fps, quality);
                                 var audioStream = TryAddAudio(
                                     sink, baseClipPath, decodeToPcm: chimePcm != null, out var audioReader);
-                                using (var gpuCompositor = device != null
+                                using (var gpuCompositor = device != null && UseGpuCompositor
                                     ? new GpuOverlayCompositor(device, frameW, frameH)
                                     : null)
                                 using (var cpuCompositor = new CpuOverlayCompositor(frameW, frameH, stride))
@@ -448,9 +460,17 @@ namespace PlayniteAchievements.Services.Capture
 
                     if (outSample == null)
                     {
-                        // Outside the toast interval (or no overlay): pass the frame through.
-                        outSample = sample;
-                        sample = null;
+                        // Outside the toast interval. Still take the frame out of the reader's own surface
+                        // where the compositor asks to: the sink queues far more samples than the reader
+                        // keeps surfaces, so handing one straight through lets a later frame overwrite
+                        // this one's pixels while it waits to be encoded.
+                        outSample = gpuCompositor?.CopyForOutput(sample);
+                        if (outSample == null)
+                        {
+                            outSample = sample;
+                            sample = null;
+                        }
+
                         counts.PassedThrough++;
                     }
                 }
