@@ -101,16 +101,17 @@ namespace PlayniteAchievements.ViewModels
         /// description's <see cref="ToastDescriptionLine.MaxTextHeight"/> clamp, and the overlay
         /// capture's layout-bounds viewbox all cut at. This reserves room for that overhang.
         /// <para>
-        /// Measured across 18 font families at 8-48 DIP in every weight/style combination, the
-        /// overhang peaks at 0.993 DIP and shrinks as the font grows (it is largely a sub-pixel
-        /// baseline-placement residual, not the font's descent), so one DIP covers every case. The
-        /// font's own descent caps it, since ink can never fall further than that.
+        /// Measured over 1584 cases -- 18 font families, 8 to 48 DIP, every weight/style
+        /// combination, one and two lines -- the overhang never exceeds 1.026 DIP and does not
+        /// scale with the font, being a sub-pixel baseline residual rather than the descent. A flat
+        /// cap therefore covers it, and the font's own descent bounds it from the other side: no
+        /// measured face reported a descent smaller than its overhang.
         /// </para>
         /// </summary>
         public double DescenderSlack =>
             IsBottomLine ? Math.Min(FontDescent, MaxDescenderOverhangDip) : 0;
 
-        private const double MaxDescenderOverhangDip = 1d;
+        private const double MaxDescenderOverhangDip = 1.5d;
 
         /// <summary>
         /// The font's declared descent (DIPs) at this line's size. FontFamily.LineSpacing and
@@ -290,14 +291,22 @@ namespace PlayniteAchievements.ViewModels
         public int MaxLines { get; }
 
         /// <summary>
-        /// Fixed line-box height (DIPs) for the description. Paired with
-        /// LineStackingStrategy="BlockLineHeight" in the template, every wrapped line occupies
-        /// exactly this height, so <see cref="MaxTextHeight"/> admits precisely
-        /// <see cref="MaxLines"/> lines. The template also turns off layout rounding on this text so
-        /// the floating toast window cannot round the height below the exact line boxes and clip the
-        /// last line (which the settings mockup, rendering without rounding, never does).
+        /// One rendered line's height (DIPs), read from the font's own designed line spacing --
+        /// which is the same metric WPF lays the text out with, so <see cref="MaxTextHeight"/>
+        /// admits precisely <see cref="MaxLines"/> lines and lands on a line boundary.
+        /// <para>
+        /// This was a flat 1.4 em pinned onto the text with LineStackingStrategy="BlockLineHeight".
+        /// That over-reserved 2-3 DIP per line for most faces (Source Sans Pro designs 1.256 em,
+        /// Segoe UI 1.330), bought no descender safety -- the ink overhang is a sub-pixel residual
+        /// either way, which <see cref="ToastLineDescriptor.DescenderSlack"/> covers -- and on a
+        /// card with a fixed height was enough to push a wrapped description past the card and get
+        /// its last line sliced. How far apart lines sit is the surface's line padding setting.
+        /// </para>
+        /// The template still turns off layout rounding on this text so the floating toast window
+        /// cannot round the height below the exact lines and clip the last one (which the settings
+        /// mockup, rendering without rounding, never does).
         /// </summary>
-        public double LineBoxHeight => FontSize * 1.4;
+        public double LineBoxHeight => FontSize * (FontFamily?.LineSpacing ?? 0);
 
         /// <summary>
         /// The clamp height for <see cref="MaxLines"/> pinned line boxes. A sub-pixel epsilon guards
@@ -370,14 +379,6 @@ namespace PlayniteAchievements.ViewModels
                 return hasName ? name : (hasCategory ? category : string.Empty);
             }
         }
-
-        /// <summary>
-        /// Fixed line-box height (DIPs), matching the description line's rhythm
-        /// (<see cref="ToastDescriptionLine.LineBoxHeight"/>), so the game/category row reserves the
-        /// same vertical leading as the other text lines instead of rendering cramped against the
-        /// line above it.
-        /// </summary>
-        public double LineBoxHeight => FontSize * 1.4;
 
         /// <summary>Collapses the row when neither the game name nor the category is shown.</summary>
         public bool HasGameCategoryContent => !string.IsNullOrEmpty(GameCategoryText);
