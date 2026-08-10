@@ -23,6 +23,7 @@ namespace PlayniteAchievements.Services.Capture
         private static readonly Guid IID_ID3D11Texture2D = new Guid("6F15AAF2-D208-4E89-9AB4-489535D34F9C");
 
         private readonly D3D11.Device _device;
+        private readonly D3D11.Multithread _multithread;
         private readonly GpuOverlayBlitter _blitter;
         private readonly int _frameW;
         private readonly int _frameH;
@@ -34,6 +35,13 @@ namespace PlayniteAchievements.Services.Capture
             _frameW = frameW;
             _frameH = frameH;
             _blitter = new GpuOverlayBlitter(device);
+
+            // The decoder shares this device and its immediate context, on its own thread. Multithread
+            // protection makes single calls safe but not a sequence of them, and a blit is a sequence:
+            // bind the target, set the viewport and shaders, draw. Without holding the lock across the
+            // whole sequence the decoder's own context work interleaves into the middle of it, and the
+            // card lands on the wrong target or not at all.
+            _multithread = device.QueryInterfaceOrNull<D3D11.Multithread>();
         }
 
         public Sample Compose(Sample source, byte[] overlay, int overlayW, int overlayH, Rectangle destRect)
@@ -97,8 +105,17 @@ namespace PlayniteAchievements.Services.Capture
                 OptionFlags = D3D11.ResourceOptionFlags.None,
             }))
             {
-                _device.ImmediateContext.CopySubresourceRegion(decoded, subresource, null, target, 0);
-                _blitter.Blend(target, overlay, overlayW, overlayH, destRect);
+                // One critical section for the copy and the blit together: see the constructor.
+                _multithread?.Enter();
+                try
+                {
+                    _device.ImmediateContext.CopySubresourceRegion(decoded, subresource, null, target, 0);
+                    _blitter.Blend(target, overlay, overlayW, overlayH, destRect);
+                }
+                finally
+                {
+                    _multithread?.Leave();
+                }
 
                 MediaFactory.CreateDXGISurfaceBuffer(IID_ID3D11Texture2D, target, 0, false, out var outBuffer);
                 using (outBuffer)
@@ -137,6 +154,7 @@ namespace PlayniteAchievements.Services.Capture
 
             _disposed = true;
             _blitter?.Dispose();
+            _multithread?.Dispose();
         }
     }
 }

@@ -181,7 +181,8 @@ namespace PlayniteAchievements.Services.Capture
                                         sink, videoStream, videoReader, audioStream, audioReader,
                                         track, toastStartSeconds, toastMaxSeconds, trimLeadSeconds,
                                         endSeconds, audioStream >= 0 ? chimePcm : null, chimeStartSeconds,
-                                        frameW, frameH, gpuCompositor, cpuCompositor);
+                                        frameW, frameH, OneSecond100ns / Math.Max(1, fps),
+                                        gpuCompositor, cpuCompositor);
                                     sink.Finalize();
                                     LogPassCost(timer, counts, frameW, frameH);
                                 }
@@ -356,7 +357,7 @@ namespace PlayniteAchievements.Services.Capture
             ToastOverlayTrack track,
             double toastStartSeconds, double toastMaxSeconds, double trimLeadSeconds,
             double endSeconds, byte[] chimePcm, double chimeStartSeconds,
-            int frameW, int frameH,
+            int frameW, int frameH, long nominalDuration,
             IOverlayCompositor gpuCompositor, IOverlayCompositor cpuCompositor)
         {
             var trimLead = ToTicks(trimLeadSeconds);
@@ -373,120 +374,102 @@ namespace PlayniteAchievements.Services.Capture
 
             var pendingAudio = audioStream >= 0 ? ReadNextAudio(audioReader, trimLead) : null;
 
-            // Video is held back one frame so each duration can span the gap to the next frame's
-            // output time. The sink builds the track by accumulating durations and ignores the times
-            // stamped here, so passing the decoder's duration through unchanged would re-flatten the
-            // base clip's real-time spacing onto a rigid fps grid.
-            Sample pendingVideo = null;
-            var pendingVideoTime = 0L;
             var counts = default(CompositeCounts);
 
-            try
+            while (true)
             {
-                while (true)
+                var sample = videoReader.ReadSample(
+                    (int)SourceReaderIndex.FirstVideoStream, SourceReaderControlFlags.None,
+                    out _, out var flags, out _);
+                if (sample == null || (flags & SourceReaderFlags.Endofstream) != 0)
                 {
-                    var sample = videoReader.ReadSample(
-                        (int)SourceReaderIndex.FirstVideoStream, SourceReaderControlFlags.None,
-                        out _, out var flags, out _);
-                    if (sample == null || (flags & SourceReaderFlags.Endofstream) != 0)
-                    {
-                        sample?.Dispose();
-                        break;
-                    }
+                    sample?.Dispose();
+                    break;
+                }
 
-                    var time = sample.SampleTime;
-                    if (time < trimLead)
-                    {
-                        sample.Dispose();
-                        continue;
-                    }
+                var time = sample.SampleTime;
+                // Read before the sample is handed on or nulled below.
+                var sourceDuration = sample.SampleDuration;
+                if (time < trimLead)
+                {
+                    sample.Dispose();
+                    continue;
+                }
 
-                    if (time - trimLead > endLimit)
-                    {
-                        sample.Dispose();
-                        break;
-                    }
+                if (time - trimLead > endLimit)
+                {
+                    sample.Dispose();
+                    break;
+                }
 
-                    // Drain audio up to this video timestamp so both streams advance together.
-                    while (pendingAudio != null && pendingAudio.SampleTime <= time - trimLead)
-                    {
-                        WriteAndDispose(sink, audioStream, MixChime(pendingAudio, chimePcm, chimeStartOut));
-                        pendingAudio = ReadNextAudio(audioReader, trimLead);
-                    }
+                // Drain audio up to this video timestamp so both streams advance together.
+                while (pendingAudio != null && pendingAudio.SampleTime <= time - trimLead)
+                {
+                    WriteAndDispose(sink, audioStream, MixChime(pendingAudio, chimePcm, chimeStartOut));
+                    pendingAudio = ReadNextAudio(audioReader, trimLead);
+                }
 
-                    Sample outSample = null;
-                    try
+                Sample outSample = null;
+                try
+                {
+                    if (time >= toastStart && time <= toastEnd)
                     {
-                        if (time >= toastStart && time <= toastEnd)
+                        var sampleIndex = track.FindSampleIndexAtOrBefore((time - toastStart) / (double)OneSecond100ns);
+                        if (sampleIndex >= 0 &&
+                            TryGetOverlay(track, sampleIndex, ref inflated, ref inflatedIndex, out var overlayFrame))
                         {
-                            var sampleIndex = track.FindSampleIndexAtOrBefore((time - toastStart) / (double)OneSecond100ns);
-                            if (sampleIndex >= 0 &&
-                                TryGetOverlay(track, sampleIndex, ref inflated, ref inflatedIndex, out var overlayFrame))
+                            var trackSample = track.Samples[sampleIndex];
+                            var destRect = OverlayBlitMath.ScaleRect(
+                                trackSample.RelX + track.OffsetX, trackSample.RelY + track.OffsetY,
+                                overlayFrame.Width, overlayFrame.Height,
+                                trackSample.ClientW, trackSample.ClientH, frameW, frameH);
+                            outSample = gpuCompositor?.Compose(
+                                sample, inflated, overlayFrame.Width, overlayFrame.Height, destRect);
+                            if (outSample != null)
                             {
-                                var trackSample = track.Samples[sampleIndex];
-                                var destRect = OverlayBlitMath.ScaleRect(
-                                    trackSample.RelX + track.OffsetX, trackSample.RelY + track.OffsetY,
-                                    overlayFrame.Width, overlayFrame.Height,
-                                    trackSample.ClientW, trackSample.ClientH, frameW, frameH);
-                                outSample = gpuCompositor?.Compose(
+                                counts.GpuComposited++;
+                            }
+                            else
+                            {
+                                // The frame came back in system memory: compose it there rather than
+                                // dropping the card off this frame.
+                                outSample = cpuCompositor.Compose(
                                     sample, inflated, overlayFrame.Width, overlayFrame.Height, destRect);
                                 if (outSample != null)
                                 {
-                                    counts.GpuComposited++;
-                                }
-                                else
-                                {
-                                    // The frame came back in system memory: compose it there rather than
-                                    // dropping the card off this frame.
-                                    outSample = cpuCompositor.Compose(
-                                        sample, inflated, overlayFrame.Width, overlayFrame.Height, destRect);
-                                    if (outSample != null)
-                                    {
-                                        counts.CpuComposited++;
-                                    }
+                                    counts.CpuComposited++;
                                 }
                             }
                         }
-
-                        if (outSample == null)
-                        {
-                            // Outside the toast interval (or no overlay): pass the frame through.
-                            outSample = sample;
-                            sample = null;
-                            counts.PassedThrough++;
-                        }
                     }
-                    finally
+
+                    if (outSample == null)
                     {
-                        sample?.Dispose();
+                        // Outside the toast interval (or no overlay): pass the frame through.
+                        outSample = sample;
+                        sample = null;
+                        counts.PassedThrough++;
                     }
-
-                    // Take ownership of the new frame before writing the previous one, so a throw
-                    // leaves exactly one frame for the finally below.
-                    var ready = pendingVideo;
-                    var readyTime = pendingVideoTime;
-                    pendingVideo = outSample;
-                    pendingVideoTime = time - trimLead;
-                    if (ready != null)
-                    {
-                        WriteVideoAndDispose(sink, videoStream, ready, readyTime, pendingVideoTime - readyTime);
-                    }
-
-                    WaitForEncoderQueue(sink, videoStream);
                 }
-
-                if (pendingVideo != null)
+                finally
                 {
-                    // The last frame runs to the end cut rather than for one frame's worth, so the
-                    // track ends where the clip does.
-                    var last = pendingVideo;
-                    pendingVideo = null;
-                    WriteVideoAndDispose(sink, videoStream, last, pendingVideoTime, endLimit - pendingVideoTime);
+                    sample?.Dispose();
                 }
-            }
-            finally
-            {
-                pendingVideo?.Dispose();
+
+                // Write straight away, with the duration the base clip already carries. Holding a
+                // frame back to measure the gap to the next one would keep the reader's decoded
+                // surface alive past the read that may recycle it, which shows up as the wrong
+                // picture on some frames.
+                var outTime = time - trimLead;
+                var duration = sourceDuration > 0 ? sourceDuration : nominalDuration;
+                var remaining = endLimit - outTime;
+                if (remaining > 0 && duration > remaining)
+                {
+                    duration = remaining;
+                }
+
+                WriteVideoAndDispose(sink, videoStream, outSample, outTime, duration);
+                WaitForEncoderQueue(sink, videoStream);
             }
 
             // Trailing audio after the last video sample, up to the end cut.
