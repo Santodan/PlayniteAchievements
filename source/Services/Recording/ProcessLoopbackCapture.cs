@@ -1,4 +1,5 @@
 using System;
+using System.Diagnostics;
 using System.Runtime.InteropServices;
 using System.Threading;
 using NAudio.Wave;
@@ -38,6 +39,47 @@ namespace PlayniteAchievements.Services.Recording
 
         public event EventHandler<WaveInEventArgs> DataAvailable;
         public event EventHandler<StoppedEventArgs> RecordingStopped;
+
+        /// <summary>
+        /// When the first delivered packet's audio was actually rendered, from the QPC stamp
+        /// <c>IAudioCaptureClient.GetBuffer</c> reports alongside it, or null while no packet has
+        /// arrived (or when the driver reports no usable stamp).
+        /// <para>
+        /// Packets reach us later than the audio they carry, by the engine's buffering plus this
+        /// poll loop's own interval. A consumer pacing writes to wall clock therefore places every
+        /// sample late by that delay unless it anchors to this instead of to the moment capture
+        /// started.
+        /// </para>
+        /// </summary>
+        public DateTime? FirstPacketCaptureUtc => _firstPacketCaptureUtc;
+
+        private DateTime? _firstPacketCaptureUtc;
+
+        /// <summary>
+        /// Converts a GetBuffer QPC stamp (100-ns units on the performance counter's timebase) to
+        /// UTC, by measuring how old it is against the counter's current value. Returns null when
+        /// the driver reports no stamp, or when the result is not plausibly recent -- some drivers
+        /// report zero or a value on an unrelated timebase, and a bad anchor is worse than none.
+        /// </summary>
+        private static DateTime? QpcToUtc(long qpcPosition100ns)
+        {
+            if (qpcPosition100ns <= 0)
+            {
+                return null;
+            }
+
+            var now100ns = (long)(Stopwatch.GetTimestamp() * (10_000_000d / Stopwatch.Frequency));
+            var age100ns = now100ns - qpcPosition100ns;
+
+            // A packet is at most a second or so old; anything outside that is a timebase we do
+            // not understand. Negative means the stamp is in the future, which is equally wrong.
+            if (age100ns < 0 || age100ns > 10_000_000L)
+            {
+                return null;
+            }
+
+            return DateTime.UtcNow.AddTicks(-age100ns);
+        }
 
         /// <summary>48 kHz stereo 32-bit IEEE float — the format the loopback client mixes the process to.</summary>
         public WaveFormat WaveFormat { get; set; } = WaveFormat.CreateIeeeFloatWaveFormat(48000, 2);
@@ -189,12 +231,18 @@ namespace PlayniteAchievements.Services.Recording
 
                     while (frames > 0)
                     {
-                        if (_captureClient.GetBuffer(out var dataPtr, out var framesAvailable, out var flags, out _, out _) != 0)
+                        if (_captureClient.GetBuffer(out var dataPtr, out var framesAvailable, out var flags, out _, out var qpcPosition) != 0)
                         {
                             break;
                         }
 
                         var bytes = (int)framesAvailable * blockAlign;
+                        if (_firstPacketCaptureUtc == null && bytes > 0)
+                        {
+                            // Read before ReleaseBuffer so the stamp still belongs to this packet.
+                            _firstPacketCaptureUtc = QpcToUtc(qpcPosition);
+                        }
+
                         var buffer = new byte[bytes];
                         // AUDCLNT_BUFFERFLAGS_SILENT = 0x2: the packet is silence; leave the zeroed buffer.
                         if ((flags & 0x2) == 0 && dataPtr != IntPtr.Zero && bytes > 0)
