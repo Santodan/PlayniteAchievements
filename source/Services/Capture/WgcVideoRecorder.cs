@@ -82,6 +82,11 @@ namespace PlayniteAchievements.Services.Capture
         private readonly object _finalizeGate = new object();
         private Task _finalizeChain = Task.CompletedTask;
 
+        // How far behind schedule the pump will still try to make up by running ticks back to back.
+        // Past this the deficit is a stall rather than jitter, and catching up would only burst
+        // frames at a scene that has already moved on.
+        private static readonly TimeSpan MaxCatchUp = TimeSpan.FromMilliseconds(500);
+
         public WgcVideoRecorder(
             Func<IntPtr> resolveHwnd, string bufferDirectory, int fps, int segmentSeconds,
             RecordingResolution resolution, RecordingQuality quality, ILogger logger)
@@ -275,10 +280,20 @@ namespace PlayniteAchievements.Services.Capture
 
         private void PumpLoop()
         {
-            var frameInterval = TimeSpan.FromSeconds(1.0 / _fps);
+            // Ticks, not TimeSpan.FromSeconds: that overload rounds to the nearest millisecond, so
+            // 1.0/60 became 17 ms and pinned the pump to 58.8 fps — 2% under the rate the segments
+            // then declared, which is most of the wall-clock-versus-media gap this loop used to open.
+            var frameInterval = TimeSpan.FromTicks(TimeSpan.TicksPerSecond / _fps);
             var next = DateTime.UtcNow;
             var lastResolveUtc = DateTime.MinValue;
             var lastRebuildUtc = DateTime.MinValue;
+            var pacer = new FramePacer();
+            if (!pacer.IsHighResolution)
+            {
+                _logger?.Debug(
+                    "[Recording] WGC-MF pump has no high-resolution timer; pacing falls back to Thread.Sleep.");
+            }
+
             try
             {
                 while (_running)
@@ -371,15 +386,22 @@ namespace PlayniteAchievements.Services.Capture
                     }
 
                     next += frameInterval;
-                    var sleep = next - DateTime.UtcNow;
+                    var now = DateTime.UtcNow;
+                    var sleep = next - now;
                     if (sleep > TimeSpan.Zero)
                     {
-                        Thread.Sleep(sleep);
+                        pacer.Wait(sleep);
                     }
-                    else
+                    else if (now - next > MaxCatchUp)
                     {
-                        next = DateTime.UtcNow; // fell behind; resync rather than spin
+                        // Far enough behind that this is a real stall, not scheduling jitter: give up
+                        // the deficit rather than bursting a second of frames to cover it. The held
+                        // frame carries the gap at its true length.
+                        next = now;
                     }
+
+                    // Otherwise keep the deficit and run the next tick straight away, so ordinary
+                    // jitter is made up instead of quietly lowering the capture rate.
                 }
             }
             catch (Exception ex)
@@ -388,6 +410,7 @@ namespace PlayniteAchievements.Services.Capture
             }
             finally
             {
+                pacer.Dispose();
                 FinalizeSegment();
                 TearDownCapture();
             }
