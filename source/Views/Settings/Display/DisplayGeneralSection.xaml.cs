@@ -80,7 +80,8 @@ namespace PlayniteAchievements.Views.Settings.Display
                 () => _settings?.Persisted?.RarityGlowSoftTiers ?? RaritySelectorMenu.GlowTiers,
                 value => { if (_settings?.Persisted != null) { _settings.Persisted.RarityGlowSoftTiers = value; } },
                 UpdateGlowTierTexts,
-                includeCommon: false);
+                includeCommon: false,
+                includeCompleted: true);
         }
 
         private void RayGlowTiersButton_Click(object sender, RoutedEventArgs e)
@@ -90,7 +91,8 @@ namespace PlayniteAchievements.Views.Settings.Display
                 () => _settings?.Persisted?.RarityGlowRayTiers ?? RaritySelection.None,
                 value => { if (_settings?.Persisted != null) { _settings.Persisted.RarityGlowRayTiers = value; } },
                 UpdateGlowTierTexts,
-                includeCommon: false);
+                includeCommon: false,
+                includeCompleted: true);
         }
 
         private void UpdateGlowTierTexts()
@@ -98,10 +100,12 @@ namespace PlayniteAchievements.Views.Settings.Display
             var persisted = _settings?.Persisted;
             SoftGlowTiersText = RaritySelectorMenu.Format(
                 persisted?.RarityGlowSoftTiers ?? RaritySelectorMenu.GlowTiers,
-                includeCommon: false);
+                includeCommon: false,
+                includeCompleted: true);
             RayGlowTiersText = RaritySelectorMenu.Format(
                 persisted?.RarityGlowRayTiers ?? RaritySelection.None,
-                includeCommon: false);
+                includeCommon: false,
+                includeCompleted: true);
         }
 
         private void OnSettingsReloaded()

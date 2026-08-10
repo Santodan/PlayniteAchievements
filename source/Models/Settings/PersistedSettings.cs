@@ -138,7 +138,9 @@ namespace PlayniteAchievements.Models.Settings
         private bool _modernCompactListShowRarityGlow = true;
         private bool _modernUnlockedListShowRarityGlow = true;
         private bool _animateRarityGlows = true;
-        private RaritySelection _rarityGlowSoftTiers = RaritySelection.All;
+        // Completion is included by default because the completed-game glow shipped on; the rays stay
+        // opt-in for everything.
+        private RaritySelection _rarityGlowSoftTiers = RaritySelection.All | RaritySelection.Completed;
         private RaritySelection _rarityGlowRayTiers = RaritySelection.None;
         private bool _showHardcoreBorder = true;
         private double _rarityGlowPulseMinOpacity = 0.6;

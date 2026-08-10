@@ -409,12 +409,18 @@ namespace PlayniteAchievements.ViewModels
         // bundled templates (and themes) apply completion styling with triggers on
         // IsGameCompleted / IsCompletionAchievement. The glows honor the rarity-glow toggles.
         public Brush CompletedBrush => RarityAppearanceHelper.GetCompletedBrush(_settings);
-        public Effect CompletedGlowEffect => _style.Toast.ShowRarityGlow
+        public Effect CompletedGlowEffect => _style.Toast.ShowRarityGlow && HasSoftCompletionGlow
             ? RarityAppearanceHelper.GetCompletedGlow(useEndColor: true, _settings)
             : null;
-        public Effect FrameCompletedGlowEffect => _style.Frame.ShowRarityGlow
+        public Effect FrameCompletedGlowEffect => _style.Frame.ShowRarityGlow && HasSoftCompletionGlow
             ? RarityAppearanceHelper.GetCompletedGlow(useEndColor: true, _settings)
             : null;
+
+        /// <summary>
+        /// Whether the completed-game halo is selected. Completion is its own entry in the glow
+        /// selections rather than a rarity tier, because the completion notification carries no rarity.
+        /// </summary>
+        private bool HasSoftCompletionGlow => _settings.RarityGlowSoftTiers.IncludesCompleted();
         public ImageSource CompletedBadgeImage => RarityAppearanceHelper.CreateCompletedBadgePreview(_settings);
         public Brush RarityBrush => RarityAppearanceHelper.GetBrush(_rarity, _settings);
 
@@ -463,15 +469,24 @@ namespace PlayniteAchievements.ViewModels
         /// here keeps the template markup to a single binding.
         /// </summary>
         public bool ShowRayBurst =>
-            _settings.RarityGlowRayTiers.Contains(_rarity) &&
+            HasRaySelection &&
             _style.Toast.ShowRarityGlow &&
             !HardcoreTakesBorder;
 
         /// <summary>Screenshot-frame counterpart to <see cref="ShowRayBurst"/>.</summary>
         public bool FrameShowRayBurst =>
-            _settings.RarityGlowRayTiers.Contains(_rarity) &&
+            HasRaySelection &&
             _style.Frame.ShowRarityGlow &&
             !HardcoreTakesBorder;
+
+        /// <summary>
+        /// Whether the rays are selected for whatever this notification is about. The completion
+        /// notification is matched against the selection's completion entry rather than a rarity tier,
+        /// since it carries no rarity of its own.
+        /// </summary>
+        private bool HasRaySelection => IsGameCompleted
+            ? _settings.RarityGlowRayTiers.IncludesCompleted()
+            : _settings.RarityGlowRayTiers.Contains(_rarity);
 
         // Rarity-colored glow on the toast card border (replaces the default drop shadow when
         // the border-glow option is on). Toast surface only. Completion uses the completed glow.

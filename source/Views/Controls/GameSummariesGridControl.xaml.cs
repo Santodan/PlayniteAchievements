@@ -353,6 +353,23 @@ namespace PlayniteAchievements.Views.Controls
             set => SetValue(RayGlowTiersProperty, value);
         }
 
+        /// <summary>
+        /// The soft-glow selection, read here only for its completion entry: the completed-art halo is
+        /// on when completion is selected for the soft glow. Self-bound to the global setting.
+        /// </summary>
+        public static readonly DependencyProperty SoftGlowTiersProperty =
+            DependencyProperty.Register(
+                nameof(SoftGlowTiers),
+                typeof(RaritySelection),
+                typeof(GameSummariesGridControl),
+                new PropertyMetadata(RaritySelection.All | RaritySelection.Completed));
+
+        public RaritySelection SoftGlowTiers
+        {
+            get => (RaritySelection)GetValue(SoftGlowTiersProperty);
+            set => SetValue(SoftGlowTiersProperty, value);
+        }
+
         public static readonly DependencyProperty ColumnSettingsKeyProperty =
             DependencyProperty.Register(
                 nameof(ColumnSettingsKey),
@@ -537,6 +554,7 @@ namespace PlayniteAchievements.Views.Controls
             InitializeComponent();
             RarityAppearanceHelper.BindAnimateRarityGlows(this, AnimateRarityGlowsProperty);
             RarityAppearanceHelper.BindRayGlowTiers(this, RayGlowTiersProperty);
+            RarityAppearanceHelper.BindSoftGlowTiers(this, SoftGlowTiersProperty);
             UpdateColumnHeadersVisibility();
         }
 

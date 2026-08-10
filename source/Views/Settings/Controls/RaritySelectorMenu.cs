@@ -37,18 +37,21 @@ namespace PlayniteAchievements.Views.Settings.Controls
         /// <paramref name="onChanged"/> runs after each toggle, for refreshing summary text.
         /// </summary>
         /// <summary>
-        /// Tiers offered for the glow settings. Common is left out because no glow is ever drawn for
-        /// it — offering it would be a toggle that visibly does nothing.
+        /// Everything the glow settings offer: the tiers that can actually glow, plus completion.
+        /// Common is left out because no glow is ever drawn for it — offering it would be a toggle
+        /// that visibly does nothing.
         /// </summary>
         public const RaritySelection GlowTiers =
-            RaritySelection.Uncommon | RaritySelection.Rare | RaritySelection.UltraRare;
+            RaritySelection.Uncommon | RaritySelection.Rare | RaritySelection.UltraRare |
+            RaritySelection.Completed;
 
         public static void Open(
             Button button,
             Func<RaritySelection> get,
             Action<RaritySelection> set,
             Action onChanged = null,
-            bool includeCommon = true)
+            bool includeCommon = true,
+            bool includeCompleted = false)
         {
             var menu = button?.ContextMenu;
             if (menu == null || get == null || set == null)
@@ -77,6 +80,23 @@ namespace PlayniteAchievements.Views.Settings.Controls
                     }));
             }
 
+            if (includeCompleted)
+            {
+                // Listed last, after the tiers, because it is not one of them.
+                menu.Items.Add(CreateMenuItem(
+                    button,
+                    Localize("LOCPlayAch_Completed"),
+                    get().IncludesCompleted(),
+                    isChecked =>
+                    {
+                        var current = get();
+                        set(isChecked
+                            ? current | RaritySelection.Completed
+                            : current & ~RaritySelection.Completed);
+                        onChanged?.Invoke();
+                    }));
+            }
+
             OpenContextMenu(button, menu);
         }
 
@@ -85,9 +105,17 @@ namespace PlayniteAchievements.Views.Settings.Controls
         /// excluded it is also ignored for the All check, so a glow selection covering every tier it
         /// can reads as All rather than listing three of four.
         /// </summary>
-        public static string Format(RaritySelection selection, bool includeCommon = true)
+        public static string Format(
+            RaritySelection selection,
+            bool includeCommon = true,
+            bool includeCompleted = false)
         {
-            var offered = includeCommon ? RaritySelection.All : GlowTiers;
+            var offered = includeCommon ? RaritySelection.All : GlowTiers & ~RaritySelection.Completed;
+            if (includeCompleted)
+            {
+                offered |= RaritySelection.Completed;
+            }
+
             if ((selection & offered) == offered)
             {
                 return Localize("LOCPlayAch_Common_All");
@@ -110,6 +138,11 @@ namespace PlayniteAchievements.Views.Settings.Controls
                 {
                     labels.Add(Localize(option.LabelKey));
                 }
+            }
+
+            if (includeCompleted && selection.IncludesCompleted())
+            {
+                labels.Add(Localize("LOCPlayAch_Completed"));
             }
 
             return labels.Count > 0 ? string.Join(", ", labels) : Localize("LOCPlayAch_Common_None");

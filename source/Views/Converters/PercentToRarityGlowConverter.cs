@@ -8,6 +8,25 @@ using PlayniteAchievements.Models.Achievements;
 namespace PlayniteAchievements.Views.Converters
 {
     /// <summary>
+    /// Whether a <see cref="RaritySelection"/> includes game completion. Bound rather than read from
+    /// settings directly so the completion glows re-evaluate when the selection changes, and used in
+    /// trigger conditions, which can only compare a single value for equality and so cannot test a
+    /// flag themselves.
+    /// </summary>
+    public class RaritySelectionIncludesCompletedConverter : IValueConverter
+    {
+        public object Convert(object value, Type targetType, object parameter, CultureInfo culture)
+        {
+            return value is RaritySelection selection && selection.IncludesCompleted();
+        }
+
+        public object ConvertBack(object value, Type targetType, object parameter, CultureInfo culture)
+        {
+            throw new NotImplementedException();
+        }
+    }
+
+    /// <summary>
     /// Returns the soft rarity glow only when the achievement's tier is one of the selected soft-glow
     /// tiers, and null otherwise. Takes the tier and the selection as separate inputs rather than
     /// reading the setting directly, so that changing the selection re-evaluates the binding and
