@@ -55,9 +55,10 @@ namespace PlayniteAchievements.Models.Achievements
         // to read as light rather than as paint in the flat tier color.
         private const double RayHighlightBlend = 0.35;
 
-        // Kept close to the flat tier color. Lifting the rim toward white made it read as a bright
-        // painted outline rather than the tier's own edge light.
-        private const double RimHighlightBlend = 0.12;
+        // Blur radius for the tight edge glow the templates draw from the icon's own alpha, so the
+        // emphasis follows a circular or cut-out icon instead of boxing it. Much tighter than the soft
+        // halo's 20px, so it reads as an edge rather than a wash.
+        public const double RimGlowBlurRadius = 6.0;
 
         private static readonly object RayBurstCacheLock = new object();
         private static readonly Dictionary<RarityTier, DrawingImage> RayBurstCache =
@@ -341,27 +342,6 @@ namespace PlayniteAchievements.Models.Achievements
         ///
         /// Common returns null, matching <see cref="GetGlow"/>, so the lowest tier stays glowless.
         /// </summary>
-        /// <summary>
-        /// Bright solid brush for the glowing rim drawn tight around an unlocked icon, in the tier
-        /// color lifted toward white so the edge reads as lit rather than merely outlined. Common
-        /// returns null, matching <see cref="GetGlow"/>.
-        /// </summary>
-        public static Brush GetRimBrush(RarityTier tier, PersistedSettings settings = null)
-        {
-            if (tier == RarityTier.Common)
-            {
-                return null;
-            }
-
-            return CreateSolidBrush(Blend(GetBaseColor(tier, settings), Colors.White, RimHighlightBlend));
-        }
-
-        /// <summary>Completion counterpart to <see cref="GetRimBrush"/>.</summary>
-        public static Brush GetCompletedRimBrush(PersistedSettings settings = null)
-        {
-            return CreateSolidBrush(Blend(GetCompletedEndColor(settings), Colors.White, RimHighlightBlend));
-        }
-
         public static DrawingImage GetRayBurstImage(RarityTier tier, PersistedSettings settings = null)
         {
             if (tier == RarityTier.Common)

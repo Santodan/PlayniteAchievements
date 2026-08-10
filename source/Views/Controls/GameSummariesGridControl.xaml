@@ -145,7 +145,7 @@
                                  over neighboring rows. -->
                             <controls:RarityRayBurst UseCompletedColors="True"
                                                      BurstScale="1.45"
-                                                     ShowRim="False">
+>
                                 <controls:RarityRayBurst.Style>
                                     <Style TargetType="controls:RarityRayBurst">
                                         <Setter Property="Visibility" Value="Collapsed"/>
@@ -163,15 +163,15 @@
                                                     <Condition Binding="{Binding ShowCompletionGlow, RelativeSource={RelativeSource AncestorType=controls:GameSummariesGridControl}}" Value="True"/>
                                                     <Condition Binding="{Binding AnimateRarityGlows, RelativeSource={RelativeSource AncestorType=controls:GameSummariesGridControl}}" Value="True"/>
                                                 </MultiDataTrigger.Conditions>
-                                                <Setter Property="IsActive" Value="True"/>
+                                                <Setter Property="helpers:RarityGlowPulse.IsActive" Value="True"/>
                                             </MultiDataTrigger>
-                                            <!-- Completed art has no rarity tier of its own, so its
-                                                 corona simply follows whether the rays are switched on
-                                                 for any tier at all. Last, so it overrides the
-                                                 triggers above. -->
-                                            <DataTrigger Binding="{Binding RayGlowTiers, RelativeSource={RelativeSource AncestorType=controls:GameSummariesGridControl}}" Value="None">
+                                            <!-- Completed art has no rarity tier of its own, so it
+                                                 follows the selection's own completion entry rather
+                                                 than any tier. Last, so it overrides the triggers
+                                                 above. -->
+                                            <DataTrigger Binding="{Binding RayGlowTiers, RelativeSource={RelativeSource AncestorType=controls:GameSummariesGridControl}, Converter={StaticResource RaritySelectionIncludesCompleted}}" Value="False">
                                                 <Setter Property="Visibility" Value="Collapsed"/>
-                                                <Setter Property="IsActive" Value="False"/>
+                                                <Setter Property="helpers:RarityGlowPulse.IsActive" Value="False"/>
                                             </DataTrigger>
                                         </Style.Triggers>
                                     </Style>
@@ -192,6 +192,7 @@
                                                 <MultiDataTrigger.Conditions>
                                                     <Condition Binding="{Binding IsCompleted}" Value="True"/>
                                                     <Condition Binding="{Binding ShowCompletionGlow, RelativeSource={RelativeSource AncestorType=controls:GameSummariesGridControl}}" Value="True"/>
+                                                    <Condition Binding="{Binding SoftGlowTiers, RelativeSource={RelativeSource AncestorType=controls:GameSummariesGridControl}, Converter={StaticResource RaritySelectionIncludesCompleted}}" Value="True"/>
                                                 </MultiDataTrigger.Conditions>
                                                 <Setter Property="Visibility" Value="Visible"/>
                                             </MultiDataTrigger>
@@ -200,6 +201,7 @@
                                                 <MultiDataTrigger.Conditions>
                                                     <Condition Binding="{Binding IsCompleted}" Value="True"/>
                                                     <Condition Binding="{Binding ShowCompletionGlow, RelativeSource={RelativeSource AncestorType=controls:GameSummariesGridControl}}" Value="True"/>
+                                                    <Condition Binding="{Binding SoftGlowTiers, RelativeSource={RelativeSource AncestorType=controls:GameSummariesGridControl}, Converter={StaticResource RaritySelectionIncludesCompleted}}" Value="True"/>
                                                     <Condition Binding="{Binding AnimateRarityGlows, RelativeSource={RelativeSource AncestorType=controls:GameSummariesGridControl}}" Value="True"/>
                                                 </MultiDataTrigger.Conditions>
                                                 <Setter Property="helpers:RarityGlowPulse.IsActive" Value="True"/>
