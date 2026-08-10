@@ -55,9 +55,9 @@ namespace PlayniteAchievements.Models.Achievements
         // to read as light rather than as paint in the flat tier color.
         private const double RayHighlightBlend = 0.35;
 
-        // The rim is lifted further toward white than the rays: it is a thin hard edge, and at the
-        // tier color alone it reads as an outline drawn around the icon rather than light on it.
-        private const double RimHighlightBlend = 0.5;
+        // Kept close to the flat tier color. Lifting the rim toward white made it read as a bright
+        // painted outline rather than the tier's own edge light.
+        private const double RimHighlightBlend = 0.12;
 
         private static readonly object RayBurstCacheLock = new object();
         private static readonly Dictionary<RarityTier, DrawingImage> RayBurstCache =

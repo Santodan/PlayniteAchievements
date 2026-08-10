@@ -361,7 +361,8 @@
                  overflows this cell via RenderTransform, which is why the Grid sets
                  ClipToBounds="False". Hardcore keeps its crisp shine border instead, and Common
                  resolves to no art at all. -->
-            <controls:RarityRayBurst Rarity="{Binding Rarity}">
+            <controls:RarityRayBurst Rarity="{Binding Rarity}"
+                                     SubjectInset="2">
                 <controls:RarityRayBurst.Style>
                     <Style TargetType="controls:RarityRayBurst">
                         <Setter Property="Visibility" Value="Collapsed"/>

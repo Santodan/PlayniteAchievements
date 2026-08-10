@@ -45,7 +45,11 @@ namespace PlayniteAchievements.Views.Controls
 
         // Outward bloom on the rim. Tighter than the icon halo's 20px, so it hugs the edge instead of
         // washing back over the whole subject.
-        private const double RimGlowBlurRadius = 9.0;
+        private const double RimGlowBlurRadius = 6.0;
+
+        // The rim reads as edge light rather than a drawn outline, so it stays thin and is held below
+        // full strength; at full opacity it overpowered the artwork it is meant to frame.
+        private const double RimOpacity = 0.65;
 
         private readonly RotateTransform _rotation = new RotateTransform();
         private readonly ScaleTransform _scale = new ScaleTransform();
@@ -75,7 +79,14 @@ namespace PlayniteAchievements.Views.Controls
                 Stretch = System.Windows.Media.Stretch.Uniform,
                 IsHitTestVisible = false,
                 RenderTransformOrigin = new Point(0.5, 0.5),
-                RenderTransform = transforms
+                RenderTransform = transforms,
+
+                // Bitmap-cached so rotation composites a texture instead of re-tessellating the art.
+                // This is what makes a grid full of turning bursts affordable: without it every
+                // visible row re-renders its geometry every frame. The reach is applied by arranging
+                // this layer larger (see ArrangeOverride) rather than by scaling it here, so the cache
+                // is rasterized at final size and rotation stays crisp.
+                CacheMode = new BitmapCache()
             };
 
             _rim = new Border
@@ -207,24 +218,69 @@ namespace PlayniteAchievements.Views.Controls
 
         protected override Size ArrangeOverride(Size finalSize)
         {
-            // Re-measured against the arranged cell, which is the first point the real size is known
-            // and which bounds what Arrange will grant each child.
-            _rays.Measure(finalSize);
-            _rays.Arrange(new Rect(0, 0, finalSize.Width, finalSize.Height));
-
-            // The rim sits just outside the subject rather than over it, so it never eats into the
-            // artwork's own edge pixels.
-            var inset = Math.Max(0.0, RimThickness);
-            var rimBounds = new Rect(
-                -inset,
-                -inset,
-                Math.Max(0.0, finalSize.Width + (inset * 2.0)),
-                Math.Max(0.0, finalSize.Height + (inset * 2.0)));
-            _rim.Measure(new Size(rimBounds.Width, rimBounds.Height));
-            _rim.Arrange(rimBounds);
-
-            ApplyBurstScale(finalSize);
+            ArrangeRays(finalSize);
+            ArrangeRim(finalSize);
             return finalSize;
+        }
+
+        /// <summary>
+        /// Arranges the ray layer at its full reach, centered on the subject, rather than arranging it
+        /// to the cell and scaling it up. The scale would otherwise magnify the bitmap cache and blur
+        /// the rays; sizing the layer instead lets the cache rasterize at the size actually drawn.
+        /// The square side comes from the shorter axis, so the art stays circular and only the aspect
+        /// correction — which is 1:1 for every square icon — is left to the transform.
+        /// </summary>
+        private void ArrangeRays(Size finalSize)
+        {
+            var side = Math.Min(finalSize.Width, finalSize.Height);
+            if (side <= 0 || double.IsNaN(side) || double.IsInfinity(side))
+            {
+                _rays.Arrange(new Rect(0, 0, 0, 0));
+                return;
+            }
+
+            var reach = side * ResolveBurstScale();
+            var bounds = new Rect(
+                (finalSize.Width - reach) / 2.0,
+                (finalSize.Height - reach) / 2.0,
+                reach,
+                reach);
+
+            // Re-measured against the size it will be arranged at: a stretching Image reports whatever
+            // it is offered as its desired size, and Arrange will not then render it any smaller.
+            _rays.Measure(new Size(reach, reach));
+            _rays.Arrange(bounds);
+            ApplyAspectStretch(finalSize);
+        }
+
+        /// <summary>
+        /// Arranges the rim on the subject's own edge. The subject is drawn with Uniform stretch inside
+        /// its cell, so its painted box is a centered square of the shorter axis — not the whole cell —
+        /// and <see cref="SubjectInset"/> accounts for any margin the template puts around it. Sizing
+        /// the rim to the cell instead would leave it floating out past the artwork on any cell that is
+        /// not exactly the icon's size.
+        /// </summary>
+        private void ArrangeRim(Size finalSize)
+        {
+            var inset = Math.Max(0.0, SubjectInset);
+            var side = Math.Min(finalSize.Width, finalSize.Height) - (inset * 2.0);
+            if (side <= 0)
+            {
+                _rim.Arrange(new Rect(0, 0, 0, 0));
+                return;
+            }
+
+            // Drawn just outside the subject so it never eats into the artwork's own edge pixels.
+            var outset = Math.Max(0.0, RimThickness);
+            var width = side + (outset * 2.0);
+            var bounds = new Rect(
+                (finalSize.Width - width) / 2.0,
+                (finalSize.Height - width) / 2.0,
+                width,
+                width);
+
+            _rim.Measure(new Size(bounds.Width, bounds.Height));
+            _rim.Arrange(bounds);
         }
 
         /// <summary>
@@ -272,6 +328,22 @@ namespace PlayniteAchievements.Views.Controls
         {
             get => (double)GetValue(RimThicknessProperty);
             set => SetValue(RimThicknessProperty, value);
+        }
+
+        /// <summary>
+        /// Margin the template puts between this cell and the subject it draws, so the rim can land on
+        /// the artwork's edge rather than the cell's. The grid icon cell, for instance, insets its icon
+        /// by 2.
+        /// </summary>
+        public static readonly DependencyProperty SubjectInsetProperty =
+            DependencyProperty.Register(
+                nameof(SubjectInset), typeof(double), typeof(RarityRayBurst),
+                new PropertyMetadata(0.0, OnRimChanged));
+
+        public double SubjectInset
+        {
+            get => (double)GetValue(SubjectInsetProperty);
+            set => SetValue(SubjectInsetProperty, value);
         }
 
         /// <summary>Corner rounding for the rim, for subjects that are not square-cornered.</summary>
@@ -395,6 +467,7 @@ namespace PlayniteAchievements.Views.Controls
             }
 
             _rim.Visibility = Visibility.Visible;
+            _rim.Opacity = RimOpacity;
             _rim.BorderBrush = brush;
             _rim.BorderThickness = new Thickness(Math.Max(0.0, RimThickness));
             _rim.CornerRadius = RimCornerRadius;
@@ -406,38 +479,36 @@ namespace PlayniteAchievements.Views.Controls
                 : RarityAppearanceHelper.GetGlow(Rarity, RimGlowBlurRadius);
         }
 
+        private double ResolveBurstScale()
+        {
+            var scale = BurstScale;
+            return double.IsNaN(scale) || double.IsInfinity(scale) || scale <= 0 ? 1.0 : scale;
+        }
+
         /// <summary>
-        /// Fits the burst to the arranged slot. The art is square and drawn with Uniform stretch, so
-        /// inside a non-square slot it would otherwise shrink to the smaller side — on wide game-logo
-        /// art that leaves the rays buried inside the image instead of reaching past it. Scaling each
-        /// axis by that slot's own extent spreads the burst into an ellipse tracking the art's
-        /// proportions, and reduces to a plain uniform scale whenever the slot is square, which is
-        /// every icon site.
+        /// Stretches the burst along the slot's longer axis so it reaches past a wide or tall image
+        /// rather than sitting inside it. This is 1:1 for every square icon, which is why the reach
+        /// itself is applied as layout size instead: leaving only the aspect correction here means the
+        /// icon sites take no scale at all, and so no cache blur.
         ///
-        /// The stretch is capped by <see cref="MaxAspectStretch"/>. Following the proportions exactly
-        /// visibly distorts the rays on strongly non-square art — category art especially — so past
-        /// that ratio the burst stops widening and simply sits inside the long axis instead.
+        /// Capped by <see cref="MaxAspectStretch"/>, because following the proportions exactly visibly
+        /// distorts the rays on strongly non-square art — category art especially. Past that ratio the
+        /// burst holds its shape and simply does not reach the long edges.
         /// </summary>
-        private void ApplyBurstScale(Size finalSize)
+        private void ApplyAspectStretch(Size finalSize)
         {
             var side = Math.Min(finalSize.Width, finalSize.Height);
             var longSide = Math.Max(finalSize.Width, finalSize.Height);
-            if (side <= 0 || double.IsNaN(side) || double.IsInfinity(side))
+            if (side <= 0)
             {
                 return;
-            }
-
-            var scale = BurstScale;
-            if (double.IsNaN(scale) || double.IsInfinity(scale) || scale <= 0)
-            {
-                scale = 1.0;
             }
 
             var stretch = Math.Min(longSide / side, MaxAspectStretch);
             var isWide = finalSize.Width >= finalSize.Height;
 
-            _scale.ScaleX = scale * (isWide ? stretch : 1.0);
-            _scale.ScaleY = scale * (isWide ? 1.0 : stretch);
+            _scale.ScaleX = isWide ? stretch : 1.0;
+            _scale.ScaleY = isWide ? 1.0 : stretch;
         }
 
         private void Activate()
