@@ -86,12 +86,16 @@
                               Height="{Binding FrameIconSize}"
                               ClipToBounds="False"
                               HorizontalAlignment="Center">
-                            <!-- Rays glow style: a sunburst behind the icon's soft halo, which keeps
-                                 rendering under both styles. Deliberately not animated — the frame is
-                                 rendered offscreen to a still image, so the burst is held at a fixed
-                                 angle. -->
+                            <!-- Rays glow style: arrows riding the icon's own silhouette, behind its
+                                 soft halo, which keeps rendering under both styles. Deliberately not
+                                 animated — the frame is rendered offscreen to a still image, so the
+                                 burst is held at the start of its cycle. The track is read straight
+                                 from the cache, which the capture path warms beforehand, since
+                                 nothing here can await. -->
                             <controls:RarityRayBurst Rarity="{Binding Rarity}"
                                                      UseCompletedColors="{Binding IsGameCompleted}"
+                                                     PhaseLock="False"
+                                                     SubjectUri="{Binding IconPath}"
                                                      Visibility="{Binding FrameShowRayBurst, Converter={StaticResource BooleanToVisibilityConverter}}"/>
                             <!-- Completion notifications swap the achievement icon for the
                                  completed-game badge and the completed glow (all sync-loaded, as

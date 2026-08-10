@@ -37,6 +37,15 @@
                   SnapsToDevicePixels="True">
                 <!-- Rays glow style: a rotating sunburst behind the icon, replacing the soft halo. -->
                 <controls:RarityRayBurst Rarity="{Binding RelativeSource={RelativeSource AncestorType=UserControl}, Path=Rarity}">
+                    <!-- Same icon the layers below draw, chosen the same way, so the track is traced
+                         from whichever variant is actually on screen. -->
+                    <controls:RarityRayBurst.SubjectUri>
+                        <MultiBinding Converter="{StaticResource LockedIconSelectorConverter}">
+                            <Binding RelativeSource="{RelativeSource AncestorType=UserControl}" Path="IsLocked" />
+                            <Binding RelativeSource="{RelativeSource AncestorType=UserControl}" Path="IconCustom" />
+                            <Binding RelativeSource="{RelativeSource AncestorType=UserControl}" Path="Icon" />
+                        </MultiBinding>
+                    </controls:RarityRayBurst.SubjectUri>
                     <controls:RarityRayBurst.Style>
                         <Style TargetType="controls:RarityRayBurst">
                             <Setter Property="Visibility" Value="Collapsed"/>

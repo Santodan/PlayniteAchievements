@@ -145,11 +145,17 @@
                                  over neighboring rows. -->
                             <controls:RarityRayBurst UseCompletedColors="True"
                                                      BurstScale="1.7"
->
+                                                     CornerRadiusRatio="0.06">
                                 <controls:RarityRayBurst.Style>
                                     <Style TargetType="controls:RarityRayBurst">
                                         <Setter Property="Visibility" Value="Collapsed"/>
+                                        <!-- Follows the same art the cell draws, so the track carries
+                                             the cover's proportions rather than assuming a square. -->
+                                        <Setter Property="SubjectUri" Value="{Binding GameLogo, Converter={StaticResource DefaultGameImage}, ConverterParameter=icon}"/>
                                         <Style.Triggers>
+                                            <DataTrigger Binding="{Binding UseCoverImages, RelativeSource={RelativeSource AncestorType=controls:GameSummariesGridControl}}" Value="True">
+                                                <Setter Property="SubjectUri" Value="{Binding GameCoverPath, Converter={StaticResource DefaultGameImage}, ConverterParameter=cover}"/>
+                                            </DataTrigger>
                                             <MultiDataTrigger>
                                                 <MultiDataTrigger.Conditions>
                                                     <Condition Binding="{Binding IsCompleted}" Value="True"/>
