@@ -477,6 +477,56 @@ namespace PlayniteAchievements.Tests.Views
         }
 
         [TestMethod]
+        public void BuildSpines_KeepsRayProportionsAcrossSubjectShapes()
+        {
+            // A ray should look like the same ray on any subject. Width used to come from the gap
+            // between arrows, which grows with the perimeter while reach grows with the artwork, so a
+            // cover — whose outline is half again as long as a square icon's of the same width — got
+            // arrows no longer but much wider, reading as bumps around the edge instead of rays.
+            var shapes = new[]
+            {
+                new { Name = "square icon", Aspect = 1.0, Slot = new Size(72, 88) },
+                new { Name = "2:3 cover", Aspect = 2.0 / 3.0, Slot = new Size(80, 120) },
+                new { Name = "16:9 banner", Aspect = 16.0 / 9.0, Slot = new Size(160, 90) },
+                new { Name = "small icon", Aspect = 1.0, Slot = new Size(48, 48) }
+            };
+
+            double? firstSlenderness = null;
+            double? firstReachRatio = null;
+
+            foreach (var shape in shapes)
+            {
+                var mapped = RayArrowLayout.Map(RayTrack.RoundedRect(shape.Aspect, 0.18), shape.Slot, 0.0);
+                var spines = new RayArrowLayout.RayArrowSpine[Count];
+                var written = RayArrowLayout.BuildSpines(mapped, 0.0, 1.55, Count, spines);
+
+                double tallest = 0.0, widest = 0.0;
+                for (var i = 0; i < written; i++)
+                {
+                    tallest = Math.Max(tallest, spines[i].Height);
+                    widest = Math.Max(widest, spines[i].HalfWidth);
+                }
+
+                var slenderness = tallest / (2.0 * widest);
+                var reachRatio = tallest / mapped.SubjectScale;
+
+                if (firstSlenderness == null)
+                {
+                    firstSlenderness = slenderness;
+                    firstReachRatio = reachRatio;
+                    continue;
+                }
+
+                Assert.AreEqual(
+                    firstSlenderness.Value, slenderness, 0.25,
+                    $"{shape.Name} rays are a different shape from the first subject's");
+                Assert.AreEqual(
+                    firstReachRatio.Value, reachRatio, 0.02,
+                    $"{shape.Name} rays reach a different fraction of their artwork");
+            }
+        }
+
+        [TestMethod]
         public void BuildSpines_ReachScalesLinearlyWithBurstScale()
         {
             Assert.AreEqual(0.0, MaxHeight(1.0), 1e-12, "no reach means no arrows past the edge");
