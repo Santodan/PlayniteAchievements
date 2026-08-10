@@ -115,6 +115,46 @@ namespace PlayniteAchievements.Tests.Views
         }
 
         [TestMethod]
+        public void AlternationLobes_StayBelowTheSamplingLimitAndCoprime()
+        {
+            // Exactly half the arrow count puts neighbours perfectly out of phase but collapses every
+            // arrow onto the same two phases, so the whole ring flattens and inverts together instead of
+            // the zigzag travelling round it. The frequency has to stay under that limit and share no
+            // factor with the arrow count, so each arrow gets a phase of its own.
+            foreach (var count in new[] { 4, 8, 12, 16, 20, 21, 22, 24, 26, 32, 36 })
+            {
+                var lobes = RayArrowLayout.AlternationLobes(count);
+
+                Assert.IsTrue(lobes >= 1, $"{count} arrows produced {lobes} lobes");
+                Assert.IsTrue(
+                    lobes * 2 < count || count < 4,
+                    $"{count} arrows alternate at {lobes} lobes, at or past the sampling limit");
+                Assert.AreEqual(
+                    1,
+                    Gcd(lobes, count),
+                    $"{lobes} lobes shares a factor with {count} arrows, so arrows repeat phases");
+            }
+
+            // The chosen count should be near the limit; a low frequency would not alternate at all.
+            var chosen = RayArrowLayout.AlternationLobes(Count);
+            Assert.IsTrue(
+                chosen * 2 > Count - 6,
+                $"{chosen} lobes is too slow to make neighbours differ across {Count} arrows");
+        }
+
+        private static int Gcd(int a, int b)
+        {
+            while (b != 0)
+            {
+                var remainder = a % b;
+                a = b;
+                b = remainder;
+            }
+
+            return a;
+        }
+
+        [TestMethod]
         public void BuildSpines_NeighbouringArrowsDifferSharply()
         {
             // The slow harmonics alone only separate arrows that are far apart on the loop. A component
