@@ -28,6 +28,7 @@ namespace PlayniteAchievements.Views.Controls
         private const double MaxAspectStretch = 1.5;
 
         private readonly ScaleTransform _scale = new ScaleTransform();
+        private readonly TransformGroup _turning;
         private readonly Image _rays;
 
         public RarityRayBurst()
@@ -36,18 +37,22 @@ namespace PlayniteAchievements.Views.Controls
             Focusable = false;
 
             // Shared rotation first, then this element's own aspect correction, which is 1:1 for every
-            // square icon. The reach comes from the arranged size instead (see ArrangeRays), so the
-            // cache is rasterized at the size actually drawn rather than magnified and blurred.
-            var transforms = new TransformGroup();
-            transforms.Children.Add(RayBurstRotation.Transform);
-            transforms.Children.Add(_scale);
+            // square icon. The reach comes from the arranged size instead (see ArrangeRays), so nothing
+            // here has to scale the art up.
+            _turning = new TransformGroup();
+            _turning.Children.Add(RayBurstRotation.Transform);
+            _turning.Children.Add(_scale);
 
             _rays = new Image
             {
                 Stretch = System.Windows.Media.Stretch.Uniform,
                 IsHitTestVisible = false,
+                Visibility = Visibility.Collapsed,
                 RenderTransformOrigin = new Point(0.5, 0.5),
-                RenderTransform = transforms
+
+                // Starts on the still transform. The animated one is attached only once there is art
+                // to turn — see ResolveArt.
+                RenderTransform = _scale
 
                 // Deliberately NOT bitmap-cached, and do not add it back. A cache is the right tool
                 // for the static glow layers, but this layer turns continuously, and WPF re-rasterizes
@@ -254,6 +259,16 @@ namespace PlayniteAchievements.Views.Controls
                 : UseCompletedColors
                     ? RarityAppearanceHelper.GetCompletedRayBurstImage()
                     : RarityAppearanceHelper.GetRayBurstImage(Rarity);
+
+            var hasArt = _rays.Source != null;
+
+            // The animated transform is attached only when there is something to turn, and the layer is
+            // collapsed otherwise. This matters more than it looks: the rotation is shared, so every
+            // element referencing it is invalidated on every tick — an element with no art would still
+            // be dirtied 60 times a second, for every row of every tier the rays are switched off for,
+            // and for every row at all while the rays are off entirely.
+            _rays.RenderTransform = hasArt ? (Transform)_turning : _scale;
+            _rays.Visibility = hasArt ? Visibility.Visible : Visibility.Collapsed;
         }
     }
 }

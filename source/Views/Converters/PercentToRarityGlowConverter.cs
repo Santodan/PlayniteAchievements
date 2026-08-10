@@ -8,6 +8,29 @@ using PlayniteAchievements.Models.Achievements;
 namespace PlayniteAchievements.Views.Converters
 {
     /// <summary>
+    /// Whether a tier is in a selection, for trigger conditions that need to drop a whole layer rather
+    /// than just its effect. Without this the emphasis layer stays realized — and cached, and drawing a
+    /// duplicate copy of the icon — on every row whose tier is not selected.
+    /// </summary>
+    public class RaritySelectionContainsTierConverter : IMultiValueConverter
+    {
+        public object Convert(object[] values, Type targetType, object parameter, CultureInfo culture)
+        {
+            if (values == null || values.Length < 2 || !(values[0] is RarityTier tier))
+            {
+                return false;
+            }
+
+            return values[1] is RaritySelection selection && selection.Contains(tier);
+        }
+
+        public object[] ConvertBack(object value, Type[] targetTypes, object parameter, CultureInfo culture)
+        {
+            throw new NotImplementedException();
+        }
+    }
+
+    /// <summary>
     /// Whether a <see cref="RaritySelection"/> includes game completion. Bound rather than read from
     /// settings directly so the completion glows re-evaluate when the selection changes, and used in
     /// trigger conditions, which can only compare a single value for equality and so cannot test a

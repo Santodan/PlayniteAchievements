@@ -422,6 +422,17 @@
                                     <MultiDataTrigger.Conditions>
                                         <Condition Binding="{Binding Unlocked}" Value="True"/>
                                         <Condition Binding="{Binding ShowRarityGlow, RelativeSource={RelativeSource AncestorType=controls:AchievementDataGridControl}}" Value="True"/>
+                                        <!-- Gated on the tier, not just on having a glow: otherwise this
+                                             layer stays realized and cached on every unlocked row, drawing
+                                             a duplicate icon for tiers that have no rays. -->
+                                        <Condition Value="True">
+                                            <Condition.Binding>
+                                                <MultiBinding Converter="{StaticResource RaritySelectionContainsTier}">
+                                                    <Binding Path="Rarity"/>
+                                                    <Binding Path="RayGlowTiers" RelativeSource="{RelativeSource AncestorType=controls:AchievementDataGridControl}"/>
+                                                </MultiBinding>
+                                            </Condition.Binding>
+                                        </Condition>
                                     </MultiDataTrigger.Conditions>
                                     <Setter Property="Visibility" Value="Visible"/>
                                     <Setter Property="Effect">

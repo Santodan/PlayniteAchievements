@@ -3,6 +3,7 @@ using System.ComponentModel;
 using System.Windows;
 using System.Windows.Media;
 using System.Windows.Media.Animation;
+using PlayniteAchievements.Models.Achievements;
 using PlayniteAchievements.Models.Settings;
 using PlayniteAchievements.Views.Helpers;
 
@@ -62,7 +63,8 @@ namespace PlayniteAchievements.Views.Controls
         private static void OnSettingsChanged(object sender, PropertyChangedEventArgs e)
         {
             if (e.PropertyName == nameof(PersistedSettings.RarityGlowPulseSpeed) ||
-                e.PropertyName == nameof(PersistedSettings.AnimateRarityGlows))
+                e.PropertyName == nameof(PersistedSettings.AnimateRarityGlows) ||
+                e.PropertyName == nameof(PersistedSettings.RarityGlowRayTiers))
             {
                 Apply();
             }
@@ -71,7 +73,11 @@ namespace PlayniteAchievements.Views.Controls
         private static void Apply()
         {
             var persisted = PlayniteAchievementsPlugin.Instance?.Settings?.Persisted;
-            if (persisted != null && !persisted.AnimateRarityGlows)
+
+            // Nothing to drive when no tier has rays, which is the default. Leaving a timeline running
+            // then would invalidate every element referencing this transform for no visible result.
+            var raysOff = persisted != null && persisted.RarityGlowRayTiers == RaritySelection.None;
+            if (raysOff || (persisted != null && !persisted.AnimateRarityGlows))
             {
                 // Held still rather than turning, matching what the toggle does to the glow pulse.
                 SharedRotation.BeginAnimation(RotateTransform.AngleProperty, null);
