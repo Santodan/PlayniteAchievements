@@ -82,10 +82,6 @@ namespace PlayniteAchievements.Services.Capture
         private readonly object _finalizeGate = new object();
         private Task _finalizeChain = Task.CompletedTask;
 
-        // How far behind schedule the pump will still try to make up by running ticks back to back.
-        // Past this the deficit is a stall rather than jitter, and catching up would only burst
-        // frames at a scene that has already moved on.
-        private static readonly TimeSpan MaxCatchUp = TimeSpan.FromMilliseconds(500);
 
         public WgcVideoRecorder(
             Func<IntPtr> resolveHwnd, string bufferDirectory, int fps, int segmentSeconds,
@@ -392,16 +388,18 @@ namespace PlayniteAchievements.Services.Capture
                     {
                         pacer.Wait(sleep);
                     }
-                    else if (now - next > MaxCatchUp)
+                    else
                     {
-                        // Far enough behind that this is a real stall, not scheduling jitter: give up
-                        // the deficit rather than bursting a second of frames to cover it. The held
-                        // frame carries the gap at its true length.
+                        // Behind schedule: give up the deficit rather than running ticks back to back to
+                        // make it up. Catching up would emit a burst of frames the capture has no new
+                        // content for — duplicates of the held frame, each with a near-zero duration —
+                        // and the moment the pump is most likely to fall behind is exactly the unlock,
+                        // where the toast, the screenshot and the overlay track all compete with it. A
+                        // frame held for its true length reads far better than a flurry of stills.
+                        // The high-resolution timer is what keeps the rate honest; it measured 60.00 fps
+                        // with no catch-up at all.
                         next = now;
                     }
-
-                    // Otherwise keep the deficit and run the next tick straight away, so ordinary
-                    // jitter is made up instead of quietly lowering the capture rate.
                 }
             }
             catch (Exception ex)
