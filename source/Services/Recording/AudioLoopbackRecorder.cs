@@ -57,6 +57,9 @@ namespace PlayniteAchievements.Services.Recording
         private bool _failed;
         private bool _stopped;
 
+        // Audio the ring buffer never accepted, in bytes of the capture format; see Append.
+        private long _discardedBytes;
+
         public AudioLoopbackRecorder(
             string bufferDirectory,
             ILogger logger,
@@ -266,19 +269,49 @@ namespace PlayniteAchievements.Services.Recording
 
         private void Append(BufferedWaveProvider buffer, WaveInEventArgs e)
         {
-            if (e == null || e.BytesRecorded <= 0)
+            if (buffer == null || e == null || e.BytesRecorded <= 0)
             {
                 return;
             }
 
             try
             {
-                buffer?.AddSamples(e.Buffer, 0, e.BytesRecorded);
+                // DiscardOnBufferOverflow drops the excess without telling anyone, and a drop shifts
+                // everything after it against picture. Count it so a report of "the audio drifts" can
+                // be told apart from a timeline bug.
+                var free = buffer.BufferLength - buffer.BufferedBytes;
+                if (e.BytesRecorded > free)
+                {
+                    Interlocked.Add(ref _discardedBytes, e.BytesRecorded - Math.Max(0, free));
+                }
+
+                buffer.AddSamples(e.Buffer, 0, e.BytesRecorded);
             }
             catch
             {
-                // Overflow is discarded by configuration; ignore transient add failures.
+                Interlocked.Add(ref _discardedBytes, e.BytesRecorded);
             }
+        }
+
+        /// <summary>
+        /// Reports whatever this track lost or stood in for. Silent when nothing did, so a line here
+        /// always means the recorded audio does not represent an unbroken stretch of real time.
+        /// </summary>
+        private void LogTimelineNotices(IWaveIn systemCapture)
+        {
+            var discarded = Interlocked.Read(ref _discardedBytes);
+            var paddedFrames = (systemCapture as ProcessLoopbackCapture)?.PaddedGapFrames ?? 0;
+            if (discarded == 0 && paddedFrames == 0)
+            {
+                return;
+            }
+
+            var bytesPerSecond = Math.Max(1, _outputFormat?.AverageBytesPerSecond ?? 1);
+            var sampleRate = Math.Max(1, _outputFormat?.SampleRate ?? 1);
+            _logger?.Warn(
+                $"[Recording] Audio track has gaps: {discarded / (double)bytesPerSecond:0.###}s dropped to " +
+                $"buffer overflow, {paddedFrames / (double)sampleRate:0.###}s of engine dropouts padded " +
+                "with silence.");
         }
 
         /// <summary>
@@ -419,6 +452,7 @@ namespace PlayniteAchievements.Services.Recording
             lock (_gate)
             {
                 CloseChunkLocked();
+                LogTimelineNotices(system);
                 _systemCapture = null;
                 _micCapture = null;
             }
