@@ -1802,6 +1802,16 @@ namespace PlayniteAchievements.Services.UI
                                 continue;
                             }
 
+                            // The frame renders synchronously into a bitmap, so the ray burst inside it
+                            // can only read a track that is already cached. Warm it here, at the one
+                            // seam in this path that can await, and cap the wait so a slow fetch costs
+                            // the burst its silhouette rather than costing the capture its frame.
+                            await WarmRayTrackAsync(item.Vm.IconPath);
+                            if (_disposed)
+                            {
+                                break;
+                            }
+
                             var framed = _frameCompositor.ComposeFramed(cleanSource, frameTemplate, item.Vm);
                             if (framed != null)
                             {
@@ -2539,6 +2549,36 @@ namespace PlayniteAchievements.Services.UI
         {
             ToastWindowPlacer.MovePhysical(
                 window, x + _placementCorrection.OffsetX, y + _placementCorrection.OffsetY);
+        }
+
+        private const int RayTrackWarmupTimeoutMs = 250;
+
+        /// <summary>
+        /// Puts an icon's ray track in the cache so a synchronous offscreen render can find it. Never
+        /// blocks the capture: past the timeout the burst simply falls back to a rounded rectangle.
+        /// </summary>
+        private static async Task WarmRayTrackAsync(string iconPath)
+        {
+            if (string.IsNullOrWhiteSpace(iconPath))
+            {
+                return;
+            }
+
+            try
+            {
+                var service = PlayniteAchievementsPlugin.Instance?.RayTrackService;
+                if (service == null || service.TryGet(iconPath, out _))
+                {
+                    return;
+                }
+
+                await Task.WhenAny(
+                    service.GetAsync(iconPath, System.Threading.CancellationToken.None),
+                    Task.Delay(RayTrackWarmupTimeoutMs));
+            }
+            catch
+            {
+            }
         }
 
         private void StopActiveSlide()

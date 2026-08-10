@@ -1,45 +1,94 @@
 using System;
+using System.Threading;
+using System.Threading.Tasks;
 using System.Windows;
 using System.Windows.Controls;
+using System.Windows.Media;
 using PlayniteAchievements.Models.Achievements;
+using PlayniteAchievements.Models.Settings;
+using PlayniteAchievements.Services.Images;
+using PlayniteAchievements.Views.Controls.RayGlow;
+using PlayniteAchievements.Views.Helpers;
 
 namespace PlayniteAchievements.Views.Controls
 {
     /// <summary>
-    /// The layer behind an achievement icon that carries the rays glow style. Currently draws nothing:
-    /// the previous sunburst was removed so the effect can be designed again from scratch, and this is
-    /// the seam it goes back into.
+    /// The layer behind an achievement icon that carries the rays glow style.
     ///
-    /// Everything around it is still wired up, so a new implementation needs no changes elsewhere. Each
-    /// call site already places this as the first child of a <c>ClipToBounds="False"</c> Grid that also
-    /// holds the soft glow layer and the crisp icon, gated on the same conditions as the glow; the tier
-    /// selection reaches it through <see cref="RayGlowTiers"/>; <see cref="IsActive"/> follows the
-    /// global animation toggle; and the notification surfaces bind <see cref="PhaseLock"/> so captures
-    /// can be made deterministic. Art comes from
-    /// <see cref="RarityAppearanceHelper.GetRayBurstImage"/>, which returns nothing for now.
+    /// A track is derived from the subject's own alpha silhouette — the smoothed convex hull of it — and
+    /// arrow bases ride that track like a conveyor belt. Each arrow spans inward as well as outward, so
+    /// the opaque subject covers its base and the subject's own pixels decide where it appears to begin.
+    /// Height and width come from a standing wave keyed to position on the track, so arrows swell and
+    /// shrink as they pass through fixed regions of the outline.
     ///
-    /// Two findings from the removed attempts are worth not rediscovering. A layer that turns must not
+    /// Placement is arranged by the call sites: this is the first child of a <c>ClipToBounds="False"</c>
+    /// Grid that also holds the soft glow layer and the crisp icon, gated on the same conditions as the
+    /// glow. The tier selection reaches it through <see cref="RayGlowTiers"/>, <see cref="IsActive"/>
+    /// follows the global animation toggle, and the notification surfaces bind <see cref="PhaseLock"/>
+    /// so captures can be made deterministic. <see cref="SubjectUri"/> carries the same image the
+    /// sibling icon draws, which is what the track is traced from.
+    ///
+    /// Three findings from the removed attempts are worth not rediscovering. A layer that moves must not
     /// be bitmap-cached: WPF re-rasterizes a cache whenever the element's transform changes, so caching
-    /// a rotating layer costs a full re-rasterization per row per frame and was what made a populated
-    /// grid lag. And an animation must not be attached to rows that draw nothing, whether because their
-    /// tier is unselected or because the art is absent — a shared transform invalidates every element
-    /// referencing it on every tick, drawing or not.
+    /// a moving layer costs a full re-rasterization per row per frame and was what made a populated grid
+    /// lag — hence no CacheMode and no Effect anywhere on this control. An animation must not be
+    /// attached to rows that draw nothing, whether because their tier is unselected or because the art
+    /// is absent, so subscription is re-evaluated on every gating change and re-checked each tick. And
+    /// nothing here accumulates across frames: the phase is read from the shared clock, so a surface
+    /// that renders once into a bitmap gets the same picture as one that has been ticking all session.
     /// </summary>
-    public class RarityRayBurst : Panel
+    public class RarityRayBurst : Panel, IRayAnimationTarget
     {
+        private readonly DrawingVisual _visual = new DrawingVisual();
+
+        private RayTrack _track;
+        private RayArrowLayout.MappedTrack _mapped;
+        private Size _mappedSlot;
+        private string _subjectKey;
+        private CancellationTokenSource _loadCts;
+        private RarityAppearanceHelper.RayGlowPalette _palette;
+        private int _paletteGeneration = -1;
+        private Size _arrangedSize;
+        private bool _appearanceHooked;
+        private bool _subscribed;
+        private bool _localEpochSet;
+        private double _localEpochMs;
+
+        private RayArrowLayout.RayArrowSpine[] _spines;
+        private RayArrowLayout.RayArrowQuad[] _quads;
+
+        // The two fills that make a ray fade toward its tip. They differ in width as well as length, so
+        // the seam between them runs diagonally along the arrow's flanks, where it lands on the
+        // antialiased taper, rather than straight across it as a visible crossbar.
+        private const double HaloWidthMultiplier = 1.35;
+        private const double HaloHeightFraction = 1.0;
+        private const double CoreWidthMultiplier = 0.55;
+        private const double CoreHeightFraction = 0.62;
+
         public RarityRayBurst()
         {
             IsHitTestVisible = false;
             Focusable = false;
 
+            // Both host Grids set these and they inherit. Snapping arbitrary-angle geometry to the pixel
+            // grid quantizes the arrow flanks, which shows up as width jitter as the conveyor advances.
+            SnapsToDevicePixels = false;
+            UseLayoutRounding = false;
+
+            AddVisualChild(_visual);
+
             RarityAppearanceHelper.BindRayGlowTiers(this, RayGlowTiersProperty);
+
+            Loaded += OnLoaded;
+            Unloaded += OnUnloaded;
+            IsVisibleChanged += OnIsVisibleChanged;
         }
 
         /// <summary>Rarity tier whose color the rays take.</summary>
         public static readonly DependencyProperty RarityProperty =
             DependencyProperty.Register(
                 nameof(Rarity), typeof(RarityTier), typeof(RarityRayBurst),
-                new PropertyMetadata(RarityTier.Common));
+                new PropertyMetadata(RarityTier.Common, OnAppearanceAffectingChanged));
 
         public RarityTier Rarity
         {
@@ -55,7 +104,7 @@ namespace PlayniteAchievements.Views.Controls
         public static readonly DependencyProperty UseCompletedColorsProperty =
             DependencyProperty.Register(
                 nameof(UseCompletedColors), typeof(bool), typeof(RarityRayBurst),
-                new PropertyMetadata(false));
+                new PropertyMetadata(false, OnAppearanceAffectingChanged));
 
         public bool UseCompletedColors
         {
@@ -71,7 +120,7 @@ namespace PlayniteAchievements.Views.Controls
         public static readonly DependencyProperty RayGlowTiersProperty =
             DependencyProperty.Register(
                 nameof(RayGlowTiers), typeof(RaritySelection), typeof(RarityRayBurst),
-                new PropertyMetadata(RaritySelection.None));
+                new PropertyMetadata(RaritySelection.None, OnGatingChanged));
 
         public RaritySelection RayGlowTiers
         {
@@ -81,12 +130,12 @@ namespace PlayniteAchievements.Views.Controls
 
         /// <summary>
         /// Whether the effect animates. A style trigger sets this from the global AnimateRarityGlows
-        /// toggle, so an implementation should render either way and only animate while it is set.
+        /// toggle; the effect renders either way and only moves while it is set.
         /// </summary>
         public static readonly DependencyProperty IsActiveProperty =
             DependencyProperty.Register(
                 nameof(IsActive), typeof(bool), typeof(RarityRayBurst),
-                new PropertyMetadata(false));
+                new PropertyMetadata(false, OnGatingChanged));
 
         public bool IsActive
         {
@@ -95,10 +144,9 @@ namespace PlayniteAchievements.Views.Controls
         }
 
         /// <summary>
-        /// When true (default) any animation should phase-lock to the shared
-        /// <see cref="Helpers.GlowAnimationClock"/> so recreated elements resume mid-cycle. The
-        /// notification surfaces bind this to IsPreview and opt out, so every captured wave starts from
-        /// the same point.
+        /// When true (default) the animation phase-locks to the shared <see cref="GlowAnimationClock"/>
+        /// so recreated elements resume mid-cycle. The notification surfaces bind this to IsPreview and
+        /// opt out, so every captured wave starts from the same point.
         /// </summary>
         public static readonly DependencyProperty PhaseLockProperty =
             DependencyProperty.Register(
@@ -118,7 +166,7 @@ namespace PlayniteAchievements.Views.Controls
         public static readonly DependencyProperty BurstScaleProperty =
             DependencyProperty.Register(
                 nameof(BurstScale), typeof(double), typeof(RarityRayBurst),
-                new PropertyMetadata(1.9));
+                new PropertyMetadata(1.9, OnRenderAffectingChanged));
 
         public double BurstScale
         {
@@ -127,16 +175,67 @@ namespace PlayniteAchievements.Views.Controls
         }
 
         /// <summary>
+        /// The image the sibling icon draws, whose silhouette the track is traced from. Typed as object
+        /// to match AsyncImage's own Uri property, so a path string binds directly and anything else
+        /// falls back to a rounded rectangle.
+        /// </summary>
+        public static readonly DependencyProperty SubjectUriProperty =
+            DependencyProperty.Register(
+                nameof(SubjectUri), typeof(object), typeof(RarityRayBurst),
+                new PropertyMetadata(null, OnSubjectUriChanged));
+
+        public object SubjectUri
+        {
+            get => GetValue(SubjectUriProperty);
+            set => SetValue(SubjectUriProperty, value);
+        }
+
+        /// <summary>
+        /// Inset between this layer's slot and the artwork inside it, for call sites that give their
+        /// icon a margin. Without it the track sits outside the art by that margin.
+        /// </summary>
+        public static readonly DependencyProperty SubjectInsetProperty =
+            DependencyProperty.Register(
+                nameof(SubjectInset), typeof(double), typeof(RarityRayBurst),
+                new PropertyMetadata(0.0, OnLayoutAffectingChanged));
+
+        public double SubjectInset
+        {
+            get => (double)GetValue(SubjectInsetProperty);
+            set => SetValue(SubjectInsetProperty, value);
+        }
+
+        /// <summary>
+        /// Corner rounding of the fallback track, as a fraction of the subject's short side. Only used
+        /// where no silhouette was traced — an opaque rectangle, which is most icons and every cover.
+        /// Surfaces that clip their art to a rounded card raise this to match.
+        /// </summary>
+        public static readonly DependencyProperty CornerRadiusRatioProperty =
+            DependencyProperty.Register(
+                nameof(CornerRadiusRatio), typeof(double), typeof(RarityRayBurst),
+                new PropertyMetadata(0.12, OnLayoutAffectingChanged));
+
+        public double CornerRadiusRatio
+        {
+            get => (double)GetValue(CornerRadiusRatioProperty);
+            set => SetValue(CornerRadiusRatioProperty, value);
+        }
+
+        // The drawing lives in its own visual so a track arriving late, or a frame advancing, can be
+        // re-issued without entering layout at all. It sits first so it stays behind anything a call
+        // site might place inside this element.
+        protected override int VisualChildrenCount => InternalChildren.Count + 1;
+
+        protected override Visual GetVisualChild(int index)
+        {
+            return index == 0 ? _visual : InternalChildren[index - 1];
+        }
+
+        /// <summary>
         /// Reports no desired size, so this layer never drives layout however large it draws. Keep this:
         /// the subject has to be what establishes the cell. An Image measuring to its source's natural
         /// size was enough to inflate a 28px icon cell — and its whole DataGrid row — to the art's own
         /// dimensions.
-        ///
-        /// Children are measured at zero rather than at availableSize for the same reason: a stretching
-        /// child reports whatever it is offered as its desired size, and Arrange will not then render it
-        /// any smaller, so it would end up sized to the space the parent had free rather than to the
-        /// cell the subject settles on. Measure children against the final size in ArrangeOverride
-        /// instead.
         /// </summary>
         protected override Size MeasureOverride(Size availableSize)
         {
@@ -158,7 +257,406 @@ namespace PlayniteAchievements.Views.Controls
                 child.Arrange(bounds);
             }
 
+            // RenderSize is not published until arrange completes, so the arranged size is what the
+            // mapping has to use.
+            _arrangedSize = finalSize;
+            if (finalSize != _mappedSlot)
+            {
+                _mapped = null;
+            }
+
+            Redraw();
+            UpdateSubscription();
             return finalSize;
+        }
+
+        bool IRayAnimationTarget.WantsRayFrames => IsActive && IsVisible && ShouldDraw();
+
+        void IRayAnimationTarget.OnRayFrame() => Redraw();
+
+        private void OnLoaded(object sender, RoutedEventArgs e)
+        {
+            // Hooked only while loaded, and paired with the generation check in EnsurePalette so a
+            // missed unhook costs a stale repaint at worst rather than an element that never dies.
+            if (!_appearanceHooked)
+            {
+                RarityAppearanceHelper.AppearanceChanged += OnAppearanceChanged;
+                _appearanceHooked = true;
+            }
+
+            BeginTrackLoad();
+            UpdateSubscription();
+        }
+
+        private void OnUnloaded(object sender, RoutedEventArgs e)
+        {
+            if (_appearanceHooked)
+            {
+                RarityAppearanceHelper.AppearanceChanged -= OnAppearanceChanged;
+                _appearanceHooked = false;
+            }
+
+            // The track itself is kept: it is cached anyway, and dropping it would only make a
+            // re-shown row flash its fallback for a frame.
+            CancelPendingLoad();
+            Unsubscribe();
+        }
+
+        private void OnIsVisibleChanged(object sender, DependencyPropertyChangedEventArgs e)
+        {
+            if (IsVisible)
+            {
+                BeginTrackLoad();
+            }
+            else
+            {
+                CancelPendingLoad();
+            }
+
+            UpdateSubscription();
+        }
+
+        private static void OnGatingChanged(DependencyObject d, DependencyPropertyChangedEventArgs e)
+        {
+            var burst = (RarityRayBurst)d;
+            burst.Redraw();
+            burst.UpdateSubscription();
+        }
+
+        private static void OnAppearanceAffectingChanged(DependencyObject d, DependencyPropertyChangedEventArgs e)
+        {
+            var burst = (RarityRayBurst)d;
+            burst._palette = null;
+            burst.Redraw();
+            burst.UpdateSubscription();
+        }
+
+        private static void OnRenderAffectingChanged(DependencyObject d, DependencyPropertyChangedEventArgs e)
+        {
+            ((RarityRayBurst)d).Redraw();
+        }
+
+        private static void OnLayoutAffectingChanged(DependencyObject d, DependencyPropertyChangedEventArgs e)
+        {
+            var burst = (RarityRayBurst)d;
+            burst._mapped = null;
+            burst.Redraw();
+        }
+
+        private static void OnSubjectUriChanged(DependencyObject d, DependencyPropertyChangedEventArgs e)
+        {
+            ((RarityRayBurst)d).ApplySubjectUri(e.NewValue);
+        }
+
+        private void OnAppearanceChanged(object sender, EventArgs e)
+        {
+            _palette = null;
+            Redraw();
+        }
+
+        private void ApplySubjectUri(object value)
+        {
+            var key = value as string;
+
+            // A recycled row rebound to the same icon keeps everything it already has.
+            if (string.Equals(key, _subjectKey, StringComparison.OrdinalIgnoreCase))
+            {
+                return;
+            }
+
+            CancelPendingLoad();
+            _subjectKey = key;
+            _track = null;
+            _mapped = null;
+
+            // A fresh subject restarts the wave, so a recycled notification card cannot inherit the
+            // epoch of the one before it.
+            _localEpochSet = false;
+
+            BeginTrackLoad();
+            Redraw();
+        }
+
+        private void BeginTrackLoad()
+        {
+            if (_track != null || string.IsNullOrWhiteSpace(_subjectKey))
+            {
+                return;
+            }
+
+            var service = PlayniteAchievementsPlugin.Instance?.RayTrackService;
+            if (service == null)
+            {
+                return;
+            }
+
+            // A cached track resolves with no async hop at all, which spares a recycled row the frame of
+            // fallback it would otherwise show — and is the only way an offscreen render, which cannot
+            // await anything, gets the real silhouette.
+            if (service.TryGet(_subjectKey, out var cached))
+            {
+                _track = cached;
+                _mapped = null;
+                return;
+            }
+
+            if (!IsLoaded || !IsVisible)
+            {
+                return;
+            }
+
+            var cts = new CancellationTokenSource();
+            _loadCts = cts;
+            var requested = _subjectKey;
+            _ = LoadTrackAsync(service, requested, cts);
+        }
+
+        private async Task LoadTrackAsync(RayTrackService service, string requested, CancellationTokenSource cts)
+        {
+            try
+            {
+                // No ConfigureAwait(false): everything below touches the visual tree.
+                var track = await service.GetAsync(requested, cts.Token);
+
+                if (cts.IsCancellationRequested || !ReferenceEquals(_loadCts, cts))
+                {
+                    return;
+                }
+
+                if (!string.Equals(requested, _subjectKey, StringComparison.OrdinalIgnoreCase))
+                {
+                    return;
+                }
+
+                _track = track;
+                _mapped = null;
+                Redraw();
+                UpdateSubscription();
+            }
+            catch (OperationCanceledException)
+            {
+            }
+            catch
+            {
+            }
+            finally
+            {
+                if (ReferenceEquals(_loadCts, cts))
+                {
+                    _loadCts = null;
+                }
+
+                cts.Dispose();
+            }
+        }
+
+        private void CancelPendingLoad()
+        {
+            var existing = _loadCts;
+            if (existing == null)
+            {
+                return;
+            }
+
+            _loadCts = null;
+            try
+            {
+                existing.Cancel();
+            }
+            catch
+            {
+            }
+        }
+
+        private void UpdateSubscription()
+        {
+            var wants = IsActive && IsVisible && IsLoaded && ShouldDraw();
+            if (wants == _subscribed)
+            {
+                return;
+            }
+
+            if (wants)
+            {
+                RayAnimationDriver.Subscribe(this);
+                _subscribed = true;
+            }
+            else
+            {
+                Unsubscribe();
+            }
+        }
+
+        private void Unsubscribe()
+        {
+            if (!_subscribed)
+            {
+                return;
+            }
+
+            RayAnimationDriver.Unsubscribe(this);
+            _subscribed = false;
+        }
+
+        /// <summary>
+        /// Whether this subject's tier is one the user asked to see rays on, and whether there is a
+        /// subject at all. Completed art has no tier, so it is gated at the call site instead.
+        /// </summary>
+        private bool ShouldDraw()
+        {
+            if (_track != null && _track.IsEmpty)
+            {
+                return false;
+            }
+
+            return UseCompletedColors || RayGlowTiers.Contains(Rarity);
+        }
+
+        private double CurrentPhase01(PersistedSettings persisted)
+        {
+            var period = RayAnimationDriver.LapPeriodMs(persisted);
+            if (!(period > 0))
+            {
+                return 0.0;
+            }
+
+            // Phase-locked: read straight off the shared epoch, so every burst on screen carries the
+            // same wave and a recycled row picks it up mid-cycle instead of restarting.
+            if (PhaseLock)
+            {
+                return Frac(GlowAnimationClock.ElapsedMilliseconds / period);
+            }
+
+            // Opted out: a per-instance epoch stamped at the first paint, so the wave always starts from
+            // phase zero. A surface that never animates therefore renders phase zero every time, which
+            // is what makes a capture reproducible.
+            if (!_localEpochSet)
+            {
+                _localEpochMs = GlowAnimationClock.ElapsedMilliseconds;
+                _localEpochSet = true;
+            }
+
+            return Frac((GlowAnimationClock.ElapsedMilliseconds - _localEpochMs) / period);
+        }
+
+        private void Redraw()
+        {
+            using (var context = _visual.RenderOpen())
+            {
+                if (!ShouldDraw())
+                {
+                    return;
+                }
+
+                var mapped = EnsureMappedTrack();
+                if (mapped == null)
+                {
+                    return;
+                }
+
+                var persisted = PlayniteAchievementsPlugin.Instance?.Settings?.Persisted;
+                var palette = EnsurePalette(persisted);
+                if (palette == null)
+                {
+                    return;
+                }
+
+                var count = RayArrowLayout.DefaultArrowCount;
+                if (_spines == null || _spines.Length < count)
+                {
+                    _spines = new RayArrowLayout.RayArrowSpine[count];
+                    _quads = new RayArrowLayout.RayArrowQuad[count];
+                }
+
+                var written = RayArrowLayout.BuildSpines(
+                    mapped, CurrentPhase01(persisted), BurstScale, count, _spines);
+                if (written <= 0)
+                {
+                    return;
+                }
+
+                DrawPass(context, written, palette.Halo, HaloWidthMultiplier, HaloHeightFraction);
+                DrawPass(context, written, palette.Core, CoreWidthMultiplier, CoreHeightFraction);
+            }
+        }
+
+        private void DrawPass(
+            DrawingContext context, int count, Brush brush, double widthMultiplier, double heightFraction)
+        {
+            RayArrowLayout.Emit(_spines, count, widthMultiplier, heightFraction, _quads);
+
+            // One geometry for every arrow in the pass, so the whole layer costs two draws however many
+            // arrows it carries.
+            var geometry = new StreamGeometry { FillRule = FillRule.Nonzero };
+            using (var writer = geometry.Open())
+            {
+                for (var i = 0; i < count; i++)
+                {
+                    var quad = _quads[i];
+                    writer.BeginFigure(quad.BaseLeft, true, true);
+                    writer.LineTo(quad.TipLeft, false, false);
+                    writer.LineTo(quad.TipRight, false, false);
+                    writer.LineTo(quad.BaseRight, false, false);
+                }
+            }
+
+            geometry.Freeze();
+            context.DrawGeometry(brush, null, geometry);
+        }
+
+        private RayArrowLayout.MappedTrack EnsureMappedTrack()
+        {
+            // Arrange normally sets this, but an offscreen surface renders without assuming it ran.
+            var slot = _arrangedSize.Width > 0 && _arrangedSize.Height > 0 ? _arrangedSize : RenderSize;
+            if (_mapped != null && slot == _mappedSlot)
+            {
+                return _mapped;
+            }
+
+            var track = _track;
+            if (track == null)
+            {
+                // Nothing traced yet: a rounded rectangle stands in, so the effect appears immediately
+                // and sharpens to the real silhouette when it arrives.
+                track = RayTrack.RoundedRect(1.0, CornerRadiusRatio);
+            }
+            else if (track.IsAnalytic)
+            {
+                // A traced-away subject (an opaque rectangle) carries no rounding of its own, because the
+                // radius belongs to the surface rather than to the image.
+                track = RayTrack.RoundedRect(track.SourceAspect, CornerRadiusRatio);
+            }
+
+            _mapped = RayArrowLayout.Map(track, slot, SubjectInset);
+            _mappedSlot = slot;
+            return _mapped;
+        }
+
+        private RarityAppearanceHelper.RayGlowPalette EnsurePalette(PersistedSettings persisted)
+        {
+            var generation = RarityAppearanceHelper.RayGlowPaletteGeneration;
+            if (_palette != null && _paletteGeneration == generation)
+            {
+                return _palette;
+            }
+
+            _paletteGeneration = generation;
+            _palette = UseCompletedColors
+                ? RarityAppearanceHelper.GetCompletedRayGlowPalette(persisted)
+                : RarityAppearanceHelper.GetRayGlowPalette(Rarity, persisted);
+
+            return _palette;
+        }
+
+        private static double Frac(double value)
+        {
+            if (double.IsNaN(value) || double.IsInfinity(value))
+            {
+                return 0.0;
+            }
+
+            var fraction = value - Math.Floor(value);
+            return fraction < 0 || fraction >= 1.0 ? 0.0 : fraction;
         }
     }
 }

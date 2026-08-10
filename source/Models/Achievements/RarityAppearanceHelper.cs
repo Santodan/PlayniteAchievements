@@ -9,7 +9,7 @@ using PlayniteAchievements.Models.Settings;
 
 namespace PlayniteAchievements.Models.Achievements
 {
-    public static class RarityAppearanceHelper
+    public static partial class RarityAppearanceHelper
     {
         private static readonly Uri BadgeResourcesUri =
             new Uri("pack://application:,,,/PlayniteAchievements;component/Resources/RarityBadges.xaml", UriKind.Absolute);
@@ -293,31 +293,6 @@ namespace PlayniteAchievements.Models.Achievements
             return effect;
         }
 
-        /// <summary>
-        /// Art for the rays glow style, in the tier color. Intentionally empty: the previous sunburst
-        /// was removed so the effect can be designed again from scratch, and nothing draws until this
-        /// returns something. The settings, the per-tier gating and the call sites in every template are
-        /// all still wired up, so an implementation here is the only thing needed to bring rays back.
-        ///
-        /// Common returns null, matching <see cref="GetGlow"/>, so the lowest tier stays glowless.
-        ///
-        /// Two things the removed attempts established, worth keeping in mind:
-        /// a layer that turns must not be bitmap-cached, because WPF re-rasterizes a cache whenever the
-        /// element's transform changes; and where a ray appears to begin is best left to the subject
-        /// covering it, since any outline computed here rotates away from the subject as the art turns.
-        /// </summary>
-        public static DrawingImage GetRayBurstImage(RarityTier tier, PersistedSettings settings = null)
-        {
-            return null;
-        }
-
-        /// <summary>Completion counterpart to <see cref="GetRayBurstImage"/>. Also empty for now.</summary>
-        public static DrawingImage GetCompletedRayBurstImage(PersistedSettings settings = null)
-        {
-            return null;
-        }
-
-
         public static void ApplyBadgeApplicationResources(PersistedSettings settings)
         {
             var app = Application.Current;
@@ -350,8 +325,9 @@ namespace PlayniteAchievements.Models.Achievements
 
             _activeSettings = settings;
 
-            // A ray implementation that caches its art per tier needs that cache cleared here, so the
-            // next resolve picks up recolored tiers; consumers re-resolve on AppearanceChanged below.
+            // Cleared before AppearanceChanged fires, so the bursts re-resolving on that event pick up
+            // recolored tiers rather than the palette built from the previous colors.
+            ClearRayGlowPalettes();
             ApplyBadgeResources(resources, settings);
 
             AppearanceChanged?.Invoke(null, EventArgs.Empty);
