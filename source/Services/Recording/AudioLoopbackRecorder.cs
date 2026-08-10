@@ -82,6 +82,19 @@ namespace PlayniteAchievements.Services.Recording
         public static bool IsChimeCaptureSupported => ProcessLoopbackCapture.IsSupported;
 
         /// <summary>
+        /// Whether this track is guaranteed to carry none of Playnite's own audio — true when the
+        /// source is per-process loopback scoped to the game, or full system with Playnite's tree
+        /// excluded; false when activation failed and the capture degraded to plain system
+        /// loopback, which includes the unlock chimes. Only meaningful after <see cref="Start"/>.
+        /// <para>
+        /// The chime sidecar may only run alongside a track that excludes Playnite. Mixing the
+        /// sidecar's chime into a clip whose main track already contains that chime plays it
+        /// twice — once where it really sounded, once re-timed to the composited toast.
+        /// </para>
+        /// </summary>
+        public bool ExcludesPlayniteAudio { get; private set; }
+
+        /// <summary>
         /// Builds the capture graph and starts the pump. Returns false (after one Warn log) when audio
         /// capture is unavailable, leaving the caller's video pipeline untouched.
         /// </summary>
@@ -176,7 +189,10 @@ namespace PlayniteAchievements.Services.Recording
                 {
                     try
                     {
-                        return new ProcessLoopbackCapture(pid.Value, includeProcessTree: true);
+                        // Scoped to the game's tree, so Playnite's chimes are outside it.
+                        var gameOnly = new ProcessLoopbackCapture(pid.Value, includeProcessTree: true);
+                        ExcludesPlayniteAudio = true;
+                        return gameOnly;
                     }
                     catch (Exception ex)
                     {
@@ -198,8 +214,10 @@ namespace PlayniteAchievements.Services.Recording
             {
                 try
                 {
-                    return new ProcessLoopbackCapture(
+                    var excluded = new ProcessLoopbackCapture(
                         System.Diagnostics.Process.GetCurrentProcess().Id, includeProcessTree: false);
+                    ExcludesPlayniteAudio = true;
+                    return excluded;
                 }
                 catch (Exception ex)
                 {
@@ -207,6 +225,8 @@ namespace PlayniteAchievements.Services.Recording
                 }
             }
 
+            // Plain system loopback carries Playnite's chimes, so ExcludesPlayniteAudio stays
+            // false and the caller must not run the chime sidecar against this track.
             return new WasapiLoopbackCapture();
         }
 
