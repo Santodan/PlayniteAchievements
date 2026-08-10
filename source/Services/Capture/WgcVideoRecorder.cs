@@ -1,7 +1,9 @@
 using System;
+using System.Diagnostics;
 using System.IO;
 using System.Runtime.InteropServices;
 using System.Threading;
+using System.Threading.Tasks;
 using Playnite.SDK;
 using PlayniteAchievements.Common;
 using PlayniteAchievements.Models.Settings;
@@ -75,6 +77,10 @@ namespace PlayniteAchievements.Services.Capture
         private Thread _pumpThread;
         private volatile bool _running;
         private bool _disposed;
+
+        // Segments are written out off the pump thread; see FinalizeSegment.
+        private readonly object _finalizeGate = new object();
+        private Task _finalizeChain = Task.CompletedTask;
 
         public WgcVideoRecorder(
             Func<IntPtr> resolveHwnd, string bufferDirectory, int fps, int segmentSeconds,
@@ -499,6 +505,7 @@ namespace PlayniteAchievements.Services.Capture
 
         private void RotateSegment()
         {
+            var rotate = Stopwatch.StartNew();
             FinalizeSegment();
             if (_latest == null)
             {
@@ -528,15 +535,69 @@ namespace PlayniteAchievements.Services.Capture
             _segmentCount++;
             if (_segmentCount <= 2 || _segmentCount % 12 == 0)
             {
-                _logger?.Debug($"[Recording] WGC-MF segment #{_segmentCount} started ({Path.GetFileName(path)}, {_encW}x{_encH}).");
+                // The rotation cost is the pump time no frame could be captured in, so it is worth
+                // seeing: it lands as the previous frame held for that long, once per segment.
+                _logger?.Debug(
+                    $"[Recording] WGC-MF segment #{_segmentCount} started ({Path.GetFileName(path)}, {_encW}x{_encH}, " +
+                    $"rotate={rotate.ElapsedMilliseconds}ms).");
             }
         }
 
+        /// <summary>
+        /// Hands the current segment to the background finalizer and clears it. Idempotent.
+        /// <para>
+        /// Writing out a segment costs far more than a frame interval — the sink writes the moov atom
+        /// and drains the hardware encoder — so doing it on the pump thread stopped capture for that
+        /// long once every <c>_segmentSeconds</c>, losing frames the clip then holds still for.
+        /// Finalizes are chained so only one runs at a time, and teardown waits for the chain. A clip
+        /// export cannot race this: it waits a segment length plus a margin past its window end
+        /// before it reads any segment.
+        /// </para>
+        /// </summary>
         private void FinalizeSegment()
         {
-            var encoder = _encoder;
+            var outgoing = _encoder;
             _encoder = null;
-            encoder?.Dispose();
+            if (outgoing == null)
+            {
+                return;
+            }
+
+            lock (_finalizeGate)
+            {
+                _finalizeChain = _finalizeChain.ContinueWith(
+                    _ =>
+                    {
+                        try
+                        {
+                            outgoing.Dispose();
+                        }
+                        catch (Exception ex)
+                        {
+                            _logger?.Debug(ex, "[Recording] Writing out a capture segment failed.");
+                        }
+                    },
+                    TaskContinuationOptions.None);
+            }
+        }
+
+        /// <summary>Blocks until every handed-off segment has been written out.</summary>
+        private void WaitForFinalizers()
+        {
+            Task chain;
+            lock (_finalizeGate)
+            {
+                chain = _finalizeChain;
+            }
+
+            try
+            {
+                chain.Wait(TimeSpan.FromSeconds(10));
+            }
+            catch (Exception ex)
+            {
+                _logger?.Debug(ex, "[Recording] Waiting for capture segments to finish writing failed.");
+            }
         }
 
         private static string EnsureUniqueSegment(string path)
@@ -603,6 +664,8 @@ namespace PlayniteAchievements.Services.Capture
             _disposed = true;
             Stop();
             FinalizeSegment();
+            // The device the encoders write from is torn down below, so nothing may still be draining.
+            WaitForFinalizers();
             _latest?.Dispose();
             _scaled?.Dispose();
             _frameScaler?.Dispose();
