@@ -54,12 +54,29 @@ namespace PlayniteAchievements.Models.Achievements
         //
         // How soft a ray looks comes down to two things: how many copies there are, and how far the
         // widest sits from the narrowest. Every copy has a hard polygon edge, so the outermost one has
-        // to be faint enough that its edge cannot be picked out — a few percent, not a tenth — and there
-        // have to be enough steps in between that no single one shows as a band. The widest still stays
-        // under the gap to the next arrow, or neighbours blur into a collar.
-        private static readonly double[] RayLayerWidths = { 2.60, 2.05, 1.60, 1.22, 0.90, 0.60, 0.35 };
-        private static readonly double[] RayLayerHeights = { 1.00, 0.94, 0.87, 0.78, 0.68, 0.56, 0.42 };
-        private static readonly byte[] RayLayerAlphas = { 0x10, 0x16, 0x1E, 0x2A, 0x3A, 0x50, 0x66 };
+        // to be faint enough that its edge cannot be picked out — low single-digit percent — and there
+        // have to be enough steps in between that no single one shows as a band.
+        //
+        // The outer few deliberately run past the gap to the next arrow and overlap it. Blurring
+        // anything spreads it into its neighbours, so tails that stop dead at the gap would be the one
+        // thing a real blur never does; where they cross they sum to a few percent and read as haze
+        // between the rays. What has to stay inside the gap is everything bright enough to read as part
+        // of a particular ray — see RayReadableAlpha.
+        private static readonly double[] RayLayerWidths =
+            { 4.60, 3.70, 2.95, 2.35, 1.85, 1.42, 1.05, 0.70, 0.38 };
+
+        private static readonly double[] RayLayerHeights =
+            { 1.00, 0.96, 0.92, 0.86, 0.79, 0.71, 0.61, 0.50, 0.38 };
+
+        private static readonly byte[] RayLayerAlphas =
+            { 0x07, 0x0A, 0x0E, 0x13, 0x1A, 0x24, 0x30, 0x42, 0x58 };
+
+        /// <summary>
+        /// Opacity at or above which a copy is taken to define the ray rather than to haze around it.
+        /// Copies this strong have to stay within the gap to the next arrow, or the rays stop reading
+        /// as separate; fainter ones are free to overlap.
+        /// </summary>
+        public const byte RayReadableAlpha = 0x1A;
 
         /// <summary>How far the innermost copy is lifted toward white, so the spine reads as heat
         /// rather than as more of the same color.</summary>
