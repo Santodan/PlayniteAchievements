@@ -71,7 +71,6 @@ namespace PlayniteAchievements.Services.Capture
         private int _encW, _encH; // encoder (output) dimensions, after any resolution cap
         private MediaFoundationH264Encoder _encoder;
         private long _segmentFrameIndex;
-        private long _lastSegmentPts100ns; // last PTS written in the current segment (strictly increasing)
         private int _segmentCount;
         private DateTime _segmentStartUtc;
 
@@ -83,6 +82,11 @@ namespace PlayniteAchievements.Services.Capture
         // Segments are written out off the pump thread; see FinalizeSegment.
         private readonly object _finalizeGate = new object();
         private Task _finalizeChain = Task.CompletedTask;
+
+        // How large a gap between one segment's grid ending and the next opening we will carry as
+        // repeated frames. Rotation costs on the order of 100 ms; past this it is a stall, and covering
+        // it would mean writing seconds of duplicates.
+        private static readonly TimeSpan MaxRotationCarry = TimeSpan.FromSeconds(1);
 
 
         public WgcVideoRecorder(
@@ -357,31 +361,39 @@ namespace PlayniteAchievements.Services.Capture
                         {
                             try
                             {
-                                // Stamp frames by real elapsed time since the segment started, not by
-                                // frame index. A pump stall (e.g. the game recreating its window during
-                                // a loading screen tears down and rebuilds capture) then shows as the
-                                // last frame held for its real duration, instead of the timeline
-                                // collapsing that gap into a skip — which would also drift audio sync.
-                                var previousPts = _lastSegmentPts100ns;
-                                var pts = (DateTime.UtcNow - _segmentStartUtc).Ticks;
-                                if (pts <= previousPts)
-                                {
-                                    pts = previousPts + 1;
-                                }
-                                _lastSegmentPts100ns = pts;
-                                // Each frame's duration is the interval that just elapsed, not the
-                                // nominal one: the MP4 sink lays a track out by accumulating sample
-                                // durations and ignores sample times, so a nominal duration pins the
-                                // timeline to _fps no matter how fast frames really arrived and the
-                                // real times above never reach the file. Summing real intervals makes
-                                // the two agree. A frame therefore covers the span before it rather
-                                // than after, which offsets presentation by one interval — an offset,
-                                // not a drift.
+                                // Constant frame rate, by frame count rather than by timestamp. The H.264
+                                // encoder rewrites per-sample durations onto the grid its declared frame
+                                // rate implies — measured: uneven durations in, one stts entry out — so a
+                                // real-time timestamp cannot survive it and the only way to keep the
+                                // timeline honest is to make that grid true. Emit exactly as many frames
+                                // as the elapsed time calls for, repeating the held frame to cover a
+                                // stall, so slot i really is the picture that was on screen at i/fps.
                                 // Segments record the clean game frame only; the unlock toast is
                                 // composited into each achievement's clip at export from its
                                 // recorded overlay track.
-                                _encoder.WriteFrame(ScaleForEncode(_latest), pts, pts - previousPts);
-                                _segmentFrameIndex++;
+                                var due = (long)((DateTime.UtcNow - _segmentStartUtc).TotalSeconds * _fps) + 1;
+                                var missing = due - _segmentFrameIndex;
+
+                                // A segment can never hold more than its own length; anything beyond that
+                                // belongs to the next one, which the rotation above will open.
+                                var ceiling = (long)_segmentSeconds * _fps;
+                                if (_segmentFrameIndex + missing > ceiling)
+                                {
+                                    missing = Math.Max(0, ceiling - _segmentFrameIndex);
+                                }
+
+                                if (missing > 0)
+                                {
+                                    // Scale once, not once per repeat: duplicates are the same picture.
+                                    var encodeFrame = ScaleForEncode(_latest);
+                                    for (var repeat = 0L; repeat < missing; repeat++)
+                                    {
+                                        var pts = PtsForFrame(_segmentFrameIndex);
+                                        _encoder.WriteFrame(
+                                            encodeFrame, pts, PtsForFrame(_segmentFrameIndex + 1) - pts);
+                                        _segmentFrameIndex++;
+                                    }
+                                }
                             }
                             catch (Exception ex)
                             {
@@ -533,6 +545,16 @@ namespace PlayniteAchievements.Services.Capture
             });
         }
 
+        /// <summary>
+        /// Where frame <paramref name="index"/> sits on a segment's nominal grid, in 100-ns units.
+        /// Derived from the index rather than accumulated, so a rate that does not divide a second evenly
+        /// (60 fps is 166666.67 ticks) cannot drift the segment's length as the frames add up.
+        /// </summary>
+        private long PtsForFrame(long index)
+        {
+            return index * TimeSpan.TicksPerSecond / _fps;
+        }
+
         private void RotateSegment()
         {
             var rotate = Stopwatch.StartNew();
@@ -551,7 +573,25 @@ namespace PlayniteAchievements.Services.Capture
             // position on the timeline and the frames inside are stamped relative to the origin, so
             // taking them from separate DateTime reads would label the segment a few milliseconds
             // off from the frames it holds — by however long the encoder took to build.
-            _segmentStartUtc = DateTime.UtcNow;
+            //
+            // That origin is where the previous segment's grid ended rather than "now": writing the old
+            // segment out and building this one costs real time (measured ~100 ms), and an origin stamped
+            // after the gap simply loses it. The export can bridge it between files, but the final
+            // re-encode flattens the timeline again and the gap returns as drift. Continuing the grid
+            // makes the pump's catch-up fill the gap with the held frame instead. A gap far larger than
+            // rotation cost is a genuine stall, where resyncing beats emitting seconds of duplicates.
+            var now = DateTime.UtcNow;
+            if (_segmentCount > 0)
+            {
+                var previousGridEnd = _segmentStartUtc.AddTicks(PtsForFrame(_segmentFrameIndex));
+                _segmentStartUtc = now - previousGridEnd < MaxRotationCarry && previousGridEnd <= now
+                    ? previousGridEnd
+                    : now;
+            }
+            else
+            {
+                _segmentStartUtc = now;
+            }
 
             // The dimensions ride in the name so the clip planner can group segments by size
             // without opening them — a capture rebuilt at a new size starts a run the planner
@@ -561,7 +601,6 @@ namespace PlayniteAchievements.Services.Capture
             _encoder = new MediaFoundationH264Encoder(
                 _device, path, _encW, _encH, _fps, ComputeBitrate(_encW, _encH));
             _segmentFrameIndex = 0;
-            _lastSegmentPts100ns = 0;
             _segmentCount++;
             if (_segmentCount <= 2 || _segmentCount % 12 == 0)
             {
