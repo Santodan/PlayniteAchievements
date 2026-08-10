@@ -67,17 +67,14 @@ namespace PlayniteAchievements.Views.Controls.RayGlow
         /// so they swell and shrink faster than either motion alone, and the size pattern visibly
         /// travels the other way round the icon.
         /// </summary>
-        private const double EnvelopeDriftRatio = -0.40;
+        private const double EnvelopeDriftRatio = -1.6;
 
         /// <summary>
-        /// Share of the wave given over to a component at half the arrow count.
-        ///
-        /// At that frequency neighbouring arrows sit on opposite phases, so it is the one component that
-        /// makes an arrow differ from the ones either side of it rather than from the ones further round
-        /// the loop. The slower harmonics decide the overall shape; this decides how much the ring
-        /// zigzags from one arrow to the next.
+        /// Share of the wave given over to the alternating component, which sets how far an arrow
+        /// differs from the ones either side of it rather than from ones further round the loop. The
+        /// slower harmonics decide the overall shape; this decides how hard the ring zigzags.
         /// </summary>
-        private const double AlternationAmplitude = 0.28;
+        private const double AlternationAmplitude = 0.50;
 
         /// <summary>
         /// Height of the shortest arrow as a fraction of the tallest. Keeps the crests and troughs
@@ -86,7 +83,12 @@ namespace PlayniteAchievements.Views.Controls.RayGlow
         /// </summary>
         private const double MinHeightFraction = 0.45;
 
-        private const double MinWidthScale = 0.55;
+        /// <summary>
+        /// Width of the shortest arrow as a fraction of the tallest. Arrows are drawn in one colour, so
+        /// thinning the short ones is what makes them read as faint next to the tall ones rather than
+        /// merely stubby.
+        /// </summary>
+        private const double MinWidthScale = 0.40;
 
         /// <summary>How far inside the loop a base sits, as a fraction of the subject's short side.</summary>
         private const double InwardFraction = 0.22;
@@ -250,14 +252,51 @@ namespace PlayniteAchievements.Views.Controls.RayGlow
         /// </summary>
         public static double ArrowHeight01(double u, int arrowCount)
         {
-            // Integer lobes, so the alternation closes on the loop like the rest of the wave. An odd
-            // arrow count cannot alternate perfectly; halving downward keeps the seam continuous, which
-            // matters far more than the last arrow pairing up.
-            var alternationLobes = Math.Max(1, arrowCount / 2);
-
             var shaped = ((WaveHeight01(u) * 2.0) - 1.0) * (1.0 - AlternationAmplitude);
-            var alternating = AlternationAmplitude * Math.Cos(TwoPi * alternationLobes * u);
+            var alternating = AlternationAmplitude
+                * Math.Cos(TwoPi * AlternationLobes(arrowCount) * u);
             return 0.5 + (0.5 * (shaped + alternating));
+        }
+
+        /// <summary>
+        /// Lobe count of the alternating component: the highest that still lands every arrow on its own
+        /// phase, which is the fastest the ring can zigzag without aliasing.
+        ///
+        /// Exactly half the arrow count is the tempting answer and the wrong one. At that frequency
+        /// neighbours sit exactly out of phase, but every arrow also collapses onto the same pair of
+        /// phases, so the whole ring flattens and inverts together as the wave passes rather than the
+        /// zigzag travelling round it. Backing off to the highest coprime frequency below the sampling
+        /// limit keeps neighbours nearly opposite while giving each arrow a distinct phase, so the
+        /// pattern precesses instead of strobing.
+        /// </summary>
+        internal static int AlternationLobes(int arrowCount)
+        {
+            if (arrowCount < 4)
+            {
+                return 1;
+            }
+
+            for (var lobes = (arrowCount - 1) / 2; lobes > 1; lobes--)
+            {
+                if (GreatestCommonDivisor(lobes, arrowCount) == 1)
+                {
+                    return lobes;
+                }
+            }
+
+            return 1;
+        }
+
+        private static int GreatestCommonDivisor(int a, int b)
+        {
+            while (b != 0)
+            {
+                var remainder = a % b;
+                a = b;
+                b = remainder;
+            }
+
+            return a;
         }
 
         /// <summary>
