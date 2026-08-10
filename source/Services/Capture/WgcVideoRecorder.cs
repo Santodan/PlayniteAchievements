@@ -503,16 +503,21 @@ namespace PlayniteAchievements.Services.Capture
             // size in ComposeFrame when a cap applies.
             ComputeEncodeSize(_latest.Description.Width, _latest.Description.Height, out _encW, out _encH);
 
+            // One instant for both the name and the PTS origin. Clip planning maps the name onto a
+            // position on the timeline and the frames inside are stamped relative to the origin, so
+            // taking them from separate DateTime reads would label the segment a few milliseconds
+            // off from the frames it holds — by however long the encoder took to build.
+            _segmentStartUtc = DateTime.UtcNow;
+
             // The dimensions ride in the name so the clip planner can group segments by size
             // without opening them — a capture rebuilt at a new size starts a run the planner
             // will not concatenate with the old one.
-            var name = RecordingPaths.BuildSegmentFileName(DateTime.Now, _encW, _encH);
+            var name = RecordingPaths.BuildSegmentFileName(_segmentStartUtc.ToLocalTime(), _encW, _encH);
             var path = EnsureUniqueSegment(Path.Combine(_bufferDirectory, name));
             _encoder = new MediaFoundationH264Encoder(
                 _device, path, _encW, _encH, _fps, ComputeBitrate(_encW, _encH));
             _segmentFrameIndex = 0;
             _lastSegmentPts100ns = 0;
-            _segmentStartUtc = DateTime.UtcNow;
             _segmentCount++;
             if (_segmentCount <= 2 || _segmentCount % 12 == 0)
             {
