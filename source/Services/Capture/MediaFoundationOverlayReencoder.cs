@@ -1,4 +1,5 @@
 using System;
+using System.Diagnostics;
 using System.Runtime.ExceptionServices;
 using System.Runtime.InteropServices;
 using System.Threading;
@@ -128,12 +129,14 @@ namespace PlayniteAchievements.Services.Capture
                                 using (audioReader)
                                 {
                                     sink.BeginWriting();
-                                    WriteComposited(
+                                    var timer = Stopwatch.StartNew();
+                                    var counts = WriteComposited(
                                         sink, videoStream, videoReader, audioStream, audioReader,
                                         track, toastStartSeconds, toastMaxSeconds, trimLeadSeconds,
                                         endSeconds, audioStream >= 0 ? chimePcm : null, chimeStartSeconds,
                                         frameW, frameH, stride);
                                     sink.Finalize();
+                                    LogPassCost(timer, counts, frameW, frameH);
                                 }
 
                                 return true;
@@ -261,7 +264,7 @@ namespace PlayniteAchievements.Services.Capture
         /// Decodes, composites, re-stamps, and writes both streams interleaved by output time
         /// (a multi-stream SinkWriter blocks a stream that runs too far ahead of the other).
         /// </summary>
-        private void WriteComposited(
+        private CompositeCounts WriteComposited(
             SinkWriter sink, int videoStream, SourceReader videoReader,
             int audioStream, SourceReader audioReader,
             ToastOverlayTrack track,
@@ -292,6 +295,7 @@ namespace PlayniteAchievements.Services.Capture
             // base clip's real-time spacing onto a rigid fps grid.
             Sample pendingVideo = null;
             var pendingVideoTime = 0L;
+            var counts = default(CompositeCounts);
 
             try
             {
@@ -351,6 +355,11 @@ namespace PlayniteAchievements.Services.Capture
                             // Outside the toast interval (or no overlay): pass the frame through.
                             outSample = sample;
                             sample = null;
+                            counts.PassedThrough++;
+                        }
+                        else
+                        {
+                            counts.Composited++;
                         }
                     }
                     finally
@@ -394,6 +403,28 @@ namespace PlayniteAchievements.Services.Capture
             }
 
             pendingAudio?.Dispose();
+            return counts;
+        }
+
+        /// <summary>What one pass wrote, for the cost line below.</summary>
+        private struct CompositeCounts
+        {
+            public int Composited;
+            public int PassedThrough;
+        }
+
+        /// <summary>
+        /// Reports what the pass cost. Every frame of the clip is decoded and re-encoded here, not just
+        /// the ones the toast covers, so this is the bulk of the time between an unlock and its clip
+        /// appearing — worth being able to see per clip rather than inferring it.
+        /// </summary>
+        private void LogPassCost(Stopwatch timer, CompositeCounts counts, int frameW, int frameH)
+        {
+            var frames = counts.Composited + counts.PassedThrough;
+            var seconds = Math.Max(0.001, timer.Elapsed.TotalSeconds);
+            _logger?.Debug(
+                $"[Recording] Toast composite: {frames} frames ({counts.Composited} with the card) at " +
+                $"{frameW}x{frameH} in {timer.ElapsedMilliseconds}ms ({frames / seconds:0.0} fps).");
         }
 
         /// <summary>
