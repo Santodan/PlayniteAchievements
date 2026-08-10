@@ -24,21 +24,27 @@ namespace PlayniteAchievements.Views.Controls.RayGlow
         private const double TwoPi = Math.PI * 2.0;
 
         /// <summary>
-        /// Arrows around the loop. A 64 px icon's hull runs 200-256 DIP, so this spacing gives a base
-        /// around 7-9 DIP: heavy enough to read on the 48 px compact list, fine enough not to merge into
-        /// a collar on the widest grid icon.
+        /// Arrows around the loop. Width is derived from the spacing, so raising this thins the arrows
+        /// to match rather than crowding them: a 64 px icon's hull runs 200-256 DIP, which at this count
+        /// leaves a base around 4 DIP and a clear gap either side.
         /// </summary>
-        public const int DefaultArrowCount = 16;
+        public const int DefaultArrowCount = 32;
 
         // Lobe counts of the standing wave. Both are coprime with the arrow count on purpose: a count
         // that divided it would have every arrow sampling the same few heights forever, and the burst
         // would read as a rigid scallop instead of a wave.
-        private const int PrimaryLobes = 3;
-        private const int SecondaryLobes = 5;
+        private const int PrimaryLobes = 5;
+        private const int SecondaryLobes = 7;
         private const double SecondaryPhase = 1.1;
 
-        private const double MinHeightFraction = 0.35;
-        private const double MinWidthScale = 0.60;
+        /// <summary>
+        /// Height of the shortest arrow as a fraction of the tallest. Keeps the crests and troughs
+        /// close enough together that the ring reads as one band with a wave running through it, rather
+        /// than as tall spikes with gaps between them.
+        /// </summary>
+        private const double MinHeightFraction = 0.45;
+
+        private const double MinWidthScale = 0.55;
 
         /// <summary>How far inside the loop a base sits, as a fraction of the subject's short side.</summary>
         private const double InwardFraction = 0.22;

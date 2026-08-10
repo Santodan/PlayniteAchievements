@@ -160,13 +160,14 @@ namespace PlayniteAchievements.Views.Controls
         }
 
         /// <summary>
-        /// How far the effect may reach beyond its layout slot, as a multiple of it. Completed game art
-        /// passes its own value, being much larger than an icon.
+        /// How far the effect may reach beyond its layout slot, as a multiple of it. The tallest arrow
+        /// reaches half the excess past the subject's short side, so this is what caps the burst's
+        /// overall size. Completed game art passes its own value, being much larger than an icon.
         /// </summary>
         public static readonly DependencyProperty BurstScaleProperty =
             DependencyProperty.Register(
                 nameof(BurstScale), typeof(double), typeof(RarityRayBurst),
-                new PropertyMetadata(1.9, OnRenderAffectingChanged));
+                new PropertyMetadata(1.55, OnRenderAffectingChanged));
 
         public double BurstScale
         {
@@ -207,13 +208,16 @@ namespace PlayniteAchievements.Views.Controls
 
         /// <summary>
         /// Corner rounding of the fallback track, as a fraction of the subject's short side. Only used
-        /// where no silhouette was traced — an opaque rectangle, which is most icons and every cover.
-        /// Surfaces that clip their art to a rounded card raise this to match.
+        /// where no silhouette was traced — an opaque rectangle, which is most icons and every cover —
+        /// so this, not the silhouette smoothing, is what most arrows actually travel around. Generous
+        /// on purpose: a base rounding a square corner turns through ninety degrees, and doing that over
+        /// a wide arc reads as travel where doing it over a tight one reads as a corner being clipped.
+        /// Surfaces whose art is clipped tighter than this pass their own value.
         /// </summary>
         public static readonly DependencyProperty CornerRadiusRatioProperty =
             DependencyProperty.Register(
                 nameof(CornerRadiusRatio), typeof(double), typeof(RarityRayBurst),
-                new PropertyMetadata(0.12, OnLayoutAffectingChanged));
+                new PropertyMetadata(0.22, OnLayoutAffectingChanged));
 
         public double CornerRadiusRatio
         {
