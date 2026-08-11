@@ -110,8 +110,8 @@ namespace PlayniteAchievements.Views.Helpers
         /// <summary>
         /// Builds the "Open" submenu shared by every game row menu: "Game" launches the game through
         /// Playnite, "Library" runs the caller's existing select-in-library action. "Game" is disabled
-        /// when the game is not installed, where <see cref="IPlayniteAPI.StartGame"/> starts the install
-        /// flow instead of launching.
+        /// when the game is not installed, where IPlayniteAPI.StartGame starts the install flow instead
+        /// of launching.
         /// </summary>
         public static MenuItem CreateOpenMenu(
             FrameworkElement resourceOwner,
