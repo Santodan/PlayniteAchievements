@@ -100,7 +100,7 @@ The entries below are fork-side changes, grouped by date. When a date includes a
 ## Next release - TBD
 
 - Fixed steamhunters hidden achievements not respecting the extension language setting
-
+- Fixed the multiple folders dropdown not showing correctly
 
 ## 2026-08-08 - v3.1.1.1
 

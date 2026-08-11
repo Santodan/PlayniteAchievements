@@ -35,7 +35,6 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
         private string _localFolderOverrideInput = string.Empty;
         private string _localFolderAutoPath = string.Empty;
         private IReadOnlyList<string> _localFolderCandidates = Array.Empty<string>();
-        private string _localFolderCandidatesSummary = string.Empty;
         private string _selectedAmbiguousFolder;
         private bool _hasAmbiguousLocalFolders;
         private bool _hasLocalSteamAppIdOverride;
@@ -72,7 +71,7 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
         private string _preferredProviderOverrideInput = string.Empty;
         private string _preferredProviderStatusText = string.Empty;
         private IReadOnlyList<OverviewOverrideItem> _overviewOverrides = Array.Empty<OverviewOverrideItem>();
-        private RelayCommand _applyLocalFolderOverrideCommand, _clearLocalFolderOverrideCommand, _browseLocalFolderOverrideCommand, _browseLocalAchievementFileOverrideCommand;
+        private RelayCommand _applyLocalFolderOverrideCommand, _clearLocalFolderOverrideCommand, _browseLocalFolderOverrideCommand, _browseLocalAchievementFileOverrideCommand, _refreshLocalFolderCandidatesCommand;
         private RelayCommand _applyLocalSteamAppIdOverrideCommand, _clearLocalSteamAppIdOverrideCommand, _applyLocalSteamAppCacheUserOverrideCommand, _clearLocalSteamAppCacheUserOverrideCommand;
         private RelayCommand _applyLocalLumaPlayAppIdOverrideCommand, _clearLocalLumaPlayAppIdOverrideCommand, _applyLocalLumaPlayIniPathOverrideCommand, _clearLocalLumaPlayIniPathOverrideCommand, _browseLocalLumaPlayIniPathOverrideCommand;
         private RelayCommand _applyLocalRefreshOnGameCloseOverrideCommand, _clearLocalRefreshOnGameCloseOverrideCommand;
@@ -94,7 +93,6 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
         public string LocalFolderOverrideInput { get => _localFolderOverrideInput; set { if (SetValueAndReturn(ref _localFolderOverrideInput, value ?? string.Empty)) RaiseForkOverrideCommandStates(); } }
         public string LocalFolderAutoPath { get => _localFolderAutoPath; private set { if (SetValueAndReturn(ref _localFolderAutoPath, value ?? string.Empty)) OnPropertyChanged(nameof(LocalFolderStatusText)); } }
         public IReadOnlyList<string> LocalFolderCandidates { get => _localFolderCandidates; private set => SetValue(ref _localFolderCandidates, value ?? Array.Empty<string>()); }
-        public string LocalFolderCandidatesSummary { get => _localFolderCandidatesSummary; private set => SetValue(ref _localFolderCandidatesSummary, value ?? string.Empty); }
         public string SelectedAmbiguousFolder { get => _selectedAmbiguousFolder; set { if (SetValueAndReturn(ref _selectedAmbiguousFolder, value) && !string.IsNullOrWhiteSpace(value)) { LocalFolderOverrideInput = value; if (Directory.Exists(value)) TrySetLocalFolderOverride(value); } } }
         public bool HasAmbiguousLocalFolders { get => _hasAmbiguousLocalFolders; private set { if (SetValueAndReturn(ref _hasAmbiguousLocalFolders, value)) OnPropertyChanged(nameof(LocalFolderStatusText)); } }
         public string LocalFolderStatusText
@@ -164,6 +162,7 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
         public RelayCommand ClearLocalFolderOverrideCommand => _clearLocalFolderOverrideCommand ??= new RelayCommand(_ => ClearLocalFolderOverride(), _ => HasGame && HasLocalFolderOverride);
         public RelayCommand BrowseLocalFolderOverrideCommand => _browseLocalFolderOverrideCommand ??= new RelayCommand(_ => BrowseLocalFolderOverride(), _ => HasGame);
         public RelayCommand BrowseLocalAchievementFileOverrideCommand => _browseLocalAchievementFileOverrideCommand ??= new RelayCommand(_ => BrowseLocalAchievementFileOverride(), _ => HasGame);
+        public RelayCommand RefreshLocalFolderCandidatesCommand => _refreshLocalFolderCandidatesCommand ??= new RelayCommand(_ => RefreshLocalFolderCandidates(), _ => HasGame);
         public RelayCommand ApplyLocalSteamAppIdOverrideCommand => _applyLocalSteamAppIdOverrideCommand ??= new RelayCommand(_ => ApplyLocalSteamAppIdOverride(), _ => HasGame);
         public RelayCommand ClearLocalSteamAppIdOverrideCommand => _clearLocalSteamAppIdOverrideCommand ??= new RelayCommand(_ => ClearLocalSteamAppIdOverride(), _ => HasGame && HasLocalSteamAppIdOverride);
         public RelayCommand ApplyLocalSteamAppCacheUserOverrideCommand => _applyLocalSteamAppCacheUserOverrideCommand ??= new RelayCommand(_ => ApplyLocalSteamAppCacheUserOverride(), _ => HasGame);
@@ -354,15 +353,19 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
             if (localProvider != null && game != null && localProvider.TryGetResolvedFolderInfo(game, out var selectedFolder, out var candidates, out var isFolderOverridden, out var isAmbiguousFolder))
             {
                 HasLocalFolderOverride = isFolderOverridden; LocalFolderOverrideValue = isFolderOverridden ? selectedFolder : string.Empty; LocalFolderOverrideInput = isFolderOverridden ? selectedFolder : string.Empty; LocalFolderAutoPath = selectedFolder;
-                HasAmbiguousLocalFolders = isAmbiguousFolder; LocalFolderCandidates = candidates ?? Array.Empty<string>(); LocalFolderCandidatesSummary = candidates != null && candidates.Count > 1 ? string.Join(Environment.NewLine, candidates) : string.Empty; SelectedAmbiguousFolder = null;
+                HasAmbiguousLocalFolders = isAmbiguousFolder; LocalFolderCandidates = candidates ?? Array.Empty<string>();
+                SetValue(
+                    ref _selectedAmbiguousFolder,
+                    isFolderOverridden && LocalFolderCandidates.Any(candidate => string.Equals(candidate, selectedFolder, StringComparison.OrdinalIgnoreCase)) ? selectedFolder : null,
+                    nameof(SelectedAmbiguousFolder));
             }
             else if (LocalSavesProvider.TryGetFolderOverride(_gameId, out var folder))
             {
-                HasLocalFolderOverride = true; LocalFolderOverrideValue = folder; LocalFolderOverrideInput = folder; LocalFolderAutoPath = folder; HasAmbiguousLocalFolders = false; LocalFolderCandidates = Array.Empty<string>(); LocalFolderCandidatesSummary = string.Empty; SelectedAmbiguousFolder = null;
+                HasLocalFolderOverride = true; LocalFolderOverrideValue = folder; LocalFolderOverrideInput = folder; LocalFolderAutoPath = folder; HasAmbiguousLocalFolders = false; LocalFolderCandidates = Array.Empty<string>(); SelectedAmbiguousFolder = null;
             }
             else
             {
-                HasLocalFolderOverride = false; LocalFolderOverrideValue = string.Empty; LocalFolderOverrideInput = string.Empty; LocalFolderAutoPath = string.Empty; HasAmbiguousLocalFolders = false; LocalFolderCandidates = Array.Empty<string>(); LocalFolderCandidatesSummary = string.Empty; SelectedAmbiguousFolder = null;
+                HasLocalFolderOverride = false; LocalFolderOverrideValue = string.Empty; LocalFolderOverrideInput = string.Empty; LocalFolderAutoPath = string.Empty; HasAmbiguousLocalFolders = false; LocalFolderCandidates = Array.Empty<string>(); SelectedAmbiguousFolder = null;
             }
             var localSettings = ProviderRegistry.Settings<LocalSettings>();
             LocalRefreshOnGameCloseGlobalValue = localSettings?.RefreshAchievementsOnGameClose == true;
@@ -396,7 +399,7 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
         private void RaiseForkOverrideCommandStates()
         {
             RaiseCustomSchemaCommandStates();
-            _applyLocalFolderOverrideCommand?.RaiseCanExecuteChanged(); _clearLocalFolderOverrideCommand?.RaiseCanExecuteChanged(); _browseLocalFolderOverrideCommand?.RaiseCanExecuteChanged(); _browseLocalAchievementFileOverrideCommand?.RaiseCanExecuteChanged();
+            _applyLocalFolderOverrideCommand?.RaiseCanExecuteChanged(); _clearLocalFolderOverrideCommand?.RaiseCanExecuteChanged(); _browseLocalFolderOverrideCommand?.RaiseCanExecuteChanged(); _browseLocalAchievementFileOverrideCommand?.RaiseCanExecuteChanged(); _refreshLocalFolderCandidatesCommand?.RaiseCanExecuteChanged();
             _applyLocalSteamAppIdOverrideCommand?.RaiseCanExecuteChanged(); _clearLocalSteamAppIdOverrideCommand?.RaiseCanExecuteChanged(); _applyLocalSteamAppCacheUserOverrideCommand?.RaiseCanExecuteChanged(); _clearLocalSteamAppCacheUserOverrideCommand?.RaiseCanExecuteChanged();
             _applyLocalLumaPlayAppIdOverrideCommand?.RaiseCanExecuteChanged(); _clearLocalLumaPlayAppIdOverrideCommand?.RaiseCanExecuteChanged(); _applyLocalLumaPlayIniPathOverrideCommand?.RaiseCanExecuteChanged(); _clearLocalLumaPlayIniPathOverrideCommand?.RaiseCanExecuteChanged(); _browseLocalLumaPlayIniPathOverrideCommand?.RaiseCanExecuteChanged();
             _applyLocalRefreshOnGameCloseOverrideCommand?.RaiseCanExecuteChanged(); _clearLocalRefreshOnGameCloseOverrideCommand?.RaiseCanExecuteChanged(); _applySteamAccountOverrideCommand?.RaiseCanExecuteChanged(); _clearSteamAccountOverrideCommand?.RaiseCanExecuteChanged(); _applyPreferredProviderOverrideCommand?.RaiseCanExecuteChanged(); _clearPreferredProviderOverrideCommand?.RaiseCanExecuteChanged();
@@ -409,6 +412,7 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
         private void ClearLocalFolderOverride() { if (TryClearLocalFolderOverride()) Reload(); }
         private void BrowseLocalFolderOverride() { var p = _playniteApi?.Dialogs?.SelectFolder(); if (!string.IsNullOrWhiteSpace(p)) LocalFolderOverrideInput = p; }
         private void BrowseLocalAchievementFileOverride() { var d = new OpenFileDialog { Filter = "Achievement files (achievements.json;achievements.ini;user_stats.ini;tenoke.ini)|achievements.json;achievements.ini;user_stats.ini;tenoke.ini|JSON files (*.json)|*.json|INI files (*.ini)|*.ini|All files (*.*)|*.*", CheckFileExists = true, Multiselect = false }; if (d.ShowDialog() == true) LocalFolderOverrideInput = d.FileName; }
+        private void RefreshLocalFolderCandidates() { var game = _playniteApi?.Database?.Games?.Get(_gameId); var localProvider = _refreshService?.Providers?.OfType<LocalSavesProvider>().FirstOrDefault(); if (game == null || localProvider == null) return; localProvider.ResetLocalFolderDiscovery(game); RefreshLocalOverrides(game); }
         private bool TrySetLocalFolderOverride(string p) { if (!LocalSavesProvider.TrySetFolderOverride(_gameId, p, CurrentGameName, _persistSettingsForUi, _logger)) return false; EnsurePreferredProviderIsLocal(); _achievementOverridesService?.ClearGameData(_gameId, CurrentGameName); TriggerRefreshForProvider(LocalProviderKey); return true; }
         private bool TryClearLocalFolderOverride() { if (!LocalSavesProvider.TryClearFolderOverride(_gameId, CurrentGameName, _persistSettingsForUi, _logger)) return false; _achievementOverridesService?.ClearGameData(_gameId, CurrentGameName); TriggerRefreshForProvider(LocalProviderKey); return true; }
         private void ApplyLocalSteamAppIdOverride() { if (int.TryParse(LocalSteamAppIdOverrideInput, out var id) && id > 0) { LocalSavesProvider.TrySetAppIdOverride(_gameId, id, CurrentGameName, _persistSettingsForUi, _logger); _achievementOverridesService?.ClearGameData(_gameId, CurrentGameName); TriggerRefreshForProvider(LocalProviderKey); Reload(); } else ShowWarning("LOCPlayAch_Menu_LocalAppId_InvalidId", "Please enter a valid positive Steam App ID."); }
