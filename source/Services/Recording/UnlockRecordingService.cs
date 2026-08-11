@@ -953,6 +953,7 @@ namespace PlayniteAchievements.Services.Recording
                 // behind other waves.
                 string basePath;
                 double videoLeadSeconds;
+                DateTime clipStartUtc;
                 lock (_outstandingGate)
                 {
                     _outstandingWindowStarts.Add(window.StartUtc);
@@ -960,7 +961,7 @@ namespace PlayniteAchievements.Services.Recording
 
                 try
                 {
-                    (basePath, videoLeadSeconds) = await ExportBaseClipAsync(session, request, window)
+                    (basePath, videoLeadSeconds, clipStartUtc) = await ExportBaseClipAsync(session, request, window)
                         .ConfigureAwait(false);
                 }
                 finally
@@ -984,7 +985,8 @@ namespace PlayniteAchievements.Services.Recording
                     if (track != null)
                     {
                         var composited = await ReencodeWithTrackAsync(
-                                session, request, basePath, track, window, toastSlotSeconds, videoLeadSeconds)
+                                session, request, basePath, track, window, toastSlotSeconds, videoLeadSeconds,
+                                clipStartUtc)
                             .ConfigureAwait(false);
                         if (composited != null)
                         {
@@ -1086,10 +1088,15 @@ namespace PlayniteAchievements.Services.Recording
         /// </summary>
         private async Task<string> ReencodeWithTrackAsync(
             CaptureSession session, ClipRequest request, string basePath, ToastOverlayTrack track,
-            SegmentTimeline.ClipWindow window, double toastSlotSeconds, double videoLeadSeconds)
+            SegmentTimeline.ClipWindow window, double toastSlotSeconds, double videoLeadSeconds,
+            DateTime clipStartUtc)
         {
             // Toast position within the BASE clip's timeline: the base starts `videoLeadSeconds`
-            // before the window start (keyframe snap), and the overlay sits inside the window.
+            // before the clip's own start (keyframe snap), and the overlay sits inside the window.
+            //
+            // Measured from where the clip actually begins, not from where the window wanted to begin.
+            // The two differ whenever the buffer could not reach back the full pre-roll, and measuring
+            // from the window then put the card that much too early against the footage.
             //
             // The card goes where it genuinely appeared rather than on the anchor. An unlock is
             // detected a little before its card is actually on screen — the poll notices the file,
@@ -1108,7 +1115,8 @@ namespace PlayniteAchievements.Services.Recording
                     ? track.StartUtc
                     : window.ToastAnchorUtc;
 
-            var toastStartSeconds = videoLeadSeconds + (overlayStartUtc - window.StartUtc).TotalSeconds;
+            var clipOriginUtc = clipStartUtc == default(DateTime) ? window.StartUtc : clipStartUtc;
+            var toastStartSeconds = videoLeadSeconds + (overlayStartUtc - clipOriginUtc).TotalSeconds;
             var endSeconds = toastStartSeconds + overlaySeconds;
 
             // Which instant the card ended up on, and why. The track is rejected whenever it starts
@@ -1202,7 +1210,7 @@ namespace PlayniteAchievements.Services.Recording
         /// the buffer directory. Returns the temp path plus the keyframe lead (seconds the base
         /// starts before the window; the re-encode trims it back off), or (null, 0) on failure.
         /// </summary>
-        private async Task<(string TempPath, double VideoLeadSeconds)> ExportBaseClipAsync(
+        private async Task<(string TempPath, double VideoLeadSeconds, DateTime ClipStartUtc)> ExportBaseClipAsync(
             CaptureSession session,
             ClipRequest request,
             SegmentTimeline.ClipWindow window)
@@ -1231,7 +1239,7 @@ namespace PlayniteAchievements.Services.Recording
             if (plan == null)
             {
                 _logger?.Debug($"[Recording] No buffered segments overlap the clip window for '{request.AchievementName}'; skipping.");
-                return (null, 0);
+                return (null, 0, default(DateTime));
             }
 
             if (plan.TruncatedByResize)
@@ -1274,10 +1282,24 @@ namespace PlayniteAchievements.Services.Recording
             {
                 _logger?.Warn($"[Recording] Clip export failed for '{request.AchievementName}'.");
                 TryDeleteFile(tempPath);
-                return (null, 0);
+                return (null, 0, default(DateTime));
             }
 
-            return (tempPath, videoLeadSeconds);
+            // The instant the finished clip actually begins. PlanClip starts at the later of the window
+            // start and the oldest segment it can use, so a buffer that does not reach back far enough —
+            // a young session, a pruned buffer, a run cut short by a resize — makes the clip begin after
+            // the window did. Anything positioned inside the clip has to measure from here rather than
+            // from the window, or it lands early by the difference.
+            var clipStartUtc = plan.Segments[0].StartUtc.AddSeconds(plan.StartOffsetSeconds);
+            if (clipStartUtc > window.StartUtc.AddMilliseconds(250))
+            {
+                _logger?.Info(
+                    $"[RecordingTiming] clip begins {(clipStartUtc - window.StartUtc).TotalSeconds.ToString("F2", CultureInfo.InvariantCulture)}s " +
+                    $"after the window start — the buffer reached back only to {Stamp(plan.Segments[0].StartUtc)}; " +
+                    "positions inside the clip are measured from the clip's own start.");
+            }
+
+            return (tempPath, videoLeadSeconds, clipStartUtc);
         }
 
         /// <summary>
