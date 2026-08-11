@@ -27,8 +27,12 @@ namespace PlayniteAchievements.Services.Achievements
                     continue;
                 }
 
+                // Only a lock-to-unlock transition counts. An achievement already unlocked in the
+                // baseline stays out even when its timestamp moves, because sources disagree on the
+                // unlock instant: a local stats file records the moment, a scraped page a coarser
+                // rendered time. Treating that shift as new re-announces the whole set.
                 beforeByKey.TryGetValue(key, out var previous);
-                if (previous == null || previous.Unlocked != true || HasStrictlyNewerUnlockTime(previous.UnlockTimeUtc, current.UnlockTimeUtc))
+                if (previous == null || previous.Unlocked != true)
                 {
                     result.Add(current);
                 }
@@ -134,13 +138,6 @@ namespace PlayniteAchievements.Services.Achievements
             }
 
             return result;
-        }
-
-        private static bool HasStrictlyNewerUnlockTime(DateTime? previous, DateTime? current)
-        {
-            var previousUtc = NormalizeUnlockTime(previous);
-            var currentUtc = NormalizeUnlockTime(current);
-            return previousUtc.HasValue && currentUtc.HasValue && currentUtc.Value > previousUtc.Value;
         }
 
         private static DateTime? NormalizeUnlockTime(DateTime? value)
