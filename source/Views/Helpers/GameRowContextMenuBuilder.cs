@@ -19,7 +19,7 @@ namespace PlayniteAchievements.Views.Helpers
     internal static class GameRowContextMenuBuilder
     {
         /// <summary>
-        /// Builds the game-level context menu (Refresh, Open in Library, optional Manage Achievements,
+        /// Builds the game-level context menu (Refresh, Open, optional Manage Achievements,
         /// Clear Data, Exclude from Summaries/Refreshes). The Manage Achievements item is omitted when
         /// <paramref name="openManageAchievements"/> is null (e.g. when already inside that window).
         /// </summary>
@@ -36,14 +36,18 @@ namespace PlayniteAchievements.Views.Helpers
             bool includeViewCaptures = false)
         {
             var menu = new ContextMenu();
-            var hasPlayniteGameId = TryGetGameId(data, out _);
+            var hasPlayniteGameId = TryGetGameId(data, out var menuGameId);
             menu.Items.Add(CreateMenuItem(resourceOwner, "LOCPlayAch_Menu_RefreshGame",
                 () => ExecuteCommand(refreshGameCommand, data)));
 
             if (hasPlayniteGameId)
             {
-                menu.Items.Add(CreateMenuItem(resourceOwner, "LOCPlayAch_Menu_OpenGameInLibrary",
-                    () => ExecuteCommand(openGameInLibraryCommand, data)));
+                menu.Items.Add(CreateOpenMenu(
+                    resourceOwner,
+                    menuGameId,
+                    () => ExecuteCommand(openGameInLibraryCommand, data),
+                    playniteApi,
+                    logger));
 
                 if (openManageAchievements != null)
                 {
@@ -69,16 +73,13 @@ namespace PlayniteAchievements.Views.Helpers
 
                 menu.Items.Add(new Separator());
 
-                TryGetGameId(data, out var menuGameId);
                 var excludedFromSummaries = overridesService?.IsExcludedFromSummaries(menuGameId) == true;
                 var excludedFromRefreshes = overridesService?.IsExcludedFromRefreshes(menuGameId) == true;
 
                 // Group the destructive / rarely-used data actions under a Maintenance submenu.
                 var maintenance = new MenuItem
                 {
-                    Header = resourceOwner?.TryFindResource("LOCPlayAch_Settings_Maintenance_Title") as string
-                        ?? ResourceProvider.GetString("LOCPlayAch_Settings_Maintenance_Title")
-                        ?? "LOCPlayAch_Settings_Maintenance_Title"
+                    Header = ResolveHeader(resourceOwner, "LOCPlayAch_Settings_Maintenance_Title")
                 };
                 maintenance.Items.Add(CreateMenuItem(resourceOwner, "LOCPlayAch_Menu_ClearData",
                     () => ClearGameData(data, playniteApi, overridesService, cacheManager, logger)));
@@ -106,14 +107,69 @@ namespace PlayniteAchievements.Views.Helpers
             return menu;
         }
 
+        /// <summary>
+        /// Builds the "Open" submenu shared by every game row menu: "Game" launches the game through
+        /// Playnite, "Library" runs the caller's existing select-in-library action. "Game" is disabled
+        /// when the game is not installed, where <see cref="IPlayniteAPI.StartGame"/> starts the install
+        /// flow instead of launching.
+        /// </summary>
+        public static MenuItem CreateOpenMenu(
+            FrameworkElement resourceOwner,
+            Guid gameId,
+            Action openInLibrary,
+            IPlayniteAPI playniteApi,
+            ILogger logger)
+        {
+            var openMenu = new MenuItem { Header = ResolveHeader(resourceOwner, "LOCOpen") };
+
+            var gameItem = CreateMenuItem(resourceOwner, "LOCPlayAch_Column_Game",
+                () => StartGame(playniteApi, gameId, logger));
+            gameItem.IsEnabled = IsGameInstalled(playniteApi, gameId);
+            openMenu.Items.Add(gameItem);
+
+            openMenu.Items.Add(CreateMenuItem(resourceOwner, "LOCLibrary", () => openInLibrary?.Invoke()));
+            return openMenu;
+        }
+
         public static MenuItem CreateMenuItem(FrameworkElement resourceOwner, string resourceKey, Action onClick)
         {
-            var text = resourceOwner?.TryFindResource(resourceKey) as string
-                ?? ResourceProvider.GetString(resourceKey)
-                ?? resourceKey;
-            var item = new MenuItem { Header = text };
+            var item = new MenuItem { Header = ResolveHeader(resourceOwner, resourceKey) };
             item.Click += (_, __) => onClick?.Invoke();
             return item;
+        }
+
+        private static string ResolveHeader(FrameworkElement resourceOwner, string resourceKey)
+        {
+            return resourceOwner?.TryFindResource(resourceKey) as string
+                ?? ResourceProvider.GetString(resourceKey)
+                ?? resourceKey;
+        }
+
+        private static bool IsGameInstalled(IPlayniteAPI playniteApi, Guid gameId)
+        {
+            if (gameId == Guid.Empty)
+            {
+                return false;
+            }
+
+            return (playniteApi ?? API.Instance)?.Database?.Games?.Get(gameId)?.IsInstalled == true;
+        }
+
+        private static void StartGame(IPlayniteAPI playniteApi, Guid gameId, ILogger logger)
+        {
+            if (gameId == Guid.Empty)
+            {
+                return;
+            }
+
+            try
+            {
+                (playniteApi ?? API.Instance)?.StartGame(gameId);
+            }
+            catch (Exception ex)
+            {
+                logger?.Error(ex, $"Failed to start game: {gameId}");
+            }
         }
 
         public static void ExecuteCommand(ICommand command, object parameter)
