@@ -456,6 +456,23 @@ namespace PlayniteAchievements.Tools.RayGlowTuner
                     Slot = new Size(80, 120),
                     CornerRadiusRatio = 0.14
                 },
+                // Category summaries share the cover cell: a 96 wide column less its 8,6 margin. The
+                // column resizes from 32 to 600, so the widened case is worth seeing next to it —
+                // that is where a fixed arrow count has the most perimeter to spread over.
+                new Subject
+                {
+                    Name = "category 80px",
+                    Bitmap = Shapes.RoundedSquare(80, 76),
+                    Slot = new Size(80, 76),
+                    CornerRadiusRatio = 0.14
+                },
+                new Subject
+                {
+                    Name = "category wide",
+                    Bitmap = Shapes.RoundedSquare(160, 90),
+                    Slot = new Size(160, 90),
+                    CornerRadiusRatio = 0.14
+                },
                 new Subject
                 {
                     Name = "cutout",
