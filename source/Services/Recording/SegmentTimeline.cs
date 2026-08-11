@@ -262,9 +262,9 @@ namespace PlayniteAchievements.Services.Recording
         }
 
         /// <summary>
-        /// Computes the clip window in UTC. The clip is built around the moment the achievement
-        /// appeared on screen — the on-screen toast never moves the window, because the toast is
-        /// composited into the clip at export.
+        /// Computes the clip window in UTC. The clip is built around the moment the achievement was
+        /// earned — the real on-screen notification never moves the window, because the card is
+        /// composited into the clip at export, on the anchor.
         ///
         /// The anchor is the provider's unlock timestamp when it is reachable, else detection. Two
         /// floors raise the start: it may not open earlier than one poll interval + pre-roll before
