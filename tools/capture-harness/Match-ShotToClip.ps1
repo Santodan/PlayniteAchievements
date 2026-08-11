@@ -14,9 +14,13 @@ $ErrorActionPreference = 'Stop'
 Add-Type -AssemblyName System.Drawing
 $sp = Split-Path $PSCommandPath
 
+# build.ps1 puts the executables in bin\; a shared bundle is just that folder, with this script dropped in.
+$dump = @("$sp\bin\FrameDump.exe", "$sp\FrameDump.exe") | Where-Object { Test-Path $_ } | Select-Object -First 1
+if (-not $dump) { throw "no FrameDump.exe in $sp\bin or beside this script - run build.ps1" }
+
 $dir = Join-Path $sp ('match_' + [IO.Path]::GetFileNameWithoutExtension($Clip).Replace(' ', '_'))
 if (-not (Test-Path $dir)) {
-    & (Join-Path $sp 'FrameDump.exe') $Clip $dir $From $To 320 > $null 2>&1
+    & $dump $Clip $dir $From $To 320 > $null 2>&1
 }
 
 $frames = Get-ChildItem $dir -Filter *.png | Sort-Object Name
