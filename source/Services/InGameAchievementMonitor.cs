@@ -1031,16 +1031,29 @@ namespace PlayniteAchievements.Services
             var allowed = new HashSet<string>(
                 allowedKeys ?? Array.Empty<string>(),
                 StringComparer.OrdinalIgnoreCase);
-            // ToastedUserKeys is what keeps the two prongs from both notifying the same unlock: the
-            // fast source and the universal refresh prong run concurrently on the same game and can
-            // observe one unlock independently, so this per-session set is load-bearing, not
-            // incidental.
-            var unlocks = (after?.Achievements ?? new List<AchievementDetail>())
+            var candidates = (after?.Achievements ?? new List<AchievementDetail>())
                 .Where(achievement =>
                     achievement?.Unlocked == true &&
                     !string.IsNullOrWhiteSpace(achievement.ApiName) &&
-                    allowed.Contains(achievement.ApiName) &&
-                    state.ToastedUserKeys.Add(achievement.ApiName))
+                    allowed.Contains(achievement.ApiName))
+                .ToList();
+
+            // ToastedUserKeys is what keeps the two prongs from both notifying the same unlock: the
+            // fast source and the universal refresh prong run concurrently on the same game and can
+            // observe one unlock independently, so this per-session set is load-bearing, not
+            // incidental. Claiming happens under the state lock because those two prongs can reach
+            // this method at the same time for the same game; whichever claims a key notifies it.
+            List<AchievementDetail> claimed;
+            lock (_stateLock)
+            {
+                claimed = candidates
+                    .Where(achievement => state.ToastedUserKeys.Add(achievement.ApiName))
+                    .ToList();
+            }
+
+            // Filtered achievements still consume their claim, so a rarity/category filter cannot be
+            // toggled mid-session into replaying an unlock the player already passed.
+            var unlocks = claimed
                 .Where(a => a?.IsFiltered != true)
                 .ToList();
             _logger?.Debug(
