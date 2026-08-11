@@ -216,7 +216,6 @@
     <sys:String x:Key="LOCPlayAch_Menu_IncludeGame">Include this Game</sys:String>
     <sys:String x:Key="LOCPlayAch_Menu_IncludeInRefreshes">Include in Refreshes</sys:String>
     <sys:String x:Key="LOCPlayAch_Menu_IncludeInRefreshesAndRefresh">Include in Refreshes and Refresh Selected Games</sys:String>
-    <sys:String x:Key="LOCPlayAch_Menu_OpenGameInLibrary">Open Game in Library</sys:String>
     <sys:String x:Key="LOCPlayAch_Menu_OpenOverview">Achievements Overview</sys:String>
     <sys:String x:Key="LOCPlayAch_Menu_OpenGameInOverview">Open Game in Overview</sys:String>
     <sys:String x:Key="LOCPlayAch_Menu_IgnoreFriend">Ignore Friend</sys:String>
