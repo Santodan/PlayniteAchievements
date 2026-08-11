@@ -126,6 +126,115 @@
 
                     <Border Style="{StaticResource SettingGroupCardStyle}">
                         <StackPanel>
+                            <TextBlock Text="{DynamicResource LOCPlayAch_Settings_CompressImages_Title}"
+                                       Style="{StaticResource SubSectionHeaderStyle}"
+                                       Margin="{StaticResource PlayAch.Thickness.Bottom.Xs}"/>
+                            <TextBlock Text="{DynamicResource LOCPlayAch_Settings_CompressImages_Description}"
+                                       Style="{StaticResource MutedTextStyle}"
+                                       TextWrapping="Wrap"
+                                       Margin="{StaticResource PlayAch.Thickness.Bottom.Md}"/>
+
+                            <Grid Style="{StaticResource SettingRowStyle}">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*"/>
+                                    <ColumnDefinition Width="Auto"/>
+                                </Grid.ColumnDefinitions>
+
+                                <TextBlock Grid.Column="0"
+                                           Text="{DynamicResource LOCPlayAch_Settings_CompressImages_MaxSize}"
+                                           Style="{StaticResource MutedTextStyle}"
+                                           VerticalAlignment="Center"/>
+
+                                <ComboBox Grid.Column="1"
+                                          x:Name="CompressMaxDimensionCombo"
+                                          Margin="16,0,0,0"
+                                          MinWidth="130"/>
+                            </Grid>
+
+                            <Grid Style="{StaticResource SettingRowStyle}">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*"/>
+                                    <ColumnDefinition Width="Auto"/>
+                                </Grid.ColumnDefinitions>
+
+                                <TextBlock Grid.Column="0"
+                                           Text="{DynamicResource LOCPlayAch_Settings_CompressImages_AchievementIconsDescription}"
+                                           Style="{StaticResource MutedTextStyle}"
+                                           TextWrapping="Wrap"
+                                           VerticalAlignment="Center"/>
+
+                                <Button Grid.Column="1"
+                                        Content="{DynamicResource LOCPlayAch_Button_Compress}"
+                                        Click="CompressAchievementIcons_Click"
+                                        Padding="{StaticResource PlayAch.Thickness.ButtonPadding.Wide}"
+                                        Margin="16,0,0,0"
+                                        MinWidth="130"/>
+                            </Grid>
+
+                            <Grid Style="{StaticResource SettingRowStyle}">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*"/>
+                                    <ColumnDefinition Width="Auto"/>
+                                </Grid.ColumnDefinitions>
+
+                                <TextBlock Grid.Column="0"
+                                           Text="{DynamicResource LOCPlayAch_Settings_CompressImages_CategoryArtDescription}"
+                                           Style="{StaticResource MutedTextStyle}"
+                                           TextWrapping="Wrap"
+                                           VerticalAlignment="Center"/>
+
+                                <Button Grid.Column="1"
+                                        Content="{DynamicResource LOCPlayAch_Button_Compress}"
+                                        Click="CompressCategoryArt_Click"
+                                        Padding="{StaticResource PlayAch.Thickness.ButtonPadding.Wide}"
+                                        Margin="16,0,0,0"
+                                        MinWidth="130"/>
+                            </Grid>
+
+                            <Grid Style="{StaticResource SettingRowStyle}">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*"/>
+                                    <ColumnDefinition Width="Auto"/>
+                                </Grid.ColumnDefinitions>
+
+                                <TextBlock Grid.Column="0"
+                                           Text="{DynamicResource LOCPlayAch_Settings_CompressImages_FriendImagesDescription}"
+                                           Style="{StaticResource MutedTextStyle}"
+                                           TextWrapping="Wrap"
+                                           VerticalAlignment="Center"/>
+
+                                <Button Grid.Column="1"
+                                        Content="{DynamicResource LOCPlayAch_Button_Compress}"
+                                        Click="CompressFriendImages_Click"
+                                        Padding="{StaticResource PlayAch.Thickness.ButtonPadding.Wide}"
+                                        Margin="16,0,0,0"
+                                        MinWidth="130"/>
+                            </Grid>
+
+                            <Grid>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*"/>
+                                    <ColumnDefinition Width="Auto"/>
+                                </Grid.ColumnDefinitions>
+
+                                <TextBlock Grid.Column="0"
+                                           Text="{DynamicResource LOCPlayAch_Settings_CompressImages_CustomIconsDescription}"
+                                           Style="{StaticResource MutedTextStyle}"
+                                           TextWrapping="Wrap"
+                                           VerticalAlignment="Center"/>
+
+                                <Button Grid.Column="1"
+                                        Content="{DynamicResource LOCPlayAch_Button_Compress}"
+                                        Click="CompressCustomIcons_Click"
+                                        Padding="{StaticResource PlayAch.Thickness.ButtonPadding.Wide}"
+                                        Margin="16,0,0,0"
+                                        MinWidth="130"/>
+                            </Grid>
+                        </StackPanel>
+                    </Border>
+
+                    <Border Style="{StaticResource SettingGroupCardStyle}">
+                        <StackPanel>
                             <TextBlock Text="{DynamicResource LOCPlayAch_Settings_Utilities_Title}"
                                        Style="{StaticResource SubSectionHeaderStyle}"
                                        Margin="{StaticResource PlayAch.Thickness.Bottom.Xs}"/>
