@@ -109,6 +109,11 @@ namespace PlayniteAchievements.Views.Dialogs
                     VideoErrorText.Visibility = Visibility.Collapsed;
                 }
 
+                if (VideoClickLayer != null)
+                {
+                    VideoClickLayer.Visibility = Visibility.Visible;
+                }
+
                 if (VideoPlayer != null)
                 {
                     VideoPlayer.Visibility = Visibility.Visible;
@@ -148,6 +153,11 @@ namespace PlayniteAchievements.Views.Dialogs
                 VideoPlayer.Visibility = Visibility.Collapsed;
             }
 
+            if (VideoClickLayer != null)
+            {
+                VideoClickLayer.Visibility = Visibility.Collapsed;
+            }
+
             if (VideoErrorText != null)
             {
                 VideoErrorText.Visibility = Visibility.Visible;
@@ -167,6 +177,12 @@ namespace PlayniteAchievements.Views.Dialogs
         private void VideoPlayer_MediaFailed(object sender, ExceptionRoutedEventArgs e)
         {
             ShowVideoError();
+        }
+
+        private void VideoClickLayer_MouseLeftButtonUp(object sender, MouseButtonEventArgs e)
+        {
+            TogglePlayPause();
+            e.Handled = true;
         }
 
         private void TogglePlayPause()

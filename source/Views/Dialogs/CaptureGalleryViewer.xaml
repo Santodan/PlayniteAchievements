@@ -253,6 +253,13 @@
                                           MediaEnded="VideoPlayer_MediaEnded"
                                           MediaFailed="VideoPlayer_MediaFailed"/>
 
+                            <!-- Transparent click layer over the video: clicking it toggles
+                                 playback, matching the fullscreen lightbox. -->
+                            <Border x:Name="VideoClickLayer"
+                                    Grid.Row="0"
+                                    Background="Transparent"
+                                    MouseLeftButtonUp="VideoClickLayer_MouseLeftButtonUp"/>
+
                             <TextBlock x:Name="VideoErrorText"
                                        Grid.Row="0"
                                        HorizontalAlignment="Center"
