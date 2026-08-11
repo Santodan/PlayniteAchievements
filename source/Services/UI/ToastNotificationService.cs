@@ -1860,8 +1860,8 @@ namespace PlayniteAchievements.Services.UI
                             }
                         }
 
-                        // Drop cached capture scans for the games in this wave so an already-open
-                        // grid lights up its Captures button on its next rebuild.
+                        // Drop cached capture scans for the games in this wave. This also raises
+                        // CapturesChanged, so an already-open grid lights up its Captures button.
                         foreach (var gameName in items
                             .Select(i => i.Vm?.GameName)
                             .Where(n => !string.IsNullOrWhiteSpace(n))
