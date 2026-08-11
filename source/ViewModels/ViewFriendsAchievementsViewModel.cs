@@ -140,6 +140,9 @@ namespace PlayniteAchievements.ViewModels
 
         public PlayniteAchievementsSettings Settings => _settings;
 
+        /// <summary>The Playnite game this window was opened for; the friend rows are all scoped to it.</summary>
+        public Guid GameId => _gameId;
+
         public string GameName
         {
             get => _gameName;
