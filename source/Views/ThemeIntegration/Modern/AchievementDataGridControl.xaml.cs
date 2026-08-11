@@ -35,6 +35,7 @@ namespace PlayniteAchievements.Views.ThemeIntegration.Modern
         private List<AchievementDetail> _lastOrderedAchievements;
         private int? _lastMaxRows;
         private readonly AchievementGridControlBarAdapter _controlBarAdapter;
+        private readonly Services.Captures.CaptureLibraryService _captureLibrary;
 
         // Sort state tracking
         private string _currentSortPath;
@@ -124,9 +125,11 @@ namespace PlayniteAchievements.Views.ThemeIntegration.Modern
                 PlayniteAchievementsPlugin.Instance?.Settings,
                 Logger);
             _controlBarAdapter.AttachFriendCompare(_friendCompare);
+            _captureLibrary = PlayniteAchievementsPlugin.Instance?.CaptureLibraryService;
             SetValue(SummaryItemsPropertyKey, new ObservableCollection<GameSummaryItem>());
             InitializeComponent();
             Loaded += OnLoaded;
+            Unloaded += OnUnloaded;
         }
 
         private void UpdateSummaryItem(GameSummaryItem item)
@@ -134,10 +137,20 @@ namespace PlayniteAchievements.Views.ThemeIntegration.Modern
             var desired = item != null
                 ? new List<GameSummaryItem> { item }
                 : new List<GameSummaryItem>();
+            // SynchronizeCollection matches by reference, so SummaryItems ends up holding these
+            // very instances and marking the list reaches the rendered row.
             CollectionHelper.SynchronizeCollection(SummaryItems, desired);
-            Services.Captures.CapturePresenceMarker.MarkSummaries(
-                desired, PlayniteAchievementsPlugin.Instance?.CaptureLibraryService);
+            Services.Captures.CapturePresenceMarker.MarkSummaries(desired, _captureLibrary);
             SetValue(HasSummaryItemPropertyKey, item != null);
+        }
+
+        private void OnCapturesChanged(object sender, Services.Captures.CapturesChangedEventArgs e)
+        {
+            var folder = e?.FolderName;
+            Services.Captures.CapturePresenceMarker.MarkAchievements(
+                DisplayItems?.ToList(), _captureLibrary, folder);
+            Services.Captures.CapturePresenceMarker.MarkSummaries(
+                SummaryItems?.ToList(), _captureLibrary, folder);
         }
 
         public GridControlBarViewModel ControlBar => _controlBarAdapter.ControlBar;
@@ -224,9 +237,24 @@ namespace PlayniteAchievements.Views.ThemeIntegration.Modern
 
         private void OnLoaded(object sender, RoutedEventArgs e)
         {
+            if (_captureLibrary != null)
+            {
+                // Loaded can fire again on visual-tree churn; keep the subscription single.
+                _captureLibrary.CapturesChanged -= OnCapturesChanged;
+                _captureLibrary.CapturesChanged += OnCapturesChanged;
+            }
+
             UpdatePreviewBehavior();
             UpdateMaxHeight();
             LoadData();
+        }
+
+        private void OnUnloaded(object sender, RoutedEventArgs e)
+        {
+            if (_captureLibrary != null)
+            {
+                _captureLibrary.CapturesChanged -= OnCapturesChanged;
+            }
         }
 
         private void UpdateMaxHeight()
@@ -313,8 +341,6 @@ namespace PlayniteAchievements.Views.ThemeIntegration.Modern
             var revealedKeys = GetRevealedKeys(DisplayItems);
             var clonedItems = sourceItems.Select(item => item.Clone()).ToList();
             RestoreRevealedState(clonedItems, revealedKeys);
-            Services.Captures.CapturePresenceMarker.MarkAchievements(
-                clonedItems, PlayniteAchievementsPlugin.Instance?.CaptureLibraryService);
 
             // Category rollups and dropdown options use the canonical definition order,
             // independent of the configured theme sort or a user-applied column sort.
@@ -365,6 +391,12 @@ namespace PlayniteAchievements.Views.ThemeIntegration.Modern
             // instances by position, so each instance may now represent a different
             // achievement and its comparison fields must be re-resolved.
             _friendCompare.SetGame(theme?.SelectedGameId, DisplayItems.ToList());
+
+            // Same reason the capture flag is stamped here rather than on clonedItems: UpdateFrom
+            // does not carry HasCaptures, so a reused row would otherwise keep the flag of whichever
+            // achievement previously occupied its position.
+            Services.Captures.CapturePresenceMarker.MarkAchievements(
+                DisplayItems.ToList(), _captureLibrary);
 
             if (useSourceOrder)
             {
