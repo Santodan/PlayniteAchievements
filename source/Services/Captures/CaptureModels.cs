@@ -118,4 +118,24 @@ namespace PlayniteAchievements.Services.Captures
         public IReadOnlyList<AchievementCaptureGroup> GroupsWithVariant(CaptureVariant variant) =>
             Groups.Where(g => g.HasVariant(variant)).ToList();
     }
+
+    /// <summary>
+    /// Raised by <see cref="CaptureLibraryService"/> when a game's captures on disk have changed, so
+    /// grids that are already open can re-stamp their rows instead of waiting for a rebuild. Both
+    /// names are null when every game is affected.
+    /// </summary>
+    public sealed class CapturesChangedEventArgs : EventArgs
+    {
+        public CapturesChangedEventArgs(string gameName, string folderName)
+        {
+            GameName = gameName;
+            FolderName = folderName;
+        }
+
+        /// <summary>Raw game name as the writer knew it; null when every game changed.</summary>
+        public string GameName { get; }
+
+        /// <summary>Sanitized capture folder name; null when every game changed.</summary>
+        public string FolderName { get; }
+    }
 }
