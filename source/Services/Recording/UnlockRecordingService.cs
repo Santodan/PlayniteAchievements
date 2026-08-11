@@ -1098,38 +1098,31 @@ namespace PlayniteAchievements.Services.Recording
             // The two differ whenever the buffer could not reach back the full pre-roll, and measuring
             // from the window then put the card that much too early against the footage.
             //
-            // The card goes where it genuinely appeared rather than on the anchor. An unlock is
-            // detected a little before its card is actually on screen — the poll notices the file,
-            // then the wave is built and shown — so compositing on the anchor pops the toast
-            // marginally early against the footage behind it. The track stamps its own first
-            // rendered frame, which is that moment exactly.
+            // The card sits on the unlock itself, not on the moment the real notification reached the
+            // screen. Those are far apart: a provider poll takes seconds to notice an unlock, so the
+            // notification appeared 9.2s after the fact in one measured case. A clip is built around the
+            // unlock — the pre-roll leads up to it and the tail follows it — so that is where the card
+            // belongs, and placing it there means the clip shows the achievement popping at the instant it
+            // was earned.
             //
-            // Bounded on both sides: never before the anchor (the clip is built around it), and
-            // never so late that the card would run past the clip's end. A toast held back for the
-            // game to regain focus can appear long after the window, and those keep the anchor
-            // rather than sliding off the end.
+            // The track's own first-rendered-frame stamp is deliberately not used for placement. It is
+            // still what the card's animation plays from, so the composited card slides in exactly as it
+            // did live; only its position in the clip comes from the unlock.
             var overlaySeconds = Math.Min(toastSlotSeconds, track.DurationSeconds) + PostFadeTailSeconds;
-            var latestOverlayStartUtc = window.EndUtc.AddSeconds(-overlaySeconds);
-            var overlayStartUtc =
-                track.StartUtc > window.ToastAnchorUtc && track.StartUtc <= latestOverlayStartUtc
-                    ? track.StartUtc
-                    : window.ToastAnchorUtc;
+            var overlayStartUtc = window.ToastAnchorUtc;
 
             var clipOriginUtc = clipStartUtc == default(DateTime) ? window.StartUtc : clipStartUtc;
             var toastStartSeconds = videoLeadSeconds + (overlayStartUtc - clipOriginUtc).TotalSeconds;
             var endSeconds = toastStartSeconds + overlaySeconds;
 
-            // Which instant the card ended up on, and why. The track is rejected whenever it starts
-            // later than the clip can hold it, and then the card lands on the unlock anchor instead —
-            // as many seconds early as detection lagged the unlock. Worth being able to read off a log
-            // rather than reasoning about it from the window.
+            // Where the card landed, and how far the real notification was from it — the gap is the
+            // provider's detection lag, and seeing it beside the placement makes an odd-looking clip
+            // readable without reasoning backwards from the window.
             _logger?.Info(
                 $"[RecordingTiming] toast placed at {toastStartSeconds.ToString("F2", CultureInfo.InvariantCulture)}s " +
-                $"(source={(overlayStartUtc == window.ToastAnchorUtc ? "unlock anchor" : "track")}, " +
-                $"trackStart={Stamp(track.StartUtc)}, anchor={Stamp(window.ToastAnchorUtc)}, " +
-                $"latestAllowed={Stamp(latestOverlayStartUtc)}, " +
-                $"trackVsAnchor {(track.StartUtc - window.ToastAnchorUtc).TotalSeconds.ToString("F1", CultureInfo.InvariantCulture)}s) " +
-                $"lead={videoLeadSeconds.ToString("F2", CultureInfo.InvariantCulture)}s " +
+                $"on the unlock ({Stamp(window.ToastAnchorUtc)}); the notification itself appeared " +
+                $"{(track.StartUtc - window.ToastAnchorUtc).TotalSeconds.ToString("F1", CultureInfo.InvariantCulture)}s later " +
+                $"({Stamp(track.StartUtc)}). lead={videoLeadSeconds.ToString("F2", CultureInfo.InvariantCulture)}s " +
                 $"end={endSeconds.ToString("F2", CultureInfo.InvariantCulture)}s");
             // The wave's own chime, read from the Playnite-only sidecar at its real time, mixed
             // in slightly before the composited toast (matching the live sound-to-reveal lead).
