@@ -53,6 +53,7 @@
                 <ColumnDefinition Width="*"/>
                 <ColumnDefinition Width="Auto"/>
                 <ColumnDefinition Width="Auto"/>
+                <ColumnDefinition Width="Auto"/>
             </Grid.ColumnDefinitions>
 
             <Button x:Name="PlayPauseButton"
@@ -93,6 +94,19 @@
                     Content="&#xE767;"
                     Style="{StaticResource TransportGlyphButtonStyle}"
                     Click="MuteButton_Click"/>
+
+            <Slider x:Name="VolumeSlider"
+                    Grid.Column="5"
+                    Width="70"
+                    Margin="2,0,4,0"
+                    VerticalAlignment="Center"
+                    Minimum="0"
+                    Maximum="1"
+                    SmallChange="0.05"
+                    LargeChange="0.1"
+                    Focusable="False"
+                    IsMoveToPointEnabled="True"
+                    ValueChanged="VolumeSlider_ValueChanged"/>
         </Grid>
     </Border>
 </UserControl>
