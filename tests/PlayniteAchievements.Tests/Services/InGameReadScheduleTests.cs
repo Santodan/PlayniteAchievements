@@ -87,7 +87,6 @@ namespace PlayniteAchievements.Tests.Services
 
             schedule.Configure(
                 Start.AddSeconds(4),
-                Start.AddSeconds(20),
                 hasProgressSource: true,
                 isRemote: false,
                 equivalent: true);
