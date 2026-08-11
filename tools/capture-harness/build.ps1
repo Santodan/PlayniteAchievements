@@ -9,14 +9,34 @@ $repo = Resolve-Path (Join-Path $here '..\..')
 $pluginBin = Join-Path $repo 'source\bin\Debug'
 $out = Join-Path $here 'bin'
 
-$csc = 'C:\Program Files\Microsoft Visual Studio\2022\Community\MSBuild\Current\Bin\Roslyn\csc.exe'
-$refDir = 'C:\Program Files (x86)\Reference Assemblies\Microsoft\Framework\.NETFramework\v4.6.2'
+# Find Roslyn wherever Visual Studio or the Build Tools put it, rather than assuming an edition.
+$csc = @(
+    Get-ChildItem -ErrorAction SilentlyContinue -Recurse -Filter 'csc.exe' -Path @(
+        "${env:ProgramFiles}\Microsoft Visual Studio",
+        "${env:ProgramFiles(x86)}\Microsoft Visual Studio"
+    ) | Where-Object { $_.FullName -match '\\MSBuild\\.*\\Roslyn\\csc\.exe$' } | Select-Object -First 1
+) | ForEach-Object { $_.FullName }
 
-foreach ($required in @($csc, $refDir, $pluginBin)) {
-    if (-not (Test-Path $required)) {
-        throw "not found: $required" + ($required -eq $pluginBin ? ' (build the plugin first)' : '')
-    }
+if (-not $csc) {
+    # Falls back to the framework compiler; it predates some modern syntax but is worth trying.
+    $csc = Join-Path $env:WINDIR 'Microsoft.NET\Framework64\v4.0.30319\csc.exe'
 }
+
+$refDir = "${env:ProgramFiles(x86)}\Reference Assemblies\Microsoft\Framework\.NETFramework\v4.6.2"
+
+if (-not (Test-Path $csc)) {
+    throw 'no C# compiler found: install Visual Studio 2022 or the Build Tools'
+}
+
+if (-not (Test-Path $refDir)) {
+    throw "no .NET Framework 4.6.2 reference assemblies at $refDir (install the 4.6.2 targeting pack)"
+}
+
+if (-not (Test-Path $pluginBin)) {
+    throw "no plugin output at $pluginBin - build source\PlayniteAchievements.csproj first"
+}
+
+Write-Output "  compiler $csc"
 
 New-Item -ItemType Directory -Force $out | Out-Null
 

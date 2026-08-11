@@ -22,6 +22,20 @@ Compiles each tool with Roslyn against .NET Framework 4.6.2 and the SharpDX asse
 `source\bin\Debug`, so **build the plugin first**.
 Executables land in `tools\capture-harness\bin\` and are git-ignored.
 
+Needs Visual Studio 2022 or the Build Tools (the script finds Roslyn itself, whatever the edition) and the
+.NET Framework 4.6.2 targeting pack.
+
+### Sharing these
+
+Only `CaptureHarness` needs the plugin: it drives the recorder, exporter and re-encoder by reflection, so
+it wants a built `source\bin\Debug` and is really a developer tool.
+The rest stand alone and can be handed to anyone on Windows:
+
+- `Show-Mp4Timeline.ps1` has no dependencies at all — pure PowerShell over the MP4 boxes.
+- `FrameDump`, `AttributeBisect`, `PacerProbe` and `GenerationLoss` need only the `SharpDX*.dll` files that
+  `build.ps1` copies next to them, so the `bin\` folder works as a self-contained bundle.
+- `Match-ShotToClip.ps1` needs `FrameDump.exe` beside it.
+
 ## The main harness
 
 ```powershell
