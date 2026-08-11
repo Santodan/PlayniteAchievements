@@ -142,7 +142,7 @@ index d1e286be30650514682263b6f1a7d47da40bfee0..543ddc8f3e28a6466573ba0f9fcffff5
          /// Returns a plain path/pack URI without cache-busting or grayscale prefixes.
          /// This preserves compatibility with legacy themes that bind directly to Image.Source.
 diff --git a/source/Models/Achievements/GameAchievementData.cs b/source/Models/Achievements/GameAchievementData.cs
-index ccaa93c37d35480682a810bceb55bb2084baa5af..d73dd9deb7816ecaca19cfb67695da7cf4dae83c 100644
+index ccaa93c37d35480682a810bceb55bb2084baa5af..6b0723acc61a12bc6e28988f4ef0aa0bf715b4fa 100644
 --- a/source/Models/Achievements/GameAchievementData.cs
 +++ b/source/Models/Achievements/GameAchievementData.cs
 @@ -32,9 +32,9 @@ public sealed class GameAchievementData
@@ -158,6 +158,20 @@ index ccaa93c37d35480682a810bceb55bb2084baa5af..d73dd9deb7816ecaca19cfb67695da7c
  
          /// <summary>
          /// Playnite library source name for the game at refresh time (e.g. Steam, GOG).
+@@ -61,6 +61,13 @@ public sealed class GameAchievementData
+         /// </summary>
+         public bool IsAppIdOverridden { get; set; }
+ 
++        /// <summary>
++        /// Runtime-only signal that the incoming achievement list is intentionally complete even
++        /// when it is smaller than the cached schema. Used for explicit per-game set filtering.
++        /// </summary>
++        [IgnoreDataMember]
++        public bool IsAchievementSchemaAuthoritative { get; set; }
++
+         /// <summary>
+         /// Computed completion status based on all achievements unlocked or capstone.
+         /// </summary>
 diff --git a/source/Models/CustomRefreshOptions.cs b/source/Models/CustomRefreshOptions.cs
 index 861bca26c3bb303f644c2db6263749412bcb4ba8..23ceb9d9d7e93efa648d2f819ca9ba2ffa342c6f 100644
 --- a/source/Models/CustomRefreshOptions.cs
@@ -1389,7 +1403,7 @@ index 703c21f04c5be26c91780f4f05b8eba65d8d91ba..a3dd67991654de177612444495ab51e5
          /// Checks if a game's platform is supported by RetroAchievements.
          /// Used by UI to determine if RA override option should be shown.
 diff --git a/source/Providers/RetroAchievements/RetroAchievementsScanner.cs b/source/Providers/RetroAchievements/RetroAchievementsScanner.cs
-index ea24ca14dce07648891d5d9bfd002ca187086b10..3714a150422f111051f03ec03ce00a3b322025f3 100644
+index ea24ca14dce07648891d5d9bfd002ca187086b10..1cf18710bf19eec6826563d6ccb4637882c5073b 100644
 --- a/source/Providers/RetroAchievements/RetroAchievementsScanner.cs
 +++ b/source/Providers/RetroAchievements/RetroAchievementsScanner.cs
 @@ -4,6 +4,7 @@
@@ -1436,7 +1450,15 @@ index ea24ca14dce07648891d5d9bfd002ca187086b10..3714a150422f111051f03ec03ce00a3b
  
                  await DownloadCategoryImagesAsync(game?.Id, sets.CategoryImageSources, cancel).ConfigureAwait(false);
  
-@@ -585,6 +599,12 @@ private async Task<PlatformlessNameMatch> TryMatchGameByNameAcrossConsolesAsync(
+@@ -443,6 +457,7 @@ private async Task<GameAchievementData> FetchGameInfoAsync(Game game, int gameId
+                     LastUpdatedUtc = DateTime.UtcNow,
+                     HasAchievements = sets.Achievements.Count > 0,
+                     PlayniteGameId = game?.Id,
++                    IsAchievementSchemaAuthoritative = selectedSubsetGameIds.Count > 0,
+                     Achievements = sets.Achievements
+                 };
+             }
+@@ -585,6 +600,12 @@ private async Task<PlatformlessNameMatch> TryMatchGameByNameAcrossConsolesAsync(
              {
                  cancel.ThrowIfCancellationRequested();
  
@@ -1449,7 +1471,7 @@ index ea24ca14dce07648891d5d9bfd002ca187086b10..3714a150422f111051f03ec03ce00a3b
                  var games = await GetOrFetchGameListAsync(consoleId, cancel).ConfigureAwait(false);
                  if (games == null || games.Count == 0)
                  {
-@@ -759,7 +779,7 @@ private static bool IsSubsetLikeTitle(string title)
+@@ -759,7 +780,7 @@ private static bool IsSubsetLikeTitle(string title)
                  try
                  {
                      var arrayItems = Newtonsoft.Json.JsonConvert.DeserializeObject<Models.RaGameListWithTitle[]>(json);
@@ -1458,7 +1480,7 @@ index ea24ca14dce07648891d5d9bfd002ca187086b10..3714a150422f111051f03ec03ce00a3b
                      {
                          games = new List<Models.RaGameListWithTitle>(arrayItems);
                      }
-@@ -811,6 +831,34 @@ private static bool IsSubsetLikeTitle(string title)
+@@ -811,6 +832,34 @@ private static bool IsSubsetLikeTitle(string title)
              }
          }
  
@@ -4704,7 +4726,7 @@ index cfa1fb4efcd72fb6ad4a80cd0418548a7f8cd70c..653cfc78a4fef83afede1d81444d814b
                      (a, b) => a.ProgressPercent.CompareTo(b.ProgressPercent),
                      direction),
 diff --git a/source/Services/Cache/CacheManager.cs b/source/Services/Cache/CacheManager.cs
-index 6892c664749e7d0eb923063c7ff02cb7bcf84dc8..0882dca3441c41ced427797f9db91c206635fd40 100644
+index 6892c664749e7d0eb923063c7ff02cb7bcf84dc8..062810209eb742bc6ee2c145306c1b555bf852df 100644
 --- a/source/Services/Cache/CacheManager.cs
 +++ b/source/Services/Cache/CacheManager.cs
 @@ -8,6 +8,7 @@
@@ -4746,6 +4768,14 @@ index 6892c664749e7d0eb923063c7ff02cb7bcf84dc8..0882dca3441c41ced427797f9db91c20
          public CacheWriteResult SaveGameData(string key, GameAchievementData data)
          {
              using (PerfScope.Start(_logger, "Cache.SaveGameData", thresholdMs: 25, context: key))
+@@ -1523,6 +1535,7 @@ private static GameAchievementData CloneGameData(GameAchievementData source)
+                 LibrarySourceName = source.LibrarySourceName,
+                 HasAchievements = source.HasAchievements,
+                 ExcludedByUser = source.ExcludedByUser,
++                IsAchievementSchemaAuthoritative = source.IsAchievementSchemaAuthoritative,
+                 GameName = source.GameName,
+                 AppId = source.AppId,
+                 PlayniteGameId = source.PlayniteGameId,
 diff --git a/source/Services/Capture/MediaFoundationH264Encoder.cs b/source/Services/Capture/MediaFoundationH264Encoder.cs
 index c9b1bd023f8d909936fdcba3a885eee443f8429b..7a33c3e414331cf40807f4aeb4799022ba1b0cb5 100644
 --- a/source/Services/Capture/MediaFoundationH264Encoder.cs
@@ -4772,8 +4802,28 @@ index 984a1aa763430e51ffad07204bedd9b4741a6954..45a6bfbff6de47871febb3a4f5a7f7b4
      /// </summary>
      public enum CaptureVariant
      {
+diff --git a/source/Services/Database/SqlNadoCacheBehavior.cs b/source/Services/Database/SqlNadoCacheBehavior.cs
+index 62550a184b7363cbb7d67a302ad90b6ffa4d8a6f..4db50d8bcfec606f3afa327a5a9850f7f03d14d1 100644
+--- a/source/Services/Database/SqlNadoCacheBehavior.cs
++++ b/source/Services/Database/SqlNadoCacheBehavior.cs
+@@ -200,6 +200,15 @@ private static string FirstNonBlank(params string[] values)
+             return values?.FirstOrDefault(value => !string.IsNullOrWhiteSpace(value));
+         }
+ 
++        public static bool ShouldPruneStaleDefinitions(
++            int existingDefinitionCount,
++            int incomingDefinitionCount,
++            bool authoritativeSource)
++        {
++            return incomingDefinitionCount > 0 &&
++                   (authoritativeSource || incomingDefinitionCount >= existingDefinitionCount);
++        }
++
+         public static List<long> ComputeStaleDefinitionIds(
+             IDictionary<string, long> existingDefinitionIdsByApiName,
+             IEnumerable<string> incomingApiNames)
 diff --git a/source/Services/Database/SqlNadoCacheStore.cs b/source/Services/Database/SqlNadoCacheStore.cs
-index 347132c1c860a47465196ab8da9b0eb61a4549e4..b29a952dacfef51c84fe6af89b2e41354cd1b73d 100644
+index 347132c1c860a47465196ab8da9b0eb61a4549e4..183d837cd35faf8af9b7aef555692e3475dfd327 100644
 --- a/source/Services/Database/SqlNadoCacheStore.cs
 +++ b/source/Services/Database/SqlNadoCacheStore.cs
 @@ -40,6 +40,14 @@ internal sealed class SqlNadoCacheStore : IDisposable
@@ -4859,7 +4909,30 @@ index 347132c1c860a47465196ab8da9b0eb61a4549e4..b29a952dacfef51c84fe6af89b2e4135
                            AND ugp.CacheKey IS NOT NULL
                            AND TRIM(ugp.CacheKey) <> ''
                      )
-@@ -6881,6 +6894,12 @@ private ResolvedUser ResolveCurrentUser(string providerKey)
+@@ -5396,7 +5409,8 @@ public Dictionary<string, string> SaveCurrentUserGameData(string key, GameAchiev
+                         achievements,
+                         nowIso,
+                         updatedIso,
+-                        renamedApiNames);
++                        renamedApiNames,
++                        authoritativeSource: payload.IsAchievementSchemaAuthoritative);
+ 
+                     var existingRows = db.Load<UserAchievementRow>(
+                         @"SELECT Id, UserGameProgressId, AchievementDefinitionId, Unlocked, UnlockTimeUtc, ProgressNum, ProgressDenom, LastUpdatedUtc, CreatedUtc
+@@ -6643,8 +6657,10 @@ FROM AchievementDefinitions
+             // ambiguous, the count invariant never allows the prune, and legacy keys defer friend
+             // saves forever. Friend unlock rows attached to pruned rows are re-derived from the next
+             // earned fetch; current-user saves never pass authoritativeSource.
+-            if ((authoritativeSource || desiredApiNames.Count >= existingByApiName.Count) &&
+-                desiredApiNames.Count > 0 &&
++            if (SqlNadoCacheBehavior.ShouldPruneStaleDefinitions(
++                    existingByApiName.Count,
++                    desiredApiNames.Count,
++                    authoritativeSource) &&
+                 staleDefinitionIds.Count > 0)
+             {
+                 for (int i = 0; i < staleDefinitionIds.Count; i++)
+@@ -6881,6 +6897,12 @@ private ResolvedUser ResolveCurrentUser(string providerKey)
              {
                  externalId = ProviderRegistry.Settings<RetroAchievementsSettings>().RaUsername;
              }
@@ -21883,6 +21956,36 @@ index 6d4695ba4e4ec7df1f79cfa27c7639cba5a30d6b..8eeb2b8c24d47f6a4825d264106b2774
          private static string CreateThemesRoot()
          {
              var root = Path.Combine(
+diff --git a/tests/PlayniteAchievements.Tests/SqlNado/SqlNadoCacheBehaviorTests.cs b/tests/PlayniteAchievements.Tests/SqlNado/SqlNadoCacheBehaviorTests.cs
+index 8eca25a88b28db10ea60cac8f75d2f08bf907129..33f61d1c47fe8fa7a7ef52b79b43e3f3cee83e23 100644
+--- a/tests/PlayniteAchievements.Tests/SqlNado/SqlNadoCacheBehaviorTests.cs
++++ b/tests/PlayniteAchievements.Tests/SqlNado/SqlNadoCacheBehaviorTests.cs
+@@ -225,6 +225,25 @@ public void ComputeStaleDefinitionIds_EmptyExisting_ReturnsEmpty()
+             Assert.AreEqual(0, stale.Count);
+         }
+ 
++        [DataTestMethod]
++        [DataRow(489, 225, false, false)]
++        [DataRow(489, 225, true, true)]
++        [DataRow(225, 489, false, true)]
++        [DataRow(489, 0, true, false)]
++        public void ShouldPruneStaleDefinitions_RespectsAuthoritativeFilteredSchemas(
++            int existingCount,
++            int incomingCount,
++            bool authoritativeSource,
++            bool expected)
++        {
++            Assert.AreEqual(
++                expected,
++                SqlNadoCacheBehavior.ShouldPruneStaleDefinitions(
++                    existingCount,
++                    incomingCount,
++                    authoritativeSource));
++        }
++
+         [DataTestMethod]
+         [DataRow(0, 0, 0, true)]
+         [DataRow(-1, 0, 0, true)]
 diff --git a/tests/PlayniteAchievements.Tests/Steam/SteamApiClientTests.cs b/tests/PlayniteAchievements.Tests/Steam/SteamApiClientTests.cs
 index 29c665447a7f891c79f35e812da2bdd0ed14821b..777a17368846cf095ae1c8ff1e018d66759f0f67 100644
 --- a/tests/PlayniteAchievements.Tests/Steam/SteamApiClientTests.cs

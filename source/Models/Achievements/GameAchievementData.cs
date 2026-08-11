@@ -62,6 +62,13 @@ namespace PlayniteAchievements.Models.Achievements
         public bool IsAppIdOverridden { get; set; }
 
         /// <summary>
+        /// Runtime-only signal that the incoming achievement list is intentionally complete even
+        /// when it is smaller than the cached schema. Used for explicit per-game set filtering.
+        /// </summary>
+        [IgnoreDataMember]
+        public bool IsAchievementSchemaAuthoritative { get; set; }
+
+        /// <summary>
         /// Computed completion status based on all achievements unlocked or capstone.
         /// </summary>
         public bool IsCompleted =>

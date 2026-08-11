@@ -226,6 +226,25 @@ namespace PlayniteAchievements.SqlNado.Tests
         }
 
         [DataTestMethod]
+        [DataRow(489, 225, false, false)]
+        [DataRow(489, 225, true, true)]
+        [DataRow(225, 489, false, true)]
+        [DataRow(489, 0, true, false)]
+        public void ShouldPruneStaleDefinitions_RespectsAuthoritativeFilteredSchemas(
+            int existingCount,
+            int incomingCount,
+            bool authoritativeSource,
+            bool expected)
+        {
+            Assert.AreEqual(
+                expected,
+                SqlNadoCacheBehavior.ShouldPruneStaleDefinitions(
+                    existingCount,
+                    incomingCount,
+                    authoritativeSource));
+        }
+
+        [DataTestMethod]
         [DataRow(0, 0, 0, true)]
         [DataRow(-1, 0, 0, true)]
         [DataRow(0, -1, 0, true)]

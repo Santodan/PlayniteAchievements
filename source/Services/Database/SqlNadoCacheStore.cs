@@ -5409,7 +5409,8 @@ namespace PlayniteAchievements.Services.Database
                         achievements,
                         nowIso,
                         updatedIso,
-                        renamedApiNames);
+                        renamedApiNames,
+                        authoritativeSource: payload.IsAchievementSchemaAuthoritative);
 
                     var existingRows = db.Load<UserAchievementRow>(
                         @"SELECT Id, UserGameProgressId, AchievementDefinitionId, Unlocked, UnlockTimeUtc, ProgressNum, ProgressDenom, LastUpdatedUtc, CreatedUtc
@@ -6656,8 +6657,10 @@ namespace PlayniteAchievements.Services.Database
             // ambiguous, the count invariant never allows the prune, and legacy keys defer friend
             // saves forever. Friend unlock rows attached to pruned rows are re-derived from the next
             // earned fetch; current-user saves never pass authoritativeSource.
-            if ((authoritativeSource || desiredApiNames.Count >= existingByApiName.Count) &&
-                desiredApiNames.Count > 0 &&
+            if (SqlNadoCacheBehavior.ShouldPruneStaleDefinitions(
+                    existingByApiName.Count,
+                    desiredApiNames.Count,
+                    authoritativeSource) &&
                 staleDefinitionIds.Count > 0)
             {
                 for (int i = 0; i < staleDefinitionIds.Count; i++)

@@ -457,6 +457,7 @@ namespace PlayniteAchievements.Providers.RetroAchievements
                     LastUpdatedUtc = DateTime.UtcNow,
                     HasAchievements = sets.Achievements.Count > 0,
                     PlayniteGameId = game?.Id,
+                    IsAchievementSchemaAuthoritative = selectedSubsetGameIds.Count > 0,
                     Achievements = sets.Achievements
                 };
             }

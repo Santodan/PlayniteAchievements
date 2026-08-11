@@ -1,6 +1,6 @@
 {
     "schemaVersion":  1,
-    "generatedUtc":  "2026-08-11T14:01:39.2114667Z",
+    "generatedUtc":  "2026-08-11T14:10:58.5535680Z",
     "baselineRef":  "upstream/main",
     "baselineCommit":  "f28ac5faae69739e2a7193a5c1af98ac55b9030f",
     "protectedPaths":  [
@@ -10,7 +10,7 @@
                        ],
     "patch":  {
                   "path":  "fork-changes.patch",
-                  "sha256":  "BD3C9A64C0661132BDA688A52B241CE5ABEF9391A5309BA05AD5FD71C425AF79"
+                  "sha256":  "6C28CC959DB7ADCB19DD711B0A5BD663F3E917084E87639239A4E17F7EC7AC61"
               },
     "localizationRecipes":  {
                                 "path":  "localization-recipes.json",

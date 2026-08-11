@@ -1535,6 +1535,7 @@ namespace PlayniteAchievements.Services.Cache
                 LibrarySourceName = source.LibrarySourceName,
                 HasAchievements = source.HasAchievements,
                 ExcludedByUser = source.ExcludedByUser,
+                IsAchievementSchemaAuthoritative = source.IsAchievementSchemaAuthoritative,
                 GameName = source.GameName,
                 AppId = source.AppId,
                 PlayniteGameId = source.PlayniteGameId,

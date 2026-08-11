@@ -65,7 +65,9 @@ Primary fork areas:
 - A RetroAchievements Game ID override can load the base achievement set and
   available subsets, save any combination through multi-selection, and limit
   refresh results to those selected sets. Leaving every set unchecked includes
-  all available sets, including when global subset scanning is disabled.
+  all available sets, including when global subset scanning is disabled. After
+  restarting Playnite, the saved selection remains active and stale achievements
+  from previously included sets do not return from the SQLite cache.
 - Custom schema loading, editing, creation, and per-game enable/disable work.
 - Manage Achievements contains Overrides → Main/Local and Local →
   Local Saves & Schema/Steam/LumaPlay.

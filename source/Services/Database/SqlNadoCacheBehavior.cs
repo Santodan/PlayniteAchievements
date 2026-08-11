@@ -200,6 +200,15 @@ namespace PlayniteAchievements.Services.Database
             return values?.FirstOrDefault(value => !string.IsNullOrWhiteSpace(value));
         }
 
+        public static bool ShouldPruneStaleDefinitions(
+            int existingDefinitionCount,
+            int incomingDefinitionCount,
+            bool authoritativeSource)
+        {
+            return incomingDefinitionCount > 0 &&
+                   (authoritativeSource || incomingDefinitionCount >= existingDefinitionCount);
+        }
+
         public static List<long> ComputeStaleDefinitionIds(
             IDictionary<string, long> existingDefinitionIdsByApiName,
             IEnumerable<string> incomingApiNames)
