@@ -35,7 +35,13 @@ namespace PlayniteAchievements.Views.ThemeIntegration.Modern
         private List<AchievementDetail> _lastOrderedAchievements;
         private int? _lastMaxRows;
         private readonly AchievementGridControlBarAdapter _controlBarAdapter;
-        private readonly Services.Captures.CaptureLibraryService _captureLibrary;
+
+        /// <summary>
+        /// Resolved on each use rather than cached in the constructor: theme controls can be built
+        /// before the plugin instance is available, and the service is a singleton either way.
+        /// </summary>
+        private static Services.Captures.CaptureLibraryService CaptureLibrary =>
+            PlayniteAchievementsPlugin.Instance?.CaptureLibraryService;
 
         // Sort state tracking
         private string _currentSortPath;
@@ -125,7 +131,6 @@ namespace PlayniteAchievements.Views.ThemeIntegration.Modern
                 PlayniteAchievementsPlugin.Instance?.Settings,
                 Logger);
             _controlBarAdapter.AttachFriendCompare(_friendCompare);
-            _captureLibrary = PlayniteAchievementsPlugin.Instance?.CaptureLibraryService;
             SetValue(SummaryItemsPropertyKey, new ObservableCollection<GameSummaryItem>());
             InitializeComponent();
             Loaded += OnLoaded;
@@ -140,7 +145,7 @@ namespace PlayniteAchievements.Views.ThemeIntegration.Modern
             // SynchronizeCollection matches by reference, so SummaryItems ends up holding these
             // very instances and marking the list reaches the rendered row.
             CollectionHelper.SynchronizeCollection(SummaryItems, desired);
-            Services.Captures.CapturePresenceMarker.MarkSummaries(desired, _captureLibrary);
+            Services.Captures.CapturePresenceMarker.MarkSummaries(desired, CaptureLibrary);
             SetValue(HasSummaryItemPropertyKey, item != null);
         }
 
@@ -148,9 +153,9 @@ namespace PlayniteAchievements.Views.ThemeIntegration.Modern
         {
             var folder = e?.FolderName;
             Services.Captures.CapturePresenceMarker.MarkAchievements(
-                DisplayItems?.ToList(), _captureLibrary, folder);
+                DisplayItems?.ToList(), CaptureLibrary, folder);
             Services.Captures.CapturePresenceMarker.MarkSummaries(
-                SummaryItems?.ToList(), _captureLibrary, folder);
+                SummaryItems?.ToList(), CaptureLibrary, folder);
         }
 
         public GridControlBarViewModel ControlBar => _controlBarAdapter.ControlBar;
@@ -237,11 +242,11 @@ namespace PlayniteAchievements.Views.ThemeIntegration.Modern
 
         private void OnLoaded(object sender, RoutedEventArgs e)
         {
-            if (_captureLibrary != null)
+            if (CaptureLibrary != null)
             {
                 // Loaded can fire again on visual-tree churn; keep the subscription single.
-                _captureLibrary.CapturesChanged -= OnCapturesChanged;
-                _captureLibrary.CapturesChanged += OnCapturesChanged;
+                CaptureLibrary.CapturesChanged -= OnCapturesChanged;
+                CaptureLibrary.CapturesChanged += OnCapturesChanged;
             }
 
             UpdatePreviewBehavior();
@@ -251,9 +256,9 @@ namespace PlayniteAchievements.Views.ThemeIntegration.Modern
 
         private void OnUnloaded(object sender, RoutedEventArgs e)
         {
-            if (_captureLibrary != null)
+            if (CaptureLibrary != null)
             {
-                _captureLibrary.CapturesChanged -= OnCapturesChanged;
+                CaptureLibrary.CapturesChanged -= OnCapturesChanged;
             }
         }
 
@@ -396,7 +401,7 @@ namespace PlayniteAchievements.Views.ThemeIntegration.Modern
             // does not carry HasCaptures, so a reused row would otherwise keep the flag of whichever
             // achievement previously occupied its position.
             Services.Captures.CapturePresenceMarker.MarkAchievements(
-                DisplayItems.ToList(), _captureLibrary);
+                DisplayItems.ToList(), CaptureLibrary);
 
             if (useSourceOrder)
             {
