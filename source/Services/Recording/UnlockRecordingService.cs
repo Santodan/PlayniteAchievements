@@ -1110,6 +1110,19 @@ namespace PlayniteAchievements.Services.Recording
 
             var toastStartSeconds = videoLeadSeconds + (overlayStartUtc - window.StartUtc).TotalSeconds;
             var endSeconds = toastStartSeconds + overlaySeconds;
+
+            // Which instant the card ended up on, and why. The track is rejected whenever it starts
+            // later than the clip can hold it, and then the card lands on the unlock anchor instead —
+            // as many seconds early as detection lagged the unlock. Worth being able to read off a log
+            // rather than reasoning about it from the window.
+            _logger?.Info(
+                $"[RecordingTiming] toast placed at {toastStartSeconds.ToString("F2", CultureInfo.InvariantCulture)}s " +
+                $"(source={(overlayStartUtc == window.ToastAnchorUtc ? "unlock anchor" : "track")}, " +
+                $"trackStart={Stamp(track.StartUtc)}, anchor={Stamp(window.ToastAnchorUtc)}, " +
+                $"latestAllowed={Stamp(latestOverlayStartUtc)}, " +
+                $"trackVsAnchor {(track.StartUtc - window.ToastAnchorUtc).TotalSeconds.ToString("F1", CultureInfo.InvariantCulture)}s) " +
+                $"lead={videoLeadSeconds.ToString("F2", CultureInfo.InvariantCulture)}s " +
+                $"end={endSeconds.ToString("F2", CultureInfo.InvariantCulture)}s");
             // The wave's own chime, read from the Playnite-only sidecar at its real time, mixed
             // in slightly before the composited toast (matching the live sound-to-reveal lead).
             var chimePcm = await TryReadChimePcmAsync(session, request).ConfigureAwait(false);
