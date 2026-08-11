@@ -129,7 +129,15 @@ namespace PlayniteAchievements.Services.Captures
             var dispatcher = Application.Current?.Dispatcher;
             if (dispatcher == null || dispatcher.CheckAccess())
             {
-                apply(flags);
+                // Never let a failed apply fault the shared queue task.
+                try
+                {
+                    apply(flags);
+                }
+                catch
+                {
+                    // Ignored: a stamping failure must not break later marks.
+                }
             }
             else
             {
