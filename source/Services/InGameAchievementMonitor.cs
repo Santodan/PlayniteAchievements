@@ -54,7 +54,12 @@ namespace PlayniteAchievements.Services
 
             public Game Game;
             public DateTime SessionStartUtc;
-            public DateTime FirstPollUtc;
+            /// <summary>
+            /// Deadline for the universal provider-refresh prong, which every tracked game runs
+            /// regardless of whether it also has a fast source. Kept here rather than in
+            /// <see cref="Schedule"/> so the two prongs cannot move each other's deadline.
+            /// </summary>
+            public DateTime NextFallbackDueUtc;
             public DateTime NextFriendDueUtc;
             public DateTime RecoveryCooldownUtc;
             public IDataProvider Provider;
@@ -63,7 +68,6 @@ namespace PlayniteAchievements.Services
             public GameAchievementData CachedSchema;
             public bool QueryInFlight;
             public bool FriendInFlight;
-            public bool ForceFallback;
             public int Generation;
             public int FriendCursor;
             public readonly CancellationTokenSource SessionCancellation = new CancellationTokenSource();
@@ -154,7 +158,9 @@ namespace PlayniteAchievements.Services
                 {
                     Game = game,
                     SessionStartUtc = now,
-                    FirstPollUtc = now.AddSeconds(StartupDelaySeconds),
+                    // The startup grace matters more now the refresh prong is universal: it keeps a
+                    // full refresh off the launch path while the fast source covers the first seconds.
+                    NextFallbackDueUtc = now.AddSeconds(StartupDelaySeconds),
                     NextFriendDueUtc = now.AddSeconds(StartupDelaySeconds).Add(GetFriendInterval())
                 };
                 _games[game.Id] = state;
@@ -182,7 +188,7 @@ namespace PlayniteAchievements.Services
 
             _logger?.Info(
                 $"[InGameMonitor] Started for {game.Name}; provider={state.Provider?.ProviderKey ?? "none"}, " +
-                $"mode={(state.ProgressSource == null ? "fallback" : state.Registration?.IsRemote == true ? "feed" : "file")}.");
+                $"prongs={DescribeProngs(state)}.");
         }
 
         public void Stop(Game game)
@@ -345,7 +351,6 @@ namespace PlayniteAchievements.Services
                 var dueSources = _games.Values
                     .Where(state =>
                         state.ProgressSource != null &&
-                        !state.ForceFallback &&
                         !_sourcesInFlight.Contains(state.ProgressSource) &&
                         !state.QueryInFlight &&
                         state.Schedule.NextDueUtc <= now)
@@ -364,15 +369,15 @@ namespace PlayniteAchievements.Services
                     _sourcesInFlight.Add(group.Key);
                 }
 
+                // Every tracked game runs the provider-refresh prong, whether or not it also has a
+                // fast source. It is the guaranteed floor: a stalled watcher, an unparseable file
+                // and a provider with no fast source all converge on the same cadence.
                 fallbackStates = _games.Values
-                    .Where(state =>
-                        (state.ProgressSource == null || state.ForceFallback) &&
-                        state.FirstPollUtc <= now &&
-                        state.Schedule.NextDueUtc <= now)
+                    .Where(state => state.NextFallbackDueUtc <= now)
                     .ToList();
                 foreach (var state in fallbackStates)
                 {
-                    state.Schedule.DueAt(now.Add(GetPollInterval()));
+                    state.NextFallbackDueUtc = now.Add(GetPollInterval());
                 }
 
                 friendStates = _games.Values
@@ -410,7 +415,7 @@ namespace PlayniteAchievements.Services
                         if (_games.TryGetValue(state.Game.Id, out var tracked) &&
                             ReferenceEquals(state, tracked))
                         {
-                            state.Schedule.DueAt(DateTime.UtcNow.AddMilliseconds(250));
+                            state.NextFallbackDueUtc = DateTime.UtcNow.AddMilliseconds(250);
                         }
                     }
                 }
@@ -551,7 +556,8 @@ namespace PlayniteAchievements.Services
             }
 
             var after = _cacheManager?.LoadGameData(state.Game.Id.ToString()) ?? before;
-            bool emitUnlocks;
+            bool primed;
+            DateTime sessionStartUtc;
             DateTime eventUtc;
             lock (_stateLock)
             {
@@ -561,7 +567,9 @@ namespace PlayniteAchievements.Services
                     return;
                 }
 
-                emitUnlocks = state.Schedule.ShouldEmitUnlocks();
+                // Captured before Succeeded below sets the baseline flag.
+                primed = state.Schedule.ShouldEmitUnlocks();
+                sessionStartUtc = state.SessionStartUtc;
                 state.Schedule.Succeeded(
                     DateTime.UtcNow,
                     state.Registration?.PollInterval ?? TimeSpan.FromSeconds(60));
@@ -571,11 +579,11 @@ namespace PlayniteAchievements.Services
                 if (write.UnmatchedKeys.Count > 0 &&
                     DateTime.UtcNow >= state.RecoveryCooldownUtc)
                 {
-                    state.ForceFallback = true;
+                    // Keys the cached schema does not know about mean the schema is stale. Pull the
+                    // universal refresh prong forward to rebuild it; the fast prong keeps running
+                    // rather than being suspended, and the cooldown stops repeats from hammering.
                     state.RecoveryCooldownUtc = DateTime.UtcNow.AddMinutes(2);
-                    state.Schedule.DueAt(state.FirstPollUtc > DateTime.UtcNow
-                        ? state.FirstPollUtc
-                        : DateTime.UtcNow);
+                    state.NextFallbackDueUtc = DateTime.UtcNow;
                 }
             }
 
@@ -584,14 +592,19 @@ namespace PlayniteAchievements.Services
                 ProgressApplied?.Invoke(state.Game.Id);
             }
 
+            var emittableKeys = SelectEmittableKeys(
+                primed,
+                sessionStartUtc,
+                after,
+                write.NewlyUnlockedKeys);
             AchievementUnlockedEventArgs completion = null;
-            if (emitUnlocks && write.NewlyUnlockedKeys.Count > 0)
+            if (emittableKeys.Count > 0)
             {
                 completion = EmitUserUnlocks(
                     state,
                     before,
                     after,
-                    write.NewlyUnlockedKeys,
+                    emittableKeys,
                     elapsedMilliseconds);
             }
 
@@ -606,7 +619,45 @@ namespace PlayniteAchievements.Services
             _logger?.Debug(
                 $"[InGameMonitor] Progress applied: game={state.Game.Name}, provider={state.Provider?.ProviderKey}, " +
                 $"observed={query.Achievements.Count}, new={write.NewlyUnlockedKeys.Count}, " +
-                $"unmatched={write.UnmatchedKeys.Count}, latencyMs={totalLatencyMs}.");
+                $"emitted={emittableKeys.Count}, unmatched={write.UnmatchedKeys.Count}, " +
+                $"latencyMs={totalLatencyMs}.");
+        }
+
+        /// <summary>
+        /// Applies <see cref="InGameUnlockEmissionPolicy"/> to each newly-unlocked key. A primed read
+        /// short-circuits, so the file-watch safety cadence never pays for the unlock-time lookup.
+        /// </summary>
+        private static IReadOnlyList<string> SelectEmittableKeys(
+            bool primed,
+            DateTime sessionStartUtc,
+            GameAchievementData after,
+            IReadOnlyList<string> newlyUnlockedKeys)
+        {
+            if (newlyUnlockedKeys == null || newlyUnlockedKeys.Count == 0)
+            {
+                return Array.Empty<string>();
+            }
+
+            if (primed)
+            {
+                return newlyUnlockedKeys;
+            }
+
+            var unlockTimeByKey = new Dictionary<string, DateTime?>(StringComparer.OrdinalIgnoreCase);
+            foreach (var achievement in after?.Achievements ?? new List<AchievementDetail>())
+            {
+                if (!string.IsNullOrWhiteSpace(achievement?.ApiName))
+                {
+                    unlockTimeByKey[achievement.ApiName] = achievement.UnlockTimeUtc;
+                }
+            }
+
+            return newlyUnlockedKeys
+                .Where(key =>
+                    !string.IsNullOrWhiteSpace(key) &&
+                    unlockTimeByKey.TryGetValue(key, out var unlockTimeUtc) &&
+                    InGameUnlockEmissionPolicy.ShouldEmit(false, sessionStartUtc, unlockTimeUtc))
+                .ToList();
         }
 
         private void ScheduleSourceFailure(GamePollState state, string reason)
@@ -704,7 +755,6 @@ namespace PlayniteAchievements.Services
                 state.ProgressSource = progressSource;
                 state.Registration = registration;
                 state.CachedSchema = cached;
-                state.ForceFallback = false;
                 if (!equivalent)
                 {
                     oldSubscriptions = state.WatchSubscriptions.ToList();
@@ -714,7 +764,6 @@ namespace PlayniteAchievements.Services
                 var now = DateTime.UtcNow;
                 state.Schedule.Configure(
                     now,
-                    state.FirstPollUtc,
                     progressSource != null,
                     registration?.IsRemote == true,
                     equivalent);
@@ -761,9 +810,22 @@ namespace PlayniteAchievements.Services
 
             _logger?.Debug(
                 $"[InGameMonitor] Configured game={state.Game.Name}, provider={provider.ProviderKey}, " +
-                $"source={(progressSource == null ? "fallback" : registration.IsRemote ? "feed" : "file")}, " +
-                $"targets={nextTargets.Count}.");
+                $"prongs={DescribeProngs(state)}, targets={nextTargets.Count}.");
             return true;
+        }
+
+        /// <summary>
+        /// The prong set servicing a game. The refresh prong is always present; a fast source, when
+        /// one registered, is layered on top of it.
+        /// </summary>
+        private static string DescribeProngs(GamePollState state)
+        {
+            if (state.ProgressSource == null)
+            {
+                return "refresh";
+            }
+
+            return state.Registration?.IsRemote == true ? "feed+refresh" : "file+refresh";
         }
 
         private void OnFileSignal(Guid gameId, int generation, string path, bool watcherError)
@@ -797,7 +859,7 @@ namespace PlayniteAchievements.Services
                     {
                         foreach (var state in states)
                         {
-                            state.Schedule.DueAt(DateTime.UtcNow.AddSeconds(1));
+                            state.NextFallbackDueUtc = DateTime.UtcNow.AddSeconds(1);
                         }
                     }
                     return;
@@ -847,21 +909,23 @@ namespace PlayniteAchievements.Services
 
                         var before = beforeByGame[state.Game.Id];
                         var after = _cacheManager?.LoadGameData(state.Game.Id.ToString());
+                        // Read the baseline flag before MarkPrimed below sets it.
+                        var primed = state.Schedule.ShouldEmitUnlocks();
                         var keys = _differ.DiffUserUnlocks(before, after)
                             .Where(achievement =>
                                 achievement != null &&
                                 !string.IsNullOrWhiteSpace(achievement.ApiName) &&
-                                (state.Schedule.Primed ||
-                                 (achievement.UnlockTimeUtc.HasValue &&
-                                  achievement.UnlockTimeUtc.Value.ToUniversalTime() >= state.SessionStartUtc)))
+                                InGameUnlockEmissionPolicy.ShouldEmit(
+                                    primed,
+                                    state.SessionStartUtc,
+                                    achievement.UnlockTimeUtc))
                             .Select(achievement => achievement.ApiName)
                             .ToList();
 
                         lock (_stateLock)
                         {
-                            state.ForceFallback = false;
                             state.CachedSchema = after;
-                            state.Schedule.MarkFallbackSuccess(DateTime.UtcNow, GetPollInterval());
+                            state.Schedule.MarkPrimed();
                         }
 
                         var completion = keys.Count == 0
@@ -967,6 +1031,10 @@ namespace PlayniteAchievements.Services
             var allowed = new HashSet<string>(
                 allowedKeys ?? Array.Empty<string>(),
                 StringComparer.OrdinalIgnoreCase);
+            // ToastedUserKeys is what keeps the two prongs from both notifying the same unlock: the
+            // fast source and the universal refresh prong run concurrently on the same game and can
+            // observe one unlock independently, so this per-session set is load-bearing, not
+            // incidental.
             var unlocks = (after?.Achievements ?? new List<AchievementDetail>())
                 .Where(achievement =>
                     achievement?.Unlocked == true &&

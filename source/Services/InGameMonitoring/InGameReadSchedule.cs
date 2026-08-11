@@ -32,7 +32,6 @@ namespace PlayniteAchievements.Services.InGameMonitoring
 
         public void Configure(
             DateTime nowUtc,
-            DateTime firstFallbackDueUtc,
             bool hasProgressSource,
             bool isRemote,
             bool equivalent)
@@ -43,8 +42,8 @@ namespace PlayniteAchievements.Services.InGameMonitoring
 
             if (equivalent)
             {
-                // Preserve the session baseline and the fallback deadline. A live source can
-                // reconcile immediately against its newly supplied cached-schema snapshot.
+                // Preserve the session baseline. A live source can reconcile immediately against
+                // its newly supplied cached-schema snapshot.
                 if (hasProgressSource)
                 {
                     NextDueUtc = nowUtc;
@@ -55,9 +54,10 @@ namespace PlayniteAchievements.Services.InGameMonitoring
 
             Primed = false;
             LastFileEventUtc = default;
-            NextDueUtc = hasProgressSource
-                ? isRemote ? nowUtc : DateTime.MaxValue
-                : firstFallbackDueUtc > nowUtc ? firstFallbackDueUtc : nowUtc;
+            // A remote source reads immediately; a file source waits for its watcher subscription
+            // or first file event. With no fast source this schedule drives nothing at all — the
+            // universal provider-refresh prong keeps its own deadline outside this type.
+            NextDueUtc = hasProgressSource && isRemote ? nowUtc : DateTime.MaxValue;
         }
 
         public void SourceAttached(DateTime nowUtc)
@@ -119,13 +119,18 @@ namespace PlayniteAchievements.Services.InGameMonitoring
             NextDueUtc = nowUtc.Add(degradedCadence);
         }
 
-        public void MarkFallbackSuccess(DateTime nowUtc, TimeSpan cadence)
+        /// <summary>
+        /// Records that the universal provider-refresh prong established the session baseline.
+        /// Baseline state is per game, not per prong, so whichever prong reads first sets it — both
+        /// write through the same monotonic cache, so the other prong's first read then legitimately
+        /// finds nothing new. Deliberately touches nothing else: <see cref="Dirty"/>,
+        /// <see cref="NextDueUtc"/>, <see cref="RetryAttempt"/> and <see cref="Degraded"/> all
+        /// describe the fast source, and clearing them here would drop a pending file event,
+        /// overwrite the fast prong's deadline, or mask its failures.
+        /// </summary>
+        public void MarkPrimed()
         {
             Primed = true;
-            Dirty = false;
-            RetryAttempt = 0;
-            Degraded = false;
-            NextDueUtc = nowUtc.Add(cadence);
         }
 
         public void DueAt(DateTime dueUtc)
