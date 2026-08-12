@@ -23,6 +23,17 @@
               Height="{Binding ToastCardHeight}"
               MinHeight="64"
               Margin="{Binding ToastGlowMargin}">
+            <!-- Rays around the card itself, behind everything. No SubjectUri: there is no artwork to
+                 trace here, so the burst rides the card's own rectangle. The reach is a small multiple
+                 because it scales with the subject, and the card is far larger than an icon; the
+                 surrounding margin widens to match so the arrows are not clipped by the window. -->
+            <controls:RarityRayBurst Rarity="{Binding Rarity}"
+                                     UseCompletedColors="{Binding IsGameCompleted}"
+                                     IsActive="{Binding AnimateRarityGlows}"
+                                     PhaseLock="{Binding IsPreview}"
+                                     BurstScale="1.14"
+                                     CornerRadiusRatio="0.09"
+                                     Visibility="{Binding ShowRayBurst, Converter={StaticResource BooleanToVisibilityConverter}}"/>
             <!-- Shadow / glow layer: a content-free shape carries the card's drop shadow (or the
                  rarity border glow). Because the effect lives off the content layer, the text and
                  icons are never rasterized through WPF's 96-DPI effect intermediate and stay crisp
@@ -211,6 +222,26 @@
                                                  PhaseLock="{Binding IsPreview}"
                                                  SubjectUri="{Binding IconPath}"
                                                  Visibility="{Binding ShowRayBurst, Converter={StaticResource BooleanToVisibilityConverter}}"/>
+                        <!-- Completion's other half: game and category art stack two copies, one glow
+                             thrown from each corner, and it is the pair that reads as the completion
+                             gradient. Only shown for completion, so a normal unlock is unaffected. -->
+                        <Image Stretch="Uniform"
+                               RenderOptions.BitmapScalingMode="HighQuality"
+                               helpers:AsyncImage.DecodePixel="160"
+                               IsHitTestVisible="False">
+                            <Image.Style>
+                                <Style TargetType="Image">
+                                    <Setter Property="Visibility" Value="Collapsed"/>
+                                    <Style.Triggers>
+                                        <DataTrigger Binding="{Binding IsGameCompleted}" Value="True">
+                                            <Setter Property="Visibility" Value="Visible"/>
+                                            <Setter Property="helpers:AsyncImage.Uri" Value="{Binding ToastCompletedBadgeSource}"/>
+                                            <Setter Property="Effect" Value="{Binding CompletedGlowStartEffect}"/>
+                                        </DataTrigger>
+                                    </Style.Triggers>
+                                </Style>
+                            </Image.Style>
+                        </Image>
                         <!-- Completion notifications swap the achievement icon for the
                              completed-game badge and the completed glow. The glow lives on this
                              backing layer (a crisp front copy sits on top); it renders un-cached so
@@ -234,6 +265,29 @@
                                         <!-- Fade in/out pulse when AnimateRarityGlows is on. -->
                                         <DataTrigger Binding="{Binding AnimateRarityGlows}" Value="True">
                                             <Setter Property="helpers:RarityGlowPulse.IsActive" Value="True"/>
+                                        </DataTrigger>
+                                    </Style.Triggers>
+                                </Style>
+                            </Image.Style>
+                        </Image>
+                        <!-- Edge that comes with the rays: the same drop shadow as the halo above at a
+                             small blur, so it reads as a line along the artwork. A blur of the picture
+                             itself, so it hugs the alpha whatever shape it is. -->
+                        <Image Stretch="Uniform"
+                               RenderOptions.BitmapScalingMode="HighQuality"
+                               helpers:AsyncImage.DecodePixel="160"
+                               IsHitTestVisible="False">
+                            <Image.Style>
+                                <Style TargetType="Image">
+                                    <Setter Property="helpers:AsyncImage.Uri" Value="{Binding IconPath}"/>
+                                    <Setter Property="helpers:AsyncImage.PhaseLock" Value="{Binding IsPreview}"/>
+                                    <Setter Property="Effect" Value="{Binding RarityEdgeEffect}"/>
+                                    <Style.Triggers>
+                                        <DataTrigger Binding="{Binding IsGameCompleted}" Value="True">
+                                            <Setter Property="helpers:AsyncImage.Uri" Value="{Binding ToastCompletedBadgeSource}"/>
+                                            <!-- The effect has to swap too. Swapping only the picture
+                                                 left a rarity-coloured edge around a completion glow. -->
+                                            <Setter Property="Effect" Value="{Binding CompletedEdgeEffect}"/>
                                         </DataTrigger>
                                     </Style.Triggers>
                                 </Style>

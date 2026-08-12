@@ -97,6 +97,23 @@
                                                      PhaseLock="False"
                                                      SubjectUri="{Binding IconPath}"
                                                      Visibility="{Binding FrameShowRayBurst, Converter={StaticResource BooleanToVisibilityConverter}}"/>
+                            <!-- Completion's other half: the pair of corner-thrown glows is what reads
+                                 as the completion gradient on game and category art. Completion only. -->
+                            <Image Stretch="Uniform"
+                                   RenderOptions.BitmapScalingMode="HighQuality">
+                                <Image.Style>
+                                    <Style TargetType="Image">
+                                        <Setter Property="Visibility" Value="Collapsed"/>
+                                        <Style.Triggers>
+                                            <DataTrigger Binding="{Binding IsGameCompleted}" Value="True">
+                                                <Setter Property="Visibility" Value="Visible"/>
+                                                <Setter Property="Source" Value="{Binding FrameCompletedBadgeImage}"/>
+                                                <Setter Property="Effect" Value="{Binding FrameCompletedGlowStartEffect}"/>
+                                            </DataTrigger>
+                                        </Style.Triggers>
+                                    </Style>
+                                </Image.Style>
+                            </Image>
                             <!-- Completion notifications swap the achievement icon for the
                                  completed-game badge and the completed glow (all sync-loaded, as
                                  offscreen rendering requires). -->
@@ -110,6 +127,26 @@
                                             <DataTrigger Binding="{Binding IsGameCompleted}" Value="True">
                                                 <Setter Property="Source" Value="{Binding FrameCompletedBadgeImage}"/>
                                                 <Setter Property="Effect" Value="{Binding FrameCompletedGlowEffect}"/>
+                                            </DataTrigger>
+                                        </Style.Triggers>
+                                    </Style>
+                                </Image.Style>
+                            </Image>
+                            <!-- Edge that comes with the rays: the same drop shadow at a small blur, so
+                                 it reads as a line along the artwork and hugs its alpha. Sync-loaded
+                                 like everything else here, as offscreen rendering requires. -->
+                            <Image Stretch="Uniform"
+                                   RenderOptions.BitmapScalingMode="HighQuality">
+                                <Image.Style>
+                                    <Style TargetType="Image">
+                                        <Setter Property="Source" Value="{Binding IconPath}"/>
+                                        <Setter Property="Effect" Value="{Binding FrameRarityEdgeEffect}"/>
+                                        <Style.Triggers>
+                                            <DataTrigger Binding="{Binding IsGameCompleted}" Value="True">
+                                                <Setter Property="Source" Value="{Binding FrameCompletedBadgeImage}"/>
+                                                <!-- The effect swaps too, or the edge stays the rarity
+                                                     colour beside a completion-coloured glow. -->
+                                                <Setter Property="Effect" Value="{Binding FrameCompletedEdgeEffect}"/>
                                             </DataTrigger>
                                         </Style.Triggers>
                                     </Style>
