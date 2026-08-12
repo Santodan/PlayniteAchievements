@@ -102,44 +102,56 @@ namespace PlayniteAchievements.Services.Achievements
 
         /// <summary>
         /// Adds or removes a single goal. New goals append, so the goal added first stays on top.
+        /// Returns the achievement's resulting position in the goal list, or -1 when it is not a
+        /// goal, which saves the caller a second read to find out.
         /// </summary>
-        public void SetAchievementGoal(Guid gameId, string achievementApiName, bool isGoal)
+        /// <remarks>
+        /// The list is read and rewritten inside one store mutation. Reading it up front via
+        /// <see cref="GameCustomDataLookup"/> would clone the game's entire custom data, notes and
+        /// icon overrides included, just to see one list.
+        /// </remarks>
+        public int SetAchievementGoal(Guid gameId, string achievementApiName, bool isGoal)
         {
             if (gameId == Guid.Empty)
             {
-                return;
+                return -1;
             }
 
             var apiName = (achievementApiName ?? string.Empty).Trim();
             if (string.IsNullOrWhiteSpace(apiName))
             {
-                return;
+                return -1;
             }
 
-            var goals = GameCustomDataLookup.GetGoalAchievements(gameId, null, _gameCustomDataStore);
-            var existingIndex = goals.FindIndex(entry =>
-                string.Equals(entry, apiName, StringComparison.OrdinalIgnoreCase));
-
-            if (isGoal)
-            {
-                if (existingIndex >= 0)
+            var resultIndex = -1;
+            _gameCustomDataStore.Update(
+                gameId,
+                customData =>
                 {
-                    return;
-                }
+                    var goals = AchievementOrderHelper.NormalizeApiNames(customData.GoalAchievementApiNames);
+                    var existingIndex = goals.FindIndex(entry =>
+                        string.Equals(entry, apiName, StringComparison.OrdinalIgnoreCase));
 
-                goals.Add(apiName);
-            }
-            else
-            {
-                if (existingIndex < 0)
-                {
-                    return;
-                }
+                    if (isGoal)
+                    {
+                        if (existingIndex < 0)
+                        {
+                            goals.Add(apiName);
+                            existingIndex = goals.Count - 1;
+                        }
 
-                goals.RemoveAt(existingIndex);
-            }
+                        resultIndex = existingIndex;
+                    }
+                    else if (existingIndex >= 0)
+                    {
+                        goals.RemoveAt(existingIndex);
+                    }
 
-            SetGoalAchievements(gameId, goals);
+                    customData.GoalAchievementApiNames = goals.Count > 0 ? goals : null;
+                },
+                affectsSummaryData: false);
+
+            return resultIndex;
         }
 
         /// <summary>
@@ -161,20 +173,34 @@ namespace PlayniteAchievements.Services.Achievements
                 return false;
             }
 
-            var goals = GameCustomDataLookup.GetGoalAchievements(gameId, null, _gameCustomDataStore);
-            if (goals.Count == 0)
+            // Cheap pre-check against the cached file. Update always saves and raises, so an
+            // unlock that clears nothing, by far the common case, must not reach it.
+            if (!_gameCustomDataStore.TryLoad(gameId, out var existing) ||
+                existing?.GoalAchievementApiNames == null ||
+                !existing.GoalAchievementApiNames.Any(entry =>
+                    !string.IsNullOrWhiteSpace(entry) && unlocked.Contains(entry.Trim())))
             {
                 return false;
             }
 
-            var remaining = goals.Where(entry => !unlocked.Contains(entry)).ToList();
-            if (remaining.Count == goals.Count)
-            {
-                return false;
-            }
+            var pruned = false;
+            _gameCustomDataStore.Update(
+                gameId,
+                customData =>
+                {
+                    var goals = AchievementOrderHelper.NormalizeApiNames(customData.GoalAchievementApiNames);
+                    var remaining = goals.Where(entry => !unlocked.Contains(entry)).ToList();
+                    if (remaining.Count == goals.Count)
+                    {
+                        return;
+                    }
 
-            SetGoalAchievements(gameId, remaining);
-            return true;
+                    customData.GoalAchievementApiNames = remaining.Count > 0 ? remaining : null;
+                    pruned = true;
+                },
+                affectsSummaryData: false);
+
+            return pruned;
         }
 
         public void SetAchievementCategoryOverrides(Guid gameId, IReadOnlyDictionary<string, string> categoryOverrides)

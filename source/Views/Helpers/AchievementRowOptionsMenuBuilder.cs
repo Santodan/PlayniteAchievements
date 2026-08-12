@@ -85,20 +85,15 @@ namespace PlayniteAchievements.Views.Helpers
             item.Click += (_, __) =>
             {
                 var nextIsGoal = !context.IsGoal;
-                CurrentOverridesService?.SetAchievementGoal(
+
+                // The write returns the new goal position, so the row can be stamped without a
+                // second read. The surface then re-sorts in the same pass, landing the accent and
+                // the new position in one frame.
+                var goalIndex = CurrentOverridesService?.SetAchievementGoal(
                     context.GameId,
                     context.ApiName,
-                    nextIsGoal);
-
-                // Stamp the row from the stored order, then let the surface re-sort in the same
-                // pass. Both land in one frame, so the accent never appears before the row moves.
-                var goals = GameCustomDataLookup.GetGoalAchievements(
-                    context.GameId,
-                    CurrentSettings,
-                    CurrentStore);
-                var goalIndex = goals.FindIndex(entry =>
-                    string.Equals(entry, context.ApiName, StringComparison.OrdinalIgnoreCase));
-                context.ApplyGoal(nextIsGoal && goalIndex >= 0, goalIndex >= 0 ? goalIndex : int.MaxValue);
+                    nextIsGoal) ?? -1;
+                context.ApplyGoal(goalIndex >= 0, goalIndex >= 0 ? goalIndex : int.MaxValue);
 
                 if (onGoalChanged?.Invoke() == true)
                 {
