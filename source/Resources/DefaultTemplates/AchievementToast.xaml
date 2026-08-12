@@ -96,7 +96,7 @@
                     <Border.Background>
                         <ImageBrush Stretch="UniformToFill"
                                     helpers:AsyncImage.Uri="{Binding ToastBackgroundImagePath}"
-                                    helpers:AsyncImage.DecodePixel="512"
+                                    helpers:AsyncImage.DecodePixel="768"
                                     helpers:AsyncImage.PhaseLock="{Binding IsPreview}"/>
                     </Border.Background>
                 </Border>
@@ -115,7 +115,7 @@
                         <Border.Background>
                             <ImageBrush Stretch="UniformToFill"
                                         helpers:AsyncImage.Uri="{Binding ToastBackgroundImagePath}"
-                                        helpers:AsyncImage.DecodePixel="512"
+                                        helpers:AsyncImage.DecodePixel="768"
                                         helpers:AsyncImage.PhaseLock="{Binding IsPreview}"/>
                         </Border.Background>
                     </Border>
