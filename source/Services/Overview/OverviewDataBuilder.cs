@@ -219,11 +219,21 @@ namespace PlayniteAchievements.Services.Overview
                 snapshot.TotalByProvider[providerKey] += game.TotalAchievements;
             }
 
-            snapshot.RecentAchievements = MaterializeRecentAchievements(
-                settings,
-                recentUnlocks,
-                presentationByGameId,
-                cancel);
+            // The overview asks for an unbounded recent list, so this materializes a display item
+            // for every unlocked achievement in the library and sorts them globally. Suspected
+            // dominant term in the projection rebuild.
+            using (PerfScope.Start(
+                _logger,
+                "Overview.MaterializeRecentAchievements",
+                thresholdMs: 0,
+                context: $"unlocks={recentUnlocks?.Count ?? 0}"))
+            {
+                snapshot.RecentAchievements = MaterializeRecentAchievements(
+                    settings,
+                    recentUnlocks,
+                    presentationByGameId,
+                    cancel);
+            }
 
             snapshot.GameSummaries = snapshot.GameSummaries
                 .OrderByDescending(g => g.LastPlayed ?? DateTime.MinValue)
