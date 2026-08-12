@@ -17,8 +17,8 @@ namespace PlayniteAchievements.Services.Images
     {
         private const string FallbackStem = "achievement";
         private const int MaxStemLength = 96;
-        private const string CustomFolderName = "custom";
-        private const string ModeFolderName = "original";
+        internal const string CustomFolderName = "custom";
+        internal const string ModeFolderName = "original";
         internal const string LegacyCompressedModeFolderName = "128";
         internal const string DefaultCategoryFolderName = "category_defaults";
         private static readonly HashSet<string> ReservedFileNames = new HashSet<string>(StringComparer.OrdinalIgnoreCase)

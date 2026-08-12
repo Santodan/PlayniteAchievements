@@ -26,6 +26,7 @@ namespace PlayniteAchievements.Views.Settings.General
         public MaintenanceSettingsSection()
         {
             InitializeComponent();
+            InitializeCompressionOptions();
         }
 
         internal MaintenanceSettingsSection(
@@ -257,14 +258,248 @@ namespace PlayniteAchievements.Views.Settings.General
             }
         }
 
+        // -----------------------------
+        // Image compression
+        // -----------------------------
+
+        private void CompressAchievementIcons_Click(object sender, RoutedEventArgs e) =>
+            CompressImages(ImageCompressionScope.AchievementIcons);
+
+        private void CompressCategoryArt_Click(object sender, RoutedEventArgs e) =>
+            CompressImages(ImageCompressionScope.CategoryDefaults);
+
+        private void CompressFriendImages_Click(object sender, RoutedEventArgs e) =>
+            CompressImages(ImageCompressionScope.FriendImages);
+
+        private void CompressCustomIcons_Click(object sender, RoutedEventArgs e) =>
+            CompressImages(ImageCompressionScope.CustomIcons);
+
+        /// <summary>
+        /// Measures the scope, asks for confirmation with the projected saving, then rewrites the
+        /// oversized files. The scan runs first so the user is never asked to approve an unbounded
+        /// change; both passes are cancelable because a large cache holds tens of thousands of files.
+        /// </summary>
+        private void CompressImages(ImageCompressionScope scope)
+        {
+            var diskImageService = _plugin?.DiskImageService;
+            if (diskImageService == null)
+            {
+                return;
+            }
+
+            var maxDimension = GetSelectedMaxDimension();
+            var compressor = new IconCacheCompressor(diskImageService, _logger);
+
+            var estimate = RunCompressionPass(
+                LF("LOCPlayAch_Settings_CompressImages_ProgressScanning", 0, 0),
+                progress => compressor.Scan(
+                    scope,
+                    maxDimension,
+                    (processed, total) => ReportCountedProgress(
+                        progress,
+                        "LOCPlayAch_Settings_CompressImages_ProgressScanning",
+                        processed,
+                        total),
+                    progress.CancelToken));
+
+            if (estimate == null)
+            {
+                // Either cancelled during the scan or already reported as an error.
+                return;
+            }
+
+            if (estimate.Candidates <= 0)
+            {
+                _plugin.PlayniteApi.Dialogs.ShowMessage(
+                    LF("LOCPlayAch_Settings_CompressImages_NoCandidates", maxDimension),
+                    L("LOCPlayAch_Title_PluginName"),
+                    MessageBoxButton.OK,
+                    MessageBoxImage.Information);
+                return;
+            }
+
+            var confirmation = LF(
+                "LOCPlayAch_Settings_CompressImages_Confirm",
+                estimate.Candidates,
+                estimate.Candidates + estimate.Skipped,
+                maxDimension,
+                FormatBytes(estimate.CurrentBytes),
+                FormatBytes(estimate.EstimatedBytes));
+
+            if (_plugin.PlayniteApi.Dialogs.ShowMessage(
+                    confirmation,
+                    L("LOCPlayAch_Title_PluginName"),
+                    MessageBoxButton.YesNo,
+                    MessageBoxImage.Warning) != MessageBoxResult.Yes)
+            {
+                return;
+            }
+
+            var result = RunCompressionPass(
+                LF("LOCPlayAch_Settings_CompressImages_ProgressCompressing", 0, 0),
+                progress => compressor
+                    .CompressAsync(
+                        scope,
+                        maxDimension,
+                        (processed, total) => ReportCountedProgress(
+                            progress,
+                            "LOCPlayAch_Settings_CompressImages_ProgressCompressing",
+                            processed,
+                            total),
+                        progress.CancelToken)
+                    .GetAwaiter()
+                    .GetResult());
+
+            if (result == null)
+            {
+                return;
+            }
+
+            var summary = result.Canceled
+                ? LF(
+                    "LOCPlayAch_Settings_CompressImages_ResultCanceled",
+                    result.Compressed,
+                    FormatBytes(result.SavedBytes))
+                : LF(
+                    "LOCPlayAch_Settings_CompressImages_Result",
+                    result.Compressed,
+                    result.Skipped,
+                    result.Failed,
+                    FormatBytes(result.SavedBytes));
+
+            _plugin.PlayniteApi.Dialogs.ShowMessage(
+                summary,
+                L("LOCPlayAch_Title_PluginName"),
+                MessageBoxButton.OK,
+                MessageBoxImage.Information);
+        }
+
+        /// <summary>
+        /// Runs one compression pass behind a cancelable progress dialog. Returns null when the pass
+        /// was cancelled or failed, having already shown the error.
+        /// </summary>
+        private T RunCompressionPass<T>(string initialText, Func<GlobalProgressActionArgs, T> pass)
+            where T : class
+        {
+            T passResult = null;
+            Exception operationError = null;
+
+            // Starts indeterminate because the file count is only known once the scope has been
+            // enumerated; the first counted report switches the bar over.
+            RunMaintenanceProgress(
+                initialText,
+                isIndeterminate: true,
+                operation: progress =>
+                {
+                    try
+                    {
+                        passResult = pass(progress);
+                    }
+                    catch (OperationCanceledException)
+                    {
+                    }
+                    catch (Exception ex)
+                    {
+                        operationError = ex;
+                    }
+                },
+                cancelable: true);
+
+            if (operationError != null)
+            {
+                _logger?.Error(operationError, "Failed to compress cached images.");
+                _plugin.PlayniteApi.Dialogs.ShowMessage(
+                    LF("LOCPlayAch_Status_Failed", operationError.Message),
+                    L("LOCPlayAch_Title_PluginName"),
+                    MessageBoxButton.OK,
+                    MessageBoxImage.Error);
+            }
+
+            return passResult;
+        }
+
+        private void ReportCountedProgress(
+            GlobalProgressActionArgs progress,
+            string textResourceKey,
+            int processed,
+            int total)
+        {
+            var safeTotal = Math.Max(1, total);
+            var safeProcessed = Math.Max(0, Math.Min(safeTotal, processed));
+
+            UpdateMaintenanceProgress(
+                progress,
+                text: LF(textResourceKey, safeProcessed, safeTotal),
+                current: safeProcessed,
+                max: safeTotal,
+                isIndeterminate: false);
+        }
+
+        /// <summary>
+        /// Fills the max-dimension picker. The choice is deliberately per-run rather than persisted:
+        /// a sensible cap for achievement icons is not a sensible cap for cover-sized category art.
+        /// </summary>
+        private void InitializeCompressionOptions()
+        {
+            if (CompressMaxDimensionCombo == null)
+            {
+                return;
+            }
+
+            foreach (var dimension in ImageCompressionPlan.SelectableMaxDimensions)
+            {
+                CompressMaxDimensionCombo.Items.Add(
+                    dimension.ToString(FormattingCulture.Current) + " px");
+            }
+
+            CompressMaxDimensionCombo.SelectedIndex = Math.Max(
+                0,
+                Array.IndexOf(
+                    ImageCompressionPlan.SelectableMaxDimensions,
+                    ImageCompressionPlan.DefaultMaxDimension));
+        }
+
+        private int GetSelectedMaxDimension()
+        {
+            var index = CompressMaxDimensionCombo?.SelectedIndex ?? -1;
+            if (index < 0 || index >= ImageCompressionPlan.SelectableMaxDimensions.Length)
+            {
+                return ImageCompressionPlan.DefaultMaxDimension;
+            }
+
+            return ImageCompressionPlan.SelectableMaxDimensions[index];
+        }
+
+        private static string FormatBytes(long bytes)
+        {
+            var culture = FormattingCulture.Current;
+            if (bytes >= 1024L * 1024L * 1024L)
+            {
+                return (bytes / (double)(1024L * 1024L * 1024L)).ToString("N2", culture) + " GB";
+            }
+
+            if (bytes >= 1024L * 1024L)
+            {
+                return (bytes / (double)(1024L * 1024L)).ToString("N1", culture) + " MB";
+            }
+
+            if (bytes >= 1024L)
+            {
+                return (bytes / 1024d).ToString("N0", culture) + " KB";
+            }
+
+            return bytes.ToString("N0", culture) + " B";
+        }
+
         private void RunMaintenanceProgress(
             string initialText,
             bool isIndeterminate,
-            Action<GlobalProgressActionArgs> operation)
+            Action<GlobalProgressActionArgs> operation,
+            bool cancelable = false)
         {
             var progressOptions = new GlobalProgressOptions(initialText)
             {
-                Cancelable = false,
+                Cancelable = cancelable,
                 IsIndeterminate = isIndeterminate
             };
 
