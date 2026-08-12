@@ -432,6 +432,7 @@
     <Compile Include="..\..\source\Services\ThemeMigration\ThemeYamlVersionReader.cs" Link="Source\Services\ThemeMigration\ThemeYamlVersionReader.cs" />
     <Compile Include="..\..\source\Services\Recording\SegmentTimeline.cs" Link="Source\Services\Recording\SegmentTimeline.cs" />
     <Compile Include="..\..\source\Services\Recording\RecordingPaths.cs" Link="Source\Services\Recording\RecordingPaths.cs" />
+    <Compile Include="..\..\source\Common\MonotonicUtcClock.cs" Link="Source\Common\MonotonicUtcClock.cs" />
     <Compile Include="..\..\source\Services\Capture\ToastOverlayTrack.cs" Link="Source\Services\Capture\ToastOverlayTrack.cs" />
     <Compile Include="..\..\source\Services\Capture\OverlayBlitMath.cs" Link="Source\Services\Capture\OverlayBlitMath.cs" />
     <Compile Include="..\..\source\Services\Capture\CaptureCropMath.cs" Link="Source\Services\Capture\CaptureCropMath.cs" />
