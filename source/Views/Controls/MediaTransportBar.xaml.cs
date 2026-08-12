@@ -33,18 +33,27 @@ namespace PlayniteAchievements.Views.Controls
         private const double DurationTolerance = 0.001;
         private const double DefaultVolume = 0.5;
 
+        // Setting MediaElement.Position flushes the pipeline, so driving it from every mouse move
+        // queues far more seeks than the media engine can retire: the picture trails the thumb and
+        // keeps catching up after the button comes up. Scrub seeks are coalesced to this interval,
+        // with the position the user released on applied immediately.
+        private static readonly TimeSpan ScrubSeekInterval = TimeSpan.FromMilliseconds(100);
+
         // Volume and mute carry across clips, and between the gallery and the lightbox, for as long
         // as Playnite runs. They are deliberately not written to settings.
         private static double _sessionVolume = DefaultVolume;
         private static bool _sessionMuted;
 
         private readonly DispatcherTimer _positionTimer;
+        private readonly DispatcherTimer _scrubTimer;
         private MediaElement _player;
         private bool _isPlaying;
 
         // The user is holding the position thumb or dragging its track: the timer must not
         // overwrite the value under them.
         private bool _isScrubbing;
+        private double? _pendingScrubSeconds;
+        private bool _resumeAfterScrub;
 
         // A slider's value is being written programmatically: ignore the resulting ValueChanged
         // instead of acting on a change the user did not make.
@@ -57,9 +66,29 @@ namespace PlayniteAchievements.Views.Controls
 
             _positionTimer = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(250) };
             _positionTimer.Tick += PositionTimer_Tick;
-            Unloaded += (_, __) => _positionTimer.Stop();
 
-            SliderTrackDragBehavior.Attach(PositionSlider, dragging => _isScrubbing = dragging);
+            _scrubTimer = new DispatcherTimer { Interval = ScrubSeekInterval };
+            _scrubTimer.Tick += (_, __) => FlushPendingScrub();
+
+            Unloaded += (_, __) =>
+            {
+                _positionTimer.Stop();
+                _scrubTimer.Stop();
+            };
+
+            SliderTrackDragBehavior.Attach(
+                PositionSlider,
+                dragging =>
+                {
+                    if (dragging)
+                    {
+                        BeginScrub();
+                    }
+                    else
+                    {
+                        EndScrub();
+                    }
+                });
             SliderTrackDragBehavior.Attach(VolumeSlider);
 
             SetVolumeSliderWithoutApply(_sessionVolume);
@@ -101,8 +130,11 @@ namespace PlayniteAchievements.Views.Controls
         public void Reset()
         {
             _positionTimer.Stop();
+            _scrubTimer.Stop();
             _isPlaying = false;
             _isScrubbing = false;
+            _pendingScrubSeconds = null;
+            _resumeAfterScrub = false;
             UpdatePlayPauseGlyph();
             SetSliderValueWithoutSeek(0);
             UpdateTimeText(TimeSpan.Zero);
@@ -116,6 +148,16 @@ namespace PlayniteAchievements.Views.Controls
             }
 
             RestartIfFinished();
+            StartPlayback();
+        }
+
+        private void StartPlayback()
+        {
+            if (_player == null)
+            {
+                return;
+            }
+
             _player.Play();
             _isPlaying = true;
             _positionTimer.Start();
@@ -176,16 +218,33 @@ namespace PlayniteAchievements.Views.Controls
                 ? _player.NaturalDuration.TimeSpan
                 : TimeSpan.Zero;
 
+        /// <summary>Moves the player and the slider together. Not for use mid-scrub.</summary>
         private void SeekTo(double seconds)
         {
-            var duration = Duration;
-            if (_player == null || _player.Source == null || duration <= TimeSpan.Zero)
+            var position = MovePlayerTo(seconds);
+            if (position == null)
             {
                 return;
             }
 
-            var clamped = Math.Max(0, Math.Min(seconds, duration.TotalSeconds));
-            var position = TimeSpan.FromSeconds(clamped);
+            SetSliderValueWithoutSeek(position.Value.TotalSeconds);
+            UpdateTimeText(position.Value);
+        }
+
+        /// <summary>
+        /// Moves the player alone and returns where it landed, or null if it could not move. The
+        /// slider is left untouched: writing it back mid-scrub would yank the thumb out from under
+        /// the user, back to a position they had already dragged past.
+        /// </summary>
+        private TimeSpan? MovePlayerTo(double seconds)
+        {
+            var duration = Duration;
+            if (_player == null || _player.Source == null || duration <= TimeSpan.Zero)
+            {
+                return null;
+            }
+
+            var position = TimeSpan.FromSeconds(Math.Max(0, Math.Min(seconds, duration.TotalSeconds)));
 
             try
             {
@@ -194,11 +253,68 @@ namespace PlayniteAchievements.Views.Controls
             catch
             {
                 // Ignore teardown races.
+                return null;
+            }
+
+            return position;
+        }
+
+        private void BeginScrub()
+        {
+            if (_isScrubbing)
+            {
                 return;
             }
 
-            SetSliderValueWithoutSeek(clamped);
-            UpdateTimeText(position);
+            _isScrubbing = true;
+
+            // Seeking a playing element fights the scrub: it keeps decoding forward between the
+            // seeks and the picture settles late. Pausing makes each scrub seek land on a frame.
+            _resumeAfterScrub = _isPlaying;
+            if (_isPlaying)
+            {
+                Pause();
+            }
+
+            _scrubTimer.Start();
+        }
+
+        private void EndScrub()
+        {
+            if (!_isScrubbing)
+            {
+                return;
+            }
+
+            _isScrubbing = false;
+            _scrubTimer.Stop();
+            FlushPendingScrub();
+
+            if (_resumeAfterScrub)
+            {
+                // Deliberately not Play(): the user may have scrubbed to the very end on purpose,
+                // and restarting from zero there would throw away the position they picked.
+                StartPlayback();
+            }
+
+            _resumeAfterScrub = false;
+        }
+
+        private void FlushPendingScrub()
+        {
+            if (_pendingScrubSeconds == null)
+            {
+                return;
+            }
+
+            var seconds = _pendingScrubSeconds.Value;
+            _pendingScrubSeconds = null;
+
+            var position = MovePlayerTo(seconds);
+            if (position != null)
+            {
+                UpdateTimeText(position.Value);
+            }
         }
 
         private void RestartIfFinished()
@@ -278,18 +394,26 @@ namespace PlayniteAchievements.Views.Controls
                 return;
             }
 
+            if (_isScrubbing)
+            {
+                // The readout follows the thumb every move; the player itself is moved on the
+                // scrub timer so a fast drag cannot outrun the media engine.
+                _pendingScrubSeconds = e.NewValue;
+                UpdateTimeText(TimeSpan.FromSeconds(e.NewValue));
+                return;
+            }
+
             SeekTo(e.NewValue);
         }
 
         private void PositionSlider_DragStarted(object sender, DragStartedEventArgs e)
         {
-            _isScrubbing = true;
+            BeginScrub();
         }
 
         private void PositionSlider_DragCompleted(object sender, DragCompletedEventArgs e)
         {
-            // The seek itself already landed through ValueChanged as the thumb moved.
-            _isScrubbing = false;
+            EndScrub();
         }
 
         private void VolumeSlider_ValueChanged(object sender, RoutedPropertyChangedEventArgs<double> e)
