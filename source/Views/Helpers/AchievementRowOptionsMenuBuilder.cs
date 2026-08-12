@@ -4,7 +4,6 @@ using System.Linq;
 using System.Windows;
 using System.Windows.Controls;
 using Playnite.SDK;
-using PlayniteAchievements.Common;
 using PlayniteAchievements.Services;
 using PlayniteAchievements.Services.Achievements;
 using PlayniteAchievements.Services.GameCustomData;
@@ -86,34 +85,22 @@ namespace PlayniteAchievements.Views.Helpers
             item.Click += (_, __) =>
             {
                 var nextIsGoal = !context.IsGoal;
-                var logger = LogManager.GetLogger();
 
                 // The write returns the new goal position, so the row can be stamped without a
                 // second read. The surface then re-sorts in the same pass, landing the accent and
                 // the new position in one frame.
-                int goalIndex;
-                using (PerfScope.Start(logger, "Goal.Write", thresholdMs: 0))
-                {
-                    goalIndex = CurrentOverridesService?.SetAchievementGoal(
-                        context.GameId,
-                        context.ApiName,
-                        nextIsGoal) ?? -1;
-                }
-
+                var goalIndex = CurrentOverridesService?.SetAchievementGoal(
+                    context.GameId,
+                    context.ApiName,
+                    nextIsGoal) ?? -1;
                 context.ApplyGoal(goalIndex >= 0, goalIndex >= 0 ? goalIndex : int.MaxValue);
 
-                using (PerfScope.Start(logger, "Goal.Resort", thresholdMs: 0))
+                if (onGoalChanged?.Invoke() == true)
                 {
-                    if (onGoalChanged?.Invoke() == true)
-                    {
-                        return;
-                    }
+                    return;
                 }
 
-                using (PerfScope.Start(logger, "Goal.FullReload", thresholdMs: 0))
-                {
-                    onChanged?.Invoke();
-                }
+                onChanged?.Invoke();
             };
 
             return item;
