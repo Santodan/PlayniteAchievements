@@ -110,9 +110,9 @@ namespace PlayniteAchievements.Tools.RayGlowTuner
 
             stack.Children.Add(Header("Arrows"));
             stack.Children.Add(Field(
-                "Count", 4, 48, RayArrowLayout.DefaultArrowCount, "N0",
-                v => RayArrowLayout.DefaultArrowCount = (int)Math.Round(v),
-                () => "DefaultArrowCount = " + RayArrowLayout.DefaultArrowCount));
+                "Arrow gap (DIP)", 1.5, 30.0, RayArrowLayout.ArrowSpacing, "N2",
+                v => RayArrowLayout.ArrowSpacing = v,
+                () => "ArrowSpacing = " + F(RayArrowLayout.ArrowSpacing)));
             stack.Children.Add(Field(
                 "Burst scale", 1.0, 3.0, 1.55, "N2",
                 v => { foreach (var s in _preview.Subjects) { s.BurstScale = v; } },
@@ -137,6 +137,13 @@ namespace PlayniteAchievements.Tools.RayGlowTuner
                 "Tip width", 0.0, 0.5, RayArrowLayout.TipWidthFraction, "N2",
                 v => RayArrowLayout.TipWidthFraction = v,
                 () => "TipWidthFraction = " + F(RayArrowLayout.TipWidthFraction)));
+
+            stack.Children.Add(Header("Edge"));
+            stack.Children.Add(Toggle("Show edge", true,
+                v => { _preview.ShowBorder = v; _preview.Refresh(); }));
+            stack.Children.Add(Slider(
+                "Blur radius", 0.0, 30.0, _preview.BorderBlur, "N1",
+                v => { _preview.BorderBlur = v; _preview.Refresh(); }, null));
 
             stack.Children.Add(Header("Wave"));
             stack.Children.Add(Field(
@@ -223,7 +230,7 @@ namespace PlayniteAchievements.Tools.RayGlowTuner
 
                 _running = v;
             }));
-            stack.Children.Add(Toggle("Show artwork", true, v => _preview.ShowSubject = v));
+            stack.Children.Add(Toggle("Show artwork", true, v => { _preview.ShowSubject = v; _preview.Refresh(); }));
             stack.Children.Add(Toggle("Show track", false, v => _preview.ShowTrack = v));
             stack.Children.Add(Toggle("Light backdrop", false,
                 v => _preview.Backdrop = v ? Brushes.WhiteSmoke : Brushes.Black));
@@ -551,4 +558,7 @@ namespace PlayniteAchievements.Tools.RayGlowTuner
         }
     }
 }
+
+
+
 

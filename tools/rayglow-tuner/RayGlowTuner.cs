@@ -5,6 +5,7 @@ using System.IO;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Media;
+using System.Windows.Media.Effects;
 using System.Windows.Media.Imaging;
 using PlayniteAchievements.Services.Images;
 using PlayniteAchievements.Views.Controls.RayGlow;
@@ -86,26 +87,21 @@ namespace PlayniteAchievements.Tools.RayGlowTuner
     /// <summary>Everything the sliders drive that is not already a field on the layout itself.</summary>
     internal sealed class LadderSettings
     {
-        // The shipped ladder, so the tuner opens on exactly what the plugin draws. Moving any softness
-        // slider switches to the generated curve below, which cannot reproduce these by hand-tuned
-        // accident — hence keeping both.
-        private static readonly double[] ShippedWidths =
-            { 4.60, 3.70, 2.95, 2.35, 1.85, 1.42, 1.05, 0.70, 0.38 };
-
-        private static readonly double[] ShippedHeights =
-            { 1.00, 0.96, 0.92, 0.86, 0.79, 0.71, 0.61, 0.50, 0.38 };
-
-        private static readonly byte[] ShippedAlphas =
-            { 0x07, 0x0A, 0x0E, 0x13, 0x1A, 0x24, 0x30, 0x42, 0x58 };
+        // The shipped ladder is lifted out of the plugin at build time (see build.ps1), so the tuner
+        // always opens on exactly what the plugin draws. Moving any softness slider switches to the
+        // generated curve below, which cannot reproduce hand-tuned values — hence keeping both.
+        private static readonly double[] ShippedWidths = ShippedLadder.Widths;
+        private static readonly double[] ShippedHeights = ShippedLadder.Heights;
+        private static readonly byte[] ShippedAlphas = ShippedLadder.Alphas;
 
         public bool Generated;
 
-        public int LayerCount = 9;
-        public double HaloWidth = 4.60;
-        public double CoreWidth = 0.38;
-        public double OuterAlpha = 0x07 / 255.0;
-        public double CoreAlpha = 0x58 / 255.0;
-        public double ShortestHeightFraction = 0.38;
+        public int LayerCount = ShippedLadder.Widths.Length;
+        public double HaloWidth = ShippedLadder.Widths[0];
+        public double CoreWidth = ShippedLadder.Widths[ShippedLadder.Widths.Length - 1];
+        public double OuterAlpha = ShippedLadder.Alphas[0] / 255.0;
+        public double CoreAlpha = ShippedLadder.Alphas[ShippedLadder.Alphas.Length - 1] / 255.0;
+        public double ShortestHeightFraction = ShippedLadder.Heights[ShippedLadder.Heights.Length - 1];
         public double AlphaCurve = 2.1;
         public double WhiteBlend = 0.28;
 
@@ -215,10 +211,21 @@ namespace PlayniteAchievements.Tools.RayGlowTuner
         }
     }
 
-    internal sealed class RayPreview : FrameworkElement
+    /// <summary>
+    /// Draws the rays itself and hosts the artwork as child elements.
+    ///
+    /// The border is a DropShadowEffect on a copy of the artwork, exactly as the plugin's templates do
+    /// it, and an effect can only be applied to an element — DrawingContext.PushEffect has done nothing
+    /// since .NET 4. So the artwork lives in child Images here rather than being drawn. A Panel renders
+    /// its own content before its children, which puts the rays behind the picture without any extra
+    /// arrangement.
+    /// </summary>
+    internal sealed class RayPreview : Canvas
     {
         private readonly RayArrowLayout.RayArrowSpine[] _spines = new RayArrowLayout.RayArrowSpine[256];
         private readonly RayArrowLayout.RayArrowQuad[] _quads = new RayArrowLayout.RayArrowQuad[256];
+        private readonly Point[] _rimOuter = new Point[RayTrack.SampleCount];
+        private readonly Point[] _rimInner = new Point[RayTrack.SampleCount];
 
         public List<Subject> Subjects = new List<Subject>();
         public LadderSettings Ladder = new LadderSettings();
@@ -226,6 +233,69 @@ namespace PlayniteAchievements.Tools.RayGlowTuner
         public bool ShowSubject = true;
         public bool ShowTrack;
         public Brush Backdrop = Brushes.Black;
+
+        /// <summary>Blur radius of the edge, matching the ConverterParameter the templates pass.</summary>
+        public double BorderBlur = 4.0;
+
+        public bool ShowBorder = true;
+
+        private readonly List<Rect> _artRects = new List<Rect>();
+
+        /// <summary>Rebuilds the hosted artwork. Cheap, and only called when something it depends on
+        /// moves — not per frame, unlike the ray drawing.</summary>
+        public void Refresh()
+        {
+            Children.Clear();
+
+            for (var i = 0; i < Subjects.Count && i < _artRects.Count; i++)
+            {
+                var subject = Subjects[i];
+                if (subject.Bitmap == null)
+                {
+                    continue;
+                }
+
+                var rect = _artRects[i];
+
+                if (ShowBorder && BorderBlur > 0)
+                {
+                    var glow = new DropShadowEffect
+                    {
+                        BlurRadius = BorderBlur,
+                        ShadowDepth = 0,
+                        Color = Ladder.InnerColor,
+                        Opacity = 1.0
+                    };
+
+                    glow.Freeze();
+                    Children.Add(Place(subject.Bitmap, rect, glow));
+                }
+
+                if (ShowSubject)
+                {
+                    Children.Add(Place(subject.Bitmap, rect, null));
+                }
+            }
+
+            InvalidateVisual();
+        }
+
+        private static UIElement Place(BitmapSource bitmap, Rect rect, Effect effect)
+        {
+            var image = new Image
+            {
+                Source = bitmap,
+                Stretch = Stretch.Uniform,
+                Width = rect.Width,
+                Height = rect.Height,
+                Effect = effect,
+                IsHitTestVisible = false
+            };
+
+            SetLeft(image, rect.X);
+            SetTop(image, rect.Y);
+            return image;
+        }
 
         /// <summary>Set after a render so the panel can report what the numbers came out as.</summary>
         public string Readout { get; private set; } = string.Empty;
@@ -237,6 +307,8 @@ namespace PlayniteAchievements.Tools.RayGlowTuner
             var layers = Ladder.Build();
             var lines = new List<string>();
             var x = 40.0;
+            var rectsChanged = false;
+            var rectIndex = 0;
 
             foreach (var subject in Subjects)
             {
@@ -253,8 +325,11 @@ namespace PlayniteAchievements.Tools.RayGlowTuner
                 if (mapped != null)
                 {
                     var written = RayArrowLayout.BuildSpines(
-                        mapped, Laps, subject.BurstScale, RayArrowLayout.DefaultArrowCount, _spines);
-
+                        mapped,
+                        RayArrowLayout.ScaleLapsToTrack(Laps, mapped),
+                        subject.BurstScale,
+                        RayArrowLayout.ArrowCountFor(mapped),
+                        _spines);
                     foreach (var layer in layers)
                     {
                         RayArrowLayout.Emit(_spines, written, layer.Width, layer.Height, _quads);
@@ -276,6 +351,11 @@ namespace PlayniteAchievements.Tools.RayGlowTuner
                         context.DrawGeometry(layer.Brush, null, geometry);
                     }
 
+                    // No border here. It is a DropShadowEffect on the artwork in the real templates, and
+                    // DrawingContext cannot apply one — PushEffect has done nothing since .NET 4. An
+                    // approximation drawn with geometry would only mislead, so the border is judged in
+                    // Playnite, where it is the same machinery as the soft glow beside it.
+
                     if (ShowTrack)
                     {
                         var pen = new Pen(Brushes.Magenta, 1.0);
@@ -295,33 +375,45 @@ namespace PlayniteAchievements.Tools.RayGlowTuner
                     }
 
                     lines.Add(Describe(subject, mapped, written, layers));
-                }
 
-                if (ShowSubject && subject.Bitmap != null)
-                {
-                    context.DrawImage(subject.Bitmap, FitUniform(subject));
+                    // The artwork is a child element, not something drawn here, so its position has to
+                    // be recorded in this element's own coordinates rather than the pushed transform's.
+                    var art = new Rect(
+                        x + mapped.ArtRect.X, top + mapped.ArtRect.Y,
+                        mapped.ArtRect.Width, mapped.ArtRect.Height);
+
+                    if (rectIndex >= _artRects.Count)
+                    {
+                        _artRects.Add(art);
+                        rectsChanged = true;
+                    }
+                    else if (_artRects[rectIndex] != art)
+                    {
+                        _artRects[rectIndex] = art;
+                        rectsChanged = true;
+                    }
+
+                    rectIndex++;
                 }
 
                 context.Pop();
                 x += slot.Width + 90.0;
             }
 
-            Readout = string.Join("\n", lines);
-        }
+            while (_artRects.Count > rectIndex)
+            {
+                _artRects.RemoveAt(_artRects.Count - 1);
+                rectsChanged = true;
+            }
 
-        private Rect FitUniform(Subject subject)
-        {
-            var slot = subject.Slot;
-            var aspect = subject.Bitmap.PixelWidth / (double)subject.Bitmap.PixelHeight;
-            var width = slot.Width - (2 * subject.Inset);
-            var height = slot.Height - (2 * subject.Inset);
-            var drawnHeight = Math.Min(height, width / aspect);
-            var drawnWidth = drawnHeight * aspect;
-            return new Rect(
-                (slot.Width - drawnWidth) / 2.0,
-                (slot.Height - drawnHeight) / 2.0,
-                drawnWidth,
-                drawnHeight);
+            Readout = string.Join("\n", lines);
+
+            if (rectsChanged)
+            {
+                // Never during this render pass: changing children mid-render is not allowed.
+                Dispatcher.BeginInvoke(
+                    System.Windows.Threading.DispatcherPriority.Loaded, new Action(Refresh));
+            }
         }
 
         private string Describe(
@@ -356,3 +448,6 @@ namespace PlayniteAchievements.Tools.RayGlowTuner
         }
     }
 }
+
+
+
