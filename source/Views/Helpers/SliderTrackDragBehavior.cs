@@ -81,12 +81,14 @@ namespace PlayniteAchievements.Views.Helpers
                 return;
             }
 
-            // Applied before the drag is announced so the jump itself is a single discrete change,
-            // which callers can act on immediately rather than folding into the scrub.
-            _slider.Value = value.Value;
-
+            // Announced before the value moves, so a caller that quiesces its target for the drag
+            // (a media player pausing, say) has done so before it sees the new value. Applying the
+            // value first would let the caller act on it while still running, and then quiesce at
+            // whatever point it had reached -- which is not the same place twice.
             _isDragging = true;
             _draggingChanged?.Invoke(true);
+
+            _slider.Value = value.Value;
             _slider.CaptureMouse();
 
             // Keeps the track's RepeatButtons from also paging by LargeChange.
