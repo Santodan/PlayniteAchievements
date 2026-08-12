@@ -3,6 +3,7 @@ using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Controls.Primitives;
 using System.Windows.Threading;
+using Playnite.SDK;
 using PlayniteAchievements.Views.Helpers;
 
 namespace PlayniteAchievements.Views.Controls
@@ -49,6 +50,13 @@ namespace PlayniteAchievements.Views.Controls
         // as Playnite runs. They are deliberately not written to settings.
         private static double _sessionVolume = DefaultVolume;
         private static bool _sessionMuted;
+
+        // Temporary: flip to false to silence. Records what each seek was asked for and where the
+        // player actually ended up, so a misbehaving seek can be read out of the plugin log rather
+        // than inferred from what it looked like on screen.
+        private const bool SeekTracing = true;
+
+        private static readonly ILogger Logger = LogManager.GetLogger();
 
         private readonly DispatcherTimer _positionTimer;
         private readonly DispatcherTimer _scrubTimer;
@@ -259,6 +267,7 @@ namespace PlayniteAchievements.Views.Controls
             }
 
             var position = TimeSpan.FromSeconds(Math.Max(0, Math.Min(seconds, duration.TotalSeconds)));
+            var before = _player.Position;
 
             try
             {
@@ -268,6 +277,15 @@ namespace PlayniteAchievements.Views.Controls
             {
                 // Ignore teardown races.
                 return null;
+            }
+
+            if (SeekTracing)
+            {
+                Logger.Info(
+                    $"[Seek] asked={seconds:0.###} clamped={position.TotalSeconds:0.###} " +
+                    $"posBefore={before.TotalSeconds:0.###} posAfterSet={_player.Position.TotalSeconds:0.###} " +
+                    $"dur={duration.TotalSeconds:0.###} sliderValue={PositionSlider.Value:0.###} " +
+                    $"sliderMax={PositionSlider.Maximum:0.###} playing={_isPlaying} scrubbing={_isScrubbing}");
             }
 
             _awaitingSeekSeconds = position.TotalSeconds;
@@ -423,7 +441,21 @@ namespace PlayniteAchievements.Views.Controls
             var landed = Math.Abs(_player.Position.TotalSeconds - _awaitingSeekSeconds.Value) <= SeekLandedTolerance;
             if (!landed && ++_awaitingSeekTicks < MaxAwaitedSeekTicks)
             {
+                if (SeekTracing)
+                {
+                    Logger.Info(
+                        $"[Seek] waiting tick={_awaitingSeekTicks} target={_awaitingSeekSeconds.Value:0.###} " +
+                        $"pos={_player.Position.TotalSeconds:0.###}");
+                }
+
                 return false;
+            }
+
+            if (SeekTracing)
+            {
+                Logger.Info(
+                    $"[Seek] settled landed={landed} target={_awaitingSeekSeconds.Value:0.###} " +
+                    $"pos={_player.Position.TotalSeconds:0.###} afterTicks={_awaitingSeekTicks}");
             }
 
             _awaitingSeekSeconds = null;
