@@ -230,17 +230,7 @@ namespace PlayniteAchievements.Services.Library
                 {
                     try
                     {
-                        // Synchronous join: a caller arriving mid-build blocks for the build's
-                        // whole duration. The scope records ui=true when that caller is the UI
-                        // thread, which is the one way an off-thread rebuild stalls the app.
-                        using (PerfScope.Start(
-                            _logger,
-                            owner ? "Projection.BuildWait" : "Projection.JoinWait",
-                            thresholdMs: 0,
-                            context: key))
-                        {
-                            snapshot = flight.Task.GetAwaiter().GetResult() ?? new LibraryProjectionSnapshot();
-                        }
+                        snapshot = flight.Task.GetAwaiter().GetResult() ?? new LibraryProjectionSnapshot();
                     }
                     catch when (!owner)
                     {
