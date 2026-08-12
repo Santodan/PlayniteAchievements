@@ -78,6 +78,100 @@ namespace PlayniteAchievements.Services.Achievements
             });
         }
 
+        /// <summary>
+        /// Replaces the game's goal achievements. List position carries the goal order.
+        /// </summary>
+        public void SetGoalAchievements(Guid gameId, IReadOnlyList<string> orderedApiNames)
+        {
+            if (gameId == Guid.Empty)
+            {
+                return;
+            }
+
+            var normalized = AchievementOrderHelper.NormalizeApiNames(orderedApiNames);
+            _gameCustomDataStore.Update(gameId, customData =>
+            {
+                customData.GoalAchievementApiNames = normalized.Count > 0 ? normalized : null;
+            });
+        }
+
+        /// <summary>
+        /// Adds or removes a single goal. New goals append, so the goal added first stays on top.
+        /// </summary>
+        public void SetAchievementGoal(Guid gameId, string achievementApiName, bool isGoal)
+        {
+            if (gameId == Guid.Empty)
+            {
+                return;
+            }
+
+            var apiName = (achievementApiName ?? string.Empty).Trim();
+            if (string.IsNullOrWhiteSpace(apiName))
+            {
+                return;
+            }
+
+            var goals = GameCustomDataLookup.GetGoalAchievements(gameId, null, _gameCustomDataStore);
+            var existingIndex = goals.FindIndex(entry =>
+                string.Equals(entry, apiName, StringComparison.OrdinalIgnoreCase));
+
+            if (isGoal)
+            {
+                if (existingIndex >= 0)
+                {
+                    return;
+                }
+
+                goals.Add(apiName);
+            }
+            else
+            {
+                if (existingIndex < 0)
+                {
+                    return;
+                }
+
+                goals.RemoveAt(existingIndex);
+            }
+
+            SetGoalAchievements(gameId, goals);
+        }
+
+        /// <summary>
+        /// Drops goals that have since been unlocked. Display already treats an unlocked goal as
+        /// no longer a goal, so this only keeps the stored list tidy.
+        /// </summary>
+        public bool PruneUnlockedGoals(Guid gameId, IEnumerable<string> unlockedApiNames)
+        {
+            if (gameId == Guid.Empty || unlockedApiNames == null)
+            {
+                return false;
+            }
+
+            var unlocked = new HashSet<string>(
+                unlockedApiNames.Where(name => !string.IsNullOrWhiteSpace(name)).Select(name => name.Trim()),
+                StringComparer.OrdinalIgnoreCase);
+            if (unlocked.Count == 0)
+            {
+                return false;
+            }
+
+            var goals = GameCustomDataLookup.GetGoalAchievements(gameId, null, _gameCustomDataStore);
+            if (goals.Count == 0)
+            {
+                return false;
+            }
+
+            var remaining = goals.Where(entry => !unlocked.Contains(entry)).ToList();
+            if (remaining.Count == goals.Count)
+            {
+                return false;
+            }
+
+            SetGoalAchievements(gameId, remaining);
+            return true;
+        }
+
         public void SetAchievementCategoryOverrides(Guid gameId, IReadOnlyDictionary<string, string> categoryOverrides)
         {
             if (gameId == Guid.Empty)
