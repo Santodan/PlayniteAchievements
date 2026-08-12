@@ -154,12 +154,48 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
                 return false;
             }
 
+            var row = GoalRows.FirstOrDefault(item =>
+                string.Equals((item?.ApiName ?? string.Empty).Trim(), normalized, StringComparison.OrdinalIgnoreCase));
+            if (row == null)
+            {
+                return false;
+            }
+
             // Reads the stored list to add or remove, so a debounced reorder has to land first.
             FlushPendingOrder();
             _achievementOverridesService.SetAchievementGoal(_gameId, normalized, isGoal);
             _gameDataSnapshotProvider.Invalidate();
-            ReloadData();
+
+            // Toggling a goal only moves a row between the two blocks, so the rows already in
+            // memory are re-partitioned rather than re-hydrated and rebuilt.
+            row.IsGoal = isGoal;
+            ReorderRowsInPlace();
             return true;
+        }
+
+        /// <summary>
+        /// Re-partitions the existing rows into the goal block and the locked remainder, renumbering
+        /// goal positions to match. Cheap enough to run on every toggle.
+        /// </summary>
+        private void ReorderRowsInPlace()
+        {
+            var goals = GoalRows.Where(item => item?.IsGoal == true).ToList();
+            var rest = AchievementSortHelper.CreateDefaultSortedList(
+                GoalRows.Where(item => item != null && !item.IsGoal),
+                AchievementSortScope.GameAchievements);
+
+            for (var i = 0; i < goals.Count; i++)
+            {
+                goals[i].GoalOrderIndex = i;
+            }
+
+            foreach (var item in rest)
+            {
+                item.GoalOrderIndex = int.MaxValue;
+            }
+
+            CollectionHelper.SynchronizeCollection(GoalRows, goals.Concat(rest).ToList());
+            HasGoals = goals.Count > 0;
         }
 
         public bool ClearGoals()
@@ -174,7 +210,16 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
             _pendingOrder = null;
             _achievementOverridesService.SetGoalAchievements(_gameId, Array.Empty<string>());
             _gameDataSnapshotProvider.Invalidate();
-            ReloadData();
+
+            foreach (var row in GoalRows)
+            {
+                if (row != null)
+                {
+                    row.IsGoal = false;
+                }
+            }
+
+            ReorderRowsInPlace();
             return true;
         }
 
