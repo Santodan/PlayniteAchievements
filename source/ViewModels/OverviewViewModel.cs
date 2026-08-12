@@ -2650,6 +2650,14 @@ namespace PlayniteAchievements.ViewModels
                 return;
             }
 
+            // A reorder-only change (goals) is already applied to the rows in place by
+            // ReapplyGoalOrder. Queuing a delta would rebuild the selected game and re-run the
+            // control bar, discarding the filters the user currently has applied.
+            if (!e.AffectsSummaryData)
+            {
+                return;
+            }
+
             QueueOverviewDelta(isFullReset: false, key: e.PlayniteGameId.ToString("D"));
         }
 
