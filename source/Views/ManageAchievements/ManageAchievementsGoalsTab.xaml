@@ -89,8 +89,7 @@
                   helpers:DataGridHoverScrollBarBehavior.IsEnabled="True"
                   helpers:DataGridAlignmentBehavior.IsEnabled="True"
                   Tag="ControllerCellFocus"
-                  AllowDrop="True"
-                  helpers:DataGridRowAccentBehavior.AccentMargin="44,7,0,7">
+                  AllowDrop="True">
 
             <DataGrid.CellStyle>
                 <Style TargetType="DataGridCell" BasedOn="{StaticResource ManageAchievementsControllerCellStyle}" />

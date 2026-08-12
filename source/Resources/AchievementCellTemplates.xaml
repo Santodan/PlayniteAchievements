@@ -128,6 +128,7 @@
                                     <MultiDataTrigger.Conditions>
                                         <Condition Binding="{Binding Unlocked}" Value="False"/>
                                         <Condition Binding="{Binding IsCapstone}" Value="False"/>
+                                        <Condition Binding="{Binding IsGoal}" Value="False"/>
                                     </MultiDataTrigger.Conditions>
                                     <Setter Property="Visibility" Value="Visible"/>
                                 </MultiDataTrigger>
@@ -135,6 +136,31 @@
                         </Style>
                     </Path.Style>
                 </Path>
+
+                <!-- A goal replaces the padlock with a tack pin. Goals are always locked, so this
+                     never competes with the unlocked check. -->
+                <TextBlock Text="&#xf003;"
+                           FontFamily="{DynamicResource PlayAch.FontFamily.Icon}"
+                           FontSize="16"
+                           Foreground="{DynamicResource PlayAch.Brush.Accent}"
+                           HorizontalAlignment="Center"
+                           VerticalAlignment="Center">
+                    <TextBlock.Style>
+                        <Style TargetType="TextBlock">
+                            <Setter Property="Visibility" Value="Collapsed"/>
+                            <Style.Triggers>
+                                <MultiDataTrigger>
+                                    <MultiDataTrigger.Conditions>
+                                        <Condition Binding="{Binding Unlocked}" Value="False"/>
+                                        <Condition Binding="{Binding IsCapstone}" Value="False"/>
+                                        <Condition Binding="{Binding IsGoal}" Value="True"/>
+                                    </MultiDataTrigger.Conditions>
+                                    <Setter Property="Visibility" Value="Visible"/>
+                                </MultiDataTrigger>
+                            </Style.Triggers>
+                        </Style>
+                    </TextBlock.Style>
+                </TextBlock>
             </Grid>
         </Viewbox>
     </DataTemplate>
