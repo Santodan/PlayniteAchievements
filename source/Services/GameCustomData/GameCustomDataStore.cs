@@ -227,6 +227,7 @@ namespace PlayniteAchievements.Services.GameCustomData
             changed |= RenameListEntries(data.AchievementOrder, renamedApiNames);
             changed |= RenameListEntries(data.FilteredAchievementApiNames, renamedApiNames);
             changed |= RenameListEntries(data.SummaryFilteredAchievementApiNames, renamedApiNames);
+            changed |= RenameListEntries(data.GoalAchievementApiNames, renamedApiNames);
             changed |= RenameDictionaryKeys(data.AchievementCategoryOverrides, renamedApiNames);
             changed |= RenameDictionaryKeys(data.AchievementCategoryTypeOverrides, renamedApiNames);
             changed |= RenameDictionaryKeys(data.AchievementUnlockedIconOverrides, renamedApiNames);

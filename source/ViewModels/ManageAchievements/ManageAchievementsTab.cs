@@ -7,6 +7,7 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
         Capstones,
         ManualTracking,
         AchievementOrder,
+        Goals,
         Category,
         Filters,
         Notes,

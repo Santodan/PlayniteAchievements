@@ -485,6 +485,32 @@ namespace PlayniteAchievements.ViewModels.Items
             }
         }
 
+        public bool IsGoal
+        {
+            get => _source?.IsGoal == true;
+            set
+            {
+                SetSourceValue(
+                    source => source.IsGoal,
+                    (source, next) => source.IsGoal = next,
+                    value,
+                    nameof(IsGoal));
+            }
+        }
+
+        public int GoalOrderIndex
+        {
+            get => _source?.GoalOrderIndex ?? int.MaxValue;
+            set
+            {
+                SetSourceValue(
+                    source => source.GoalOrderIndex,
+                    (source, next) => source.GoalOrderIndex = next,
+                    value,
+                    nameof(GoalOrderIndex));
+            }
+        }
+
         public bool Hidden
         {
             get => _source?.Hidden == true;
@@ -1511,6 +1537,8 @@ namespace PlayniteAchievements.ViewModels.Items
             OnPropertyChanged(nameof(ShowUnlockDate));
             OnPropertyChanged(nameof(ShowLockedProgress));
             OnPropertyChanged(nameof(IsCapstone));
+            OnPropertyChanged(nameof(IsGoal));
+            OnPropertyChanged(nameof(GoalOrderIndex));
             OnPropertyChanged(nameof(RarityBrush));
             OnPropertyChanged(nameof(RarityNameBrush));
             OnPropertyChanged(nameof(Hidden));

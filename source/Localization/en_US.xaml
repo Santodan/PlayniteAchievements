@@ -238,6 +238,7 @@
     <sys:String x:Key="LOCPlayAch_Menu_RefreshInProgress">[Refresh in Progress]</sys:String>
     <sys:String x:Key="LOCPlayAch_Menu_RefreshSelected">Refresh Selected Games</sys:String>
     <sys:String x:Key="LOCPlayAch_Menu_SetCapstone">Set Capstone</sys:String>
+    <sys:String x:Key="LOCPlayAch_Menu_SetGoal">Set as Goal</sys:String>
     <sys:String x:Key="LOCPlayAch_Menu_UnlinkAchievements_Confirm">Unlink achievements for &quot;{0}&quot;?&#10;&#10;This removes the manual link and deletes its unlock times and this game's cached data.</sys:String>
     <sys:String x:Key="LOCPlayAch_Menu_ViewAchievements">View Achievements</sys:String>
     <sys:String x:Key="LOCPlayAch_Menu_ViewCaptures">View Captures</sys:String>
@@ -288,6 +289,8 @@
     <sys:String x:Key="LOCPlayAch_ManageAchievements_Filters_FilterOutOfSummaries">Filter from Summaries</sys:String>
     <sys:String x:Key="LOCPlayAch_ManageAchievements_Filters_Hint">Control which achievements appear in achievement views and summaries.</sys:String>
     <sys:String x:Key="LOCPlayAch_ManageAchievements_Filters_Unfiltered">Unfiltered</sys:String>
+    <sys:String x:Key="LOCPlayAch_ManageAchievements_Goals_Empty">No goals are set for this game. Right-click an achievement to set one.</sys:String>
+    <sys:String x:Key="LOCPlayAch_ManageAchievements_Goals_Hint">Drag rows to set which goals come first. Changes save immediately, and a goal clears when its achievement unlocks.</sys:String>
     <sys:String x:Key="LOCPlayAch_ManageAchievements_Notes_HasNote">Note added</sys:String>
     <sys:String x:Key="LOCPlayAch_ManageAchievements_Notes_Header">Achievement Notes</sys:String>
     <sys:String x:Key="LOCPlayAch_ManageAchievements_Notes_Hint">Add personal notes for this game's achievements. Formatting supports **bold**, *italic*, and __underline__ markers.</sys:String>
@@ -375,6 +378,7 @@
     <sys:String x:Key="LOCPlayAch_Settings_CategoryGridUseCoverImages">Use Covers Instead of Icons for Missing Art</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_ShowCategoryGridColumnHeaders">Show Column Headers</sys:String>
     <sys:String x:Key="LOCPlayAch_ManageAchievements_Tab_CustomIcons">Icons</sys:String>
+    <sys:String x:Key="LOCPlayAch_ManageAchievements_Tab_Goals">Goals</sys:String>
     <sys:String x:Key="LOCPlayAch_ManageAchievements_Tab_ManualTracking">Manual Tracking</sys:String>
     <sys:String x:Key="LOCPlayAch_ManageAchievements_Tab_Notes">Notes</sys:String>
     <sys:String x:Key="LOCPlayAch_ManageAchievements_Tab_Overrides">Overrides</sys:String>

@@ -37,6 +37,7 @@ namespace PlayniteAchievements.Views.ManageAchievements
             ManageAchievementsTab.Filters,
             ManageAchievementsTab.Notes,
             ManageAchievementsTab.AchievementOrder,
+            ManageAchievementsTab.Goals,
             ManageAchievementsTab.CustomIcons,
             ManageAchievementsTab.Notifications,
             ManageAchievementsTab.Overrides
@@ -57,6 +58,7 @@ namespace PlayniteAchievements.Views.ManageAchievements
         private ManageAchievementsCapstonesTab _capstoneControl;
         private ManageAchievementsManualTrackingTab _manualControl;
         private ManageAchievementsAchievementOrderTab _achievementOrderControl;
+        private ManageAchievementsGoalsTab _goalsControl;
         private ManageAchievementsCategoryTab _categoryControl;
         private ManageAchievementsFiltersTab _filtersControl;
         private ManageAchievementsNotesTab _notesControl;
@@ -66,6 +68,7 @@ namespace PlayniteAchievements.Views.ManageAchievements
         private readonly HashSet<string> _pendingIconOverrideApiNames = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
         private ManualAchievementsViewModel _manualViewModel;
         private ManageAchievementsAchievementOrderViewModel _achievementOrderViewModel;
+        private ManageAchievementsGoalsViewModel _goalsViewModel;
         private ManageAchievementsCategoryViewModel _categoryViewModel;
         private ManageAchievementsFiltersViewModel _filtersViewModel;
         private ManageAchievementsNotesViewModel _notesViewModel;
@@ -74,6 +77,7 @@ namespace PlayniteAchievements.Views.ManageAchievements
         private bool _manualRefreshPending;
         private bool _capstoneRefreshPending;
         private bool _achievementOrderRefreshPending;
+        private bool _goalsRefreshPending;
         private bool _categoryRefreshPending;
         private bool _filtersRefreshPending;
         private bool _notesRefreshPending;
@@ -184,6 +188,7 @@ namespace PlayniteAchievements.Views.ManageAchievements
             CleanupCapstone();
             CleanupManual();
             CleanupAchievementOrder();
+            CleanupGoals();
             CleanupCategory();
             CleanupFilters();
             CleanupNotes();
@@ -282,6 +287,20 @@ namespace PlayniteAchievements.Views.ManageAchievements
                     }
 
                     _achievementOrderRefreshPending = false;
+                }
+            }
+            else if (_viewModel.SelectedTab == ManageAchievementsTab.Goals)
+            {
+                var hadGoalsControl = _goalsControl != null;
+                EnsureGoalsControl(forceRecreate: false);
+                if (_goalsRefreshPending)
+                {
+                    if (hadGoalsControl)
+                    {
+                        _goalsControl?.RefreshData();
+                    }
+
+                    _goalsRefreshPending = false;
                 }
             }
             else if (_viewModel.SelectedTab == ManageAchievementsTab.Category)
@@ -516,6 +535,7 @@ namespace PlayniteAchievements.Views.ManageAchievements
                     FiltersTabButton,
                     NotesTabButton,
                     AchievementOrderTabButton,
+                    GoalsTabButton,
                     CustomIconsTabButton,
                     NotificationsTabButton,
                     OverridesTabButton
@@ -568,6 +588,8 @@ namespace PlayniteAchievements.Views.ManageAchievements
                     return _notesControl?.GetControllerElements() ?? new List<UIElement>();
                 case ManageAchievementsTab.AchievementOrder:
                     return _achievementOrderControl?.GetControllerElements() ?? new List<UIElement>();
+                case ManageAchievementsTab.Goals:
+                    return _goalsControl?.GetControllerElements() ?? new List<UIElement>();
                 case ManageAchievementsTab.CustomIcons:
                     return _achievementIconsControl?.GetControllerElements() ?? new List<UIElement>();
                 case ManageAchievementsTab.Notifications:
@@ -629,6 +651,8 @@ namespace PlayniteAchievements.Views.ManageAchievements
                     return _capstoneControl?.HandleFullscreenControllerInput(input) == true;
                 case ManageAchievementsTab.AchievementOrder:
                     return _achievementOrderControl?.HandleFullscreenControllerInput(input) == true;
+                case ManageAchievementsTab.Goals:
+                    return _goalsControl?.HandleFullscreenControllerInput(input) == true;
                 case ManageAchievementsTab.CustomIcons:
                     return _achievementIconsControl?.HandleFullscreenControllerInput(input) == true;
                 default:
@@ -652,6 +676,7 @@ namespace PlayniteAchievements.Views.ManageAchievements
                 case ManageAchievementsTab.Filters:
                 case ManageAchievementsTab.Notes:
                 case ManageAchievementsTab.AchievementOrder:
+                case ManageAchievementsTab.Goals:
                 case ManageAchievementsTab.CustomIcons:
                     return _viewModel.HasCapstoneData;
                 default:
@@ -838,6 +863,25 @@ namespace PlayniteAchievements.Views.ManageAchievements
                 _logger);
             _achievementOrderControl = new ManageAchievementsAchievementOrderTab(_achievementOrderViewModel);
             AchievementOrderHost.Content = _achievementOrderControl;
+        }
+
+        private void EnsureGoalsControl(bool forceRecreate)
+        {
+            if (_goalsControl != null && !forceRecreate)
+            {
+                return;
+            }
+
+            CleanupGoals();
+
+            _goalsViewModel = new ManageAchievementsGoalsViewModel(
+                _viewModel.GameId,
+                _achievementOverridesService,
+                _gameDataSnapshotProvider,
+                _settings,
+                _logger);
+            _goalsControl = new ManageAchievementsGoalsTab(_goalsViewModel);
+            GoalsHost.Content = _goalsControl;
         }
 
         private void EnsureCategoryControl(bool forceRecreate)
@@ -1041,6 +1085,7 @@ namespace PlayniteAchievements.Views.ManageAchievements
 
             _manualRefreshPending = true;
             _achievementOrderRefreshPending = true;
+            _goalsRefreshPending = true;
             _categoryRefreshPending = true;
             _filtersRefreshPending = true;
             _notesRefreshPending = true;
@@ -1061,6 +1106,7 @@ namespace PlayniteAchievements.Views.ManageAchievements
             _manualRefreshPending = true;
             _capstoneRefreshPending = true;
             _achievementOrderRefreshPending = true;
+            _goalsRefreshPending = true;
             _categoryRefreshPending = true;
             _filtersRefreshPending = true;
             _notesRefreshPending = true;
@@ -1106,6 +1152,17 @@ namespace PlayniteAchievements.Views.ManageAchievements
             if (AchievementOrderHost != null)
             {
                 AchievementOrderHost.Content = null;
+            }
+        }
+
+        private void CleanupGoals()
+        {
+            _goalsControl = null;
+            _goalsViewModel = null;
+
+            if (GoalsHost != null)
+            {
+                GoalsHost.Content = null;
             }
         }
 

@@ -73,6 +73,20 @@ namespace PlayniteAchievements.Models.Achievements
         public string AchievementNote { get; set; }
 
         /// <summary>
+        /// Runtime-only flag marking an achievement the user is working toward. Goals sort ahead
+        /// of everything else and clear once unlocked, so this is only ever true while locked.
+        /// </summary>
+        [IgnoreDataMember]
+        public bool IsGoal { get; set; }
+
+        /// <summary>
+        /// Runtime-only position within the game's goal list; <see cref="int.MaxValue"/> when not
+        /// a goal. Orders the pinned block.
+        /// </summary>
+        [IgnoreDataMember]
+        public int GoalOrderIndex { get; set; } = int.MaxValue;
+
+        /// <summary>
         /// Playnite Game reference for theme bindings.
         /// Populated during snapshot building for all-games views.
         /// Not persisted to cache.

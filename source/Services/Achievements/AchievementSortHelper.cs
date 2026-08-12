@@ -338,6 +338,84 @@ namespace PlayniteAchievements.Services.Achievements
             }
         }
 
+        /// <summary>
+        /// Stable-partitions goal achievements to the front of an already-sorted list, ordered by
+        /// the user's goal order. Applied after sorting rather than folded into the comparators so
+        /// it survives the <see cref="TrySortItems{TItem}"/> reverse fast path and cannot disturb
+        /// the relative order of everything else.
+        /// </summary>
+        public static void ApplyGoalsFirst<TItem>(List<TItem> items)
+            where TItem : AchievementDisplayItem
+        {
+            if (items == null || items.Count < 2)
+            {
+                return;
+            }
+
+            var goals = new List<TItem>();
+            var rest = new List<TItem>(items.Count);
+            foreach (var item in items)
+            {
+                if (item?.IsGoal == true)
+                {
+                    goals.Add(item);
+                }
+                else
+                {
+                    rest.Add(item);
+                }
+            }
+
+            if (goals.Count == 0 || rest.Count == 0)
+            {
+                return;
+            }
+
+            // OrderBy is a stable sort, so goals sharing an index keep their incoming order.
+            var orderedGoals = goals.OrderBy(item => item.GoalOrderIndex).ToList();
+
+            items.Clear();
+            items.AddRange(orderedGoals);
+            items.AddRange(rest);
+        }
+
+        /// <summary>
+        /// <see cref="ApplyGoalsFirst{TItem}"/> for the theme-facing detail lists.
+        /// </summary>
+        public static List<AchievementDetail> CreateGoalsFirstDetailList(
+            IEnumerable<AchievementDetail> items)
+        {
+            var list = items?.ToList() ?? new List<AchievementDetail>();
+            if (list.Count < 2)
+            {
+                return list;
+            }
+
+            var goals = new List<AchievementDetail>();
+            var rest = new List<AchievementDetail>(list.Count);
+            foreach (var item in list)
+            {
+                if (item?.IsGoal == true)
+                {
+                    goals.Add(item);
+                }
+                else
+                {
+                    rest.Add(item);
+                }
+            }
+
+            if (goals.Count == 0 || rest.Count == 0)
+            {
+                return list;
+            }
+
+            var result = new List<AchievementDetail>(list.Count);
+            result.AddRange(goals.OrderBy(item => item.GoalOrderIndex));
+            result.AddRange(rest);
+            return result;
+        }
+
         public static Dictionary<AchievementDisplayItem, int> CreateStableOrderMap(
             IEnumerable<AchievementDisplayItem> items)
         {

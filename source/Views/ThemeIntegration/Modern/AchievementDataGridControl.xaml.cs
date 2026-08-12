@@ -377,6 +377,8 @@ namespace PlayniteAchievements.Views.ThemeIntegration.Modern
                     AchievementSortHelper.CreateExplicitOrderKeys(orderedAchievements));
             }
 
+            AchievementSortHelper.ApplyGoalsFirst(clonedItems);
+
             var filteredItems = _controlBarAdapter.Apply(clonedItems);
             var displayItems = DisplayGridRowLimitHelper.Limit(filteredItems, maxRows);
 
@@ -628,6 +630,8 @@ namespace PlayniteAchievements.Views.ThemeIntegration.Modern
                 AchievementSortScope.GameAchievements,
                 ref _currentSortPath,
                 ref _currentSortDirection);
+
+            AchievementSortHelper.ApplyGoalsFirst(items);
 
             // Keep dropdown options in canonical definition order rather than the new column sort.
             _controlBarAdapter.UpdateOptions(AchievementsGrid?.CategorySummarySource ?? items);

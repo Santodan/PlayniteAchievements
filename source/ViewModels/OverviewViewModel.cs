@@ -3578,6 +3578,7 @@ namespace PlayniteAchievements.ViewModels
                         AchievementSortScope.GameAchievements,
                         stableOrder: AchievementSortHelper.CreateStableOrderMap(_filteredSelectedGameAchievements));
 
+                    AchievementSortHelper.ApplyGoalsFirst(_filteredSelectedGameAchievements);
                     SyncSelectedGameAchievementsDisplay();
                 }
                 else
@@ -4013,6 +4014,8 @@ namespace PlayniteAchievements.ViewModels
                 ref selectedSortDirection,
                 sortedAllOrder);
 
+            AchievementSortHelper.ApplyGoalsFirst(_allSelectedGameAchievements);
+            AchievementSortHelper.ApplyGoalsFirst(_filteredSelectedGameAchievements);
             SyncSelectedGameAchievementsDisplay();
         }
 

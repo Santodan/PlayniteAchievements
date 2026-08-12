@@ -52,11 +52,39 @@ namespace PlayniteAchievements.Views.Helpers
                 menu.Items.Add(captureItem);
             }
 
+            menu.Items.Add(CreateSetGoalItem(context, resourceOwner, onChanged));
             menu.Items.Add(CreateSetCapstoneItem(context, resourceOwner, onChanged));
             menu.Items.Add(CreateCategoriesMenu(context, resourceOwner, onChanged));
             menu.Items.Add(CreateFiltersMenu(context, resourceOwner, onChanged));
             menu.Items.Add(CreateNotesMenu(context, resourceOwner, onChanged));
             return true;
+        }
+
+        private static MenuItem CreateSetGoalItem(
+            AchievementRowContext context,
+            FrameworkElement resourceOwner,
+            Action onChanged)
+        {
+            // A goal is something still to be earned, and unlocking one retires it, so offering
+            // the toggle on an unlocked row would be a dead end.
+            var item = new MenuItem
+            {
+                Header = L(resourceOwner, "LOCPlayAch_Menu_SetGoal"),
+                IsCheckable = true,
+                IsChecked = context.IsGoal,
+                IsEnabled = !context.Unlocked
+            };
+            item.Click += (_, __) =>
+            {
+                CurrentOverridesService?.SetAchievementGoal(
+                    context.GameId,
+                    context.ApiName,
+                    !context.IsGoal);
+                context.ApplyGoal(!context.IsGoal);
+                onChanged?.Invoke();
+            };
+
+            return item;
         }
 
         private static MenuItem CreateSetCapstoneItem(
@@ -515,6 +543,10 @@ namespace PlayniteAchievements.Views.Helpers
 
             public bool IsCapstone { get; private set; }
 
+            public bool IsGoal { get; private set; }
+
+            public bool Unlocked { get; private set; }
+
             public string CategoryLabel { get; private set; }
 
             public string CategoryType { get; private set; }
@@ -539,6 +571,8 @@ namespace PlayniteAchievements.Views.Helpers
                         DisplayName = displayItem.DisplayNameResolved,
                         DisplayIcon = displayItem.DisplayIcon,
                         IsCapstone = displayItem.Source?.IsCapstone == true,
+                        IsGoal = displayItem.IsGoal,
+                        Unlocked = displayItem.Unlocked,
                         CategoryLabel = displayItem.CategoryLabel,
                         CategoryType = displayItem.CategoryType
                     };
@@ -562,6 +596,9 @@ namespace PlayniteAchievements.Views.Helpers
                         DisplayName = recentItem.Name,
                         DisplayIcon = recentItem.DisplayIcon,
                         IsCapstone = false,
+                        // Recent rows are unlocks by definition, so they are never goals.
+                        IsGoal = false,
+                        Unlocked = true,
                         CategoryLabel = recentItem.CategoryLabel,
                         CategoryType = recentItem.CategoryType
                     };
@@ -596,6 +633,15 @@ namespace PlayniteAchievements.Views.Helpers
                 if (_recentItem != null)
                 {
                     _recentItem.CategoryType = value;
+                }
+            }
+
+            public void ApplyGoal(bool value)
+            {
+                IsGoal = value;
+                if (_displayItem != null)
+                {
+                    _displayItem.IsGoal = value;
                 }
             }
 

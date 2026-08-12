@@ -198,6 +198,10 @@ namespace PlayniteAchievements
                 return;
             }
 
+            // Runs before the dispatcher marshal so the store write stays off the UI thread, and
+            // before the subscriber check so it happens whether or not anything is listening.
+            ClearGoalForUnlock(args);
+
             var handler = AchievementUnlocked;
             if (handler == null)
             {
@@ -212,6 +216,35 @@ namespace PlayniteAchievements
             }
 
             handler.Invoke(null, args);
+        }
+
+        /// <summary>
+        /// A goal is something still to be earned, so unlocking it retires the goal. Skips the
+        /// synthetic notifications (previews, test fires, the game-complete banner) and friend
+        /// unlocks, none of which represent the user earning that achievement.
+        /// </summary>
+        private static void ClearGoalForUnlock(AchievementUnlockedEventArgs args)
+        {
+            if (args.IsPreview ||
+                args.IsTestFire ||
+                args.IsFriendUnlock ||
+                args.IsGameCompleted ||
+                args.PlayniteGameId == Guid.Empty ||
+                string.IsNullOrWhiteSpace(args.ApiName))
+            {
+                return;
+            }
+
+            try
+            {
+                Instance?.AchievementOverridesService?.PruneUnlockedGoals(
+                    args.PlayniteGameId,
+                    new[] { args.ApiName });
+            }
+            catch (Exception ex)
+            {
+                Instance?._logger?.Error(ex, $"Failed clearing goal for unlocked achievement '{args.ApiName}'.");
+            }
         }
 
         private void TryWarmCustomDataCache()
