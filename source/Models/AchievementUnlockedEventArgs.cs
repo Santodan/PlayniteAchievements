@@ -2,6 +2,13 @@ using System;
 
 namespace PlayniteAchievements.Models
 {
+    public enum UnlockVideoAnchorSource
+    {
+        Unknown = 0,
+        ProviderReported = 1,
+        SourceObservation = 2
+    }
+
     public sealed class AchievementUnlockedEventArgs : EventArgs
     {
         public Guid PlayniteGameId { get; set; }
@@ -34,6 +41,21 @@ namespace PlayniteAchievements.Models
         public int? Points { get; set; }
         public int? ScaledPoints { get; set; }
         public DateTime? UnlockTimeUtc { get; set; }
+
+        /// <summary>
+        /// Immutable monitor-level observation time. This is stamped before the event is marshalled
+        /// to the UI thread, so capture timing never depends on toast or subscriber latency.
+        /// </summary>
+        public DateTime ObservedUtc { get; set; }
+
+        /// <summary>
+        /// Best provider/source-specific timestamp for placing the synthetic notification in video.
+        /// The provider's reported unlock time remains in <see cref="UnlockTimeUtc"/> for metadata.
+        /// </summary>
+        public DateTime? VideoAnchorUtc { get; set; }
+
+        public UnlockVideoAnchorSource VideoAnchorSource { get; set; }
+
         public int UnlockedCount { get; set; }
         public int TotalCount { get; set; }
 

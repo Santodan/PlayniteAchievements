@@ -304,6 +304,10 @@ namespace PlayniteAchievements.Providers.Steam
                 ProviderKey = ProviderKey,
                 WatchTargets = new[] { statsPath },
                 PollInterval = InGameProgressRegistration.FileWatchSafetyPollInterval,
+                // AchievementTimes is in Steam's timestamp domain and can differ by seconds from
+                // the Windows clock used by video segments. The local file change is the StoreStats
+                // correlation point on that same Windows clock, so it is the capture-grade anchor.
+                UnlockAnchorPolicy = InGameUnlockAnchorPolicy.SourceObservation,
                 State = state
             };
         }

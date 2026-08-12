@@ -7,6 +7,7 @@ using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using Playnite.SDK;
+using PlayniteAchievements.Common;
 using PlayniteAchievements.Models;
 using PlayniteAchievements.Models.Achievements;
 using PlayniteAchievements.Models.Settings;
@@ -208,8 +209,10 @@ namespace PlayniteAchievements.Services.Recording
             public string AchievementName;
             public int AchievementNumber;
             public int TotalCount;
-            public DateTime? UnlockTimeUtc;
-            public DateTime DetectionUtc;
+            public DateTime? ReportedUnlockUtc;
+            public DateTime? VideoAnchorUtc;
+            public UnlockVideoAnchorSource VideoAnchorSource;
+            public DateTime ObservedUtc;
             public bool IsTestFire;
 
             /// <summary>Toast display duration snapshotted at unlock (theme override included).</summary>
@@ -413,8 +416,8 @@ namespace PlayniteAchievements.Services.Recording
                 CleanupStaleBufferDirectories(Path.GetDirectoryName(session.BufferDirectory));
 
                 var token = session.Cts.Token;
-                var deadline = DateTime.UtcNow.AddSeconds(WindowResolveTimeoutSeconds);
-                var graceDeadline = DateTime.UtcNow.AddSeconds(WindowResolveGraceSeconds);
+                var deadline = CaptureTimelineClock.UtcNow.AddSeconds(WindowResolveTimeoutSeconds);
+                var graceDeadline = CaptureTimelineClock.UtcNow.AddSeconds(WindowResolveGraceSeconds);
                 var mainWindowResolved = false;
                 System.Drawing.Rectangle? bounds = null;
                 while (!token.IsCancellationRequested)
@@ -429,11 +432,11 @@ namespace PlayniteAchievements.Services.Recording
                     // monitor is handled by the correction watcher below.
                     var stillLaunching = processId.HasValue &&
                                          !mainWindowResolved &&
-                                         DateTime.UtcNow < graceDeadline;
+                                         CaptureTimelineClock.UtcNow < graceDeadline;
                     if (!stillLaunching)
                     {
                         bounds = _screenshotService.TryGetGameMonitorBounds(trackedHwnd, processId);
-                        if (bounds.HasValue || DateTime.UtcNow >= deadline)
+                        if (bounds.HasValue || CaptureTimelineClock.UtcNow >= deadline)
                         {
                             break;
                         }
@@ -579,7 +582,7 @@ namespace PlayniteAchievements.Services.Recording
 
                 session.WgcRecorder = recorder;
                 session.SegmentExtension = RecordingPaths.SegmentFileExtension;
-                session.CaptureStartUtc = DateTime.UtcNow;
+                session.CaptureStartUtc = CaptureTimelineClock.UtcNow;
                 return true;
             }
             catch (Exception ex)
@@ -765,12 +768,20 @@ namespace PlayniteAchievements.Services.Recording
 
             var persisted = _settings.Persisted;
 
-            // A stale timestamp (before this capture session) can't anchor the clip; the timing
-            // math falls back to detection-anchored footage so every unlock still gets a clip.
-            if (e.UnlockTimeUtc.HasValue && e.UnlockTimeUtc.Value < session.CaptureStartUtc.AddSeconds(-60))
+            var handlerUtc = CaptureTimelineClock.UtcNow;
+            var observedUtc = e.ObservedUtc == default(DateTime) ? handlerUtc : AsUtc(e.ObservedUtc);
+            var videoAnchorUtc = e.VideoAnchorUtc ?? e.UnlockTimeUtc;
+            if (videoAnchorUtc.HasValue)
+            {
+                videoAnchorUtc = AsUtc(videoAnchorUtc.Value);
+            }
+
+            // A stale selected anchor (before this capture session) can't anchor the clip; the timing
+            // math falls back to observation-anchored footage so every unlock still gets a clip.
+            if (videoAnchorUtc.HasValue && videoAnchorUtc.Value < session.CaptureStartUtc.AddSeconds(-60))
             {
                 _logger?.Debug(
-                    $"[Recording] Unlock '{e.DisplayName}' has a pre-session timestamp ({e.UnlockTimeUtc.Value:u}); clip will anchor on detection time.");
+                    $"[Recording] Unlock '{e.DisplayName}' has a pre-session video anchor ({videoAnchorUtc.Value:u}); clip will anchor on observation time.");
             }
 
             var request = new ClipRequest
@@ -784,8 +795,10 @@ namespace PlayniteAchievements.Services.Recording
                 AchievementName = ViewModels.AchievementToastViewModel.ResolveAchievementName(e),
                 AchievementNumber = e.AchievementNumber,
                 TotalCount = e.TotalCount,
-                UnlockTimeUtc = e.UnlockTimeUtc,
-                DetectionUtc = DateTime.UtcNow,
+                ReportedUnlockUtc = e.UnlockTimeUtc,
+                VideoAnchorUtc = videoAnchorUtc,
+                VideoAnchorSource = e.VideoAnchorSource,
+                ObservedUtc = observedUtc,
                 IsTestFire = e.IsTestFire,
                 EffectiveToastSeconds = _toastNotifications?.GetEffectiveToastDurationSecondsSafe()
                     ?? Math.Max(2, persisted.ToastDurationSeconds),
@@ -820,7 +833,7 @@ namespace PlayniteAchievements.Services.Recording
 
             lock (_gate)
             {
-                _lastToastActivityUtc = DateTime.UtcNow;
+                _lastToastActivityUtc = CaptureTimelineClock.UtcNow;
                 if (e.SoundPlayedUtc.HasValue)
                 {
                     foreach (var vm in e.Wave)
@@ -854,7 +867,7 @@ namespace PlayniteAchievements.Services.Recording
             var matches = new List<(ClipRequest Request, ToastOverlayTrack Track)>();
             lock (_gate)
             {
-                _lastToastActivityUtc = DateTime.UtcNow;
+                _lastToastActivityUtc = CaptureTimelineClock.UtcNow;
                 foreach (var track in e.Tracks)
                 {
                     var match = _awaitingTrack.FirstOrDefault(r =>
@@ -924,8 +937,8 @@ namespace PlayniteAchievements.Services.Recording
                 var pollInterval = Math.Max(10, persisted.InGamePollIntervalSeconds);
                 var toastSlotSeconds = request.EffectiveToastSeconds + SlideAllowanceSeconds;
                 var window = SegmentTimeline.ComputeClipWindow(
-                    request.UnlockTimeUtc,
-                    request.DetectionUtc,
+                    request.VideoAnchorUtc,
+                    request.ObservedUtc,
                     session.CaptureStartUtc,
                     oldestSegmentStartUtc: null,
                     pollIntervalSeconds: pollInterval,
@@ -1068,8 +1081,9 @@ namespace PlayniteAchievements.Services.Recording
                     lastActivity = _lastToastActivityUtc;
                 }
 
-                var silenceAnchor = lastActivity > request.DetectionUtc ? lastActivity : request.DetectionUtc;
-                if (_disposed || (DateTime.UtcNow - silenceAnchor).TotalSeconds >= ToastWaitTimeoutSeconds)
+                var now = CaptureTimelineClock.UtcNow;
+                var silenceAnchor = lastActivity > request.ObservedUtc ? lastActivity : request.ObservedUtc;
+                if (_disposed || now - silenceAnchor >= TimeSpan.FromSeconds(ToastWaitTimeoutSeconds))
                 {
                     _logger?.Debug(
                         $"[Recording] No toast after {ToastWaitTimeoutSeconds}s of toast silence for '{request.AchievementName}'; saving the clip without a toast.");
@@ -1211,7 +1225,7 @@ namespace PlayniteAchievements.Services.Recording
             // Wait until the segment covering the window end has closed (K + margin) so the
             // concat never reads a half-written segment.
             var readyAtUtc = window.EndUtc.AddSeconds(SegmentSeconds + 2);
-            var wait = readyAtUtc - DateTime.UtcNow;
+            var wait = readyAtUtc - CaptureTimelineClock.UtcNow;
             if (wait > TimeSpan.Zero)
             {
                 await Task.Delay(wait).ConfigureAwait(false);
@@ -1322,7 +1336,7 @@ namespace PlayniteAchievements.Services.Recording
 
             var chimeWindowEndUtc = ownSound.Value.AddSeconds(
                 request.EffectiveToastSeconds + ChimeTailBeyondToastSeconds);
-            var wait = chimeWindowEndUtc.AddSeconds(SegmentSeconds + 2) - DateTime.UtcNow;
+            var wait = chimeWindowEndUtc.AddSeconds(SegmentSeconds + 2) - CaptureTimelineClock.UtcNow;
             if (wait > TimeSpan.Zero)
             {
                 await Task.Delay(wait).ConfigureAwait(false);
@@ -1360,15 +1374,20 @@ namespace PlayniteAchievements.Services.Recording
         {
             try
             {
-                var precise = SegmentTimeline.IsPreciseUnlockTime(
-                    request.UnlockTimeUtc, session.CaptureStartUtc, request.DetectionUtc);
-                var unlockText = precise ? Stamp(request.UnlockTimeUtc.Value) : "coarse";
-                var unlockToDetect = precise
-                    ? (request.DetectionUtc - request.UnlockTimeUtc.Value).TotalSeconds.ToString("F1", CultureInfo.InvariantCulture)
+                var reportedText = request.ReportedUnlockUtc.HasValue
+                    ? Stamp(AsUtc(request.ReportedUnlockUtc.Value))
+                    : "none";
+                var reportedToObserved = request.ReportedUnlockUtc.HasValue
+                    ? (request.ObservedUtc - AsUtc(request.ReportedUnlockUtc.Value)).TotalSeconds
+                        .ToString("F1", CultureInfo.InvariantCulture)
                     : "?";
+                var selectedAnchorText = request.VideoAnchorUtc.HasValue
+                    ? Stamp(request.VideoAnchorUtc.Value)
+                    : "none";
                 _logger?.Info(
-                    $"[RecordingTiming] unlock={unlockText} detected={Stamp(request.DetectionUtc)} " +
-                    $"(unlock→detect {unlockToDetect}s) toastAnchor={Stamp(window.ToastAnchorUtc)} " +
+                    $"[RecordingTiming] reported={reportedText} observed={Stamp(request.ObservedUtc)} " +
+                    $"(reported→observed {reportedToObserved}s) selected={selectedAnchorText} " +
+                    $"source={request.VideoAnchorSource} toastAnchor={Stamp(window.ToastAnchorUtc)} " +
                     $"window=[{Stamp(window.StartUtc)}..{Stamp(window.EndUtc)}] ({(window.EndUtc - window.StartUtc).TotalSeconds.ToString("F1", CultureInfo.InvariantCulture)}s) " +
                     $"segments={segmentCount} audio={(hasAudio ? "yes" : "no")}");
             }
@@ -1380,6 +1399,18 @@ namespace PlayniteAchievements.Services.Recording
         private static string Stamp(DateTime utc)
         {
             return utc.ToString("HH:mm:ss.f", CultureInfo.InvariantCulture);
+        }
+
+        private static DateTime AsUtc(DateTime value)
+        {
+            if (value.Kind == DateTimeKind.Utc)
+            {
+                return value;
+            }
+
+            return value.Kind == DateTimeKind.Local
+                ? value.ToUniversalTime()
+                : DateTime.SpecifyKind(value, DateTimeKind.Utc);
         }
 
         private string BuildOutputPath(PersistedSettings persisted, ClipRequest request)
@@ -1554,7 +1585,7 @@ namespace PlayniteAchievements.Services.Recording
         /// </summary>
         private DateTime ResolveMinimumKeepFromUtc(int preRoll)
         {
-            var floor = DateTime.UtcNow.AddSeconds(
+            var floor = CaptureTimelineClock.UtcNow.AddSeconds(
                 -(preRoll + MaxToastSlotAllowanceSeconds + ToastTailSeconds + SegmentSeconds));
 
             DateTime? oldestOutstanding;
@@ -1594,7 +1625,7 @@ namespace PlayniteAchievements.Services.Recording
                     return;
                 }
 
-                var now = DateTime.UtcNow;
+                var now = CaptureTimelineClock.UtcNow;
                 if (segments == null || segments.Count == 0)
                 {
                     if ((now - session.CaptureStartUtc).TotalSeconds > SegmentSeconds * 3)
@@ -1624,7 +1655,7 @@ namespace PlayniteAchievements.Services.Recording
                 }
 
                 // The retained span is what a clip can actually reach back to, so it is the number
-                // that explains "the unlock had no footage": compare it against unlock->detect.
+                // that explains "the unlock had no footage": compare it against anchor->observation.
                 var oldestKept = segments[0].StartUtc > cutoffUtc ? segments[0].StartUtc : cutoffUtc;
                 var line =
                     $"[RecordingHealth] '{session.GameName}': segments={segments.Count} " +
