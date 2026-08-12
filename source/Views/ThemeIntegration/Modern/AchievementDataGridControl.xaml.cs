@@ -594,7 +594,8 @@ namespace PlayniteAchievements.Views.ThemeIntegration.Modern
                 this,
                 RefreshAfterRowOptionsChanged,
                 includeViewCaptures: true,
-                onGoalChanged: ReapplyGoalOrderAfterRowOptionsChanged);
+                onGoalChanged: ReapplyGoalOrderAfterRowOptionsChanged,
+                onCapstoneChanged: ApplyCapstoneAfterRowOptionsChanged);
             if (menu.Items.Count == 0)
             {
                 return false;
@@ -612,6 +613,32 @@ namespace PlayniteAchievements.Views.ThemeIntegration.Modern
             _lastSourceItems = null;
             _lastOrderedAchievements = null;
             LoadData();
+        }
+
+        /// <summary>
+        /// Re-stamps the capstone flag on the rows already on screen. Valid only when a capstone
+        /// is being set, where every other row becomes a non-capstone.
+        /// </summary>
+        private bool ApplyCapstoneAfterRowOptionsChanged(string capstoneApiName)
+        {
+            var items = DisplayItems;
+            if (items == null || items.Count == 0 || string.IsNullOrWhiteSpace(capstoneApiName))
+            {
+                return false;
+            }
+
+            foreach (var item in items)
+            {
+                if (item != null)
+                {
+                    item.IsCapstone = string.Equals(
+                        (item.ApiName ?? string.Empty).Trim(),
+                        capstoneApiName.Trim(),
+                        StringComparison.OrdinalIgnoreCase);
+                }
+            }
+
+            return true;
         }
 
         /// <summary>

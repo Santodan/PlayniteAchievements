@@ -24,13 +24,20 @@ namespace PlayniteAchievements.Views.Helpers
         /// <paramref name="onChanged"/>, which reloads the game's achievements from cache and
         /// rebuilds every row. Return false to fall back to the full reload.
         /// </param>
+        /// <param name="onCapstoneChanged">
+        /// Optional cheap re-stamp for setting a capstone, given the new capstone's ApiName. Only
+        /// called when a capstone is being set: clearing one has to restore provider-assigned
+        /// capstones, which only hydration knows, so that case still takes
+        /// <paramref name="onChanged"/>. Return false to fall back to the full reload.
+        /// </param>
         public static bool AppendAchievementOptions(
             ContextMenu menu,
             object data,
             FrameworkElement resourceOwner,
             Action onChanged,
             bool includeViewCaptures = false,
-            Func<bool> onGoalChanged = null)
+            Func<bool> onGoalChanged = null,
+            Func<string, bool> onCapstoneChanged = null)
         {
             if (menu == null || !AchievementRowContext.TryCreate(data, out var context))
             {
@@ -60,7 +67,7 @@ namespace PlayniteAchievements.Views.Helpers
             }
 
             menu.Items.Add(CreateSetGoalItem(context, resourceOwner, onChanged, onGoalChanged));
-            menu.Items.Add(CreateSetCapstoneItem(context, resourceOwner, onChanged));
+            menu.Items.Add(CreateSetCapstoneItem(context, resourceOwner, onChanged, onCapstoneChanged));
             menu.Items.Add(CreateCategoriesMenu(context, resourceOwner, onChanged));
             menu.Items.Add(CreateFiltersMenu(context, resourceOwner, onChanged));
             menu.Items.Add(CreateNotesMenu(context, resourceOwner, onChanged));
@@ -109,7 +116,8 @@ namespace PlayniteAchievements.Views.Helpers
         private static MenuItem CreateSetCapstoneItem(
             AchievementRowContext context,
             FrameworkElement resourceOwner,
-            Action onChanged)
+            Action onChanged,
+            Func<string, bool> onCapstoneChanged)
         {
             var manualCapstone = GameCustomDataLookup.GetManualCapstone(
                 context.GameId,
@@ -135,12 +143,19 @@ namespace PlayniteAchievements.Views.Helpers
                     return;
                 }
 
-                var result = await service.SetCapstoneAsync(
-                    context.GameId,
-                    isEffectiveCapstone ? null : context.ApiName);
+                var nextCapstone = isEffectiveCapstone ? null : context.ApiName;
+                var result = await service.SetCapstoneAsync(context.GameId, nextCapstone);
                 if (!result.Success)
                 {
                     ShowError(result.ErrorMessage);
+                    return;
+                }
+
+                // Setting a capstone makes every other row a non-capstone, which is exactly what
+                // hydration would do, so the rows can be re-stamped in place. Clearing one lets
+                // provider-assigned capstones reappear, and only hydration knows those.
+                if (nextCapstone != null && onCapstoneChanged?.Invoke(nextCapstone) == true)
+                {
                     return;
                 }
 

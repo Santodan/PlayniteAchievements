@@ -3018,6 +3018,33 @@ namespace PlayniteAchievements.ViewModels
         }
 
         /// <summary>
+        /// Re-stamps the capstone flag on the selected game's rows. Valid only when a capstone is
+        /// being set, where every other row becomes a non-capstone.
+        /// </summary>
+        public bool ApplyCapstone(string capstoneApiName)
+        {
+            if (_allSelectedGameAchievements == null ||
+                _allSelectedGameAchievements.Count == 0 ||
+                string.IsNullOrWhiteSpace(capstoneApiName))
+            {
+                return false;
+            }
+
+            foreach (var item in _allSelectedGameAchievements)
+            {
+                if (item != null)
+                {
+                    item.IsCapstone = string.Equals(
+                        (item.ApiName ?? string.Empty).Trim(),
+                        capstoneApiName.Trim(),
+                        StringComparison.OrdinalIgnoreCase);
+                }
+            }
+
+            return true;
+        }
+
+        /// <summary>
         /// Re-sorts the selected game's rows after a goal toggle. Goal state only affects
         /// ordering, so this avoids the full selected-game rebuild.
         /// </summary>

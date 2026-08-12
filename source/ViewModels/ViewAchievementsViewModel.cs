@@ -982,6 +982,32 @@ namespace PlayniteAchievements.ViewModels
         }
 
         /// <summary>
+        /// Re-stamps the capstone flag on the rows already in memory. Valid only when a capstone
+        /// is being set, where every other row becomes a non-capstone.
+        /// </summary>
+        public bool ApplyCapstone(string capstoneApiName)
+        {
+            if (_allAchievements == null || _allAchievements.Count == 0 ||
+                string.IsNullOrWhiteSpace(capstoneApiName))
+            {
+                return false;
+            }
+
+            foreach (var item in _allAchievements)
+            {
+                if (item != null)
+                {
+                    item.IsCapstone = string.Equals(
+                        (item.ApiName ?? string.Empty).Trim(),
+                        capstoneApiName.Trim(),
+                        StringComparison.OrdinalIgnoreCase);
+                }
+            }
+
+            return true;
+        }
+
+        /// <summary>
         /// Re-sorts the rows already in memory after a goal toggle. Goal state only affects
         /// ordering, so this avoids the cache read, hydration and full row rebuild that
         /// <see cref="RefreshView"/> pays for.
