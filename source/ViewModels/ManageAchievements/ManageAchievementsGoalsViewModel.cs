@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
 using System.Linq;
+using System.Windows.Threading;
 using Playnite.SDK;
 using PlayniteAchievements.Models;
 using PlayniteAchievements.Common;
@@ -29,6 +30,12 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
         private bool _hasGoals;
         private bool _hasAchievements;
 
+        // Each store write costs a SQLite save plus a synchronous CustomDataChanged fanout, which
+        // is far too much per drag step. Rows reorder immediately; the write trails behind.
+        private static readonly TimeSpan PersistDelay = TimeSpan.FromMilliseconds(400);
+        private readonly DispatcherTimer _persistTimer;
+        private List<string> _pendingOrder;
+
         public ManageAchievementsGoalsViewModel(
             Guid gameId,
             AchievementOverridesService achievementOverridesService,
@@ -43,6 +50,8 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
             _logger = logger;
 
             GoalRows = new ObservableCollection<AchievementDisplayItem>();
+            _persistTimer = new DispatcherTimer { Interval = PersistDelay };
+            _persistTimer.Tick += (_, __) => FlushPendingOrder();
             ReloadData();
         }
 
@@ -62,6 +71,9 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
 
         public void ReloadData()
         {
+            // Rebuilds from the store, so any debounced reorder has to land first.
+            FlushPendingOrder();
+
             try
             {
                 var revealedStateByApiName = GoalRows
@@ -142,6 +154,8 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
                 return false;
             }
 
+            // Reads the stored list to add or remove, so a debounced reorder has to land first.
+            FlushPendingOrder();
             _achievementOverridesService.SetAchievementGoal(_gameId, normalized, isGoal);
             _gameDataSnapshotProvider.Invalidate();
             ReloadData();
@@ -155,6 +169,9 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
                 return false;
             }
 
+            // A pending reorder is about to be discarded wholesale.
+            _persistTimer.Stop();
+            _pendingOrder = null;
             _achievementOverridesService.SetGoalAchievements(_gameId, Array.Empty<string>());
             _gameDataSnapshotProvider.Invalidate();
             ReloadData();
@@ -266,14 +283,33 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
 
         private void PersistCurrentOrder()
         {
-            var orderedApiNames = GoalRows
+            _pendingOrder = GoalRows
                 .Where(row => row != null && row.IsGoal && !string.IsNullOrWhiteSpace(row.ApiName))
                 .Select(row => row.ApiName)
                 .ToList();
+            HasGoals = _pendingOrder.Count > 0;
 
-            _achievementOverridesService.SetGoalAchievements(_gameId, orderedApiNames);
+            _persistTimer.Stop();
+            _persistTimer.Start();
+        }
+
+        /// <summary>
+        /// Writes a debounced reorder immediately. Must run before anything reads the stored goal
+        /// list, and before this tab goes away, or the last drag would be lost.
+        /// </summary>
+        public void FlushPendingOrder()
+        {
+            _persistTimer.Stop();
+
+            var pending = _pendingOrder;
+            _pendingOrder = null;
+            if (pending == null)
+            {
+                return;
+            }
+
+            _achievementOverridesService.SetGoalAchievements(_gameId, pending);
             _gameDataSnapshotProvider.Invalidate();
-            HasGoals = orderedApiNames.Count > 0;
         }
 
         /// <summary>

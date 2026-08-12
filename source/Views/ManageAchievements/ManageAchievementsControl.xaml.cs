@@ -1157,6 +1157,9 @@ namespace PlayniteAchievements.Views.ManageAchievements
 
         private void CleanupGoals()
         {
+            // The goals tab debounces its reorder writes, so the last drag would be lost if the
+            // tab went away inside that window.
+            _goalsViewModel?.FlushPendingOrder();
             _goalsControl = null;
             _goalsViewModel = null;
 
