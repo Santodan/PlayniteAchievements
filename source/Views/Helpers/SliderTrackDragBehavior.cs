@@ -137,20 +137,17 @@ namespace PlayniteAchievements.Views.Helpers
             }
 
             var x = e.GetPosition(reference).X;
-
-            // The thumb can only travel between its own half-widths, so the value at a pixel is
-            // measured over that reduced span, matching where the thumb actually renders.
             var thumbWidth = track?.Thumb?.ActualWidth ?? 0;
-            var travel = width - thumbWidth;
-            var fraction = travel > 0
-                ? (x - (thumbWidth / 2)) / travel
-                : x / width;
+            var value = SliderTrackValueMath.FromHorizontalPoint(
+                x,
+                width,
+                thumbWidth,
+                _slider.Minimum,
+                _slider.Maximum,
+                track?.IsDirectionReversed ?? _slider.IsDirectionReversed);
 
-            return Clamp(_slider.Minimum + (fraction * (_slider.Maximum - _slider.Minimum)));
+            return value;
         }
-
-        private double Clamp(double value) =>
-            Math.Max(_slider.Minimum, Math.Min(_slider.Maximum, value));
 
         private void OnPreviewMouseLeftButtonUp(object sender, MouseButtonEventArgs e)
         {
