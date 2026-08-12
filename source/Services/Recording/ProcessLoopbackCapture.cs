@@ -3,6 +3,7 @@ using System.Diagnostics;
 using System.Runtime.InteropServices;
 using System.Threading;
 using NAudio.Wave;
+using PlayniteAchievements.Common;
 
 namespace PlayniteAchievements.Services.Recording
 {
@@ -120,7 +121,7 @@ namespace PlayniteAchievements.Services.Recording
                 return null;
             }
 
-            return DateTime.UtcNow.AddTicks(-age100ns);
+            return CaptureTimelineClock.UtcNow.AddTicks(-age100ns);
         }
 
         /// <summary>48 kHz stereo 32-bit IEEE float — the format the loopback client mixes the process to.</summary>

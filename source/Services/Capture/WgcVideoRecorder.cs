@@ -311,7 +311,7 @@ namespace PlayniteAchievements.Services.Capture
             // 1.0/60 became 17 ms and pinned the pump to 58.8 fps — 2% under the rate the segments
             // then declared, which is most of the wall-clock-versus-media gap this loop used to open.
             var frameInterval = TimeSpan.FromTicks(TimeSpan.TicksPerSecond / _fps);
-            var next = DateTime.UtcNow;
+            var next = CaptureTimelineClock.UtcNow;
             var lastResolveUtc = DateTime.MinValue;
             var lastRebuildUtc = DateTime.MinValue;
             var pacer = new FramePacer();
@@ -335,9 +335,9 @@ namespace PlayniteAchievements.Services.Capture
                     // appears. Idle while the game window isn't known yet rather than capturing a
                     // foreground window that isn't the game.
                     var activeDead = _activeHwnd != IntPtr.Zero && !IsWindow(_activeHwnd);
-                    if (activeDead || (DateTime.UtcNow - lastResolveUtc).TotalSeconds >= 1)
+                    if (activeDead || (CaptureTimelineClock.UtcNow - lastResolveUtc).TotalSeconds >= 1)
                     {
-                        lastResolveUtc = DateTime.UtcNow;
+                        lastResolveUtc = CaptureTimelineClock.UtcNow;
                         var hwnd = _resolveHwnd?.Invoke() ?? IntPtr.Zero;
                         if (hwnd != IntPtr.Zero && hwnd != _activeHwnd)
                         {
@@ -355,9 +355,9 @@ namespace PlayniteAchievements.Services.Capture
                         // new segment at the new dimensions instead of encoding a stale crop. Held
                         // to once a second: a window being dragged-resized reports a new size every
                         // frame, and each rebuild costs a segment boundary.
-                        if (_geometryStale && (DateTime.UtcNow - lastRebuildUtc).TotalSeconds >= 1)
+                        if (_geometryStale && (CaptureTimelineClock.UtcNow - lastRebuildUtc).TotalSeconds >= 1)
                         {
-                            lastRebuildUtc = DateTime.UtcNow;
+                            lastRebuildUtc = CaptureTimelineClock.UtcNow;
                             _geometryStale = false;
                             _latest?.Dispose();
                             _latest = null;
@@ -370,7 +370,7 @@ namespace PlayniteAchievements.Services.Capture
                         // Create the first segment once we have a frame (its size), and roll over on
                         // schedule. The encoder can't be built before the first frame, so this — not
                         // a one-time call before the loop — is what starts encoding.
-                        if (_encoder == null || (DateTime.UtcNow - _segmentStartUtc).TotalSeconds >= _segmentSeconds)
+                        if (_encoder == null || (CaptureTimelineClock.UtcNow - _segmentStartUtc).TotalSeconds >= _segmentSeconds)
                         {
                             RotateSegment();
                         }
@@ -389,7 +389,7 @@ namespace PlayniteAchievements.Services.Capture
                                 // Segments record the clean game frame only; the unlock toast is
                                 // composited into each achievement's clip at export from its
                                 // recorded overlay track.
-                                var due = (long)((DateTime.UtcNow - _segmentStartUtc).TotalSeconds * _fps) + 1;
+                                var due = (long)((CaptureTimelineClock.UtcNow - _segmentStartUtc).TotalSeconds * _fps) + 1;
                                 var missing = due - _segmentFrameIndex;
 
                                 // A segment can never hold more than its own length; anything beyond that
@@ -425,7 +425,7 @@ namespace PlayniteAchievements.Services.Capture
                     }
 
                     next += frameInterval;
-                    var now = DateTime.UtcNow;
+                    var now = CaptureTimelineClock.UtcNow;
                     var sleep = next - now;
                     if (sleep > TimeSpan.Zero)
                     {
@@ -606,7 +606,7 @@ namespace PlayniteAchievements.Services.Capture
             // re-encode flattens the timeline again and the gap returns as drift. Continuing the grid
             // makes the pump's catch-up fill the gap with the held frame instead. A gap far larger than
             // rotation cost is a genuine stall, where resyncing beats emitting seconds of duplicates.
-            var now = DateTime.UtcNow;
+            var now = CaptureTimelineClock.UtcNow;
             if (_segmentCount > 0)
             {
                 var previousGridEnd = _segmentStartUtc.AddTicks(PtsForFrame(_segmentFrameIndex));
@@ -639,7 +639,7 @@ namespace PlayniteAchievements.Services.Capture
                 // The dimensions ride in the name so the clip planner can group segments by size
                 // without opening them — a capture rebuilt at a new size starts a run the planner
                 // will not concatenate with the old one.
-                var name = RecordingPaths.BuildSegmentFileName(_segmentStartUtc.ToLocalTime(), _encW, _encH);
+                var name = RecordingPaths.BuildSegmentFileName(_segmentStartUtc, _encW, _encH);
                 path = EnsureUniqueSegment(Path.Combine(_bufferDirectory, name));
                 _encoder = new MediaFoundationH264Encoder(
                     _device, path, _encW, _encH, _fps, ComputeBitrate(_encW, _encH));
@@ -680,14 +680,14 @@ namespace PlayniteAchievements.Services.Capture
             }
 
             var boundary = _segmentStartUtc.AddTicks(PtsForFrame((long)_segmentSeconds * _fps));
-            if (DateTime.UtcNow < boundary - PrepareLead)
+            if (CaptureTimelineClock.UtcNow < boundary - PrepareLead)
             {
                 return;
             }
 
             var width = _encW;
             var height = _encH;
-            var name = RecordingPaths.BuildSegmentFileName(boundary.ToLocalTime(), width, height);
+            var name = RecordingPaths.BuildSegmentFileName(boundary, width, height);
             var path = EnsureUniqueSegment(Path.Combine(_bufferDirectory, name));
             _prepareTask = Task.Run(() =>
             {
