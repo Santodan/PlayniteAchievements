@@ -143,15 +143,6 @@
                 <EventSetter Event="PreviewMouseLeftButtonDown" Handler="AchievementRow_PreviewMouseLeftButtonDown"/>
                 <EventSetter Event="PreviewMouseRightButtonDown" Handler="AchievementRow_PreviewMouseRightButtonDown"/>
                 <EventSetter Event="PreviewMouseRightButtonUp" Handler="AchievementRow_PreviewMouseRightButtonUp"/>
-                <Style.Triggers>
-                    <!-- Goal rows carry an accent bar down the left edge. Both properties are
-                         template-bound into the row border, and the bottom edge keeps its
-                         separator so goal rows stay in the normal row rhythm. -->
-                    <DataTrigger Binding="{Binding IsGoal}" Value="True">
-                        <Setter Property="BorderBrush" Value="{DynamicResource PlayAch.Brush.Accent}"/>
-                        <Setter Property="BorderThickness" Value="3,0,0,1"/>
-                    </DataTrigger>
-                </Style.Triggers>
             </Style>
         </DataGrid.RowStyle>
 

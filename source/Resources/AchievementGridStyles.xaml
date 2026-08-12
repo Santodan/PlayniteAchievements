@@ -480,6 +480,19 @@
                             BorderBrush="{TemplateBinding BorderBrush}"
                             BorderThickness="{TemplateBinding BorderThickness}"
                             SnapsToDevicePixels="True">
+                      <Grid>
+                        <!-- Goal accent bar. A separate element rather than the row border so the
+                             row separator keeps its own colour instead of turning accent. Stays
+                             collapsed unless the row item exposes IsGoal. -->
+                        <Border x:Name="GoalAccentBar"
+                                Width="3"
+                                HorizontalAlignment="Left"
+                                VerticalAlignment="Stretch"
+                                Background="{DynamicResource PlayAch.Brush.Accent}"
+                                Visibility="Collapsed"
+                                IsHitTestVisible="False"
+                                Panel.ZIndex="1"
+                                SnapsToDevicePixels="True" />
                         <SelectiveScrollingGrid>
                             <SelectiveScrollingGrid.ColumnDefinitions>
                                 <ColumnDefinition Width="Auto"/>
@@ -503,8 +516,12 @@
                                                SelectiveScrollingGrid.SelectiveScrollingOrientation="Vertical"
                                                Visibility="{Binding HeadersVisibility, ConverterParameter={x:Static DataGridHeadersVisibility.Row}, Converter={x:Static DataGrid.HeadersVisibilityConverter}, RelativeSource={RelativeSource AncestorType={x:Type DataGrid}}}"/>
                         </SelectiveScrollingGrid>
+                      </Grid>
                     </Border>
                     <ControlTemplate.Triggers>
+                        <DataTrigger Binding="{Binding IsGoal}" Value="True">
+                            <Setter TargetName="GoalAccentBar" Property="Visibility" Value="Visible"/>
+                        </DataTrigger>
                         <DataTrigger Binding="{Binding ContextMenu.IsOpen, RelativeSource={RelativeSource TemplatedParent}}" Value="True">
                             <Setter TargetName="DGR_Border" Property="Background" Value="{DynamicResource PlayAch.Brush.Grid.RowHoverBackground}"/>
                         </DataTrigger>
