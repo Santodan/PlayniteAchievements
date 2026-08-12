@@ -116,28 +116,36 @@ namespace PlayniteAchievements.Views.Helpers
         }
 
         /// <summary>
-        /// Maps a mouse position to a slider value, preferring the template's PART_Track (which
-        /// accounts for the thumb's own width) and falling back to a linear map over the slider.
+        /// Maps a mouse position to the slider value at that position, as pure geometry over the
+        /// track's thumb-adjusted travel.
+        ///
+        /// Deliberately not <see cref="Track.ValueFromPoint"/>: that returns the current value plus
+        /// the distance from the thumb's last arranged centre, so it is only correct when value and
+        /// layout agree and it is read once. Used for the press and again for every mouse move of
+        /// the same gesture, the second read measures against a thumb that has not moved yet and
+        /// lands somewhere else entirely — in practice pinned to Maximum — which made one pixel map
+        /// to a different value depending on where the slider already sat.
         /// </summary>
         private double? ValueFromPoint(MouseEventArgs e)
         {
             var track = GetTrack();
-            if (track != null && track.ActualWidth > 0)
-            {
-                var tracked = track.ValueFromPoint(e.GetPosition(track));
-                if (!double.IsNaN(tracked) && !double.IsInfinity(tracked))
-                {
-                    return Clamp(tracked);
-                }
-            }
-
-            var width = _slider.ActualWidth;
+            var reference = track ?? (FrameworkElement)_slider;
+            var width = reference.ActualWidth;
             if (width <= 0)
             {
                 return null;
             }
 
-            var fraction = e.GetPosition(_slider).X / width;
+            var x = e.GetPosition(reference).X;
+
+            // The thumb can only travel between its own half-widths, so the value at a pixel is
+            // measured over that reduced span, matching where the thumb actually renders.
+            var thumbWidth = track?.Thumb?.ActualWidth ?? 0;
+            var travel = width - thumbWidth;
+            var fraction = travel > 0
+                ? (x - (thumbWidth / 2)) / travel
+                : x / width;
+
             return Clamp(_slider.Minimum + (fraction * (_slider.Maximum - _slider.Minimum)));
         }
 
