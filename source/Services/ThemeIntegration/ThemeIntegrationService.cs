@@ -620,13 +620,16 @@ namespace PlayniteAchievements.Services.ThemeIntegration
                      (_requestedGameId.HasValue && _requestedGameId.Value == resolvedGameId.Value) ||
                      (_settings?.SelectedGame?.Id == resolvedGameId.Value));
 
-                if (shouldRefreshSelectedGame)
+                using (PerfScope.Start(_logger, "ThemeNotify.SelectedGame", thresholdMs: 0))
                 {
-                    RequestUpdate(resolvedGameId.Value, forceRefresh: true);
-                }
-                else if (resolvedGameId.HasValue)
-                {
-                    RequestUpdate(resolvedGameId.Value, forceRefresh: true);
+                    if (shouldRefreshSelectedGame)
+                    {
+                        RequestUpdate(resolvedGameId.Value, forceRefresh: true);
+                    }
+                    else if (resolvedGameId.HasValue)
+                    {
+                        RequestUpdate(resolvedGameId.Value, forceRefresh: true);
+                    }
                 }
             }
             catch (Exception ex)
@@ -636,13 +639,16 @@ namespace PlayniteAchievements.Services.ThemeIntegration
 
             try
             {
-                if (_hasLoadedLibraryState)
+                using (PerfScope.Start(_logger, "ThemeNotify.Library", thresholdMs: 0))
                 {
-                    RequestLibraryRefresh(_lastLibraryRefreshIncludedHeavyAchievementLists);
-                }
-                else if (IsFullscreen() && _fullscreenInitialized)
-                {
-                    RequestRefresh();
+                    if (_hasLoadedLibraryState)
+                    {
+                        RequestLibraryRefresh(_lastLibraryRefreshIncludedHeavyAchievementLists);
+                    }
+                    else if (IsFullscreen() && _fullscreenInitialized)
+                    {
+                        RequestRefresh();
+                    }
                 }
             }
             catch (Exception ex)
