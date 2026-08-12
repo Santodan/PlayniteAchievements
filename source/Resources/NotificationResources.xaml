@@ -250,10 +250,12 @@
     <DataTemplate DataType="{x:Type vm:ToastDescriptionLine}">
         <!-- MaxTextHeight clamps to one or two wrapped lines at the row's font size (two when no
              game/category line follows, one when it does); the trailing ellipsis marks overflow.
-             UseLayoutRounding="False" keeps the floating toast window (which rounds layout to device
-             pixels) from shaving the exact two-line height down and clipping the 2nd line, so the
-             rendered line count matches the settings mockup. The wrapper stacks the second halo
-             layer under the outer one. -->
+             The clamp is built from the font's own line spacing, the same metric WPF lays the text
+             out with, so it lands exactly on a line boundary without the text having to be pinned
+             to a fixed line box. UseLayoutRounding="False" keeps the floating toast window (which
+             rounds layout to device pixels) from shaving that height down and clipping the last
+             line, so the rendered line count matches the settings mockup. The wrapper stacks the
+             second halo layer under the outer one. -->
         <Grid Effect="{Binding TextShadow}">
         <TextBlock helpers:InlineMarkdownFormatter.MarkupText="{Binding Parent.Description}"
                    Style="{DynamicResource PlayAch.TextBlock.BaseStyle}"
@@ -266,8 +268,6 @@
                    TextWrapping="Wrap"
                    TextTrimming="CharacterEllipsis"
                    UseLayoutRounding="False"
-                   LineHeight="{Binding LineBoxHeight}"
-                   LineStackingStrategy="BlockLineHeight"
                    MaxHeight="{Binding MaxTextHeight}"
                    Effect="{Binding TextShadowInner}"
                    Visibility="{Binding ShowDescription, Converter={StaticResource BooleanToVisibilityConverter}}"/>
@@ -290,8 +290,6 @@
                    TextDecorations="{Binding TextDecorations}"
                    TextWrapping="NoWrap"
                    TextTrimming="CharacterEllipsis"
-                   LineHeight="{Binding LineBoxHeight}"
-                   LineStackingStrategy="BlockLineHeight"
                    Effect="{Binding TextShadowInner}"
                    Visibility="{Binding HasGameCategoryContent, Converter={StaticResource BooleanToVisibilityConverter}}"/>
         </Grid>

@@ -8,6 +8,7 @@ using System.Runtime.InteropServices;
 using System.Text;
 using System.Windows.Forms;
 using Playnite.SDK;
+using PlayniteAchievements.Common;
 using PlayniteAchievements.Services.Capture;
 using PlayniteAchievements.Services.Images;
 
@@ -39,118 +40,17 @@ namespace PlayniteAchievements.Services.UI
         [DllImport("user32.dll")]
         private static extern IntPtr GetForegroundWindow();
 
-        [DllImport("user32.dll")]
-        [return: MarshalAs(UnmanagedType.Bool)]
-        private static extern bool GetWindowRect(IntPtr hWnd, out RECT lpRect);
-
-        [DllImport("dwmapi.dll")]
-        private static extern int DwmGetWindowAttribute(IntPtr hwnd, int dwAttribute, out RECT pvAttribute, int cbAttribute);
-
-        [DllImport("user32.dll")]
-        [return: MarshalAs(UnmanagedType.Bool)]
-        private static extern bool GetClientRect(IntPtr hWnd, out RECT lpRect);
-
-        [DllImport("user32.dll")]
-        [return: MarshalAs(UnmanagedType.Bool)]
-        private static extern bool ClientToScreen(IntPtr hWnd, ref POINT lpPoint);
-
-        // Excludes the invisible resize border/shadow that GetWindowRect includes, so the capture
-        // matches the visible window instead of bleeding a few pixels onto the desktop.
-        private const int DWMWA_EXTENDED_FRAME_BOUNDS = 9;
-
-        [StructLayout(LayoutKind.Sequential)]
-        private struct RECT
-        {
-            public int Left;
-            public int Top;
-            public int Right;
-            public int Bottom;
-        }
-
-        [StructLayout(LayoutKind.Sequential)]
-        private struct POINT
-        {
-            public int X;
-            public int Y;
-        }
-
         /// <summary>
-        /// Resolves the window's capture rectangle (physical pixels). Prefers the client area so
-        /// window chrome (title bar, borders) is excluded for non-fullscreen windows; a
-        /// borderless/fullscreen game's client area is the whole window. Falls back to the DWM
-        /// extended frame bounds, then GetWindowRect. Returns false if none yields a positive rect.
+        /// Resolves the window's capture rectangle (physical pixels) via
+        /// <see cref="WindowRectangles"/> — the shared measurement, so this path and the recorder's
+        /// cannot drift apart on DPI handling again. Prefers the client area so window chrome is
+        /// excluded for non-fullscreen windows; a borderless/fullscreen game's client area is the
+        /// whole window. Returns false if nothing yields a positive rect.
         /// </summary>
         private static bool TryGetWindowRectangle(IntPtr hwnd, out Rectangle rectangle)
         {
-            rectangle = Rectangle.Empty;
-            if (hwnd == IntPtr.Zero)
-            {
-                return false;
-            }
-
-            if (TryGetClientRectangle(hwnd, out var client))
-            {
-                rectangle = client;
-                return true;
-            }
-
-            try
-            {
-                if (DwmGetWindowAttribute(hwnd, DWMWA_EXTENDED_FRAME_BOUNDS, out var dwm, Marshal.SizeOf(typeof(RECT))) == 0)
-                {
-                    var frame = Rectangle.FromLTRB(dwm.Left, dwm.Top, dwm.Right, dwm.Bottom);
-                    if (frame.Width > 0 && frame.Height > 0)
-                    {
-                        rectangle = frame;
-                        return true;
-                    }
-                }
-            }
-            catch
-            {
-                // DWM unavailable — fall back to GetWindowRect below.
-            }
-
-            if (GetWindowRect(hwnd, out var win))
-            {
-                var rect = Rectangle.FromLTRB(win.Left, win.Top, win.Right, win.Bottom);
-                if (rect.Width > 0 && rect.Height > 0)
-                {
-                    rectangle = rect;
-                    return true;
-                }
-            }
-
-            return false;
-        }
-
-        /// <summary>
-        /// The window's client area (game content, no title bar or borders) in physical screen
-        /// pixels, via GetClientRect + ClientToScreen.
-        /// </summary>
-        private static bool TryGetClientRectangle(IntPtr hwnd, out Rectangle rectangle)
-        {
-            rectangle = Rectangle.Empty;
-            if (!GetClientRect(hwnd, out var client))
-            {
-                return false;
-            }
-
-            var width = client.Right - client.Left;
-            var height = client.Bottom - client.Top;
-            if (width <= 0 || height <= 0)
-            {
-                return false;
-            }
-
-            var origin = new POINT { X = client.Left, Y = client.Top };
-            if (!ClientToScreen(hwnd, ref origin))
-            {
-                return false;
-            }
-
-            rectangle = new Rectangle(origin.X, origin.Y, width, height);
-            return true;
+            rectangle = WindowRectangles.Measure(hwnd).PreferredCaptureArea;
+            return !rectangle.IsEmpty;
         }
 
         /// <summary>
@@ -158,17 +58,18 @@ namespace PlayniteAchievements.Services.UI
         /// same resolution toast placement uses), clamped to that window's monitor. Falls back to
         /// the whole monitor if the window rect is unavailable. Returns null on failure.
         /// </summary>
-        public Bitmap CaptureGameWindow(int? startedProcessId)
+        public Bitmap CaptureGameWindow(int? startedProcessId, int capHeight)
         {
-            return CaptureGameWindow(IntPtr.Zero, startedProcessId);
+            return CaptureGameWindow(IntPtr.Zero, startedProcessId, capHeight);
         }
 
         /// <summary>
         /// Capture overload for callers that already resolved the game window (e.g. via the
         /// foreground tracker): a valid <paramref name="knownHwnd"/> wins, the started-process
-        /// resolution is the fallback.
+        /// resolution is the fallback. <paramref name="capHeight"/> caps the returned bitmap's
+        /// height (0 for none) — see <see cref="ApplyResolutionCap"/>.
         /// </summary>
-        public Bitmap CaptureGameWindow(IntPtr knownHwnd, int? startedProcessId)
+        public Bitmap CaptureGameWindow(IntPtr knownHwnd, int? startedProcessId, int capHeight)
         {
             try
             {
@@ -185,7 +86,7 @@ namespace PlayniteAchievements.Services.UI
                         var captured = wgc.CaptureWindow(hwnd);
                         if (captured?.Bitmap != null)
                         {
-                            return captured.Bitmap;
+                            return ApplyResolutionCap(captured.Bitmap, capHeight);
                         }
                     }
                 }
@@ -205,7 +106,7 @@ namespace PlayniteAchievements.Services.UI
                     CopyScreenPhysical(graphics, bounds);
                 }
 
-                return bitmap;
+                return ApplyResolutionCap(bitmap, capHeight);
             }
             catch (Exception ex)
             {
@@ -220,7 +121,7 @@ namespace PlayniteAchievements.Services.UI
         /// the whole screen where it appears rather than just the Playnite window. Falls back to the
         /// primary monitor when the handle is zero. Returns null on failure.
         /// </summary>
-        public Bitmap CaptureMonitor(IntPtr windowOnMonitor)
+        public Bitmap CaptureMonitor(IntPtr windowOnMonitor, int capHeight)
         {
             try
             {
@@ -235,7 +136,7 @@ namespace PlayniteAchievements.Services.UI
                         var captured = wgc.CaptureMonitorForWindow(windowOnMonitor);
                         if (captured?.Bitmap != null)
                         {
-                            return captured.Bitmap;
+                            return ApplyResolutionCap(captured.Bitmap, capHeight);
                         }
                     }
                 }
@@ -252,12 +153,67 @@ namespace PlayniteAchievements.Services.UI
                     CopyScreenPhysical(graphics, bounds);
                 }
 
-                return bitmap;
+                return ApplyResolutionCap(bitmap, capHeight);
             }
             catch (Exception ex)
             {
                 _logger?.Debug(ex, "Unlock monitor capture failed.");
                 return null;
+            }
+        }
+
+        /// <summary>
+        /// Downscales a capture to the configured height cap, preserving the aspect ratio and never
+        /// upscaling. Returns <paramref name="source"/> itself when no cap applies, and disposes it
+        /// when it is replaced, so callers always own exactly the bitmap they get back.
+        /// <para>
+        /// Applied to the base capture, before the notification card is composited and before the
+        /// frame is rendered: both derive their geometry from the base bitmap's dimensions, so card
+        /// and frame chrome scale with the image rather than staying at capture size.
+        /// </para>
+        /// The replacement keeps the source's pixel format. That matters for the GDI fallback's
+        /// Format32bppRgb — an Argb buffer there would carry alpha=0 and save transparent PNGs.
+        /// </summary>
+        private Bitmap ApplyResolutionCap(Bitmap source, int capHeight)
+        {
+            if (source == null || capHeight <= 0 || source.Height <= capHeight)
+            {
+                return source;
+            }
+
+            Bitmap scaled = null;
+            try
+            {
+                var size = ResolutionCapMath.Apply(
+                    source.Width, source.Height, capHeight, evenDimensions: false);
+                scaled = new Bitmap(size.Width, size.Height, source.PixelFormat);
+                using (var graphics = Graphics.FromImage(scaled))
+                // TileFlipXY: the default wrap mode samples past the source edge on a downscale and
+                // leaves a half-transparent border row and column.
+                using (var attributes = new ImageAttributes())
+                {
+                    attributes.SetWrapMode(System.Drawing.Drawing2D.WrapMode.TileFlipXY);
+                    graphics.InterpolationMode = System.Drawing.Drawing2D.InterpolationMode.HighQualityBicubic;
+                    graphics.PixelOffsetMode = System.Drawing.Drawing2D.PixelOffsetMode.HighQuality;
+                    graphics.SmoothingMode = System.Drawing.Drawing2D.SmoothingMode.HighQuality;
+                    graphics.CompositingMode = System.Drawing.Drawing2D.CompositingMode.SourceCopy;
+                    graphics.DrawImage(
+                        source,
+                        new Rectangle(0, 0, size.Width, size.Height),
+                        0, 0, source.Width, source.Height,
+                        GraphicsUnit.Pixel,
+                        attributes);
+                }
+
+                source.Dispose();
+                return scaled;
+            }
+            catch (Exception ex)
+            {
+                // A failed downscale must not cost the screenshot: keep the full-size capture.
+                scaled?.Dispose();
+                _logger?.Debug(ex, "Unlock screenshot downscale failed; keeping the captured size.");
+                return source;
             }
         }
 
@@ -498,15 +454,11 @@ namespace PlayniteAchievements.Services.UI
                 return false;
             }
 
-            // Physical pixels on both sides of the intersection below (the scope is re-entrant, so
-            // callers that already established one are unaffected).
-            Rectangle window;
-            using (Common.DpiAwarenessScope.PerMonitorV2())
+            // Physical pixels on both sides of the intersection below: the measurement is
+            // per-monitor-aware by construction and ResolveMonitorBounds returns the same space.
+            if (!TryGetWindowRectangle(hwnd, out var window))
             {
-                if (!TryGetWindowRectangle(hwnd, out window))
-                {
-                    return false;
-                }
+                return false;
             }
 
             var monitor = ResolveMonitorBounds(hwnd);
@@ -548,17 +500,11 @@ namespace PlayniteAchievements.Services.UI
                 return false;
             }
 
-            // Read the window rect in the same physical (device) pixels ResolveMonitorBounds returns,
-            // so the intersection below stays in one coordinate space. Capture works in physical
-            // pixels throughout; without this scope a system-aware read would be virtualized and the
-            // captured region would be wrong on a monitor scaled above 100%.
-            Rectangle window;
-            using (Common.DpiAwarenessScope.PerMonitorV2())
+            // Both sides of the intersection below are physical (device) pixels: the measurement is
+            // per-monitor-aware by construction and ResolveMonitorBounds returns the same space.
+            if (!TryGetWindowRectangle(hwnd, out var window))
             {
-                if (!TryGetWindowRectangle(hwnd, out window))
-                {
-                    return false;
-                }
+                return false;
             }
 
             var monitor = ResolveMonitorBounds(hwnd);

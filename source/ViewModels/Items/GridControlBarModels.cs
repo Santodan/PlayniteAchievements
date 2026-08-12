@@ -264,18 +264,23 @@ namespace PlayniteAchievements.ViewModels.Items
             Subscribe(source, sourcePropertyName);
         }
 
-        private bool _connectedLeft;
+        private bool _connectedRight;
 
         public string DisplayText => _getDisplayText?.Invoke() ?? string.Empty;
 
         public IEnumerable<string> Options => _getOptions?.Invoke() ?? _options;
 
-        // When true, this dropdown renders as the right half of a segmented unit (flat left edge,
-        // no left border/margin) so an adjacent control on its left reads as one bordered group.
-        public bool ConnectedLeft
+        // When true, this dropdown scopes the category set (the Type/Label filters) rather than the
+        // achievement rows, so category mode hides it whenever grouping is in effect and the mode
+        // toggle attaches to it as a segmented unit.
+        public bool IsCategoryFilter { get; set; }
+
+        // When true, this dropdown renders as the left half of a segmented unit (flat right edge)
+        // so an adjacent control on its right reads as one bordered group.
+        public bool ConnectedRight
         {
-            get => _connectedLeft;
-            set => SetValue(ref _connectedLeft, value);
+            get => _connectedRight;
+            set => SetValue(ref _connectedRight, value);
         }
 
         // Default availability requires a real choice (2+ options) or an active selection;
@@ -410,6 +415,7 @@ namespace PlayniteAchievements.ViewModels.Items
         private readonly Action<bool> _setIsChecked;
         private readonly Func<bool> _getIsAvailable;
         private readonly Func<bool> _getHasMultipleCategories;
+        private bool _connected;
 
         public GridModeToggle(
             INotifyPropertyChanged source,
@@ -431,6 +437,15 @@ namespace PlayniteAchievements.ViewModels.Items
         }
 
         public string Content { get; }
+
+        // When true, the category dropdown is shown immediately to the left, so the toggle renders
+        // as the right half of a segmented unit (flat left edge, overlapping the dropdown's border).
+        // False whenever the toggle stands alone, including when the dropdown auto-hides.
+        public bool Connected
+        {
+            get => _connected;
+            set => SetValue(ref _connected, value);
+        }
 
         // Mirrors the category dropdowns' auto-hide: the toggle disappears when there is nothing to
         // group by. Stays visible while active so the user can always switch back out of the mode,

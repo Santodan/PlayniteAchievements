@@ -82,6 +82,7 @@ namespace PlayniteAchievements.Models.Settings
         private bool _enableControllerVibration = false;
         private int _controllerVibrationStrengthPercent = 50;
         private int _controllerVibrationDurationMs = 650;
+        private bool _useHiddenUnlockSound = false;
         private bool _enableUnlockScreenshots = false;
         private bool _unlockScreenshotClean = false;
         private bool _unlockScreenshotWithToast = true;
@@ -90,6 +91,7 @@ namespace PlayniteAchievements.Models.Settings
         private string _unlockScreenshotSuffixWithToast = "notification";
         private string _unlockScreenshotSuffixFramed = "framed";
         private string _unlockScreenshotDirectory;
+        private ScreenshotResolution _screenshotResolution = ScreenshotResolution.Native;
         private RaritySelection _unlockScreenshotCleanRarities = RaritySelection.All;
         private bool _unlockScreenshotCleanAlwaysCaptureCompletion = true;
         private RaritySelection _unlockScreenshotWithToastRarities = RaritySelection.All;
@@ -101,6 +103,7 @@ namespace PlayniteAchievements.Models.Settings
         private int _recordingClipSeconds = 15;
         private int _recordingFps = 30;
         private RecordingResolution _recordingResolution = RecordingResolution.Native;
+        private RecordingQuality _recordingQuality = RecordingQuality.Native;
         private bool _recordingIncludeAudio = false;
         private RecordingAudioSource _recordingAudioSource = RecordingAudioSource.FullSystem;
         private bool _recordingIncludeMicrophone = false;
@@ -135,6 +138,11 @@ namespace PlayniteAchievements.Models.Settings
         private bool _modernCompactListShowRarityGlow = true;
         private bool _modernUnlockedListShowRarityGlow = true;
         private bool _animateRarityGlows = true;
+        // Completion is included by default because the completed-game glow shipped on; the rays stay
+        // opt-in for everything.
+        private RaritySelection _rarityGlowSoftTiers = RaritySelection.All | RaritySelection.Completed;
+        private RaritySelection _rarityGlowRayTiers = RaritySelection.None;
+        private bool _showHardcoreBorder = true;
         private double _rarityGlowPulseMinOpacity = 0.6;
         private double _rarityGlowPulseMaxOpacity = 1.0;
         private double _rarityGlowPulseSpeed = 0.5;
@@ -1116,6 +1124,18 @@ namespace PlayniteAchievements.Models.Settings
         }
 
         /// <summary>
+        /// Request UniPlaySong's hidden-achievement sound instead of the rarity sound when a hidden
+        /// achievement unlocks. Off by default: UniPlaySong plays nothing for a sound it has no
+        /// audio assigned to, so enabling this before assigning one silences hidden unlocks rather
+        /// than falling back to the rarity sound.
+        /// </summary>
+        public bool UseHiddenUnlockSound
+        {
+            get => _useHiddenUnlockSound;
+            set => SetValue(ref _useHiddenUnlockSound, value);
+        }
+
+        /// <summary>
         /// When true, a screenshot of the game's monitor is saved for each of your own unlock
         /// waves. Fully independent of unlock toasts: every variant is produced whether or not a
         /// notification is shown. Opt-in since it writes files to disk.
@@ -1192,6 +1212,16 @@ namespace PlayniteAchievements.Models.Settings
         {
             get => _unlockScreenshotDirectory;
             set => SetValue(ref _unlockScreenshotDirectory, value);
+        }
+
+        /// <summary>
+        /// Output height of unlock screenshots. The base capture is downscaled before the
+        /// notification card and frame are composited, so every variant shares the reduced size.
+        /// </summary>
+        public ScreenshotResolution ScreenshotResolution
+        {
+            get => _screenshotResolution;
+            set => SetValue(ref _screenshotResolution, value);
         }
 
         /// <summary>
@@ -1293,6 +1323,17 @@ namespace PlayniteAchievements.Models.Settings
         {
             get => _recordingResolution;
             set => SetValue(ref _recordingResolution, value);
+        }
+
+        /// <summary>
+        /// Encoding quality of unlock clips: the size-versus-picture trade. Native is the bitrate
+        /// the plugin derives from resolution and frame rate; lower tiers scale it down, which also
+        /// lets the fixed capture buffer hold more footage.
+        /// </summary>
+        public RecordingQuality RecordingQuality
+        {
+            get => _recordingQuality;
+            set => SetValue(ref _recordingQuality, value);
         }
 
         /// <summary>
@@ -1570,12 +1611,46 @@ namespace PlayniteAchievements.Models.Settings
 
         /// <summary>
         /// When true, rarity glows gently fade in and out (a subtle opacity pulse) wherever they
-        /// appear. When false, glows render at static full opacity. Applies globally.
+        /// appear, and the rotating sunburst also turns. When false, glows render at static full
+        /// opacity and the sunburst is held still. Applies globally.
         /// </summary>
         public bool AnimateRarityGlows
         {
             get => _animateRarityGlows;
             set => SetValue(ref _animateRarityGlows, value);
+        }
+
+        /// <summary>
+        /// Which rarity tiers get the soft halo around unlocked icons. Membership is exact, so a tier
+        /// with its bit clear shows no halo at all. Defaults to every tier, which is the original
+        /// behavior.
+        /// </summary>
+        public RaritySelection RarityGlowSoftTiers
+        {
+            get => _rarityGlowSoftTiers;
+            set => SetValue(ref _rarityGlowSoftTiers, value);
+        }
+
+        /// <summary>
+        /// Which rarity tiers additionally get the rotating sunburst behind that halo. Independent of
+        /// <see cref="RarityGlowSoftTiers"/>, so a tier can have either effect, both, or neither.
+        /// Defaults to none, so the rays are opt-in.
+        /// </summary>
+        public RaritySelection RarityGlowRayTiers
+        {
+            get => _rarityGlowRayTiers;
+            set => SetValue(ref _rarityGlowRayTiers, value);
+        }
+
+        /// <summary>
+        /// When true, Hardcore RetroAchievements unlocks get a crisp metallic border in place of any
+        /// glow. When false they are treated like any other unlock, so they take whichever glow their
+        /// rarity tier is selected for. On by default.
+        /// </summary>
+        public bool ShowHardcoreBorder
+        {
+            get => _showHardcoreBorder;
+            set => SetValue(ref _showHardcoreBorder, value);
         }
 
         /// <summary>
@@ -2598,6 +2673,7 @@ namespace PlayniteAchievements.Models.Settings
                 EnableControllerVibration = this.EnableControllerVibration,
                 ControllerVibrationStrengthPercent = this.ControllerVibrationStrengthPercent,
                 ControllerVibrationDurationMs = this.ControllerVibrationDurationMs,
+                UseHiddenUnlockSound = this.UseHiddenUnlockSound,
                 EnableUnlockScreenshots = this.EnableUnlockScreenshots,
                 UnlockScreenshotClean = this.UnlockScreenshotClean,
                 UnlockScreenshotWithToast = this.UnlockScreenshotWithToast,
@@ -2606,6 +2682,7 @@ namespace PlayniteAchievements.Models.Settings
                 UnlockScreenshotSuffixWithToast = this.UnlockScreenshotSuffixWithToast,
                 UnlockScreenshotSuffixFramed = this.UnlockScreenshotSuffixFramed,
                 UnlockScreenshotDirectory = this.UnlockScreenshotDirectory,
+                ScreenshotResolution = this.ScreenshotResolution,
                 UnlockScreenshotCleanRarities = this.UnlockScreenshotCleanRarities,
                 UnlockScreenshotCleanAlwaysCaptureCompletion = this.UnlockScreenshotCleanAlwaysCaptureCompletion,
                 UnlockScreenshotWithToastRarities = this.UnlockScreenshotWithToastRarities,
@@ -2617,6 +2694,7 @@ namespace PlayniteAchievements.Models.Settings
                 RecordingClipSeconds = this.RecordingClipSeconds,
                 RecordingFps = this.RecordingFps,
                 RecordingResolution = this.RecordingResolution,
+                RecordingQuality = this.RecordingQuality,
                 RecordingIncludeAudio = this.RecordingIncludeAudio,
                 RecordingAudioSource = this.RecordingAudioSource,
                 RecordingIncludeMicrophone = this.RecordingIncludeMicrophone,
@@ -2639,6 +2717,9 @@ namespace PlayniteAchievements.Models.Settings
                 ModernCompactListShowRarityGlow = this.ModernCompactListShowRarityGlow,
                 ModernUnlockedListShowRarityGlow = this.ModernUnlockedListShowRarityGlow,
                 AnimateRarityGlows = this.AnimateRarityGlows,
+                RarityGlowSoftTiers = this.RarityGlowSoftTiers,
+                RarityGlowRayTiers = this.RarityGlowRayTiers,
+                ShowHardcoreBorder = this.ShowHardcoreBorder,
                 RarityGlowPulseMinOpacity = this.RarityGlowPulseMinOpacity,
                 RarityGlowPulseMaxOpacity = this.RarityGlowPulseMaxOpacity,
                 RarityGlowPulseSpeed = this.RarityGlowPulseSpeed,
@@ -2793,6 +2874,9 @@ namespace PlayniteAchievements.Models.Settings
             ModernCompactListShowRarityGlow = defaults.ModernCompactListShowRarityGlow;
             ModernUnlockedListShowRarityGlow = defaults.ModernUnlockedListShowRarityGlow;
             AnimateRarityGlows = defaults.AnimateRarityGlows;
+            RarityGlowSoftTiers = defaults.RarityGlowSoftTiers;
+            RarityGlowRayTiers = defaults.RarityGlowRayTiers;
+            ShowHardcoreBorder = defaults.ShowHardcoreBorder;
             RarityGlowPulseMinOpacity = defaults.RarityGlowPulseMinOpacity;
             RarityGlowPulseMaxOpacity = defaults.RarityGlowPulseMaxOpacity;
             RarityGlowPulseSpeed = defaults.RarityGlowPulseSpeed;

@@ -33,10 +33,6 @@ namespace PlayniteAchievements.Views.Helpers
     /// </summary>
     public static class RarityGlowPulse
     {
-        // Wall-clock epoch used to phase-lock the pulse across recreated elements.
-        private static readonly System.Diagnostics.Stopwatch PulseEpoch =
-            System.Diagnostics.Stopwatch.StartNew();
-
         public static readonly DependencyProperty IsActiveProperty =
             DependencyProperty.RegisterAttached(
                 "IsActive", typeof(bool), typeof(RarityGlowPulse),
@@ -205,7 +201,7 @@ namespace PlayniteAchievements.Views.Helpers
         {
             var (min, max, seconds) = ResolvePulseParams(persisted);
             var halfMilliseconds = seconds * 1000.0;
-            var t = PulseEpoch.ElapsedMilliseconds % (halfMilliseconds * 2.0);
+            var t = GlowAnimationClock.ElapsedMilliseconds % (halfMilliseconds * 2.0);
             var progress = t < halfMilliseconds
                 ? t / halfMilliseconds
                 : 2.0 - (t / halfMilliseconds);
@@ -244,8 +240,8 @@ namespace PlayniteAchievements.Views.Helpers
                         if (GetIsActive(element) && element.Effect is DropShadowEffect effect)
                         {
                             animation.BeginTime = GetPhaseLock(element)
-                                ? PhaseLockBeginTime(cycleMilliseconds)
-                                : PeakStartBeginTime(cycleMilliseconds);
+                                ? GlowAnimationClock.PhaseLockBeginTime(cycleMilliseconds)
+                                : GlowAnimationClock.PeakStartBeginTime(cycleMilliseconds);
                             effect.BeginAnimation(DropShadowEffect.OpacityProperty, animation);
                         }
                     }),
@@ -254,24 +250,11 @@ namespace PlayniteAchievements.Views.Helpers
             else
             {
                 animation.BeginTime = GetPhaseLock(element)
-                    ? PhaseLockBeginTime(cycleMilliseconds)
-                    : PeakStartBeginTime(cycleMilliseconds);
+                    ? GlowAnimationClock.PhaseLockBeginTime(cycleMilliseconds)
+                    : GlowAnimationClock.PeakStartBeginTime(cycleMilliseconds);
                 element.BeginAnimation(UIElement.OpacityProperty, animation);
             }
         }
-
-        private static TimeSpan PhaseLockBeginTime(double cycleMilliseconds) =>
-            cycleMilliseconds <= 0
-                ? TimeSpan.Zero
-                : TimeSpan.FromMilliseconds(-(PulseEpoch.ElapsedMilliseconds % cycleMilliseconds));
-
-        // Half a cycle back: the min->max auto-reversed timeline sits at its PEAK at the
-        // half-cycle point, so phase-lock opt-outs (fresh toast waves) reveal with the glow at
-        // full strength and fade down from there — a deterministic, strong glow in captures.
-        private static TimeSpan PeakStartBeginTime(double cycleMilliseconds) =>
-            cycleMilliseconds <= 0
-                ? TimeSpan.Zero
-                : TimeSpan.FromMilliseconds(-(cycleMilliseconds / 2.0));
 
         private static void StopAnimation(FrameworkElement element)
         {

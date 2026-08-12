@@ -1,4 +1,5 @@
 using Playnite.SDK.Models;
+using PlayniteAchievements.Models;
 using PlayniteAchievements.Models.Achievements;
 using System;
 using System.Collections.Generic;
@@ -7,6 +8,36 @@ using System.Threading.Tasks;
 
 namespace PlayniteAchievements.Providers
 {
+    /// <summary>
+    /// Describes which timestamp best represents the gameplay moment for an unlock observed by an
+    /// in-game progress source. ProviderReported is appropriate when the provider exposes an
+    /// authoritative event time. SourceObservation is for persisted-state sources whose embedded
+    /// timestamp is not guaranteed to share the recorder's local clock/correlation point. Steam's
+    /// persisted achievement epoch versus the local StoreStats file change is the canonical example.
+    /// </summary>
+    internal enum InGameUnlockAnchorPolicy
+    {
+        ProviderReported = 0,
+        SourceObservation = 1
+    }
+
+    internal static class InGameUnlockAnchorSelector
+    {
+        public static (DateTime? Utc, UnlockVideoAnchorSource Source) Select(
+            InGameUnlockAnchorPolicy policy,
+            DateTime? providerReportedUtc,
+            DateTime observedUtc)
+        {
+            var useObservation = policy == InGameUnlockAnchorPolicy.SourceObservation ||
+                !providerReportedUtc.HasValue;
+            return (
+                useObservation ? observedUtc : providerReportedUtc,
+                useObservation
+                    ? UnlockVideoAnchorSource.SourceObservation
+                    : UnlockVideoAnchorSource.ProviderReported);
+        }
+    }
+
     /// <summary>
     /// Optional provider capability for reading only live user progress. Implementations must
     /// reuse the supplied cached schema and must not perform definition, icon, rarity, or other
@@ -39,6 +70,9 @@ namespace PlayniteAchievements.Providers
         public TimeSpan PollInterval { get; set; } = TimeSpan.FromSeconds(60);
 
         public bool IsRemote { get; set; }
+
+        public InGameUnlockAnchorPolicy UnlockAnchorPolicy { get; set; } =
+            InGameUnlockAnchorPolicy.ProviderReported;
 
         /// <summary>
         /// Opaque provider-owned state resolved once at game start (for example a title id or

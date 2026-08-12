@@ -1,0 +1,112 @@
+<UserControl x:Class="PlayniteAchievements.Views.Controls.MediaTransportBar"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+             xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+             mc:Ignorable="d"
+             d:DesignWidth="480">
+
+    <UserControl.Resources>
+        <!-- Self-contained white-on-translucent glyph button, like the lightbox's close
+             button: the bar always sits on its own dark backdrop, so theme text brushes
+             (which can be dark) would read poorly here. -->
+        <Style x:Key="TransportGlyphButtonStyle" TargetType="Button">
+            <Setter Property="Width" Value="34"/>
+            <Setter Property="Height" Value="30"/>
+            <Setter Property="FontFamily" Value="Segoe MDL2 Assets"/>
+            <Setter Property="FontSize" Value="13"/>
+            <Setter Property="Foreground" Value="White"/>
+            <Setter Property="Cursor" Value="Hand"/>
+            <Setter Property="Focusable" Value="False"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Border x:Name="Bd" CornerRadius="4" Background="Transparent">
+                            <TextBlock Text="{TemplateBinding Content}"
+                                       FontFamily="{TemplateBinding FontFamily}"
+                                       FontSize="{TemplateBinding FontSize}"
+                                       Foreground="{TemplateBinding Foreground}"
+                                       HorizontalAlignment="Center"
+                                       VerticalAlignment="Center"/>
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="Bd" Property="Background" Value="#40FFFFFF"/>
+                            </Trigger>
+                            <Trigger Property="IsEnabled" Value="False">
+                                <Setter Property="Opacity" Value="0.4"/>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+    </UserControl.Resources>
+
+    <Border Background="#B0000000"
+            CornerRadius="6"
+            Padding="6,3">
+        <Grid>
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="Auto"/>
+                <ColumnDefinition Width="Auto"/>
+                <ColumnDefinition Width="*"/>
+                <ColumnDefinition Width="Auto"/>
+                <ColumnDefinition Width="Auto"/>
+                <ColumnDefinition Width="Auto"/>
+            </Grid.ColumnDefinitions>
+
+            <Button x:Name="PlayPauseButton"
+                    Grid.Column="0"
+                    Content="&#xE768;"
+                    Style="{StaticResource TransportGlyphButtonStyle}"
+                    Click="PlayPauseButton_Click"/>
+            <Button x:Name="StopButton"
+                    Grid.Column="1"
+                    Content="&#xE71A;"
+                    Style="{StaticResource TransportGlyphButtonStyle}"
+                    Click="StopButton_Click"/>
+
+            <!-- Seeking runs entirely off ValueChanged, so it covers every way the value can
+                 move: the thumb, a press on the track (owned by SliderTrackDragBehavior,
+                 hence IsMoveToPointEnabled="False"), and keyboard seeks. The drag events
+                 only park the position timer while the user holds the thumb. -->
+            <Slider x:Name="PositionSlider"
+                    Grid.Column="2"
+                    Margin="10,0"
+                    VerticalAlignment="Center"
+                    Minimum="0"
+                    Maximum="1"
+                    Focusable="False"
+                    IsMoveToPointEnabled="False"
+                    ValueChanged="PositionSlider_ValueChanged"
+                    Thumb.DragStarted="PositionSlider_DragStarted"
+                    Thumb.DragCompleted="PositionSlider_DragCompleted"/>
+
+            <TextBlock x:Name="TimeText"
+                       Grid.Column="3"
+                       VerticalAlignment="Center"
+                       Margin="4,0,8,0"
+                       Foreground="White"/>
+
+            <Button x:Name="MuteButton"
+                    Grid.Column="4"
+                    Content="&#xE767;"
+                    Style="{StaticResource TransportGlyphButtonStyle}"
+                    Click="MuteButton_Click"/>
+
+            <Slider x:Name="VolumeSlider"
+                    Grid.Column="5"
+                    Width="70"
+                    Margin="2,0,4,0"
+                    VerticalAlignment="Center"
+                    Minimum="0"
+                    Maximum="1"
+                    SmallChange="0.05"
+                    LargeChange="0.1"
+                    Focusable="False"
+                    IsMoveToPointEnabled="False"
+                    ValueChanged="VolumeSlider_ValueChanged"/>
+        </Grid>
+    </Border>
+</UserControl>

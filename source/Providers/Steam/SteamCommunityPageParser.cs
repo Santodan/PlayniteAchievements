@@ -401,6 +401,26 @@ namespace PlayniteAchievements.Providers.Steam
             }
         }
 
+        // Reads the full-size avatar URL from a profile ?xml=1 payload (<avatarFull> element).
+        // Returns null on any failure.
+        public static string TryExtractProfileAvatarUrl(string html)
+        {
+            var payload = TryExtractXmlPayload(html, "avatarFull");
+            if (string.IsNullOrWhiteSpace(payload))
+            {
+                return null;
+            }
+
+            try
+            {
+                return NormalizeText(XDocument.Parse(payload).Root?.Value);
+            }
+            catch
+            {
+                return null;
+            }
+        }
+
         private static List<SteamOwnedGame> TryParseOwnedGamesXml(string html)
         {
             var gamesListXml = TryExtractXmlPayload(html, "gamesList");

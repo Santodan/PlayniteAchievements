@@ -10,9 +10,11 @@ using System.Windows.Media;
 using System.Windows.Media.Animation;
 using System.Windows.Threading;
 using Playnite.SDK;
+using PlayniteAchievements.Common;
 using PlayniteAchievements.Models;
 using PlayniteAchievements.Models.Achievements;
 using PlayniteAchievements.Models.Settings;
+using PlayniteAchievements.Services.Capture;
 using PlayniteAchievements.Services.GameCustomData;
 using PlayniteAchievements.ViewModels;
 using PlayniteAchievements.Views.Helpers;
@@ -146,7 +148,7 @@ namespace PlayniteAchievements.Services.UI
 
             try
             {
-                WaveDisplayed?.Invoke(this, new ToastWaveDisplayedEventArgs(wave, DateTime.UtcNow, soundPlayedUtc));
+                WaveDisplayed?.Invoke(this, new ToastWaveDisplayedEventArgs(wave, CaptureTimelineClock.UtcNow, soundPlayedUtc));
             }
             catch (Exception ex)
             {
@@ -425,25 +427,32 @@ namespace PlayniteAchievements.Services.UI
         /// <summary>
         /// Starts the screen capture for the current wave. The running game's window is captured
         /// when one is resolvable. Out of game a real unlock keeps the foreground-window fallback
-        /// (inside <see cref="UnlockScreenshotService.CaptureGameWindow(IntPtr, int?)"/>), but a
-        /// manual test fire captures the whole monitor the Playnite window sits on, since the
+        /// (inside <see cref="UnlockScreenshotService.CaptureGameWindow(IntPtr, int?, int)"/>), but
+        /// a manual test fire captures the whole monitor the Playnite window sits on, since the
         /// notification is placed there and there is no game screen to show. Window handles are
         /// resolved here on the UI thread; the blit runs on the pool.
+        /// <para>
+        /// The configured resolution cap is read per wave, so a settings change takes effect on the
+        /// next unlock. Capping the base capture here — rather than the saved files — is what makes
+        /// the notification card and frame chrome scale with a downscaled screenshot.
+        /// </para>
         /// </summary>
         private Task<System.Drawing.Bitmap> StartWaveSurfaceCapture(bool isTestFire)
         {
+            var capHeight = ResolutionCapMath.CapHeightFor(
+                _settings?.Persisted?.ScreenshotResolution ?? ScreenshotResolution.Native);
             var gameRunning = TryResolveWaveGame(out var waveHwnd, out var processId);
             if (!gameRunning && isTestFire)
             {
                 var appHwnd = ResolveAppWindowHandle();
-                return Task.Run(() => _screenshotService.CaptureMonitor(appHwnd));
+                return Task.Run(() => _screenshotService.CaptureMonitor(appHwnd, capHeight));
             }
 
             // All running-game shots capture the game window (WGC per-window, HDR-correct, client
             // area). The with-notification card is composited onto this same capture per item (see
             // ComposeWaveWithToastAsync) — the toast is a separate window; a monitor capture would
             // grab whatever is actually on top, not the game.
-            return Task.Run(() => _screenshotService.CaptureGameWindow(waveHwnd, processId));
+            return Task.Run(() => _screenshotService.CaptureGameWindow(waveHwnd, processId, capHeight));
         }
 
         /// <summary>
@@ -868,7 +877,7 @@ namespace PlayniteAchievements.Services.UI
         /// </summary>
         private void LogWaveHeld()
         {
-            var now = DateTime.UtcNow;
+            var now = CaptureTimelineClock.UtcNow;
             if (_holdStartedUtc == null)
             {
                 _holdStartedUtc = now;
@@ -898,7 +907,7 @@ namespace PlayniteAchievements.Services.UI
             }
 
             _logger?.Debug(
-                $"[Toast] Releasing hold after {(DateTime.UtcNow - _holdStartedUtc.Value).TotalSeconds:F1}s; displaying {waveCount} notification(s).");
+                $"[Toast] Releasing hold after {(CaptureTimelineClock.UtcNow - _holdStartedUtc.Value).TotalSeconds:F1}s; displaying {waveCount} notification(s).");
             _holdStartedUtc = null;
         }
 
@@ -978,7 +987,9 @@ namespace PlayniteAchievements.Services.UI
                    result.Count < max &&
                    items[end].IsFriendUnlock == anchor.IsFriendUnlock &&
                    items[end].PlayniteGameId == anchor.PlayniteGameId &&
-                   items[end].IsGameCompleted == anchor.IsGameCompleted)
+                   items[end].IsGameCompleted == anchor.IsGameCompleted &&
+                   ShouldToast(items[end].IsPreview, items[end].IsFriendUnlock, items[end].ProviderKey) ==
+                       ShouldToast(anchor.IsPreview, anchor.IsFriendUnlock, anchor.ProviderKey))
             {
                 result.Add(items[end]);
                 end++;
@@ -1599,13 +1610,6 @@ namespace PlayniteAchievements.Services.UI
         }
 
         /// <summary>
-        /// Fires a single UniPlaySong sound for the wave, using the rarest tier present so a burst
-        /// of unlocks does not stack overlapping sounds. UniPlaySong owns enablement and audio
-        /// selection for the "playniteachievements/&lt;tier&gt;" URI; if it is not installed the URI
-        /// is unhandled and the call is ignored. Returns the launch moment (null when no sound
-        /// fired) so the recording service can locate the chime in its sidecar audio track.
-        /// </summary>
-        /// <summary>
         /// Pulses connected controllers when enabled, called after SoundAlignmentDelayMs so the
         /// motors start with the chime rather than ahead of it. Fires for every toast wave — own
         /// unlocks, friend unlocks, and fire-tests — so the strength setting can be tuned live
@@ -1625,6 +1629,13 @@ namespace PlayniteAchievements.Services.UI
                 _logger);
         }
 
+        /// <summary>
+        /// Fires a single UniPlaySong sound for the wave, using the highest-ranked tier present so
+        /// a burst of unlocks does not stack overlapping sounds. UniPlaySong owns enablement and
+        /// audio selection for the "playniteachievements/&lt;tier&gt;" URI; if it is not installed
+        /// the URI is unhandled and the call is ignored. Returns the launch moment (null when no
+        /// sound fired) so the recording service can locate the chime in its sidecar audio track.
+        /// </summary>
         private DateTime? PlayWaveSound(IReadOnlyList<AchievementToastViewModel> wave)
         {
             var tier = wave?
@@ -1639,7 +1650,7 @@ namespace PlayniteAchievements.Services.UI
             try
             {
                 Process.Start($"playnite://uniplaysong/playniteachievements/{tier}");
-                return DateTime.UtcNow;
+                return CaptureTimelineClock.UtcNow;
             }
             catch (Exception ex)
             {
@@ -1794,6 +1805,16 @@ namespace PlayniteAchievements.Services.UI
                                 continue;
                             }
 
+                            // The frame renders synchronously into a bitmap, so the ray burst inside it
+                            // can only read a track that is already cached. Warm it here, at the one
+                            // seam in this path that can await, and cap the wait so a slow fetch costs
+                            // the burst its silhouette rather than costing the capture its frame.
+                            await WarmRayTrackAsync(item.Vm.IconPath);
+                            if (_disposed)
+                            {
+                                break;
+                            }
+
                             var framed = _frameCompositor.ComposeFramed(cleanSource, frameTemplate, item.Vm);
                             if (framed != null)
                             {
@@ -1842,8 +1863,8 @@ namespace PlayniteAchievements.Services.UI
                             }
                         }
 
-                        // Drop cached capture scans for the games in this wave so an already-open
-                        // grid lights up its Captures button on its next rebuild.
+                        // Drop cached capture scans for the games in this wave. This also raises
+                        // CapturesChanged, so an already-open grid lights up its Captures button.
                         foreach (var gameName in items
                             .Select(i => i.Vm?.GameName)
                             .Where(n => !string.IsNullOrWhiteSpace(n))
@@ -1851,6 +1872,10 @@ namespace PlayniteAchievements.Services.UI
                         {
                             PlayniteAchievementsPlugin.Instance?.CaptureLibraryService?.Invalidate(gameName);
                         }
+                    }
+                    catch (Exception ex)
+                    {
+                        _logger?.Debug(ex, "Saving unlock screenshot files failed.");
                     }
                     finally
                     {
@@ -1892,9 +1917,18 @@ namespace PlayniteAchievements.Services.UI
         /// </summary>
         private static void DisposeCaptureTask(Task<System.Drawing.Bitmap> captureTask)
         {
-            captureTask?.ContinueWith(
-                t => t.Result?.Dispose(),
-                TaskContinuationOptions.OnlyOnRanToCompletion);
+            captureTask?.ContinueWith(t =>
+            {
+                if (t.Status == TaskStatus.RanToCompletion)
+                {
+                    t.Result?.Dispose();
+                }
+                else
+                {
+                    // Observe capture faults even when a queued wave is cleared before awaiting it.
+                    _ = t.Exception;
+                }
+            }, TaskContinuationOptions.ExecuteSynchronously);
         }
 
         /// <summary>
@@ -2531,6 +2565,36 @@ namespace PlayniteAchievements.Services.UI
         {
             ToastWindowPlacer.MovePhysical(
                 window, x + _placementCorrection.OffsetX, y + _placementCorrection.OffsetY);
+        }
+
+        private const int RayTrackWarmupTimeoutMs = 250;
+
+        /// <summary>
+        /// Puts an icon's ray track in the cache so a synchronous offscreen render can find it. Never
+        /// blocks the capture: past the timeout the burst simply falls back to a rounded rectangle.
+        /// </summary>
+        private static async Task WarmRayTrackAsync(string iconPath)
+        {
+            if (string.IsNullOrWhiteSpace(iconPath))
+            {
+                return;
+            }
+
+            try
+            {
+                var service = PlayniteAchievementsPlugin.Instance?.RayTrackService;
+                if (service == null || service.TryGet(iconPath, out _))
+                {
+                    return;
+                }
+
+                await Task.WhenAny(
+                    service.GetAsync(iconPath, System.Threading.CancellationToken.None),
+                    Task.Delay(RayTrackWarmupTimeoutMs));
+            }
+            catch
+            {
+            }
         }
 
         private void StopActiveSlide()

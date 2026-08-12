@@ -33,6 +33,25 @@ namespace PlayniteAchievements.Providers.Steam
             }
         }
 
+        /// <summary>
+        /// The user's stats for a game could not be read: an expired Steam session, a private or
+        /// missing profile, or a stats page that yielded no usable rows. Non-transient, so it fails
+        /// the game fast instead of retrying, and the refresh writes nothing rather than recording
+        /// every achievement as locked.
+        /// </summary>
+        private sealed class SteamStatsUnavailableException : Exception
+        {
+            public SteamStatsUnavailableException(string message)
+                : base(message)
+            {
+            }
+
+            public SteamStatsUnavailableException(string message, Exception innerException)
+                : base(message, innerException)
+            {
+            }
+        }
+
         private readonly PlayniteAchievementsSettings _settings;
         private readonly SteamHttpClient _steamClient;
         private readonly SteamApiClient _steamApiClient;
@@ -207,7 +226,9 @@ namespace PlayniteAchievements.Providers.Steam
         private static bool IsTransientError(Exception ex)
         {
             return TransientErrorClassifier.IsTransient(ex, e =>
-                e is SteamTransientException ? true : (bool?)null);
+                e is SteamStatsUnavailableException
+                    ? false
+                    : (e is SteamTransientException ? true : (bool?)null));
         }
 
         private void ShowDatetimeParseFailureToastIfNeeded()
@@ -302,6 +323,13 @@ namespace PlayniteAchievements.Providers.Steam
                         Achievements = new List<AchievementDetail>()
                     };
                 }
+
+                // The schema call returns null both for "no achievements" and for any failure
+                // (non-success status, network error, malformed body). Only the availability check
+                // above distinguishes them, and it reports null when it could not tell either. An
+                // indeterminate result must not be written as an achievement-less game.
+                throw new SteamTransientException(
+                    $"[SteamAch] Schema unavailable for appId={appId}; achievement availability is indeterminate.");
             }
 
             var unlocked = await FetchUnlockedAsync(appId, game?.Name, steamUserId, accessToken, schema, cancel).ConfigureAwait(false);
@@ -553,8 +581,8 @@ namespace PlayniteAchievements.Providers.Steam
                     throw new SteamTransientException($"[SteamAch] Transient scrape exception for appId={appId}.", ex);
                 }
 
-                _logger?.Debug(ex, $"[SteamAch] User achievements scrape failed (non-transient, appId={appId}).");
-                return new UserUnlockedAchievements();
+                throw new SteamStatsUnavailableException(
+                    $"[SteamAch] User achievements scrape failed (non-transient, appId={appId}).", ex);
             }
 
             if (scraped == null || scraped.TransientFailure)
@@ -562,6 +590,17 @@ namespace PlayniteAchievements.Providers.Steam
                 var detail = scraped?.DetailCode.ToString() ?? "Unknown";
                 var status = scraped?.StatusCode ?? 0;
                 throw new SteamTransientException($"[SteamAch] Transient scrape result for appId={appId}. detail={detail}, status={status}");
+            }
+
+            // A scrape that produced no usable rows without being transient means the stats could not
+            // be read: an expired session, a private or missing profile, a redirect off the stats
+            // page, or hidden-only rows. Reporting it as zero unlocks would relock every achievement,
+            // so fail the game instead. NoAchievements is the one confirmed-empty case (the API
+            // reported the game has none) and legitimately yields an empty set.
+            if (!scraped.SuccessWithRows && scraped.DetailCode != SteamScrapeDetail.NoAchievements)
+            {
+                throw new SteamStatsUnavailableException(
+                    $"[SteamAch] Stats unavailable for appId={appId}. detail={scraped.DetailCode}, status={scraped.StatusCode}");
             }
 
             var data = new UserUnlockedAchievements

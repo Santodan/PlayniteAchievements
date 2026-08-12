@@ -1,5 +1,6 @@
 using System;
 using System.IO;
+using PlayniteAchievements.Models.Settings;
 using SharpDX.MediaFoundation;
 using D3D11 = SharpDX.Direct3D11;
 
@@ -43,8 +44,12 @@ namespace PlayniteAchievements.Services.Capture
 
             string temp = null;
             D3D11.Device device = null;
+            var started = false;
             try
             {
+                // The encoder no longer starts Media Foundation itself, so the probe must.
+                MediaManager.Startup();
+                started = true;
                 temp = Path.Combine(Path.GetTempPath(), $"pa_mfprobe_{Guid.NewGuid():N}.mp4");
                 device = new D3D11.Device(
                     SharpDX.Direct3D.DriverType.Hardware,
@@ -73,27 +78,39 @@ namespace PlayniteAchievements.Services.Capture
                 {
                     // ignore probe cleanup failure
                 }
+
+                if (started)
+                {
+                    try
+                    {
+                        MediaManager.Shutdown();
+                    }
+                    catch
+                    {
+                        // Refcounted per process; ignore an unbalanced shutdown.
+                    }
+                }
             }
 
             return _available.Value;
         }
 
-        /// <summary>
-        /// Target H.264 bitrate from resolution and fps (~0.12 bits/pixel/frame): ~15 Mbps at
-        /// 1080p60, ~27 at 1440p60, ~60 at 4K60. Clamped to a sane range. Shared by the live
-        /// segment encoder and the export-time overlay re-encoder so clip quality matches.
-        /// </summary>
-        internal static int ComputeBitrate(int width, int height, int fps)
+        /// <summary>Target H.264 bitrate — see <see cref="BitrateMath"/>.</summary>
+        internal static int ComputeBitrate(int width, int height, int fps, RecordingQuality quality)
         {
-            var bits = (long)(width * (double)height * fps * 0.12);
-            return (int)Math.Max(8_000_000L, Math.Min(120_000_000L, bits));
+            return BitrateMath.Compute(width, height, fps, quality);
         }
 
+        /// <remarks>
+        /// Media Foundation's lifetime belongs to the caller: <c>MediaManager.Startup</c> and
+        /// <c>Shutdown</c> are refcounted per process, so an encoder that started and shut them down per
+        /// instance let one segment's teardown drop the count to zero while the next segment was still
+        /// setting up — after which the new writer never drained and the first WriteSample blocked
+        /// forever. Whoever owns a run of encoders owns one Startup around all of them.
+        /// </remarks>
         public MediaFoundationH264Encoder(
             D3D11.Device device, string outputPath, int width, int height, int fps, int bitrate)
         {
-            MediaManager.Startup();
-
             // Bind MF to the same D3D11 device the frames come from, so the hardware encoder reads
             // the textures in place.
             _deviceManager = new DXGIDeviceManager();
@@ -191,14 +208,6 @@ namespace PlayniteAchievements.Services.Capture
 
             _writer?.Dispose();
             _deviceManager?.Dispose();
-            try
-            {
-                MediaManager.Shutdown();
-            }
-            catch
-            {
-                // Startup/Shutdown are refcounted per process; ignore an unbalanced shutdown at teardown.
-            }
         }
     }
 }

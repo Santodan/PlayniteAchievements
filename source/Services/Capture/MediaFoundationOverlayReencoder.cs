@@ -1,23 +1,32 @@
 using System;
+using System.Diagnostics;
 using System.Runtime.ExceptionServices;
 using System.Runtime.InteropServices;
 using System.Threading;
 using Playnite.SDK;
+using PlayniteAchievements.Models.Settings;
 using SharpDX.MediaFoundation;
 
 namespace PlayniteAchievements.Services.Capture
 {
     /// <summary>
     /// Re-encodes an already-exported unlock clip with one achievement's toast overlay track
-    /// composited in: the base clip's video decodes to RGB32 through a SourceReader (advanced
+    /// composited in: the base clip's video decodes to BGRA through a SourceReader (advanced
     /// video processing inserts the H.264 decoder and color converter), frames inside the toast
-    /// interval get the track's card blended in on the CPU at its recorded client-relative
-    /// position (translated to the synthetic single-toast corner), and everything re-encodes
-    /// through a SinkWriter H.264 stream (hardware MFT where present). Audio passes through as
-    /// native AAC, stream-copied. Samples before <c>trimLeadSeconds</c> (the base clip's keyframe
-    /// lead) are dropped and the rest re-stamped, so the output starts exactly at the clip
-    /// window. Any failure returns false — the caller keeps the toastless base clip, so a
-    /// re-encode failure can never lose a clip.
+    /// interval get the track's card blended in at its recorded client-relative position
+    /// (translated to the synthetic single-toast corner), and everything re-encodes through a
+    /// SinkWriter H.264 stream (hardware MFT where present). Audio passes through as native AAC,
+    /// stream-copied. Samples before <c>trimLeadSeconds</c> (the base clip's keyframe lead) are
+    /// dropped and the rest re-stamped, so the output starts exactly at the clip window. Any
+    /// failure returns false — the caller keeps the toastless base clip, so a re-encode failure
+    /// can never lose a clip.
+    /// <para>
+    /// The card is blended in system memory by <see cref="OverlayCompositor"/>. A GPU-resident version
+    /// of this pass was roughly twenty times faster per composited frame but produced frames carrying a
+    /// picture from seconds earlier, and the cause was never found; since only the carded frames are
+    /// composited and the pass is dominated by decode and encode either way, it cost about 95 ms on a
+    /// 15 s clip to do this correctly instead.
+    /// </para>
     /// </summary>
     internal sealed class MediaFoundationOverlayReencoder
     {
@@ -53,15 +62,16 @@ namespace PlayniteAchievements.Services.Capture
         /// </summary>
         /// <param name="configuredFps">
         /// The frame rate the base clip was captured at, used only when its media type does not declare
-        /// one. Output cadence comes from the samples' own timestamps either way; this sets the declared
-        /// rate, the bitrate and the keyframe spacing.
+        /// one. This sets the declared rate, the bitrate and the keyframe spacing — and the declared rate
+        /// is what the output cadence actually follows, because the encoder rewrites per-sample durations
+        /// onto the grid it implies. Capture paces itself to the same rate so that grid is truthful.
         /// </param>
         [HandleProcessCorruptedStateExceptions, System.Security.SecurityCritical]
         public bool Export(
             string baseClipPath, ToastOverlayTrack track,
             double toastStartSeconds, double toastMaxSeconds, double trimLeadSeconds,
             double endSeconds, byte[] chimePcm, double chimeStartSeconds, string outputPath,
-            int configuredFps)
+            int configuredFps, RecordingQuality quality)
         {
             if (string.IsNullOrEmpty(baseClipPath) || track == null ||
                 track.Samples.Count == 0 || string.IsNullOrEmpty(outputPath))
@@ -83,11 +93,11 @@ namespace PlayniteAchievements.Services.Capture
                         videoReader.SetStreamSelection((int)SourceReaderIndex.FirstVideoStream, true);
 
                         int frameW, frameH, fps;
-                        using (var rgbRequest = new MediaType())
+                        using (var request = new MediaType())
                         {
-                            rgbRequest.Set(MediaTypeAttributeKeys.MajorType, MediaTypeGuids.Video);
-                            rgbRequest.Set(MediaTypeAttributeKeys.Subtype, VideoFormatGuids.Rgb32);
-                            videoReader.SetCurrentMediaType((int)SourceReaderIndex.FirstVideoStream, rgbRequest);
+                            request.Set(MediaTypeAttributeKeys.MajorType, MediaTypeGuids.Video);
+                            request.Set(MediaTypeAttributeKeys.Subtype, VideoFormatGuids.Rgb32);
+                            videoReader.SetCurrentMediaType((int)SourceReaderIndex.FirstVideoStream, request);
                         }
 
                         int stride;
@@ -121,18 +131,22 @@ namespace PlayniteAchievements.Services.Capture
                                     sink = MediaFactory.CreateSinkWriterFromURL(outputPath, null, sinkAttributes);
                                 }
 
-                                var videoStream = AddVideoStream(sink, decodedType, frameW, frameH, fps);
+                                var videoStream = AddVideoStream(sink, decodedType, frameW, frameH, fps, quality);
                                 var audioStream = TryAddAudio(
                                     sink, baseClipPath, decodeToPcm: chimePcm != null, out var audioReader);
+                                var compositor = new OverlayCompositor(frameW, frameH, stride);
                                 using (audioReader)
                                 {
                                     sink.BeginWriting();
-                                    WriteComposited(
+                                    var timer = Stopwatch.StartNew();
+                                    var counts = WriteComposited(
                                         sink, videoStream, videoReader, audioStream, audioReader,
                                         track, toastStartSeconds, toastMaxSeconds, trimLeadSeconds,
                                         endSeconds, audioStream >= 0 ? chimePcm : null, chimeStartSeconds,
-                                        frameW, frameH, stride);
+                                        frameW, frameH, OneSecond100ns / Math.Max(1, fps),
+                                        compositor);
                                     sink.Finalize();
+                                    LogPassCost(timer, counts, frameW, frameH);
                                 }
 
                                 return true;
@@ -163,15 +177,17 @@ namespace PlayniteAchievements.Services.Capture
             }
         }
 
-        private static int AddVideoStream(SinkWriter sink, MediaType decodedType, int frameW, int frameH, int fps)
+        private static int AddVideoStream(SinkWriter sink, MediaType decodedType, int frameW, int frameH, int fps, RecordingQuality quality)
         {
             using (var outputType = new MediaType())
             {
                 outputType.Set(MediaTypeAttributeKeys.MajorType, MediaTypeGuids.Video);
                 outputType.Set(MediaTypeAttributeKeys.Subtype, VideoFormatGuids.H264);
+                // Above the capture bitrate on purpose — this is a second generation of the same
+                // footage; see BitrateMath.ComputeReencode.
                 outputType.Set(
                     MediaTypeAttributeKeys.AvgBitrate,
-                    MediaFoundationH264Encoder.ComputeBitrate(frameW, frameH, fps));
+                    BitrateMath.ComputeReencode(frameW, frameH, fps, quality));
                 outputType.Set(MediaTypeAttributeKeys.MaxKeyframeSpacing, fps);
                 outputType.Set(MediaTypeAttributeKeys.InterlaceMode, (int)VideoInterlaceMode.Progressive);
                 outputType.Set(MediaTypeAttributeKeys.FrameSize, Pack(frameW, frameH));
@@ -186,6 +202,9 @@ namespace PlayniteAchievements.Services.Capture
                 return streamIndex;
             }
         }
+
+        // MF_E_INVALIDSTREAMNUMBER: what selecting the first audio stream returns on a video-only clip.
+        private const uint MfInvalidStreamNumber = 0xC00D36B3;
 
         /// <summary>
         /// Adds an audio stream when the base clip has one; returns -1 (and a null reader) for
@@ -238,6 +257,14 @@ namespace PlayniteAchievements.Services.Capture
                     throw;
                 }
             }
+            catch (SharpDX.SharpDXException ex) when ((uint)ex.HResult == MfInvalidStreamNumber)
+            {
+                // Expected whenever the session recorded no audio (loopback capture disabled or
+                // unavailable): the base clip is video-only, so there is no first audio stream to
+                // select. Not a failure, and not worth a stack trace once a clip per unlock.
+                _logger?.Debug("[Recording] Base clip has no audio stream; re-encoding video only.");
+                return -1;
+            }
             catch (Exception ex)
             {
                 _logger?.Debug(ex, "[Recording] Base clip has no usable audio stream; re-encoding video only.");
@@ -249,13 +276,14 @@ namespace PlayniteAchievements.Services.Capture
         /// Decodes, composites, re-stamps, and writes both streams interleaved by output time
         /// (a multi-stream SinkWriter blocks a stream that runs too far ahead of the other).
         /// </summary>
-        private void WriteComposited(
+        private CompositeCounts WriteComposited(
             SinkWriter sink, int videoStream, SourceReader videoReader,
             int audioStream, SourceReader audioReader,
             ToastOverlayTrack track,
             double toastStartSeconds, double toastMaxSeconds, double trimLeadSeconds,
             double endSeconds, byte[] chimePcm, double chimeStartSeconds,
-            int frameW, int frameH, int stride)
+            int frameW, int frameH, long nominalDuration,
+            OverlayCompositor compositor)
         {
             var trimLead = ToTicks(trimLeadSeconds);
             var toastStart = ToTicks(toastStartSeconds);
@@ -266,13 +294,13 @@ namespace PlayniteAchievements.Services.Capture
             // which the mix offsets handle by skipping the chime's head.
             var chimeStartOut = ToTicks(chimeStartSeconds) - trimLead;
 
-            var absStride = Math.Abs(stride);
-            var bottomUp = stride < 0;
-            var frameBuffer = new byte[absStride * frameH];
             byte[] inflated = null;
             var inflatedIndex = -1;
 
             var pendingAudio = audioStream >= 0 ? ReadNextAudio(audioReader, trimLead) : null;
+
+            var counts = default(CompositeCounts);
+
             while (true)
             {
                 var sample = videoReader.ReadSample(
@@ -285,6 +313,8 @@ namespace PlayniteAchievements.Services.Capture
                 }
 
                 var time = sample.SampleTime;
+                // Read before the sample is handed on or nulled below.
+                var sourceDuration = sample.SampleDuration;
                 if (time < trimLead)
                 {
                     sample.Dispose();
@@ -318,32 +348,41 @@ namespace PlayniteAchievements.Services.Capture
                                 trackSample.RelX + track.OffsetX, trackSample.RelY + track.OffsetY,
                                 overlayFrame.Width, overlayFrame.Height,
                                 trackSample.ClientW, trackSample.ClientH, frameW, frameH);
-                            outSample = ComposeSample(
-                                sample, frameBuffer, absStride, bottomUp, frameW, frameH,
-                                inflated, overlayFrame.Width, overlayFrame.Height, destRect);
+                            outSample = compositor.Compose(
+                                sample, inflated, overlayFrame.Width, overlayFrame.Height, destRect);
+                            if (outSample != null)
+                            {
+                                counts.Composited++;
+                            }
                         }
                     }
 
                     if (outSample == null)
                     {
-                        // Outside the toast interval (or no overlay): re-stamp and pass through.
-                        sample.SampleTime = time - trimLead;
+                        // Outside the toast interval (or no overlay): pass the frame through.
                         outSample = sample;
                         sample = null;
+                        counts.PassedThrough++;
                     }
-                    else
-                    {
-                        outSample.SampleTime = time - trimLead;
-                    }
-
-                    sink.WriteSample(videoStream, outSample);
                 }
                 finally
                 {
                     sample?.Dispose();
-                    outSample?.Dispose();
                 }
 
+                // Write straight away, with the duration the base clip already carries. Holding a
+                // frame back to measure the gap to the next one would keep the reader's decoded
+                // surface alive past the read that may recycle it, which shows up as the wrong
+                // picture on some frames.
+                var outTime = time - trimLead;
+                var duration = sourceDuration > 0 ? sourceDuration : nominalDuration;
+                var remaining = endLimit - outTime;
+                if (remaining > 0 && duration > remaining)
+                {
+                    duration = remaining;
+                }
+
+                WriteVideoAndDispose(sink, videoStream, outSample, outTime, duration);
                 WaitForEncoderQueue(sink, videoStream);
             }
 
@@ -355,6 +394,47 @@ namespace PlayniteAchievements.Services.Capture
             }
 
             pendingAudio?.Dispose();
+            return counts;
+        }
+
+        /// <summary>What one pass wrote, for the cost line below.</summary>
+        private struct CompositeCounts
+        {
+            public int Composited;
+            public int PassedThrough;
+        }
+
+        /// <summary>
+        /// Reports what the pass cost. Every frame of the clip is decoded and re-encoded here, not just
+        /// the ones the toast covers, so this is the bulk of the time between an unlock and its clip
+        /// appearing — worth being able to see per clip rather than inferring it.
+        /// </summary>
+        private void LogPassCost(Stopwatch timer, CompositeCounts counts, int frameW, int frameH)
+        {
+            var carded = counts.Composited;
+            var frames = carded + counts.PassedThrough;
+            var seconds = Math.Max(0.001, timer.Elapsed.TotalSeconds);
+            _logger?.Debug(
+                $"[Recording] Toast composite: {frames} frames ({carded} with the card) at " +
+                $"{frameW}x{frameH} in {timer.ElapsedMilliseconds}ms ({frames / seconds:0.0} fps).");
+        }
+
+        /// <summary>
+        /// Stamps a frame onto the output timeline and writes it. Durations are floored at one tick.
+        /// </summary>
+        private static void WriteVideoAndDispose(
+            SinkWriter sink, int streamIndex, Sample sample, long time, long duration)
+        {
+            try
+            {
+                sample.SampleTime = time;
+                sample.SampleDuration = Math.Max(1, duration);
+                sink.WriteSample(streamIndex, sample);
+            }
+            finally
+            {
+                sample.Dispose();
+            }
         }
 
         /// <summary>
@@ -458,68 +538,6 @@ namespace PlayniteAchievements.Services.Capture
         }
 
         /// <summary>
-        /// Blends the overlay into a copy of the decoded frame and wraps it in a fresh sample —
-        /// ConvertToContiguousBuffer may hand back a detached copy, so mutating in place is not
-        /// reliable. Timestamps are copied by the caller.
-        /// </summary>
-        private static Sample ComposeSample(
-            Sample source, byte[] frameBuffer, int absStride, bool bottomUp, int frameW, int frameH,
-            byte[] overlay, int overlayW, int overlayH, System.Drawing.Rectangle destRect)
-        {
-            using (var buffer = source.ConvertToContiguousBuffer())
-            {
-                var ptr = buffer.Lock(out _, out var currentLength);
-                try
-                {
-                    var length = Math.Min(currentLength, frameBuffer.Length);
-                    Marshal.Copy(ptr, frameBuffer, 0, length);
-                }
-                finally
-                {
-                    buffer.Unlock();
-                }
-            }
-
-            // A negative stride means bottom-up rows: normalize to top-down, blit, restore.
-            if (bottomUp)
-            {
-                FlipRows(frameBuffer, absStride, frameH);
-            }
-
-            OverlayBlitMath.BlendOnto(frameBuffer, frameW, frameH, absStride, overlay, overlayW, overlayH, destRect);
-
-            if (bottomUp)
-            {
-                FlipRows(frameBuffer, absStride, frameH);
-            }
-
-            var outBuffer = MediaFactory.CreateMemoryBuffer(frameBuffer.Length);
-            try
-            {
-                var outPtr = outBuffer.Lock(out _, out _);
-                try
-                {
-                    Marshal.Copy(frameBuffer, 0, outPtr, frameBuffer.Length);
-                }
-                finally
-                {
-                    outBuffer.Unlock();
-                }
-
-                outBuffer.CurrentLength = frameBuffer.Length;
-
-                var outSample = MediaFactory.CreateSample();
-                outSample.AddBuffer(outBuffer);
-                outSample.SampleDuration = Math.Max(0, source.SampleDuration);
-                return outSample;
-            }
-            finally
-            {
-                outBuffer.Dispose();
-            }
-        }
-
-        /// <summary>
         /// The track frame for a sample, reconstructed lazily and cached (tracks are sampled per
         /// recording frame, but consecutive samples share a frame whenever the card's pixels did not
         /// change, and frames are stored as XOR deltas against their predecessor). Samples are walked
@@ -602,17 +620,6 @@ namespace PlayniteAchievements.Services.Capture
             }
         }
 
-        private static void FlipRows(byte[] buffer, int stride, int height)
-        {
-            var temp = new byte[stride];
-            for (int top = 0, bottom = height - 1; top < bottom; top++, bottom--)
-            {
-                Buffer.BlockCopy(buffer, top * stride, temp, 0, stride);
-                Buffer.BlockCopy(buffer, bottom * stride, buffer, top * stride, stride);
-                Buffer.BlockCopy(temp, 0, buffer, bottom * stride, stride);
-            }
-        }
-
         // Falls back to the rate the clip was captured at rather than a fixed guess: a 30 fps capture
         // declared as 60 misprices both the bitrate and the keyframe spacing.
         private static int ReadFps(MediaType type, int configuredFps)
@@ -658,3 +665,5 @@ namespace PlayniteAchievements.Services.Capture
         }
     }
 }
+
+

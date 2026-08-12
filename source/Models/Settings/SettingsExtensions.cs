@@ -108,6 +108,7 @@ namespace PlayniteAchievements.Models.Settings
             target.EnableControllerVibration = source.EnableControllerVibration;
             target.ControllerVibrationStrengthPercent = source.ControllerVibrationStrengthPercent;
             target.ControllerVibrationDurationMs = source.ControllerVibrationDurationMs;
+            target.UseHiddenUnlockSound = source.UseHiddenUnlockSound;
             target.EnableUnlockScreenshots = source.EnableUnlockScreenshots;
             target.UnlockScreenshotClean = source.UnlockScreenshotClean;
             target.UnlockScreenshotWithToast = source.UnlockScreenshotWithToast;
@@ -116,6 +117,7 @@ namespace PlayniteAchievements.Models.Settings
             target.UnlockScreenshotSuffixWithToast = source.UnlockScreenshotSuffixWithToast;
             target.UnlockScreenshotSuffixFramed = source.UnlockScreenshotSuffixFramed;
             target.UnlockScreenshotDirectory = source.UnlockScreenshotDirectory;
+            target.ScreenshotResolution = source.ScreenshotResolution;
             target.UnlockScreenshotCleanRarities = source.UnlockScreenshotCleanRarities;
             target.UnlockScreenshotCleanAlwaysCaptureCompletion = source.UnlockScreenshotCleanAlwaysCaptureCompletion;
             target.UnlockScreenshotWithToastRarities = source.UnlockScreenshotWithToastRarities;
@@ -127,6 +129,7 @@ namespace PlayniteAchievements.Models.Settings
             target.RecordingClipSeconds = source.RecordingClipSeconds;
             target.RecordingFps = source.RecordingFps;
             target.RecordingResolution = source.RecordingResolution;
+            target.RecordingQuality = source.RecordingQuality;
             target.RecordingIncludeAudio = source.RecordingIncludeAudio;
             target.RecordingAudioSource = source.RecordingAudioSource;
             target.RecordingIncludeMicrophone = source.RecordingIncludeMicrophone;
@@ -152,6 +155,9 @@ namespace PlayniteAchievements.Models.Settings
             target.ModernCompactListShowRarityGlow = source.ModernCompactListShowRarityGlow;
             target.ModernUnlockedListShowRarityGlow = source.ModernUnlockedListShowRarityGlow;
             target.AnimateRarityGlows = source.AnimateRarityGlows;
+            target.RarityGlowSoftTiers = source.RarityGlowSoftTiers;
+            target.RarityGlowRayTiers = source.RarityGlowRayTiers;
+            target.ShowHardcoreBorder = source.ShowHardcoreBorder;
             target.RarityGlowPulseMinOpacity = source.RarityGlowPulseMinOpacity;
             target.RarityGlowPulseMaxOpacity = source.RarityGlowPulseMaxOpacity;
             target.RarityGlowPulseSpeed = source.RarityGlowPulseSpeed;

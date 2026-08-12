@@ -18,6 +18,19 @@ namespace PlayniteAchievements.Services.Friends.Tests
         }
 
         [TestMethod]
+        public void BuildAvatarRelativePath_SharesTheAvatarFolderWithTheSignedInUser()
+        {
+            // The signed-in user's avatar reuses the friend avatar convention keyed by the same
+            // identity the cache store resolves for the current-user row, so no separate folder or
+            // naming scheme is involved.
+            var selfPath = FriendImageCachePathBuilder.BuildAvatarRelativePath("Steam", "76561198000000002");
+
+            Assert.AreEqual(
+                Path.Combine("icon_cache", "friendavatars", "Steam_76561198000000002.png"),
+                selfPath);
+        }
+
+        [TestMethod]
         public void BuildGameImageRelativePath_SanitizesProviderAndGameKeySegments()
         {
             var coverPath = FriendImageCachePathBuilder.BuildGameImageRelativePath(

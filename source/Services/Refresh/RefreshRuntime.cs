@@ -1530,25 +1530,60 @@ namespace PlayniteAchievements.Services.Refresh
 
             var key = data.PlayniteGameId.Value.ToString();
 
+            GameAchievementData previous = null;
+            try
+            {
+                previous = _cacheService.LoadGameData(key);
+            }
+            catch (Exception ex)
+            {
+                _logger?.Debug(ex, $"Failed to load cached achievement data for '{game?.Name}' before persisting a refresh.");
+            }
+
+            // The cache write is destructive: rows absent from the payload are deleted and a locked
+            // achievement overwrites an unlocked one. A payload that is empty or reports no unlocks
+            // for a game that already has some would erase them, so keep the cached data and let a
+            // later refresh supply a complete result.
+            if (AchievementWriteGuard.ShouldRejectWrite(previous, data, out var rejectionReason))
+            {
+                var incomingTotal = data.Achievements?.Count ?? 0;
+                var incomingUnlockedCount = data.Achievements?.Count(a => a != null && a.Unlocked) ?? 0;
+                _logger?.Warn(
+                    $"Rejected refreshed achievement data for '{game?.Name}' from provider '{provider?.ProviderKey ?? data.ProviderKey}': " +
+                    $"{rejectionReason}. Incoming total={incomingTotal}, unlocked={incomingUnlockedCount}, hasAchievements={data.HasAchievements}. " +
+                    "Cache left unchanged.");
+                return;
+            }
+
+            if (AchievementWriteGuard.IsPartialUnlockRegression(previous, data, out var previousUnlocked, out var incomingUnlocked))
+            {
+                _logger?.Debug(
+                    $"Refreshed achievement data for '{game?.Name}' reports fewer unlocks than the cache " +
+                    $"({previousUnlocked} -> {incomingUnlocked}).");
+            }
+
+            // Restore unlocks the payload reports as locked before anything downstream reads it: the
+            // payload is what lands in the memory cache and what the unlocked aggregate is counted
+            // from, so correcting it here keeps the memory cache, the rows, and the count in step.
+            var preservedUnlocks = AchievementWriteGuard.PreserveCachedUnlocks(previous, data);
+            if (preservedUnlocks > 0)
+            {
+                _logger?.Debug(
+                    $"Kept {preservedUnlocks} cached unlock(s) that the refreshed payload for " +
+                    $"'{game?.Name}' reported as locked.");
+            }
+
             // When a provider reports which source the achievements came from, a changed
             // key means previously cached icon files (keyed by ApiName) may hold another
             // game's art; force an overwrite so icons follow the new source.
             var forceRefreshExistingTargets = forceIconRefresh;
-            if (!forceRefreshExistingTargets && !string.IsNullOrWhiteSpace(data.ProviderGameKey))
+            if (!forceRefreshExistingTargets &&
+                !string.IsNullOrWhiteSpace(data.ProviderGameKey) &&
+                previous != null &&
+                HasProviderSourceKeyChanged(previous.ProviderGameKey, data.ProviderGameKey))
             {
-                try
-                {
-                    var previous = _cacheService.LoadGameData(key);
-                    if (previous != null && HasProviderSourceKeyChanged(previous.ProviderGameKey, data.ProviderGameKey))
-                    {
-                        forceRefreshExistingTargets = true;
-                        _logger?.Info($"Provider source for '{game?.Name}' changed from '{previous.ProviderGameKey ?? "(none)"}' to '{data.ProviderGameKey}'; overwriting cached achievement icons.");
-                    }
-                }
-                catch (Exception ex)
-                {
-                    _logger?.Debug(ex, "Failed to compare provider game key for icon staleness detection.");
-                }
+                forceRefreshExistingTargets = true;
+                _logger?.Info($"Provider source for '{game?.Name}' changed from '{previous.ProviderGameKey ?? "(none)"}' to '{data.ProviderGameKey}'; overwriting cached achievement icons.");
             }
 
             var unlockedIconOverrides = GameCustomDataLookup.GetAchievementUnlockedIconOverrides(data.PlayniteGameId.Value);

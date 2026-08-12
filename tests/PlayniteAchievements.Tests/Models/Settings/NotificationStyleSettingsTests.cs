@@ -150,6 +150,9 @@ namespace PlayniteAchievements.Tests.Models.Settings
             source.NotificationStyle.Toast.HeaderTexts.UnlockHeader = "Ding!";
             source.NotificationStyle.Toast.TitleEmphasis =
                 NotificationLineEmphasis.Bold | NotificationLineEmphasis.Underline;
+            source.NotificationStyle.Toast.RarityFontFamily = "Georgia";
+            source.NotificationStyle.Toast.RarityEmphasis =
+                NotificationLineEmphasis.Italic | NotificationLineEmphasis.Strikethrough;
             var providerStyle = NotificationStyleSettings.CreateDefault();
             providerStyle.Toast.FontFamily = "Consolas";
             source.SetProviderNotificationStyle("Steam", providerStyle);
@@ -167,6 +170,10 @@ namespace PlayniteAchievements.Tests.Models.Settings
                 Assert.AreEqual(
                     NotificationLineEmphasis.Bold | NotificationLineEmphasis.Underline,
                     copy.NotificationStyle.Toast.TitleEmphasis);
+                Assert.AreEqual("Georgia", copy.NotificationStyle.Toast.RarityFontFamily);
+                Assert.AreEqual(
+                    NotificationLineEmphasis.Italic | NotificationLineEmphasis.Strikethrough,
+                    copy.NotificationStyle.Toast.RarityEmphasis);
                 CollectionAssert.AreEqual(
                     source.NotificationStyle.Toast.LineOrder,
                     copy.NotificationStyle.Toast.LineOrder);
