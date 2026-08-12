@@ -142,7 +142,7 @@
                 <TextBlock Text="&#xf003;"
                            FontFamily="{DynamicResource PlayAch.FontFamily.Icon}"
                            FontSize="16"
-                           Foreground="{DynamicResource PlayAch.Brush.Accent}"
+                           Foreground="{DynamicResource PlayAch.Brush.Glyph}"
                            HorizontalAlignment="Center"
                            VerticalAlignment="Center">
                     <TextBlock.Style>
