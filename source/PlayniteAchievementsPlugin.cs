@@ -1473,34 +1473,22 @@ namespace PlayniteAchievements
 
         private void HandleCustomDataChanged(Guid gameId)
         {
-            using (PerfScope.Start(_logger, "CustomDataChanged.Deferred", thresholdMs: 0))
+            var persisted = _settingsViewModel?.Settings?.Persisted;
+            if (_tagSyncService != null && persisted?.TaggingSettings?.EnableTagging == true)
             {
-                var persisted = _settingsViewModel?.Settings?.Persisted;
-                if (_tagSyncService != null && persisted?.TaggingSettings?.EnableTagging == true)
-                {
-                    using (PerfScope.Start(_logger, "CustomDataChanged.TagSync", thresholdMs: 0))
-                    {
-                        QueueTagSync(gameId);
-                    }
-                }
-
-                try
-                {
-                    using (PerfScope.Start(_logger, "CustomDataChanged.ThemeNotify", thresholdMs: 0))
-                    {
-                        _themeIntegrationService?.NotifyCustomDataChanged(gameId);
-                    }
-                }
-                catch (Exception ex)
-                {
-                    _logger?.Debug(ex, $"Failed to refresh theme state after custom-data change for gameId={gameId}.");
-                }
-
-                using (PerfScope.Start(_logger, "CustomDataChanged.StartPage", thresholdMs: 0))
-                {
-                    InvalidateStartPageData();
-                }
+                QueueTagSync(gameId);
             }
+
+            try
+            {
+                _themeIntegrationService?.NotifyCustomDataChanged(gameId);
+            }
+            catch (Exception ex)
+            {
+                _logger?.Debug(ex, $"Failed to refresh theme state after custom-data change for gameId={gameId}.");
+            }
+
+            InvalidateStartPageData();
         }
 
         private void QueueTagSync(Guid gameId)

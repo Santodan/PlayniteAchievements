@@ -4,8 +4,6 @@ using System.Linq;
 using System.Windows;
 using System.Windows.Controls;
 using Playnite.SDK;
-using PlayniteAchievements.Common;
-using PlayniteAchievements.Models;
 using PlayniteAchievements.Services;
 using PlayniteAchievements.Services.Achievements;
 using PlayniteAchievements.Services.GameCustomData;
@@ -137,25 +135,16 @@ namespace PlayniteAchievements.Views.Helpers
                     return;
                 }
 
-                var logger = LogManager.GetLogger();
-                CacheWriteResult result;
-                using (PerfScope.Start(logger, "Capstone.Write", thresholdMs: 0))
-                {
-                    result = await service.SetCapstoneAsync(
-                        context.GameId,
-                        isEffectiveCapstone ? null : context.ApiName);
-                }
-
+                var result = await service.SetCapstoneAsync(
+                    context.GameId,
+                    isEffectiveCapstone ? null : context.ApiName);
                 if (!result.Success)
                 {
                     ShowError(result.ErrorMessage);
                     return;
                 }
 
-                using (PerfScope.Start(logger, "Capstone.FullReload", thresholdMs: 0))
-                {
-                    onChanged?.Invoke();
-                }
+                onChanged?.Invoke();
             };
 
             return item;
