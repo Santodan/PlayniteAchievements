@@ -1748,6 +1748,7 @@ namespace PlayniteAchievements.Views.Controls
                 return;
             }
 
+            AchievementSortHelper.ApplyGoalsFirst(items);
             _drillItems.ReplaceAll(items);
         }
 
@@ -2689,6 +2690,7 @@ namespace PlayniteAchievements.Views.Controls
                 return;
             }
 
+            AchievementSortHelper.ApplyGoalsFirst(items);
             ReplaceItemsInSource(items);
         }
 

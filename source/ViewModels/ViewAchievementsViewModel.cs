@@ -1005,6 +1005,7 @@ namespace PlayniteAchievements.ViewModels
                 _currentSortDirection = currentSortDirection.Value;
             }
 
+            AchievementSortHelper.ApplyGoalsFirst(items);
             _orderedAchievements = items;
             ApplySearchFilter();
         }
@@ -1034,6 +1035,7 @@ namespace PlayniteAchievements.ViewModels
                     stableOrder: AchievementSortHelper.CreateStableOrderMap(items));
             }
 
+            AchievementSortHelper.ApplyGoalsFirst(items);
             _orderedAchievements = items;
         }
 
