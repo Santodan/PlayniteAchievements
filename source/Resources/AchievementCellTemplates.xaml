@@ -16,28 +16,15 @@
 
     <!-- Achievement Status Template: Checkmark, padlock, or capstone badge -->
     <DataTemplate x:Key="AchievementStatusTemplate">
+        <!-- Sized natively like the image columns: the Uniform Viewbox is bounded by the cell's
+             content box, so it respects cell padding and grows with the column instead of being
+             given computed dimensions that ignore both. -->
         <Viewbox Stretch="Uniform"
+                 Margin="2"
                  VerticalAlignment="{Binding RelativeSource={RelativeSource AncestorType={x:Type DataGridCell}}, Path=Column.(helpers:DataGridAlignmentBehavior.CellVerticalAlignment)}"
                  HorizontalAlignment="{Binding RelativeSource={RelativeSource AncestorType={x:Type DataGridCell}}, Path=Column.(helpers:DataGridAlignmentBehavior.CellHorizontalAlignment)}"
-                 ClipToBounds="False"
                  UseLayoutRounding="True"
                  SnapsToDevicePixels="True">
-            <!-- Sized from the cell's content area rather than the whole cell, so the glyph is
-                 not clipped when the cell carries horizontal padding. The converter's own
-                 horizontal allowance is therefore 0; the padding already provides the inset. -->
-            <Viewbox.Width>
-                <MultiBinding Converter="{StaticResource ImageFitDimension}" ConverterParameter="platform,width,0,12,18">
-                    <Binding RelativeSource="{RelativeSource AncestorType=DataGridRow}" Path="ActualHeight"/>
-                    <Binding RelativeSource="{RelativeSource AncestorType=ContentPresenter}" Path="ActualWidth"/>
-                </MultiBinding>
-            </Viewbox.Width>
-            <Viewbox.Height>
-                <MultiBinding Converter="{StaticResource ImageFitDimension}" ConverterParameter="platform,height,0,12,18">
-                    <Binding RelativeSource="{RelativeSource AncestorType=DataGridRow}" Path="ActualHeight"/>
-                    <Binding RelativeSource="{RelativeSource AncestorType=ContentPresenter}" Path="ActualWidth"/>
-                </MultiBinding>
-            </Viewbox.Height>
-
             <Grid Width="18" Height="18">
                 <Path Data="{StaticResource GeoCheck}"
                       Stroke="{DynamicResource PlayAch.Brush.Glyph}"
