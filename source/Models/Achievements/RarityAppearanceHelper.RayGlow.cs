@@ -63,13 +63,13 @@ namespace PlayniteAchievements.Models.Achievements
         // between the rays. What has to stay inside the gap is everything bright enough to read as part
         // of a particular ray — see RayReadableAlpha.
         private static readonly double[] RayLayerWidths =
-            { 4.60, 3.70, 2.95, 2.35, 1.85, 1.42, 1.05, 0.70, 0.38 };
+            { 9.00, 7.28, 5.56, 3.84, 2.13, 0.41 };
 
         private static readonly double[] RayLayerHeights =
-            { 1.00, 0.96, 0.92, 0.86, 0.79, 0.71, 0.61, 0.50, 0.38 };
+            { 1.00, 0.82, 0.64, 0.46, 0.28, 0.10 };
 
         private static readonly byte[] RayLayerAlphas =
-            { 0x07, 0x0A, 0x0E, 0x13, 0x1A, 0x24, 0x30, 0x42, 0x58 };
+            { 0x05, 0x09, 0x18, 0x35, 0x61, 0x9F };
 
         /// <summary>
         /// Opacity at or above which a copy is taken to define the ray rather than to haze around it.
@@ -77,6 +77,7 @@ namespace PlayniteAchievements.Models.Achievements
         /// as separate; fainter ones are free to overlap.
         /// </summary>
         public const byte RayReadableAlpha = 0x1A;
+
 
         /// <summary>How far the innermost copy is lifted toward white, so the spine reads as heat
         /// rather than as more of the same color.</summary>

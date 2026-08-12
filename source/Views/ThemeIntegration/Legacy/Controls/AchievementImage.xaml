@@ -147,6 +147,62 @@
                     </Image.Style>
                 </Image>
 
+                <!-- Edge that comes with the rays: the same layer as the halo above at a blur small
+                     enough to read as a line. A blur of the artwork, so it hugs the alpha. -->
+                <Image Stretch="Uniform"
+                       RenderOptions.BitmapScalingMode="HighQuality"
+                       helpers:AsyncImage.DecodePixel="256"
+                       SnapsToDevicePixels="True"
+                       IsHitTestVisible="False"
+                       CacheMode="BitmapCache"
+                       Width="{Binding RelativeSource={RelativeSource AncestorType=UserControl}, Path=Width}"
+                       Height="{Binding RelativeSource={RelativeSource AncestorType=UserControl}, Path=Height}"
+                       HorizontalAlignment="Center" VerticalAlignment="Center">
+                    <helpers:AsyncImage.Uri>
+                        <MultiBinding Converter="{StaticResource LockedIconSelectorConverter}">
+                            <Binding RelativeSource="{RelativeSource AncestorType=UserControl}" Path="IsLocked" />
+                            <Binding RelativeSource="{RelativeSource AncestorType=UserControl}" Path="IconCustom" />
+                            <Binding RelativeSource="{RelativeSource AncestorType=UserControl}" Path="Icon" />
+                        </MultiBinding>
+                    </helpers:AsyncImage.Uri>
+                    <Image.Style>
+                        <Style TargetType="{x:Type Image}">
+                            <Setter Property="Visibility" Value="Collapsed"/>
+                            <Setter Property="Effect" Value="{x:Null}"/>
+                            <Style.Triggers>
+                                <MultiDataTrigger>
+                                    <MultiDataTrigger.Conditions>
+                                        <Condition Binding="{Binding RelativeSource={RelativeSource AncestorType=UserControl}, Path=EnableRaretyIndicator}" Value="True"/>
+                                        <Condition Binding="{Binding RelativeSource={RelativeSource AncestorType=UserControl}, Path=IsLocked}" Value="False"/>
+                                        <Condition Binding="{Binding RelativeSource={RelativeSource AncestorType=UserControl}, Path=ShowRarityGlow}" Value="True"/>
+                                    </MultiDataTrigger.Conditions>
+                                    <Setter Property="Visibility" Value="Visible"/>
+                                    <Setter Property="Effect">
+                                        <Setter.Value>
+                                            <MultiBinding Converter="{StaticResource RarityGlowForTiers}" ConverterParameter="4">
+                                                <Binding RelativeSource="{RelativeSource AncestorType=UserControl}" Path="Rarity"/>
+                                                <Binding RelativeSource="{RelativeSource AncestorType=UserControl}" Path="RayGlowTiers"/>
+                                            </MultiBinding>
+                                        </Setter.Value>
+                                    </Setter>
+                                </MultiDataTrigger>
+                                <!-- Hardcore keeps its solid border instead. -->
+                                <MultiDataTrigger>
+                                    <MultiDataTrigger.Conditions>
+                                        <Condition Binding="{Binding RelativeSource={RelativeSource AncestorType=UserControl}, Path=EnableRaretyIndicator}" Value="True"/>
+                                        <Condition Binding="{Binding RelativeSource={RelativeSource AncestorType=UserControl}, Path=IsLocked}" Value="False"/>
+                                        <Condition Binding="{Binding RelativeSource={RelativeSource AncestorType=UserControl}, Path=ShowRarityGlow}" Value="True"/>
+                                        <Condition Binding="{Binding RelativeSource={RelativeSource AncestorType=UserControl}, Path=IsHardcore}" Value="True"/>
+                                        <Condition Binding="{Binding RelativeSource={RelativeSource AncestorType=UserControl}, Path=ShowHardcoreBorder}" Value="True"/>
+                                    </MultiDataTrigger.Conditions>
+                                    <Setter Property="Visibility" Value="Collapsed"/>
+                                    <Setter Property="Effect" Value="{x:Null}"/>
+                                </MultiDataTrigger>
+                            </Style.Triggers>
+                        </Style>
+                    </Image.Style>
+                </Image>
+
                 <Image Stretch="Uniform"
                        RenderOptions.BitmapScalingMode="HighQuality"
                        helpers:AsyncImage.DecodePixel="256"

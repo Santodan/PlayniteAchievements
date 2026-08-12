@@ -103,6 +103,24 @@ namespace PlayniteAchievements.Views.ThemeIntegration.Modern
         }
 
         /// <summary>
+        /// Identifies the RayGlowTiers dependency property: which rarity tiers show the rays, and with
+        /// them the edge along the artwork. The ray layer self-binds this; the edge is an effect on a
+        /// list item, which needs the selection reachable from the template.
+        /// </summary>
+        public static readonly DependencyProperty RayGlowTiersProperty =
+            DependencyProperty.Register(nameof(RayGlowTiers), typeof(RaritySelection),
+                typeof(AchievementCompactListControlBase), new PropertyMetadata(RaritySelection.None));
+
+        /// <summary>
+        /// Gets or sets which rarity tiers show the rays in this list.
+        /// </summary>
+        public RaritySelection RayGlowTiers
+        {
+            get => (RaritySelection)GetValue(RayGlowTiersProperty);
+            set => SetValue(RayGlowTiersProperty, value);
+        }
+
+        /// <summary>
         /// Whether Hardcore unlocks take the crisp metallic border in place of a glow. Self-bound to
         /// the global setting.
         /// </summary>
@@ -217,6 +235,7 @@ namespace PlayniteAchievements.Views.ThemeIntegration.Modern
             DataContext = this;
             RarityAppearanceHelper.BindAnimateRarityGlows(this, AnimateRarityGlowsProperty);
             RarityAppearanceHelper.BindSoftGlowTiers(this, SoftGlowTiersProperty);
+            RarityAppearanceHelper.BindRayGlowTiers(this, RayGlowTiersProperty);
             RarityAppearanceHelper.BindShowHardcoreBorder(this, ShowHardcoreBorderProperty);
             Loaded += OnLoaded;
             Unloaded += OnUnloaded;
