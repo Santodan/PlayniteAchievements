@@ -459,10 +459,10 @@
     </Style>
 
     <!-- Cell content is left-aligned by default, so the status glyph would otherwise sit flush
-         against the row's left edge and crowd the goal accent bar. Matches the horizontal padding
-         the other achievement cells already use. -->
+         against the row's left edge and crowd the goal accent bar. 6 clears the bar while leaving
+         the narrow status column enough room for the glyph at full size. -->
     <Style x:Key="AchievementStatusCellStyle" TargetType="DataGridCell" BasedOn="{StaticResource PlayAch.ColumnAlignedDataGridCellStyle}">
-        <Setter Property="Padding" Value="10,6"/>
+        <Setter Property="Padding" Value="6,6"/>
     </Style>
 
     <!-- DataGrid Row Style -->
