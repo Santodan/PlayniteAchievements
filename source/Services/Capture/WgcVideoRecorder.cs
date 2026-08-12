@@ -224,6 +224,14 @@ namespace PlayniteAchievements.Services.Capture
             TearDownCapture();
             FinalizeSegment();
 
+            // A retarget must not seed the new game's segment with the previous game's held frame.
+            // WGC may need a few ticks to deliver its first frame; until then the new session stays
+            // empty instead of recording unrelated footage under the new timeline.
+            _latest?.Dispose();
+            _latest = null;
+            _scaled?.Dispose();
+            _scaled = null;
+
             _hdr = HdrDisplayDetector.IsHdrActive(hwnd);
             _refWhite = _hdr ? HdrDisplayDetector.GetSdrWhiteScRgb(hwnd) : 1.0f;
             if (_hdr && _toneMapper == null)
@@ -451,6 +459,7 @@ namespace PlayniteAchievements.Services.Capture
             }
             finally
             {
+                _running = false;
                 pacer.Dispose();
                 // A writer prepared for a segment that will never open still owns a file.
                 DiscardPrepared(TakePreparedSegment());
