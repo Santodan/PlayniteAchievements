@@ -10,6 +10,7 @@ using System.Windows.Media;
 using System.Windows.Media.Animation;
 using System.Windows.Threading;
 using Playnite.SDK;
+using PlayniteAchievements.Common;
 using PlayniteAchievements.Models;
 using PlayniteAchievements.Models.Achievements;
 using PlayniteAchievements.Models.Settings;
@@ -147,7 +148,7 @@ namespace PlayniteAchievements.Services.UI
 
             try
             {
-                WaveDisplayed?.Invoke(this, new ToastWaveDisplayedEventArgs(wave, DateTime.UtcNow, soundPlayedUtc));
+                WaveDisplayed?.Invoke(this, new ToastWaveDisplayedEventArgs(wave, CaptureTimelineClock.UtcNow, soundPlayedUtc));
             }
             catch (Exception ex)
             {
@@ -876,7 +877,7 @@ namespace PlayniteAchievements.Services.UI
         /// </summary>
         private void LogWaveHeld()
         {
-            var now = DateTime.UtcNow;
+            var now = CaptureTimelineClock.UtcNow;
             if (_holdStartedUtc == null)
             {
                 _holdStartedUtc = now;
@@ -906,7 +907,7 @@ namespace PlayniteAchievements.Services.UI
             }
 
             _logger?.Debug(
-                $"[Toast] Releasing hold after {(DateTime.UtcNow - _holdStartedUtc.Value).TotalSeconds:F1}s; displaying {waveCount} notification(s).");
+                $"[Toast] Releasing hold after {(CaptureTimelineClock.UtcNow - _holdStartedUtc.Value).TotalSeconds:F1}s; displaying {waveCount} notification(s).");
             _holdStartedUtc = null;
         }
 
@@ -1647,7 +1648,7 @@ namespace PlayniteAchievements.Services.UI
             try
             {
                 Process.Start($"playnite://uniplaysong/playniteachievements/{tier}");
-                return DateTime.UtcNow;
+                return CaptureTimelineClock.UtcNow;
             }
             catch (Exception ex)
             {
@@ -1870,6 +1871,10 @@ namespace PlayniteAchievements.Services.UI
                             PlayniteAchievementsPlugin.Instance?.CaptureLibraryService?.Invalidate(gameName);
                         }
                     }
+                    catch (Exception ex)
+                    {
+                        _logger?.Debug(ex, "Saving unlock screenshot files failed.");
+                    }
                     finally
                     {
                         clean?.Dispose();
@@ -1910,9 +1915,18 @@ namespace PlayniteAchievements.Services.UI
         /// </summary>
         private static void DisposeCaptureTask(Task<System.Drawing.Bitmap> captureTask)
         {
-            captureTask?.ContinueWith(
-                t => t.Result?.Dispose(),
-                TaskContinuationOptions.OnlyOnRanToCompletion);
+            captureTask?.ContinueWith(t =>
+            {
+                if (t.Status == TaskStatus.RanToCompletion)
+                {
+                    t.Result?.Dispose();
+                }
+                else
+                {
+                    // Observe capture faults even when a queued wave is cleared before awaiting it.
+                    _ = t.Exception;
+                }
+            }, TaskContinuationOptions.ExecuteSynchronously);
         }
 
         /// <summary>
