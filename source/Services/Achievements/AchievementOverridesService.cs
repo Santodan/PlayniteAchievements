@@ -353,6 +353,7 @@ namespace PlayniteAchievements.Services.Achievements
                 return;
             }
 
+            // A note is annotation only: it cannot change counts, filters or library rollups.
             var apiName = AchievementNoteHelper.NormalizeApiName(achievementApiName);
             if (string.IsNullOrWhiteSpace(apiName))
             {
@@ -360,23 +361,26 @@ namespace PlayniteAchievements.Services.Achievements
             }
 
             var normalizedNote = AchievementNoteHelper.NormalizeNote(note);
-            _gameCustomDataStore.Update(gameId, customData =>
-            {
-                var notes = customData.AchievementNotes != null
-                    ? new Dictionary<string, string>(customData.AchievementNotes, StringComparer.OrdinalIgnoreCase)
-                    : new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
-
-                if (string.IsNullOrWhiteSpace(normalizedNote))
+            _gameCustomDataStore.Update(
+                gameId,
+                customData =>
                 {
-                    notes.Remove(apiName);
-                }
-                else
-                {
-                    notes[apiName] = normalizedNote;
-                }
+                    var notes = customData.AchievementNotes != null
+                        ? new Dictionary<string, string>(customData.AchievementNotes, StringComparer.OrdinalIgnoreCase)
+                        : new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
 
-                customData.AchievementNotes = notes.Count > 0 ? notes : null;
-            });
+                    if (string.IsNullOrWhiteSpace(normalizedNote))
+                    {
+                        notes.Remove(apiName);
+                    }
+                    else
+                    {
+                        notes[apiName] = normalizedNote;
+                    }
+
+                    customData.AchievementNotes = notes.Count > 0 ? notes : null;
+                },
+                affectsSummaryData: false);
         }
 
         public void SetAchievementIconOverrides(
