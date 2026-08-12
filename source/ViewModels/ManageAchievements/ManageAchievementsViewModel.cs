@@ -174,6 +174,7 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
                 if (!HasCapstoneData &&
                     (value == ManageAchievementsTab.Capstones ||
                      value == ManageAchievementsTab.AchievementOrder ||
+                     value == ManageAchievementsTab.Goals ||
                      value == ManageAchievementsTab.Category ||
                      value == ManageAchievementsTab.Filters ||
                      value == ManageAchievementsTab.Notes ||
@@ -730,6 +731,7 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
                 if (!HasCapstoneData &&
                     (SelectedTab == ManageAchievementsTab.Capstones ||
                      SelectedTab == ManageAchievementsTab.AchievementOrder ||
+                     SelectedTab == ManageAchievementsTab.Goals ||
                      SelectedTab == ManageAchievementsTab.Category ||
                      SelectedTab == ManageAchievementsTab.Filters ||
                      SelectedTab == ManageAchievementsTab.CustomIcons))
