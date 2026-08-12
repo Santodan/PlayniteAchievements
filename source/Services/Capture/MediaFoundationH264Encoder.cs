@@ -128,9 +128,9 @@ namespace PlayniteAchievements.Services.Capture
                 outputType.Set(MediaTypeAttributeKeys.MajorType, MediaTypeGuids.Video);
                 outputType.Set(MediaTypeAttributeKeys.Subtype, VideoFormatGuids.H264);
                 outputType.Set(MediaTypeAttributeKeys.AvgBitrate, bitrate);
-                // One keyframe per second so the concat/stream-copy clip trim snaps at most ~1s early
-                // (matching the old ffmpeg -force_key_frames), not to a distant GOP boundary.
-                outputType.Set(MediaTypeAttributeKeys.MaxKeyframeSpacing, fps);
+                // Bounds both the clip trim's snap-back and how precisely the capture viewer can
+                // seek within the finished clip — see KeyframeCadence.
+                outputType.Set(MediaTypeAttributeKeys.MaxKeyframeSpacing, KeyframeCadence.MaxSpacingFrames(fps));
                 outputType.Set(MediaTypeAttributeKeys.InterlaceMode, (int)VideoInterlaceMode.Progressive);
                 outputType.Set(MediaTypeAttributeKeys.FrameSize, Pack(width, height));
                 outputType.Set(MediaTypeAttributeKeys.FrameRate, Pack(fps, 1));
