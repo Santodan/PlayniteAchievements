@@ -1,4 +1,5 @@
 using PlayniteAchievements.Models;
+using PlayniteAchievements.Models.Achievements;
 using PlayniteAchievements.Models.Settings;
 using PlayniteAchievements.Providers;
 using PlayniteAchievements.Providers.Manual;
@@ -40,10 +41,18 @@ namespace PlayniteAchievements.Services.Achievements
 
             try
             {
-                _gameCustomDataStore.Update(playniteGameId, customData =>
-                {
-                    customData.ManualCapstoneApiName = capstoneApiName;
-                });
+                // A capstone's only summary-visible effect is GameAchievementData.IsCompleted, so
+                // the summary and projection rebuild is only warranted when completion actually
+                // flips. Setting one on a still-locked achievement cannot flip it.
+                var affectsSummaryData = CapstoneChangeFlipsCompletion(playniteGameId, capstoneApiName);
+
+                _gameCustomDataStore.Update(
+                    playniteGameId,
+                    customData =>
+                    {
+                        customData.ManualCapstoneApiName = capstoneApiName;
+                    },
+                    affectsSummaryData);
 
                 return CacheWriteResult.CreateSuccess(playniteGameId.ToString(), DateTime.UtcNow);
             }
@@ -56,6 +65,61 @@ namespace PlayniteAchievements.Services.Achievements
                     ex.Message,
                     ex);
             }
+        }
+
+        /// <summary>
+        /// Whether changing the manual capstone changes the game's completion state, which is the
+        /// only thing about a capstone any summary or rollup can see. Fails safe: anything it
+        /// cannot determine is reported as a change, so summaries are never left stale.
+        /// </summary>
+        private bool CapstoneChangeFlipsCompletion(Guid playniteGameId, string nextCapstoneApiName)
+        {
+            try
+            {
+                var achievements = _cacheService?.LoadGameData(playniteGameId.ToString())?.Achievements;
+                if (achievements == null || achievements.Count == 0)
+                {
+                    return true;
+                }
+
+                // A fully unlocked game counts as complete whatever the capstone is.
+                if (achievements.All(a => a?.Unlocked == true))
+                {
+                    return false;
+                }
+
+                var previousCapstone = _gameCustomDataStore.TryLoad(playniteGameId, out var customData)
+                    ? customData?.ManualCapstoneApiName
+                    : null;
+
+                return IsCapstoneUnlocked(achievements, previousCapstone) !=
+                       IsCapstoneUnlocked(achievements, nextCapstoneApiName);
+            }
+            catch (Exception ex)
+            {
+                _logger?.Debug(ex, $"Failed evaluating capstone completion impact for gameId={playniteGameId}.");
+                return true;
+            }
+        }
+
+        /// <summary>
+        /// Mirrors hydration: a manual capstone replaces the provider's own capstone flags
+        /// outright, so with one set only that achievement counts.
+        /// </summary>
+        private static bool IsCapstoneUnlocked(
+            IReadOnlyList<AchievementDetail> achievements,
+            string manualCapstoneApiName)
+        {
+            if (string.IsNullOrWhiteSpace(manualCapstoneApiName))
+            {
+                return achievements.Any(a => a?.IsCapstone == true && a.Unlocked);
+            }
+
+            var trimmed = manualCapstoneApiName.Trim();
+            return achievements.Any(a =>
+                a != null &&
+                a.Unlocked &&
+                string.Equals((a.ApiName ?? string.Empty).Trim(), trimmed, StringComparison.OrdinalIgnoreCase));
         }
 
         public Task<CacheWriteResult> SetCapstoneAsync(Guid playniteGameId, string capstoneApiName)
