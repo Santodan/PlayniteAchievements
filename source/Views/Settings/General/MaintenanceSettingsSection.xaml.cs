@@ -290,6 +290,7 @@ namespace PlayniteAchievements.Views.Settings.General
             var maxDimension = GetSelectedMaxDimension();
             var compressor = new IconCacheCompressor(diskImageService, _logger);
 
+            var scanThrottle = new ProgressThrottle();
             var estimate = RunCompressionPass(
                 LF("LOCPlayAch_Settings_CompressImages_ProgressScanning", 0, 0),
                 progress => compressor.Scan(
@@ -299,7 +300,8 @@ namespace PlayniteAchievements.Views.Settings.General
                         progress,
                         "LOCPlayAch_Settings_CompressImages_ProgressScanning",
                         processed,
-                        total),
+                        total,
+                        scanThrottle),
                     progress.CancelToken));
 
             if (estimate == null)
@@ -335,17 +337,20 @@ namespace PlayniteAchievements.Views.Settings.General
                 return;
             }
 
+            // Reuses the candidate list the scan produced, so the cache is walked once per run.
+            var compressThrottle = new ProgressThrottle();
             var result = RunCompressionPass(
                 LF("LOCPlayAch_Settings_CompressImages_ProgressCompressing", 0, 0),
                 progress => compressor
                     .CompressAsync(
-                        scope,
+                        estimate.Files,
                         maxDimension,
                         (processed, total) => ReportCountedProgress(
                             progress,
                             "LOCPlayAch_Settings_CompressImages_ProgressCompressing",
                             processed,
-                            total),
+                            total,
+                            compressThrottle),
                         progress.CancelToken)
                     .GetAwaiter()
                     .GetResult());
@@ -422,10 +427,16 @@ namespace PlayniteAchievements.Views.Settings.General
             GlobalProgressActionArgs progress,
             string textResourceKey,
             int processed,
-            int total)
+            int total,
+            ProgressThrottle throttle)
         {
             var safeTotal = Math.Max(1, total);
             var safeProcessed = Math.Max(0, Math.Min(safeTotal, processed));
+
+            if (throttle?.ShouldReport(safeProcessed, safeTotal) == false)
+            {
+                return;
+            }
 
             UpdateMaintenanceProgress(
                 progress,
@@ -433,6 +444,44 @@ namespace PlayniteAchievements.Views.Settings.General
                 current: safeProcessed,
                 max: safeTotal,
                 isIndeterminate: false);
+        }
+
+        /// <summary>
+        /// Rate-limits progress reporting to something a person can actually read.
+        /// </summary>
+        /// <remarks>
+        /// <see cref="UpdateMaintenanceProgress"/> marshals onto the UI dispatcher and blocks until
+        /// the update is applied, so reporting once per item turns a scan of tens of thousands of
+        /// files into tens of thousands of synchronous cross-thread hops plus a re-layout each --
+        /// which cost far more than the file work being reported on. Callers may report from several
+        /// threads at once, so the gate is locked.
+        /// </remarks>
+        private sealed class ProgressThrottle
+        {
+            private const int MinimumIntervalMs = 100;
+
+            private readonly Stopwatch _clock = Stopwatch.StartNew();
+            private readonly object _sync = new object();
+            private long _lastReportedMs = -1;
+
+            internal bool ShouldReport(int processed, int total)
+            {
+                lock (_sync)
+                {
+                    var elapsed = _clock.ElapsedMilliseconds;
+
+                    // The final item always reports, so the bar never stops short of complete.
+                    if (processed >= total ||
+                        _lastReportedMs < 0 ||
+                        elapsed - _lastReportedMs >= MinimumIntervalMs)
+                    {
+                        _lastReportedMs = elapsed;
+                        return true;
+                    }
+
+                    return false;
+                }
+            }
         }
 
         /// <summary>

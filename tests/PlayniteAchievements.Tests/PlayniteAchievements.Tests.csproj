@@ -110,6 +110,7 @@
     <Compile Include="..\..\source\Services\Images\CategoryDefaultImageResolver.cs" Link="Source\Services\Images\CategoryDefaultImageResolver.cs" />
     <Compile Include="..\..\source\Services\Images\DiskImageService.cs" Link="Source\Services\Images\DiskImageService.cs" />
     <Compile Include="..\..\source\Services\Images\ImageCompressionPlan.cs" Link="Source\Services\Images\ImageCompressionPlan.cs" />
+    <Compile Include="..\..\source\Services\Images\ImageHeaderDimensions.cs" Link="Source\Services\Images\ImageHeaderDimensions.cs" />
     <Compile Include="..\..\source\Services\Images\ImageFormats.cs" Link="Source\Services\Images\ImageFormats.cs" />
     <Compile Include="..\..\source\Services\Images\WebpAnimationInfo.cs" Link="Source\Services\Images\WebpAnimationInfo.cs" />
     <Compile Include="..\..\source\Services\Images\WebpCodecProbe.cs" Link="Source\Services\Images\WebpCodecProbe.cs" />
