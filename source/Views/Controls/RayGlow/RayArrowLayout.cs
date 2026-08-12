@@ -24,14 +24,50 @@ namespace PlayniteAchievements.Views.Controls.RayGlow
         private const double TwoPi = Math.PI * 2.0;
 
         /// <summary>
-        /// Arrows around the loop. Width is derived from the spacing, so lowering this widens the arrows
-        /// to match rather than leaving gaps: a 64 px icon's hull runs 200-256 DIP, which at this count
-        /// leaves a base around 6 DIP with room either side for the soft copies to fall away in.
+        /// Gap between arrows along the track, in device units. This, not a count, is what the effect is
+        /// actually specified by.
         ///
-        /// Coprime with every lobe count of the wave. A count that shared a factor would have arrows
-        /// sampling the same few heights forever, and the burst would read as a rigid scallop.
+        /// A fixed count silently changes density with the size of the thing being decorated: arrow
+        /// width is derived from the gap, so the same count spread around a longer outline gives fewer,
+        /// fatter arrows further apart. A notification card's outline is about five times an icon's, and
+        /// the same forty-eight arrows read as sparse studs there while looking right on the icon.
+        /// Holding the gap fixed instead makes an arrow the same size and the same distance from its
+        /// neighbour on every surface, which is what "the same effect" means.
         /// </summary>
-        public const int DefaultArrowCount = 14;
+        public const double ArrowSpacing = 4.9;
+
+        /// <summary>Floor and ceiling on the derived count: enough arrows to read as a ring on the
+        /// smallest icon, and a bound on how much geometry the largest artwork can ask for.</summary>
+        private const int MinArrowCount = 16;
+
+        private const int MaxArrowCount = 224;
+
+        /// <summary>
+        /// Outline length the speed setting is expressed against: roughly a grid icon's.
+        ///
+        /// The conveyor is timed in laps, and a lap of a notification card is about five times a lap of
+        /// an icon, so timing both the same made the card's arrows travel five times faster across the
+        /// screen. Scaling the lap rate by how long the outline actually is turns the setting into a
+        /// speed rather than a revolution count, and arrows then move at the same visible pace wherever
+        /// they are. This number only decides what the existing speed setting means, so it is the icon's
+        /// outline: surfaces tuned before this stay as they were.
+        /// </summary>
+        public const double ReferencePerimeter = 190.0;
+
+        /// <summary>
+        /// Laps completed by a track of this length, given how many a reference-sized one would have
+        /// finished. Longer outlines turn proportionally slower, which is what keeps the arrows
+        /// themselves moving at one speed.
+        /// </summary>
+        public static double ScaleLapsToTrack(double referenceLaps, MappedTrack track)
+        {
+            if (track == null || !IsUsable(track.Perimeter))
+            {
+                return referenceLaps;
+            }
+
+            return referenceLaps * (ReferencePerimeter / track.Perimeter);
+        }
 
         // Lobe counts of the wave. All coprime with the arrow count on purpose: a count that divided it
         // would have every arrow sampling the same few heights forever, and the burst would read as a
@@ -46,12 +82,15 @@ namespace PlayniteAchievements.Views.Controls.RayGlow
         // the envelope mirrors about a point exactly when every one of those sines vanishes there at
         // once. Turning the upper two harmonics into sines is what keeps them from ever doing so
         // together: it triples the worst-case gap compared with rounder-looking offsets.
-        private const int PrimaryLobes = 3;
-        private const int SecondaryLobes = 5;
-        private const int TertiaryLobes = 7;
-        private const double PrimaryAmplitude = 0.42;
-        private const double SecondaryAmplitude = 0.33;
-        private const double TertiaryAmplitude = 0.25;
+        private const int PrimaryLobes = 13;
+        private const int SecondaryLobes = 13;
+        private const int TertiaryLobes = 5;
+
+        // The primary term is switched off, leaving one fast harmonic and a slow one under it. Its lobe
+        // count is kept only so the three read as a set; nothing reaches the wave through it.
+        private const double PrimaryAmplitude = 0.0;
+        private const double SecondaryAmplitude = 0.413;
+        private const double TertiaryAmplitude = 0.056;
         private const double PrimaryPhase = 0.0;
         private const double SecondaryPhase = Math.PI / 2.0;
         private const double TertiaryPhase = Math.PI / 2.0;
@@ -67,21 +106,21 @@ namespace PlayniteAchievements.Views.Controls.RayGlow
         /// so they swell and shrink faster than either motion alone, and the size pattern visibly
         /// travels the other way round the icon.
         /// </summary>
-        private const double EnvelopeDriftRatio = -1.6;
+        internal const double EnvelopeDriftRatio = 4.307;
 
         /// <summary>
         /// Share of the wave given over to the alternating component, which sets how far an arrow
         /// differs from the ones either side of it rather than from ones further round the loop. The
         /// slower harmonics decide the overall shape; this decides how hard the ring zigzags.
         /// </summary>
-        private const double AlternationAmplitude = 0.50;
+        private const double AlternationAmplitude = 0.162;
 
         /// <summary>
         /// Height of the shortest arrow as a fraction of the tallest. This is a floor under the trough,
         /// not just a contrast control: it decides how far an arrow deflates as the wave leaves it, and
         /// set too low the short ones read as collapsing rather than dipping.
         /// </summary>
-        private const double MinHeightFraction = 0.62;
+        private const double MinHeightFraction = 0.23;
 
         /// <summary>
         /// Half-width of an arrow as a fraction of its own length, which is what keeps a ray looking
@@ -94,19 +133,25 @@ namespace PlayniteAchievements.Views.Controls.RayGlow
         /// rays coming off it. Tying width to length keeps that ratio fixed; the gap only comes into it
         /// as a ceiling, below.
         /// </summary>
-        private const double SlendernessRatio = 0.17;
+        private const double SlendernessRatio = 0.063;
 
         /// <summary>Most of the gap to the next arrow that one arrow's body may occupy, whatever its
         /// length says, so a short outline cannot push neighbours into each other.</summary>
-        private const double MaxWidthFraction = 0.34;
+        private const double MaxWidthFraction = 0.631;
 
         /// <summary>How far inside the loop a base sits, as a fraction of the subject's short side.</summary>
-        private const double InwardFraction = 0.22;
+        private const double InwardFraction = 0.0;
 
         private const double MinInwardDip = 5.0;
 
         /// <summary>Tips taper almost to nothing, so the far end fades out rather than ending.</summary>
-        private const double TipWidthFraction = 0.06;
+        private const double TipWidthFraction = 0.0;
+
+        // A border is deliberately not drawn here. Geometry can only follow a shape this file knows
+        // about, and the two it has are a bounding rectangle and a convex hull: the rectangle cannot
+        // hug anything that is not a filled rectangle, and the hull bridges every concavity. The border
+        // is a tight copy of the soft glow instead, which is a blur of the artwork itself and so hugs
+        // the alpha exactly, on any shape, for nothing.
 
         /// <summary>A <see cref="RayTrack"/> placed on a specific layout slot, in device units.</summary>
         public sealed class MappedTrack
@@ -128,6 +173,9 @@ namespace PlayniteAchievements.Views.Controls.RayGlow
             /// most icons — the two are the same number.
             /// </summary>
             public double SubjectScale;
+
+            /// <summary>The artwork's own rectangle inside the slot, which the ring is drawn on.</summary>
+            public Rect ArtRect;
         }
 
         public struct RayArrowSpine
@@ -207,8 +255,31 @@ namespace PlayniteAchievements.Views.Controls.RayGlow
                     centerY + ((track.Centroid.Y - 0.5) * side)),
                 Perimeter = track.NormalizedPerimeter * side,
                 SubjectMin = Math.Min(artWidth, artHeight),
-                SubjectScale = Math.Sqrt(artWidth * artHeight)
+                SubjectScale = Math.Sqrt(artWidth * artHeight),
+                ArtRect = new Rect(
+                    centerX - (artWidth * 0.5), centerY - (artHeight * 0.5), artWidth, artHeight)
             };
+        }
+
+        /// <summary>
+        /// How many arrows this track carries, from its length and the fixed gap between them.
+        ///
+        /// Always even. The alternating component sits at half the arrow count, which only gives a clean
+        /// one-up-one-down between neighbours when that halves exactly; an odd count would leave the
+        /// zigzag not quite closing on itself, and it would do so on some surfaces and not others.
+        /// </summary>
+        public static int ArrowCountFor(MappedTrack track)
+        {
+            if (track == null || !IsUsable(track.Perimeter))
+            {
+                return MinArrowCount;
+            }
+
+            var spacing = Sane(ArrowSpacing, 4.9, 0.5, 200.0);
+            var pairs = (int)Math.Round(track.Perimeter / (2.0 * spacing), MidpointRounding.AwayFromZero);
+            var count = Math.Max(1, pairs) * 2;
+
+            return Math.Max(MinArrowCount, Math.Min(MaxArrowCount, count));
         }
 
         /// <summary>

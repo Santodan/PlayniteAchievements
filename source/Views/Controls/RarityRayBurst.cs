@@ -561,15 +561,20 @@ namespace PlayniteAchievements.Views.Controls
                     return;
                 }
 
-                var count = RayArrowLayout.DefaultArrowCount;
+                // Derived from the track's own length, so an icon and a notification card carry arrows
+                // of the same size the same distance apart rather than the same number of them.
+                var count = RayArrowLayout.ArrowCountFor(mapped);
                 if (_spines == null || _spines.Length < count)
                 {
                     _spines = new RayArrowLayout.RayArrowSpine[count];
                     _quads = new RayArrowLayout.RayArrowQuad[count];
                 }
 
-                var written = RayArrowLayout.BuildSpines(
-                    mapped, CurrentLaps(persisted), BurstScale, count, _spines);
+                // Scaled by the track's length, so arrows cross the screen at one speed whatever they
+                // are going around: a lap of a notification card is several laps of an icon.
+                var laps = RayArrowLayout.ScaleLapsToTrack(CurrentLaps(persisted), mapped);
+
+                var written = RayArrowLayout.BuildSpines(mapped, laps, BurstScale, count, _spines);
                 if (written <= 0)
                 {
                     return;
@@ -581,6 +586,7 @@ namespace PlayniteAchievements.Views.Controls
                 {
                     DrawPass(context, written, palette.Layers[i]);
                 }
+
             }
         }
 
@@ -619,9 +625,18 @@ namespace PlayniteAchievements.Views.Controls
             var track = _track;
             if (track == null)
             {
-                // Nothing traced yet: a rounded rectangle stands in, so the effect appears immediately
-                // and sharpens to the real silhouette when it arrives.
-                track = RayTrack.RoundedRect(1.0, CornerRadiusRatio);
+                // With no subject named at all, the slot itself is the subject: the loop traces the
+                // shape being decorated rather than a square floating inside it. That is what lets this
+                // ring something that is not a picture — a notification card, say — without pretending
+                // there is artwork to trace.
+                //
+                // With a subject named but not yet traced, a square stands in, so the effect appears
+                // immediately and sharpens to the real silhouette when it arrives.
+                var aspect = string.IsNullOrWhiteSpace(_subjectKey) && slot.Height > 0
+                    ? slot.Width / slot.Height
+                    : 1.0;
+
+                track = RayTrack.RoundedRect(aspect, CornerRadiusRatio);
             }
             else if (track.IsAnalytic)
             {
