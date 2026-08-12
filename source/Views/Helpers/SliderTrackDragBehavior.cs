@@ -7,13 +7,17 @@ using System.Windows.Input;
 namespace PlayniteAchievements.Views.Helpers
 {
     /// <summary>
-    /// Lets a press that lands on a slider's track keep scrubbing while the button stays down.
+    /// Gives a slider press-to-jump and press-and-drag on its track.
     ///
-    /// <see cref="Slider.IsMoveToPointEnabled"/> jumps the value to the click point but hands the
-    /// mouse to nobody and marks the press handled, so WPF starts no drag: the most natural gesture,
-    /// press on the track and drag, otherwise goes nowhere. This captures that press and maps every
-    /// subsequent move through the template's PART_Track. A press on the thumb is left alone, since
-    /// that already starts a real Thumb drag.
+    /// This owns the gesture rather than leaning on <see cref="Slider.IsMoveToPointEnabled"/>, whose
+    /// behavior depends on the theme's template: it jumps the value but starts no drag, and where it
+    /// does not take effect the track's RepeatButtons page by LargeChange instead, so the click
+    /// lands a fixed step away rather than where it was aimed. Here the press is mapped through the
+    /// template's PART_Track (falling back to a linear map over the slider's width when the template
+    /// has no such part), applied, captured, and marked handled so nothing else acts on it. A press
+    /// on the thumb is left alone, since that already starts a real Thumb drag.
+    ///
+    /// Sliders using this should set IsMoveToPointEnabled="False" so WPF does not also act.
     /// </summary>
     internal sealed class SliderTrackDragBehavior
     {
@@ -65,14 +69,28 @@ namespace PlayniteAchievements.Views.Helpers
         private void OnPreviewMouseLeftButtonDown(object sender, MouseButtonEventArgs e)
         {
             var track = GetTrack();
-            if (track?.Thumb == null || track.Thumb.IsMouseOver)
+            if (track?.Thumb != null && track.Thumb.IsMouseOver)
+            {
+                // The Thumb takes its own drag from here, reported through DragStarted.
+                return;
+            }
+
+            var value = ValueFromPoint(e);
+            if (value == null)
             {
                 return;
             }
 
+            // Applied before the drag is announced so the jump itself is a single discrete change,
+            // which callers can act on immediately rather than folding into the scrub.
+            _slider.Value = value.Value;
+
             _isDragging = true;
             _draggingChanged?.Invoke(true);
             _slider.CaptureMouse();
+
+            // Keeps the track's RepeatButtons from also paging by LargeChange.
+            e.Handled = true;
         }
 
         private void OnPreviewMouseMove(object sender, MouseEventArgs e)
@@ -88,18 +106,41 @@ namespace PlayniteAchievements.Views.Helpers
                 return;
             }
 
-            var track = GetTrack();
-            if (track == null)
+            var value = ValueFromPoint(e);
+            if (value != null)
             {
-                return;
-            }
-
-            var value = track.ValueFromPoint(e.GetPosition(track));
-            if (!double.IsNaN(value) && !double.IsInfinity(value))
-            {
-                _slider.Value = value;
+                _slider.Value = value.Value;
             }
         }
+
+        /// <summary>
+        /// Maps a mouse position to a slider value, preferring the template's PART_Track (which
+        /// accounts for the thumb's own width) and falling back to a linear map over the slider.
+        /// </summary>
+        private double? ValueFromPoint(MouseEventArgs e)
+        {
+            var track = GetTrack();
+            if (track != null && track.ActualWidth > 0)
+            {
+                var tracked = track.ValueFromPoint(e.GetPosition(track));
+                if (!double.IsNaN(tracked) && !double.IsInfinity(tracked))
+                {
+                    return Clamp(tracked);
+                }
+            }
+
+            var width = _slider.ActualWidth;
+            if (width <= 0)
+            {
+                return null;
+            }
+
+            var fraction = e.GetPosition(_slider).X / width;
+            return Clamp(_slider.Minimum + (fraction * (_slider.Maximum - _slider.Minimum)));
+        }
+
+        private double Clamp(double value) =>
+            Math.Max(_slider.Minimum, Math.Min(_slider.Maximum, value));
 
         private void OnPreviewMouseLeftButtonUp(object sender, MouseButtonEventArgs e)
         {

@@ -33,6 +33,11 @@ namespace PlayniteAchievements.Views.Controls
         private const double DurationTolerance = 0.001;
         private const double DefaultVolume = 0.5;
 
+        // Clips carry roughly one keyframe per second, so a seek can legitimately land up to about
+        // a second from where it was asked to go; anything within that counts as arrived.
+        private const double SeekLandedTolerance = 1.25;
+        private const int MaxAwaitedSeekTicks = 4;
+
         // Setting MediaElement.Position flushes the pipeline, so driving it from every mouse move
         // queues far more seeks than the media engine can retire: the picture trails the thumb and
         // keeps catching up after the button comes up. Scrub seeks are coalesced to this interval,
@@ -54,6 +59,12 @@ namespace PlayniteAchievements.Views.Controls
         private bool _isScrubbing;
         private double? _pendingScrubSeconds;
         private bool _resumeAfterScrub;
+
+        // Where the last seek asked the player to go. A seek does not complete synchronously, so
+        // until the player reports arriving there its Position still reads the pre-seek spot;
+        // copying that onto the slider would pull the thumb back off the point the user picked.
+        private double? _awaitingSeekSeconds;
+        private int _awaitingSeekTicks;
 
         // A slider's value is being written programmatically: ignore the resulting ValueChanged
         // instead of acting on a change the user did not make.
@@ -135,6 +146,7 @@ namespace PlayniteAchievements.Views.Controls
             _isScrubbing = false;
             _pendingScrubSeconds = null;
             _resumeAfterScrub = false;
+            _awaitingSeekSeconds = null;
             UpdatePlayPauseGlyph();
             SetSliderValueWithoutSeek(0);
             UpdateTimeText(TimeSpan.Zero);
@@ -197,6 +209,7 @@ namespace PlayniteAchievements.Views.Controls
 
             _player.Stop();
             _isPlaying = false;
+            _awaitingSeekSeconds = null;
             UpdatePlayPauseGlyph();
             SetSliderValueWithoutSeek(0);
             UpdateTimeText(TimeSpan.Zero);
@@ -256,6 +269,8 @@ namespace PlayniteAchievements.Views.Controls
                 return null;
             }
 
+            _awaitingSeekSeconds = position.TotalSeconds;
+            _awaitingSeekTicks = 0;
             return position;
         }
 
@@ -383,8 +398,35 @@ namespace PlayniteAchievements.Views.Controls
                 ApplyDuration();
             }
 
+            if (!SeekHasLanded())
+            {
+                return;
+            }
+
             SetSliderValueWithoutSeek(_player.Position.TotalSeconds);
             UpdateTimeText(_player.Position);
+        }
+
+        /// <summary>
+        /// True once the player has caught up with the last requested seek, or once enough ticks
+        /// have passed that it clearly is not going to (a keyframe-snapped landing, say). Until
+        /// then the position readings are stale and must not be copied onto the slider.
+        /// </summary>
+        private bool SeekHasLanded()
+        {
+            if (_awaitingSeekSeconds == null)
+            {
+                return true;
+            }
+
+            var landed = Math.Abs(_player.Position.TotalSeconds - _awaitingSeekSeconds.Value) <= SeekLandedTolerance;
+            if (!landed && ++_awaitingSeekTicks < MaxAwaitedSeekTicks)
+            {
+                return false;
+            }
+
+            _awaitingSeekSeconds = null;
+            return true;
         }
 
         private void PositionSlider_ValueChanged(object sender, RoutedPropertyChangedEventArgs<double> e)
