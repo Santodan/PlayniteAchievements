@@ -80,7 +80,10 @@ namespace PlayniteAchievements.Views.Helpers
                     context.GameId,
                     context.ApiName,
                     !context.IsGoal);
-                context.ApplyGoal(!context.IsGoal);
+
+                // Deliberately no optimistic echo onto the row: the reload below re-resolves
+                // IsGoal and re-sorts, so the accent appears on the row in its new pinned
+                // position instead of lighting up the old row and then jumping.
                 onChanged?.Invoke();
             };
 
@@ -633,15 +636,6 @@ namespace PlayniteAchievements.Views.Helpers
                 if (_recentItem != null)
                 {
                     _recentItem.CategoryType = value;
-                }
-            }
-
-            public void ApplyGoal(bool value)
-            {
-                IsGoal = value;
-                if (_displayItem != null)
-                {
-                    _displayItem.IsGoal = value;
                 }
             }
 
