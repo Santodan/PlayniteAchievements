@@ -592,21 +592,9 @@ namespace PlayniteAchievements.Services.Recording
                 session.AudioRecorder?.Stop();
                 session.ChimeRecorder?.Stop();
 
-                // Toasts queued for this session were just cleared; resolve the still-waiting
-                // track waits null so their clips save toastless before the buffer goes away.
-                List<ClipRequest> awaiting;
-                lock (_gate)
-                {
-                    awaiting = _awaitingTrack.Where(r => ReferenceEquals(r.Session, session)).ToList();
-                    _awaitingTrack.RemoveAll(r => ReferenceEquals(r.Session, session));
-                }
-
-                foreach (var request in awaiting)
-                {
-                    _logger?.Debug($"[Recording] Game stopped before a toast for '{request.AchievementName}'; saving the clip without a toast.");
-                    request.TrackTcs?.TrySetResult(null);
-                }
-
+                // An active wave can finish after the game exits. Keep its pending track alive
+                // while this session's clip tasks drain so a last-second unlock/test fire still
+                // gets composited; a queued wave that was cleared times out normally.
                 Task[] inFlight;
                 lock (_gate)
                 {
