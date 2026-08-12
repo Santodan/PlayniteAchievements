@@ -15,8 +15,8 @@ using ObservableObject = PlayniteAchievements.Common.ObservableObject;
 namespace PlayniteAchievements.ViewModels.ManageAchievements
 {
     /// <summary>
-    /// Reorders the achievements the user is working toward. Goal membership is set from the
-    /// achievement row context menu; this tab owns the order and removal.
+    /// Lists the game's goals in priority order, followed by every other achievement so goals can
+    /// be set from here as well. Only the goal block is reorderable.
     /// </summary>
     public sealed class ManageAchievementsGoalsViewModel : ObservableObject
     {
@@ -27,6 +27,7 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
         private readonly ILogger _logger;
 
         private bool _hasGoals;
+        private bool _hasAchievements;
 
         public ManageAchievementsGoalsViewModel(
             Guid gameId,
@@ -53,6 +54,12 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
             private set => SetValue(ref _hasGoals, value);
         }
 
+        public bool HasAchievements
+        {
+            get => _hasAchievements;
+            private set => SetValue(ref _hasAchievements, value);
+        }
+
         public void ReloadData()
         {
             try
@@ -70,10 +77,12 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
                 PruneUnlockedGoals(gameData, achievements);
 
                 // Hydration already resolved IsGoal (false once unlocked) and GoalOrderIndex, so
-                // the tab shows exactly what the achievement surfaces pin.
-                var goalAchievements = achievements
-                    .Where(a => a.IsGoal)
-                    .OrderBy(a => a.GoalOrderIndex)
+                // the tab shows exactly what the achievement surfaces pin. Non-goals follow in the
+                // list's default order so any of them can be promoted from here.
+                var orderedAchievements = AchievementSortHelper
+                    .CreateDefaultSortedDetailList(achievements)
+                    .OrderBy(a => a.IsGoal ? 0 : 1)
+                    .ThenBy(a => a.IsGoal ? a.GoalOrderIndex : 0)
                     .ToList();
 
                 var appearanceSnapshot = AchievementDisplayItem.CreateAppearanceSettingsSnapshot(
@@ -82,7 +91,7 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
                     gameData?.UseSeparateLockedIconsWhenAvailable);
                 var categoryMemo = new AchievementDisplayItem.CategoryPresentationMemo();
 
-                var rows = goalAchievements
+                var rows = orderedAchievements
                     .Select(a => AchievementDisplayItem.Create(
                         gameData,
                         a,
@@ -108,17 +117,22 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
                 }
 
                 CollectionHelper.SynchronizeCollection(GoalRows, rows);
-                HasGoals = rows.Count > 0;
+                HasAchievements = rows.Count > 0;
+                HasGoals = rows.Any(row => row.IsGoal);
             }
             catch (Exception ex)
             {
                 _logger?.Error(ex, $"Failed loading goal rows for gameId={_gameId}");
                 CollectionHelper.SynchronizeCollection(GoalRows, new List<AchievementDisplayItem>());
+                HasAchievements = false;
                 HasGoals = false;
             }
         }
 
-        public bool RemoveGoal(string apiName)
+        /// <summary>
+        /// Promotes or retires a single achievement from within this tab.
+        /// </summary>
+        public bool SetGoal(string apiName, bool isGoal)
         {
             var normalized = (apiName ?? string.Empty).Trim();
             if (string.IsNullOrWhiteSpace(normalized))
@@ -126,7 +140,7 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
                 return false;
             }
 
-            _achievementOverridesService.SetAchievementGoal(_gameId, normalized, isGoal: false);
+            _achievementOverridesService.SetAchievementGoal(_gameId, normalized, isGoal);
             _gameDataSnapshotProvider.Invalidate();
             ReloadData();
             return true;
@@ -162,6 +176,14 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
                     (item?.ApiName ?? string.Empty).Trim(),
                     targetApiName.Trim(),
                     StringComparison.OrdinalIgnoreCase));
+
+            // Only the goal block reorders. Dropping onto a non-goal row would otherwise pull
+            // goals down past the divider and silently reshuffle the whole list.
+            if (targetIndex < 0 || source[targetIndex]?.IsGoal != true)
+            {
+                return false;
+            }
+
             return TryMoveItems(source, selectedIndexes, targetIndex, insertAfterTarget);
         }
 
@@ -174,7 +196,11 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
 
             var source = GoalRows.ToList();
             var selectedIndexes = ResolveSelectedIndexes(source, draggedApiNames);
-            return TryMoveItems(source, selectedIndexes, source.Count - 1, insertAfterTarget: true);
+
+            // "End" means the end of the goal block, not the end of the full achievement list.
+            var lastGoalIndex = source.FindLastIndex(item => item?.IsGoal == true);
+            return lastGoalIndex >= 0 &&
+                   TryMoveItems(source, selectedIndexes, lastGoalIndex, insertAfterTarget: true);
         }
 
         private bool TryMoveItems(
@@ -222,8 +248,12 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
 
             for (var i = 0; i < source.Count; i++)
             {
-                var apiName = (source[i]?.ApiName ?? string.Empty).Trim();
-                if (!string.IsNullOrWhiteSpace(apiName) && selectedApiNameSet.Contains(apiName))
+                var row = source[i];
+                var apiName = (row?.ApiName ?? string.Empty).Trim();
+                // Non-goal rows never travel, even if a stale drag payload names one.
+                if (row?.IsGoal == true &&
+                    !string.IsNullOrWhiteSpace(apiName) &&
+                    selectedApiNameSet.Contains(apiName))
                 {
                     indexes.Add(i);
                 }
@@ -235,7 +265,7 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
         private void PersistCurrentOrder()
         {
             var orderedApiNames = GoalRows
-                .Where(row => row != null && !string.IsNullOrWhiteSpace(row.ApiName))
+                .Where(row => row != null && row.IsGoal && !string.IsNullOrWhiteSpace(row.ApiName))
                 .Select(row => row.ApiName)
                 .ToList();
 

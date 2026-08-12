@@ -50,13 +50,13 @@
         </Border>
 
         <TextBlock Grid.Row="2"
-                   Text="{DynamicResource LOCPlayAch_ManageAchievements_Goals_Empty}"
+                   Text="{DynamicResource LOCPlayAch_Common_NoCachedAchievementsForGame}"
                    Foreground="{DynamicResource PlayAch.Brush.Text}"
                    Opacity="{StaticResource PlayAch.Opacity.Secondary}"
                    TextWrapping="Wrap"
                    VerticalAlignment="Top"
                    Margin="0"
-                   Visibility="{Binding HasGoals, Converter={StaticResource InverseBoolToVis}}" />
+                   Visibility="{Binding HasAchievements, Converter={StaticResource InverseBoolToVis}}" />
 
         <DataGrid x:Name="GoalsDataGrid"
                   Style="{StaticResource PlayAch.DataGrid.BaseStyle}"
@@ -64,7 +64,7 @@
                   ItemsSource="{Binding GoalRows}"
                   AutoGenerateColumns="False"
                   IsReadOnly="True"
-                  Visibility="{Binding HasGoals, Converter={StaticResource BoolToVis}}"
+                  Visibility="{Binding HasAchievements, Converter={StaticResource BoolToVis}}"
                   SelectionMode="Extended"
                   SelectionUnit="FullRow"
                   HeadersVisibility="Column"
@@ -117,6 +117,7 @@
                     </DataGridTemplateColumn.CellStyle>
                     <DataGridTemplateColumn.CellTemplate>
                         <DataTemplate>
+                            <!-- Only goals reorder, so only goal rows advertise a drag handle. -->
                             <Border Tag="DragHandle"
                                     Background="Transparent"
                                     HorizontalAlignment="Stretch"
@@ -127,7 +128,18 @@
                                            HorizontalAlignment="Center"
                                            VerticalAlignment="Center"
                                            Foreground="{DynamicResource PlayAch.Brush.Text}"
-                                           Opacity="0.65" />
+                                           Opacity="0.65">
+                                    <TextBlock.Style>
+                                        <Style TargetType="TextBlock">
+                                            <Setter Property="Visibility" Value="Collapsed" />
+                                            <Style.Triggers>
+                                                <DataTrigger Binding="{Binding IsGoal}" Value="True">
+                                                    <Setter Property="Visibility" Value="Visible" />
+                                                </DataTrigger>
+                                            </Style.Triggers>
+                                        </Style>
+                                    </TextBlock.Style>
+                                </TextBlock>
                             </Border>
                         </DataTemplate>
                     </DataGridTemplateColumn.CellTemplate>
@@ -147,11 +159,30 @@
                 <DataGridTemplateColumn Width="Auto" CanUserResize="False" CanUserSort="False">
                     <DataGridTemplateColumn.CellTemplate>
                         <DataTemplate>
-                            <Button Content="{DynamicResource LOCPlayAch_Button_Remove}"
-                                    Style="{StaticResource ManageAchievementsHeaderActionButtonStyle}"
-                                    Margin="8,0"
-                                    VerticalAlignment="Center"
-                                    Click="RemoveGoalButton_Click" />
+                            <!-- Content and enablement come from Setters, never local values, so
+                                 the triggers can win. An unlocked achievement cannot become a
+                                 goal, matching the row context menu. -->
+                            <Button Click="ToggleGoalButton_Click">
+                                <Button.Style>
+                                    <Style TargetType="Button" BasedOn="{StaticResource ManageAchievementsHeaderActionButtonStyle}">
+                                        <Setter Property="Content" Value="{DynamicResource LOCPlayAch_Menu_SetGoal}" />
+                                        <Setter Property="VerticalAlignment" Value="Center" />
+                                        <Setter Property="Margin" Value="8,0" />
+                                        <Style.Triggers>
+                                            <DataTrigger Binding="{Binding IsGoal}" Value="True">
+                                                <Setter Property="Content" Value="{DynamicResource LOCPlayAch_Button_Remove}" />
+                                            </DataTrigger>
+                                            <MultiDataTrigger>
+                                                <MultiDataTrigger.Conditions>
+                                                    <Condition Binding="{Binding IsGoal}" Value="False" />
+                                                    <Condition Binding="{Binding Unlocked}" Value="True" />
+                                                </MultiDataTrigger.Conditions>
+                                                <Setter Property="IsEnabled" Value="False" />
+                                            </MultiDataTrigger>
+                                        </Style.Triggers>
+                                    </Style>
+                                </Button.Style>
+                            </Button>
                         </DataTemplate>
                     </DataGridTemplateColumn.CellTemplate>
                 </DataGridTemplateColumn>

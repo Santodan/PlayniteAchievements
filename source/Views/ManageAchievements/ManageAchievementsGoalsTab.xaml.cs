@@ -29,7 +29,9 @@ namespace PlayniteAchievements.Views.ManageAchievements
                 DropIndicator = DropInsertLine,
                 DragCountPopup = DragCountPopup,
                 DragCountText = DragCountText,
-                IsReorderableItem = item => item is AchievementDisplayItem,
+                // Gates drag start, multi-select participation and valid drop targets, so the
+                // non-goal block below the goals is inert for reordering.
+                IsReorderableItem = item => item is AchievementDisplayItem displayItem && displayItem.IsGoal,
                 ExtractDragKeys = items => AchievementOrderHelper.NormalizeApiNames(
                     items.OfType<AchievementDisplayItem>().Select(item => item.ApiName)),
                 MoveItemsRelativeToTarget = (apiNames, target, insertAfter) =>
@@ -77,14 +79,14 @@ namespace PlayniteAchievements.Views.ManageAchievements
             DataGridRowReorderBehavior.CancelPendingDrag(GoalsDataGrid);
         }
 
-        private void RemoveGoalButton_Click(object sender, RoutedEventArgs e)
+        private void ToggleGoalButton_Click(object sender, RoutedEventArgs e)
         {
             if (!((sender as FrameworkElement)?.DataContext is AchievementDisplayItem item))
             {
                 return;
             }
 
-            if (ViewModel?.RemoveGoal(item.ApiName) == true)
+            if (ViewModel?.SetGoal(item.ApiName, !item.IsGoal) == true)
             {
                 DataGridRowReorderBehavior.CancelPendingDrag(GoalsDataGrid);
             }
@@ -135,12 +137,23 @@ namespace PlayniteAchievements.Views.ManageAchievements
             }
 
             var menu = new ContextMenu();
-            menu.Items.Add(CreateGoalMenuItem(ResourceProvider.GetString("LOCPlayAch_ManageAchievements_Order_MoveUp"), () => MoveControllerSelection(item, -1)));
-            menu.Items.Add(CreateGoalMenuItem(ResourceProvider.GetString("LOCPlayAch_ManageAchievements_Order_MoveDown"), () => MoveControllerSelection(item, 1)));
-            menu.Items.Add(CreateGoalMenuItem(ResourceProvider.GetString("LOCPlayAch_ManageAchievements_Order_MoveToTop"), () => MoveControllerSelectionToEdge(item, toTop: true)));
-            menu.Items.Add(CreateGoalMenuItem(ResourceProvider.GetString("LOCPlayAch_ManageAchievements_Order_MoveToBottom"), () => MoveControllerSelectionToEdge(item, toTop: false)));
-            menu.Items.Add(new Separator());
-            menu.Items.Add(CreateGoalMenuItem(ResourceProvider.GetString("LOCPlayAch_Button_Remove"), () => ViewModel?.RemoveGoal(item.ApiName)));
+            if (item.IsGoal)
+            {
+                menu.Items.Add(CreateGoalMenuItem(ResourceProvider.GetString("LOCPlayAch_ManageAchievements_Order_MoveUp"), () => MoveControllerSelection(item, -1)));
+                menu.Items.Add(CreateGoalMenuItem(ResourceProvider.GetString("LOCPlayAch_ManageAchievements_Order_MoveDown"), () => MoveControllerSelection(item, 1)));
+                menu.Items.Add(CreateGoalMenuItem(ResourceProvider.GetString("LOCPlayAch_ManageAchievements_Order_MoveToTop"), () => MoveControllerSelectionToEdge(item, toTop: true)));
+                menu.Items.Add(CreateGoalMenuItem(ResourceProvider.GetString("LOCPlayAch_ManageAchievements_Order_MoveToBottom"), () => MoveControllerSelectionToEdge(item, toTop: false)));
+                menu.Items.Add(new Separator());
+                menu.Items.Add(CreateGoalMenuItem(ResourceProvider.GetString("LOCPlayAch_Button_Remove"), () => ViewModel?.SetGoal(item.ApiName, isGoal: false)));
+            }
+            else
+            {
+                var setGoalItem = CreateGoalMenuItem(
+                    ResourceProvider.GetString("LOCPlayAch_Menu_SetGoal"),
+                    () => ViewModel?.SetGoal(item.ApiName, isGoal: true));
+                setGoalItem.IsEnabled = !item.Unlocked;
+                menu.Items.Add(setGoalItem);
+            }
 
             ContextMenuStyleHelper.ApplyAchievementContextMenuStyle(this, menu);
             row.ContextMenu = menu;
