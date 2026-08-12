@@ -593,7 +593,8 @@ namespace PlayniteAchievements.Views.ThemeIntegration.Modern
                 row.DataContext,
                 this,
                 RefreshAfterRowOptionsChanged,
-                includeViewCaptures: true);
+                includeViewCaptures: true,
+                onGoalChanged: ReapplyGoalOrderAfterRowOptionsChanged);
             if (menu.Items.Count == 0)
             {
                 return false;
@@ -611,6 +612,24 @@ namespace PlayniteAchievements.Views.ThemeIntegration.Modern
             _lastSourceItems = null;
             _lastOrderedAchievements = null;
             LoadData();
+        }
+
+        /// <summary>
+        /// Re-partitions the rows already on screen after a goal toggle. LoadData would rebuild
+        /// from the theme state and re-run the control bar, which drops the user's active filters.
+        /// </summary>
+        private bool ReapplyGoalOrderAfterRowOptionsChanged()
+        {
+            var items = DisplayItems;
+            if (items == null || items.Count == 0)
+            {
+                return false;
+            }
+
+            var reordered = items.ToList();
+            AchievementSortHelper.ApplyGoalsFirst(reordered);
+            CollectionHelper.SynchronizeCollection(items, reordered);
+            return true;
         }
 
         private void ApplySorting(string sortMemberPath, ListSortDirection direction)
