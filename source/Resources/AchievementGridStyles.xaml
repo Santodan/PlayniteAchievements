@@ -462,7 +462,7 @@
          against the row's left edge and crowd the goal accent bar. Matches the horizontal padding
          the other achievement cells already use. -->
     <Style x:Key="AchievementStatusCellStyle" TargetType="DataGridCell" BasedOn="{StaticResource PlayAch.ColumnAlignedDataGridCellStyle}">
-        <Setter Property="Padding" Value="10,6"/>
+        <Setter Property="Padding" Value="6,6"/>
     </Style>
 
     <!-- DataGrid Row Style -->
@@ -486,12 +486,13 @@
                       <Grid>
                         <!-- Goal accent bar. A separate element rather than the row border so the
                              row separator keeps its own colour instead of turning accent. Inset
-                             and rounded so it reads as a marker instead of a slab jammed against
-                             the first cell, which has no horizontal padding of its own. Stays
+                             and rounded so it reads as a marker rather than a slab. Its margin is
+                             grid-configurable via DataGridRowAccentBehavior so a grid that leads
+                             with a non-achievement column can push it past that column. Stays
                              collapsed unless the row item exposes IsGoal. -->
                         <Border x:Name="GoalAccentBar"
                                 Width="3"
-                                Margin="0,7"
+                                Margin="{Binding (helpers:DataGridRowAccentBehavior.AccentMargin), RelativeSource={RelativeSource TemplatedParent}}"
                                 CornerRadius="0,2,2,0"
                                 HorizontalAlignment="Left"
                                 VerticalAlignment="Stretch"
