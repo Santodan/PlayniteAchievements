@@ -89,10 +89,15 @@ namespace PlayniteAchievements.Services.Achievements
             }
 
             var normalized = AchievementOrderHelper.NormalizeApiNames(orderedApiNames);
-            _gameCustomDataStore.Update(gameId, customData =>
-            {
-                customData.GoalAchievementApiNames = normalized.Count > 0 ? normalized : null;
-            });
+            // Goals only pin existing achievements to the top of a list, so no count, filter or
+            // library rollup can move; summary and projection subscribers skip this.
+            _gameCustomDataStore.Update(
+                gameId,
+                customData =>
+                {
+                    customData.GoalAchievementApiNames = normalized.Count > 0 ? normalized : null;
+                },
+                affectsSummaryData: false);
         }
 
         /// <summary>
