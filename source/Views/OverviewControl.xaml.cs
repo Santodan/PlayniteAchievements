@@ -1579,7 +1579,8 @@ namespace PlayniteAchievements.Views
                 data,
                 this,
                 RefreshView,
-                includeViewCaptures: true);
+                includeViewCaptures: true,
+                onGoalChanged: () => _viewModel?.ReapplyGoalOrder() == true);
             return menu;
         }
 

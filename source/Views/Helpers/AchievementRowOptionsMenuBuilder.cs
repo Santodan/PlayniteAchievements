@@ -18,12 +18,19 @@ namespace PlayniteAchievements.Views.Helpers
 {
     internal static class AchievementRowOptionsMenuBuilder
     {
+        /// <param name="onGoalChanged">
+        /// Optional cheap re-sort for a goal toggle. Toggling a goal only changes ordering, so a
+        /// surface that can re-sort its existing rows should do that instead of paying for
+        /// <paramref name="onChanged"/>, which reloads the game's achievements from cache and
+        /// rebuilds every row. Return false to fall back to the full reload.
+        /// </param>
         public static bool AppendAchievementOptions(
             ContextMenu menu,
             object data,
             FrameworkElement resourceOwner,
             Action onChanged,
-            bool includeViewCaptures = false)
+            bool includeViewCaptures = false,
+            Func<bool> onGoalChanged = null)
         {
             if (menu == null || !AchievementRowContext.TryCreate(data, out var context))
             {
@@ -52,7 +59,7 @@ namespace PlayniteAchievements.Views.Helpers
                 menu.Items.Add(captureItem);
             }
 
-            menu.Items.Add(CreateSetGoalItem(context, resourceOwner, onChanged));
+            menu.Items.Add(CreateSetGoalItem(context, resourceOwner, onChanged, onGoalChanged));
             menu.Items.Add(CreateSetCapstoneItem(context, resourceOwner, onChanged));
             menu.Items.Add(CreateCategoriesMenu(context, resourceOwner, onChanged));
             menu.Items.Add(CreateFiltersMenu(context, resourceOwner, onChanged));
@@ -63,7 +70,8 @@ namespace PlayniteAchievements.Views.Helpers
         private static MenuItem CreateSetGoalItem(
             AchievementRowContext context,
             FrameworkElement resourceOwner,
-            Action onChanged)
+            Action onChanged,
+            Func<bool> onGoalChanged)
         {
             // A goal is something still to be earned, and unlocking one retires it, so offering
             // the toggle on an unlocked row would be a dead end.
@@ -76,14 +84,27 @@ namespace PlayniteAchievements.Views.Helpers
             };
             item.Click += (_, __) =>
             {
+                var nextIsGoal = !context.IsGoal;
                 CurrentOverridesService?.SetAchievementGoal(
                     context.GameId,
                     context.ApiName,
-                    !context.IsGoal);
+                    nextIsGoal);
 
-                // Deliberately no optimistic echo onto the row: the reload below re-resolves
-                // IsGoal and re-sorts, so the accent appears on the row in its new pinned
-                // position instead of lighting up the old row and then jumping.
+                // Stamp the row from the stored order, then let the surface re-sort in the same
+                // pass. Both land in one frame, so the accent never appears before the row moves.
+                var goals = GameCustomDataLookup.GetGoalAchievements(
+                    context.GameId,
+                    CurrentSettings,
+                    CurrentStore);
+                var goalIndex = goals.FindIndex(entry =>
+                    string.Equals(entry, context.ApiName, StringComparison.OrdinalIgnoreCase));
+                context.ApplyGoal(nextIsGoal && goalIndex >= 0, goalIndex >= 0 ? goalIndex : int.MaxValue);
+
+                if (onGoalChanged?.Invoke() == true)
+                {
+                    return;
+                }
+
                 onChanged?.Invoke();
             };
 
@@ -636,6 +657,16 @@ namespace PlayniteAchievements.Views.Helpers
                 if (_recentItem != null)
                 {
                     _recentItem.CategoryType = value;
+                }
+            }
+
+            public void ApplyGoal(bool isGoal, int goalOrderIndex)
+            {
+                IsGoal = isGoal;
+                if (_displayItem != null)
+                {
+                    _displayItem.IsGoal = isGoal;
+                    _displayItem.GoalOrderIndex = goalOrderIndex;
                 }
             }
 

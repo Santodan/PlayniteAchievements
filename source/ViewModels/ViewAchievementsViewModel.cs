@@ -981,6 +981,22 @@ namespace PlayniteAchievements.ViewModels
             System.Windows.Application.Current?.Dispatcher?.Invoke(LoadGameData);
         }
 
+        /// <summary>
+        /// Re-sorts the rows already in memory after a goal toggle. Goal state only affects
+        /// ordering, so this avoids the cache read, hydration and full row rebuild that
+        /// <see cref="RefreshView"/> pays for.
+        /// </summary>
+        public bool ReapplyGoalOrder()
+        {
+            if (_allAchievements == null || _allAchievements.Count == 0)
+            {
+                return false;
+            }
+
+            ApplySearchFilter(refreshOrder: true);
+            return true;
+        }
+
         #endregion
 
         public void SortDataGrid(string sortMemberPath, ListSortDirection direction)

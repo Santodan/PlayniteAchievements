@@ -3009,6 +3009,30 @@ namespace PlayniteAchievements.ViewModels
             CollectionHelper.Replace(RecentAchievements, displayItems);
         }
 
+        /// <summary>
+        /// Re-sorts the selected game's rows after a goal toggle. Goal state only affects
+        /// ordering, so this avoids the full selected-game rebuild.
+        /// </summary>
+        public bool ReapplyGoalOrder()
+        {
+            if (_allSelectedGameAchievements == null || _allSelectedGameAchievements.Count == 0)
+            {
+                return false;
+            }
+
+            if (!string.IsNullOrEmpty(_selectedGameSortPath))
+            {
+                // Re-runs the active column sort and re-partitions goals, then syncs.
+                SortSelectedGameAchievements(_selectedGameSortPath, _selectedGameSortDirection);
+                return true;
+            }
+
+            AchievementSortHelper.ApplyGoalsFirst(_allSelectedGameAchievements);
+            AchievementSortHelper.ApplyGoalsFirst(_filteredSelectedGameAchievements);
+            SyncSelectedGameAchievementsDisplay();
+            return true;
+        }
+
         private void SyncSelectedGameAchievementsDisplay()
         {
             // Keep the unfiltered category-summary source current; the achievement filters do not
