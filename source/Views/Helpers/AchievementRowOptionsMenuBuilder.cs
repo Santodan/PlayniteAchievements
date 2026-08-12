@@ -4,6 +4,7 @@ using System.Linq;
 using System.Windows;
 using System.Windows.Controls;
 using Playnite.SDK;
+using PlayniteAchievements.Common;
 using PlayniteAchievements.Services;
 using PlayniteAchievements.Services.Achievements;
 using PlayniteAchievements.Services.GameCustomData;
@@ -85,22 +86,34 @@ namespace PlayniteAchievements.Views.Helpers
             item.Click += (_, __) =>
             {
                 var nextIsGoal = !context.IsGoal;
+                var logger = LogManager.GetLogger();
 
                 // The write returns the new goal position, so the row can be stamped without a
                 // second read. The surface then re-sorts in the same pass, landing the accent and
                 // the new position in one frame.
-                var goalIndex = CurrentOverridesService?.SetAchievementGoal(
-                    context.GameId,
-                    context.ApiName,
-                    nextIsGoal) ?? -1;
-                context.ApplyGoal(goalIndex >= 0, goalIndex >= 0 ? goalIndex : int.MaxValue);
-
-                if (onGoalChanged?.Invoke() == true)
+                int goalIndex;
+                using (PerfScope.Start(logger, "Goal.Write", thresholdMs: 0))
                 {
-                    return;
+                    goalIndex = CurrentOverridesService?.SetAchievementGoal(
+                        context.GameId,
+                        context.ApiName,
+                        nextIsGoal) ?? -1;
                 }
 
-                onChanged?.Invoke();
+                context.ApplyGoal(goalIndex >= 0, goalIndex >= 0 ? goalIndex : int.MaxValue);
+
+                using (PerfScope.Start(logger, "Goal.Resort", thresholdMs: 0))
+                {
+                    if (onGoalChanged?.Invoke() == true)
+                    {
+                        return;
+                    }
+                }
+
+                using (PerfScope.Start(logger, "Goal.FullReload", thresholdMs: 0))
+                {
+                    onChanged?.Invoke();
+                }
             };
 
             return item;
