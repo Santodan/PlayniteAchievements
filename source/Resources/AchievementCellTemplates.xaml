@@ -22,16 +22,19 @@
                  ClipToBounds="False"
                  UseLayoutRounding="True"
                  SnapsToDevicePixels="True">
+            <!-- Sized from the cell's content area rather than the whole cell, so the glyph is
+                 not clipped when the cell carries horizontal padding. The converter's own
+                 horizontal allowance is therefore 0; the padding already provides the inset. -->
             <Viewbox.Width>
-                <MultiBinding Converter="{StaticResource ImageFitDimension}" ConverterParameter="platform,width,8,12,18">
+                <MultiBinding Converter="{StaticResource ImageFitDimension}" ConverterParameter="platform,width,0,12,18">
                     <Binding RelativeSource="{RelativeSource AncestorType=DataGridRow}" Path="ActualHeight"/>
-                    <Binding RelativeSource="{RelativeSource AncestorType=DataGridCell}" Path="ActualWidth"/>
+                    <Binding RelativeSource="{RelativeSource AncestorType=ContentPresenter}" Path="ActualWidth"/>
                 </MultiBinding>
             </Viewbox.Width>
             <Viewbox.Height>
-                <MultiBinding Converter="{StaticResource ImageFitDimension}" ConverterParameter="platform,height,8,12,18">
+                <MultiBinding Converter="{StaticResource ImageFitDimension}" ConverterParameter="platform,height,0,12,18">
                     <Binding RelativeSource="{RelativeSource AncestorType=DataGridRow}" Path="ActualHeight"/>
-                    <Binding RelativeSource="{RelativeSource AncestorType=DataGridCell}" Path="ActualWidth"/>
+                    <Binding RelativeSource="{RelativeSource AncestorType=ContentPresenter}" Path="ActualWidth"/>
                 </MultiBinding>
             </Viewbox.Height>
 
