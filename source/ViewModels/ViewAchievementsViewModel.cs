@@ -382,6 +382,8 @@ namespace PlayniteAchievements.ViewModels
 
         public bool ShowAchievementGridControlBar => _settings?.Persisted?.ShowViewAchievementsAchievementGridControlBar ?? true;
 
+        public bool ShowAchievementGridColumnHeaders => _settings?.Persisted?.ShowViewAchievementsAchievementGridColumnHeaders ?? true;
+
         public bool HideCategorySummaryRow => _settings?.Persisted?.ViewAchievementsAchievementGridHideCategorySummaryRow ?? false;
 
         public bool CategorySummariesShowColumnHeaders => _settings?.Persisted?.ShowViewAchievementsCategorySummariesGridColumnHeaders ?? true;
@@ -394,11 +396,9 @@ namespace PlayniteAchievements.ViewModels
 
         public double? SingleGameGridRowHeight => _settings?.Persisted?.SingleGameGridRowHeight;
 
-        // The Manage Achievements window follows the Overview "Selected Game Achievements" glow setting.
-        public bool ShowRarityGlow => _settings?.Persisted?.OverviewSelectedGameShowRarityGlow ?? true;
+        public bool ShowRarityGlow => _settings?.Persisted?.ViewAchievementsAchievementGridShowRarityGlow ?? true;
 
-        // The Manage Achievements window follows the Overview "Selected Game Achievements" name-color setting.
-        public bool ColorNamesByRarity => _settings?.Persisted?.OverviewSelectedGameColorNamesByRarity ?? false;
+        public bool ColorNamesByRarity => _settings?.Persisted?.ViewAchievementsAchievementGridColorNamesByRarity ?? false;
 
         public bool ColorRarityColumnsByRarity => _settings?.Persisted?.ViewAchievementsAchievementGridColorRarityColumnsByRarity ?? false;
 
@@ -822,11 +822,14 @@ namespace PlayniteAchievements.ViewModels
                 ApplyAppearanceSettingsToAchievements();
                 OnPropertyChanged(nameof(SingleGameGridRowHeight));
                 OnPropertyChanged(nameof(ShowAchievementGridControlBar));
+                OnPropertyChanged(nameof(ShowAchievementGridColumnHeaders));
                 OnPropertyChanged(nameof(HideCategorySummaryRow));
                 OnPropertyChanged(nameof(CategorySummariesShowColumnHeaders));
                 OnPropertyChanged(nameof(CategorySummariesGridRowHeight));
                 OnPropertyChanged(nameof(CategorySummariesUseCoverImages));
                 OnPropertyChanged(nameof(CategorySummariesShowCompletionGlow));
+                OnPropertyChanged(nameof(ShowRarityGlow));
+                OnPropertyChanged(nameof(ColorNamesByRarity));
                 OnPropertyChanged(nameof(ColorRarityColumnsByRarity));
                 RaiseSummaryAppearanceProperties();
                 ApplySavedTimelineState();
@@ -884,15 +887,21 @@ namespace PlayniteAchievements.ViewModels
                 return;
             }
 
-            if (e?.PropertyName == nameof(PersistedSettings.OverviewSelectedGameShowRarityGlow))
+            if (e?.PropertyName == nameof(PersistedSettings.ViewAchievementsAchievementGridShowRarityGlow))
             {
                 OnPropertyChanged(nameof(ShowRarityGlow));
                 return;
             }
 
-            if (e?.PropertyName == nameof(PersistedSettings.OverviewSelectedGameColorNamesByRarity))
+            if (e?.PropertyName == nameof(PersistedSettings.ViewAchievementsAchievementGridColorNamesByRarity))
             {
                 OnPropertyChanged(nameof(ColorNamesByRarity));
+                return;
+            }
+
+            if (e?.PropertyName == nameof(PersistedSettings.ShowViewAchievementsAchievementGridColumnHeaders))
+            {
+                OnPropertyChanged(nameof(ShowAchievementGridColumnHeaders));
                 return;
             }
 
