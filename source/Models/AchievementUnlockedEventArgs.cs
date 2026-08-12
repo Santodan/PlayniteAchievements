@@ -56,6 +56,12 @@ namespace PlayniteAchievements.Models
 
         public UnlockVideoAnchorSource VideoAnchorSource { get; set; }
 
+        /// <summary>
+        /// Per-notification identity shared by the toast and recording subscribers. It prevents two
+        /// achievements with the same display name (or the same achievement in overlapping games)
+        /// from receiving one another's overlay track or chime.
+        /// </summary>
+        public Guid CaptureCorrelationId { get; set; } = Guid.NewGuid();
         public int UnlockedCount { get; set; }
         public int TotalCount { get; set; }
 

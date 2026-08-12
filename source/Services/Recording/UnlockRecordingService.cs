@@ -72,6 +72,9 @@ namespace PlayniteAchievements.Services.Recording
         // threw or was cleared.
         private const int ToastWaitTimeoutSeconds = 30;
         private const int ToastWaitPollSeconds = 5;
+        // Unrelated waves can keep the global activity clock moving forever. This absolute bound
+        // guarantees a lost/mismatched track eventually degrades to a toastless clip.
+        private const int MaxToastWaitSeconds = 5 * 60;
         // The clip's toast slot: the effective display duration plus an allowance for the
         // slide-in delay (~0.75s to the snap) and the slide-out, plus a short tail after it.
         // The slot sizes the base window (worst case, before the track exists); the composited
@@ -111,8 +114,7 @@ namespace PlayniteAchievements.Services.Recording
         private readonly UnlockScreenshotService _screenshotService;
 
         private readonly object _gate = new object();
-        // Requests whose overlay track hasn't arrived yet (guarded by _gate). Matched by
-        // OnToastTracksCompleted; resolved null on timeout/shutdown for a toastless clip.
+        // Requests whose overlay track hasn't arrived yet (guarded by _gate).
         private readonly List<ClipRequest> _awaitingTrack = new List<ClipRequest>();
         private readonly HashSet<Task> _inFlightTasks = new HashSet<Task>();
         // One overlay re-encode at a time so a burst wave doesn't saturate the encoder while the
@@ -204,6 +206,7 @@ namespace PlayniteAchievements.Services.Recording
         private sealed class ClipRequest
         {
             public CaptureSession Session;
+            public Guid CaptureCorrelationId;
             public string ProviderKey;
             public string GameName;
             public string AchievementName;
@@ -787,6 +790,7 @@ namespace PlayniteAchievements.Services.Recording
             var request = new ClipRequest
             {
                 Session = session,
+                CaptureCorrelationId = e.CaptureCorrelationId,
                 ProviderKey = e.ProviderKey,
                 GameName = e.GameName,
                 // Resolved through the shared helper so completion notifications (no
@@ -840,8 +844,7 @@ namespace PlayniteAchievements.Services.Recording
                     {
                         var match = _awaitingTrack.FirstOrDefault(r =>
                             !r.OwnSoundUtc.HasValue &&
-                            string.Equals(r.ProviderKey, vm.ProviderKey, StringComparison.OrdinalIgnoreCase) &&
-                            string.Equals(r.AchievementName, vm.AchievementName, StringComparison.Ordinal));
+                            r.CaptureCorrelationId == vm.CaptureCorrelationId);
                         if (match != null)
                         {
                             match.OwnSoundUtc = e.SoundPlayedUtc;
@@ -852,10 +855,8 @@ namespace PlayniteAchievements.Services.Recording
         }
 
         /// <summary>
-        /// Hands each completed overlay track to the first waiting request with the same provider
-        /// and achievement name (first-match preserves duplicate-name semantics). Unmatched
-        /// tracks are dropped — the item toasted but requested no clip (rarity filter, provider
-        /// gating, wrong game, or recording disabled).
+        /// Hands each completed overlay track to its correlation-id request. Unmatched tracks are
+        /// from items that toasted but requested no clip.
         /// </summary>
         private void OnToastTracksCompleted(object sender, ToastTracksCompletedEventArgs e)
         {
@@ -871,8 +872,7 @@ namespace PlayniteAchievements.Services.Recording
                 foreach (var track in e.Tracks)
                 {
                     var match = _awaitingTrack.FirstOrDefault(r =>
-                        string.Equals(r.ProviderKey, track.ProviderKey, StringComparison.OrdinalIgnoreCase) &&
-                        string.Equals(r.AchievementName, track.AchievementName, StringComparison.Ordinal));
+                        r.CaptureCorrelationId == track.CaptureCorrelationId);
                     if (match != null)
                     {
                         _awaitingTrack.Remove(match);
@@ -1083,10 +1083,13 @@ namespace PlayniteAchievements.Services.Recording
 
                 var now = CaptureTimelineClock.UtcNow;
                 var silenceAnchor = lastActivity > request.ObservedUtc ? lastActivity : request.ObservedUtc;
-                if (_disposed || now - silenceAnchor >= TimeSpan.FromSeconds(ToastWaitTimeoutSeconds))
+                if (_disposed ||
+                    now - silenceAnchor >= TimeSpan.FromSeconds(ToastWaitTimeoutSeconds) ||
+                    now - request.ObservedUtc >= TimeSpan.FromSeconds(MaxToastWaitSeconds))
                 {
                     _logger?.Debug(
-                        $"[Recording] No toast after {ToastWaitTimeoutSeconds}s of toast silence for '{request.AchievementName}'; saving the clip without a toast.");
+                        $"[Recording] No matching toast track for '{request.AchievementName}' " +
+                        $"({(now - request.ObservedUtc).TotalSeconds:F0}s since observation); saving the clip without a toast.");
                     AbandonTrackWait(request);
                     return await request.TrackTcs.Task.ConfigureAwait(false);
                 }

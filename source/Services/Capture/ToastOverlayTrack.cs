@@ -18,10 +18,12 @@ namespace PlayniteAchievements.Services.Capture
     /// </summary>
     internal sealed class ToastOverlayTrack
     {
-        /// <summary>Provider key of the unlock, for matching against pending clip requests.</summary>
+        public Guid CaptureCorrelationId { get; set; }
+
+        /// <summary>Provider key of the unlock, retained for diagnostics.</summary>
         public string ProviderKey { get; set; }
 
-        /// <summary>Achievement name of the unlock, for matching against pending clip requests.</summary>
+        /// <summary>Achievement name of the unlock, retained for diagnostics.</summary>
         public string AchievementName { get; set; }
 
         /// <summary>Wall-clock time of the first sample (diagnostics only).</summary>
