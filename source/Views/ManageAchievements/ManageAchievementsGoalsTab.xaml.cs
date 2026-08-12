@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Windows;
 using System.Windows.Controls;
+using System.Windows.Controls.Primitives;
 using Playnite.SDK;
 using Playnite.SDK.Events;
 using PlayniteAchievements.Services.Achievements;
@@ -41,6 +42,13 @@ namespace PlayniteAchievements.Views.ManageAchievements
                 RestoreSelection = RestoreSelectionByApiNames,
                 RowPressOutsideDragHandle = (item, e) =>
                 {
+                    // A press on the row's goal button must reach the button; reveal-on-press
+                    // would otherwise mark it handled and swallow the click on goal rows.
+                    if (VisualTreeHelpers.FindVisualParent<ButtonBase>(e.OriginalSource as DependencyObject) != null)
+                    {
+                        return;
+                    }
+
                     if (item is AchievementDisplayItem displayItem && displayItem.CanReveal)
                     {
                         displayItem.ToggleReveal();

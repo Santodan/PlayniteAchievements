@@ -159,9 +159,9 @@
                 <DataGridTemplateColumn Width="Auto" CanUserResize="False" CanUserSort="False">
                     <DataGridTemplateColumn.CellTemplate>
                         <DataTemplate>
-                            <!-- Content and enablement come from Setters, never local values, so
-                                 the triggers can win. An unlocked achievement cannot become a
-                                 goal, matching the row context menu. -->
+                            <!-- Content comes from a Setter, never a local value, so the trigger
+                                 can win. Every listed row is settable: unlocked achievements are
+                                 filtered out of this tab entirely. -->
                             <Button Click="ToggleGoalButton_Click">
                                 <Button.Style>
                                     <Style TargetType="Button" BasedOn="{StaticResource ManageAchievementsHeaderActionButtonStyle}">
@@ -172,13 +172,6 @@
                                             <DataTrigger Binding="{Binding IsGoal}" Value="True">
                                                 <Setter Property="Content" Value="{DynamicResource LOCPlayAch_Button_Remove}" />
                                             </DataTrigger>
-                                            <MultiDataTrigger>
-                                                <MultiDataTrigger.Conditions>
-                                                    <Condition Binding="{Binding IsGoal}" Value="False" />
-                                                    <Condition Binding="{Binding Unlocked}" Value="True" />
-                                                </MultiDataTrigger.Conditions>
-                                                <Setter Property="IsEnabled" Value="False" />
-                                            </MultiDataTrigger>
                                         </Style.Triggers>
                                     </Style>
                                 </Button.Style>

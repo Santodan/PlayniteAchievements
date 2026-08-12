@@ -77,10 +77,12 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
                 PruneUnlockedGoals(gameData, achievements);
 
                 // Hydration already resolved IsGoal (false once unlocked) and GoalOrderIndex, so
-                // the tab shows exactly what the achievement surfaces pin. Non-goals follow in the
-                // list's default order so any of them can be promoted from here.
+                // the tab shows exactly what the achievement surfaces pin. Still-locked
+                // achievements follow so any of them can be promoted from here; unlocked ones are
+                // left out because they can never become a goal.
                 var orderedAchievements = AchievementSortHelper
                     .CreateDefaultSortedDetailList(achievements)
+                    .Where(a => a.IsGoal || !a.Unlocked)
                     .OrderBy(a => a.IsGoal ? 0 : 1)
                     .ThenBy(a => a.IsGoal ? a.GoalOrderIndex : 0)
                     .ToList();
