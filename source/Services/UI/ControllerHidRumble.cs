@@ -32,6 +32,17 @@ namespace PlayniteAchievements.Services.UI
         internal static readonly bool DiagnosticVariantSweep = true;
 
         /// <summary>
+        /// Sony pads are sent on the control channel as well as the interrupt one, because which of
+        /// the two a pad or adapter honours cannot be probed. The Steam Controller is excluded: it is
+        /// resent every 40 ms and a synchronous control transfer on each resend would be costly,
+        /// while SDL drives it over the interrupt endpoint successfully.
+        /// </summary>
+        private static bool UsesControlTransfer(PadFamily family)
+        {
+            return family != PadFamily.SteamController;
+        }
+
+        /// <summary>
         /// Only the DualShock 4 still has an open question: whether the required high nibble works
         /// without also claiming the lightbar. Every other family is settled.
         /// </summary>
@@ -175,7 +186,7 @@ namespace PlayniteAchievements.Services.UI
                     BuildReport(pad.Family, pad.LogicalLength, speed),
                     pad.TransmitLength);
                 var error = 0;
-                if (report != null && Write(pad.Handle, report, out error))
+                if (report != null && Write(pad.Handle, report, UsesControlTransfer(pad.Family), out error))
                 {
                     continue;
                 }
@@ -278,9 +289,9 @@ namespace PlayniteAchievements.Services.UI
                                         await Task.Delay(WithinGroupGapMs).ConfigureAwait(false);
                                     }
 
-                                    wrote = Write(pad.Handle, on, out error);
+                                    wrote = Write(pad.Handle, on, UsesControlTransfer(pad.Family), out error);
                                     await Task.Delay(BuzzMs).ConfigureAwait(false);
-                                    Write(pad.Handle, off, out _);
+                                    Write(pad.Handle, off, UsesControlTransfer(pad.Family), out _);
                                 }
 
                                 if (!wrote)
@@ -362,7 +373,7 @@ namespace PlayniteAchievements.Services.UI
                     EnableEnhancedReports(handle, family, featureLength);
                 }
 
-                if (!Write(handle, BuildNeutralReport(family, logicalLength, transmitLength), out var probeError))
+                if (!Write(handle, BuildNeutralReport(family, logicalLength, transmitLength), UsesControlTransfer(family), out var probeError))
                 {
                     unmatched.Add(string.Format(
                         CultureInfo.InvariantCulture,
@@ -541,17 +552,43 @@ namespace PlayniteAchievements.Services.UI
                 ReadOutputReportLength(handle));
         }
 
-        private static bool Write(SafeFileHandle handle, byte[] report, out int error)
+        /// <summary>
+        /// Sends an output report. There are two channels and they are not interchangeable:
+        /// WriteFile goes to the interrupt OUT endpoint when the device declares one, while
+        /// HidD_SetOutputReport always uses a control transfer with a Set_Report request.
+        ///
+        /// A Sony pad may act on only one of them, and the failure is silent: the report is queued
+        /// and acknowledged, so WriteFile reports success while nothing happens on the pad. This is
+        /// why DS4Windows drives Bluetooth through the control transfer and USB through the
+        /// interrupt endpoint. Since which channel a given pad or wireless adapter honours cannot
+        /// be probed, Sony pads are sent both and a duplicate rumble command is harmless.
+        /// </summary>
+        private static bool Write(SafeFileHandle handle, byte[] report, bool alsoControlTransfer, out int error)
         {
-            if (!NativeMethods.WriteFile(handle, report, (uint)report.Length, out var written, IntPtr.Zero))
+            error = 0;
+            var wrote = false;
+
+            if (NativeMethods.WriteFile(handle, report, (uint)report.Length, out var written, IntPtr.Zero))
+            {
+                // A short write leaves no win32 error to report, so flag it distinctly.
+                wrote = written == report.Length;
+                if (!wrote)
+                {
+                    error = -1;
+                }
+            }
+            else
             {
                 error = Marshal.GetLastWin32Error();
-                return false;
             }
 
-            // A short write leaves no win32 error to report, so flag it distinctly.
-            error = written == report.Length ? 0 : -1;
-            return error == 0;
+            if (alsoControlTransfer && NativeMethods.HidD_SetOutputReport(handle, report, (uint)report.Length))
+            {
+                wrote = true;
+                error = 0;
+            }
+
+            return wrote;
         }
 
         /// <summary>
@@ -599,26 +636,36 @@ namespace PlayniteAchievements.Services.UI
                 return null;
             }
 
-            // A DualSense has two rumble paths and SDL chooses between them by reading the firmware
-            // version out of a feature report: emulation via ucEnableBits1 bit 0 with the magnitude
-            // halved on older firmware, or improved rumble via ucEnableBits3 bit 2 at full magnitude
-            // on 2.24 and newer. Rather than probe the firmware, both enable bits are set — each
-            // path reads the same two magnitude bytes, so whichever one the pad implements drives
-            // the motors and the other is ignored. This is what makes a wireless adapter work, since
-            // an adapter need not implement the same path as a directly connected pad.
+            // Field names and bit positions below come from the reverse-engineered DualSense
+            // SetStateData layout (as used by the DS5Dongle firmware), which is more explicit than
+            // SDL's terser comments:
             //
-            // Confirmed on a DualSense, a DualSense Edge and a DualShock 4: additionally setting the
-            // audio-haptics-disable bit (0x02), as SDL does, silences the motors instead of driving
-            // them, so it is left alone. That also means audio haptics are never disturbed and no
-            // follow-up release report is needed.
+            //   byte 0 bit 0  EnableRumbleEmulation          "suggest halving rumble strength"
+            //   byte 0 bit 1  UseRumbleNotHaptics
+            //   byte 2        RumbleEmulationRight           light weight
+            //   byte 3        RumbleEmulationLeft            heavy weight
+            //   byte 38 bit 2 EnableImprovedRumbleEmulation  "use instead of EnableRumbleEmulation"
+            //   byte 38 bit 3 UseRumbleNotHaptics2           "works the same as UseRumbleNotHaptics"
+            //
+            // UseRumbleNotHaptics is the bit that matters most: without it the pad renders rumble
+            // through its voice-coil haptic actuators rather than the motors, which is easy to
+            // mistake for nothing happening at all — especially over a wireless bridge that is also
+            // streaming audio to those same actuators. SDL always sets it; its comment calls it
+            // "disable audio haptics", which undersells what it does.
+            //
+            // Both enable paths are offered because SDL picks between them by reading the firmware
+            // version, which would cost an extra feature report: older firmware honours
+            // EnableRumbleEmulation, 2.24 and newer honour the improved one, and both read the same
+            // two magnitude bytes. The magnitude is not halved — the halving is only a suggestion
+            // that pairs with the classic path.
             //
             // The bits stay set for a stop as well: a zero magnitude with the paths still enabled is
             // what halts the motors.
-            report[offset] = 0x01;                        // ucEnableBits1: rumble emulation.
-            report[offset + 38] = 0x04;                   // ucEnableBits3: improved rumble.
+            report[offset] = 0x01 | 0x02;                 // EnableRumbleEmulation, UseRumbleNotHaptics
+            report[offset + 38] = 0x04 | 0x08;            // EnableImprovedRumbleEmulation, UseRumbleNotHaptics2
             var magnitude = (byte)(speed >> 8);
-            report[offset + 2] = magnitude;               // ucRumbleRight
-            report[offset + 3] = magnitude;               // ucRumbleLeft
+            report[offset + 2] = magnitude;               // RumbleEmulationRight
+            report[offset + 3] = magnitude;               // RumbleEmulationLeft
 
             AppendBluetoothCrc(report, reportLength == 78);
             return report;
@@ -1005,6 +1052,10 @@ namespace PlayniteAchievements.Services.UI
             [DllImport("hid.dll", SetLastError = true)]
             [return: MarshalAs(UnmanagedType.Bool)]
             public static extern bool HidD_GetFeature(SafeFileHandle handle, byte[] reportBuffer, uint reportBufferLength);
+
+            [DllImport("hid.dll", SetLastError = true)]
+            [return: MarshalAs(UnmanagedType.Bool)]
+            public static extern bool HidD_SetOutputReport(SafeFileHandle handle, byte[] reportBuffer, uint reportBufferLength);
         }
     }
 }
