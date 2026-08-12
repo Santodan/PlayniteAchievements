@@ -1364,7 +1364,8 @@ namespace PlayniteAchievements.ViewModels.Items
             PlayniteAchievementsSettings settings,
             string gameIconPath,
             string gameCoverPath,
-            AppearanceSettingsSnapshot appearanceSettings = null)
+            AppearanceSettingsSnapshot appearanceSettings = null,
+            CategoryPresentationMemo categoryMemo = null)
         {
             if (achievement == null || !achievement.Unlocked || !achievement.UnlockTimeUtc.HasValue)
             {
@@ -1375,7 +1376,8 @@ namespace PlayniteAchievements.ViewModels.Items
                 gameData,
                 achievement,
                 gameData?.PlayniteGameId,
-                ResolvePoints(achievement, gameData));
+                ResolvePoints(achievement, gameData),
+                categoryMemo);
             item.GameIconPath = gameIconPath;
             item.GameCoverPath = gameCoverPath;
             ApplyCategoryPresentation(
@@ -1383,7 +1385,8 @@ namespace PlayniteAchievements.ViewModels.Items
                 gameData,
                 item.CategoryLabel,
                 achievement.ProviderCategory,
-                gameData?.PlayniteGameId);
+                gameData?.PlayniteGameId,
+                categoryMemo);
             var resolvedAppearanceSettings = appearanceSettings ?? CreateAppearanceSettingsSnapshot(
                 settings,
                 gameData?.PlayniteGameId,

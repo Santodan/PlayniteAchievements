@@ -446,6 +446,10 @@ namespace PlayniteAchievements.Services.Overview
 
             var recentGameDataByKey = new Dictionary<string, GameAchievementData>(StringComparer.OrdinalIgnoreCase);
             var appearanceByGameKey = new Dictionary<string, AchievementDisplayItem.AppearanceSettingsSnapshot>(StringComparer.OrdinalIgnoreCase);
+            // One memo per game, matching the memo's documented single-game scope. Recent unlocks
+            // cluster by game, so without it every unlock in the library repeats its game's
+            // category art resolution and disk probing.
+            var categoryMemoByGameKey = new Dictionary<string, AchievementDisplayItem.CategoryPresentationMemo>(StringComparer.OrdinalIgnoreCase);
             foreach (var recent in recentAchievements)
             {
                 cancel.ThrowIfCancellationRequested();
@@ -479,6 +483,7 @@ namespace PlayniteAchievements.Services.Overview
                         settings,
                         gameData.PlayniteGameId,
                         gameData.UseSeparateLockedIconsWhenAvailable);
+                    categoryMemoByGameKey[gameKey] = new AchievementDisplayItem.CategoryPresentationMemo();
                 }
 
                 var detail = new AchievementDetail
@@ -513,6 +518,9 @@ namespace PlayniteAchievements.Services.Overview
                     presentation.CoverPath,
                     appearanceByGameKey.TryGetValue(gameKey, out var appearance)
                         ? appearance
+                        : null,
+                    categoryMemoByGameKey.TryGetValue(gameKey, out var categoryMemo)
+                        ? categoryMemo
                         : null);
                 if (item != null)
                 {
