@@ -485,9 +485,6 @@ namespace PlayniteAchievements.Services.Recording
 
                 if (persisted.RecordingIncludeAudio)
                 {
-                    // Best-effort: a recorder that fails to start is dropped and the clips stay
-                    // video-only (the recorder logs its own warning). Game-only audio resolves the
-                    // session's live owner pid so a foreground switch retargets on the next session.
                     var recorder = new AudioLoopbackRecorder(
                         session.BufferDirectory,
                         _logger,
@@ -503,34 +500,21 @@ namespace PlayniteAchievements.Services.Recording
                         recorder.Dispose();
                     }
 
-                    // The chime sidecar (Playnite-only) rides alongside so each clip can mix in
-                    // exactly its own wave's chime. Best-effort like the main track.
-                    //
-                    // It may only run when the main track actually excluded Playnite's tree. If
-                    // that activation failed, the main track degraded to plain system loopback and
-                    // already contains the chime, so mixing the sidecar in would play it twice --
-                    // once where it really sounded, once re-timed to the composited toast.
-                    if (session.AudioRecorder != null && AudioLoopbackRecorder.IsChimeCaptureSupported)
+                    if (session.AudioRecorder != null &&
+                        session.AudioRecorder.ExcludesPlayniteAudio &&
+                        AudioLoopbackRecorder.IsChimeCaptureSupported)
                     {
-                        if (!session.AudioRecorder.ExcludesPlayniteAudio)
+                        var chimeRecorder = new AudioLoopbackRecorder(
+                            session.BufferDirectory,
+                            _logger,
+                            capturePlayniteChimes: true);
+                        if (chimeRecorder.Start())
                         {
-                            _logger?.Info(
-                                "[Recording] Main audio track includes Playnite's own audio; skipping the chime sidecar so clip chimes are not doubled.");
+                            session.ChimeRecorder = chimeRecorder;
                         }
                         else
                         {
-                            var chimeRecorder = new AudioLoopbackRecorder(
-                                session.BufferDirectory,
-                                _logger,
-                                capturePlayniteChimes: true);
-                            if (chimeRecorder.Start())
-                            {
-                                session.ChimeRecorder = chimeRecorder;
-                            }
-                            else
-                            {
-                                chimeRecorder.Dispose();
-                            }
+                            chimeRecorder.Dispose();
                         }
                     }
                 }
@@ -1021,8 +1005,8 @@ namespace PlayniteAchievements.Services.Recording
                     }
 
                     _logger?.Info($"[Recording] Saved unlock clip: {savedPath}");
-                    // Drop the cached capture scan for this game so an already-open grid picks up
-                    // the new clip on its next rebuild.
+                    // Drop the cached capture scan for this game. This also raises CapturesChanged,
+                    // so grids that are already open re-stamp their rows for the new clip.
                     PlayniteAchievementsPlugin.Instance?.CaptureLibraryService?.Invalidate(request.GameName);
                 }
                 finally
