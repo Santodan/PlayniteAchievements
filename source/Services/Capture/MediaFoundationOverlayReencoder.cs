@@ -188,8 +188,7 @@ namespace PlayniteAchievements.Services.Capture
                 outputType.Set(
                     MediaTypeAttributeKeys.AvgBitrate,
                     BitrateMath.ComputeReencode(frameW, frameH, fps, quality));
-                // Matches the capture encoder so the re-encode does not coarsen seek precision.
-                outputType.Set(MediaTypeAttributeKeys.MaxKeyframeSpacing, KeyframeCadence.MaxSpacingFrames(fps));
+                outputType.Set(MediaTypeAttributeKeys.MaxKeyframeSpacing, fps);
                 outputType.Set(MediaTypeAttributeKeys.InterlaceMode, (int)VideoInterlaceMode.Progressive);
                 outputType.Set(MediaTypeAttributeKeys.FrameSize, Pack(frameW, frameH));
                 outputType.Set(MediaTypeAttributeKeys.FrameRate, Pack(fps, 1));

@@ -13,10 +13,9 @@ namespace PlayniteAchievements.Services.Capture
     /// (already H.264 .mp4, encoded at the target resolution) are concatenated and trimmed to the
     /// clip window by stream-copy (no re-encode: the source reader is left at the native compressed
     /// type and samples are written straight through, so capture quality is preserved). The trim
-    /// start snaps back to the nearest keyframe at/before the window start — the encoder writes
-    /// <see cref="KeyframeCadence.PerSecond"/> keyframes a second, so this loses no content and adds
-    /// under that much lead, as the old `-c copy` seek did. The planned loopback WAV chunks are read
-    /// as PCM, converted to 48 kHz stereo
+    /// start snaps back to the nearest keyframe at/before the window start — the encoder writes ~1
+    /// keyframe/second, so this loses no content and adds ≤1s of lead, exactly matching the old
+    /// `-c copy` seek. The planned loopback WAV chunks are read as PCM, converted to 48 kHz stereo
     /// 16-bit, encoded to AAC, and muxed into the same file, offset by that keyframe lead so audio
     /// and video stay aligned. Audio absent/failed → a video-only clip.
     /// </summary>

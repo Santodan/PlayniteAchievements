@@ -33,9 +33,8 @@ namespace PlayniteAchievements.Views.Controls
         private const double DurationTolerance = 0.001;
         private const double DefaultVolume = 0.5;
 
-        // A seek lands on the nearest keyframe at or before the target, so it can legitimately stop
-        // short of it; anything this close counts as arrived. Sized for the one-per-second cadence
-        // of clips recorded before KeyframeCadence tightened it, which are still on disk.
+        // Clips carry roughly one keyframe per second, so a seek can legitimately land up to about
+        // a second from where it was asked to go; anything within that counts as arrived.
         private const double SeekLandedTolerance = 1.25;
         private const int MaxAwaitedSeekTicks = 4;
 
