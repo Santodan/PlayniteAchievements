@@ -482,10 +482,14 @@
                             SnapsToDevicePixels="True">
                       <Grid>
                         <!-- Goal accent bar. A separate element rather than the row border so the
-                             row separator keeps its own colour instead of turning accent. Stays
+                             row separator keeps its own colour instead of turning accent. Inset
+                             and rounded so it reads as a marker instead of a slab jammed against
+                             the first cell, which has no horizontal padding of its own. Stays
                              collapsed unless the row item exposes IsGoal. -->
                         <Border x:Name="GoalAccentBar"
                                 Width="3"
+                                Margin="0,7"
+                                CornerRadius="0,2,2,0"
                                 HorizontalAlignment="Left"
                                 VerticalAlignment="Stretch"
                                 Background="{DynamicResource PlayAch.Brush.Accent}"
