@@ -987,7 +987,9 @@ namespace PlayniteAchievements.Services.UI
                    result.Count < max &&
                    items[end].IsFriendUnlock == anchor.IsFriendUnlock &&
                    items[end].PlayniteGameId == anchor.PlayniteGameId &&
-                   items[end].IsGameCompleted == anchor.IsGameCompleted)
+                   items[end].IsGameCompleted == anchor.IsGameCompleted &&
+                   ShouldToast(items[end].IsPreview, items[end].IsFriendUnlock, items[end].ProviderKey) ==
+                       ShouldToast(anchor.IsPreview, anchor.IsFriendUnlock, anchor.ProviderKey))
             {
                 result.Add(items[end]);
                 end++;
