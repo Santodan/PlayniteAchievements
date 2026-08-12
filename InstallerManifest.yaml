@@ -1,6 +1,30 @@
 AddonId: PlayniteAchievements
 Packages:
 
+  - Version: 3.1.2
+    RequiredApiVersion: 6.14.0
+    ReleaseDate: 2026-08-12
+    PackageUrl: https://github.com/justin-delano/PlayniteAchievements/releases/download/v3.1.2/PlayniteAchievements_3_1_2.pext
+    Changelog:
+    - "[New] Added a rotating sunburst glow, and you can now pick which rarities get the halo, the sunburst, both, or neither."
+    - "[New] Added settings for screenshot size and clip quality."
+    - "[New] Added a Compress Cached Images button to settings, to shrink oversized images and free up disk space."
+    - "[New] Added a separate unlock sound for hidden achievements."
+    - "[New] The rarity percentage in notifications can now use its own font."
+    - "[New] Right-clicking a game can now launch it, alongside opening it in your library."
+    - "[Adjusted] The compare dropdown is now available in the View Friends Achievements window and in Category Mode."
+    - "[Fixed] In-game notifications and unlock clips no longer stay silent until you finish first-time setup."
+    - "[Fixed] Steam unlocks are detected in game more reliably, including when Steam is installed somewhere unusual or a game has never saved its stats locally."
+    - "[Fixed] Many recording fixes: smoother playback, sound in sync with the picture, correct notification timing, and recording keeps working when you resize the game window."
+    - "[Fixed] Fixed issues with disappearing achievements and duplicate notifications."
+    - "[Fixed] Games with a manual capstone no longer show a Game Complete notification on every unlock after it."
+    - "[Fixed] Animated images no longer play too fast or loop only their beginning."
+    - "[Fixed] Fixed clip seeking in the captures viewer, and added a volume slider."
+    - "[Fixed] The Captures button no longer disappears when you unlock something, and now appears as soon as a screenshot or clip is taken in game."
+    - "[Fixed] More reliable controller vibration on DualSense and DualShock 4."
+    - "[Fixed] Notification text no longer cuts off the bottoms of letters."
+    - "As always, many additional improvements and fixes behind the scenes."
+
   - Version: 3.1.1
     RequiredApiVersion: 6.14.0
     ReleaseDate: 2026-08-06
