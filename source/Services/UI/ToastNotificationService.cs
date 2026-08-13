@@ -2503,6 +2503,19 @@ namespace PlayniteAchievements.Services.UI
         /// my timing" and is retargeted rather than rejected.
         /// </summary>
         private const string LegacySlideTargetPath = "(Window.Top)";
+
+        /// <summary>
+        /// The un-indexed spelling of the slide target. The host's <c>RenderTransform</c> is a group, so
+        /// this path cannot resolve on its own — but it is the obvious thing to write, so it is treated
+        /// as naming the slide and rewritten to <see cref="SlideTargetPath"/> rather than left to fail.
+        /// </summary>
+        private const string BareSlideTargetPath = "(UIElement.RenderTransform).(TranslateTransform.Y)";
+
+        /// <summary>Spellings that all mean "this child is the slide".</summary>
+        private static bool IsSlideAlias(string path)
+        {
+            return path == LegacySlideTargetPath || path == BareSlideTargetPath;
+        }
         // Small pause after a slide-out finishes before the window is torn down.
         private const int SlideSettleBufferMs = 10;
         // Below this, the content scale is treated as 1.0 and no LayoutTransform is applied.
@@ -2794,7 +2807,7 @@ namespace PlayniteAchievements.Services.UI
                     }
 
                     var path = Storyboard.GetTargetProperty(child);
-                    if (path == null || path.Path == LegacySlideTargetPath)
+                    if (path == null || IsSlideAlias(path.Path))
                     {
                         Storyboard.SetTargetProperty(child, new PropertyPath(SlideTargetPath));
                         movesCard = true;
