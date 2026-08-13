@@ -32,12 +32,12 @@ namespace PlayniteAchievements.Views.ManageAchievements
         {
             ManageAchievementsTab.Overview,
             ManageAchievementsTab.ManualTracking,
-            ManageAchievementsTab.Capstones,
             ManageAchievementsTab.Category,
             ManageAchievementsTab.Filters,
-            ManageAchievementsTab.Notes,
             ManageAchievementsTab.AchievementOrder,
+            ManageAchievementsTab.Capstones,
             ManageAchievementsTab.Goals,
+            ManageAchievementsTab.Notes,
             ManageAchievementsTab.CustomIcons,
             ManageAchievementsTab.Notifications,
             ManageAchievementsTab.Overrides
@@ -224,7 +224,7 @@ namespace PlayniteAchievements.Views.ManageAchievements
             {
                 HandleCustomDataRevisionChanged();
             }
-            else if (e.PropertyName == nameof(ManageAchievementsViewModel.HasCapstoneData) &&
+            else if (e.PropertyName == nameof(ManageAchievementsViewModel.HasAchievementData) &&
                      _viewModel.SelectedTab == ManageAchievementsTab.Capstones)
             {
                 EnsureCapstoneControl(forceRecreate: true);
@@ -530,12 +530,12 @@ namespace PlayniteAchievements.Views.ManageAchievements
                 {
                     OverviewTabButton,
                     ManualTrackingTabButton,
-                    CapstonesTabButton,
                     CategoryTabButton,
                     FiltersTabButton,
-                    NotesTabButton,
                     AchievementOrderTabButton,
+                    CapstonesTabButton,
                     GoalsTabButton,
+                    NotesTabButton,
                     CustomIconsTabButton,
                     NotificationsTabButton,
                     OverridesTabButton
@@ -667,21 +667,17 @@ namespace PlayniteAchievements.Views.ManageAchievements
                 return false;
             }
 
-            switch (tab)
+            if (tab == ManageAchievementsTab.ManualTracking)
             {
-                case ManageAchievementsTab.ManualTracking:
-                    return _viewModel.ShowManualTrackingTab;
-                case ManageAchievementsTab.Capstones:
-                case ManageAchievementsTab.Category:
-                case ManageAchievementsTab.Filters:
-                case ManageAchievementsTab.Notes:
-                case ManageAchievementsTab.AchievementOrder:
-                case ManageAchievementsTab.Goals:
-                case ManageAchievementsTab.CustomIcons:
-                    return _viewModel.HasCapstoneData;
-                default:
-                    return true;
+                return _viewModel.ShowManualTrackingTab;
             }
+
+            if (ManageAchievementsTabs.RequireAchievementData.Contains(tab))
+            {
+                return _viewModel.HasAchievementData;
+            }
+
+            return true;
         }
 
         private void QueueFocusSelectedTab()
@@ -731,7 +727,7 @@ namespace PlayniteAchievements.Views.ManageAchievements
 
         private void EnsureCapstoneControl(bool forceRecreate)
         {
-            if (!_viewModel.HasCapstoneData)
+            if (!_viewModel.HasAchievementData)
             {
                 CleanupCapstone();
                 return;
