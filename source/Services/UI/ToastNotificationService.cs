@@ -1583,6 +1583,7 @@ namespace PlayniteAchievements.Services.UI
                 // corner now that the toast is fully laid out.
                 StopActiveSlide();
                 PlaceWindow(window, "snap");
+                ReportSettledCard(window);
 
                 // The wave has settled, revealed or not: signal the recording service (a liveness
                 // bump for its track wait, plus this wave's chime time for the clip audio mix —
@@ -2901,9 +2902,15 @@ namespace PlayniteAchievements.Services.UI
                 return;
             }
 
-            // A theme that replaces the slide with a fade or a scale animates nothing positional, so the
-            // card belongs at its resting corner for the whole animation. Parking it at the slide's
-            // start would strand it there: nothing would ever move it back.
+            // Where the card belongs once this slide is over: the slide's end, or its resting corner when
+            // the animation moves nothing positional (a theme fade or scale).
+            //
+            // This is seeded as the transform's LOCAL value before the storyboard starts, and the
+            // animation then overrides it for its duration. Seeding the slide's *start* instead is
+            // wrong in a way that only shows up later: an animation is an override, not an assignment,
+            // so Stop/Remove reverts the property to whatever local value was underneath. With the
+            // start seeded, the settled snap reverted the card to the slide's start — off in the
+            // reserved travel room — and it vanished until the slide-out reseeded it.
             var restDip = travels ? toDip : 0d;
 
             _activeSlideLabel = label;
@@ -2961,7 +2968,7 @@ namespace PlayniteAchievements.Services.UI
             _activeSlideTick = tick;
             _runningSlideStoryboard = storyboard;
 
-            transform.Y = travels ? fromDip : restDip;
+            transform.Y = restDip;
             CompositionTarget.Rendering += tick;
             try
             {
@@ -3043,6 +3050,47 @@ namespace PlayniteAchievements.Services.UI
         private static bool IsUntargeted(Timeline child)
         {
             return Storyboard.GetTargetName(child) == null && Storyboard.GetTarget(child) == null;
+        }
+
+        /// <summary>
+        /// One line describing where the card actually sits once the wave has settled — after the slide
+        /// has been stopped and the window snapped to its corner. This is the span the notification
+        /// spends simply on screen, so anything other than a slide offset of 0 and a card rect on the
+        /// corner means the card is somewhere the user cannot see it.
+        ///
+        /// Worth a line of its own because the slide's own diagnostic covers only the animation: a slide
+        /// that ran perfectly and then had the card moved out from under it afterwards reports as
+        /// healthy.
+        /// </summary>
+        private void ReportSettledCard(Window window)
+        {
+            try
+            {
+                var renderScale = ToastWindowPlacer.RenderScale(window);
+                var measured = ToastWindowPlacer.TryMeasureCardPhysical(
+                    window, _activeCardSurface, renderScale, SlideOffsetDipX(), SlideOffsetDipY(),
+                    out var insetX, out var insetY, out var cardW, out var cardH);
+                ToastWindowPlacer.TryGetPhysicalRect(window, out var windowPhys);
+                _logger?.Info(string.Format(
+                    System.Globalization.CultureInfo.InvariantCulture,
+                    "[Toast] Settled: slideDipY={0:0.0} measured={1} cardInset={2},{3} card={4}x{5} " +
+                    "window={6},{7} {8}x{9} opacity={10:0.##}",
+                    SlideOffsetDipY(),
+                    measured,
+                    insetX,
+                    insetY,
+                    cardW,
+                    cardH,
+                    windowPhys.X,
+                    windowPhys.Y,
+                    windowPhys.Width,
+                    windowPhys.Height,
+                    window?.Opacity ?? -1d));
+            }
+            catch
+            {
+                // Diagnostics only.
+            }
         }
 
         /// <summary>
