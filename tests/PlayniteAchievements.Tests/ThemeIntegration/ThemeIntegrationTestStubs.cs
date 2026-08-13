@@ -144,6 +144,10 @@ namespace PlayniteAchievements.Models.Achievements
 
         public System.Windows.Input.ICommand OpenManageAchievementsWindow { get; set; }
 
+        public System.Windows.Input.ICommand ToggleAchievementCapstoneCommand { get; set; }
+
+        public System.Windows.Input.ICommand ToggleAchievementGoalCommand { get; set; }
+
         public bool HasRarityPercent => GlobalPercentUnlocked.HasValue;
 
         public RarityTier Rarity { get; set; } = RarityTier.Common;
