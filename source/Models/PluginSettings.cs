@@ -100,6 +100,10 @@ namespace PlayniteAchievements.Models
         [DontSerialize]
         private ICommand _openManageAchievementsWindow;
         [DontSerialize]
+        private ICommand _toggleAchievementCapstoneCommand;
+        [DontSerialize]
+        private ICommand _toggleAchievementGoalCommand;
+        [DontSerialize]
         private ICommand _setDynamicAchievementsGameCommand;
         [DontSerialize]
         private ICommand _filterDynamicAchievementsByRunningGameCommand;
@@ -292,6 +296,30 @@ namespace PlayniteAchievements.Models
         {
             get => _openManageAchievementsWindow;
             set => SetValue(ref _openManageAchievementsWindow, value);
+        }
+
+        /// <summary>
+        /// Sets the bound achievement as its game's capstone, or clears the capstone when it is
+        /// already the effective one. Takes an achievement context; per-item wrappers on
+        /// <c>DynamicAchievements</c> and <c>DynamicLibraryAchievements</c> supply their own item,
+        /// so a row template needs no CommandParameter.
+        /// </summary>
+        [DontSerialize]
+        public ICommand ToggleAchievementCapstoneCommand
+        {
+            get => _toggleAchievementCapstoneCommand;
+            set => SetValue(ref _toggleAchievementCapstoneCommand, value);
+        }
+
+        /// <summary>
+        /// Adds the bound achievement to its game's goal list, or removes it when it is already a
+        /// goal. Ignored for unlocked achievements, which cannot be goals.
+        /// </summary>
+        [DontSerialize]
+        public ICommand ToggleAchievementGoalCommand
+        {
+            get => _toggleAchievementGoalCommand;
+            set => SetValue(ref _toggleAchievementGoalCommand, value);
         }
 
         [DontSerialize]
