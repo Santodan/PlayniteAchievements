@@ -8,7 +8,6 @@ using Playnite.SDK;
 using PlayniteAchievements.Common;
 using PlayniteAchievements.Models.Settings;
 using PlayniteAchievements.Services.Recording;
-using SharpDX.MediaFoundation;
 using Windows.Foundation;
 using Windows.Graphics.Capture;
 using Windows.Graphics.DirectX;
@@ -79,7 +78,9 @@ namespace PlayniteAchievements.Services.Capture
         private Thread _pumpThread;
         private volatile bool _running;
         private bool _disposed;
-        private bool _mediaFoundationStarted;
+        private IDisposable _mediaFoundationLease;
+        private int _cleanupStarted;
+        private int _resourcesReleased;
 
         // Segments are written out off the pump thread; see FinalizeSegment.
         private readonly object _finalizeGate = new object();
@@ -140,12 +141,10 @@ namespace PlayniteAchievements.Services.Capture
         {
             try
             {
-                // One Startup for the whole session, around every segment encoder this recorder builds.
-                // Per-encoder Startup/Shutdown let a segment being written out in the background drop the
-                // refcount to zero while the next segment was starting, and the new writer then never
-                // drained — capture stopped dead on its first frame.
-                MediaManager.Startup();
-                _mediaFoundationStarted = true;
+                // One process-wide lease for the whole session, around every segment encoder this
+                // recorder builds. Exporters share the same lease count and therefore cannot shut
+                // Media Foundation down while this recorder is still active.
+                _mediaFoundationLease = MediaFoundationRuntime.Acquire();
 
                 _device = new D3D11.Device(SharpDX.Direct3D.DriverType.Hardware,
                     D3D11.DeviceCreationFlags.BgraSupport | D3D11.DeviceCreationFlags.VideoSupport);
@@ -462,7 +461,7 @@ namespace PlayniteAchievements.Services.Capture
                 _running = false;
                 pacer.Dispose();
                 // A writer prepared for a segment that will never open still owns a file.
-                DiscardPrepared(TakePreparedSegment());
+                DiscardPrepared(TakePreparedSegment(waitForCompletion: true));
                 FinalizeSegment();
                 TearDownCapture();
             }
@@ -724,15 +723,32 @@ namespace PlayniteAchievements.Services.Capture
             });
         }
 
-        /// <summary>Hands over the prepared segment, waiting briefly if it is still being built.</summary>
-        private PreparedSegment TakePreparedSegment()
+        /// <summary>
+        /// Hands over the prepared segment. A normal rotation waits briefly; shutdown waits for the
+        /// task outright because its encoder and output file must not outlive the capture device.
+        /// </summary>
+        private PreparedSegment TakePreparedSegment(bool waitForCompletion = false)
         {
             var task = _prepareTask;
             if (task != null && !task.IsCompleted)
             {
-                // Should not happen: preparation starts PrepareLead before the boundary and takes about
-                // a tenth of that. If it does, waiting still beats building a second one.
-                try { task.Wait(TimeSpan.FromSeconds(2)); } catch { }
+                try
+                {
+                    if (waitForCompletion)
+                    {
+                        task.Wait();
+                    }
+                    else if (!task.Wait(TimeSpan.FromSeconds(2)))
+                    {
+                        // Keep the task reachable. Dropping it here allowed Dispose to release the
+                        // D3D device while the background writer was still being constructed.
+                        return null;
+                    }
+                }
+                catch
+                {
+                    // A failed task has completed and owns no prepared writer.
+                }
             }
 
             _prepareTask = null;
@@ -818,23 +834,74 @@ namespace PlayniteAchievements.Services.Capture
             }
         }
 
-        /// <summary>Blocks until every handed-off segment has been written out.</summary>
-        private void WaitForFinalizers()
+        private Task GetFinalizerChain()
         {
-            Task chain;
             lock (_finalizeGate)
             {
-                chain = _finalizeChain;
+                return _finalizeChain;
+            }
+        }
+
+        private void CompleteCleanup()
+        {
+            if (Interlocked.Exchange(ref _cleanupStarted, 1) != 0)
+            {
+                return;
             }
 
+            // PumpLoop normally handed this off before exiting. Keep the call idempotent for a Start
+            // failure that never created a pump thread.
+            FinalizeSegment();
+            var chain = GetFinalizerChain();
+            var completed = chain.IsCompleted;
             try
             {
-                chain.Wait(TimeSpan.FromSeconds(10));
+                completed = completed || chain.Wait(TimeSpan.FromSeconds(10));
             }
             catch (Exception ex)
             {
                 _logger?.Debug(ex, "[Recording] Waiting for capture segments to finish writing failed.");
+                completed = chain.IsCompleted;
             }
+
+            if (completed)
+            {
+                ReleaseNativeResources();
+                return;
+            }
+
+            // A slow/hung native finalizer must keep the D3D device and MF runtime alive. Releasing
+            // them after an arbitrary timeout was a native use-after-release path.
+            _logger?.Warn("[Recording] Capture finalization exceeded 10s; native resources remain owned until it completes.");
+            chain.ContinueWith(
+                _ => ReleaseNativeResources(),
+                CancellationToken.None,
+                TaskContinuationOptions.ExecuteSynchronously,
+                TaskScheduler.Default);
+        }
+
+        private void ReleaseNativeResources()
+        {
+            if (Interlocked.Exchange(ref _resourcesReleased, 1) != 0)
+            {
+                return;
+            }
+
+            _latest?.Dispose();
+            _latest = null;
+            _scaled?.Dispose();
+            _scaled = null;
+            _frameScaler?.Dispose();
+            _frameScaler = null;
+            _toneMapper?.Dispose();
+            _toneMapper = null;
+            TearDownCapture();
+            _device?.ImmediateContext?.Dispose();
+            _device?.Dispose();
+            _device = null;
+            _winrtDevice = null;
+            _mediaFoundationLease?.Dispose();
+            _mediaFoundationLease = null;
         }
 
         private static string EnsureUniqueSegment(string path)
@@ -879,16 +946,24 @@ namespace PlayniteAchievements.Services.Capture
         public void Stop()
         {
             _running = false;
+            var pump = _pumpThread;
             try
             {
-                _pumpThread?.Join(TimeSpan.FromSeconds(3));
+                pump?.Join(TimeSpan.FromSeconds(3));
             }
             catch
             {
                 // ignore
             }
 
-            _pumpThread = null;
+            if (pump != null && pump.IsAlive)
+            {
+                _logger?.Warn("[Recording] WGC-MF pump did not stop within 3s; its native resources remain owned.");
+            }
+            else if (ReferenceEquals(_pumpThread, pump))
+            {
+                _pumpThread = null;
+            }
         }
 
         public void Dispose()
@@ -900,31 +975,21 @@ namespace PlayniteAchievements.Services.Capture
 
             _disposed = true;
             Stop();
-            FinalizeSegment();
-            // The device the encoders write from is torn down below, so nothing may still be draining.
-            WaitForFinalizers();
-            _latest?.Dispose();
-            _scaled?.Dispose();
-            _frameScaler?.Dispose();
-            _toneMapper?.Dispose();
-            _session?.Dispose();
-            _framePool?.Dispose();
-            _device?.ImmediateContext?.Dispose();
-            _device?.Dispose();
-            _winrtDevice = null;
-
-            if (_mediaFoundationStarted)
+            var pump = _pumpThread;
+            if (pump != null && pump.IsAlive)
             {
-                _mediaFoundationStarted = false;
-                try
+                // Dispose remains bounded even if a driver call is wedged, but cleanup is ordered
+                // strictly after the pump actually exits. All retained workers are background work,
+                // so a permanently wedged driver still cannot keep Playnite from terminating.
+                Task.Run(() =>
                 {
-                    MediaManager.Shutdown();
-                }
-                catch
-                {
-                    // Refcounted per process; ignore an unbalanced shutdown at teardown.
-                }
+                    try { pump.Join(); } catch { }
+                    CompleteCleanup();
+                });
+                return;
             }
+
+            CompleteCleanup();
         }
     }
 }
