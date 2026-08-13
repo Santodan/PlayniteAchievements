@@ -24,7 +24,3 @@ if (-not [string]::IsNullOrWhiteSpace($BundlePath))
 }
 
 & (Join-Path $PSScriptRoot "Apply-ForkBundle.ps1") @arguments
-if ($LASTEXITCODE -ne 0)
-{
-    exit $LASTEXITCODE
-}

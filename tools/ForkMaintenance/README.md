@@ -69,8 +69,12 @@ The changes remain uncommitted and appear immediately in the current checkout's
 VS Code Source Control panel. The action preserves `README.md`,
 `source/extension.yaml`, `InstallerManifest.yaml`, and `tools/ForkMaintenance`.
 It refuses to start if other local changes exist, preventing unrelated work from
-being overwritten. Use `-SkipFetch` only when the selected upstream ref is
-already current locally.
+being overwritten. When upstream is not already an ancestor, the action also
+opens a no-content merge before assembling the updated files. After review,
+stage and commit normally in VS Code or Git: that commit will have the previous
+fork tip and the selected upstream commit as its two parents, so GitHub will not
+report the fork as behind those upstream commits. Use `-SkipFetch` only when the
+selected upstream ref is already current locally.
 
 If the patch reports conflicts, resolve and stage those files, then resume the
 same in-place workflow without resetting the checkout again:
@@ -107,8 +111,10 @@ reviewed; those switches deliberately choose the fork's version.
 2. Resolve only the reported shared-file conflicts, if any.
 3. Build and test the extension.
 4. Review every change in VS Code.
-5. Export a fresh bundle against the new upstream baseline.
-6. Update the protected manifests manually, outside this tooling.
+5. Stage and commit the reviewed update; the pending upstream merge parent is
+   retained automatically.
+6. Export a fresh bundle against the new upstream baseline.
+7. Update the protected manifests manually, outside this tooling.
 
 ## Reducing the remaining shared patch
 

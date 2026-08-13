@@ -1,8 +1,8 @@
 {
     "schemaVersion":  1,
-    "generatedUtc":  "2026-08-11T14:10:58.5535680Z",
+    "generatedUtc":  "2026-08-13T14:32:36.7743676Z",
     "baselineRef":  "upstream/main",
-    "baselineCommit":  "f28ac5faae69739e2a7193a5c1af98ac55b9030f",
+    "baselineCommit":  "1aa13382c458daadba55a493d7ab10db797b35f7",
     "protectedPaths":  [
                            "README.md",
                            "source/extension.yaml",
@@ -10,7 +10,7 @@
                        ],
     "patch":  {
                   "path":  "fork-changes.patch",
-                  "sha256":  "6C28CC959DB7ADCB19DD711B0A5BD663F3E917084E87639239A4E17F7EC7AC61"
+                  "sha256":  "31769A11E324090C8AA3DE339844845C8214CA33EF6E102DC11528EB9A2CA4A3"
               },
     "localizationRecipes":  {
                                 "path":  "localization-recipes.json",
@@ -272,6 +272,10 @@
                              "sha256":  "9AB2F4E9EFF26776497DDD753ACEB792B2F14F251843B1D52D870CC2DBC7D3C5"
                          },
                          {
+                             "path":  "source/Services/ThemeMigration/StartPageGameContextMenuBridge.cs",
+                             "sha256":  "B027EEAE04B56822F126CAB8C4B89818AC7AC21320F9ABF6CF1D7F1ECFC9A8E5"
+                         },
+                         {
                              "path":  "source/ViewModels/GameOptionsCustomSchemaTab.cs",
                              "sha256":  "1708FF13A186FB419370637691735C583CF733BF42B6E07D0CCE0F7CE41A0D7A"
                          },
@@ -309,11 +313,11 @@
                          },
                          {
                              "path":  "source/Views/LegacyNotificationSettingsControl.xaml",
-                             "sha256":  "61B7A8FEECEC887DDD5DF198CC2D478B332EC67D926B725F649DDCBF9DAA4401"
+                             "sha256":  "FC3BC1D6FA422407BF6ED2BC7542D4115315E08A715CC2EB989E4B8B4E482B2B"
                          },
                          {
                              "path":  "source/Views/LegacyNotificationSettingsControl.xaml.cs",
-                             "sha256":  "406EDAC32D93637564339794C9CC6DE1A7500283C8673B97DD4D1321B0319EBD"
+                             "sha256":  "3077D1471EA1DBE19A4C66771BB6FE2555566E7E6EAAC53BCA7ABBFADD6300A0"
                          },
                          {
                              "path":  "source/Views/LocalAchievementEditorControl.xaml",

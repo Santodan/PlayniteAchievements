@@ -100,11 +100,6 @@ try
         }
     }
 
-    if ($null -ne $LASTEXITCODE -and $LASTEXITCODE -ne 0)
-    {
-        throw "ForkMaintenance exited with code $LASTEXITCODE."
-    }
-
     Write-RunHeader "ForkMaintenance completed successfully"
 }
 catch

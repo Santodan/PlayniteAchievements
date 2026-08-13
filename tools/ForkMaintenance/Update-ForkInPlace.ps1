@@ -18,6 +18,18 @@ $repositoryRoot = Get-FmRepositoryRoot $RepositoryPath
 $protectedPaths = @($config.protectedPaths | ForEach-Object { ConvertTo-FmGitPath ([string]$_) })
 $maintenancePath = "tools/ForkMaintenance"
 
+$existingMerge = Invoke-FmGit $repositoryRoot @(
+    "rev-parse", "--verify", "-q", "MERGE_HEAD"
+) -AllowFailure
+if (-not $ResumeAfterConflict -and $existingMerge.ExitCode -eq 0)
+{
+    throw "In-place update refused because another merge is already in progress. Finish or abort it first."
+}
+if ($ResumeAfterConflict -and $existingMerge.ExitCode -ne 0)
+{
+    throw "There is no ForkMaintenance merge to resume. Run Update without -ResumeAfterConflict first."
+}
+
 # An in-place update deliberately replaces the tracked fork implementation with the
 # selected upstream tree before applying the saved fork layer. Only protected files and
 # the maintenance bundle itself may already be dirty; anything else could be user work.
@@ -66,6 +78,30 @@ $resolvedUpstream = @((Invoke-FmGit $repositoryRoot @(
 )).Output) | Select-Object -First 1
 if (-not $ResumeAfterConflict)
 {
+    $ancestry = Invoke-FmGit $repositoryRoot @(
+        "merge-base", "--is-ancestor", $resolvedUpstream, "HEAD"
+    ) -AllowFailure
+    if ($ancestry.ExitCode -notin @(0, 1))
+    {
+        throw "Unable to determine whether $UpstreamRef is already an ancestor of HEAD."
+    }
+
+    if ($ancestry.ExitCode -eq 1)
+    {
+        # Record upstream as a real second parent without asking Git to merge the
+        # fork's divergent files. The desired tree is assembled below from the
+        # upstream snapshot plus the exported fork layer. MERGE_HEAD remains in
+        # place so the user's reviewed commit is a true upstream merge commit.
+        Write-Host "Recording $UpstreamRef as the pending merge parent..." -ForegroundColor Yellow
+        Invoke-FmGit $repositoryRoot @(
+            "merge", "--no-commit", "--no-ff", "--strategy=ours", $resolvedUpstream
+        ) | Out-Null
+    }
+    else
+    {
+        Write-Host "$UpstreamRef is already in this branch's ancestry." -ForegroundColor DarkGray
+    }
+
     Write-Host "Updating the current checkout in place from $UpstreamRef ($($resolvedUpstream.Substring(0, 8)))..." -ForegroundColor Yellow
     $restoreArguments = @(
         "restore",
@@ -96,10 +132,6 @@ if ($ForceSemantic) { $applyArguments.ForceSemantic = $true }
 if ($ForceOverlay) { $applyArguments.ForceOverlay = $true }
 
 & (Join-Path $PSScriptRoot "Apply-ForkBundle.ps1") @applyArguments
-if ($null -ne $LASTEXITCODE -and $LASTEXITCODE -ne 0)
-{
-    throw "Fork bundle application exited with code $LASTEXITCODE."
-}
 
 Assert-FmProtectedHashes $repositoryRoot $protectedPaths $protectedHashes
 # Keep the Source Control panel straightforward: files should appear once as ordinary
@@ -109,3 +141,11 @@ Write-Host "In-place fork update completed successfully."
 Write-Host "  Upstream base:         $UpstreamRef ($resolvedUpstream)"
 Write-Host "  Updated checkout:      $repositoryRoot"
 Write-Host "  Protected files kept:  $($protectedPaths.Count)"
+$pendingMerge = Invoke-FmGit $repositoryRoot @(
+    "rev-parse", "--verify", "-q", "MERGE_HEAD"
+) -AllowFailure
+if ($pendingMerge.ExitCode -eq 0)
+{
+    Write-Host "  Pending merge parent:  $($pendingMerge.Output | Select-Object -First 1)"
+    Write-Host "Stage and commit the reviewed files normally; Git will retain the upstream ancestry."
+}
