@@ -63,7 +63,10 @@ foreach ($tool in $tools) {
     if (-not (Test-Path $source)) { Write-Output "  skip    $tool (no source)"; continue }
 
     $exe = Join-Path $out ($tool + '.exe')
-    $messages = & $csc /nologo /t:exe /langversion:preview /nostdlib+ /platform:x64 $refs "/out:$exe" $source 2>&1 |
+    # CaptureHarness loads the plugin into the process and therefore must match Playnite's x86
+    # runtime. Keep the standalone analysis tools x64 so large frame dumps are not VA-constrained.
+    $platform = if ($tool -eq 'CaptureHarness') { 'x86' } else { 'x64' }
+    $messages = & $csc /nologo /t:exe /langversion:preview /nostdlib+ "/platform:$platform" $refs "/out:$exe" $source 2>&1 |
         Where-Object { $_ -match 'error CS' }
     if ($messages) {
         $failed += $tool
