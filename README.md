@@ -105,6 +105,7 @@ The entries below are fork-side changes, grouped by date. When a date includes a
 - Fixed steamhunters hidden achievements not respecting the extension language setting
 - Fixed the multiple folders dropdown not showing correctly
 - Fixed the RA subset selection not been saved after Playnite's restart
+- Added the option in the `Theme Migration` to change the right click behavior for the `StartPage` extension to use the default playnite context menu
 
 ## 2026-08-08 - v3.1.1.1
 

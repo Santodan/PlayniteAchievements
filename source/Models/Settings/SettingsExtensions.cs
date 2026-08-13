@@ -244,6 +244,7 @@ namespace PlayniteAchievements.Models.Settings
             target.FirstTimeSetupCompleted = source.FirstTimeSetupCompleted;
             target.SeenThemeMigration = source.SeenThemeMigration;
             target.EnableAutomaticThemeMigration = source.EnableAutomaticThemeMigration;
+            target.UsePlayniteContextMenuOnStartPage = source.UsePlayniteContextMenuOnStartPage;
             target.ThemeMigrationVersionCache = source.ThemeMigrationVersionCache != null
                 ? source.ThemeMigrationVersionCache.ToDictionary(
                     kvp => kvp.Key,

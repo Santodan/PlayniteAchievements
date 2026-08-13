@@ -4789,6 +4789,12 @@
                                            Margin="0,0,0,16"
                                            TextWrapping="Wrap"/>
 
+                                <CheckBox Content="Use Playnite's normal game context menu on StartPage covers"
+                                          IsChecked="{Binding Persisted.UsePlayniteContextMenuOnStartPage, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                          ToolTip="When enabled, right-clicking a StartPage game cover opens the same menu used by Playnite's library. When disabled, StartPage's own context menu remains."
+                                          Margin="0,0,0,16"
+                                          IsEnabled="{Binding HasStartPageInstalled, ElementName=LegacyNotificationSettingsControlRoot}"/>
+
                                 <WrapPanel HorizontalAlignment="Right">
                                     <Button Content="{DynamicResource LOCPlayAch_ThemeMigration_StartPageCompatibility_RevertButton}"
                                             Click="RevertStartPageCompatibility_Click"

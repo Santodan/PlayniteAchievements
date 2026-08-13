@@ -6627,6 +6627,11 @@ namespace PlayniteAchievements.Views
                     return;
                 }
 
+                // Applying this migration is an explicit action. Persist its companion
+                // options now because the migration's Restart button exits Playnite
+                // without going through the settings dialog's normal Save command.
+                _plugin.PersistSettingsForUi();
+
                 var result = await _startPageCompatibility.ApplyAsync();
                 if (result.Success)
                 {
@@ -6703,6 +6708,7 @@ namespace PlayniteAchievements.Views
         {
             try
             {
+                _plugin.PersistSettingsForUi();
                 var exePath = System.Diagnostics.Process.GetCurrentProcess().MainModule?.FileName;
                 if (!string.IsNullOrWhiteSpace(exePath))
                 {
