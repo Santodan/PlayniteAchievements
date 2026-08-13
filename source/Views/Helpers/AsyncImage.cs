@@ -49,10 +49,10 @@ namespace PlayniteAchievements.Views.Helpers
         public static void SetGray(DependencyObject element, bool value) => element.SetValue(GrayProperty, value);
         public static bool GetGray(DependencyObject element) => (bool)element.GetValue(GrayProperty);
 
-        // When true (default), retained-frame animations (WebP and the legacy ImageBrush GIF
-        // path) phase-lock to the process-wide epoch so recreated elements resume mid-cycle.
-        // Native GIF Image controls intentionally ignore this value and start at frame one; the
-        // settings background preview preserves continuity by sharing one persistent Source.
+        // When true (default), retained-frame WebP animations phase-lock to the process-wide epoch
+        // so recreated elements resume mid-cycle. GIFs intentionally ignore this value and start at
+        // frame one; the settings background preview preserves continuity by sharing one persistent
+        // Source.
         public static readonly DependencyProperty PhaseLockProperty = DependencyProperty.RegisterAttached(
             "PhaseLock",
             typeof(bool),

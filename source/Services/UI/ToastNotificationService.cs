@@ -1428,9 +1428,9 @@ namespace PlayniteAchievements.Services.UI
                     trackRecorder = new ToastOverlayTrackRecorder(_logger, sampleIntervalMs);
                     SampleWaveTracks(trackRecorder, window, cardItems, 0d);
                     trackSampleCount = 1;
-                    // The unconditional resample also carries animation frames into the tracks (min
-                    // effective frame delay is 100ms for both GIF and WebP per AnimatedImageHelper) — do
-                    // not reduce this to sample-on-position-change.
+                    // The unconditional resample also carries animation frames into the tracks — a
+                    // GIF advances on whatever per-frame delays its own file declares — so do not
+                    // reduce this to sample-on-position-change.
                     var recorder = trackRecorder;
                     // Sampling is due every recording frame, but can only happen on a composed frame, so
                     // take the tick nearest each due instant: comparing against the due time less half a
@@ -2785,8 +2785,8 @@ namespace PlayniteAchievements.Services.UI
         // AsyncImage takes the larger of the authored value and one inferred from the element's laid-out
         // size and the monitor scale, so a configurable icon size or a scaled monitor produces a
         // different key and the prime warms the codec, the file read and any download but not the final
-        // decode. The background is the exception — it is painted by an ImageBrush, which is not a
-        // FrameworkElement, so its authored value is used verbatim and the prime hits exactly.
+        // decode. The background is the exception — its host Image is laid out at zero size, so there is
+        // nothing to infer and the authored value is used verbatim, making the prime hit exactly.
         private const int PrimeIconDecodePixel = 160;
         private const int PrimeRightBadgeDecodePixel = 96;
         private const int PrimeIconBadgeDecodePixel = 64;
@@ -2848,9 +2848,10 @@ namespace PlayniteAchievements.Services.UI
 
                 if (vm.HasToastBackground)
                 {
-                    // Must stay the same property the template's background ImageBrush binds, since the
-                    // cache key is the source string: priming a different one warms an entry nothing asks
-                    // for and the image still arrives mid-slide, with nothing failing to say so.
+                    // Must stay the string the template's background host resolves to — for a live
+                    // toast ToastBackgroundRenderSource is this same path — since the cache key is the
+                    // source string: priming a different one warms an entry nothing asks for and the
+                    // image still arrives mid-slide, with nothing failing to say so.
                     AddPrimeRequest(
                         requests, seenRequests, vm.ToastBackgroundImagePath, PrimeBackgroundDecodePixel);
                 }
