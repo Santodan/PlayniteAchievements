@@ -137,6 +137,20 @@ namespace PlayniteAchievements.Models.Achievements
         [IgnoreDataMember]
         public ICommand OpenManageAchievementsWindow { get; set; }
 
+        /// <summary>
+        /// Toggles this achievement as its game's capstone. Item-scoped, so a theme binds it with
+        /// no CommandParameter.
+        /// </summary>
+        [IgnoreDataMember]
+        public ICommand ToggleAchievementCapstoneCommand { get; set; }
+
+        /// <summary>
+        /// Toggles this achievement's membership in its game's goal list. Item-scoped, so a theme
+        /// binds it with no CommandParameter.
+        /// </summary>
+        [IgnoreDataMember]
+        public ICommand ToggleAchievementGoalCommand { get; set; }
+
         [IgnoreDataMember]
         public string IconDisplay => AchievementIconResolver.GetUnlockedDisplayIcon(UnlockedIconPath);
 
