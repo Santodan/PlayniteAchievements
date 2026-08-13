@@ -157,9 +157,11 @@ namespace PlayniteAchievements.Services.UI
 
         /// <summary>
         /// How far (physical px) the toast HWND may land from the requested point before the placement
-        /// is treated as a coordinate-space disagreement worth correcting.
+        /// is treated as a coordinate-space disagreement worth correcting. Also the tolerance the caller
+        /// holds the settled card to, once the window is larger than the card (see
+        /// <see cref="TryMeasureCardPhysical"/>).
         /// </summary>
-        private const int PlacementTolerancePx = 2;
+        internal const int PlacementTolerancePx = 2;
 
         /// <summary>
         /// What a physical placement actually did, so the caller can log the one case that matters:
@@ -427,6 +429,9 @@ namespace PlayniteAchievements.Services.UI
         /// </summary>
         public static bool TryComputeCorner(
             Window window,
+            FrameworkElement card,
+            double slideDipX,
+            double slideDipY,
             Rectangle gameClientPhys,
             double renderScale,
             double monitorScale,
@@ -446,20 +451,31 @@ namespace PlayniteAchievements.Services.UI
                 return false;
             }
 
-            var widthDip = window.ActualWidth > 0 ? window.ActualWidth : (window.Width > 0 ? window.Width : DefaultCardWidthDip);
-            var heightDip = window.ActualHeight > 0 ? window.ActualHeight : (window.Height > 0 ? window.Height : DefaultCardHeightDip);
-            if (double.IsNaN(widthDip) || widthDip <= 0)
+            // The card, not the window: the window reserves slide travel past the card on the entry
+            // side, and that reserved room is meant to hang off the anchor edge. Sizing or clamping on
+            // the window would place the padding at the corner and push the card inward by the travel.
+            // Falls back to the window's own size before layout, where the two are the same thing.
+            if (!TryMeasureCardPhysical(window, card, renderScale, slideDipX, slideDipY,
+                    out var insetX, out var insetY, out var physW, out var physH))
             {
-                widthDip = DefaultCardWidthDip;
+                insetX = 0;
+                insetY = 0;
+                var widthDip = window.ActualWidth > 0 ? window.ActualWidth : (window.Width > 0 ? window.Width : DefaultCardWidthDip);
+                var heightDip = window.ActualHeight > 0 ? window.ActualHeight : (window.Height > 0 ? window.Height : DefaultCardHeightDip);
+                if (double.IsNaN(widthDip) || widthDip <= 0)
+                {
+                    widthDip = DefaultCardWidthDip;
+                }
+
+                if (double.IsNaN(heightDip) || heightDip <= 0)
+                {
+                    heightDip = DefaultCardHeightDip;
+                }
+
+                physW = (int)Math.Ceiling(widthDip * renderScale);
+                physH = (int)Math.Ceiling(heightDip * renderScale);
             }
 
-            if (double.IsNaN(heightDip) || heightDip <= 0)
-            {
-                heightDip = DefaultCardHeightDip;
-            }
-
-            var physW = (int)Math.Ceiling(widthDip * renderScale);
-            var physH = (int)Math.Ceiling(heightDip * renderScale);
             ComputeCorner(gameClientPhys, physW, physH, monitorScale, alignRight, alignBottom, gapDip, out x, out y);
 
             // A negative gap is deliberate: with the card's border glow on, the window hangs past the
@@ -468,9 +484,93 @@ namespace PlayniteAchievements.Services.UI
             var overhang = (int)Math.Round(Math.Max(0d, -gapDip) * (monitorScale > 0 ? monitorScale : 1.0));
             clamped = ClampToBounds(
                 x, y, physW, physH, gameClientPhys, overhang, out var clampedX, out var clampedY);
-            x = clampedX;
-            y = clampedY;
+
+            // The corner is where the *card* belongs; the window origin is that point less the card's
+            // measured offset inside the window.
+            x = clampedX - insetX;
+            y = clampedY - insetY;
             return true;
+        }
+
+        /// <summary>
+        /// The card surface's physical size, and its physical offset inside the toast window, measured
+        /// the way <c>ToastNotificationService.SampleWaveTracks</c> measures it — same
+        /// <c>TransformToAncestor</c> call, same <c>windowPhys.Width / window.ActualWidth</c> ratio.
+        ///
+        /// Sharing that measurement is the point rather than an economy. Placement asks "where must the
+        /// window go so the card lands on the corner", and the overlay sampler asks "where did the card
+        /// land"; deriving the two from one measurement is what makes the answers agree. Computing the
+        /// offset instead as <c>paddingDip * renderScale</c> rounds independently of the sampler and can
+        /// settle the card a pixel off the corner, which reaches the clip as a placement drift.
+        ///
+        /// Returns false before the window is laid out (offset 0, card == window), which is exactly when
+        /// the caller's window-sized fallback is correct.
+        /// </summary>
+        /// <param name="slideDipX">
+        /// The slide transform's current value (window DIPs), removed from the measurement so this
+        /// always reports the card's <em>resting</em> offset. Without it a placement pass that lands
+        /// mid-slide would read the animated position as the inset and move the window to chase the
+        /// animation, doubling the motion. Zero when no slide is running.
+        /// </param>
+        public static bool TryMeasureCardPhysical(
+            Window window,
+            FrameworkElement card,
+            double renderScale,
+            double slideDipX,
+            double slideDipY,
+            out int offsetX,
+            out int offsetY,
+            out int physW,
+            out int physH)
+        {
+            offsetX = 0;
+            offsetY = 0;
+            physW = 0;
+            physH = 0;
+            if (window == null || card == null ||
+                window.ActualWidth <= 0 || window.ActualHeight <= 0 ||
+                card.RenderSize.Width <= 0 || card.RenderSize.Height <= 0)
+            {
+                return false;
+            }
+
+            try
+            {
+                // The HWND's own rect over the window's DIP extent, so the ratio carries whatever
+                // rounding WPF applied when it sized the HWND. Falls back to the render scale when the
+                // rect is unreadable.
+                var pxPerDipX = renderScale;
+                var pxPerDipY = renderScale;
+                if (TryGetPhysicalRect(window, out var windowPhys) &&
+                    windowPhys.Width > 0 && windowPhys.Height > 0)
+                {
+                    pxPerDipX = windowPhys.Width / window.ActualWidth;
+                    pxPerDipY = windowPhys.Height / window.ActualHeight;
+                }
+
+                if (pxPerDipX <= 0 || pxPerDipY <= 0)
+                {
+                    return false;
+                }
+
+                var bounds = card.TransformToAncestor(window).TransformBounds(new Rect(card.RenderSize));
+                if (bounds.Width <= 0 || bounds.Height <= 0)
+                {
+                    return false;
+                }
+
+                offsetX = (int)Math.Round((bounds.X - slideDipX) * pxPerDipX);
+                offsetY = (int)Math.Round((bounds.Y - slideDipY) * pxPerDipY);
+                physW = Math.Max(1, (int)Math.Ceiling(bounds.Width * pxPerDipX));
+                physH = Math.Max(1, (int)Math.Ceiling(bounds.Height * pxPerDipY));
+                return true;
+            }
+            catch
+            {
+                // TransformToAncestor throws when the card is not connected to the window (teardown,
+                // or a template swap between passes); the window-sized fallback is correct there.
+                return false;
+            }
         }
 
         /// <summary>
@@ -698,6 +798,9 @@ namespace PlayniteAchievements.Services.UI
         /// </summary>
         public static bool PositionPhysical(
             Window window,
+            FrameworkElement card,
+            double slideDipX,
+            double slideDipY,
             Rectangle gameClientPhys,
             double renderScale,
             double monitorScale,
@@ -710,7 +813,8 @@ namespace PlayniteAchievements.Services.UI
         {
             outcome = default(PlacementOutcome);
             if (!TryComputeCorner(
-                window, gameClientPhys, renderScale, monitorScale, alignRight, alignBottom, gapDip,
+                window, card, slideDipX, slideDipY, gameClientPhys, renderScale, monitorScale,
+                alignRight, alignBottom, gapDip,
                 out var x, out var y, out var clamped))
             {
                 return false;
