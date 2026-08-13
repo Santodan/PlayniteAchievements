@@ -247,6 +247,13 @@ namespace PlayniteAchievements.Providers.RPCS3
                 Rpcs3InstallationResolver.Resolve(game, _providerSettings, _playniteApi, _logger);
             if (installation == null)
             {
+                // Without an installation there is no trophy folder to read, so
+                // every source resolves against an empty cache and is dropped.
+                // Say so here; downstream this is indistinguishable from a game
+                // whose trophy set could not be matched.
+                _logger?.Warn(
+                    $"[RPCS3] '{game.Name}': no RPCS3 installation or user profile could be resolved; " +
+                    "no trophy folders were scanned for this game.");
                 return null;
             }
 
@@ -1045,8 +1052,13 @@ namespace PlayniteAchievements.Providers.RPCS3
             }
             catch (Exception ex)
             {
-                // Unreadable disc image; the raw scan below is the only option left.
-                _logger?.Debug(ex, $"[RPCS3] Could not read ISO '{isoPath}' as a filesystem; falling back to raw scan.");
+                // Unreadable disc image; the raw scan below is the only option
+                // left, and it only matches sets RPCS3 has already booted. Warn
+                // rather than Debug: a PS3 image the UDF reader cannot open is
+                // the difference between a matched game and a silent miss.
+                _logger?.Warn(
+                    $"[RPCS3] Could not read ISO '{isoPath}' as a filesystem ({ex.GetType().Name}: {ex.Message}); " +
+                    "falling back to a raw scan.");
             }
 
             // The structured read is authoritative; raw scanning is the fallback for
@@ -1070,6 +1082,11 @@ namespace PlayniteAchievements.Providers.RPCS3
 
                     sources.Add(new GameTrophySource { NpCommId = normalized, TrpPath = null });
                 }
+
+                if (seen.Count == 0)
+                {
+                    LogRawScanExhausted(isoPath);
+                }
             }
 
             sources = ApplyTitleAmbiguityGuard(sources, dropped, isoPath);
@@ -1080,6 +1097,36 @@ namespace PlayniteAchievements.Providers.RPCS3
             }
 
             return sources;
+        }
+
+        /// <summary>
+        /// Records that the raw scan reached its byte cap without finding an
+        /// NPWR id, which is the expected outcome for a large image whose
+        /// trophy data sits past the cap. Distinguishes "scanned, found
+        /// nothing" from "image holds no trophy set".
+        /// </summary>
+        private void LogRawScanExhausted(string isoPath)
+        {
+            long length;
+            try
+            {
+                length = new FileInfo(isoPath).Length;
+            }
+            catch
+            {
+                return;
+            }
+
+            if (length <= Rpcs3NpCommIdExtractor.DefaultMaxSearchBytes)
+            {
+                return;
+            }
+
+            const long megabyte = 1024 * 1024;
+            _logger?.Info(
+                $"[RPCS3] Raw scan of ISO '{isoPath}' found no NPWR id in its first " +
+                $"{Rpcs3NpCommIdExtractor.DefaultMaxSearchBytes / megabyte} MB ({length / megabyte} MB image); " +
+                "no trophy set was matched from it.");
         }
 
         /// <summary>
