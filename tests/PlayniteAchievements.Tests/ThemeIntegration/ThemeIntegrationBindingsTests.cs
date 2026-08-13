@@ -990,6 +990,69 @@ namespace PlayniteAchievements.ThemeIntegration.Tests
         }
 
         [TestMethod]
+        public async Task NotifyCustomDataChanged_ForAnotherGame_LeavesSelectedGameSurfaceAlone()
+        {
+            using var context = CreateServiceContext();
+
+            var selectedGameId = Guid.NewGuid();
+            var otherGameId = Guid.NewGuid();
+
+            var selectedData = new GameAchievementData
+            {
+                PlayniteGameId = selectedGameId,
+                Game = new Game { Id = selectedGameId, Name = "Selected Game" },
+                ProviderKey = "Steam",
+                HasAchievements = true,
+                Achievements = new List<AchievementDetail> { Achievement("Selected Only", 20.0, unlocked: false) }
+            };
+            var otherData = new GameAchievementData
+            {
+                PlayniteGameId = otherGameId,
+                Game = new Game { Id = otherGameId, Name = "Other Game" },
+                ProviderKey = "Steam",
+                HasAchievements = true,
+                Achievements = new List<AchievementDetail> { Achievement("Other Only", 30.0, unlocked: false) }
+            };
+
+            context.AchievementDataService.VisibleGameDataById[selectedGameId] = selectedData;
+            context.AchievementDataService.VisibleGameDataById[otherGameId] = otherData;
+            context.AchievementDataService.VisibleAllGameData =
+                new List<GameAchievementData> { selectedData, otherData };
+
+            context.Settings.OpenAchievementWindow.Execute(null);
+            context.Service.PopulateSingleGameDataSync(selectedGameId);
+            AssertAchievementNames(context.Settings.Achievements, "Selected Only");
+
+            // A marker toggle on a library-scope row belongs to a different game than the one the
+            // selected-game surface is showing. It must refresh the library lists without
+            // repointing that surface at the edited game.
+            var editedOther = new GameAchievementData
+            {
+                PlayniteGameId = otherGameId,
+                Game = otherData.Game,
+                ProviderKey = "Steam",
+                HasAchievements = true,
+                Achievements = new List<AchievementDetail>
+                {
+                    Achievement("Other Only", 30.0, unlocked: false),
+                    Achievement("Other Added", 40.0, unlocked: false)
+                }
+            };
+            context.AchievementDataService.VisibleGameDataById[otherGameId] = editedOther;
+            context.AchievementDataService.VisibleAllGameData =
+                new List<GameAchievementData> { selectedData, editedOther };
+
+            context.Service.NotifyCustomDataChanged(otherGameId);
+
+            // The library refresh landing is the signal that the notify pipeline ran end to end.
+            await WaitForConditionAsync(() => context.Settings.DynamicLibraryAchievements.Count == 3);
+
+            // Had the selected-game surface been repointed, these would be the other game's.
+            AssertAchievementNames(context.Settings.Achievements, "Selected Only");
+            AssertAchievementNames(context.Settings.DynamicAchievements, "Selected Only");
+        }
+
+        [TestMethod]
         public void DynamicSelectedGameBindings_FilterSortAndDirectionPersistAcrossSelectionChanges()
         {
             PercentRarityHelper.Configure(5, 10, 50);
