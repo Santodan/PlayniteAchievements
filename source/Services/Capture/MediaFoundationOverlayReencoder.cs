@@ -79,100 +79,91 @@ namespace PlayniteAchievements.Services.Capture
                 return false;
             }
 
-            MediaManager.Startup();
-            try
+            using (MediaFoundationRuntime.Acquire())
             {
-                using (var readerAttributes = new MediaAttributes(1))
+                try
                 {
-                    // Advanced video processing lets the reader chain the H.264 decoder plus a
-                    // color converter so it can hand us RGB32 directly.
-                    readerAttributes.Set(SourceReaderAttributeKeys.EnableAdvancedVideoProcessing, true);
-                    using (var videoReader = new SourceReader(baseClipPath, readerAttributes))
+                    using (var readerAttributes = new MediaAttributes(1))
                     {
-                        videoReader.SetStreamSelection((int)SourceReaderIndex.AllStreams, false);
-                        videoReader.SetStreamSelection((int)SourceReaderIndex.FirstVideoStream, true);
-
-                        int frameW, frameH, fps;
-                        using (var request = new MediaType())
+                        // Advanced video processing lets the reader chain the H.264 decoder plus a
+                        // color converter so it can hand us RGB32 directly.
+                        readerAttributes.Set(SourceReaderAttributeKeys.EnableAdvancedVideoProcessing, true);
+                        using (var videoReader = new SourceReader(baseClipPath, readerAttributes))
                         {
-                            request.Set(MediaTypeAttributeKeys.MajorType, MediaTypeGuids.Video);
-                            request.Set(MediaTypeAttributeKeys.Subtype, VideoFormatGuids.Rgb32);
-                            videoReader.SetCurrentMediaType((int)SourceReaderIndex.FirstVideoStream, request);
-                        }
+                            videoReader.SetStreamSelection((int)SourceReaderIndex.AllStreams, false);
+                            videoReader.SetStreamSelection((int)SourceReaderIndex.FirstVideoStream, true);
 
-                        int stride;
-                        MediaType decodedType = videoReader.GetCurrentMediaType((int)SourceReaderIndex.FirstVideoStream);
-                        using (decodedType)
-                        {
-                            var size = decodedType.Get(MediaTypeAttributeKeys.FrameSize);
-                            frameW = (int)(size >> 32);
-                            frameH = (int)(size & 0xffffffff);
-                            fps = ReadFps(decodedType, configuredFps);
-                            stride = ReadStride(decodedType, frameW);
-
-                            // The sink must agree with our row-order interpretation. When the
-                            // decoder's type omits MF_MT_DEFAULT_STRIDE, MF's convention for RGB
-                            // is bottom-up — the encoder's converter would vertically flip the
-                            // whole clip even though the video processor hands us top-down rows.
-                            // Declaring the stride we actually assume removes the ambiguity.
-                            decodedType.Set(MediaTypeAttributeKeys.DefaultStride, stride);
-
-                            // The decoder/converter hands back full-range RGB regardless of the base
-                            // clip's own range, so say so: the sink's RGB -> encoder converter then
-                            // compresses to the limited range the output type declares.
-                            MediaFoundationColor.ApplyFullRangeRgbInput(decodedType);
-
-                            SinkWriter sink = null;
-                            try
+                            int frameW, frameH, fps;
+                            using (var request = new MediaType())
                             {
-                                using (var sinkAttributes = new MediaAttributes(1))
-                                {
-                                    sinkAttributes.Set(SinkWriterAttributeKeys.ReadwriteEnableHardwareTransforms, 1);
-                                    sink = MediaFactory.CreateSinkWriterFromURL(outputPath, null, sinkAttributes);
-                                }
-
-                                var videoStream = AddVideoStream(sink, decodedType, frameW, frameH, fps, quality);
-                                var audioStream = TryAddAudio(
-                                    sink, baseClipPath, decodeToPcm: chimePcm != null, out var audioReader);
-                                var compositor = new OverlayCompositor(frameW, frameH, stride);
-                                using (audioReader)
-                                {
-                                    sink.BeginWriting();
-                                    var timer = Stopwatch.StartNew();
-                                    var counts = WriteComposited(
-                                        sink, videoStream, videoReader, audioStream, audioReader,
-                                        track, toastStartSeconds, toastMaxSeconds, trimLeadSeconds,
-                                        endSeconds, audioStream >= 0 ? chimePcm : null, chimeStartSeconds,
-                                        frameW, frameH, OneSecond100ns / Math.Max(1, fps),
-                                        compositor);
-                                    sink.Finalize();
-                                    LogPassCost(timer, counts, frameW, frameH);
-                                }
-
-                                return true;
+                                request.Set(MediaTypeAttributeKeys.MajorType, MediaTypeGuids.Video);
+                                request.Set(MediaTypeAttributeKeys.Subtype, VideoFormatGuids.Rgb32);
+                                videoReader.SetCurrentMediaType((int)SourceReaderIndex.FirstVideoStream, request);
                             }
-                            finally
+
+                            int stride;
+                            MediaType decodedType = videoReader.GetCurrentMediaType((int)SourceReaderIndex.FirstVideoStream);
+                            using (decodedType)
                             {
-                                sink?.Dispose();
+                                var size = decodedType.Get(MediaTypeAttributeKeys.FrameSize);
+                                frameW = (int)(size >> 32);
+                                frameH = (int)(size & 0xffffffff);
+                                fps = ReadFps(decodedType, configuredFps);
+                                stride = ReadStride(decodedType, frameW);
+
+                                // The sink must agree with our row-order interpretation. When the
+                                // decoder's type omits MF_MT_DEFAULT_STRIDE, MF's convention for RGB
+                                // is bottom-up — the encoder's converter would vertically flip the
+                                // whole clip even though the video processor hands us top-down rows.
+                                // Declaring the stride we actually assume removes the ambiguity.
+                                decodedType.Set(MediaTypeAttributeKeys.DefaultStride, stride);
+
+                                // The decoder/converter hands back full-range RGB regardless of the base
+                                // clip's own range, so say so: the sink's RGB -> encoder converter then
+                                // compresses to the limited range the output type declares.
+                                MediaFoundationColor.ApplyFullRangeRgbInput(decodedType);
+
+                                SinkWriter sink = null;
+                                try
+                                {
+                                    using (var sinkAttributes = new MediaAttributes(1))
+                                    {
+                                        sinkAttributes.Set(SinkWriterAttributeKeys.ReadwriteEnableHardwareTransforms, 1);
+                                        sink = MediaFactory.CreateSinkWriterFromURL(outputPath, null, sinkAttributes);
+                                    }
+
+                                    var videoStream = AddVideoStream(sink, decodedType, frameW, frameH, fps, quality);
+                                    var audioStream = TryAddAudio(
+                                        sink, baseClipPath, decodeToPcm: chimePcm != null, out var audioReader);
+                                    var compositor = new OverlayCompositor(frameW, frameH, stride);
+                                    using (audioReader)
+                                    {
+                                        sink.BeginWriting();
+                                        var timer = Stopwatch.StartNew();
+                                        var counts = WriteComposited(
+                                            sink, videoStream, videoReader, audioStream, audioReader,
+                                            track, toastStartSeconds, toastMaxSeconds, trimLeadSeconds,
+                                            endSeconds, audioStream >= 0 ? chimePcm : null, chimeStartSeconds,
+                                            frameW, frameH, OneSecond100ns / Math.Max(1, fps),
+                                            compositor);
+                                        sink.Finalize();
+                                        LogPassCost(timer, counts, frameW, frameH);
+                                    }
+
+                                    return true;
+                                }
+                                finally
+                                {
+                                    sink?.Dispose();
+                                }
                             }
                         }
                     }
                 }
-            }
-            catch (Exception ex)
-            {
-                _logger?.Warn(ex, "[Recording] Toast overlay re-encode failed; the toastless clip is kept.");
-                return false;
-            }
-            finally
-            {
-                try
+                catch (Exception ex)
                 {
-                    MediaManager.Shutdown();
-                }
-                catch
-                {
-                    // Startup/Shutdown are refcounted per process; ignore an unbalanced shutdown.
+                    _logger?.Warn(ex, "[Recording] Toast overlay re-encode failed; the toastless clip is kept.");
+                    return false;
                 }
             }
         }
