@@ -2407,6 +2407,14 @@ namespace PlayniteAchievements.Services.UI
         // Composed frames of the invisible toast to wait for before starting the slide, and the ceiling
         // on that wait. Two, because the first frame after Show is the one that realizes the card, and a
         // second proves that frame was presented rather than merely queued.
+        //
+        // The ceiling is a stall guard, not the expected path: subscribing to Rendering itself keeps the
+        // render loop ticking, so the frames arrive on their own even with nothing on the card animating.
+        // Measured with tools\capture-harness SlideProbe on a static Opacity=0 window, this wait costs
+        // 6-25 ms and never reaches the ceiling. Do not shorten it toward a frame period: its other
+        // effect is bounding how much first-paint work the warm can absorb, so a tight ceiling would cut
+        // an expensive first paint short and hand the remainder back to the slide's first frame, which is
+        // the whole defect. It only costs latency in a pathological case where frames stop entirely.
         private const int WarmFrameCount = 2;
         private const int WarmFrameTimeoutMs = 150;
         // Frame period assumed when the anchor monitor's refresh rate can't be read (60 Hz).
@@ -2591,7 +2599,13 @@ namespace PlayniteAchievements.Services.UI
             }
 
             var ticks = new RenderTickCounter();
-            var reached = new TaskCompletionSource<bool>();
+            // RunContinuationsAsynchronously because TrySetResult below runs inside a Rendering handler,
+            // and a TaskCompletionSource otherwise completes its continuations synchronously on the
+            // thread that set it — resuming the caller in the middle of a composition pass, where it
+            // would move the window and subscribe the slide. ConfigureAwait(true) on a captured
+            // dispatcher context already posts rather than inlines, so this guards the invariant rather
+            // than fixing a live defect; it costs nothing and does not depend on that reasoning holding.
+            var reached = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
             EventHandler tick = null;
             tick = (s, e) =>
             {
