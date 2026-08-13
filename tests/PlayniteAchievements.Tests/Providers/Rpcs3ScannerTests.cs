@@ -1845,6 +1845,276 @@ BCUS98246: 'D:\RPCS3\Other Collection.iso' # trailing comment
             }
         }
 
+        [TestMethod]
+        public async Task RefreshAsync_IsoTropdirTrophySet_ResolvesAgainstTrophyFolder()
+        {
+            var tempDir = CreateTempDirectory();
+            var rpcs3Root = Path.Combine(tempDir, "rpcs3");
+            var pluginDataPath = Path.Combine(tempDir, "plugin-data");
+            var isoPath = Path.Combine(tempDir, "roms", "Deadpool.iso");
+
+            try
+            {
+                // A PS3 disc keeps its trophy sets in PS3_GAME\TROPDIR\<npcommid>,
+                // one directory per set, not in a bare TROPHY folder.
+                CreateRpcs3TrophyData(rpcs3Root, "NPWR04072_00", "Deadpool", "Folder Trophy");
+
+                var trpBytes = Rpcs3TrophyParserTrpTests.BuildBinaryTrp(
+                    2,
+                    ("TROPCONF.SFM", Encoding.UTF8.GetBytes(BuildTropconfXml("NPWR04072_00", "Deadpool", "Disc Trophy"))));
+                CreateIso9660WithFiles(isoPath, (@"PS3_GAME\TROPDIR\NPWR04072_00\TROPHY.TRP", trpBytes));
+
+                var provider = CreateProvider(rpcs3Root, pluginUserDataPath: pluginDataPath);
+                var game = new Game
+                {
+                    Id = Guid.NewGuid(),
+                    Name = "Deadpool",
+                    Roms = new ObservableCollection<GameRom> { new GameRom("Disc", isoPath) }
+                };
+
+                var data = await RefreshSingleGameAsync(provider, game).ConfigureAwait(false);
+
+                Assert.IsNotNull(data);
+                Assert.AreEqual("NPWR04072_00", data.ProviderGameKey);
+                Assert.AreEqual("Folder Trophy", data.Achievements[0].DisplayName);
+            }
+            finally
+            {
+                DeleteDirectory(tempDir);
+            }
+        }
+
+        [TestMethod]
+        public async Task RefreshAsync_IsoTropdirTrophySet_NeverBooted_MaterializesLockedList()
+        {
+            var tempDir = CreateTempDirectory();
+            var rpcs3Root = Path.Combine(tempDir, "rpcs3");
+            var pluginDataPath = Path.Combine(tempDir, "plugin-data");
+            var isoPath = Path.Combine(tempDir, "roms", "Deadpool.iso");
+
+            try
+            {
+                // Never booted in RPCS3, so no trophy folder exists: the set is
+                // readable only from the TROPDIR entry inside the image.
+                File.WriteAllBytes(Path.Combine(CreateRpcs3Root(rpcs3Root), "rpcs3.exe"), new byte[] { 0 });
+
+                var trpBytes = Rpcs3TrophyParserTrpTests.BuildBinaryTrp(
+                    2,
+                    ("TROPCONF.SFM", Encoding.UTF8.GetBytes(BuildTropconfXml("NPWR04072_00", "Deadpool", "Disc Trophy"))));
+                CreateIso9660WithFiles(isoPath, (@"PS3_GAME\TROPDIR\NPWR04072_00\TROPHY.TRP", trpBytes));
+
+                var provider = CreateProvider(rpcs3Root, pluginUserDataPath: pluginDataPath);
+                var game = new Game
+                {
+                    Id = Guid.NewGuid(),
+                    Name = "Deadpool",
+                    Roms = new ObservableCollection<GameRom> { new GameRom("Disc", isoPath) }
+                };
+
+                var data = await RefreshSingleGameAsync(provider, game).ConfigureAwait(false);
+
+                Assert.IsNotNull(data);
+                Assert.AreEqual("NPWR04072_00", data.ProviderGameKey);
+                Assert.AreEqual("Disc Trophy", data.Achievements[0].DisplayName);
+                Assert.IsTrue(data.Achievements.All(achievement => !achievement.Unlocked));
+                Assert.IsTrue(File.Exists(Path.Combine(pluginDataPath, "icon_cache", "rpcs3", "NPWR04072_00", "TROPHY.TRP")));
+            }
+            finally
+            {
+                DeleteDirectory(tempDir);
+            }
+        }
+
+        [TestMethod]
+        public async Task RefreshAsync_IsoTropdirWithDistinctTitleSets_SurfacesCollection()
+        {
+            var tempDir = CreateTempDirectory();
+            var rpcs3Root = Path.Combine(tempDir, "rpcs3");
+            var pluginDataPath = Path.Combine(tempDir, "plugin-data");
+            var isoPath = Path.Combine(tempDir, "roms", "collection.iso");
+
+            try
+            {
+                File.WriteAllBytes(Path.Combine(CreateRpcs3Root(rpcs3Root), "rpcs3.exe"), new byte[] { 0 });
+
+                var firstTrp = Rpcs3TrophyParserTrpTests.BuildBinaryTrp(
+                    2,
+                    ("TROPCONF.SFM", Encoding.UTF8.GetBytes(BuildTropconfXml("NPWR00300_00", "Collection Part One", "Part One Trophy"))));
+                var secondTrp = Rpcs3TrophyParserTrpTests.BuildBinaryTrp(
+                    2,
+                    ("TROPCONF.SFM", Encoding.UTF8.GetBytes(BuildTropconfXml("NPWR00400_00", "Collection Part Two", "Part Two Trophy"))));
+                CreateIso9660WithFiles(
+                    isoPath,
+                    (@"PS3_GAME\TROPDIR\NPWR00300_00\TROPHY.TRP", firstTrp),
+                    (@"PS3_GAME\TROPDIR\NPWR00400_00\TROPHY.TRP", secondTrp));
+
+                var provider = CreateProvider(rpcs3Root, pluginUserDataPath: pluginDataPath);
+                var game = new Game
+                {
+                    Id = Guid.NewGuid(),
+                    Name = "The Collection",
+                    Roms = new ObservableCollection<GameRom> { new GameRom("Disc", isoPath) }
+                };
+
+                var data = await RefreshSingleGameAsync(provider, game).ConfigureAwait(false);
+
+                Assert.IsNotNull(data);
+                Assert.AreEqual(2, data.Achievements.Count);
+            }
+            finally
+            {
+                DeleteDirectory(tempDir);
+            }
+        }
+
+        [TestMethod]
+        public async Task RefreshAsync_EmuLibraryRomIso_ResolvesTropdirSetFromRomPath()
+        {
+            var tempDir = CreateTempDirectory();
+            var rpcs3Root = Path.Combine(tempDir, "rpcs3");
+            var pluginDataPath = Path.Combine(tempDir, "plugin-data");
+            var romRoot = Path.Combine(tempDir, "Roms", "PS3");
+
+            try
+            {
+                // EmuLibrary points the install directory at the shared ROM folder
+                // and carries the actual image in the rom list.
+                CreateRpcs3TrophyData(rpcs3Root, "NPWR04072_00", "Deadpool", "Deadpool Trophy");
+                CreateTrophyDataInDevHdd0(Path.Combine(rpcs3Root, "dev_hdd0"), "NPWR05555_00", "Other Game", "Other Trophy");
+
+                var deadpoolTrp = Rpcs3TrophyParserTrpTests.BuildBinaryTrp(
+                    2,
+                    ("TROPCONF.SFM", Encoding.UTF8.GetBytes(BuildTropconfXml("NPWR04072_00", "Deadpool", "Disc Trophy"))));
+                var otherTrp = Rpcs3TrophyParserTrpTests.BuildBinaryTrp(
+                    2,
+                    ("TROPCONF.SFM", Encoding.UTF8.GetBytes(BuildTropconfXml("NPWR05555_00", "Other Game", "Other Disc Trophy"))));
+                CreateIso9660WithFiles(
+                    Path.Combine(romRoot, "Deadpool.iso"),
+                    (@"PS3_GAME\TROPDIR\NPWR04072_00\TROPHY.TRP", deadpoolTrp));
+                CreateIso9660WithFiles(
+                    Path.Combine(romRoot, "Other Game.iso"),
+                    (@"PS3_GAME\TROPDIR\NPWR05555_00\TROPHY.TRP", otherTrp));
+
+                var provider = CreateProvider(rpcs3Root, pluginUserDataPath: pluginDataPath);
+                var game = new Game
+                {
+                    Id = Guid.NewGuid(),
+                    Name = "Deadpool",
+                    InstallDirectory = romRoot,
+                    Roms = new ObservableCollection<GameRom> { new GameRom("Disc", Path.Combine(romRoot, "Deadpool.iso")) }
+                };
+
+                var data = await RefreshSingleGameAsync(provider, game).ConfigureAwait(false);
+
+                Assert.IsNotNull(data);
+                Assert.AreEqual("NPWR04072_00", data.ProviderGameKey);
+                Assert.AreEqual("Deadpool Trophy", data.Achievements[0].DisplayName);
+            }
+            finally
+            {
+                DeleteDirectory(tempDir);
+            }
+        }
+
+        [TestMethod]
+        public async Task RefreshAsync_ExtractedDiscDump_ResolvesPs3GameTropdirSet()
+        {
+            var tempDir = CreateTempDirectory();
+            var rpcs3Root = Path.Combine(tempDir, "rpcs3");
+            var dumpRoot = Path.Combine(tempDir, "dumps", "Deadpool");
+
+            try
+            {
+                // A manually extracted dump keeps TROPDIR under PS3_GAME, and
+                // Playnite points at the dump root rather than inside PS3_GAME.
+                CreateRpcs3TrophyData(rpcs3Root, "NPWR04072_00", "Deadpool", "Folder Trophy");
+
+                File.WriteAllText(Path.Combine(Directory.CreateDirectory(dumpRoot).FullName, "PS3_DISC.SFB"), "SFB");
+                CreateTrpFile(
+                    Path.Combine(dumpRoot, "PS3_GAME", "TROPDIR", "NPWR04072_00", "TROPHY.TRP"),
+                    "NPWR04072_00",
+                    "Deadpool",
+                    "Disc Trophy");
+
+                var provider = CreateProvider(rpcs3Root);
+                var game = new Game
+                {
+                    Id = Guid.NewGuid(),
+                    Name = "Renamed Deadpool",
+                    InstallDirectory = dumpRoot
+                };
+
+                var data = await RefreshSingleGameAsync(provider, game).ConfigureAwait(false);
+
+                Assert.IsNotNull(data);
+                Assert.AreEqual("NPWR04072_00", data.ProviderGameKey);
+                Assert.AreEqual("Folder Trophy", data.Achievements[0].DisplayName);
+            }
+            finally
+            {
+                DeleteDirectory(tempDir);
+            }
+        }
+
+        [TestMethod]
+        public async Task RefreshAsync_NpwrOverrideWithoutTrophyFolder_UsesIsoEmbeddedTrp()
+        {
+            var tempDir = CreateTempDirectory();
+            var rpcs3Root = Path.Combine(tempDir, "rpcs3");
+            var pluginDataPath = Path.Combine(tempDir, "plugin-data");
+            var isoPath = Path.Combine(tempDir, "roms", "Deadpool.iso");
+            var gameId = Guid.NewGuid();
+            var previousPlugin = PlayniteAchievementsPlugin.Instance;
+
+            try
+            {
+                // An override for a game RPCS3 has never booted still has trophy
+                // definitions available inside the image.
+                File.WriteAllBytes(Path.Combine(CreateRpcs3Root(rpcs3Root), "rpcs3.exe"), new byte[] { 0 });
+
+                var trpBytes = Rpcs3TrophyParserTrpTests.BuildBinaryTrp(
+                    2,
+                    ("TROPCONF.SFM", Encoding.UTF8.GetBytes(BuildTropconfXml("NPWR04072_00", "Deadpool", "Disc Trophy"))));
+                CreateIso9660WithFiles(isoPath, (@"PS3_GAME\TROPDIR\NPWR04072_00\TROPHY.TRP", trpBytes));
+
+                var store = new GameCustomDataStore(Path.Combine(tempDir, "store"));
+                store.Save(gameId, new GameCustomDataFile
+                {
+                    PlayniteGameId = gameId,
+                    ProviderOverride = new ProviderOverrideData
+                    {
+                        ProviderKey = "RPCS3",
+                        Value = "NPWR04072_00"
+                    }
+                });
+
+                PlayniteAchievementsPlugin.Instance = new PlayniteAchievementsPlugin
+                {
+                    GameCustomDataStore = store
+                };
+
+                var provider = CreateProvider(rpcs3Root, pluginUserDataPath: pluginDataPath);
+                var game = new Game
+                {
+                    Id = gameId,
+                    Name = "Deadpool",
+                    Roms = new ObservableCollection<GameRom> { new GameRom("Disc", isoPath) }
+                };
+
+                var data = await RefreshSingleGameAsync(provider, game).ConfigureAwait(false);
+
+                Assert.IsNotNull(data);
+                Assert.AreEqual("NPWR04072_00", data.ProviderGameKey);
+                Assert.AreEqual("Disc Trophy", data.Achievements[0].DisplayName);
+                Assert.IsTrue(data.Achievements.All(achievement => !achievement.Unlocked));
+            }
+            finally
+            {
+                PlayniteAchievementsPlugin.Instance = previousPlugin;
+                DeleteDirectory(tempDir);
+            }
+        }
+
         private static void CreateIso9660WithFiles(string isoPath, params (string PathInIso, byte[] Data)[] files)
         {
             Directory.CreateDirectory(Path.GetDirectoryName(isoPath));
