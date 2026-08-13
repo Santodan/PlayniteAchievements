@@ -201,9 +201,9 @@
     <Resource Include="Resources\BrandingIcon.png" />
     <Resource Include="Resources\HiddenAchIcon.png" />
     <Resource Include="Resources\UnlockedAchIcon.png" />
-    <Content Include="Resources\HiddenAchIcon.png">
-      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
-    </Content>
+    <!-- UnlockedAchIcon is needed as a loose file too: HoyoverseDefinitionClient resolves it by path
+         as the icon fallback. HiddenAchIcon is only ever loaded through its pack:// URI, so it ships
+         as a Resource alone. -->
     <Content Include="Resources\UnlockedAchIcon.png">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </Content>
