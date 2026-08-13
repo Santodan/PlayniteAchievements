@@ -80,8 +80,30 @@ namespace PlayniteAchievements.Common.Disc
         /// </summary>
         public IReadOnlyCollection<string> GetRootDirectoryNames()
         {
-            return SafeGetDirectories("\\")
-                .Select(directory => Path.GetFileName(directory.TrimEnd('\\')))
+            return GetDirectoryNames(null);
+        }
+
+        /// <summary>
+        /// Names of the immediate child directories of a directory inside the
+        /// image, empty when the directory is absent or unreadable. A null or
+        /// empty path enumerates the image root. Lets callers walk containers
+        /// whose child names are data (e.g. a TROPDIR of NPWR ids) rather than
+        /// probing a fixed path list.
+        /// </summary>
+        public IReadOnlyCollection<string> GetDirectoryNames(string pathInsideImage)
+        {
+            var directory = "\\";
+            if (!string.IsNullOrWhiteSpace(pathInsideImage))
+            {
+                directory = ResolveDirectoryCaseInsensitive(NormalizeImagePath(pathInsideImage));
+                if (directory == null)
+                {
+                    return Array.Empty<string>();
+                }
+            }
+
+            return SafeGetDirectories(directory)
+                .Select(child => Path.GetFileName(child.TrimEnd('\\')))
                 .Where(name => !string.IsNullOrWhiteSpace(name))
                 .ToList();
         }
@@ -143,40 +165,45 @@ namespace PlayniteAchievements.Common.Disc
             var parts = normalizedPath.Split(new[] { '\\' }, StringSplitOptions.RemoveEmptyEntries);
             if (parts.Length == 0) return null;
 
+            var currentDir = ResolveDirectoryChain(parts, parts.Length - 1);
+            if (currentDir == null) return null;
+
+            var fileName = parts[parts.Length - 1];
+            var files = SafeGetFiles(currentDir);
+            var fileMatch = files.FirstOrDefault(f =>
+                string.Equals(Path.GetFileName(f), fileName, StringComparison.OrdinalIgnoreCase));
+            if (fileMatch != null) return fileMatch;
+
+            // Some images expose versioned filenames; try appending ;1
+            return files.FirstOrDefault(f =>
+                string.Equals(Path.GetFileName(f), fileName + ";1", StringComparison.OrdinalIgnoreCase));
+        }
+
+        private string ResolveDirectoryCaseInsensitive(string normalizedPath)
+        {
+            var parts = normalizedPath.Split(new[] { '\\' }, StringSplitOptions.RemoveEmptyEntries);
+            return ResolveDirectoryChain(parts, parts.Length);
+        }
+
+        /// <summary>
+        /// Walks the first <paramref name="count"/> segments as directories,
+        /// matching each case-insensitively. Returns the directory path with a
+        /// trailing separator, or null when a segment does not exist.
+        /// </summary>
+        private string ResolveDirectoryChain(string[] parts, int count)
+        {
             var currentDir = "\\";
 
-            for (var i = 0; i < parts.Length; i++)
+            for (var i = 0; i < count; i++)
             {
-                var part = parts[i];
-                var isLast = i == parts.Length - 1;
+                var match = SafeGetDirectories(currentDir).FirstOrDefault(d =>
+                    string.Equals(Path.GetFileName(d.TrimEnd('\\')), parts[i], StringComparison.OrdinalIgnoreCase));
+                if (match == null) return null;
 
-                if (!isLast)
-                {
-                    var dirs = SafeGetDirectories(currentDir);
-                    var match = dirs.FirstOrDefault(d =>
-                        string.Equals(Path.GetFileName(d.TrimEnd('\\')), part, StringComparison.OrdinalIgnoreCase));
-                    if (match == null) return null;
-
-                    currentDir = match;
-                    if (!currentDir.EndsWith("\\", StringComparison.Ordinal)) currentDir += "\\";
-                }
-                else
-                {
-                    var files = SafeGetFiles(currentDir);
-                    var fileMatch = files.FirstOrDefault(f =>
-                        string.Equals(Path.GetFileName(f), part, StringComparison.OrdinalIgnoreCase));
-                    if (fileMatch != null) return fileMatch;
-
-                    // Some images expose versioned filenames; try appending ;1
-                    fileMatch = files.FirstOrDefault(f =>
-                        string.Equals(Path.GetFileName(f), part + ";1", StringComparison.OrdinalIgnoreCase));
-                    if (fileMatch != null) return fileMatch;
-
-                    return null;
-                }
+                currentDir = match.EndsWith("\\", StringComparison.Ordinal) ? match : match + "\\";
             }
 
-            return null;
+            return currentDir;
         }
 
         private IEnumerable<string> SafeGetDirectories(string path)
