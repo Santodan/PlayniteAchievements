@@ -247,6 +247,7 @@
     <Compile Include="..\..\source\Providers\Steam\SteamAPIClient.cs" Link="Source\Providers\Steam\SteamAPIClient.cs" />
     <Compile Include="..\..\source\Providers\Steam\SteamCommunityPageParser.cs" Link="Source\Providers\Steam\SteamCommunityPageParser.cs" />
     <Compile Include="..\..\source\Providers\Steam\SteamAchievementApiNameResolver.cs" Link="Source\Providers\Steam\SteamAchievementApiNameResolver.cs" />
+    <Compile Include="..\..\source\Providers\Steam\SteamRemoteObservationBuilder.cs" Link="Source\Providers\Steam\SteamRemoteObservationBuilder.cs" />
     <Compile Include="..\..\source\Providers\Steam\SteamWebAuthSession.cs" Link="Source\Providers\Steam\SteamWebAuthSession.cs" />
     <Compile Include="..\..\source\Providers\Steam\SteamWebApiTokenResolver.cs" Link="Source\Providers\Steam\SteamWebApiTokenResolver.cs" />
     <Compile Include="..\..\source\Providers\Exophase\ExophaseApiClient.cs" Link="Source\Providers\Exophase\ExophaseApiClient.cs" />
