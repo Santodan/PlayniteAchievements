@@ -32,7 +32,14 @@
     <LangVersion>preview</LangVersion>
   </PropertyGroup>
   <PropertyGroup Condition=" '$(Configuration)|$(Platform)' == 'Release|AnyCPU' ">
-    <DebugType>pdbonly</DebugType>
+    <!-- No symbols in the packed .pext: the .pdb was 3.58 MB of a 10.36 MB package, and logged
+         exceptions are overwhelmingly environmental (HTTP/socket/IO/JSON), where the exception type
+         and the method name in the trace are the whole diagnosis. Traces still carry exception type,
+         message, inner exceptions, and namespace-qualified method names -- only "in <file>:line N"
+         is lost. Note DebugType=portable is NOT an alternative: .NET Framework cannot read portable
+         PDBs, so it drops line numbers anyway. Build Debug to get symbols while developing. -->
+    <DebugType>none</DebugType>
+    <DebugSymbols>false</DebugSymbols>
     <Optimize>true</Optimize>
     <OutputPath>bin\Release\</OutputPath>
     <DefineConstants>TRACE</DefineConstants>
