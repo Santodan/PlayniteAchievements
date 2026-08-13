@@ -1053,12 +1053,21 @@ namespace PlayniteAchievements.Providers.RPCS3
             catch (Exception ex)
             {
                 // Unreadable disc image; the raw scan below is the only option
-                // left, and it only matches sets RPCS3 has already booted. Warn
-                // rather than Debug: a PS3 image the UDF reader cannot open is
-                // the difference between a matched game and a silent miss.
-                _logger?.Warn(
-                    $"[RPCS3] Could not read ISO '{isoPath}' as a filesystem ({ex.GetType().Name}: {ex.Message}); " +
-                    "falling back to a raw scan.");
+                // left, and it only matches sets RPCS3 has already booted. A PS3
+                // image the UDF reader cannot open is the difference between a
+                // matched game and a silent miss, so a refresh reports it;
+                // capability probes (raw scan off) stay quiet since they run
+                // across the whole library.
+                if (allowRawIsoScan)
+                {
+                    _logger?.Warn(
+                        $"[RPCS3] Could not read ISO '{isoPath}' as a filesystem ({ex.GetType().Name}: {ex.Message}); " +
+                        "falling back to a raw scan.");
+                }
+                else
+                {
+                    _logger?.Debug(ex, $"[RPCS3] Could not read ISO '{isoPath}' as a filesystem.");
+                }
             }
 
             // The structured read is authoritative; raw scanning is the fallback for
