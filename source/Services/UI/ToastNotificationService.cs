@@ -16,6 +16,7 @@ using PlayniteAchievements.Models.Achievements;
 using PlayniteAchievements.Models.Settings;
 using PlayniteAchievements.Services.Capture;
 using PlayniteAchievements.Services.GameCustomData;
+using PlayniteAchievements.Services.Images;
 using PlayniteAchievements.ViewModels;
 using PlayniteAchievements.Views.Helpers;
 
@@ -1195,6 +1196,32 @@ namespace PlayniteAchievements.Services.UI
                 return;
             }
 
+            // Everything the card needs that costs nothing on screen is built here, ahead of the chime
+            // and its alignment delay: the template instantiation, the surface, and the icon decodes and
+            // ray traces the card would otherwise finish while it is already sliding. None of it touches
+            // an HWND or a pixel, so the base capture above still completes against a screen with no
+            // toast on it, and the window is still created and shown at the same point as before.
+            //
+            // A wave is game-homogeneous, so scope the custom template to this wave's game and
+            // provider (game > provider > global) for real unlocks. The template decision (fire-test
+            // preview source vs normal theme-styling resolve) and the host element are built through
+            // the shared ToastSurfaceFactory so the live toast and the settings inline preview
+            // cannot drift.
+            var waveProviderKey = cardItems.FirstOrDefault()?.ProviderKey;
+            var waveScopeGameId = _activeWaveGameId ?? Guid.Empty;
+            // A fire-test carries a forced preview source; captured here for the render-failure
+            // handler below (the template decision itself lives in ToastSurfaceFactory).
+            var previewSource = cardItems
+                .Select(vm => vm.PreviewTemplateSource)
+                .FirstOrDefault(source => source.HasValue);
+            var template = ToastSurfaceFactory.ResolveToastTemplate(
+                _templateResolver, cardItems, ToastThemeStylingEnabled, waveProviderKey, waveScopeGameId);
+            var items = ToastSurfaceFactory.BuildToastSurface(cardItems, template);
+
+            LogWaveDiagnostics(cardItems, template, wavePlan.Mode);
+
+            PrimeWaveVisuals(cardItems);
+
             // Chime and vibration belong to the on-screen notification, so an unrevealed wave skips
             // both — and skips the alignment delay that exists only to line them up with the
             // reveal. Its clips carry no chime because none was played.
@@ -1224,24 +1251,6 @@ namespace PlayniteAchievements.Services.UI
                 _api,
                 ResourceProvider.GetString("LOCPlayAch_Title_PluginName"));
             _activeWindow = window;
-
-            // A wave is game-homogeneous, so scope the custom template to this wave's game and
-            // provider (game > provider > global) for real unlocks. The template decision (fire-test
-            // preview source vs normal theme-styling resolve) and the host element are built through
-            // the shared ToastSurfaceFactory so the live toast and the settings inline preview
-            // cannot drift.
-            var waveProviderKey = cardItems.FirstOrDefault()?.ProviderKey;
-            var waveScopeGameId = _activeWaveGameId ?? Guid.Empty;
-            // A fire-test carries a forced preview source; captured here for the render-failure
-            // handler below (the template decision itself lives in ToastSurfaceFactory).
-            var previewSource = cardItems
-                .Select(vm => vm.PreviewTemplateSource)
-                .FirstOrDefault(source => source.HasValue);
-            var template = ToastSurfaceFactory.ResolveToastTemplate(
-                _templateResolver, cardItems, ToastThemeStylingEnabled, waveProviderKey, waveScopeGameId);
-            var items = ToastSurfaceFactory.BuildToastSurface(cardItems, template);
-
-            LogWaveDiagnostics(cardItems, template, wavePlan.Mode);
 
             window.Content = items;
 
@@ -2756,6 +2765,140 @@ namespace PlayniteAchievements.Services.UI
         {
             ToastWindowPlacer.MovePhysical(
                 window, x + _placementCorrection.OffsetX, y + _placementCorrection.OffsetY);
+        }
+
+        // Decode sizes the card's images are requested at. Hints, not cache keys: for an Image element
+        // AsyncImage takes the larger of the authored value and one inferred from the element's laid-out
+        // size and the monitor scale, so a configurable icon size or a scaled monitor produces a
+        // different key and the prime warms the codec, the file read and any download but not the final
+        // decode. The background is the exception — it is painted by an ImageBrush, which is not a
+        // FrameworkElement, so its authored value is used verbatim and the prime hits exactly.
+        private const int PrimeIconDecodePixel = 160;
+        private const int PrimeRightBadgeDecodePixel = 96;
+        private const int PrimeIconBadgeDecodePixel = 64;
+        private const int PrimeBackgroundDecodePixel = 768;
+
+        /// <summary>
+        /// Starts the card's image decodes and ray-silhouette traces for a wave that is about to show,
+        /// so the card is complete on its first frame instead of completing itself while it slides.
+        /// Everything here is work the card would do anyway, only earlier — into the same caches — and
+        /// none of it is awaited or required: on failure the card loads exactly as it does today.
+        ///
+        /// A late-arriving image is the second of the two visible defects. The window is
+        /// SizeToContent, so an image landing mid-slide resizes the HWND while the slide is moving it
+        /// with SWP_NOSIZE, and the resting Y was computed from the pre-resize height — so the card
+        /// lands short and the placement snap jumps it the rest of the way.
+        /// </summary>
+        private void PrimeWaveVisuals(IReadOnlyList<AchievementToastViewModel> cardItems)
+        {
+            if (cardItems == null || cardItems.Count == 0)
+            {
+                return;
+            }
+
+            // Collected on the UI thread: these getters read the style, the provider registry and the
+            // filesystem. The decodes themselves are thread-agnostic and hand back frozen bitmaps.
+            var iconPaths = new List<string>();
+            var requests = new List<KeyValuePair<string, int>>();
+            var seenRequests = new HashSet<string>(StringComparer.Ordinal);
+            foreach (var vm in cardItems)
+            {
+                if (vm == null)
+                {
+                    continue;
+                }
+
+                if (!string.IsNullOrWhiteSpace(vm.IconPath) && !iconPaths.Contains(vm.IconPath))
+                {
+                    iconPaths.Add(vm.IconPath);
+                }
+
+                AddPrimeRequest(requests, seenRequests, vm.IconPath, PrimeIconDecodePixel);
+                if (vm.ShowRightBadge)
+                {
+                    AddPrimeRequest(
+                        requests, seenRequests, vm.ToastBadgeSource as string, PrimeRightBadgeDecodePixel);
+                }
+
+                if (vm.ShowBadge)
+                {
+                    AddPrimeRequest(
+                        requests, seenRequests, vm.ToastBadgeSource as string, PrimeIconBadgeDecodePixel);
+                }
+
+                if (vm.IsGameCompleted)
+                {
+                    AddPrimeRequest(
+                        requests, seenRequests, vm.ToastCompletedBadgeSource as string, PrimeIconDecodePixel);
+                }
+
+                if (vm.HasToastBackground)
+                {
+                    AddPrimeRequest(
+                        requests, seenRequests, vm.ToastBackgroundImagePath, PrimeBackgroundDecodePixel);
+                }
+            }
+
+            // Traces and decodes run as two concurrent chains so a slow silhouette trace cannot starve
+            // the image decodes inside the window before the toast shows.
+            var imageService = PlayniteAchievementsPlugin.Instance?.ImageService;
+            _ = Task.Run(async () =>
+            {
+                try
+                {
+                    await Task.WhenAll(
+                        PrimeRayTracksAsync(iconPaths),
+                        PrimeImagesAsync(imageService, requests)).ConfigureAwait(false);
+                }
+                catch
+                {
+                    // Priming is an optimization; a failure must never surface as an unobserved fault.
+                }
+            });
+        }
+
+        // A badge source is either a path string or an already-built image; only the former is fetched.
+        private static void AddPrimeRequest(
+            List<KeyValuePair<string, int>> requests, HashSet<string> seen, string uri, int decodePixel)
+        {
+            if (string.IsNullOrWhiteSpace(uri) || !seen.Add($"{decodePixel}{uri}"))
+            {
+                return;
+            }
+
+            requests.Add(new KeyValuePair<string, int>(uri, decodePixel));
+        }
+
+        private static async Task PrimeRayTracksAsync(IReadOnlyList<string> iconPaths)
+        {
+            for (var i = 0; i < iconPaths.Count; i++)
+            {
+                // Already bounded and exception-swallowing per icon.
+                await WarmRayTrackAsync(iconPaths[i]).ConfigureAwait(false);
+            }
+        }
+
+        private static async Task PrimeImagesAsync(
+            MemoryImageService imageService, IReadOnlyList<KeyValuePair<string, int>> requests)
+        {
+            if (imageService == null)
+            {
+                return;
+            }
+
+            for (var i = 0; i < requests.Count; i++)
+            {
+                try
+                {
+                    await imageService
+                        .GetAsync(requests[i].Key, requests[i].Value, System.Threading.CancellationToken.None)
+                        .ConfigureAwait(false);
+                }
+                catch
+                {
+                    // A missing or undecodable image is the card's problem to handle, as it is today.
+                }
+            }
         }
 
         private const int RayTrackWarmupTimeoutMs = 250;
