@@ -8,6 +8,7 @@ using PlayniteAchievements.Services;
 using PlayniteAchievements.Services.GameCustomData;
 using PlayniteAchievements.Services.Refresh;
 using PlayniteAchievements.Providers.Steam.Local;
+using PlayniteAchievements.Providers.Steam.Models;
 using System;
 using System.Collections.Generic;
 using System.Globalization;
@@ -31,6 +32,13 @@ namespace PlayniteAchievements.Providers.Steam
 
             /// <summary>When the next remote read falls due; default runs one on the first tick.</summary>
             public DateTime NextRemoteReadUtc { get; set; }
+
+            /// <summary>
+            /// Achievement schema for <see cref="AppId"/>, fetched on the first remote read and held
+            /// for the session. The backstop needs its icon hashes to turn scraped rows back into
+            /// api names, and the schema does not change while a game runs.
+            /// </summary>
+            public SchemaAndPercentages RemoteSchema { get; set; }
 
             public bool HasLocalStats => !string.IsNullOrWhiteSpace(StatsPath);
         }
@@ -424,6 +432,23 @@ namespace PlayniteAchievements.Providers.Steam
                     return null;
                 }
 
+                // Scraped rows are keyed by display text, so the schema's icon hashes are what turns
+                // them back into api names. One fetch covers every later backstop read this session.
+                if (state.RemoteSchema == null)
+                {
+                    state.RemoteSchema = await _scanner
+                        .FetchSchemaAsync(token.Token, state.AppId, cancellationToken)
+                        .ConfigureAwait(false);
+                }
+
+                if (state.RemoteSchema?.Achievements == null || state.RemoteSchema.Achievements.Count == 0)
+                {
+                    _logger?.Debug(
+                        $"[SteamAch] In-game remote backstop has no schema for appId={state.AppId}; " +
+                        "skipping the read.");
+                    return null;
+                }
+
                 // The scrape renders a community page through the offscreen view, so it needs the
                 // same lease the scan takes.
                 using (_sessionManager.BeginOffscreenViewLease())
@@ -440,15 +465,15 @@ namespace PlayniteAchievements.Providers.Steam
                         return null;
                     }
 
-                    return scraped.Rows
-                        .Where(row => row != null && row.IsUnlocked && !string.IsNullOrWhiteSpace(row.Key))
-                        .Select(row => new AchievementProgressObservation
-                        {
-                            ApiName = row.Key,
-                            Unlocked = true,
-                            UnlockTimeUtc = row.UnlockTimeUtc
-                        })
-                        .ToList();
+                    var built = SteamRemoteObservationBuilder.Build(state.RemoteSchema, scraped.Rows);
+                    if (built.UnresolvedUnlockedRows > 0)
+                    {
+                        _logger?.Debug(
+                            $"[SteamAch] In-game remote backstop dropped {built.UnresolvedUnlockedRows} " +
+                            $"unlocked row(s) with no api name match for appId={state.AppId}.");
+                    }
+
+                    return built.Observations;
                 }
             }
             catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
