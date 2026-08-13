@@ -3062,9 +3062,17 @@ namespace PlayniteAchievements.ViewModels
                 return true;
             }
 
-            // With no column sort active, a removed goal has to fall back to the natural order.
-            // Partitioning alone is stable, so it would otherwise stay stranded at the top.
+            // No column sort, so re-run exactly what the load path does: restore the natural order
+            // as the base (the configured sort may preserve source order), apply the configured
+            // default sort, then pin goals. Partitioning alone is stable, so without this a
+            // removed goal would stay stranded at the top.
             RestoreSelectedGameNaturalOrder();
+            AchievementSortHelper.ApplyConfiguredDefaultSort(
+                _filteredSelectedGameAchievements,
+                _settings?.Persisted,
+                AchievementSortSurface.OverviewSelectedGame,
+                AchievementSortScope.GameAchievements,
+                stableOrder: AchievementSortHelper.CreateStableOrderMap(_filteredSelectedGameAchievements));
             AchievementSortHelper.ApplyGoalsFirst(_allSelectedGameAchievements);
             AchievementSortHelper.ApplyGoalsFirst(_filteredSelectedGameAchievements);
             SyncSelectedGameAchievementsDisplay();
