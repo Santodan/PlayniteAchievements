@@ -60,6 +60,8 @@ namespace PlayniteAchievements.Services.UI
         private const int SoundAlignmentDelayMs = 450;
 
         private bool _disposed;
+        // Window-bearing waves shown by this process; see the [Toast] Fire diagnostic line.
+        private int _waveSequence;
         private Window _activeWindow;
         // The corner the current wave uses, resolved once per wave (theme override or plugin
         // setting). Read by the per-frame positioning path so it isn't re-resolved every frame.
@@ -92,6 +94,14 @@ namespace PlayniteAchievements.Services.UI
         private int _activeMonitorRefreshHz;
         // The running physical slide's per-frame tick handler (CompositionTarget.Rendering), or null.
         private EventHandler _activeSlideTick;
+        // The running slide's frame bookkeeping, direction and requested duration, kept out of the tick
+        // closure so the one diagnostic line each slide emits can be written from either exit: the slide
+        // is routinely force-stopped (the post-slide snap, teardown) before its final frame runs.
+        // ReportActiveSlide nulls the counter, so whichever exit comes first reports and the other is a
+        // no-op.
+        private RenderTickCounter _activeSlideTicks;
+        private string _activeSlideLabel;
+        private double _activeSlideRequestedMs;
         // Per-wave placement state: the offset between where SetWindowPos is asked to put the toast
         // and where its HWND lands (measured once, on the wave's first settled placement), and whether
         // this wave has already logged that its placement needed rescuing.
@@ -1194,6 +1204,10 @@ namespace PlayniteAchievements.Services.UI
                 VibrateControllers();
             }
 
+            // Counts the window-bearing waves this process has shown, so a diagnostic line says whether
+            // it came from the session's first toast (which pays every one-time cost) or a later one.
+            var waveSequence = ++_waveSequence;
+
             var window = PlayniteUiProvider.CreateBorderlessTopmostWindow(
                 _api,
                 ResourceProvider.GetString("LOCPlayAch_Title_PluginName"));
@@ -1308,9 +1322,11 @@ namespace PlayniteAchievements.Services.UI
                 var needsPerMonitorWindow = systemScale > 0 &&
                     Math.Abs(_activeMonitorScale - systemScale) >= DpiSettleTolerance;
                 _logger?.Info(
-                    $"[Toast] Fire: monitorScale={_activeMonitorScale:0.###}, systemScale={systemScale:0.###}, " +
-                    $"perMonitorWindow={needsPerMonitorWindow}, isGame={_activeIsGame}, " +
-                    $"revealed={visible}");
+                    $"[Toast] Fire: wave={waveSequence}, monitorScale={_activeMonitorScale:0.###}, " +
+                    $"systemScale={systemScale:0.###}, perMonitorWindow={needsPerMonitorWindow}, " +
+                    $"isGame={_activeIsGame}, revealed={visible}, mode={wavePlan.Mode}, " +
+                    $"testFire={waveIsTestFire}, preview={previewSource.HasValue}, cards={cardItems.Count}, " +
+                    $"shots={plan != null}, recordings={_settings?.Persisted?.EnableUnlockRecordings ?? false}");
                 if (needsPerMonitorWindow)
                 {
                     using (Common.DpiAwarenessScope.PerMonitorV2())
@@ -2397,6 +2413,20 @@ namespace PlayniteAchievements.Services.UI
             /// <summary>Mean interval between the observed frames (ms); 0 below two frames.</summary>
             public double MeanIntervalMs => Frames > 1 ? (_lastMs - _firstMs) / (Frames - 1) : 0d;
 
+            /// <summary>Time from the first observed frame to the last (ms); 0 below two frames.</summary>
+            public double SpanMs => Frames > 1 ? _lastMs - _firstMs : 0d;
+
+            /// <summary>
+            /// Interval between the first two observed frames (ms); 0 below two frames. For motion
+            /// driven off frame timestamps this is the interval that shows as a jump rather than as
+            /// slowness: whatever the first frame had to rasterize is charged entirely to it, and the
+            /// eased progress the second frame reports has already skipped that far ahead.
+            /// </summary>
+            public double FirstIntervalMs { get; private set; }
+
+            /// <summary>Largest interval between consecutive observed frames (ms); 0 below two frames.</summary>
+            public double MaxIntervalMs { get; private set; }
+
             /// <summary>
             /// True when this event carries a frame not seen yet, with <paramref name="elapsedMs"/> set to
             /// that frame's time since the first observed one.
@@ -2422,6 +2452,19 @@ namespace PlayniteAchievements.Services.UI
                 if (Frames == 0)
                 {
                     _firstMs = nowMs;
+                }
+                else
+                {
+                    var intervalMs = nowMs - _lastMs;
+                    if (Frames == 1)
+                    {
+                        FirstIntervalMs = intervalMs;
+                    }
+
+                    if (intervalMs > MaxIntervalMs)
+                    {
+                        MaxIntervalMs = intervalMs;
+                    }
                 }
 
                 _lastMs = nowMs;
@@ -2458,7 +2501,7 @@ namespace PlayniteAchievements.Services.UI
                 out var ease, out var durationMs);
             var distance = SlideDistancePhysical(window);
             var startY = SlideFromBottom() ? ry + distance : ry - distance;
-            RunPhysicalSlide(window, rx, startY, ry, ease, durationMs);
+            RunPhysicalSlide(window, rx, startY, ry, ease, durationMs, "in");
         }
 
         // Returns the slide-out duration (ms) so the caller waits exactly that long; 0 if it didn't run.
@@ -2479,7 +2522,7 @@ namespace PlayniteAchievements.Services.UI
                 out var ease, out var durationMs);
             var distance = SlideDistancePhysical(window);
             var endY = SlideFromBottom() ? ry + distance : ry - distance;
-            RunPhysicalSlide(window, rx, ry, endY, ease, durationMs);
+            RunPhysicalSlide(window, rx, ry, endY, ease, durationMs, "out");
             return durationMs;
         }
 
@@ -2518,12 +2561,19 @@ namespace PlayniteAchievements.Services.UI
         // Animates the toast's physical Y from fromY to toY over durationMs, eased per `ease`, moving
         // the HWND each frame. Any prior slide is stopped first. Replaces the WPF Window.Top slide for
         // the physical (in-game) path.
-        private void RunPhysicalSlide(Window window, int x, int fromY, int toY, IEasingFunction ease, double durationMs)
+        private void RunPhysicalSlide(
+            Window window, int x, int fromY, int toY, IEasingFunction ease, double durationMs, string label)
         {
             StopActiveSlide();
+            _activeSlideLabel = label;
+            _activeSlideRequestedMs = durationMs;
             if (durationMs <= 0)
             {
                 MoveCorrected(window, x, toY);
+                // Reported too: a theme authoring a zero duration gets a snap rather than a slide,
+                // which is worth seeing in the log instead of an absent line.
+                _activeSlideTicks = new RenderTickCounter();
+                ReportActiveSlide("instant");
                 return;
             }
 
@@ -2550,12 +2600,56 @@ namespace PlayniteAchievements.Services.UI
                     {
                         _activeSlideTick = null;
                     }
+
+                    if (ReferenceEquals(_activeSlideTicks, ticks))
+                    {
+                        ReportActiveSlide("complete");
+                    }
                 }
             };
 
+            _activeSlideTicks = ticks;
             _activeSlideTick = tick;
             MoveCorrected(window, x, fromY);
             CompositionTarget.Rendering += tick;
+        }
+
+        /// <summary>
+        /// Writes the running slide's one diagnostic line and clears the bookkeeping so it is written
+        /// exactly once, from whichever of natural completion or <see cref="StopActiveSlide"/> comes
+        /// first. Ungated (unlike the PerfScope-gated wave lines) because the numbers it carries —
+        /// above all the gap between the slide's first two frames — are what distinguish a slide that
+        /// ran short of frames from one that was merely slow.
+        /// </summary>
+        private void ReportActiveSlide(string end)
+        {
+            var ticks = _activeSlideTicks;
+            if (ticks == null)
+            {
+                return;
+            }
+
+            _activeSlideTicks = null;
+            try
+            {
+                _logger?.Info(string.Format(
+                    System.Globalization.CultureInfo.InvariantCulture,
+                    "[Toast] Slide {0}: requestedMs={1:0} spanMs={2:0.00} frames={3} meanMs={4:0.00} " +
+                    "firstGapMs={5:0.00} maxGapMs={6:0.00} monitorHz={7} end={8}",
+                    _activeSlideLabel,
+                    _activeSlideRequestedMs,
+                    ticks.SpanMs,
+                    ticks.Frames,
+                    ticks.MeanIntervalMs,
+                    ticks.FirstIntervalMs,
+                    ticks.MaxIntervalMs,
+                    _activeMonitorRefreshHz,
+                    end));
+            }
+            catch
+            {
+                // Diagnostics only; a formatting or logging failure must never affect a wave.
+            }
         }
 
         // Slide frames move the HWND directly (deliberately off the anchor corner, so they must not be
@@ -2604,6 +2698,10 @@ namespace PlayniteAchievements.Services.UI
                 CompositionTarget.Rendering -= _activeSlideTick;
                 _activeSlideTick = null;
             }
+
+            // Outside the guard: a slide that reached its final frame already unhooked itself and
+            // reported, so this is a no-op for it and only a genuinely cut-short slide reports here.
+            ReportActiveSlide("stopped");
         }
 
         private static double SlideDistance(Window window)
