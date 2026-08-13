@@ -89,11 +89,13 @@
                             </Style.Triggers>
                         </Style>
                     </Grid.Style>
-                    <!-- Uniform into an explicit box, like the padlock. With Stretch="None" the
-                         path measures to its geometry's bottom-right bounds, so the hexagon's
-                         leading 2px offset counted as part of the element and pushed the ink
-                         off-centre. -->
-                    <Path Stretch="Uniform"
+                    <!-- Explicit 18x18 box with Stretch="None": the geometry is already authored
+                         centred on (9,9) in that space, so it needs no scaling. Sizing to the box
+                         rather than letting the path measure to its own bounds is what centres it,
+                         since those bounds include the geometry's leading offset. Uniform would
+                         centre it too, but only by scaling 14x16 up to 18x18, which puts the edges
+                         on fractional pixels and softens them. -->
+                    <Path Stretch="None"
                           Width="18"
                           Height="18"
                           Fill="{DynamicResource PlayAch.Brush.Glyph}"
