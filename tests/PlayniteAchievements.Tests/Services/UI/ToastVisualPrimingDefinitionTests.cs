@@ -71,11 +71,47 @@ namespace PlayniteAchievements.Tests.Services.UI
             Assert.IsTrue(warm >= 0, "The warm-frame wait before the slide is gone.");
             Assert.IsTrue(slide >= 0, "The slide-in call was renamed.");
 
-            // The slide reads progress from frame timestamps, so starting it on the card's first frame
-            // does not slow the slide, it skips most of it. The wait has to stay between these two.
+            // The slide's clock is wall time, so starting it on the card's first frame does not slow the
+            // slide, it skips most of it. The wait has to stay between these two.
             Assert.IsTrue(
                 shown < warm && warm < slide,
                 "The toast must wait for composed frames after being placed and before sliding in.");
+        }
+
+        [TestMethod]
+        public void SlideTravel_IsReservedBeforeTheSettledPlacement()
+        {
+            var service = ReadToastService();
+
+            var reserve = service.IndexOf("ReserveSlideTravel(window, items)", StringComparison.Ordinal);
+            var shown = service.IndexOf("PlaceWindow(window, \"shown\")", StringComparison.Ordinal);
+
+            Assert.IsTrue(reserve >= 0, "The slide-travel reservation is gone; the card is clipped mid-slide.");
+            Assert.IsTrue(shown >= 0, "The settled placement call was renamed.");
+
+            // Reserving the travel changes the window's size, and the settled placement is what puts the
+            // now-larger window where the card lands on the corner. Reversed, the toast is placed for a
+            // size it no longer has.
+            Assert.IsTrue(
+                reserve < shown,
+                "Slide travel must be reserved before the settled placement, not after.");
+        }
+
+        [TestMethod]
+        public void Placement_MeasuresTheCardRatherThanTheWindow()
+        {
+            var service = ReadToastService();
+            var placer = File.ReadAllText(FindRepoFile("source", "Services", "UI", "ToastWindowPlacer.cs"));
+
+            // The window is larger than the card by the reserved slide travel, and that room is meant to
+            // hang past the anchor edge. Sizing or clamping the placement on the window would put the
+            // padding at the corner and push the card inward by the whole travel distance.
+            Assert.IsTrue(
+                placer.Contains("TryMeasureCardPhysical"),
+                "The placer no longer measures the card; placement would size on the padded window.");
+            Assert.IsTrue(
+                service.Contains("SlideOffsetDipX(), SlideOffsetDipY()"),
+                "Placement must subtract the live slide offset, or a mid-slide pass chases the animation.");
         }
 
         [TestMethod]
@@ -94,14 +130,30 @@ namespace PlayniteAchievements.Tests.Services.UI
                 "Slide timing should be resolved once per wave.");
             foreach (var perSlideCall in new[]
             {
-                "RunPhysicalSlide(window, rx, startY, ry, _activeSlideInEase, _activeSlideInMs",
-                "RunPhysicalSlide(window, rx, ry, endY, _activeSlideOutEase, _activeSlideOutMs"
+                "_activeSlideInStoryboard, from, 0d, DefaultSlideInEase, _activeSlideInMs",
+                "_activeSlideOutStoryboard, 0d, to, DefaultSlideOutEase, _activeSlideOutMs"
             })
             {
                 Assert.IsTrue(
                     service.Contains(perSlideCall),
-                    "The slides must consume the pre-resolved timing: " + perSlideCall);
+                    "The slides must consume the pre-resolved storyboard: " + perSlideCall);
             }
+        }
+
+        [TestMethod]
+        public void ThemeStoryboard_ThatDoesNotMoveTheCard_LeavesItAtRest()
+        {
+            var service = ReadToastService();
+
+            // A theme may replace the slide with a fade or a scale, which animates nothing positional.
+            // The card must then stay at its resting corner: parking it at the slide's start would
+            // strand it in the reserved travel room with nothing to move it back.
+            Assert.IsTrue(
+                service.Contains("var restDip = travels ? toDip : 0d;"),
+                "The non-travelling case no longer rests the card at its corner.");
+            Assert.IsTrue(
+                service.Contains("transform.Y = travels ? fromDip : restDip;"),
+                "A non-travelling animation must not park the card at the slide's start position.");
         }
 
         private static string ReadToastService()

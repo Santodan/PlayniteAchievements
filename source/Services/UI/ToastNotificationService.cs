@@ -93,7 +93,16 @@ namespace PlayniteAchievements.Services.UI
         // cannot outpace it, the card's WPF timelines are asked to tick at it, and the DPI settle poll
         // waits one of its frames at a time.
         private int _activeMonitorRefreshHz;
-        // The running physical slide's per-frame tick handler (CompositionTarget.Rendering), or null.
+        // The wave's card surface (the ItemsControl holding the cards) and the slide host wrapping it.
+        // The window is sized to the host, which reserves the slide's travel past the card on the entry
+        // side; the card itself moves inside that room via _activeSlideTransform. Placement therefore
+        // measures the card, not the window — see ToastWindowPlacer.TryMeasureCardPhysical.
+        private FrameworkElement _activeCardSurface;
+        private FrameworkElement _activeSlideHost;
+        private TranslateTransform _activeSlideTransform;
+        // Frame counter attached for a running slide's span. It does no work beyond counting: the slide
+        // itself is a WPF storyboard, and this exists only so the [Toast] Slide line can still report the
+        // cadence the motion actually got.
         private EventHandler _activeSlideTick;
         // The running slide's frame bookkeeping, direction and requested duration, kept out of the tick
         // closure so the one diagnostic line each slide emits can be written from either exit: the slide
@@ -103,17 +112,30 @@ namespace PlayniteAchievements.Services.UI
         private RenderTickCounter _activeSlideTicks;
         private string _activeSlideLabel;
         private double _activeSlideRequestedMs;
-        // The wave's slide easing and duration, resolved once per wave by ResolveWaveSlideTiming from
-        // the themeable storyboards. Seeded with the code defaults so a slide can never run on nothing.
-        private IEasingFunction _activeSlideInEase = DefaultSlideInEase;
+        // The wave's slide storyboards and their durations, resolved once per wave by
+        // ResolveWaveSlideTiming from the themeable resources. The storyboards are what actually run;
+        // the durations are kept alongside because the wave waits a computed duration rather than a
+        // Completed event, so a misauthored theme storyboard cannot stall the lifecycle. Null means
+        // "no usable storyboard" and the built-in animation is used, so a slide can never run on nothing.
+        private Storyboard _activeSlideInStoryboard;
         private double _activeSlideInMs = SlideInDurationMs;
-        private IEasingFunction _activeSlideOutEase = DefaultSlideOutEase;
+        private Storyboard _activeSlideOutStoryboard;
         private double _activeSlideOutMs = SlideOutDurationMs;
+        // Whether each resolved storyboard actually moves the card along the slide axis. A theme is free
+        // to replace the slide with a fade or a scale, which animates nothing positional — and then the
+        // card must stay at its resting corner rather than be parked at the slide's start, and the window
+        // needs no travel room reserved. True for the built-in slide.
+        private bool _activeSlideInTravels = true;
+        private bool _activeSlideOutTravels = true;
+        // The storyboard currently running, so StopActiveSlide can stop the right one.
+        private Storyboard _runningSlideStoryboard;
         // Per-wave placement state: the offset between where SetWindowPos is asked to put the toast
         // and where its HWND lands (measured once, on the wave's first settled placement), and whether
         // this wave has already logged that its placement needed rescuing.
         private ToastWindowPlacer.PlacementCorrection _placementCorrection;
         private bool _placementAnomalyLogged;
+        // One drift warning per wave; see WarnOnSettledCardDrift.
+        private bool _placementDriftLogged;
 
         public ToastNotificationService(
             IPlayniteAPI api,
@@ -679,9 +701,22 @@ namespace PlayniteAchievements.Services.UI
                 var pw = Math.Max(1, (int)Math.Ceiling(bounds.Width * pxPerDipX));
                 var ph = Math.Max(1, (int)Math.Ceiling(bounds.Height * pxPerDipY));
 
+                // Opacity animated on the slide host (a theme may fade the notification in or out
+                // instead of sliding it) lives above the card, so rendering the card alone would miss
+                // it and the clip would show an opaque card while the screen showed a fade. Folded in
+                // here as a draw-time push, which the rasteriser applies for free — rather than as a
+                // second pass over the pixel buffer.
+                var hostOpacity = _activeSlideHost?.Opacity ?? 1d;
+                var fading = hostOpacity < 1d;
+
                 var visual = new DrawingVisual();
                 using (var dc = visual.RenderOpen())
                 {
+                    if (fading)
+                    {
+                        dc.PushOpacity(Math.Max(0d, hostOpacity));
+                    }
+
                     // Absolute viewbox pins the mapping to the layout bounds so effect bleed can't
                     // inflate the brush content; clipping matches where the live window edge clips.
                     // The viewbox coordinate space includes the container's offset within its
@@ -696,6 +731,11 @@ namespace PlayniteAchievements.Services.UI
                         Viewbox = new Rect(offset.X, offset.Y, local.Width, local.Height),
                     };
                     dc.DrawRectangle(brush, null, new Rect(0, 0, local.Width, local.Height));
+
+                    if (fading)
+                    {
+                        dc.Pop();
+                    }
                 }
 
                 // The physical/local DPI ratio carries both the LayoutTransform scale and the
@@ -850,11 +890,49 @@ namespace PlayniteAchievements.Services.UI
                 ToastWindowPlacer.ComputeCorner(
                     clientPhys, physW, physH, _activeMonitorScale,
                     AlignRight(), AlignBottom(), EffectiveGapDip(), out var cornerX, out var cornerY);
+                WarnOnSettledCardDrift(toastItems.Count, cornerX - clientPhys.X, cornerY - clientPhys.Y,
+                    settledRelX, settledRelY);
                 recorder.SetCornerOffset(
                     vm,
                     (cornerX - clientPhys.X) - settledRelX,
                     (cornerY - clientPhys.Y) - settledRelY);
             }
+        }
+
+        /// <summary>
+        /// Warns when a lone card did not settle where the corner math says it belongs.
+        ///
+        /// The toast window is larger than the card — it reserves the slide's travel — so the card's
+        /// resting position is now the window's position plus a measured offset rather than the window's
+        /// position itself. If those two measurements ever disagree, the card lands off the corner, and
+        /// on the clip side that is invisible: the stored corner offset is exactly this difference, so it
+        /// silently absorbs the drift and the composited toast looks fine while the on-screen one is
+        /// wrong. This makes it a log line instead.
+        ///
+        /// Only for a single-card wave. A stacked wave's cards are legitimately away from the corner —
+        /// that is what the offset exists to translate — so the difference carries no information there.
+        /// </summary>
+        private void WarnOnSettledCardDrift(int cardCount, int cornerRelX, int cornerRelY, int settledRelX, int settledRelY)
+        {
+            if (cardCount != 1 || _placementDriftLogged)
+            {
+                return;
+            }
+
+            var dx = cornerRelX - settledRelX;
+            var dy = cornerRelY - settledRelY;
+            if (Math.Abs(dx) <= ToastWindowPlacer.PlacementTolerancePx &&
+                Math.Abs(dy) <= ToastWindowPlacer.PlacementTolerancePx)
+            {
+                return;
+            }
+
+            _placementDriftLogged = true;
+            _logger?.Warn(string.Format(
+                System.Globalization.CultureInfo.InvariantCulture,
+                "[Toast] Settled card is {0},{1}px off its corner (settled {2},{3}; corner {4},{5}). The " +
+                "window's slide-travel reservation and the measured card offset disagree.",
+                dx, dy, settledRelX, settledRelY, cornerRelX, cornerRelY));
         }
 
         /// <summary>
@@ -1157,14 +1235,16 @@ namespace PlayniteAchievements.Services.UI
             // Same reason, and the reason it is here rather than at the slides: resolving the themeable
             // slide storyboards reaches the filesystem and the resource dictionaries, and doing that
             // inside SlideInPhysical/SlideOutPhysical put it on the UI thread on the very frame the
-            // slide subscribed to the render loop. Called unconditionally so all four fields are always
-            // this wave's, never a previous wave's.
+            // slide began. Called unconditionally so all four fields are always this wave's, never a
+            // previous wave's. Only the storyboards' shape is resolved here; each is bound to this
+            // wave's slide host at the slide itself, since the window does not exist yet.
             ResolveWaveSlideTiming();
             _activeCardGlow = wave[0].ToastGlowMargin.Top;
             // Placement state is per-wave: the correction is measured on this wave's first settled
             // placement, and the anomaly warning is emitted at most once for it.
             _placementCorrection = default(ToastWindowPlacer.PlacementCorrection);
             _placementAnomalyLogged = false;
+            _placementDriftLogged = false;
             var waveGameId = wave[0].PlayniteGameId;
             _activeWaveGameId = waveGameId != Guid.Empty ? waveGameId : (Guid?)null;
 
@@ -1252,7 +1332,15 @@ namespace PlayniteAchievements.Services.UI
                 ResourceProvider.GetString("LOCPlayAch_Title_PluginName"));
             _activeWindow = window;
 
-            window.Content = items;
+            // The card surface goes inside a slide host: the window stays put and the host translates,
+            // so the slide never issues a window move and never leaves the window's own DIP space. The
+            // travel room the host needs is reserved once the card has a laid-out size (ApplySlideTravel
+            // below, after the DPI compensation settles).
+            var slideHost = ToastSurfaceFactory.BuildSlideHost(items, out var slideTransform);
+            _activeCardSurface = items;
+            _activeSlideHost = slideHost;
+            _activeSlideTransform = slideTransform;
+            window.Content = slideHost;
 
             // Resolve the anchor the toast follows. The toast is realized Per-Monitor-V2 and positioned
             // in physical pixels relative to that anchor, so it renders crisply on whatever monitor the
@@ -1385,6 +1473,13 @@ namespace PlayniteAchievements.Services.UI
                 // Now on the target monitor with the DPI settled: correct the compensation from the
                 // actual render scale, snap to the corner, and (for a visible wave) reveal.
                 ApplyDpiCompensation(window, items, fitScale);
+
+                // Reserve the slide's travel now that the card has its final laid-out size, so the
+                // window is large enough to hold the card at both ends of the slide. Placed between the
+                // compensation and the settled placement because it changes the window's size, and the
+                // placement below is what puts the (now larger) window where the card lands on the
+                // corner.
+                ReserveSlideTravel(window, items);
                 PlaceWindow(window, "shown");
 
                 // Let the card actually reach the screen before the slide starts timing itself.
@@ -2182,7 +2277,8 @@ namespace PlayniteAchievements.Services.UI
 
             var renderScale = ToastWindowPlacer.RenderScale(window);
             var placed = ToastWindowPlacer.PositionPhysical(
-                window, anchorPhys, renderScale, _activeMonitorScale, AlignRight(), AlignBottom(), EffectiveGapDip(),
+                window, _activeCardSurface, SlideOffsetDipX(), SlideOffsetDipY(),
+                anchorPhys, renderScale, _activeMonitorScale, AlignRight(), AlignBottom(), EffectiveGapDip(),
                 measure, ref _placementCorrection, out outcome);
             LogPlacementAnomaly(window, anchorPhys, renderScale, outcome);
 
@@ -2255,19 +2351,17 @@ namespace PlayniteAchievements.Services.UI
             }
         }
 
-        private bool TryComputeRestingCorner(Window window, out int x, out int y)
+        // The slide transform's current value, removed from any card measurement so placement always
+        // works from the card's resting offset. Reading the transform rather than tracking a flag keeps
+        // this correct no matter which pass a placement lands in.
+        private double SlideOffsetDipX()
         {
-            x = 0;
-            y = 0;
-            if (!TryResolveAnchor(out var anchorPhys))
-            {
-                return false;
-            }
+            return _activeSlideTransform?.X ?? 0d;
+        }
 
-            var renderScale = ToastWindowPlacer.RenderScale(window);
-            return ToastWindowPlacer.TryComputeCorner(
-                window, anchorPhys, renderScale, _activeMonitorScale, AlignRight(), AlignBottom(), EffectiveGapDip(),
-                out x, out y, out _);
+        private double SlideOffsetDipY()
+        {
+            return _activeSlideTransform?.Y ?? 0d;
         }
 
         /// <summary>
@@ -2394,6 +2488,21 @@ namespace PlayniteAchievements.Services.UI
         private const int SlideOutDurationMs = 200;
         // Extra travel beyond the card height so the card fully clears the screen edge in and out.
         private const double SlideTravelPaddingDip = 40d;
+
+        /// <summary>
+        /// What the slide animates: the translate in the slide host's transform group. Everything is
+        /// aimed at the host — a real <c>UIElement</c> — so one target object serves the slide, an
+        /// opacity fade, and the group's scale at index 0, and a theme can animate any combination.
+        /// </summary>
+        private const string SlideTargetPath =
+            "(UIElement.RenderTransform).(TransformGroup.Children)[1].(TranslateTransform.Y)";
+
+        /// <summary>
+        /// What the bundled storyboards used to declare. It never animated anything — the slide read
+        /// only the easing and duration off them — so a theme carrying it means "the plugin's slide,
+        /// my timing" and is retargeted rather than rejected.
+        /// </summary>
+        private const string LegacySlideTargetPath = "(Window.Top)";
         // Small pause after a slide-out finishes before the window is torn down.
         private const int SlideSettleBufferMs = 10;
         // Below this, the content scale is treated as 1.0 and no LayoutTransform is applied.
@@ -2551,14 +2660,15 @@ namespace PlayniteAchievements.Services.UI
                 window.Opacity = 1;
             }
 
-            if (!TryComputeRestingCorner(window, out var rx, out var ry))
-            {
-                return;
-            }
+            // The window is already at the resting corner and stays there for the whole slide; only the
+            // card moves. Place once here so the slide starts from a settled position.
+            PlaceWindow(window);
 
-            var distance = SlideDistancePhysical(window);
-            var startY = SlideFromBottom() ? ry + distance : ry - distance;
-            RunPhysicalSlide(window, rx, startY, ry, _activeSlideInEase, _activeSlideInMs, "in");
+            var distance = SlideDistanceDip(window);
+            var from = SlideFromBottom() ? distance : -distance;
+            RunSlideStoryboard(
+                _activeSlideInStoryboard, from, 0d, DefaultSlideInEase, _activeSlideInMs,
+                _activeSlideInTravels, "in");
         }
 
         // Returns the slide-out duration (ms) so the caller waits exactly that long; 0 if it didn't run.
@@ -2569,14 +2679,11 @@ namespace PlayniteAchievements.Services.UI
                 return 0;
             }
 
-            if (!TryComputeRestingCorner(window, out var rx, out var ry))
-            {
-                return 0;
-            }
-
-            var distance = SlideDistancePhysical(window);
-            var endY = SlideFromBottom() ? ry + distance : ry - distance;
-            RunPhysicalSlide(window, rx, ry, endY, _activeSlideOutEase, _activeSlideOutMs, "out");
+            var distance = SlideDistanceDip(window);
+            var to = SlideFromBottom() ? distance : -distance;
+            RunSlideStoryboard(
+                _activeSlideOutStoryboard, 0d, to, DefaultSlideOutEase, _activeSlideOutMs,
+                _activeSlideOutTravels, "out");
             return _activeSlideOutMs;
         }
 
@@ -2638,58 +2745,124 @@ namespace PlayniteAchievements.Services.UI
         /// </summary>
         private void ResolveWaveSlideTiming()
         {
-            ResolveSlideTiming(
-                AchievementToastTemplateResolver.SlideInStoryboardKey, DefaultSlideInEase, SlideInDurationMs,
-                out _activeSlideInEase, out _activeSlideInMs);
-            ResolveSlideTiming(
-                AchievementToastTemplateResolver.SlideOutStoryboardKey, DefaultSlideOutEase, SlideOutDurationMs,
-                out _activeSlideOutEase, out _activeSlideOutMs);
+            _activeSlideInStoryboard = ResolveSlideStoryboard(
+                AchievementToastTemplateResolver.SlideInStoryboardKey, SlideInDurationMs,
+                out _activeSlideInMs, out _activeSlideInTravels);
+            _activeSlideOutStoryboard = ResolveSlideStoryboard(
+                AchievementToastTemplateResolver.SlideOutStoryboardKey, SlideOutDurationMs,
+                out _activeSlideOutMs, out _activeSlideOutTravels);
         }
 
-        // Easing + duration for a physical slide, taken from the themeable storyboard when it defines
-        // them, else the supplied fallbacks. Reuses ResolveAnimation, which clones the storyboard's
-        // first DoubleAnimation (the same resource the countdown bar reads).
-        private void ResolveSlideTiming(
-            string storyboardKey, IEasingFunction fallbackEase, double fallbackMs,
-            out IEasingFunction ease, out double durationMs)
+        /// <summary>
+        /// Clones the themeable slide storyboard and retargets it onto the slide transform, so a theme
+        /// gets real animation control (keyframes, and animating opacity or a scale alongside the
+        /// slide) rather than only contributing an easing and a duration.
+        ///
+        /// The retarget rules keep every previously-valid theme storyboard working. A child with no
+        /// target name goes to the slide host; a child with no target property — or the legacy
+        /// <c>(Window.Top)</c>, which never actually animated anything — is pointed at the transform's
+        /// Y. Anything that names its own target is left exactly as authored. From/To are filled in by
+        /// the caller, because the travel distance depends on the card's laid-out height and a theme
+        /// cannot know it.
+        ///
+        /// Returns null (and the fallback duration) when nothing usable is defined, which is what makes
+        /// the built-in animation the floor rather than a special case.
+        /// </summary>
+        private Storyboard ResolveSlideStoryboard(
+            string storyboardKey, double fallbackMs, out double durationMs, out bool travels)
         {
-            ease = fallbackEase;
             durationMs = fallbackMs;
+            travels = true;
+            try
+            {
+                var authored = _templateResolver?.ResolveStoryboard(storyboardKey);
+                if (authored == null)
+                {
+                    return null;
+                }
 
-            var animation = ResolveAnimation(storyboardKey);
-            if (animation == null)
+                // Only the property is rewritten here; the target object is bound at slide time, because
+                // this runs once per wave before the wave's window and transform exist.
+                var storyboard = authored.Clone();
+                var resolved = 0d;
+                var movesCard = false;
+                foreach (var child in storyboard.Children)
+                {
+                    if (!IsUntargeted(child))
+                    {
+                        continue;
+                    }
+
+                    var path = Storyboard.GetTargetProperty(child);
+                    if (path == null || path.Path == LegacySlideTargetPath)
+                    {
+                        Storyboard.SetTargetProperty(child, new PropertyPath(SlideTargetPath));
+                        movesCard = true;
+                    }
+                    else if (path.Path == SlideTargetPath)
+                    {
+                        movesCard = true;
+                    }
+
+                    if (child.Duration.HasTimeSpan)
+                    {
+                        resolved = Math.Max(resolved, child.Duration.TimeSpan.TotalMilliseconds);
+                    }
+                }
+
+                // A storyboard with no finite duration would leave the wave waiting on a number it never
+                // produced, and Forever would never settle the card. Fall back rather than run it —
+                // which means the built-in slide, so `travels` stays true.
+                if (resolved <= 0)
+                {
+                    return null;
+                }
+
+                travels = movesCard;
+                durationMs = resolved;
+                return storyboard;
+            }
+            catch (Exception ex)
+            {
+                // A theme can put anything in this resource; a broken one must cost the slide its
+                // customisation, not the notification.
+                _logger?.Debug(ex, $"Toast slide storyboard '{storyboardKey}' unusable; using the built-in slide.");
+                travels = true;
+                return null;
+            }
+        }
+
+        /// <summary>
+        /// Runs one slide: the card translates from <paramref name="fromDip"/> to
+        /// <paramref name="toDip"/> inside the stationary window. Any prior slide is stopped first.
+        ///
+        /// This is a real WPF animation rather than a per-frame interpolation. It advances at whatever
+        /// rate WPF composes at and at sub-pixel precision, where the previous per-frame
+        /// <c>SetWindowPos</c> both cost a window move every frame and quantised to whole physical
+        /// pixels. <see cref="_activeSlideTick"/> is attached purely to count frames for the diagnostic.
+        /// </summary>
+        private void RunSlideStoryboard(
+            Storyboard authored, double fromDip, double toDip, IEasingFunction fallbackEase,
+            double durationMs, bool travels, string label)
+        {
+            StopActiveSlide();
+            var host = _activeSlideHost;
+            var transform = _activeSlideTransform;
+            if (host == null || transform == null)
             {
                 return;
             }
 
-            if (animation.EasingFunction != null)
-            {
-                ease = animation.EasingFunction;
-            }
+            // A theme that replaces the slide with a fade or a scale animates nothing positional, so the
+            // card belongs at its resting corner for the whole animation. Parking it at the slide's
+            // start would strand it there: nothing would ever move it back.
+            var restDip = travels ? toDip : 0d;
 
-            if (animation.Duration.HasTimeSpan)
-            {
-                durationMs = animation.Duration.TimeSpan.TotalMilliseconds;
-            }
-        }
-
-        private int SlideDistancePhysical(Window window)
-        {
-            return (int)Math.Round(SlideDistance(window) * ToastWindowPlacer.RenderScale(window));
-        }
-
-        // Animates the toast's physical Y from fromY to toY over durationMs, eased per `ease`, moving
-        // the HWND each frame. Any prior slide is stopped first. Replaces the WPF Window.Top slide for
-        // the physical (in-game) path.
-        private void RunPhysicalSlide(
-            Window window, int x, int fromY, int toY, IEasingFunction ease, double durationMs, string label)
-        {
-            StopActiveSlide();
             _activeSlideLabel = label;
             _activeSlideRequestedMs = durationMs;
             if (durationMs <= 0)
             {
-                MoveCorrected(window, x, toY);
+                transform.Y = restDip;
                 // Reported too: a theme authoring a zero duration gets a snap rather than a slide,
                 // which is worth seeing in the log instead of an absent line.
                 _activeSlideTicks = new RenderTickCounter();
@@ -2697,41 +2870,105 @@ namespace PlayniteAchievements.Services.UI
                 return;
             }
 
-            // Progress comes from each frame's composition time, not from when the handler ran: the
-            // window moves once per composed frame either way, but timing it off the frame keeps the
-            // steps as evenly spaced as the frames, at whatever rate the monitor presents.
-            var ticks = new RenderTickCounter();
-            EventHandler tick = null;
-            tick = (s, e) =>
+            var storyboard = BuildSlideStoryboard(authored, host, fromDip, toDip, fallbackEase, durationMs);
+            if (storyboard == null)
             {
-                if (!ticks.TryAdvance(e, out var elapsedMs))
-                {
-                    return;
-                }
+                transform.Y = restDip;
+                _activeSlideTicks = new RenderTickCounter();
+                ReportActiveSlide("instant");
+                return;
+            }
 
-                var t = Math.Min(1.0, elapsedMs / durationMs);
-                var k = ease != null ? ease.Ease(t) : t;
-                var y = (int)Math.Round(fromY + ((toY - fromY) * k));
-                MoveCorrected(window, x, y);
-                if (t >= 1.0)
-                {
-                    CompositionTarget.Rendering -= tick;
-                    if (ReferenceEquals(_activeSlideTick, tick))
-                    {
-                        _activeSlideTick = null;
-                    }
-
-                    if (ReferenceEquals(_activeSlideTicks, ticks))
-                    {
-                        ReportActiveSlide("complete");
-                    }
-                }
-            };
-
+            // Counting only. The slide no longer needs a per-frame callback to move anything, but the
+            // cadence it achieved is the number this change is judged on, so it is still measured.
+            var ticks = new RenderTickCounter();
+            EventHandler tick = (s, e) => ticks.TryAdvance(e, out _);
             _activeSlideTicks = ticks;
             _activeSlideTick = tick;
-            MoveCorrected(window, x, fromY);
+            _runningSlideStoryboard = storyboard;
+
+            transform.Y = travels ? fromDip : restDip;
             CompositionTarget.Rendering += tick;
+            try
+            {
+                storyboard.Begin(host, isControllable: true);
+            }
+            catch (Exception ex)
+            {
+                // Begin can throw on a theme storyboard that survived resolution but cannot bind to this
+                // tree. Land the card where the slide would have left it rather than mid-travel.
+                _logger?.Debug(ex, "Toast slide storyboard failed to start; snapping to the slide's end.");
+                CompositionTarget.Rendering -= tick;
+                _activeSlideTick = null;
+                _runningSlideStoryboard = null;
+                transform.Y = restDip;
+                ReportActiveSlide("failed");
+            }
+        }
+
+        /// <summary>
+        /// The storyboard actually begun: the theme's, with the travel filled in where it left the
+        /// endpoints open, or the built-in animation when no usable one was resolved.
+        ///
+        /// A theme child that declares neither From nor To gets this slide's endpoints — it cannot know
+        /// the card's laid-out height, so leaving them open is how a theme says "the plugin's travel,
+        /// my timing". One that declares them is left alone.
+        /// </summary>
+        private static Storyboard BuildSlideStoryboard(
+            Storyboard authored, FrameworkElement host, double fromDip, double toDip,
+            IEasingFunction fallbackEase, double durationMs)
+        {
+            if (authored != null)
+            {
+                var storyboard = authored.Clone();
+                foreach (var child in storyboard.Children)
+                {
+                    if (!IsUntargeted(child))
+                    {
+                        continue;
+                    }
+
+                    // Everything untargeted animates the host, so a theme child animating opacity or a
+                    // scale lands on a real UIElement; only the slide child was pointed at the
+                    // transform's Y, via the property path.
+                    Storyboard.SetTarget(child, host);
+                    if (child is DoubleAnimation slide &&
+                        !slide.From.HasValue && !slide.To.HasValue &&
+                        Storyboard.GetTargetProperty(child)?.Path == SlideTargetPath)
+                    {
+                        slide.From = fromDip;
+                        slide.To = toDip;
+                    }
+                }
+
+                return storyboard;
+            }
+
+            var animation = new DoubleAnimation
+            {
+                From = fromDip,
+                To = toDip,
+                Duration = new Duration(TimeSpan.FromMilliseconds(durationMs)),
+                EasingFunction = fallbackEase,
+                // The card must hold where the slide left it: the slide-out's end is off-screen, and the
+                // window is not torn down until after the settle buffer.
+                FillBehavior = FillBehavior.HoldEnd,
+            };
+            Storyboard.SetTarget(animation, host);
+            Storyboard.SetTargetProperty(animation, new PropertyPath(SlideTargetPath));
+
+            var built = new Storyboard();
+            built.Children.Add(animation);
+            return built;
+        }
+
+        /// <summary>
+        /// A storyboard child the plugin is free to point at its own slide host: one the theme did not
+        /// aim somewhere specific. A child that names its own target is left entirely alone.
+        /// </summary>
+        private static bool IsUntargeted(Timeline child)
+        {
+            return Storyboard.GetTargetName(child) == null && Storyboard.GetTarget(child) == null;
         }
 
         /// <summary>
@@ -2770,15 +3007,6 @@ namespace PlayniteAchievements.Services.UI
             {
                 // Diagnostics only; a formatting or logging failure must never affect a wave.
             }
-        }
-
-        // Slide frames move the HWND directly (deliberately off the anchor corner, so they must not be
-        // clamped), but they still go through the wave's learned placement correction — otherwise a
-        // corrected resting position would jump from an uncorrected slide.
-        private void MoveCorrected(Window window, int x, int y)
-        {
-            ToastWindowPlacer.MovePhysical(
-                window, x + _placementCorrection.OffsetX, y + _placementCorrection.OffsetY);
         }
 
         // Decode sizes the card's images are requested at. Hints, not cache keys: for an Image element
@@ -2957,20 +3185,88 @@ namespace PlayniteAchievements.Services.UI
                 _activeSlideTick = null;
             }
 
+            // Stop the storyboard AND clear the animation off the property. Stop alone leaves the
+            // animation holding the property at its base value, so a later direct write to Y would be
+            // ignored and the card could never be nudged back to rest.
+            var storyboard = _runningSlideStoryboard;
+            _runningSlideStoryboard = null;
+            if (storyboard != null && _activeSlideHost != null)
+            {
+                try
+                {
+                    storyboard.Stop(_activeSlideHost);
+                    storyboard.Remove(_activeSlideHost);
+                }
+                catch (Exception ex)
+                {
+                    _logger?.Debug(ex, "Stopping the toast slide storyboard failed.");
+                }
+            }
+
             // Outside the guard: a slide that reached its final frame already unhooked itself and
             // reported, so this is a no-op for it and only a genuinely cut-short slide reports here.
             ReportActiveSlide("stopped");
         }
 
-        private static double SlideDistance(Window window)
+        /// <summary>
+        /// How far the card travels, in the slide host's DIPs: the card's own laid-out height plus
+        /// enough padding to clear the screen edge.
+        ///
+        /// Measured from the card surface, not the window. The window is deliberately taller than the
+        /// card by exactly this distance (the travel room), so deriving it from the window would feed
+        /// the reservation its own output and grow the window every pass.
+        /// </summary>
+        private double SlideDistanceDip(Window window)
         {
-            var height = window.ActualHeight > 0 ? window.ActualHeight : window.Height;
+            var height = _activeCardSurface?.ActualHeight ?? 0d;
             if (double.IsNaN(height) || height <= 0)
             {
-                height = ToastWindowPlacer.DefaultCardHeightDip;
+                height = window != null && window.ActualHeight > 0
+                    ? window.ActualHeight
+                    : ToastWindowPlacer.DefaultCardHeightDip;
             }
 
             return height + SlideTravelPaddingDip;
+        }
+
+        /// <summary>
+        /// Reserves the slide's travel as empty room past the card on the side it enters from, so the
+        /// window is big enough to hold the card at both ends. An HWND clips its content unconditionally,
+        /// so without this the card is simply cut off while it slides.
+        ///
+        /// Runs once per wave, after the DPI compensation has settled the card's size and before the
+        /// settled placement, which is what puts the now-larger window where the card lands on the
+        /// corner.
+        /// </summary>
+        private void ReserveSlideTravel(Window window, ItemsControl surface)
+        {
+            if (window == null || surface == null)
+            {
+                return;
+            }
+
+            // Nothing to reserve when neither animation moves the card — a theme that fades or scales
+            // instead of sliding gets a window that is exactly its card, which is also what keeps the
+            // host's centre scale pivot on the card rather than on empty travel room.
+            if (!_activeSlideInTravels && !_activeSlideOutTravels)
+            {
+                return;
+            }
+
+            try
+            {
+                ToastSurfaceFactory.ApplySlideTravel(surface, SlideDistanceDip(window), SlideFromBottom());
+                window.UpdateLayout();
+            }
+            catch (Exception ex)
+            {
+                // Without the room the card would be clipped mid-slide, which is worse than not sliding.
+                _logger?.Debug(ex, "Reserving toast slide travel failed; the slide is skipped this wave.");
+                _activeSlideInStoryboard = null;
+                _activeSlideOutStoryboard = null;
+                _activeSlideInMs = 0;
+                _activeSlideOutMs = 0;
+            }
         }
 
         private bool SlideFromBottom()
