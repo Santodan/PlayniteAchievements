@@ -2508,16 +2508,50 @@ namespace PlayniteAchievements.Services.UI
         private const string LegacySlideTargetPath = "(Window.Top)";
 
         /// <summary>
-        /// The un-indexed spelling of the slide target. The host's <c>RenderTransform</c> is a group, so
-        /// this path cannot resolve on its own — but it is the obvious thing to write, so it is treated
-        /// as naming the slide and rewritten to <see cref="SlideTargetPath"/> rather than left to fail.
+        /// The slide's target property, built with its dependency properties supplied directly rather
+        /// than parsed from <see cref="SlideTargetPath"/>.
+        ///
+        /// This must not be recognised or constructed by string. XAML does not keep the text a
+        /// storyboard was authored with: it normalises <c>Storyboard.TargetProperty</c> to indexed
+        /// placeholders — <c>(0).(1)[1].(2)</c> — and puts the resolved properties in
+        /// <c>PathParameters</c>. So comparing <c>PropertyPath.Path</c> to the authored spelling never
+        /// matches for a themed or bundled storyboard, which is precisely how the slide shipped
+        /// animating nothing: unrecognised, it got no From/To, and a DoubleAnimation without either
+        /// animates a property from its own value to its own value. That neither moves nor throws.
         /// </summary>
-        private const string BareSlideTargetPath = "(UIElement.RenderTransform).(TranslateTransform.Y)";
-
-        /// <summary>Spellings that all mean "this child is the slide".</summary>
-        private static bool IsSlideAlias(string path)
+        private static PropertyPath BuildSlidePath()
         {
-            return path == LegacySlideTargetPath || path == BareSlideTargetPath;
+            return new PropertyPath(
+                "(0).(1)[1].(2)",
+                UIElement.RenderTransformProperty,
+                TransformGroup.ChildrenProperty,
+                TranslateTransform.YProperty);
+        }
+
+        /// <summary>
+        /// Whether a storyboard child is the one that moves the card, however it was spelled.
+        ///
+        /// Decided on the property the path actually resolves to — the last entry of
+        /// <c>PathParameters</c> — so every spelling of the translate's Y is recognised: the bundled
+        /// indexed form, the un-indexed form a theme author would naturally reach for, and a
+        /// code-built path. An unset target property means the slide (a theme contributing only timing),
+        /// as does the legacy <c>(Window.Top)</c>, which never animated anything.
+        /// </summary>
+        private static bool AnimatesSlide(Timeline child)
+        {
+            var path = Storyboard.GetTargetProperty(child);
+            if (path == null || string.IsNullOrEmpty(path.Path) || path.Path == LegacySlideTargetPath)
+            {
+                return true;
+            }
+
+            var parameters = path.PathParameters;
+            if (parameters != null && parameters.Count > 0)
+            {
+                return parameters[parameters.Count - 1] == TranslateTransform.YProperty;
+            }
+
+            return path.Path == SlideTargetPath;
         }
         // Small pause after a slide-out finishes before the window is torn down.
         private const int SlideSettleBufferMs = 10;
@@ -2809,14 +2843,12 @@ namespace PlayniteAchievements.Services.UI
                         continue;
                     }
 
-                    var path = Storyboard.GetTargetProperty(child);
-                    if (path == null || IsSlideAlias(path.Path))
+                    // Always overwrite the slide child's path with the plugin's own, whatever spelling
+                    // it arrived in: the un-indexed form cannot resolve against the host's transform
+                    // group, and the indexed form is only equivalent, never identical, to ours.
+                    if (AnimatesSlide(child))
                     {
-                        Storyboard.SetTargetProperty(child, new PropertyPath(SlideTargetPath));
-                        movesCard = true;
-                    }
-                    else if (path.Path == SlideTargetPath)
-                    {
+                        Storyboard.SetTargetProperty(child, BuildSlidePath());
                         movesCard = true;
                     }
 
@@ -2976,7 +3008,7 @@ namespace PlayniteAchievements.Services.UI
                     Storyboard.SetTarget(child, host);
                     if (child is DoubleAnimation slide &&
                         !slide.From.HasValue && !slide.To.HasValue &&
-                        Storyboard.GetTargetProperty(child)?.Path == SlideTargetPath)
+                        AnimatesSlide(child))
                     {
                         slide.From = fromDip;
                         slide.To = toDip;
@@ -2997,7 +3029,7 @@ namespace PlayniteAchievements.Services.UI
                 FillBehavior = FillBehavior.HoldEnd,
             };
             Storyboard.SetTarget(animation, host);
-            Storyboard.SetTargetProperty(animation, new PropertyPath(SlideTargetPath));
+            Storyboard.SetTargetProperty(animation, BuildSlidePath());
 
             var built = new Storyboard();
             built.Children.Add(animation);
