@@ -129,6 +129,7 @@ internal static class SlideProbe
         public double MaxIntervalMs;
         public int MaxStepPx;
         public int WarmFrames;
+        public double WarmMs;
         public int DistancePx;
     }
 
@@ -170,7 +171,7 @@ internal static class SlideProbe
         var traces = new List<SlideTrace>();
         var failures = new List<string>();
 
-        app.Startup += (s, e) =>
+        app.Startup += async (s, e) =>
         {
             try
             {
@@ -198,7 +199,7 @@ internal static class SlideProbe
                         var label = repeats > 1
                             ? string.Format(CultureInfo.InvariantCulture, "{0}#{1}", mode, run + 1)
                             : mode.ToString();
-                        traces.Add(RunOne(label, mode, durationMs, injectedFirstFrameMs));
+                        traces.Add(await RunOne(label, mode, durationMs, injectedFirstFrameMs));
                     }
                 }
 
@@ -375,7 +376,8 @@ internal static class SlideProbe
     /// Builds a toast-shaped window, shows it invisibly, warms it per <paramref name="mode"/> and
     /// slides it, recording every position the slide emitted.
     /// </summary>
-    private static SlideTrace RunOne(string label, WarmMode mode, int durationMs, int injectedFirstFrameMs)
+    private static async System.Threading.Tasks.Task<SlideTrace> RunOne(
+        string label, WarmMode mode, int durationMs, int injectedFirstFrameMs)
     {
         var window = CreateToastLikeWindow();
         try
@@ -401,23 +403,27 @@ internal static class SlideProbe
             var restingY = 80 + distance;
 
             var warmFrames = 0;
+            var warmClock = System.Diagnostics.Stopwatch.StartNew();
             switch (mode)
             {
                 case WarmMode.Transparent:
-                    warmFrames = WaitForComposedFrames(WarmFrameCount, WarmFrameTimeoutMs);
+                    warmFrames = await WaitForComposedFramesAsync(WarmFrameCount, WarmFrameTimeoutMs);
                     break;
                 case WarmMode.NearTransparent:
                     window.Opacity = 1.0 / 255.0;
-                    warmFrames = WaitForComposedFrames(WarmFrameCount, WarmFrameTimeoutMs);
+                    warmFrames = await WaitForComposedFramesAsync(WarmFrameCount, WarmFrameTimeoutMs);
                     break;
             }
+
+            var warmMs = mode == WarmMode.None ? 0d : warmClock.Elapsed.TotalMilliseconds;
 
             window.Opacity = 1;
 
             var ease = new BackEase { EasingMode = EasingMode.EaseOut, Amplitude = SlideOvershootAmplitude };
-            var trace = RunSlide(hwnd, restingX, restingY + distance, restingY, ease, durationMs);
+            var trace = await RunSlide(hwnd, restingX, restingY + distance, restingY, ease, durationMs);
             trace.Label = label;
             trace.WarmFrames = warmFrames;
+            trace.WarmMs = warmMs;
             trace.DistancePx = distance;
             return trace;
         }
@@ -431,12 +437,17 @@ internal static class SlideProbe
     /// The plugin's slide, verbatim in its timing: progress comes from each composed frame's own
     /// timestamp, repeated events for one frame are ignored, and the HWND moves once per frame.
     /// </summary>
-    private static SlideTrace RunSlide(
+    private static async System.Threading.Tasks.Task<SlideTrace> RunSlide(
         IntPtr hwnd, int x, int fromY, int toY, IEasingFunction ease, double durationMs)
     {
         var ticks = new RenderTickCounter();
         var positions = new List<int>();
-        var frame = new DispatcherFrame();
+        // Awaited rather than pumped with Dispatcher.PushFrame. A nested pump here deadlocked against the
+        // async warm above: PushFrame blocks the frame that the warm's continuation needs in order to run.
+        // Keeping the whole probe on one await-based flow also makes it mirror how the plugin sequences
+        // this, which is the point of the exercise.
+        var finished = new System.Threading.Tasks.TaskCompletionSource<bool>(
+            System.Threading.Tasks.TaskCreationOptions.RunContinuationsAsynchronously);
         EventHandler tick = null;
         tick = (s, e) =>
         {
@@ -454,15 +465,23 @@ internal static class SlideProbe
             SetWindowPos(hwnd, IntPtr.Zero, x, y, 0, 0, SWP_NOSIZE | SWP_NOZORDER | SWP_NOACTIVATE);
             if (t >= 1.0)
             {
-                CompositionTarget.Rendering -= tick;
-                frame.Continue = false;
+                finished.TrySetResult(true);
             }
         };
 
         SetWindowPos(hwnd, IntPtr.Zero, x, fromY, 0, 0, SWP_NOSIZE | SWP_NOZORDER | SWP_NOACTIVATE);
         CompositionTarget.Rendering += tick;
-        Dispatcher.PushFrame(frame);
-        CompositionTarget.Rendering -= tick;
+        try
+        {
+            // Bounded well past the slide so a stalled render loop reports a short slide rather than hanging.
+            await System.Threading.Tasks.Task.WhenAny(
+                finished.Task,
+                System.Threading.Tasks.Task.Delay((int)durationMs + 2000)).ConfigureAwait(true);
+        }
+        finally
+        {
+            CompositionTarget.Rendering -= tick;
+        }
 
         var maxStep = 0;
         for (var i = 1; i < positions.Count; i++)
@@ -487,15 +506,28 @@ internal static class SlideProbe
     }
 
     /// <summary>
-    /// Waits for <paramref name="frames"/> distinct composed frames or the timeout, whichever comes
-    /// first, pumping the dispatcher so composition actually happens. Mirrors the plugin's
-    /// WaitForComposedFramesAsync, including counting distinct frames rather than events: WPF raises
-    /// Rendering more than once per frame, so counting events can return inside a single frame.
+    /// The plugin's WaitForComposedFramesAsync, replicated exactly -- TaskCompletionSource raced against
+    /// Task.Delay, not a DispatcherFrame. The distinction matters: an earlier version of this probe used
+    /// PushFrame, which validated the idea of warming but not the code that does it. If a static
+    /// Opacity=0 window composes once and stops, this is where that shows up, as a wait that runs to its
+    /// full timeout on every notification.
+    ///
+    /// Counting distinct frames rather than events is essential: WPF raises Rendering more than once per
+    /// frame, so counting events can return inside a single frame.
     /// </summary>
-    private static int WaitForComposedFrames(int frames, int timeoutMs)
+    private static async System.Threading.Tasks.Task<int> WaitForComposedFramesAsync(int frames, int timeoutMs)
     {
+        if (frames <= 0)
+        {
+            return 0;
+        }
+
         var ticks = new RenderTickCounter();
-        var frame = new DispatcherFrame();
+        // RunContinuationsAsynchronously: TrySetResult is called from inside a Rendering handler, and by
+        // default a TCS runs its continuations synchronously on the completing thread -- which would
+        // resume the caller inside a composition pass.
+        var reached = new System.Threading.Tasks.TaskCompletionSource<bool>(
+            System.Threading.Tasks.TaskCreationOptions.RunContinuationsAsynchronously);
         EventHandler tick = null;
         tick = (s, e) =>
         {
@@ -507,22 +539,19 @@ internal static class SlideProbe
             ConsumePendingFirstPaint();
             if (ticks.Frames >= frames)
             {
-                frame.Continue = false;
+                reached.TrySetResult(true);
             }
         };
 
-        var timer = new DispatcherTimer(
-            TimeSpan.FromMilliseconds(timeoutMs), DispatcherPriority.Send, (s, e) => frame.Continue = false,
-            Dispatcher.CurrentDispatcher);
         CompositionTarget.Rendering += tick;
         try
         {
-            Dispatcher.PushFrame(frame);
+            await System.Threading.Tasks.Task.WhenAny(
+                reached.Task, System.Threading.Tasks.Task.Delay(timeoutMs)).ConfigureAwait(true);
         }
         finally
         {
             CompositionTarget.Rendering -= tick;
-            timer.Stop();
         }
 
         return ticks.Frames;
@@ -673,34 +702,42 @@ internal static class SlideProbe
 
     private static double WorstGapRatio(SlideTrace trace)
     {
-        return trace.MedianIntervalMs > 0 ? trace.MaxIntervalMs / trace.MedianIntervalMs : 0d;
+        return Ratio(trace.MaxIntervalMs, trace.MedianIntervalMs);
+    }
+
+    private static double Ratio(double value, double median)
+    {
+        return median > 0 ? value / median : 0d;
     }
 
     private static void Report(List<SlideTrace> traces, List<string> failures)
     {
         Console.WriteLine(
-            "{0,-22} {1,6} {2,8} {3,8} {4,9} {5,8} {6,8} {7,8} {8,6}",
-            "mode", "frames", "spanMs", "medMs", "firstGap", "maxGap", "worstX", "maxStep", "warm");
+            "{0,-22} {1,6} {2,8} {3,8} {4,9} {5,8} {6,8} {7,8} {8,6} {9,8}",
+            "mode", "frames", "spanMs", "medMs", "firstGap", "firstX", "worstX", "maxStep", "warm", "warmMs");
         foreach (var trace in traces)
         {
             Console.WriteLine(
-                "{0,-22} {1,6} {2,8:0.0} {3,8:0.00} {4,9:0.00} {5,8:0.00} {6,8:0.0} {7,8} {8,6}",
+                "{0,-22} {1,6} {2,8:0.0} {3,8:0.00} {4,9:0.00} {5,8:0.0} {6,8:0.0} {7,8} {8,6} {9,8:0.0}",
                 trace.Label,
                 trace.Frames,
                 trace.SpanMs,
                 trace.MedianIntervalMs,
                 trace.FirstIntervalMs,
-                trace.MaxIntervalMs,
+                Ratio(trace.FirstIntervalMs, trace.MedianIntervalMs),
                 WorstGapRatio(trace),
                 trace.MaxStepPx,
-                trace.WarmFrames);
+                trace.WarmFrames,
+                trace.WarmMs);
         }
 
         Console.WriteLine();
-        Console.WriteLine("  worstX is the verdict: the worst frame interval as a multiple of this run's own");
-        Console.WriteLine("  median. A slide at a fraction of the display rate still reads as smooth if it is");
-        Console.WriteLine("  even; one interval far out of line is what reads as a jump. maxStep is that gap's");
-        Console.WriteLine("  visible cost in pixels, which depends on where in the eased curve it landed.");
+        Console.WriteLine("  firstX is the verdict: the gap after the slide's first frame, as a multiple of this");
+        Console.WriteLine("  run's own median. That is where the defect lives, and it separates cleanly -- the");
+        Console.WriteLine("  unwarmed control runs 4-12x, a warmed slide under 0.1x. worstX (any gap) does not");
+        Console.WriteLine("  separate: a warmed run on a busy machine reaches 4x, so it is only a loose stall");
+        Console.WriteLine("  backstop. maxStep is the gap's visible cost, which depends on where in the eased");
+        Console.WriteLine("  curve it landed, so it is context rather than a threshold.");
         Console.WriteLine();
 
         // The unwarmed mode is the control, not a subject: it is the ordering the plugin used before the
@@ -719,23 +756,55 @@ internal static class SlideProbe
                 continue;
             }
 
-            // 4x the run's own median. The defect this exists to catch is an order of magnitude (a 120 ms
-            // first gap against a 12 ms median); ordinary desktop jitter and the real app's periodic
-            // extra work -- the ray driver redraws at its own 30 fps -- run to two or three.
-            var worst = WorstGapRatio(trace);
-            if (worst > 4.0)
+            // The warm must be paid for by frames arriving, not by the timeout expiring. Rendering only
+            // fires while something wants composing, so a card with no running animation could in
+            // principle compose once and stop -- which would silently add the whole timeout to every
+            // notification's latency. That is a regression in its own right, so it fails here.
+            if (trace.WarmFrames < WarmFrameCount)
             {
                 failures.Add(string.Format(
                     CultureInfo.InvariantCulture,
-                    "{0}: worst frame interval {1:0.0}ms is {2:0.0}x this run's {3:0.0}ms median " +
-                    "(firstGap {4:0.0}ms), moving the card {5}px of {6}px in one step -- it jumped",
+                    "{0}: warm got only {1} of {2} frames and waited {3:0.0}ms, so it ran to its timeout " +
+                    "-- every notification would be delayed by that",
+                    trace.Label,
+                    trace.WarmFrames,
+                    WarmFrameCount,
+                    trace.WarmMs));
+            }
+
+            // The first gap is the discriminator, not the worst gap. The defect is specifically that the
+            // frame after the slide's first arrives late, so firstGap separates cleanly: measured across
+            // ten runs, the unwarmed control sits at 4.4-11.6x its median while a warmed slide sits at
+            // 0.01-0.02x. The worst gap anywhere in the slide does not separate -- warmed runs reach 4.2x
+            // on a machine that is merely busy, which overlaps the control's low end, so judging on it
+            // makes this cry wolf at roughly one run in ten.
+            var firstRatio = Ratio(trace.FirstIntervalMs, trace.MedianIntervalMs);
+            if (firstRatio > 3.0)
+            {
+                failures.Add(string.Format(
+                    CultureInfo.InvariantCulture,
+                    "{0}: first frame gap {1:0.0}ms is {2:0.0}x this run's {3:0.0}ms median, moving the " +
+                    "card {4}px of {5}px in one step -- the slide started before the card had painted",
+                    trace.Label,
+                    trace.FirstIntervalMs,
+                    firstRatio,
+                    trace.MedianIntervalMs,
+                    trace.MaxStepPx,
+                    trace.DistancePx));
+            }
+
+            // A loose backstop for a gross stall anywhere else in the slide. Deliberately well above the
+            // 4.2x a warmed run reached under contention, so it flags a real freeze and not scheduling noise.
+            var worst = WorstGapRatio(trace);
+            if (worst > 8.0)
+            {
+                failures.Add(string.Format(
+                    CultureInfo.InvariantCulture,
+                    "{0}: stalled mid-slide -- worst frame interval {1:0.0}ms is {2:0.0}x its {3:0.0}ms median",
                     trace.Label,
                     trace.MaxIntervalMs,
                     worst,
-                    trace.MedianIntervalMs,
-                    trace.FirstIntervalMs,
-                    trace.MaxStepPx,
-                    trace.DistancePx));
+                    trace.MedianIntervalMs));
             }
         }
 

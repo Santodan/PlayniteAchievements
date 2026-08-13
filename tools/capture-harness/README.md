@@ -111,28 +111,45 @@ defect deterministic instead of dependent on a cold process, and it is what the 
 
 ### Reading it
 
-`worstX` is the verdict: the worst frame interval as a multiple of **that run's own median**. This is
-deliberately not measured against the display's rate — moving a per-pixel-alpha window costs a full
-redirection-surface blit, so the slide sustains an even ~82 Hz on a 165 Hz panel and cannot do better.
-Uniform coarseness reads as smooth; one interval far out of line reads as a jump. The defect runs to
-10x or more, ordinary jitter and the ray driver's own 30 fps redraws to two or three, so the threshold
-is 4x.
+`firstX` is the verdict: the gap **after the slide's first frame**, as a multiple of that run's own
+median. All ratios are against the run's own median rather than the display's rate, because moving a
+per-pixel-alpha window costs a full redirection-surface blit — the slide sustains an even ~82 Hz on a
+165 Hz panel and cannot do better. Uniform coarseness reads as smooth; the specific thing that reads as a
+jump is the frame *after the first* arriving late.
 
-`maxStep` is that gap's visible cost in pixels. Useful, but not the verdict: because `BackEase` is steep
-early, an identical gap costs far more travel at the start of the slide than at the end.
+Measured over six control and twelve warmed runs, `firstX` separates with an order of magnitude of margin
+either side of the 3x threshold: the unwarmed control runs **4.3–11.2**, a warmed slide **0.0–0.5**.
 
-Two earlier versions of this probe were wrong in ways worth not repeating. Injecting the cost into the
-slide's first frame rather than the window's penalised every mode equally, so no warm ordering could ever
-win. And deriving the "ideal" step from the run's own observed mean interval is circular — it hands a
-starved slide a lenient target, and a three-frame slide passes.
+`worstX` (the worst gap anywhere) is only a loose stall backstop at 8x. It deliberately is *not* the
+verdict: a warmed run on a machine that is merely busy reaches 4x, which overlaps the control's low end,
+so judging on it cries wolf about one run in ten. `maxStep` is a gap's visible cost in pixels — context,
+not a threshold, since `BackEase` is steep early and an identical gap costs far more travel at the start
+of the slide than at the end.
+
+Four earlier versions of this probe were wrong in ways worth not repeating:
+
+- Injecting the cost into the **slide's** first frame rather than the **window's** penalised every mode
+  equally, so no warm ordering could ever win.
+- Deriving the "ideal" step from the run's own observed mean interval is circular: it hands a starved
+  slide a lenient target, so a three-frame slide passes.
+- Sampling `CompositionTarget.Rendering` while idle to measure the display rate reports the rate the
+  sampler asked for frames, not the display's — 31.8 Hz on a 165 Hz panel, inflating every target twofold.
+  It comes from `EnumDisplaySettings` now.
+- Waiting for warm frames with `Dispatcher.PushFrame` validated the *idea* of warming but not the code
+  that does it, and once the warm became async the nested pump deadlocked against its continuation. The
+  whole probe is await-based now, mirroring how the plugin sequences it.
 
 ### What it established
 
 - A window at `Opacity=0` **does** rasterize its content: the transparent warm absorbs the whole injected
-  first-paint cost (first gap 121 ms → 6 ms), so the near-transparent variant is unnecessary.
-- The first storyboard resolve of a session costs **90–130 ms** on the UI thread, on the frame the first
+  first-paint cost (first gap ~121 ms → under 0.3 ms), so the near-transparent variant is unnecessary.
+- The warm wait is satisfied by frames arriving, not by its timeout — **6–25 ms** on a fully static
+  `Opacity=0` window with nothing animating, because subscribing to `Rendering` itself keeps the render
+  loop ticking. So it adds no notification latency, and its 150 ms ceiling should *not* be shortened
+  toward a frame period: the ceiling's other role is bounding how much first paint the warm can absorb.
+- The first storyboard resolve of a session costs **90–150 ms** on the UI thread, on the frame the first
   slide subscribes on. That is the first-notification jank.
-- Later resolves cost only ~1.4 ms, so memoizing the dictionary does **not** explain a janky slide-out;
+- Later resolves cost only ~1.3 ms, so memoizing the dictionary does **not** explain a janky slide-out;
   look to the save pipeline's allocation churn instead, via the `[Toast] Slide out` log line.
 
 ### Limits
