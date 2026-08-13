@@ -66,8 +66,15 @@ namespace PlayniteAchievements.Views.Helpers
                 menu.Items.Add(captureItem);
             }
 
-            menu.Items.Add(CreateSetGoalItem(context, resourceOwner, onChanged, onGoalChanged));
-            menu.Items.Add(CreateSetCapstoneItem(context, resourceOwner, onChanged, onCapstoneChanged));
+            // A friend's row describes their progress, not the user's, so its goal/capstone state
+            // would drive the toggle in the wrong direction. Theme grids can be pointed at friend
+            // collections, so gate here rather than relying on the caller.
+            if (!(data is FriendAchievementDisplayItem))
+            {
+                menu.Items.Add(CreateSetGoalItem(context, resourceOwner, onChanged, onGoalChanged));
+                menu.Items.Add(CreateSetCapstoneItem(context, resourceOwner, onChanged, onCapstoneChanged));
+            }
+
             menu.Items.Add(CreateCategoriesMenu(context, resourceOwner, onChanged));
             menu.Items.Add(CreateFiltersMenu(context, resourceOwner, onChanged));
             menu.Items.Add(CreateNotesMenu(context, resourceOwner, onChanged));
