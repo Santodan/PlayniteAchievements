@@ -203,22 +203,50 @@ namespace PlayniteAchievements.Providers.RPCS3
                 {
                     if (!userIdSpecified || Rpcs3InstallationContext.TryNormalizeUserId(userId, out _))
                     {
-                        return Rpcs3InstallationContext.Create(
+                        var actionContext = Rpcs3InstallationContext.Create(
                             gameAction.Root,
                             userId,
                             userIdSpecified ? "--user-id game action" : null,
                             logger);
-                    }
+                        if (actionContext != null)
+                        {
+                            return actionContext;
+                        }
 
-                    logger?.Warn($"[RPCS3] Game '{game?.Name}' has an invalid --user-id launch argument. Trophy progress was not scanned.");
-                    return null;
+                        if (userIdSpecified)
+                        {
+                            // The action names a profile; another install's default
+                            // user is not a substitute for it.
+                            logger?.Warn(
+                                $"[RPCS3] Game '{game?.Name}': the --user-id profile its launch action requests does " +
+                                $"not exist under '{gameAction.Root}'. Trophy progress was not scanned.");
+                            return null;
+                        }
+
+                        // The action's emulator holds no trophy profile (a second
+                        // install, a fresh copy). The configured install is the
+                        // user's explicit choice, so it gets the next attempt
+                        // rather than the game losing trophy data outright.
+                        logger?.Info(
+                            $"[RPCS3] Game '{game?.Name}': emulator action root '{gameAction.Root}' has no trophy " +
+                            "profile; falling back to the configured RPCS3 installation.");
+                    }
+                    else
+                    {
+                        logger?.Warn($"[RPCS3] Game '{game?.Name}' has an invalid --user-id launch argument. Trophy progress was not scanned.");
+                        return null;
+                    }
                 }
             }
 
             var settingsRoot = GetSettingsRoot(settings);
             if (!string.IsNullOrWhiteSpace(settingsRoot))
             {
-                return Rpcs3InstallationContext.Create(settingsRoot, null, null, logger);
+                var settingsContext = Rpcs3InstallationContext.Create(settingsRoot, null, null, logger);
+                if (settingsContext != null)
+                {
+                    return settingsContext;
+                }
             }
 
             var fallbackRoot = ResolveUniqueRegisteredRoot(playniteApi, logger);
