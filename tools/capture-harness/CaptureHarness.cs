@@ -14,6 +14,7 @@ using System.Linq;
 using System.Reflection;
 using System.Runtime.InteropServices;
 using System.Threading;
+using System.Threading.Tasks;
 using System.Windows.Forms;
 using SharpDX.MediaFoundation;
 
@@ -37,17 +38,44 @@ internal static class CaptureHarness
     [STAThread]
     private static void Main(string[] args)
     {
-        var seconds = args.Length > 0 ? int.Parse(args[0]) : 20;
-        var fps = args.Length > 1 ? int.Parse(args[1]) : 30;
-        FreezeAtSeconds = args.Length > 3 ? double.Parse(args[3]) : 0;
-        FreezeForSeconds = args.Length > 4 ? double.Parse(args[4]) : 0;
+        var stress = args.Length > 0 && string.Equals(args[0], "--stress", StringComparison.OrdinalIgnoreCase);
+        var mfStress = args.Length > 0 && string.Equals(args[0], "--mf-stress", StringComparison.OrdinalIgnoreCase);
+        var diagnosticStress = stress || mfStress;
+        var seconds = diagnosticStress
+            ? (args.Length > 1 ? int.Parse(args[1]) : 300)
+            : (args.Length > 0 ? int.Parse(args[0]) : 20);
+        var fps = diagnosticStress
+            ? (args.Length > 2 ? int.Parse(args[2]) : 60)
+            : (args.Length > 1 ? int.Parse(args[1]) : 30);
+        FreezeAtSeconds = !diagnosticStress && args.Length > 3 ? double.Parse(args[3]) : 0;
+        FreezeForSeconds = !diagnosticStress && args.Length > 4 ? double.Parse(args[4]) : 0;
         var scratch = Path.GetDirectoryName(Assembly.GetExecutingAssembly().Location);
-        _pluginDir = args.Length > 2
-            ? args[2]
+        _pluginDir = diagnosticStress && args.Length > 3
+            ? args[3]
+            : !diagnosticStress && args.Length > 2
+                ? args[2]
             : Path.GetFullPath(Path.Combine(scratch, @"..\..\..\source\bin\Debug"));
 
         AppDomain.CurrentDomain.AssemblyResolve += Resolve;
         var plugin = Assembly.LoadFrom(Path.Combine(_pluginDir, "PlayniteAchievements.dll"));
+
+        if (diagnosticStress)
+        {
+            var exportEverySeconds = args.Length > 4 ? int.Parse(args[4]) : 20;
+            var teardownCycles = args.Length > 5 ? int.Parse(args[5]) : 5;
+            var width = args.Length > 6 ? int.Parse(args[6]) : 1920;
+            var height = args.Length > 7 ? int.Parse(args[7]) : 1080;
+            if (mfStress)
+            {
+                RunMediaFoundationStress(plugin, scratch, seconds, fps, exportEverySeconds, width, height);
+            }
+            else
+            {
+                RunStress(plugin, scratch, seconds, fps, exportEverySeconds, teardownCycles, width, height);
+            }
+
+            return;
+        }
 
         var buffer = Path.Combine(scratch, "harness_buffer");
         if (Directory.Exists(buffer))
@@ -196,6 +224,354 @@ internal static class CaptureHarness
         BuildPaintIndex();
         Report("while recording", 0, paints[paints.Count - 1].Item2);
         return paints;
+    }
+
+    // === page-heap stress mode ===
+
+    // Keeps the real recorder active while exports and overlay re-encodes consume already-finalized
+    // segments. At the end it disposes the recorder without a separate Stop call, then repeats short
+    // live-teardown cycles around the next-writer preparation boundary. This is intentionally a
+    // separate mode: its job is native lifetime/heap pressure, not the frame-alignment report above.
+    private static void RunStress(
+        Assembly plugin, string scratch, int seconds, int fps, int exportEverySeconds, int teardownCycles,
+        int width, int height)
+    {
+        var root = Path.Combine(scratch, "stress_" + DateTime.UtcNow.ToString("yyyyMMdd-HHmmss"));
+        var buffer = Path.Combine(root, "buffer");
+        var exports = Path.Combine(root, "exports");
+        Directory.CreateDirectory(buffer);
+        Directory.CreateDirectory(exports);
+
+        Console.WriteLine("stress root: " + root);
+        Console.WriteLine("process: " + (Environment.Is64BitProcess ? "x64" : "x86") +
+            ", duration=" + seconds + "s fps=" + fps +
+            " exportEvery=" + exportEverySeconds + "s teardownCycles=" + teardownCycles +
+            " surface=" + width + "x" + height);
+
+        var paints = new List<Tuple<int, double>>();
+        MarkerForm form = null;
+        var ready = new ManualResetEventSlim(false);
+        var ui = new Thread(() =>
+        {
+            form = new MarkerForm(paints, width, height);
+            form.Shown += (s, e) => ready.Set();
+            Application.Run(form);
+        });
+        ui.SetApartmentState(ApartmentState.STA);
+        ui.IsBackground = true;
+        ui.Start();
+
+        if (!ready.Wait(TimeSpan.FromSeconds(10)))
+        {
+            throw new TimeoutException("stress marker window did not appear");
+        }
+
+        var hwnd = IntPtr.Zero;
+        form.Invoke((Action)(() => hwnd = form.Handle));
+        _form = form;
+        _paints = paints;
+        _clockStartUtc = form.StartedUtc;
+
+        // Borderless access requires a packaged-app manifest capability. Playnite is unpackaged,
+        // and full page heap exposes an out-of-bounds read in GraphicsCapture.dll while that
+        // unsupported access request marshals its result. The production fix removes the request;
+        // set its one-time guard here so a stale pre-fix plugin binary can reach the rest of the soak.
+        var border = plugin.GetType("PlayniteAchievements.Services.Capture.WgcCaptureBorder");
+        border?.GetField("_accessRequested", Flags)?.SetValue(null, 1);
+        Console.WriteLine("[stress] skipped optional borderless-access request (unpackaged host)");
+
+        object recorder = null;
+        Task<bool> exportTask = null;
+        var exportIndex = 0;
+        var exportFailures = 0;
+        try
+        {
+            recorder = NewRecorder(plugin, hwnd, buffer, fps);
+            if (!(bool)recorder.GetType().GetMethod("Start", Flags).Invoke(recorder, null))
+            {
+                throw new InvalidOperationException("stress recorder refused to start");
+            }
+
+            var timer = Stopwatch.StartNew();
+            var nextExport = TimeSpan.FromSeconds(Math.Max(10, exportEverySeconds));
+            while (timer.Elapsed < TimeSpan.FromSeconds(seconds))
+            {
+                Thread.Sleep(200);
+
+                if (exportTask != null && exportTask.IsCompleted)
+                {
+                    if (!CompleteStressExport(exportTask, exportIndex))
+                    {
+                        exportFailures++;
+                    }
+
+                    exportTask = null;
+                }
+
+                if (exportTask == null && timer.Elapsed >= nextExport && CountFinalizedSegments(buffer) >= 4)
+                {
+                    exportIndex++;
+                    var current = exportIndex;
+                    var baseClip = Path.Combine(exports, "base_" + current.ToString("D4") + ".mp4");
+                    var composited = Path.Combine(exports, "composited_" + current.ToString("D4") + ".mp4");
+                    Console.WriteLine("[stress " + timer.Elapsed.ToString(@"mm\:ss") + "] starting overlapping export #" + current);
+                    exportTask = Task.Run(() =>
+                    {
+                        if (!ExportClip(plugin, buffer, baseClip))
+                        {
+                            return false;
+                        }
+
+                        return ReencodeStressClip(plugin, baseClip, composited, fps);
+                    });
+                    nextExport = timer.Elapsed + TimeSpan.FromSeconds(Math.Max(10, exportEverySeconds));
+                }
+
+                if (((int)timer.Elapsed.TotalSeconds % 30) == 0 && timer.ElapsedMilliseconds % 1000 < 250)
+                {
+                    Console.WriteLine("[stress " + timer.Elapsed.ToString(@"mm\:ss") + "] finalized=" +
+                        CountFinalizedSegments(buffer) + " total=" + Directory.GetFiles(buffer, "seg_*.mp4").Length);
+                }
+            }
+
+            // No Stop first: this intentionally asks Dispose to coordinate with an actively pumping
+            // encoder, the lifetime boundary that bounded joins used to make unsafe.
+            Console.WriteLine("[stress] forcing live recorder teardown");
+            var teardown = Stopwatch.StartNew();
+            ((IDisposable)recorder).Dispose();
+            recorder = null;
+            Console.WriteLine("[stress] live recorder teardown returned in " + teardown.ElapsedMilliseconds + "ms");
+
+            if (exportTask != null)
+            {
+                if (!CompleteStressExport(exportTask, exportIndex))
+                {
+                    exportFailures++;
+                }
+
+                exportTask = null;
+            }
+
+            for (var cycle = 1; cycle <= Math.Max(0, teardownCycles); cycle++)
+            {
+                var cycleBuffer = Path.Combine(root, "teardown_" + cycle.ToString("D3"));
+                Directory.CreateDirectory(cycleBuffer);
+                var shortRun = NewRecorder(plugin, hwnd, cycleBuffer, fps);
+                if (!(bool)shortRun.GetType().GetMethod("Start", Flags).Invoke(shortRun, null))
+                {
+                    throw new InvalidOperationException("teardown-cycle recorder refused to start");
+                }
+
+                // Next-writer preparation begins 750 ms before the five-second boundary.
+                Thread.Sleep(4350);
+                ((IDisposable)shortRun).Dispose();
+                Console.WriteLine("[stress] teardown cycle " + cycle + "/" + teardownCycles + " complete");
+            }
+        }
+        finally
+        {
+            try { (recorder as IDisposable)?.Dispose(); } catch { }
+            try
+            {
+                if (form != null && !form.IsDisposed)
+                {
+                    form.BeginInvoke((Action)(() => form.Close()));
+                }
+            }
+            catch { }
+            try { ui.Join(TimeSpan.FromSeconds(5)); } catch { }
+        }
+
+        Console.WriteLine("[stress] exports=" + exportIndex + " failures=" + exportFailures +
+            " finalizedSegments=" + CountFinalizedSegments(buffer));
+        if (exportIndex == 0 || exportFailures != 0)
+        {
+            throw new InvalidOperationException(
+                "stress run did not complete cleanly (exports=" + exportIndex + ", failures=" + exportFailures + ")");
+        }
+    }
+
+    private static bool CompleteStressExport(Task<bool> task, int index)
+    {
+        try
+        {
+            var ok = task.GetAwaiter().GetResult();
+            Console.WriteLine("[stress] overlapping export #" + index + " -> " + ok);
+            return ok;
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine("[stress] overlapping export #" + index + " failed: " + (ex.InnerException ?? ex));
+            return false;
+        }
+    }
+
+    // Runs the MF/D3D/export overlap without Windows.Graphics.Capture. This is both a focused lease
+    // regression and a useful fallback on test sessions where the per-user CaptureService is stopped.
+    // The primary --stress mode remains the only one that covers WGC pump teardown itself.
+    private static void RunMediaFoundationStress(
+        Assembly plugin, string scratch, int seconds, int fps, int exportEverySeconds, int width, int height)
+    {
+        var root = Path.Combine(scratch, "mf_stress_" + DateTime.UtcNow.ToString("yyyyMMdd-HHmmss"));
+        var buffer = Path.Combine(root, "buffer");
+        var exports = Path.Combine(root, "exports");
+        Directory.CreateDirectory(buffer);
+        Directory.CreateDirectory(exports);
+
+        Console.WriteLine("MF stress root: " + root);
+        Console.WriteLine("process: " + (Environment.Is64BitProcess ? "x64" : "x86") +
+            ", duration=" + seconds + "s fps=" + fps + " exportEvery=" + exportEverySeconds +
+            "s surface=" + width + "x" + height);
+
+        var runtimeType = plugin.GetType("PlayniteAchievements.Services.Capture.MediaFoundationRuntime");
+        if (runtimeType == null)
+        {
+            throw new InvalidOperationException("plugin does not contain the shared MediaFoundationRuntime lease");
+        }
+
+        var acquire = runtimeType.GetMethod("Acquire", Flags);
+        var deviceType = Type.GetType("SharpDX.Direct3D11.Device, SharpDX.Direct3D11");
+        var textureType = Type.GetType("SharpDX.Direct3D11.Texture2D, SharpDX.Direct3D11");
+        var encoderType = plugin.GetType("PlayniteAchievements.Services.Capture.MediaFoundationH264Encoder");
+        var recordingPaths = plugin.GetType("PlayniteAchievements.Services.Recording.RecordingPaths");
+        var buildName = recordingPaths.GetMethod("BuildSegmentFileName", Flags);
+        var write = encoderType.GetMethod("WriteFrame", Flags);
+        var segmentSeconds = 3;
+        var frameDuration = TimeSpan.TicksPerSecond / Math.Max(1, fps);
+        var sessionStart = DateTime.UtcNow;
+        var totalFrames = (long)Math.Max(segmentSeconds * 4, seconds) * fps;
+        var nextExportAt = TimeSpan.FromSeconds(Math.Max(10, exportEverySeconds));
+        var timer = Stopwatch.StartNew();
+        var exportIndex = 0;
+        var exportFailures = 0;
+        var finalized = 0;
+        Task<bool> exportTask = null;
+        object encoder = null;
+        object device = null;
+        object texture = null;
+        IDisposable lifetime = null;
+
+        try
+        {
+            lifetime = (IDisposable)acquire.Invoke(null, null);
+            device = Activator.CreateInstance(
+                deviceType,
+                Type.GetType("SharpDX.Direct3D.DriverType, SharpDX").GetField("Hardware").GetValue(null),
+                Enum.ToObject(Type.GetType("SharpDX.Direct3D11.DeviceCreationFlags, SharpDX.Direct3D11"), 0x20 | 0x800));
+            texture = MakeTexture(deviceType, textureType, device, width, height);
+
+            for (var frame = 0L; frame < totalFrames; frame++)
+            {
+                var segmentIndex = frame / (segmentSeconds * (long)fps);
+                var segmentFrame = frame % (segmentSeconds * (long)fps);
+                if (segmentFrame == 0)
+                {
+                    if (encoder != null)
+                    {
+                        ((IDisposable)encoder).Dispose();
+                        encoder = null;
+                        finalized++;
+                    }
+
+                    var startUtc = sessionStart.AddSeconds(segmentIndex * segmentSeconds);
+                    var name = (string)buildName.Invoke(null, new object[] { startUtc, width, height });
+                    encoder = Activator.CreateInstance(
+                        encoderType, BindingFlags.NonPublic | BindingFlags.Instance | BindingFlags.Public, null,
+                        new object[] { device, Path.Combine(buffer, name), width, height, fps, 4_000_000 }, null);
+                }
+
+                write.Invoke(encoder, new object[] { texture, segmentFrame * frameDuration, frameDuration });
+
+                if (exportTask != null && exportTask.IsCompleted)
+                {
+                    if (!CompleteStressExport(exportTask, exportIndex))
+                    {
+                        exportFailures++;
+                    }
+
+                    exportTask = null;
+                }
+
+                if (exportTask == null && finalized >= 3 && timer.Elapsed >= nextExportAt)
+                {
+                    exportIndex++;
+                    var current = exportIndex;
+                    var baseClip = Path.Combine(exports, "base_" + current.ToString("D4") + ".mp4");
+                    var composited = Path.Combine(exports, "composited_" + current.ToString("D4") + ".mp4");
+                    Console.WriteLine("[MF stress " + timer.Elapsed.ToString(@"mm\:ss") + "] overlapping export #" + current);
+                    exportTask = Task.Run(() =>
+                    {
+                        if (!ExportClip(plugin, buffer, baseClip))
+                        {
+                            return false;
+                        }
+
+                        return ReencodeStressClip(plugin, baseClip, composited, fps);
+                    });
+                    nextExportAt = timer.Elapsed + TimeSpan.FromSeconds(Math.Max(10, exportEverySeconds));
+                }
+
+                var target = TimeSpan.FromTicks((frame + 1) * TimeSpan.TicksPerSecond / Math.Max(1, fps));
+                var delay = target - timer.Elapsed;
+                if (delay > TimeSpan.Zero)
+                {
+                    Thread.Sleep(delay);
+                }
+            }
+
+            ((IDisposable)encoder)?.Dispose();
+            encoder = null;
+            finalized++;
+            if (exportTask != null)
+            {
+                if (!CompleteStressExport(exportTask, exportIndex))
+                {
+                    exportFailures++;
+                }
+
+                exportTask = null;
+            }
+        }
+        finally
+        {
+            try { (encoder as IDisposable)?.Dispose(); } catch { }
+            try { (texture as IDisposable)?.Dispose(); } catch { }
+            try { (device as IDisposable)?.Dispose(); } catch { }
+            try { lifetime?.Dispose(); } catch { }
+        }
+
+        Console.WriteLine("[MF stress] exports=" + exportIndex + " failures=" + exportFailures +
+            " finalizedSegments=" + finalized);
+        if (exportIndex == 0 || exportFailures != 0)
+        {
+            throw new InvalidOperationException(
+                "MF stress did not complete cleanly (exports=" + exportIndex + ", failures=" + exportFailures + ")");
+        }
+    }
+
+    private static int CountFinalizedSegments(string buffer)
+    {
+        return Directory.GetFiles(buffer, "seg_*.mp4").Count(Mp4.HasMoov);
+    }
+
+    private static bool ReencodeStressClip(Assembly plugin, string baseClip, string outputPath, int fps)
+    {
+        var track = BuildTrack(plugin);
+        var reencoderType = plugin.GetType("PlayniteAchievements.Services.Capture.MediaFoundationOverlayReencoder");
+        var reencoder = Activator.CreateInstance(
+            reencoderType, BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance, null,
+            new object[] { ConsoleLogger.Create(reencoderType.GetConstructors(Flags)[0].GetParameters()[0].ParameterType) },
+            null);
+        var qualityType = plugin.GetType("PlayniteAchievements.Models.Settings.RecordingQuality");
+        var quality = Enum.Parse(qualityType, Enum.GetNames(qualityType)[0]);
+        var clipSeconds = Mp4.VideoTiming(baseClip).Seconds;
+        return (bool)reencoderType.GetMethod("Export", Flags).Invoke(reencoder, new object[]
+        {
+            baseClip, track,
+            1.0, Math.Min(4.0, clipSeconds), _videoLeadSeconds,
+            clipSeconds, null, 0d,
+            outputPath, fps, quality,
+        });
     }
 
     private static MarkerForm _form;
@@ -818,6 +1194,9 @@ internal static class CaptureHarness
         var parse = timeline.GetMethod("ParseSegments", Flags);
         var files = Directory.GetFiles(buffer, "seg_*.mp4")
             .OrderBy(p => p)
+            // During --stress the current writer, the prepared next writer and any backlogged
+            // finalizers coexist in this directory. Only a top-level moov marks a closed MP4.
+            .Where(Mp4.HasMoov)
             .Select(p => new ValueTuple<string, long>(p, new FileInfo(p).Length))
             .ToList();
         if (files.Count < 3)
@@ -1020,13 +1399,13 @@ internal static class CaptureHarness
         private readonly Font _font = new Font(FontFamily.GenericMonospace, 48, FontStyle.Bold);
         private int _counter;
 
-        public MarkerForm(List<Tuple<int, double>> paints)
+        public MarkerForm(List<Tuple<int, double>> paints, int width = ClientW, int height = ClientH)
         {
             _paints = paints;
             Text = "PA capture harness";
             FormBorderStyle = FormBorderStyle.FixedSingle;
             MaximizeBox = false;
-            ClientSize = new Size(ClientW, ClientH);
+            ClientSize = new Size(width, height);
             StartPosition = FormStartPosition.CenterScreen;
             DoubleBuffered = true;
             BackColor = Color.FromArgb(20, 20, 28);
@@ -1246,6 +1625,94 @@ internal static class CaptureHarness
             }
 
             return new Timing();
+        }
+
+        // A finalized MP4 has a complete top-level moov box. Scan only box headers so an active
+        // multi-megabyte mdat is never copied into the harness heap just to reject the file.
+        public static bool HasMoov(string path)
+        {
+            try
+            {
+                using (var stream = new FileStream(
+                    path, FileMode.Open, FileAccess.Read, FileShare.ReadWrite | FileShare.Delete))
+                using (var reader = new BinaryReader(stream))
+                {
+                    while (stream.Position + 8 <= stream.Length)
+                    {
+                        var boxStart = stream.Position;
+                        var size32 = ReadU32(reader);
+                        var type = System.Text.Encoding.ASCII.GetString(reader.ReadBytes(4));
+                        long size = size32;
+                        var header = 8L;
+                        if (size == 1)
+                        {
+                            if (stream.Position + 8 > stream.Length)
+                            {
+                                return false;
+                            }
+
+                            size = ReadU64(reader);
+                            header = 16;
+                        }
+                        else if (size == 0)
+                        {
+                            size = stream.Length - boxStart;
+                        }
+
+                        if (size < header || boxStart + size > stream.Length)
+                        {
+                            return false;
+                        }
+
+                        if (type == "moov")
+                        {
+                            return true;
+                        }
+
+                        stream.Position = boxStart + size;
+                    }
+                }
+            }
+            catch
+            {
+                // A writer may be extending the file while this snapshot is taken. It simply is not
+                // eligible for this export; the next stress interval will see it after finalization.
+            }
+
+            return false;
+        }
+
+        private static uint ReadU32(BinaryReader reader)
+        {
+            var b = reader.ReadBytes(4);
+            if (b.Length != 4)
+            {
+                throw new EndOfStreamException();
+            }
+
+            return ((uint)b[0] << 24) | ((uint)b[1] << 16) | ((uint)b[2] << 8) | b[3];
+        }
+
+        private static long ReadU64(BinaryReader reader)
+        {
+            var b = reader.ReadBytes(8);
+            if (b.Length != 8)
+            {
+                throw new EndOfStreamException();
+            }
+
+            ulong value = 0;
+            for (var i = 0; i < b.Length; i++)
+            {
+                value = (value << 8) | b[i];
+            }
+
+            if (value > long.MaxValue)
+            {
+                throw new InvalidDataException("MP4 box length exceeds Int64");
+            }
+
+            return (long)value;
         }
 
         // The track's H.264 parameter sets: moov > trak > mdia > minf > stbl > stsd > avc1 > avcC.
