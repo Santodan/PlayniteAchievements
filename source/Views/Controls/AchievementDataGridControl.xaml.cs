@@ -456,6 +456,56 @@ namespace PlayniteAchievements.Views.Controls
         }
 
         /// <summary>
+        /// Identifies the SoftGlowTiers dependency property: which rarity tiers show the soft halo in
+        /// this grid. Self-bound to the global setting in the constructor, so changing the selection
+        /// re-evaluates the cells' glow bindings immediately.
+        /// </summary>
+        public static readonly DependencyProperty SoftGlowTiersProperty =
+            DependencyProperty.Register(nameof(SoftGlowTiers), typeof(RaritySelection),
+                typeof(AchievementDataGridControl), new PropertyMetadata(RaritySelection.All));
+
+        /// <summary>
+        /// Gets or sets which rarity tiers show the soft halo in this grid.
+        /// </summary>
+        public RaritySelection SoftGlowTiers
+        {
+            get => (RaritySelection)GetValue(SoftGlowTiersProperty);
+            set => SetValue(SoftGlowTiersProperty, value);
+        }
+
+        /// <summary>
+        /// Identifies the RayGlowTiers dependency property: which rarity tiers show the rays in this
+        /// grid. The ray layer itself self-binds this, but the edge that comes with it is an effect on
+        /// a cell layer, which needs the selection reachable from the template.
+        /// </summary>
+        public static readonly DependencyProperty RayGlowTiersProperty =
+            DependencyProperty.Register(nameof(RayGlowTiers), typeof(RaritySelection),
+                typeof(AchievementDataGridControl), new PropertyMetadata(RaritySelection.None));
+
+        /// <summary>
+        /// Gets or sets which rarity tiers show the rays in this grid.
+        /// </summary>
+        public RaritySelection RayGlowTiers
+        {
+            get => (RaritySelection)GetValue(RayGlowTiersProperty);
+            set => SetValue(RayGlowTiersProperty, value);
+        }
+
+        /// <summary>
+        /// Identifies the ShowHardcoreBorder dependency property: whether Hardcore unlocks take the
+        /// crisp metallic border in place of a glow. Self-bound to the global setting.
+        /// </summary>
+        public static readonly DependencyProperty ShowHardcoreBorderProperty =
+            DependencyProperty.Register(nameof(ShowHardcoreBorder), typeof(bool),
+                typeof(AchievementDataGridControl), new PropertyMetadata(true));
+
+        public bool ShowHardcoreBorder
+        {
+            get => (bool)GetValue(ShowHardcoreBorderProperty);
+            set => SetValue(ShowHardcoreBorderProperty, value);
+        }
+
+        /// <summary>
         /// Identifies the ColorNamesByRarity dependency property.
         /// When true, achievement name text in this grid is colored by rarity tier (capstone
         /// achievements use the completed color) instead of the default text color.
@@ -1033,25 +1083,12 @@ namespace PlayniteAchievements.Views.Controls
 
             if (!ReferenceEquals(_controlBarWithToggle, ControlBar))
             {
-                // The category-label dropdown is the last multi-select filter BEFORE the
-                // unlock-state toggles (Type is added first; dropdowns after the toggles,
-                // like Compare, are unrelated). It becomes the right half of the segmented
-                // unit in flat mode.
-                GridMultiSelectFilter labelFilter = null;
-                for (var i = 0; i < ControlBar.Items.Count; i++)
-                {
-                    if (ControlBar.Items[i] is GridToggleFilter)
-                    {
-                        break;
-                    }
-
-                    if (ControlBar.Items[i] is GridMultiSelectFilter filter)
-                    {
-                        labelFilter = filter;
-                    }
-                }
-
-                _connectedCategoryFilter = labelFilter;
+                // The category-label dropdown is the last category-scoped filter (Type is added
+                // first); achievement-scoped dropdowns like Compare leave IsCategoryFilter false.
+                // It becomes the left half of the segmented unit in flat mode.
+                _connectedCategoryFilter = ControlBar.Items
+                    .OfType<GridMultiSelectFilter>()
+                    .LastOrDefault(filter => filter.IsCategoryFilter);
                 _controlBarWithToggle = ControlBar;
             }
 
@@ -1106,11 +1143,13 @@ namespace PlayniteAchievements.Views.Controls
             }
         }
 
-        // Positions the category-mode Back and toggle controls for the current mode. The toggle always
-        // stays in the trailing (right-side) items, spliced beside the category dropdown in flat mode;
-        // it never relocates across the bar. Only the Back button moves to the leading zone, left of
-        // the search box, while in category mode.
-        private void UpdateModeControlPlacement()
+        // Positions the category-mode Back and toggle controls. The toggle stays in the trailing
+        // (right-side) items but changes slot with the mode: directly after the category dropdown
+        // while the flat grid shows it, forming the segmented unit, and directly ahead of the
+        // unlock-state toggles once grouping hides the category dropdowns, so the visible row reads
+        // [Compare] [Mode] [Unlocked] [Locked] [Hidden]. Only the Back button moves to the leading
+        // zone, left of the search box, while in category mode.
+        private void UpdateModeControlPlacement(bool grouping)
         {
             var bar = _controlBarWithToggle;
             if (bar == null || _modeToggle == null)
@@ -1118,53 +1157,71 @@ namespace PlayniteAchievements.Views.Controls
                 return;
             }
 
-            if (!bar.Items.Contains(_modeToggle))
-            {
-                // Splice the toggle immediately before the category-label dropdown: the last
-                // multi-select filter before the unlock-state toggles (dropdowns after the
-                // toggles, like Compare, must not attract the segmented unit).
-                var insertIndex = bar.Items.Count;
-                for (var i = 0; i < bar.Items.Count; i++)
-                {
-                    if (bar.Items[i] is GridToggleFilter)
-                    {
-                        break;
-                    }
-
-                    if (bar.Items[i] is GridMultiSelectFilter)
-                    {
-                        insertIndex = i;
-                    }
-                }
-
-                bar.Items.Insert(Math.Min(insertIndex, bar.Items.Count), _modeToggle);
-            }
+            PositionModeToggle(bar, grouping);
 
             if (_isCategoryMode)
             {
-                if (_connectedCategoryFilter != null)
-                {
-                    _connectedCategoryFilter.ConnectedLeft = false;
-                }
-
                 if (_backButton != null && !bar.LeadingItems.Contains(_backButton))
                 {
                     bar.LeadingItems.Insert(0, _backButton);
                 }
             }
+            else if (_backButton != null)
+            {
+                bar.LeadingItems.Remove(_backButton);
+            }
+        }
+
+        // Slots the toggle for the current mode. Moves rather than removes and re-inserts, so the
+        // generated ToggleButton survives the reflow instead of being rebuilt on every state pass.
+        private void PositionModeToggle(GridControlBarViewModel bar, bool grouping)
+        {
+            // Indices are resolved against the bar without the toggle, which is what both
+            // ObservableCollection.Move's target index and a fresh Insert expect.
+            var others = bar.Items.Where(item => !ReferenceEquals(item, _modeToggle)).ToList();
+
+            int target;
+            if (grouping)
+            {
+                // The category dropdowns are hidden, so the toggle sits just ahead of the
+                // unlock-state toggles, leaving Compare on its left.
+                var firstToggleFilter = others.FindIndex(item => item is GridToggleFilter);
+                target = firstToggleFilter >= 0 ? firstToggleFilter : others.Count;
+            }
             else
             {
-                if (_backButton != null)
-                {
-                    bar.LeadingItems.Remove(_backButton);
-                }
+                var anchor = _connectedCategoryFilter == null ? -1 : others.IndexOf(_connectedCategoryFilter);
+                target = anchor >= 0 ? anchor + 1 : others.Count;
+            }
 
-                if (_connectedCategoryFilter != null)
-                {
-                    // Only adopt the segmented style when the toggle is actually shown beside it;
-                    // otherwise the dropdown reverts to its standalone bordered style.
-                    _connectedCategoryFilter.ConnectedLeft = _modeToggle.EffectiveIsVisible;
-                }
+            var current = bar.Items.IndexOf(_modeToggle);
+            if (current < 0)
+            {
+                bar.Items.Insert(Math.Min(target, bar.Items.Count), _modeToggle);
+            }
+            else if (current != target)
+            {
+                bar.Items.Move(current, target);
+            }
+        }
+
+        // Flips both halves of the category dropdown / mode toggle segment together, adopting the
+        // segmented styling only while both are actually shown so a flat edge is never left facing
+        // empty space. Runs after the per-item visibility pass, which is what it keys off.
+        private void SyncSegmentedUnit()
+        {
+            var connected =
+                _modeToggle?.EffectiveIsVisible == true &&
+                _connectedCategoryFilter?.EffectiveIsVisible == true;
+
+            if (_connectedCategoryFilter != null)
+            {
+                _connectedCategoryFilter.ConnectedRight = connected;
+            }
+
+            if (_modeToggle != null)
+            {
+                _modeToggle.Connected = connected;
             }
         }
 
@@ -1185,7 +1242,7 @@ namespace PlayniteAchievements.Views.Controls
                 if (item is GridMultiSelectFilter filter)
                 {
                     filter.IsVisible = true;
-                    filter.ConnectedLeft = false;
+                    filter.ConnectedRight = false;
                 }
                 else if (item is GridToggleFilter toggle)
                 {
@@ -1194,6 +1251,10 @@ namespace PlayniteAchievements.Views.Controls
             }
 
             _connectedCategoryFilter = null;
+            if (_modeToggle != null)
+            {
+                _modeToggle.Connected = false;
+            }
 
             if (_originalSearch != null && ReferenceEquals(bar.Search, _categorySearch))
             {
@@ -1202,8 +1263,8 @@ namespace PlayniteAchievements.Views.Controls
         }
 
         // Shows/hides the injected items and swaps the search box to match the active nested grid:
-        // category dropdowns are hidden in category mode, Back shows only when drilled, and the
-        // search box filters category names in the list but achievements once drilled in.
+        // category dropdowns are hidden while grouping is in effect, Back shows only when drilled,
+        // and the search box filters category names in the list but achievements once drilled in.
         private void ApplyControlBarModeState()
         {
             var bar = _controlBarWithToggle;
@@ -1216,22 +1277,28 @@ namespace PlayniteAchievements.Views.Controls
             var drilled = grouping && _drilledCategory != null;
             var list = grouping && !drilled;
 
-            // Reflow Back/toggle between the leading zone and the segmented unit for the current mode.
-            UpdateModeControlPlacement();
+            // Reslot the mode toggle and move Back into or out of the leading zone for this mode.
+            UpdateModeControlPlacement(grouping);
 
             foreach (var item in bar.Items)
             {
-                if (item is GridMultiSelectFilter)
-                {
-                    item.IsVisible = !_isCategoryMode;
-                }
-                else if (item is GridToggleFilter)
+                if (item is GridToggleFilter)
                 {
                     // The Unlocked/Locked/Hidden toggles filter achievements, so hide them in the
                     // category list (rows are categories) but restore them flat and when drilled in.
                     item.IsVisible = !list;
                 }
+                else if (item is GridMultiSelectFilter filter)
+                {
+                    // The category dropdowns are redundant while grouping is in effect;
+                    // achievement-scoped dropdowns like Compare follow the toggles instead. Both
+                    // stay shown when grouping is not effective (e.g. a single-category game
+                    // falling back to the flat grid).
+                    filter.IsVisible = filter.IsCategoryFilter ? !grouping : !list;
+                }
             }
+
+            SyncSegmentedUnit();
 
             if (_backButton != null)
             {
@@ -1833,6 +1900,9 @@ namespace PlayniteAchievements.Views.Controls
         {
             InitializeComponent();
             RarityAppearanceHelper.BindAnimateRarityGlows(this, AnimateRarityGlowsProperty);
+            RarityAppearanceHelper.BindSoftGlowTiers(this, SoftGlowTiersProperty);
+            RarityAppearanceHelper.BindRayGlowTiers(this, RayGlowTiersProperty);
+            RarityAppearanceHelper.BindShowHardcoreBorder(this, ShowHardcoreBorderProperty);
             DataContextChanged += OnDataContextChanged;
             Unloaded += OnUnloaded;
             UpdateColumnHeadersVisibility();

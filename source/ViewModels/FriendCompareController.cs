@@ -6,6 +6,7 @@ using System.Threading.Tasks;
 using Playnite.SDK;
 using PlayniteAchievements.Common;
 using PlayniteAchievements.Models;
+using PlayniteAchievements.Models.Friends;
 using PlayniteAchievements.Models.Settings;
 using PlayniteAchievements.Services.Friends;
 using PlayniteAchievements.ViewModels.Items;
@@ -21,7 +22,7 @@ namespace PlayniteAchievements.ViewModels
     /// friend's unlock state onto the self display items' comparison fields. Selection is
     /// session-only and clears whenever the game changes.
     /// </summary>
-    public sealed class FriendCompareController : ObservableObject
+    public sealed class FriendCompareController : ObservableObject, IGridCompareSource
     {
         public sealed class Option
         {
@@ -38,6 +39,8 @@ namespace PlayniteAchievements.ViewModels
         private Guid? _gameId;
         private int _loadVersion;
         private List<FriendAchievementDisplayItem> _friendRows = new List<FriendAchievementDisplayItem>();
+        private Dictionary<string, FriendIdentity> _currentUsersByProvider =
+            new Dictionary<string, FriendIdentity>(StringComparer.OrdinalIgnoreCase);
         private List<Option> _options = new List<Option>();
         private Option _selected;
         private IReadOnlyList<AchievementDisplayItem> _targetItems;
@@ -174,6 +177,8 @@ namespace PlayniteAchievements.ViewModels
                     _logger?.Error(ex, $"Failed to load friend rows for compare, game {targetGameId}.");
                 }
 
+                var currentUsers = LoadCurrentUsersByProvider();
+
                 void Apply()
                 {
                     if (version != Volatile.Read(ref _loadVersion))
@@ -182,6 +187,7 @@ namespace PlayniteAchievements.ViewModels
                     }
 
                     _friendRows = rows ?? new List<FriendAchievementDisplayItem>();
+                    _currentUsersByProvider = currentUsers;
                     _options = BuildOptions(_friendRows, _settings?.Persisted);
                     _indexedAvailability = _options.Count > 0;
                     _availabilityPending = false;
@@ -340,6 +346,30 @@ namespace PlayniteAchievements.ViewModels
                 FriendAccountRef.BuildKey(row.ProviderKey, row.FriendExternalUserId));
         }
 
+        // The signed-in account per provider, used to identify the user's own side of the
+        // comparison. Reloaded on the same background pass as the friend rows so a freshly cached
+        // avatar appears without a restart.
+        private Dictionary<string, FriendIdentity> LoadCurrentUsersByProvider()
+        {
+            var map = new Dictionary<string, FriendIdentity>(StringComparer.OrdinalIgnoreCase);
+            try
+            {
+                foreach (var identity in _friendCache?.LoadCurrentUserIdentities() ?? new List<FriendIdentity>())
+                {
+                    if (identity != null && !string.IsNullOrWhiteSpace(identity.ProviderKey))
+                    {
+                        map[identity.ProviderKey] = identity;
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                _logger?.Debug(ex, "Failed to load current user identities for compare.");
+            }
+
+            return map;
+        }
+
         private void ApplySelection()
         {
             ClearApplied();
@@ -383,11 +413,21 @@ namespace PlayniteAchievements.ViewModels
                     compareRows.TryGetValue(item.ApiName, out compareRow);
                 }
 
+                // The own-row identity follows the achievement's provider, so a Steam game shows the
+                // Steam account even when the compare friend came from another provider.
+                FriendIdentity self = null;
+                if (!string.IsNullOrWhiteSpace(item.ProviderKey))
+                {
+                    _currentUsersByProvider.TryGetValue(item.ProviderKey, out self);
+                }
+
                 item.ApplyComparison(
                     _selected.DisplayName,
                     _selected.AvatarPath ?? compareRow?.FriendAvatarPath,
                     compareRow?.UnlockTimeUtc,
-                    compareRow?.Unlocked == true);
+                    compareRow?.Unlocked == true,
+                    self?.DisplayName,
+                    self?.AvatarPath);
                 _appliedItems.Add(item);
             }
         }

@@ -1,7 +1,9 @@
 using System;
+using System.Diagnostics;
 using System.Runtime.InteropServices;
 using System.Threading;
 using NAudio.Wave;
+using PlayniteAchievements.Common;
 
 namespace PlayniteAchievements.Services.Recording
 {
@@ -25,6 +27,12 @@ namespace PlayniteAchievements.Services.Recording
         private const int IncludeTargetProcessTree = 0;
         private const int ExcludeTargetProcessTree = 1;
 
+        // AUDCLNT_BUFFERFLAGS_SILENT: the packet is digital silence, so its zeroed buffer stands.
+        private const int BufferFlagsSilent = 0x2;
+
+        // The most dropped audio one gap will stand silence in for.
+        private const int MaxGapSeconds = 5;
+
         private static readonly Guid IID_IAudioClient = new Guid("1CB9AD4C-DBFA-4C32-B178-C2F568A703B2");
         private static readonly Guid IID_IAudioCaptureClient = new Guid("C8ADBD64-E71E-48A0-A4DE-185C395CD317");
 
@@ -38,6 +46,83 @@ namespace PlayniteAchievements.Services.Recording
 
         public event EventHandler<WaveInEventArgs> DataAvailable;
         public event EventHandler<StoppedEventArgs> RecordingStopped;
+
+        /// <summary>
+        /// When the first delivered packet's audio was actually rendered, from the QPC stamp
+        /// <c>IAudioCaptureClient.GetBuffer</c> reports alongside it, or null while no packet has
+        /// arrived (or when the driver reports no usable stamp).
+        /// <para>
+        /// Packets reach us later than the audio they carry, by the engine's buffering plus this
+        /// poll loop's own interval. A consumer pacing writes to wall clock therefore places every
+        /// sample late by that delay unless it anchors to this instead of to the moment capture
+        /// started.
+        /// </para>
+        /// </summary>
+        public DateTime? FirstPacketCaptureUtc => _firstPacketCaptureUtc;
+
+        private DateTime? _firstPacketCaptureUtc;
+
+        /// <summary>
+        /// Frames of silence delivered in place of audio the engine dropped, over this capture's life.
+        /// Non-zero means the track carries real glitches — worth reporting before a listener blames
+        /// the gaps on a sync bug.
+        /// </summary>
+        public long PaddedGapFrames => _paddedGapFrames;
+
+        private long _paddedGapFrames;
+
+        // The device frame position the next packet should begin at; -1 until the first one fixes it.
+        private long _nextDevicePosition = -1;
+
+        /// <summary>
+        /// Frames missing between where the previous packet ended and where this one begins, per the
+        /// device's own frame counter, and advances that counter past this packet.
+        /// <para>
+        /// A jump is audio the engine dropped before it reached us — the glitch
+        /// AUDCLNT_BUFFERFLAGS_DATA_DISCONTINUITY reports, whose size only the position reveals. The
+        /// result is capped so a driver reporting a nonsense position cannot make us insert an
+        /// unbounded run of silence, and drivers that never move the position simply report no gaps.
+        /// </para>
+        /// </summary>
+        private long TakeGapBefore(long devicePosition, uint framesAvailable)
+        {
+            var expected = _nextDevicePosition;
+            _nextDevicePosition = devicePosition + framesAvailable;
+            if (expected < 0 || devicePosition <= expected)
+            {
+                return 0;
+            }
+
+            var gap = devicePosition - expected;
+            var cap = (long)WaveFormat.SampleRate * MaxGapSeconds;
+            return gap > cap ? cap : gap;
+        }
+
+        /// <summary>
+        /// Converts a GetBuffer QPC stamp (100-ns units on the performance counter's timebase) to
+        /// UTC, by measuring how old it is against the counter's current value. Returns null when
+        /// the driver reports no stamp, or when the result is not plausibly recent -- some drivers
+        /// report zero or a value on an unrelated timebase, and a bad anchor is worse than none.
+        /// </summary>
+        private static DateTime? QpcToUtc(long qpcPosition100ns)
+        {
+            if (qpcPosition100ns <= 0)
+            {
+                return null;
+            }
+
+            var now100ns = (long)(Stopwatch.GetTimestamp() * (10_000_000d / Stopwatch.Frequency));
+            var age100ns = now100ns - qpcPosition100ns;
+
+            // A packet is at most a second or so old; anything outside that is a timebase we do
+            // not understand. Negative means the stamp is in the future, which is equally wrong.
+            if (age100ns < 0 || age100ns > 10_000_000L)
+            {
+                return null;
+            }
+
+            return CaptureTimelineClock.UtcNow.AddTicks(-age100ns);
+        }
 
         /// <summary>48 kHz stereo 32-bit IEEE float — the format the loopback client mixes the process to.</summary>
         public WaveFormat WaveFormat { get; set; } = WaveFormat.CreateIeeeFloatWaveFormat(48000, 2);
@@ -166,6 +251,9 @@ namespace PlayniteAchievements.Services.Recording
                 return;
             }
 
+            // The device counter is only meaningful within one run: carrying it across a restart would
+            // read as an enormous gap and pad the track with silence that never happened.
+            _nextDevicePosition = -1;
             _audioClient.Start();
             _capturing = true;
             _pollThread = new Thread(PollLoop) { IsBackground = true, Name = "PA-ProcLoopback" };
@@ -189,20 +277,40 @@ namespace PlayniteAchievements.Services.Recording
 
                     while (frames > 0)
                     {
-                        if (_captureClient.GetBuffer(out var dataPtr, out var framesAvailable, out var flags, out _, out _) != 0)
+                        if (_captureClient.GetBuffer(
+                                out var dataPtr, out var framesAvailable, out var flags,
+                                out var devicePosition, out var qpcPosition) != 0)
                         {
                             break;
                         }
 
                         var bytes = (int)framesAvailable * blockAlign;
+                        if (_firstPacketCaptureUtc == null && bytes > 0)
+                        {
+                            // Read before ReleaseBuffer so the stamp still belongs to this packet.
+                            _firstPacketCaptureUtc = QpcToUtc(qpcPosition);
+                        }
+
+                        var gapFrames = TakeGapBefore(devicePosition, framesAvailable);
+
                         var buffer = new byte[bytes];
-                        // AUDCLNT_BUFFERFLAGS_SILENT = 0x2: the packet is silence; leave the zeroed buffer.
-                        if ((flags & 0x2) == 0 && dataPtr != IntPtr.Zero && bytes > 0)
+                        if ((flags & BufferFlagsSilent) == 0 && dataPtr != IntPtr.Zero && bytes > 0)
                         {
                             Marshal.Copy(dataPtr, buffer, 0, bytes);
                         }
 
                         _captureClient.ReleaseBuffer(framesAvailable);
+
+                        // Stand silence in for what the engine dropped, before the packet that follows
+                        // it. Delivering the packets back to back instead would pull all later audio
+                        // permanently early against picture — A/V drift that never recovers.
+                        if (gapFrames > 0)
+                        {
+                            _paddedGapFrames += gapFrames;
+                            var gapBytes = (int)gapFrames * blockAlign;
+                            DataAvailable?.Invoke(this, new WaveInEventArgs(new byte[gapBytes], gapBytes));
+                        }
+
                         if (bytes > 0)
                         {
                             DataAvailable?.Invoke(this, new WaveInEventArgs(buffer, bytes));

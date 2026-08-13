@@ -105,6 +105,29 @@ namespace PlayniteAchievements.Providers.RetroAchievements
             }
         }
 
+        // The RetroAchievements avatar URL is derived from the username, so the signed-in user's
+        // identity needs no request. The id matches the username the cache store resolves for the
+        // current-user row.
+        public Task<FriendsProviderResult<FriendIdentity>> GetCurrentUserAsync(CancellationToken cancel)
+        {
+            var username = ProviderRegistry.Settings<RetroAchievementsSettings>()?.RaUsername?.Trim();
+            if (string.IsNullOrWhiteSpace(username))
+            {
+                return Task.FromResult(FriendsProviderResult<FriendIdentity>.Failed(
+                    "RetroAchievements username is not configured.",
+                    authRequired: true));
+            }
+
+            return Task.FromResult(FriendsProviderResult<FriendIdentity>.FromData(new FriendIdentity
+            {
+                ProviderKey = Provider,
+                ExternalUserId = username,
+                DisplayName = username,
+                AvatarUrl = RetroAchievementsAchievementMapper.BuildAvatarUrl(username),
+                LastRefreshedUtc = DateTime.UtcNow
+            }));
+        }
+
         public async Task<FriendsProviderResult<IReadOnlyList<FriendGameOwnership>>> GetOwnedGamesAsync(
             FriendIdentity friend,
             CancellationToken cancel)

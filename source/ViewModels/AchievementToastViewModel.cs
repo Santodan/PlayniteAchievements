@@ -52,6 +52,8 @@ namespace PlayniteAchievements.ViewModels
         private readonly RarityTier _rarity;
         private IReadOnlyList<ToastLineDescriptor> _toastLines;
         private IReadOnlyList<ToastLineDescriptor> _frameLines;
+        private ToastRarityTextLine _toastRarityText;
+        private ToastRarityTextLine _frameRarityText;
 
         public AchievementToastViewModel(
             AchievementUnlockedEventArgs args,
@@ -110,6 +112,8 @@ namespace PlayniteAchievements.ViewModels
         /// </summary>
         internal bool NeedsOverlayTrack { get; set; }
 
+        internal Guid CaptureCorrelationId => _args.CaptureCorrelationId;
+
         /// <summary>
         /// The unlock's name for screenshot/clip filenames and clip-to-wave matching: the
         /// achievement's display name, or the localized "Game Complete!" for the completion
@@ -156,6 +160,12 @@ namespace PlayniteAchievements.ViewModels
         /// Mirrors the global display setting.
         /// </summary>
         public bool AnimateRarityGlows => _settings.AnimateRarityGlows;
+
+        /// <summary>
+        /// Whether this unlock's tier is one of the tiers selected for the soft halo. The card's outer
+        /// border glow is unaffected — it is not a per-tier effect.
+        /// </summary>
+        public bool HasSoftGlowTier => _settings.RarityGlowSoftTiers.Contains(_rarity);
 
         /// <summary>
         /// True on a real achievement unlock when the game is complete after it (all
@@ -266,7 +276,7 @@ namespace PlayniteAchievements.ViewModels
         public bool FrameShowBadge => _style.Frame.ShowRarityBadge && !_style.Frame.RightRarityBadge && (IsCapstone || HasTrophy || HasRarityData);
         public bool FrameShowGameName => _style.Frame.ShowGameName && !string.IsNullOrWhiteSpace(_args.GameName);
         public bool FrameShowGameCategorySeparator => FrameShowGameName && FrameShowCategory;
-        public bool FrameShowShineBorder => _style.Frame.ShowRarityGlow && IsHardcore;
+        public bool FrameShowShineBorder => _style.Frame.ShowRarityGlow && HardcoreTakesBorder;
 
         // Frame vignette chrome: the radial edge vignette shows only for Full; the bottom contrast
         // wash shows for Full and Bottom. None removes both, leaving the raw screenshot.
@@ -278,7 +288,7 @@ namespace PlayniteAchievements.ViewModels
             ? AccentBrush
             : Application.Current?.TryFindResource("PlayAch.Brush.Text") as Brush ?? Brushes.White;
 
-        public Effect FrameRarityGlowEffect => _style.Frame.ShowRarityGlow && !IsHardcore
+        public Effect FrameRarityGlowEffect => _style.Frame.ShowRarityGlow && !HardcoreTakesBorder
             ? RarityAppearanceHelper.GetGlow(_rarity, 20, _settings)
             : null;
 
@@ -402,12 +412,45 @@ namespace PlayniteAchievements.ViewModels
         // bundled templates (and themes) apply completion styling with triggers on
         // IsGameCompleted / IsCompletionAchievement. The glows honor the rarity-glow toggles.
         public Brush CompletedBrush => RarityAppearanceHelper.GetCompletedBrush(_settings);
-        public Effect CompletedGlowEffect => _style.Toast.ShowRarityGlow
+        public Effect CompletedGlowEffect => _style.Toast.ShowRarityGlow && HasSoftCompletionGlow
             ? RarityAppearanceHelper.GetCompletedGlow(useEndColor: true, _settings)
             : null;
-        public Effect FrameCompletedGlowEffect => _style.Frame.ShowRarityGlow
+        public Effect FrameCompletedGlowEffect => _style.Frame.ShowRarityGlow && HasSoftCompletionGlow
             ? RarityAppearanceHelper.GetCompletedGlow(useEndColor: true, _settings)
             : null;
+
+        /// <summary>
+        /// The completion bloom's other half. Game and category art carry both of these on stacked
+        /// copies, one thrown from each corner, and it is the pair that reads as the completion
+        /// gradient — a single copy is just a coloured halo. The notification surfaces had only the end
+        /// colour, so completion looked like a flat glow there rather than the gradient everywhere else.
+        /// </summary>
+        public Effect CompletedGlowStartEffect => _style.Toast.ShowRarityGlow && HasSoftCompletionGlow
+            ? RarityAppearanceHelper.GetCompletedGlow(useEndColor: false, _settings)
+            : null;
+
+        public Effect FrameCompletedGlowStartEffect => _style.Frame.ShowRarityGlow && HasSoftCompletionGlow
+            ? RarityAppearanceHelper.GetCompletedGlow(useEndColor: false, _settings)
+            : null;
+
+        /// <summary>
+        /// Completion counterpart to <see cref="RarityEdgeEffect"/>. Without it the edge on a completion
+        /// notification kept the rarity colour, which for the completion event is whatever tier the
+        /// unlock behind it carried — so the edge came out ultra rare beside a completion-coloured glow.
+        /// </summary>
+        public Effect CompletedEdgeEffect => ShowRayBurst
+            ? RarityAppearanceHelper.GetCompletedEdge(_settings)
+            : null;
+
+        public Effect FrameCompletedEdgeEffect => FrameShowRayBurst
+            ? RarityAppearanceHelper.GetCompletedEdge(_settings)
+            : null;
+
+        /// <summary>
+        /// Whether the completed-game halo is selected. Completion is its own entry in the glow
+        /// selections rather than a rarity tier, because the completion notification carries no rarity.
+        /// </summary>
+        private bool HasSoftCompletionGlow => _settings.RarityGlowSoftTiers.IncludesCompleted();
         public ImageSource CompletedBadgeImage => RarityAppearanceHelper.CreateCompletedBadgePreview(_settings);
         public Brush RarityBrush => RarityAppearanceHelper.GetBrush(_rarity, _settings);
 
@@ -427,18 +470,70 @@ namespace PlayniteAchievements.ViewModels
         public bool IsHardcore => _args.IsHardcore;
 
         /// <summary>
+        /// Whether this unlock takes the crisp Hardcore border in place of a glow. Hardcore only
+        /// claims the border while the user leaves that behavior on; with it off, a Hardcore unlock is
+        /// glowed like any other, following its rarity tier.
+        /// </summary>
+        private bool HardcoreTakesBorder => IsHardcore && _settings.ShowHardcoreBorder;
+
+        /// <summary>
         /// Hardcore RetroAchievements unlocks get a crisp rarity-colored border in place of the
         /// soft glow, mirroring the datagrids. Both are gated on the rarity-glow toggle.
         /// </summary>
-        public bool ShowShineBorder => _style.Toast.ShowRarityGlow && IsHardcore;
+        public bool ShowShineBorder => _style.Toast.ShowRarityGlow && HardcoreTakesBorder;
 
         // Glossy metallic rarity border (matches RarityToShineBrush used by the datagrids).
         public Brush IconBorderBrush => RarityAppearanceHelper.GetShineBrush(_rarity, _settings);
 
-        // Soft rarity glow for non-hardcore unlocks (matches PercentToRarityGlow, BlurRadius 20).
-        public Effect RarityGlowEffect => _style.Toast.ShowRarityGlow && !IsHardcore
+        // Soft rarity glow for non-hardcore unlocks whose tier is selected for it (matches the
+        // datagrids' glow, BlurRadius 20).
+        public Effect RarityGlowEffect => _style.Toast.ShowRarityGlow && !HardcoreTakesBorder && HasSoftGlowTier
             ? RarityAppearanceHelper.GetGlow(_rarity, 20, _settings)
             : null;
+
+        /// <summary>
+        /// True when the notification icon carries the rotating sunburst behind its soft halo: this
+        /// unlock's tier is selected for rays, the surface shows rarity glows, and the unlock is not
+        /// Hardcore (which keeps its crisp border instead of any glow). The two effects are selected
+        /// independently, so a tier can have rays without the halo or the other way round. Gating this
+        /// here keeps the template markup to a single binding.
+        /// </summary>
+        public bool ShowRayBurst =>
+            HasRaySelection &&
+            _style.Toast.ShowRarityGlow &&
+            !HardcoreTakesBorder;
+
+        /// <summary>
+        /// Edge that comes with the rays: the same drop shadow as the soft halo, at a blur small enough
+        /// to read as a line along the artwork rather than a glow around it. It follows the alpha
+        /// because it is a blur of the picture itself, which is the only way to hug cut-out art.
+        /// </summary>
+        public Effect RarityEdgeEffect => ShowRayBurst
+            ? RarityAppearanceHelper.GetGlow(_rarity, RayEdgeBlurRadius, _settings)
+            : null;
+
+        /// <summary>Screenshot-frame counterpart to <see cref="RarityEdgeEffect"/>.</summary>
+        public Effect FrameRarityEdgeEffect => FrameShowRayBurst
+            ? RarityAppearanceHelper.GetGlow(_rarity, RayEdgeBlurRadius, _settings)
+            : null;
+
+        /// <summary>Matches the ConverterParameter the grid templates pass for the same edge.</summary>
+        private const double RayEdgeBlurRadius = 4;
+
+        /// <summary>Screenshot-frame counterpart to <see cref="ShowRayBurst"/>.</summary>
+        public bool FrameShowRayBurst =>
+            HasRaySelection &&
+            _style.Frame.ShowRarityGlow &&
+            !HardcoreTakesBorder;
+
+        /// <summary>
+        /// Whether the rays are selected for whatever this notification is about. The completion
+        /// notification is matched against the selection's completion entry rather than a rarity tier,
+        /// since it carries no rarity of its own.
+        /// </summary>
+        private bool HasRaySelection => IsGameCompleted
+            ? _settings.RarityGlowRayTiers.IncludesCompleted()
+            : _settings.RarityGlowRayTiers.Contains(_rarity);
 
         // Rarity-colored glow on the toast card border (replaces the default drop shadow when
         // the border-glow option is on). Toast surface only. Completion uses the completed glow.
@@ -454,8 +549,34 @@ namespace PlayniteAchievements.ViewModels
         // constant. This margin lives inside the toast window, so the glow stays within the window
         // (never clipped by it) and the window is placed with a gap from the screen edge, keeping
         // the whole glow on-screen — the card simply sits a little further in, which is intended.
-        public Thickness ToastGlowMargin =>
-            new Thickness(HasBorderGlow ? BorderGlowBlurRadius + 6 : 16);
+        /// <summary>
+        /// Transparent room around the card for whatever reaches past it. The window is sized to this,
+        /// so anything drawn beyond it is simply cut off.
+        ///
+        /// The rays reach furthest, and by more than the shadow does: their length scales with the
+        /// subject, and the card is far larger than an icon. Their share is worked out the same way the
+        /// layout does it, rather than guessed, so changing the burst scale in the template cannot
+        /// silently start clipping them.
+        /// </summary>
+        public Thickness ToastGlowMargin
+        {
+            get
+            {
+                var glow = HasBorderGlow ? BorderGlowBlurRadius + 6 : 16;
+                if (!ShowRayBurst)
+                {
+                    return new Thickness(glow);
+                }
+
+                var width = ToastCardWidth > 0 ? ToastCardWidth : DefaultToastCardWidth;
+                var height = ToastCardHeight > 0 ? ToastCardHeight : 96;
+                var reach = (ToastCardBurstScale - 1.0) * 0.5 * Math.Sqrt(width * height);
+                return new Thickness(Math.Max(glow, reach + 6));
+            }
+        }
+
+        /// <summary>Kept in step with the BurstScale the bundled toast template passes.</summary>
+        private const double ToastCardBurstScale = 1.14;
 
 
         // Cloned to an unfrozen copy so the card's border-glow pulse can animate its Opacity
@@ -788,15 +909,23 @@ namespace PlayniteAchievements.ViewModels
         public IReadOnlyList<ToastLineDescriptor> FrameLines =>
             _frameLines ?? (_frameLines = BuildLines(isFrame: true));
 
+        /// <summary>
+        /// The toast's rarity percent font values (family, size, weight, style, decorations).
+        /// </summary>
+        public ToastRarityTextLine ToastRarityText =>
+            _toastRarityText ?? (_toastRarityText = BuildRarityText(isFrame: false));
+
+        /// <summary>
+        /// The frame's rarity percent font values.
+        /// </summary>
+        public ToastRarityTextLine FrameRarityText =>
+            _frameRarityText ?? (_frameRarityText = BuildRarityText(isFrame: true));
+
         private IReadOnlyList<ToastLineDescriptor> BuildLines(bool isFrame)
         {
             var surface = isFrame ? _style.Frame : _style.Toast;
-            var family = isFrame ? FrameFontFamily : ToastFontFamily;
 
-            // A line's family override wins over the surface family (which itself falls back
-            // to the theme-derived family).
-            FontFamily LineFamily(string overrideFamily) =>
-                string.IsNullOrWhiteSpace(overrideFamily) ? family : ResolveFontFamily(overrideFamily);
+            FontFamily LineFamily(string overrideFamily) => ResolveLineFontFamily(overrideFamily, isFrame);
             var headerSize = isFrame ? FrameHeaderFontSize : ToastHeaderFontSize;
             var titleSize = isFrame ? FrameTitleFontSize : ToastTitleFontSize;
             var bodySize = surface.BodyFontSize ??
@@ -886,25 +1015,86 @@ namespace PlayniteAchievements.ViewModels
             {
                 line.LeftIndent = line is ToastTitleLine ? titleIndent : otherIndent;
                 line.VerticalPadding = linePadding;
-                line.TextShadowInner = innerShadow;
                 line.ImageShadow = imageShadow;
+                ApplyLineEmphasis(line, surface, innerShadow, textBrush);
+            }
 
-                var emphasis = ResolveLineEmphasis(surface, line);
-                // The title line's base weight is SemiBold, which fonts without a SemiBold
-                // face (e.g. Trebuchet MS) already render with their Bold face — so its bold
-                // toggle jumps all the way to Black, the farthest heavy face, to stay visible
-                // across font families. WPF picks the nearest existing face per weight.
-                line.FontWeight = (emphasis & NotificationLineEmphasis.Bold) != 0
-                    ? (line is ToastTitleLine ? FontWeights.Black : FontWeights.Bold)
-                    : (line is ToastTitleLine ? FontWeights.SemiBold : FontWeights.Normal);
-                line.FontStyle = (emphasis & NotificationLineEmphasis.Italic) != 0
-                    ? FontStyles.Italic
-                    : FontStyles.Normal;
-                line.TextDecorations = BuildLineDecorations(
-                    emphasis, LineDecorationBrush(line, textBrush));
+            // Only the bottom-most line that actually renders needs descender room: every line
+            // above one overhangs into the next line box's empty top leading, which nothing clips.
+            // Resolved here rather than assumed, because the line order is user-reorderable and any
+            // line can collapse when it has no content.
+            for (var i = lines.Count - 1; i >= 0; i--)
+            {
+                if (lines[i].LineVisibility == Visibility.Visible)
+                {
+                    lines[i].IsBottomLine = true;
+                    break;
+                }
             }
 
             return lines;
+        }
+
+        /// <summary>
+        /// Resolves a line's font family: the line's own override wins over the surface family,
+        /// which itself falls back to the theme-derived family.
+        /// </summary>
+        private FontFamily ResolveLineFontFamily(string overrideFamily, bool isFrame)
+        {
+            return string.IsNullOrWhiteSpace(overrideFamily)
+                ? (isFrame ? FrameFontFamily : ToastFontFamily)
+                : ResolveFontFamily(overrideFamily);
+        }
+
+        /// <summary>
+        /// Applies a surface's per-line emphasis (bold/italic/underline/strikethrough) and the
+        /// inner shadow layer onto a descriptor. Shared by the reorderable lines and the rarity
+        /// percent so the percent honors the same toggles.
+        /// </summary>
+        private void ApplyLineEmphasis(
+            ToastLineDescriptor line,
+            NotificationSurfaceStyle surface,
+            Effect innerShadow,
+            Brush textBrush)
+        {
+            line.TextShadowInner = innerShadow;
+
+            var emphasis = ResolveLineEmphasis(surface, line);
+            // The title line's base weight is SemiBold, which fonts without a SemiBold
+            // face (e.g. Trebuchet MS) already render with their Bold face — so its bold
+            // toggle jumps all the way to Black, the farthest heavy face, to stay visible
+            // across font families. WPF picks the nearest existing face per weight.
+            line.FontWeight = (emphasis & NotificationLineEmphasis.Bold) != 0
+                ? (line is ToastTitleLine ? FontWeights.Black : FontWeights.Bold)
+                : (line is ToastTitleLine ? FontWeights.SemiBold : FontWeights.Normal);
+            line.FontStyle = (emphasis & NotificationLineEmphasis.Italic) != 0
+                ? FontStyles.Italic
+                : FontStyles.Normal;
+            line.TextDecorations = BuildLineDecorations(
+                emphasis, LineDecorationBrush(line, textBrush));
+        }
+
+        /// <summary>
+        /// Builds the rarity percent's resolved font values for a surface. Kept out of the line
+        /// list: the templates draw the percent themselves and gate it on their own flags.
+        /// </summary>
+        private ToastRarityTextLine BuildRarityText(bool isFrame)
+        {
+            var surface = isFrame ? _style.Frame : _style.Toast;
+            var line = new ToastRarityTextLine(
+                this,
+                isFrame ? FrameRarityFontSize : ToastRarityFontSize,
+                ResolveLineFontFamily(surface.RarityFontFamily, isFrame),
+                isFrame ? FrameContentShadow : ToastContentShadow);
+
+            var textBrush = Application.Current?.TryFindResource("PlayAch.Brush.Text") as Brush
+                ?? Brushes.White;
+            ApplyLineEmphasis(
+                line,
+                surface,
+                isFrame ? FrameContentShadowInner : ToastContentShadowInner,
+                textBrush);
+            return line;
         }
 
         /// <summary>
@@ -931,6 +1121,8 @@ namespace PlayniteAchievements.ViewModels
                     return surface.BodyEmphasis;
                 case ToastGameCategoryLine _:
                     return surface.GameCategoryEmphasis;
+                case ToastRarityTextLine _:
+                    return surface.RarityEmphasis;
                 default:
                     return NotificationLineEmphasis.None;
             }
@@ -1049,15 +1241,34 @@ namespace PlayniteAchievements.ViewModels
             }
         }
 
+        // UniPlaySong's URI segment for hidden achievements. Named because UniPlaySong may rename
+        // it; the four rarity segments and capstone are inline in SoundTierSegment below.
+        public const string HiddenSoundSegment = "hidden";
+
         /// <summary>
-        /// UniPlaySong URI segment for this unlock's tier (e.g. "rareachievement"). Capstone and
-        /// the completion notification take precedence over rarity; otherwise the rarity tier is
-        /// used.
+        /// Whether this unlock plays UniPlaySong's hidden-achievement sound: the achievement is
+        /// hidden and the user opted into the hidden sound. Shared by
+        /// <see cref="SoundTierSegment"/> and <see cref="SoundTierRank"/> so the two cannot
+        /// disagree about which unlocks are hidden.
+        /// </summary>
+        private bool UseHiddenSound => _settings.UseHiddenUnlockSound && _args.IsHidden;
+
+        /// <summary>
+        /// UniPlaySong URI segment for this unlock's tier (e.g. "rareachievement"). The hidden
+        /// sound takes precedence over everything when enabled, then capstone and the completion
+        /// notification, and otherwise the rarity tier is used. Note this order is deliberately the
+        /// inverse of <see cref="SoundTierRank"/>'s, which keeps capstone at the top: a hidden
+        /// capstone plays the hidden sound while still ranking as a capstone in its wave.
         /// </summary>
         public string SoundTierSegment
         {
             get
             {
+                if (UseHiddenSound)
+                {
+                    return HiddenSoundSegment;
+                }
+
                 if (IsCapstone || IsGameCompleted)
                 {
                     return "capstoneachievement";
@@ -1079,14 +1290,19 @@ namespace PlayniteAchievements.ViewModels
 
         /// <summary>
         /// Rarity ranking used to pick a single representative sound when several unlocks show at
-        /// once. Higher is rarer; capstone and the completion notification outrank all rarity
-        /// tiers.
+        /// once. Higher is rarer; capstone and the completion notification outrank everything, and
+        /// a hidden unlock sits between them and the rarity tiers.
         /// </summary>
         public int SoundTierRank
         {
             get
             {
                 if (IsCapstone || IsGameCompleted)
+                {
+                    return 6;
+                }
+
+                if (UseHiddenSound)
                 {
                     return 5;
                 }

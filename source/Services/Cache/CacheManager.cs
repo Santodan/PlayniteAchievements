@@ -1351,6 +1351,24 @@ namespace PlayniteAchievements.Services.Cache
             }
         }
 
+        List<FriendIdentity> IFriendCacheManager.LoadCurrentUserIdentities()
+        {
+            lock (_sync)
+            {
+                EnsureReady_Locked("LoadCurrentUserIdentities");
+                return _store.LoadCurrentUserIdentities() ?? new List<FriendIdentity>();
+            }
+        }
+
+        bool IFriendCacheManager.SaveCurrentUserProfile(string providerKey, FriendIdentity self)
+        {
+            lock (_sync)
+            {
+                EnsureReady_Locked("SaveCurrentUserProfile");
+                return _store.SaveCurrentUserProfile(providerKey, self);
+            }
+        }
+
         DateTime? IFriendCacheManager.GetMostRecentFriendLastRefreshedUtc()
         {
             lock (_sync)

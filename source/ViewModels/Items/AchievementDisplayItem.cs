@@ -128,6 +128,8 @@ namespace PlayniteAchievements.ViewModels.Items
         private bool _hasComparison;
         private string _comparisonFriendName;
         private string _comparisonFriendAvatarPath;
+        private string _comparisonOwnerName;
+        private string _comparisonOwnerAvatarPath;
         private DateTime? _comparisonUnlockTimeUtc;
         private bool _comparisonUnlocked;
 
@@ -159,6 +161,32 @@ namespace PlayniteAchievements.ViewModels.Items
         {
             get => _comparisonFriendAvatarPath;
             private set => SetValue(ref _comparisonFriendAvatarPath, value);
+        }
+
+        // The identity of the row's own side of the comparison: the signed-in user on the self
+        // achievement grids, and the selected friend in the friends-overview pair view. Null when
+        // the row's provider has no cached avatar, which renders as an empty circle so both sides
+        // stay aligned.
+        [DontSerialize]
+        [IgnoreDataMember]
+        public string ComparisonOwnerName
+        {
+            get => _comparisonOwnerName;
+            private set
+            {
+                if (SetValueAndReturn(ref _comparisonOwnerName, value))
+                {
+                    OnPropertyChanged(nameof(ComparisonToolTip));
+                }
+            }
+        }
+
+        [DontSerialize]
+        [IgnoreDataMember]
+        public string ComparisonOwnerAvatarPath
+        {
+            get => _comparisonOwnerAvatarPath;
+            private set => SetValue(ref _comparisonOwnerAvatarPath, value);
         }
 
         [DontSerialize]
@@ -208,24 +236,47 @@ namespace PlayniteAchievements.ViewModels.Items
                     return null;
                 }
 
-                if (!_comparisonUnlocked)
+                var friendLine = FormatComparisonLine(
+                    _comparisonFriendName,
+                    _comparisonUnlocked,
+                    ComparisonUnlockTimeLocal);
+                if (string.IsNullOrWhiteSpace(_comparisonOwnerName))
                 {
-                    return $"{_comparisonFriendName} · {ResourceProvider.GetString("LOCPlayAch_Common_Locked")}";
+                    return friendLine;
                 }
 
-                var local = ComparisonUnlockTimeLocal;
-                return local.HasValue
-                    ? $"{_comparisonFriendName} · {local.Value.ToString("G", FormattingCulture.Current)}"
-                    : _comparisonFriendName;
+                // Both sides are named so the two avatars in the cell are identifiable.
+                var ownerLine = FormatComparisonLine(_comparisonOwnerName, Unlocked, UnlockTimeLocal);
+                return ownerLine + Environment.NewLine + friendLine;
             }
         }
 
-        public void ApplyComparison(string friendName, string friendAvatarPath, DateTime? unlockTimeUtc, bool unlocked)
+        private static string FormatComparisonLine(string name, bool unlocked, DateTime? unlockTimeLocal)
+        {
+            if (!unlocked)
+            {
+                return $"{name} · {ResourceProvider.GetString("LOCPlayAch_Common_Locked")}";
+            }
+
+            return unlockTimeLocal.HasValue
+                ? $"{name} · {unlockTimeLocal.Value.ToString("G", FormattingCulture.Current)}"
+                : name;
+        }
+
+        public void ApplyComparison(
+            string friendName,
+            string friendAvatarPath,
+            DateTime? unlockTimeUtc,
+            bool unlocked,
+            string ownerName = null,
+            string ownerAvatarPath = null)
         {
             ComparisonFriendName = friendName;
             ComparisonFriendAvatarPath = friendAvatarPath;
             ComparisonUnlockTimeUtc = unlockTimeUtc;
             ComparisonUnlocked = unlocked;
+            ComparisonOwnerName = ownerName;
+            ComparisonOwnerAvatarPath = ownerAvatarPath;
             HasComparison = true;
         }
 
@@ -236,6 +287,8 @@ namespace PlayniteAchievements.ViewModels.Items
             ComparisonFriendAvatarPath = null;
             ComparisonUnlockTimeUtc = null;
             ComparisonUnlocked = false;
+            ComparisonOwnerName = null;
+            ComparisonOwnerAvatarPath = null;
         }
 
         public string DisplayName

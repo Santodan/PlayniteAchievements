@@ -416,6 +416,13 @@ namespace PlayniteAchievements.Services.Friends
 
         List<FriendIdentity> LoadFriendIdentities(string providerKey);
 
+        // The signed-in account for every provider that has one. Read by the compare grids to
+        // show the current user's avatar on their own side of the comparison.
+        List<FriendIdentity> LoadCurrentUserIdentities();
+
+        // Persists the signed-in account's display name and cached avatar for one provider.
+        bool SaveCurrentUserProfile(string providerKey, FriendIdentity self);
+
         // Most recent LastRefreshedUtc across all active friends, used by the background updater
         // to decide whether a periodic Recent friends refresh is due (the friend analogue of
         // ICacheManager.GetMostRecentLastUpdatedUtc).

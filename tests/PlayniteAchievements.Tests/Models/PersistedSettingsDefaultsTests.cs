@@ -28,6 +28,15 @@ namespace PlayniteAchievements.Models.Tests
         }
 
         [TestMethod]
+        public void Constructor_DefaultsCaptureResolutionsToNative()
+        {
+            var settings = new PersistedSettings();
+
+            Assert.AreEqual(ScreenshotResolution.Native, settings.ScreenshotResolution);
+            Assert.AreEqual(RecordingResolution.Native, settings.RecordingResolution);
+        }
+
+        [TestMethod]
         public void CloneAndCopyFrom_PreservePerSectionCaptureRarities()
         {
             var source = new PersistedSettings
@@ -54,6 +63,26 @@ namespace PlayniteAchievements.Models.Tests
                 Assert.AreEqual(RaritySelection.UltraRare, copy.UnlockScreenshotFramedRarities);
                 Assert.IsFalse(copy.UnlockScreenshotFramedAlwaysCaptureCompletion);
                 Assert.AreEqual(RaritySelection.Common, copy.UnlockRecordingRarities);
+            }
+        }
+
+        [TestMethod]
+        public void CloneAndCopyFrom_PreserveCaptureResolutions()
+        {
+            var source = new PersistedSettings
+            {
+                ScreenshotResolution = ScreenshotResolution.P720,
+                RecordingResolution = RecordingResolution.P1080
+            };
+
+            var clone = source.Clone();
+            var target = new PersistedSettings();
+            target.CopyFrom(source);
+
+            foreach (var copy in new[] { clone, target })
+            {
+                Assert.AreEqual(ScreenshotResolution.P720, copy.ScreenshotResolution);
+                Assert.AreEqual(RecordingResolution.P1080, copy.RecordingResolution);
             }
         }
 

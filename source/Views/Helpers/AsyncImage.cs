@@ -202,8 +202,10 @@ namespace PlayniteAchievements.Views.Helpers
             if (!string.IsNullOrWhiteSpace(normalizedUri) &&
                 Services.Images.ImageFormats.IsAnimatedFile(normalizedUri))
             {
-                // Animations do not benefit from decode-pixel resize reloads and reloading causes
-                // visible animation flicker.
+                // Animation frames use the decode size resolved by the initial load. Rebuilding a
+                // running animation for every inferred-size increase causes visible flicker; the
+                // surfaces where animation resolution matters (such as toast backgrounds) set an
+                // explicit DecodePixel.
                 return;
             }
 
@@ -373,7 +375,7 @@ namespace PlayniteAchievements.Views.Helpers
                 // Start animation asynchronously after the first static frame is already
                 // visible. Runs synchronously up to its first await, so Task.Run registers
                 // with cts.Token before the finally below disposes cts.
-                _ = StartAnimationAsync(d, uriString, cts.Token);
+                _ = StartAnimationAsync(d, uriString, decode, cts.Token);
             }
             catch (OperationCanceledException)
             {
@@ -396,7 +398,11 @@ namespace PlayniteAchievements.Views.Helpers
             }
         }
 
-        private static async Task StartAnimationAsync(DependencyObject d, string uriString, CancellationToken cancellationToken)
+        private static async Task StartAnimationAsync(
+            DependencyObject d,
+            string uriString,
+            int decodePixel,
+            CancellationToken cancellationToken)
         {
             if (cancellationToken.IsCancellationRequested || string.IsNullOrWhiteSpace(uriString))
             {
@@ -412,7 +418,7 @@ namespace PlayniteAchievements.Views.Helpers
                 // rebuilt during a slider drag), building the animation is cheap — attach it
                 // synchronously, in the same dispatcher pass as the static bitmap, so the
                 // element never renders an out-of-phase frame.
-                if (TryApplyCachedAnimation(d, uriString, applyGray))
+                if (TryApplyCachedAnimation(d, uriString, applyGray, decodePixel))
                 {
                     return;
                 }
@@ -422,7 +428,7 @@ namespace PlayniteAchievements.Views.Helpers
                 // to be stamped onto an already-frozen instance.
                 var decoded = await Task.Run(
                     () => !cancellationToken.IsCancellationRequested &&
-                          AnimatedImageHelper.TryEnsureCachedFrames(uriString, applyGray),
+                          AnimatedImageHelper.TryEnsureCachedFrames(uriString, applyGray, decodePixel),
                     cancellationToken).ConfigureAwait(false);
 
                 if (!decoded || cancellationToken.IsCancellationRequested)
@@ -437,13 +443,13 @@ namespace PlayniteAchievements.Views.Helpers
                     {
                         if (!cancellationToken.IsCancellationRequested)
                         {
-                            TryApplyCachedAnimation(d, uriString, applyGray);
+                            TryApplyCachedAnimation(d, uriString, applyGray, decodePixel);
                         }
                     }));
                 }
                 else if (!cancellationToken.IsCancellationRequested)
                 {
-                    TryApplyCachedAnimation(d, uriString, applyGray);
+                    TryApplyCachedAnimation(d, uriString, applyGray, decodePixel);
                 }
             }
             catch (OperationCanceledException)
@@ -464,11 +470,13 @@ namespace PlayniteAchievements.Views.Helpers
         private static bool TryApplyCachedAnimation(
             DependencyObject target,
             string uriString,
-            bool applyGray)
+            bool applyGray,
+            int decodePixel)
         {
             if (!AnimatedImageHelper.TryCreateAnimationFromCache(
                     uriString,
                     applyGray,
+                    decodePixel,
                     GetPhaseLock(target),
                     out var normalizedSource,
                     out var firstFrame,

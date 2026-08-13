@@ -1,0 +1,111 @@
+[CmdletBinding()]
+param(
+    [string] $RepositoryPath,
+    [string] $BundlePath,
+    [string] $UpstreamRef = "upstream/main",
+    [string] $UpstreamRemote = "upstream",
+    [switch] $SkipFetch,
+    [switch] $ResumeAfterConflict,
+    [switch] $ForceSemantic,
+    [switch] $ForceOverlay
+)
+
+$ErrorActionPreference = "Stop"
+. (Join-Path $PSScriptRoot "ForkMaintenance.Common.ps1")
+
+$config = Get-FmConfig
+$repositoryRoot = Get-FmRepositoryRoot $RepositoryPath
+$protectedPaths = @($config.protectedPaths | ForEach-Object { ConvertTo-FmGitPath ([string]$_) })
+$maintenancePath = "tools/ForkMaintenance"
+
+# An in-place update deliberately replaces the tracked fork implementation with the
+# selected upstream tree before applying the saved fork layer. Only protected files and
+# the maintenance bundle itself may already be dirty; anything else could be user work.
+if (-not $ResumeAfterConflict)
+{
+    $unexpectedPaths = @()
+    $statusLines = @((Invoke-FmGit $repositoryRoot @(
+        "status", "--porcelain=v1", "--untracked-files=all"
+    )).Output)
+    foreach ($line in $statusLines)
+    {
+        if ([string]::IsNullOrWhiteSpace($line) -or $line.Length -lt 4)
+        {
+            continue
+        }
+
+        $path = $line.Substring(3)
+        if ($path.Contains(" -> "))
+        {
+            $path = $path.Substring($path.IndexOf(" -> ") + 4)
+        }
+        $path = (ConvertTo-FmGitPath $path.Trim('"'))
+
+        if (-not (Test-FmPathMatchesPrefix $path ($protectedPaths + @($maintenancePath))))
+        {
+            $unexpectedPaths += $path
+        }
+    }
+
+    if ($unexpectedPaths.Count -gt 0)
+    {
+        throw "In-place update refused because non-protected local changes exist:`n$($unexpectedPaths -join "`n")"
+    }
+}
+
+$protectedHashes = Get-FmProtectedHashes $repositoryRoot $protectedPaths
+
+if (-not $ResumeAfterConflict -and -not $SkipFetch)
+{
+    Write-Host "Fetching $UpstreamRemote..." -ForegroundColor Yellow
+    Invoke-FmGit $repositoryRoot @("fetch", "--prune", $UpstreamRemote) | Out-Null
+}
+
+$resolvedUpstream = @((Invoke-FmGit $repositoryRoot @(
+    "rev-parse", "--verify", "$UpstreamRef^{commit}"
+)).Output) | Select-Object -First 1
+if (-not $ResumeAfterConflict)
+{
+    Write-Host "Updating the current checkout in place from $UpstreamRef ($($resolvedUpstream.Substring(0, 8)))..." -ForegroundColor Yellow
+    $restoreArguments = @(
+        "restore",
+        "--source=$UpstreamRef",
+        "--staged",
+        "--worktree",
+        "--",
+        "."
+    )
+    foreach ($path in $protectedPaths + @($maintenancePath))
+    {
+        $restoreArguments += ":(exclude)$path"
+        $restoreArguments += ":(exclude)$path/**"
+    }
+    Invoke-FmGit $repositoryRoot $restoreArguments | Out-Null
+    Assert-FmProtectedHashes $repositoryRoot $protectedPaths $protectedHashes
+}
+else
+{
+    Write-Host "Resuming the in-place update after conflict resolution..." -ForegroundColor Yellow
+}
+
+$applyArguments = @{ RepositoryPath = $repositoryRoot }
+if ($ResumeAfterConflict) { $applyArguments.ResumeAfterConflict = $true }
+else { $applyArguments.AllowDirty = $true }
+if (-not [string]::IsNullOrWhiteSpace($BundlePath)) { $applyArguments.BundlePath = $BundlePath }
+if ($ForceSemantic) { $applyArguments.ForceSemantic = $true }
+if ($ForceOverlay) { $applyArguments.ForceOverlay = $true }
+
+& (Join-Path $PSScriptRoot "Apply-ForkBundle.ps1") @applyArguments
+if ($null -ne $LASTEXITCODE -and $LASTEXITCODE -ne 0)
+{
+    throw "Fork bundle application exited with code $LASTEXITCODE."
+}
+
+Assert-FmProtectedHashes $repositoryRoot $protectedPaths $protectedHashes
+# Keep the Source Control panel straightforward: files should appear once as ordinary
+# working-tree changes, not as staged upstream deletions plus untracked overlay copies.
+Invoke-FmGit $repositoryRoot @("restore", "--staged", "--", ".") | Out-Null
+Write-Host "In-place fork update completed successfully."
+Write-Host "  Upstream base:         $UpstreamRef ($resolvedUpstream)"
+Write-Host "  Updated checkout:      $repositoryRoot"
+Write-Host "  Protected files kept:  $($protectedPaths.Count)"

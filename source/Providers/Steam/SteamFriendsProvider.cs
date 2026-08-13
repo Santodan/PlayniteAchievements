@@ -107,6 +107,57 @@ namespace PlayniteAchievements.Providers.Steam
             return await GetFriendsFromCommunityPageAsync(session.SteamUserId, cancel).ConfigureAwait(false);
         }
 
+        // Reads the signed-in account's persona name and full-size avatar from the same profile
+        // ?xml=1 payload the nicknamed-friend persona recovery already uses.
+        public async Task<FriendsProviderResult<FriendIdentity>> GetCurrentUserAsync(CancellationToken cancel)
+        {
+            var session = await ResolveSteamSessionAsync(cancel).ConfigureAwait(false);
+            if (!session.IsSuccess)
+            {
+                return FriendsProviderResult<FriendIdentity>.Failed(
+                    session.ErrorMessage,
+                    authRequired: session.AuthRequired);
+            }
+
+            var steamId = session.SteamUserId?.Trim();
+            if (string.IsNullOrWhiteSpace(steamId))
+            {
+                return FriendsProviderResult<FriendIdentity>.Failed("Steam user id is not available.");
+            }
+
+            SteamPageResult profilePage;
+            try
+            {
+                profilePage = await _steamClient.GetProfileXmlPageAsync(steamId, cancel).ConfigureAwait(false);
+            }
+            catch (OperationCanceledException) { throw; }
+            catch (Exception ex)
+            {
+                _logger?.Debug(ex, "Steam profile XML request failed for the current user.");
+                return FriendsProviderResult<FriendIdentity>.Failed(
+                    "Steam profile XML request failed for the current user.",
+                    transientFailure: true);
+            }
+
+            var avatarUrl = SteamCommunityPageParser.TryExtractProfileAvatarUrl(profilePage?.Html);
+            if (string.IsNullOrWhiteSpace(avatarUrl))
+            {
+                return FriendsProviderResult<FriendIdentity>.Failed(
+                    "Steam profile XML did not contain an avatar for the current user.",
+                    authRequired: LooksLoggedOut(profilePage));
+            }
+
+            var personaName = SteamCommunityPageParser.TryExtractProfilePersonaName(profilePage?.Html);
+            return FriendsProviderResult<FriendIdentity>.FromData(new FriendIdentity
+            {
+                ProviderKey = ProviderKey,
+                ExternalUserId = steamId,
+                DisplayName = FirstNonEmpty(personaName, steamId),
+                AvatarUrl = avatarUrl,
+                LastRefreshedUtc = DateTime.UtcNow
+            });
+        }
+
         public async Task<FriendsProviderResult<IReadOnlyList<FriendGameOwnership>>> GetOwnedGamesAsync(
             FriendIdentity friend,
             CancellationToken cancel)

@@ -1,10 +1,13 @@
 [CmdletBinding()]
 param(
-    [ValidateSet("Test", "Export", "Apply")]
+    [ValidateSet("Test", "Export", "Apply", "Update")]
     [string] $Action = "Test",
     [string] $RepositoryPath,
     [string] $BundlePath,
     [string] $Baseline = "v3.1.0",
+    [string] $UpstreamRef = "upstream/main",
+    [string] $UpstreamRemote = "upstream",
+    [switch] $SkipFetch,
     [switch] $AllowDirty,
     [switch] $ResumeAfterConflict,
     [switch] $Force,
@@ -78,6 +81,22 @@ try
 
             Write-Host "Applying fork bundle..." -ForegroundColor Yellow
             & (Join-Path $PSScriptRoot "Apply-ForkBundle.ps1") @arguments
+        }
+        "Update"
+        {
+            $arguments = @{
+                UpstreamRef = $UpstreamRef
+                UpstreamRemote = $UpstreamRemote
+            }
+            if (-not [string]::IsNullOrWhiteSpace($RepositoryPath)) { $arguments.RepositoryPath = $RepositoryPath }
+            if (-not [string]::IsNullOrWhiteSpace($BundlePath)) { $arguments.BundlePath = $BundlePath }
+            if ($SkipFetch) { $arguments.SkipFetch = $true }
+            if ($ResumeAfterConflict) { $arguments.ResumeAfterConflict = $true }
+            if ($ForceSemantic) { $arguments.ForceSemantic = $true }
+            if ($ForceOverlay) { $arguments.ForceOverlay = $true }
+
+            Write-Host "Updating the current checkout from $UpstreamRef and applying the fork bundle..." -ForegroundColor Yellow
+            & (Join-Path $PSScriptRoot "Update-ForkInPlace.ps1") @arguments
         }
     }
 

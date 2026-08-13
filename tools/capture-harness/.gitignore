@@ -1,0 +1,5 @@
+# Diagnostic output. Runs produce thousands of PNGs and per-frame CSVs; none of it is worth keeping.
+# bin/ is already covered by the repository root.
+match_*/
+frames_*/
+*.csv
