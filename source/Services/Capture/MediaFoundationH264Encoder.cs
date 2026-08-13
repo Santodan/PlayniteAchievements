@@ -1,11 +1,78 @@
 using System;
 using System.IO;
+using System.Threading;
 using PlayniteAchievements.Models.Settings;
 using SharpDX.MediaFoundation;
 using D3D11 = SharpDX.Direct3D11;
 
 namespace PlayniteAchievements.Services.Capture
 {
+    /// <summary>
+    /// Process-wide Media Foundation lifetime. SharpDX's MediaManager suppresses duplicate Startup
+    /// calls but does not isolate independent Shutdown calls, so every capture/export consumer must
+    /// share one managed lease count or one exporter can shut Media Foundation down under a recorder.
+    /// </summary>
+    internal static class MediaFoundationRuntime
+    {
+        private static readonly object Gate = new object();
+        private static int _leases;
+
+        public static IDisposable Acquire()
+        {
+            lock (Gate)
+            {
+                if (_leases == 0)
+                {
+                    MediaManager.Startup();
+                }
+
+                checked
+                {
+                    _leases++;
+                }
+            }
+
+            return new Lease();
+        }
+
+        private static void Release()
+        {
+            lock (Gate)
+            {
+                if (_leases <= 0)
+                {
+                    return;
+                }
+
+                _leases--;
+                if (_leases == 0)
+                {
+                    try
+                    {
+                        MediaManager.Shutdown();
+                    }
+                    catch
+                    {
+                        // Teardown must remain non-throwing; there are no active consumers left.
+                    }
+                }
+            }
+        }
+
+        private sealed class Lease : IDisposable
+        {
+            private int _active = 1;
+
+            public void Dispose()
+            {
+                if (Interlocked.Exchange(ref _active, 0) == 1)
+                {
+                    Release();
+                }
+            }
+        }
+    }
+
     /// <summary>
     /// GPU-resident H.264 encoder via Media Foundation's SinkWriter. Frames are fed as D3D11 textures
     /// (no CPU readback): the writer is bound to the capture D3D11 device through a DXGI device
@@ -44,12 +111,11 @@ namespace PlayniteAchievements.Services.Capture
 
             string temp = null;
             D3D11.Device device = null;
-            var started = false;
+            IDisposable mediaFoundationLease = null;
             try
             {
                 // The encoder no longer starts Media Foundation itself, so the probe must.
-                MediaManager.Startup();
-                started = true;
+                mediaFoundationLease = MediaFoundationRuntime.Acquire();
                 temp = Path.Combine(Path.GetTempPath(), $"pa_mfprobe_{Guid.NewGuid():N}.mp4");
                 device = new D3D11.Device(
                     SharpDX.Direct3D.DriverType.Hardware,
@@ -79,17 +145,7 @@ namespace PlayniteAchievements.Services.Capture
                     // ignore probe cleanup failure
                 }
 
-                if (started)
-                {
-                    try
-                    {
-                        MediaManager.Shutdown();
-                    }
-                    catch
-                    {
-                        // Refcounted per process; ignore an unbalanced shutdown.
-                    }
-                }
+                mediaFoundationLease?.Dispose();
             }
 
             return _available.Value;
@@ -102,11 +158,9 @@ namespace PlayniteAchievements.Services.Capture
         }
 
         /// <remarks>
-        /// Media Foundation's lifetime belongs to the caller: <c>MediaManager.Startup</c> and
-        /// <c>Shutdown</c> are refcounted per process, so an encoder that started and shut them down per
-        /// instance let one segment's teardown drop the count to zero while the next segment was still
-        /// setting up — after which the new writer never drained and the first WriteSample blocked
-        /// forever. Whoever owns a run of encoders owns one Startup around all of them.
+        /// Media Foundation's lifetime belongs to the caller through a
+        /// <see cref="MediaFoundationRuntime"/> lease. Whoever owns a run of encoders holds one lease
+        /// around all of them.
         /// </remarks>
         public MediaFoundationH264Encoder(
             D3D11.Device device, string outputPath, int width, int height, int fps, int bitrate)
