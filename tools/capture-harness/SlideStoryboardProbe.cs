@@ -264,7 +264,12 @@ internal static class SlideStoryboardProbe
 
             const double travel = 178d;
             var storyboard = Build(resolved, host, travel, 0d);
-            slideTransform.Y = travel;
+
+            // The resting value the slide ends at, seeded as the transform's local value exactly as
+            // RunSlideStoryboard does. An animation overrides the local value rather than assigning it,
+            // so this is what the card reverts to when the settled snap stops the storyboard.
+            const double rest = 0d;
+            slideTransform.Y = rest;
 
             var minY = double.MaxValue;
             var maxY = double.MinValue;
@@ -298,8 +303,19 @@ internal static class SlideStoryboardProbe
             CompositionTarget.Rendering -= tick;
 
             var moved = maxY - minY;
+            var heldY = slideTransform.Y;
+
+            // What the settled snap does 300 ms in: StopActiveSlide stops and removes the storyboard,
+            // and the card must stay where the slide left it. It reverts to the transform's local value,
+            // so seeding the slide's start here left the card parked off in the reserved travel room --
+            // it slid in, vanished for the hold, then reappeared to slide out.
+            storyboard.Stop(host);
+            storyboard.Remove(host);
+            var afterStopY = slideTransform.Y;
+
             Console.WriteLine(
-                "  ran:      frames={0} movedDip={1:0.0} finalY={2:0.00}", frames, moved, slideTransform.Y);
+                "  ran:      frames={0} movedDip={1:0.0} heldY={2:0.00} afterStopY={3:0.00}",
+                frames, moved, heldY, afterStopY);
 
             if (moved < 1.0)
             {
@@ -307,7 +323,15 @@ internal static class SlideStoryboardProbe
                 return 1;
             }
 
-            Console.WriteLine("  => moved.");
+            if (Math.Abs(afterStopY - rest) > 0.5)
+            {
+                Console.WriteLine(
+                    "  => THE CARD JUMPED ON STOP: {0:0.0} instead of {1:0.0}. It would vanish for the hold.",
+                    afterStopY, rest);
+                return 1;
+            }
+
+            Console.WriteLine("  => moved, and stayed put when the slide was stopped.");
             return 0;
         }
         catch (Exception ex)
