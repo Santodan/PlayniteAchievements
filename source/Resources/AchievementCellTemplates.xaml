@@ -79,10 +79,12 @@
                         <Style TargetType="Grid">
                             <Setter Property="Visibility" Value="Collapsed"/>
                             <Style.Triggers>
+                                <!-- A goal shows its pin instead, so the two never both render. -->
                                 <MultiDataTrigger>
                                     <MultiDataTrigger.Conditions>
                                         <Condition Binding="{Binding Unlocked}" Value="False"/>
                                         <Condition Binding="{Binding IsCapstone}" Value="True"/>
+                                        <Condition Binding="{Binding IsGoal}" Value="False"/>
                                     </MultiDataTrigger.Conditions>
                                     <Setter Property="Visibility" Value="Visible"/>
                                 </MultiDataTrigger>
@@ -145,8 +147,9 @@
                     </Path.Style>
                 </Path>
 
-                <!-- A goal replaces the padlock with a tack pin. Goals are always locked, so this
-                     never competes with the unlocked check. -->
+                <!-- A goal replaces the padlock with a tack pin, and takes priority over the
+                     capstone hexagon. Goals are always locked, so this never competes with the
+                     unlocked check or the completed badge. -->
                 <TextBlock Text="&#xf003;"
                            FontFamily="{DynamicResource PlayAch.FontFamily.Icon}"
                            FontSize="16"
@@ -160,7 +163,6 @@
                                 <MultiDataTrigger>
                                     <MultiDataTrigger.Conditions>
                                         <Condition Binding="{Binding Unlocked}" Value="False"/>
-                                        <Condition Binding="{Binding IsCapstone}" Value="False"/>
                                         <Condition Binding="{Binding IsGoal}" Value="True"/>
                                     </MultiDataTrigger.Conditions>
                                     <Setter Property="Visibility" Value="Visible"/>
