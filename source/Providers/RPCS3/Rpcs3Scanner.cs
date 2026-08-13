@@ -945,7 +945,7 @@ namespace PlayniteAchievements.Providers.RPCS3
                 {
                     var rootDirectoryNames = disc.GetRootDirectoryNames();
 
-                    foreach (var trpImagePath in GetIsoTrophyTrpPaths(rootDirectoryNames))
+                    foreach (var trpImagePath in GetIsoTrophyTrpPaths(disc, rootDirectoryNames))
                     {
                         var trpBytes = disc.ReadAllBytesOrNull(trpImagePath);
                         if (trpBytes == null ||
@@ -1021,26 +1021,62 @@ namespace PlayniteAchievements.Providers.RPCS3
         }
 
         /// <summary>
-        /// TROPHY.TRP locations inside a PS3 disc image: the standard PS3_GAME,
-        /// multi-game collection PS3_GMxx sub-games, and the bare TROPHY root
-        /// some structures use. Probes only directories present in the image root
-        /// so the per-image cost stays at the sets that actually exist.
+        /// TROPHY.TRP locations inside a PS3 disc image: the TROPDIR sets a PS3
+        /// disc carries (one directory per NPWR id), and the bare TROPHY layout
+        /// some structures use, under the standard PS3_GAME, multi-game
+        /// collection PS3_GMxx sub-games, or the image root. Probes only
+        /// directories present in the image root so the per-image cost stays at
+        /// the sets that actually exist.
         /// </summary>
-        private static IEnumerable<string> GetIsoTrophyTrpPaths(IReadOnlyCollection<string> rootDirectoryNames)
+        private static IEnumerable<string> GetIsoTrophyTrpPaths(
+            DiscFileSystemReader disc,
+            IReadOnlyCollection<string> rootDirectoryNames)
         {
             var rootDirs = new HashSet<string>(rootDirectoryNames, StringComparer.OrdinalIgnoreCase);
 
             foreach (var subgameDirectory in GetIsoSubgameDirectoryNames())
             {
-                if (rootDirs.Contains(subgameDirectory))
+                if (!rootDirs.Contains(subgameDirectory))
                 {
-                    yield return $"{subgameDirectory}/TROPHY/TROPHY.TRP";
+                    continue;
+                }
+
+                foreach (var trpPath in GetIsoTropdirTrpPaths(disc, subgameDirectory))
+                {
+                    yield return trpPath;
+                }
+
+                yield return $"{subgameDirectory}/TROPHY/TROPHY.TRP";
+            }
+
+            if (rootDirs.Contains("TROPDIR"))
+            {
+                foreach (var trpPath in GetIsoTropdirTrpPaths(disc, null))
+                {
+                    yield return trpPath;
                 }
             }
 
             if (rootDirs.Contains("TROPHY"))
             {
                 yield return "TROPHY/TROPHY.TRP";
+            }
+        }
+
+        /// <summary>
+        /// TROPHY.TRP paths under a TROPDIR inside a disc image, one per trophy
+        /// set directory. <paramref name="parentDirectory"/> is null for a
+        /// TROPDIR at the image root.
+        /// </summary>
+        private static IEnumerable<string> GetIsoTropdirTrpPaths(DiscFileSystemReader disc, string parentDirectory)
+        {
+            var tropdir = string.IsNullOrWhiteSpace(parentDirectory)
+                ? "TROPDIR"
+                : $"{parentDirectory}/TROPDIR";
+
+            foreach (var setDirectory in disc.GetDirectoryNames(tropdir).OrderBy(name => name, StringComparer.OrdinalIgnoreCase))
+            {
+                yield return $"{tropdir}/{setDirectory}/TROPHY.TRP";
             }
         }
 
