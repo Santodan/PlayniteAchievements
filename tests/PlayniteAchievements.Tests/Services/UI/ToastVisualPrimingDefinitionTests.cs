@@ -29,10 +29,16 @@ namespace PlayniteAchievements.Tests.Services.UI
             // AsyncImage uses the authored value verbatim and it is the cache key. Every other image
             // on the card is an Image element, whose key also folds in its laid-out size and the
             // monitor scale, so those sizes are hints and are deliberately not asserted here.
+            //
+            // Matched on the ToastBackground* prefix rather than one property name. Which source the
+            // template binds is free to change -- ToastBackgroundImagePath, a render-source variant for
+            // animated backgrounds -- without touching the invariant under test, which is only that the
+            // authored decode size equals the size the prime asks for. Pinning the property name here
+            // would turn an unrelated rename into a failing test.
             var authored = Regex
                 .Matches(
                     template,
-                    @"ToastBackgroundImagePath\}""\s+helpers:AsyncImage\.DecodePixel=""(\d+)""")
+                    @"Binding\s+ToastBackground\w*\}""\s+helpers:AsyncImage\.DecodePixel=""(\d+)""")
                 .Cast<Match>()
                 .Select(match => match.Groups[1].Value)
                 .ToList();
