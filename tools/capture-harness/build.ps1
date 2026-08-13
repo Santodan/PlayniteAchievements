@@ -58,7 +58,7 @@ $refs = $framework + $sharp + $tuple
 
 $tools = @(
     'CaptureHarness', 'FrameDump', 'AttributeBisect', 'PacerProbe', 'GenerationLoss',
-    'SlideProbe', 'SlideStoryboardProbe')
+    'SlideProbe', 'SlideStoryboardProbe', 'SlideCadenceProbe')
 $failed = @()
 foreach ($tool in $tools) {
     $source = Join-Path $here ($tool + '.cs')

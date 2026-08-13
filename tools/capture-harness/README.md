@@ -198,6 +198,58 @@ The card is toast-shaped — layered, chromeless, sized to content, carrying the
 effects — but it is not the real template bound to a real view model, so absolute first-paint costs are
 lower than the live toast's. It measures the mechanism, not the card.
 
+## The storyboard probes
+
+Two tools cover the slide as it works now — a WPF `Storyboard` on the card host's translate inside a
+stationary window, rather than a per-frame `SetWindowPos`.
+
+### `SlideStoryboardProbe.exe`
+
+Loads the real bundled storyboard out of the built assembly and runs it through the service's own
+resolve/retarget logic against a real layered window, reporting the travel it produced.
+
+```powershell
+tools\capture-harness\bin\SlideStoryboardProbe.exe [pluginDir]
+```
+
+`movedDip=0` is the failure it exists for. Source-text tests structurally cannot catch it: XAML
+normalises `Storyboard.TargetProperty` to indexed placeholders (`(0).(1)[1].(2)`) with the real
+properties in `PathParameters`, so matching the authored path string never succeeds, and an unrecognised
+slide child gets no `From`/`To`. A `DoubleAnimation` with neither animates a property from its own value
+to its own value — no motion, no exception, nothing logged. That shipped.
+
+Its stop-and-revert check does **not** faithfully model the app: it passed against knowingly-broken
+seeding. Do not treat that half as a guard.
+
+### `SlideCadenceProbe.exe`
+
+Measures the composition rate actually sustained *during* the motion, per mechanism, against the
+display's own period read from the OS.
+
+```powershell
+tools\capture-harness\bin\SlideCadenceProbe.exe [--repeats 5]
+```
+
+Measured on a 165 Hz display:
+
+| mechanism | sustained | % of refresh |
+|---|---|---|
+| `WindowMove` (the pre-storyboard slide) | 55–82 Hz | **33–50%** |
+| `Transform` (what ships) | 165 Hz | **100%** |
+| `TransformCached` (+ `BitmapCache`) | 165 Hz | 100% |
+| `TransformNoPadding` | 165 Hz | 100% |
+| `TransformWithSampling` (+ overlay-track `RenderTargetBitmap` at 60 fps) | 165 Hz | 100% |
+
+What that establishes: moving a per-pixel-alpha layered HWND once per composed frame costs roughly half
+the display's rate, and animating content inside a stationary one costs none of it. The travel padding
+the window reserves is free, a bitmap cache buys nothing because the transform path is already at the
+ceiling — so it is not worth its invalidation risk against the countdown bar and animated backgrounds —
+and overlay-track sampling does not pull the slide off the refresh rate either.
+
+Counting the animation's own value changes would prove nothing: a WPF timeline advances once per composed
+frame by construction, so that only re-measures the render loop. The rate the loop itself holds is the
+number.
+
 ## Supporting tools
 
 - **`Show-Mp4Timeline.ps1 <file.mp4>`** — dumps `mdhd` durations and the `stts` table per track. A single
