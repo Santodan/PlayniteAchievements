@@ -141,6 +141,38 @@ namespace PlayniteAchievements.Tests.Services.UI
         }
 
         [TestMethod]
+        public void BundledSlideStoryboards_TargetThePathTheServiceAnimates()
+        {
+            var service = ReadToastService();
+            var resources = File.ReadAllText(FindRepoFile("source", "Resources", "NotificationResources.xaml"));
+
+            var pathMatch = Regex.Match(
+                service, @"private const string SlideTargetPath\s*=\s*""([^""]+)""");
+            Assert.IsTrue(pathMatch.Success, "SlideTargetPath is no longer declared.");
+            var slidePath = pathMatch.Groups[1].Value;
+
+            // The bundled storyboards now run as authored, so a target property that does not match what
+            // the service animates is not a mismatch it can detect: the child is not recognised as the
+            // slide, so no travel is filled in, and the path fails to resolve against the host's
+            // transform group. Both failures are silent — the notification simply appears without
+            // animating. That shipped once; this is the guard.
+            var slideStoryboards = Regex.Matches(
+                resources,
+                @"<Storyboard x:Key=""PlayAch\.Storyboard\.ToastSlide(?:In|Out)"">(.*?)</Storyboard>",
+                RegexOptions.Singleline);
+
+            Assert.AreEqual(2, slideStoryboards.Count, "The bundled slide storyboards were renamed.");
+            foreach (Match storyboard in slideStoryboards)
+            {
+                StringAssert.Contains(
+                    storyboard.Groups[1].Value,
+                    "Storyboard.TargetProperty=\"" + slidePath + "\"",
+                    "A bundled slide storyboard does not target the path the service animates, so it " +
+                    "would run without moving the card.");
+            }
+        }
+
+        [TestMethod]
         public void ThemeStoryboard_ThatDoesNotMoveTheCard_LeavesItAtRest()
         {
             var service = ReadToastService();
