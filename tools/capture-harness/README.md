@@ -1,7 +1,7 @@
 # Capture harness
 
-Diagnostic tools for the unlock-clip pipeline: recording, clip export, toast compositing, and unlock
-screenshots.
+Diagnostic tools for the unlock notification: the clip pipeline (recording, clip export, toast
+compositing, unlock screenshots) and the on-screen slide.
 
 The pipeline is hard to reason about from the outside because a clip looks plausible while being wrong.
 Frames can be duplicated, reordered, or shifted wholesale in time, and none of that is visible by eye
@@ -29,6 +29,8 @@ Needs Visual Studio 2022 or the Build Tools (the script finds Roslyn itself, wha
 
 Only `CaptureHarness` needs the plugin: it drives the recorder, exporter and re-encoder by reflection, so
 it wants a built `source\bin\Debug` and is really a developer tool.
+`SlideProbe` stands alone unless `--dict` is passed, which loads the plugin's resource graph (and finds
+`Playnite.SDK.dll` in `source\packages`, since it is not copied to the plugin's output).
 The rest stand alone and can be handed to anyone on Windows:
 
 - `Show-Mp4Timeline.ps1` has no dependencies at all — pure PowerShell over the MP4 boxes.
@@ -76,6 +78,68 @@ start*.
 The mapping was never broken; only the reference point was wrong.
 That is why every earlier run of this harness passed while the bug was live, and why the short-buffer case
 had to be added explicitly.
+
+## The slide probe
+
+```powershell
+tools\capture-harness\bin\SlideProbe.exe [--load <ms>] [--duration <ms>] [--repeats <n>] [--dict <pluginDir>]
+```
+
+Measures the notification's slide-in the way the plugin performs it, and answers whether the motion got
+the frames it needed.
+
+The slide is not a WPF animation. `ToastNotificationService.RunPhysicalSlide` hooks
+`CompositionTarget.Rendering` and, per composed frame, reads that frame's composition timestamp, eases
+the elapsed fraction and moves the HWND with `SetWindowPos`. So it is duration-correct by construction
+and can fail only one way: by running out of frames. A late second frame means the eased clock has
+already advanced, and the card jumps rather than slides — while still finishing in exactly 240 ms, which
+is why a stopwatch and the naked eye both miss it.
+
+The probe replicates that interpolation and the `RenderTickCounter` timestamp handling exactly, on a real
+per-pixel-alpha window, and runs three orderings side by side:
+
+| Mode | Ordering |
+|---|---|
+| `None` | Slide on the same UI-thread turn as `Show` — the ordering before the fix. The **control**; it is expected to jump under `--load`, and is not judged. |
+| `Transparent` | Wait for two composed frames at `Opacity=0`, then slide — what the plugin does now. |
+| `NearTransparent` | The same at `Opacity=1/255`, which defeats any `Opacity==0` culling. |
+
+`--load <ms>` arms a one-shot cost consumed by the window's **first composed frame**, wherever that
+lands: in the warm phase when warming, otherwise on the slide's own first frame. That is what makes the
+defect deterministic instead of dependent on a cold process, and it is what the control contrast checks.
+`--dict` additionally times the storyboard resolve the slides used to do inline.
+
+### Reading it
+
+`worstX` is the verdict: the worst frame interval as a multiple of **that run's own median**. This is
+deliberately not measured against the display's rate — moving a per-pixel-alpha window costs a full
+redirection-surface blit, so the slide sustains an even ~82 Hz on a 165 Hz panel and cannot do better.
+Uniform coarseness reads as smooth; one interval far out of line reads as a jump. The defect runs to
+10x or more, ordinary jitter and the ray driver's own 30 fps redraws to two or three, so the threshold
+is 4x.
+
+`maxStep` is that gap's visible cost in pixels. Useful, but not the verdict: because `BackEase` is steep
+early, an identical gap costs far more travel at the start of the slide than at the end.
+
+Two earlier versions of this probe were wrong in ways worth not repeating. Injecting the cost into the
+slide's first frame rather than the window's penalised every mode equally, so no warm ordering could ever
+win. And deriving the "ideal" step from the run's own observed mean interval is circular — it hands a
+starved slide a lenient target, and a three-frame slide passes.
+
+### What it established
+
+- A window at `Opacity=0` **does** rasterize its content: the transparent warm absorbs the whole injected
+  first-paint cost (first gap 121 ms → 6 ms), so the near-transparent variant is unnecessary.
+- The first storyboard resolve of a session costs **90–130 ms** on the UI thread, on the frame the first
+  slide subscribes on. That is the first-notification jank.
+- Later resolves cost only ~1.4 ms, so memoizing the dictionary does **not** explain a janky slide-out;
+  look to the save pipeline's allocation churn instead, via the `[Toast] Slide out` log line.
+
+### Limits
+
+The card is toast-shaped — layered, chromeless, sized to content, carrying the same shadow and blur
+effects — but it is not the real template bound to a real view model, so absolute first-paint costs are
+lower than the live toast's. It measures the mechanism, not the card.
 
 ## Supporting tools
 
