@@ -1,11 +1,14 @@
 using System;
-using System.Globalization;
+using System.Diagnostics;
 using System.IO;
 using System.Runtime.InteropServices;
 using System.Threading;
+using System.Threading.Tasks;
 using Playnite.SDK;
+using PlayniteAchievements.Common;
 using PlayniteAchievements.Models.Settings;
 using PlayniteAchievements.Services.Recording;
+using SharpDX.MediaFoundation;
 using Windows.Foundation;
 using Windows.Graphics.Capture;
 using Windows.Graphics.DirectX;
@@ -23,14 +26,14 @@ namespace PlayniteAchievements.Services.Capture
     /// export and prune consume. Segments hold clean game footage only — each achievement's toast is
     /// composited into its clip at export from the recorded overlay track.
     ///
-    /// A single pacing thread drives capture→tonemap→encode so there is no cross-thread GPU sharing:
-    /// each tick pulls the latest WGC frame (re-using the last one for a static scene, matching a
-    /// constant-fps screen capture), tone-maps it if HDR, and writes it to the current segment.
+    /// A single pacing thread drives capture→tonemap→encode: each tick pulls the latest WGC frame
+    /// (re-using the last one for a static scene, and repeating it as many times as a stall calls for, so
+    /// frame count always matches elapsed time), tone-maps it if HDR, and writes it to the current
+    /// segment. The one other thread that touches the capture device builds the next segment's writer
+    /// ahead of a rotation, which is why the device is multithread-protected.
     /// </summary>
     internal sealed class WgcVideoRecorder : IDisposable
     {
-        private const string SegmentStrftime = "yyyyMMdd-HHmmss";
-
         // Resolves the game window to capture, re-checked each second so the recorder follows the
         // learned game window (idle until it's known, re-target if it changes) instead of grabbing
         // whatever is foreground at start.
@@ -42,6 +45,7 @@ namespace PlayniteAchievements.Services.Capture
         private readonly int _fps;
         private readonly int _segmentSeconds;
         private readonly RecordingResolution _resolution;
+        private readonly RecordingQuality _quality;
         private readonly ILogger _logger;
 
         private D3D11.Device _device;
@@ -52,6 +56,16 @@ namespace PlayniteAchievements.Services.Capture
         private GpuHdrToneMapper _toneMapper;
         private bool _hdr;
         private float _refWhite = 1.0f;
+        // The size the frame pool was built at, and the pixel format it was built with. WGC does not
+        // resize the pool when the window does: it keeps handing back textures of this size holding
+        // the top-left corner of the larger content, so a window that grows after capture starts is
+        // recorded cropped (a "zoomed in" clip) until the pool is rebuilt. Compared against each
+        // frame's ContentSize to detect that.
+        private Windows.Graphics.SizeInt32 _poolSize;
+        private bool _geometryStale;
+        // Last window handle whose capture-item creation failed, so a window that is not capturable
+        // yet is logged once instead of once per second for as long as it stays that way.
+        private IntPtr _lastItemFailureHwnd;
 
         private D3D11.Texture2D _latest; // owned, BGRA, the most recent (tone-mapped) clean game frame
         private D3D11.Texture2D _scaled; // owned, BGRA, downscaled encode frame when a resolution cap applies
@@ -59,50 +73,60 @@ namespace PlayniteAchievements.Services.Capture
         private int _encW, _encH; // encoder (output) dimensions, after any resolution cap
         private MediaFoundationH264Encoder _encoder;
         private long _segmentFrameIndex;
-        private long _lastSegmentPts100ns; // last PTS written in the current segment (strictly increasing)
         private int _segmentCount;
         private DateTime _segmentStartUtc;
-        private readonly long _frameDuration100ns;
 
         private Thread _pumpThread;
         private volatile bool _running;
         private bool _disposed;
+        private bool _mediaFoundationStarted;
+
+        // Segments are written out off the pump thread; see FinalizeSegment.
+        private readonly object _finalizeGate = new object();
+        private Task _finalizeChain = Task.CompletedTask;
+
+        // How large a gap between one segment's grid ending and the next opening we will carry as
+        // repeated frames. Rotation costs on the order of 100 ms; past this it is a stall, and covering
+        // it would mean writing seconds of duplicates.
+        private static readonly TimeSpan MaxRotationCarry = TimeSpan.FromSeconds(1);
+
+        // How far before a boundary the next segment's writer starts being built. Building measured
+        // ~105 ms; this leaves room for a slow build without holding two writers open for long.
+        private static readonly TimeSpan PrepareLead = TimeSpan.FromMilliseconds(750);
+
+        // The next segment's writer, built ahead of the boundary; see MaybePrepareNextSegment.
+        private readonly object _prepareGate = new object();
+        private PreparedSegment _prepared;
+        private Task _prepareTask;
+
 
         public WgcVideoRecorder(
             Func<IntPtr> resolveHwnd, string bufferDirectory, int fps, int segmentSeconds,
-            RecordingResolution resolution, ILogger logger)
+            RecordingResolution resolution, RecordingQuality quality, ILogger logger)
         {
             _resolveHwnd = resolveHwnd;
             _bufferDirectory = bufferDirectory;
             _fps = Math.Max(1, fps);
             _segmentSeconds = Math.Max(1, segmentSeconds);
             _resolution = resolution;
+            _quality = quality;
             _logger = logger;
-            _frameDuration100ns = 10_000_000L / _fps;
         }
 
         // The encoded-frame size after the resolution cap: caps the height to 1080/720 (aspect
-        // preserving, even dimensions), never upscales; Native keeps the captured client size.
+        // preserving, even dimensions as H.264 requires), never upscales; Native keeps the captured
+        // client size. Shared with the screenshot pipeline, which reads the same options.
         private void ComputeEncodeSize(int clientW, int clientH, out int width, out int height)
         {
-            var cap = _resolution == RecordingResolution.P1080 ? 1080
-                : _resolution == RecordingResolution.P720 ? 720
-                : 0;
-            if (cap <= 0 || clientH <= cap)
-            {
-                width = Math.Max(2, clientW & ~1);
-                height = Math.Max(2, clientH & ~1);
-                return;
-            }
-
-            height = cap;
-            width = Math.Max(2, (int)Math.Round(clientW * (cap / (double)clientH)) & ~1);
-            height &= ~1;
+            var size = ResolutionCapMath.Apply(
+                clientW, clientH, ResolutionCapMath.CapHeightFor(_resolution), evenDimensions: true);
+            width = size.Width;
+            height = size.Height;
         }
 
         private int ComputeBitrate(int width, int height)
         {
-            return MediaFoundationH264Encoder.ComputeBitrate(width, height, _fps);
+            return MediaFoundationH264Encoder.ComputeBitrate(width, height, _fps, _quality);
         }
 
         public static bool IsSupported => GraphicsCaptureSession.IsSupported();
@@ -116,8 +140,22 @@ namespace PlayniteAchievements.Services.Capture
         {
             try
             {
+                // One Startup for the whole session, around every segment encoder this recorder builds.
+                // Per-encoder Startup/Shutdown let a segment being written out in the background drop the
+                // refcount to zero while the next segment was starting, and the new writer then never
+                // drained — capture stopped dead on its first frame.
+                MediaManager.Startup();
+                _mediaFoundationStarted = true;
+
                 _device = new D3D11.Device(SharpDX.Direct3D.DriverType.Hardware,
                     D3D11.DeviceCreationFlags.BgraSupport | D3D11.DeviceCreationFlags.VideoSupport);
+
+                // The next segment's writer is built on a background thread while the pump is encoding
+                // into the current one, so two threads touch this device.
+                using (var multithread = _device.QueryInterface<D3D11.Multithread>())
+                {
+                    multithread.SetMultithreadProtected(true);
+                }
                 using (var dxgiDevice = _device.QueryInterface<DXGI.Device>())
                 {
                     CreateDirect3D11DeviceFromDXGIDevice(dxgiDevice.NativePointer, out var inspectable)
@@ -161,7 +199,18 @@ namespace PlayniteAchievements.Services.Capture
             }
             catch (Exception ex)
             {
-                _logger?.Debug(ex, "[Recording] WGC-MF could not create a capture item for the game window.");
+                // A game window commonly exists before it is capturable (still initializing, cloaked,
+                // no composition surface yet); the pump retries every tick, so log the first attempt
+                // per handle with the geometry that identifies the window and stay quiet after that.
+                if (hwnd != _lastItemFailureHwnd)
+                {
+                    _lastItemFailureHwnd = hwnd;
+                    _logger?.Debug(
+                        ex,
+                        $"[Recording] WGC-MF could not create a capture item for game window 0x{hwnd.ToInt64():X} " +
+                        $"({DescribeWindow(hwnd, 0, 0)}); retrying every second until it becomes capturable.");
+                }
+
                 return;
             }
 
@@ -170,8 +219,18 @@ namespace PlayniteAchievements.Services.Capture
                 return;
             }
 
+            _lastItemFailureHwnd = IntPtr.Zero;
+
             TearDownCapture();
             FinalizeSegment();
+
+            // A retarget must not seed the new game's segment with the previous game's held frame.
+            // WGC may need a few ticks to deliver its first frame; until then the new session stays
+            // empty instead of recording unrelated footage under the new timeline.
+            _latest?.Dispose();
+            _latest = null;
+            _scaled?.Dispose();
+            _scaled = null;
 
             _hdr = HdrDisplayDetector.IsHdrActive(hwnd);
             _refWhite = _hdr ? HdrDisplayDetector.GetSdrWhiteScRgb(hwnd) : 1.0f;
@@ -186,12 +245,47 @@ namespace PlayniteAchievements.Services.Capture
                 ? DirectXPixelFormat.R16G16B16A16Float
                 : DirectXPixelFormat.B8G8R8A8UIntNormalized;
             _item = item;
+            _poolSize = item.Size;
+            _geometryStale = false;
             _framePool = Direct3D11CaptureFramePool.CreateFreeThreaded(_winrtDevice, pixelFormat, 2, item.Size);
             _session = _framePool.CreateCaptureSession(_item);
             WgcCaptureBorder.Suppress(_session);
             _session.StartCapture();
             _activeHwnd = hwnd;
-            _logger?.Info($"[Recording] WGC-MF capturing game window 0x{hwnd.ToInt64():X} (hdr={_hdr}, {item.Size.Width}x{item.Size.Height}@{_fps}).");
+            // The captured size, the crop derived from it and the monitor's scale together explain any
+            // later "the clip is cropped/zoomed" report, which is otherwise indistinguishable from the
+            // game simply rendering that way.
+            _logger?.Info(
+                $"[Recording] WGC-MF capturing game window 0x{hwnd.ToInt64():X} (hdr={_hdr}, " +
+                $"{item.Size.Width}x{item.Size.Height}@{_fps}, crop={_cropW}x{_cropH}+{_cropX}+{_cropY}, " +
+                $"{DescribeWindow(hwnd, item.Size.Width, item.Size.Height)}).");
+        }
+
+        /// <summary>
+        /// A compact description of a window for capture diagnostics: the rects the crop is derived
+        /// from, the monitor's true scale, and — the part that explains a mis-cropped clip — which
+        /// rect the texture was matched to and at what scale. A texture-to-screen scale other than
+        /// 1 means the window is DPI-unaware on a scaled display; "none" means no rect described
+        /// the texture and the whole frame was kept. Never throws.
+        /// </summary>
+        private static string DescribeWindow(IntPtr hwnd, int capturedW, int capturedH)
+        {
+            try
+            {
+                var rects = WindowRectangles.Measure(hwnd);
+                // Only meaningful once there is a texture to relate the window to; a window that
+                // could not be captured at all has none, and reporting "no rect matched" there
+                // would read as a mapping failure rather than an absent capture.
+                var mapping = capturedW > 0 && capturedH > 0
+                    ? CaptureCropMath.ResolveMapping(capturedW, capturedH, rects.FrameBounds, rects.OuterRect).ToString()
+                    : "anchor=n/a";
+                return $"{rects} monitorScale={UI.ToastWindowPlacer.ResolveMonitorScale(hwnd):0.##} {mapping} " +
+                    $"visible={IsWindowVisible(hwnd)} iconic={IsIconic(hwnd)}";
+            }
+            catch
+            {
+                return "geometry=unavailable";
+            }
         }
 
         private void TearDownCapture()
@@ -205,63 +299,36 @@ namespace PlayniteAchievements.Services.Capture
 
         /// <summary>
         /// The client-area sub-region within the captured window texture (excludes chrome), in
-        /// captured pixels — measured against the DWM extended frame bounds (what WGC captures) and
-        /// scaled into the texture, with even dimensions for H.264. Falls back to the full frame.
+        /// captured pixels. The window is measured by <see cref="WindowRectangles"/> and the region
+        /// derived by <see cref="CaptureCropMath"/>, which owns the reasoning about how a texture
+        /// relates to the window it was captured from — the same pair the still-capture path uses.
         /// </summary>
         private static void ComputeClientCrop(IntPtr hwnd, int capturedW, int capturedH, out int x, out int y, out int w, out int h)
         {
-            x = 0;
-            y = 0;
-            w = capturedW;
-            h = capturedH;
-            try
-            {
-                if (DwmGetWindowAttribute(hwnd, DWMWA_EXTENDED_FRAME_BOUNDS, out var frame, Marshal.SizeOf(typeof(RECT))) != 0)
-                {
-                    return;
-                }
-
-                var fw = frame.Right - frame.Left;
-                var fh = frame.Bottom - frame.Top;
-                if (fw <= 0 || fh <= 0 || !GetClientRect(hwnd, out var client))
-                {
-                    return;
-                }
-
-                var cw = client.Right - client.Left;
-                var ch = client.Bottom - client.Top;
-                var origin = new POINT { X = 0, Y = 0 };
-                if (cw <= 0 || ch <= 0 || !ClientToScreen(hwnd, ref origin))
-                {
-                    return;
-                }
-
-                var sx = (double)capturedW / fw;
-                var sy = (double)capturedH / fh;
-                var cx = Math.Max(0, Math.Min((int)Math.Round((origin.X - frame.Left) * sx), capturedW - 2));
-                var cy = Math.Max(0, Math.Min((int)Math.Round((origin.Y - frame.Top) * sy), capturedH - 2));
-                var cwp = Math.Max(2, Math.Min((int)Math.Round(cw * sx), capturedW - cx)) & ~1;
-                var chp = Math.Max(2, Math.Min((int)Math.Round(ch * sy), capturedH - cy)) & ~1;
-
-                x = cx;
-                y = cy;
-                w = cwp;
-                h = chp;
-            }
-            catch
-            {
-                x = 0;
-                y = 0;
-                w = capturedW & ~1;
-                h = capturedH & ~1;
-            }
+            var crop = CaptureCropMath.ClientCrop(
+                capturedW, capturedH, WindowRectangles.Measure(hwnd), evenDimensions: true);
+            x = crop.X;
+            y = crop.Y;
+            w = crop.Width;
+            h = crop.Height;
         }
 
         private void PumpLoop()
         {
-            var frameInterval = TimeSpan.FromSeconds(1.0 / _fps);
-            var next = DateTime.UtcNow;
+            // Ticks, not TimeSpan.FromSeconds: that overload rounds to the nearest millisecond, so
+            // 1.0/60 became 17 ms and pinned the pump to 58.8 fps — 2% under the rate the segments
+            // then declared, which is most of the wall-clock-versus-media gap this loop used to open.
+            var frameInterval = TimeSpan.FromTicks(TimeSpan.TicksPerSecond / _fps);
+            var next = CaptureTimelineClock.UtcNow;
             var lastResolveUtc = DateTime.MinValue;
+            var lastRebuildUtc = DateTime.MinValue;
+            var pacer = new FramePacer();
+            if (!pacer.IsHighResolution)
+            {
+                _logger?.Debug(
+                    "[Recording] WGC-MF pump has no high-resolution timer; pacing falls back to Thread.Sleep.");
+            }
+
             try
             {
                 while (_running)
@@ -276,9 +343,9 @@ namespace PlayniteAchievements.Services.Capture
                     // appears. Idle while the game window isn't known yet rather than capturing a
                     // foreground window that isn't the game.
                     var activeDead = _activeHwnd != IntPtr.Zero && !IsWindow(_activeHwnd);
-                    if (activeDead || (DateTime.UtcNow - lastResolveUtc).TotalSeconds >= 1)
+                    if (activeDead || (CaptureTimelineClock.UtcNow - lastResolveUtc).TotalSeconds >= 1)
                     {
-                        lastResolveUtc = DateTime.UtcNow;
+                        lastResolveUtc = CaptureTimelineClock.UtcNow;
                         var hwnd = _resolveHwnd?.Invoke() ?? IntPtr.Zero;
                         if (hwnd != IntPtr.Zero && hwnd != _activeHwnd)
                         {
@@ -289,6 +356,21 @@ namespace PlayniteAchievements.Services.Capture
                     if (_activeHwnd != IntPtr.Zero && _framePool != null)
                     {
                         PullLatestFrame();
+
+                        // The window changed size under a pool built for the old one. Rebuild the
+                        // capture at the new size (which also re-measures the crop and re-detects
+                        // HDR for its monitor) and drop the held frame, so the next tick starts a
+                        // new segment at the new dimensions instead of encoding a stale crop. Held
+                        // to once a second: a window being dragged-resized reports a new size every
+                        // frame, and each rebuild costs a segment boundary.
+                        if (_geometryStale && (CaptureTimelineClock.UtcNow - lastRebuildUtc).TotalSeconds >= 1)
+                        {
+                            lastRebuildUtc = CaptureTimelineClock.UtcNow;
+                            _geometryStale = false;
+                            _latest?.Dispose();
+                            _latest = null;
+                            SetupCapture(_activeHwnd);
+                        }
                     }
 
                     if (_latest != null && _framePool != null)
@@ -296,7 +378,7 @@ namespace PlayniteAchievements.Services.Capture
                         // Create the first segment once we have a frame (its size), and roll over on
                         // schedule. The encoder can't be built before the first frame, so this — not
                         // a one-time call before the loop — is what starts encoding.
-                        if (_encoder == null || (DateTime.UtcNow - _segmentStartUtc).TotalSeconds >= _segmentSeconds)
+                        if (_encoder == null || (CaptureTimelineClock.UtcNow - _segmentStartUtc).TotalSeconds >= _segmentSeconds)
                         {
                             RotateSegment();
                         }
@@ -305,39 +387,69 @@ namespace PlayniteAchievements.Services.Capture
                         {
                             try
                             {
-                                // Stamp frames by real elapsed time since the segment started, not by
-                                // frame index. A pump stall (e.g. the game recreating its window during
-                                // a loading screen tears down and rebuilds capture) then shows as the
-                                // last frame held for its real duration, instead of the timeline
-                                // collapsing that gap into a skip — which would also drift audio sync.
-                                var pts = (DateTime.UtcNow - _segmentStartUtc).Ticks;
-                                if (pts <= _lastSegmentPts100ns)
-                                {
-                                    pts = _lastSegmentPts100ns + 1;
-                                }
-                                _lastSegmentPts100ns = pts;
+                                // Constant frame rate, by frame count rather than by timestamp. The H.264
+                                // encoder rewrites per-sample durations onto the grid its declared frame
+                                // rate implies — measured: uneven durations in, one stts entry out — so a
+                                // real-time timestamp cannot survive it and the only way to keep the
+                                // timeline honest is to make that grid true. Emit exactly as many frames
+                                // as the elapsed time calls for, repeating the held frame to cover a
+                                // stall, so slot i really is the picture that was on screen at i/fps.
                                 // Segments record the clean game frame only; the unlock toast is
                                 // composited into each achievement's clip at export from its
                                 // recorded overlay track.
-                                _encoder.WriteFrame(ScaleForEncode(_latest), pts, _frameDuration100ns);
-                                _segmentFrameIndex++;
+                                var due = (long)((CaptureTimelineClock.UtcNow - _segmentStartUtc).TotalSeconds * _fps) + 1;
+                                var missing = due - _segmentFrameIndex;
+
+                                // A segment can never hold more than its own length; anything beyond that
+                                // belongs to the next one, which the rotation above will open.
+                                var ceiling = (long)_segmentSeconds * _fps;
+                                if (_segmentFrameIndex + missing > ceiling)
+                                {
+                                    missing = Math.Max(0, ceiling - _segmentFrameIndex);
+                                }
+
+                                if (missing > 0)
+                                {
+                                    // Scale once, not once per repeat: duplicates are the same picture.
+                                    var encodeFrame = ScaleForEncode(_latest);
+                                    for (var repeat = 0L; repeat < missing; repeat++)
+                                    {
+                                        var pts = PtsForFrame(_segmentFrameIndex);
+                                        _encoder.WriteFrame(
+                                            encodeFrame, pts, PtsForFrame(_segmentFrameIndex + 1) - pts);
+                                        _segmentFrameIndex++;
+                                    }
+                                }
                             }
                             catch (Exception ex)
                             {
                                 _logger?.Debug(ex, "[Recording] WGC-MF frame encode failed.");
                             }
+
+                            // Build the next segment's writer before we need it, so the rotation above
+                            // never stops capture.
+                            MaybePrepareNextSegment();
                         }
                     }
 
                     next += frameInterval;
-                    var sleep = next - DateTime.UtcNow;
+                    var now = CaptureTimelineClock.UtcNow;
+                    var sleep = next - now;
                     if (sleep > TimeSpan.Zero)
                     {
-                        Thread.Sleep(sleep);
+                        pacer.Wait(sleep);
                     }
                     else
                     {
-                        next = DateTime.UtcNow; // fell behind; resync rather than spin
+                        // Behind schedule: give up the deficit rather than running ticks back to back to
+                        // make it up. Catching up would emit a burst of frames the capture has no new
+                        // content for — duplicates of the held frame, each with a near-zero duration —
+                        // and the moment the pump is most likely to fall behind is exactly the unlock,
+                        // where the toast, the screenshot and the overlay track all compete with it. A
+                        // frame held for its true length reads far better than a flurry of stills.
+                        // The high-resolution timer is what keeps the rate honest; it measured 60.00 fps
+                        // with no catch-up at all.
+                        next = now;
                     }
                 }
             }
@@ -347,6 +459,10 @@ namespace PlayniteAchievements.Services.Capture
             }
             finally
             {
+                _running = false;
+                pacer.Dispose();
+                // A writer prepared for a segment that will never open still owns a file.
+                DiscardPrepared(TakePreparedSegment());
                 FinalizeSegment();
                 TearDownCapture();
             }
@@ -362,6 +478,21 @@ namespace PlayniteAchievements.Services.Capture
 
             using (frame)
             {
+                // WGC never resizes the frame pool on its own: once the window is bigger than the
+                // pool it keeps handing back pool-sized textures holding only the content's top-left
+                // corner, which records as a clip zoomed into that corner. Flag it and let the pump
+                // rebuild the capture rather than encoding this frame against a stale crop.
+                var content = frame.ContentSize;
+                if (content.Width > 0 && content.Height > 0 &&
+                    (content.Width != _poolSize.Width || content.Height != _poolSize.Height))
+                {
+                    _logger?.Info(
+                        $"[Recording] WGC-MF game window resized ({_poolSize.Width}x{_poolSize.Height} -> " +
+                        $"{content.Width}x{content.Height}); rebuilding the capture.");
+                    _geometryStale = true;
+                    return;
+                }
+
                 var access = (IDirect3DDxgiInterfaceAccess)(object)frame.Surface;
                 var texIid = IID_ID3D11Texture2D;
                 var texPtr = access.GetInterface(ref texIid);
@@ -447,12 +578,25 @@ namespace PlayniteAchievements.Services.Capture
             });
         }
 
+        /// <summary>
+        /// Where frame <paramref name="index"/> sits on a segment's nominal grid, in 100-ns units.
+        /// Derived from the index rather than accumulated, so a rate that does not divide a second evenly
+        /// (60 fps is 166666.67 ticks) cannot drift the segment's length as the frames add up.
+        /// </summary>
+        private long PtsForFrame(long index)
+        {
+            return index * TimeSpan.TicksPerSecond / _fps;
+        }
+
         private void RotateSegment()
         {
+            var rotate = Stopwatch.StartNew();
+            var prepared = TakePreparedSegment();
             FinalizeSegment();
             if (_latest == null)
             {
                 // No frame yet; defer segment creation until we know the size.
+                DiscardPrepared(prepared);
                 return;
             }
 
@@ -460,25 +604,237 @@ namespace PlayniteAchievements.Services.Capture
             // size in ComposeFrame when a cap applies.
             ComputeEncodeSize(_latest.Description.Width, _latest.Description.Height, out _encW, out _encH);
 
-            var name = RecordingPaths.SegmentFilePrefix + DateTime.Now.ToString(SegmentStrftime, CultureInfo.InvariantCulture) + RecordingPaths.SegmentFileExtension;
-            var path = EnsureUniqueSegment(Path.Combine(_bufferDirectory, name));
-            _encoder = new MediaFoundationH264Encoder(
-                _device, path, _encW, _encH, _fps, ComputeBitrate(_encW, _encH));
+            // One instant for both the name and the PTS origin. Clip planning maps the name onto a
+            // position on the timeline and the frames inside are stamped relative to the origin, so
+            // taking them from separate DateTime reads would label the segment a few milliseconds
+            // off from the frames it holds — by however long the encoder took to build.
+            //
+            // That origin is where the previous segment's grid ended rather than "now": writing the old
+            // segment out and building this one costs real time (measured ~100 ms), and an origin stamped
+            // after the gap simply loses it. The export can bridge it between files, but the final
+            // re-encode flattens the timeline again and the gap returns as drift. Continuing the grid
+            // makes the pump's catch-up fill the gap with the held frame instead. A gap far larger than
+            // rotation cost is a genuine stall, where resyncing beats emitting seconds of duplicates.
+            var now = CaptureTimelineClock.UtcNow;
+            if (_segmentCount > 0)
+            {
+                var previousGridEnd = _segmentStartUtc.AddTicks(PtsForFrame(_segmentFrameIndex));
+                _segmentStartUtc = now - previousGridEnd < MaxRotationCarry && previousGridEnd <= now
+                    ? previousGridEnd
+                    : now;
+            }
+            else
+            {
+                _segmentStartUtc = now;
+            }
+
+            // Use the writer prepared during the previous segment when it is for exactly this segment;
+            // building one costs ~105ms, which on this thread is frames of frozen picture.
+            string path;
+            var reused = false;
+            if (prepared != null &&
+                prepared.Width == _encW && prepared.Height == _encH && prepared.StartUtc == _segmentStartUtc)
+            {
+                _encoder = prepared.Encoder;
+                path = prepared.Path;
+                reused = true;
+            }
+            else
+            {
+                // Wrong size (a capture rebuild) or a start the prediction missed: throw it away and pay
+                // the build here, as before.
+                DiscardPrepared(prepared);
+
+                // The dimensions ride in the name so the clip planner can group segments by size
+                // without opening them — a capture rebuilt at a new size starts a run the planner
+                // will not concatenate with the old one.
+                var name = RecordingPaths.BuildSegmentFileName(_segmentStartUtc, _encW, _encH);
+                path = EnsureUniqueSegment(Path.Combine(_bufferDirectory, name));
+                _encoder = new MediaFoundationH264Encoder(
+                    _device, path, _encW, _encH, _fps, ComputeBitrate(_encW, _encH));
+            }
+
             _segmentFrameIndex = 0;
-            _lastSegmentPts100ns = 0;
-            _segmentStartUtc = DateTime.UtcNow;
             _segmentCount++;
             if (_segmentCount <= 2 || _segmentCount % 12 == 0)
             {
-                _logger?.Debug($"[Recording] WGC-MF segment #{_segmentCount} started ({Path.GetFileName(path)}, {_encW}x{_encH}).");
+                // The rotation cost is pump time no frame could be captured in, so it is worth seeing:
+                // whatever is left of it lands as the previous frame held that long, once per segment.
+                _logger?.Debug(
+                    $"[Recording] WGC-MF segment #{_segmentCount} started ({Path.GetFileName(path)}, {_encW}x{_encH}, " +
+                    $"rotate={rotate.ElapsedMilliseconds}ms, prepared={reused}).");
             }
         }
 
+        /// <summary>
+        /// Starts building the next segment's writer on a background thread, shortly before the boundary
+        /// it is for, so the rotation itself costs nothing. The pump keeps capturing into the current
+        /// segment while this runs. Only meaningful because the constant-rate pacing makes a full
+        /// segment exactly <c>_segmentSeconds * _fps</c> frames, which is what lets the next segment's
+        /// start instant — and therefore its file name — be known before it begins.
+        /// </summary>
+        private void MaybePrepareNextSegment()
+        {
+            if (_encoder == null || _prepareTask != null || _latest == null)
+            {
+                return;
+            }
+
+            lock (_prepareGate)
+            {
+                if (_prepared != null)
+                {
+                    return;
+                }
+            }
+
+            var boundary = _segmentStartUtc.AddTicks(PtsForFrame((long)_segmentSeconds * _fps));
+            if (CaptureTimelineClock.UtcNow < boundary - PrepareLead)
+            {
+                return;
+            }
+
+            var width = _encW;
+            var height = _encH;
+            var name = RecordingPaths.BuildSegmentFileName(boundary, width, height);
+            var path = EnsureUniqueSegment(Path.Combine(_bufferDirectory, name));
+            _prepareTask = Task.Run(() =>
+            {
+                try
+                {
+                    var encoder = new MediaFoundationH264Encoder(
+                        _device, path, width, height, _fps, ComputeBitrate(width, height));
+                    lock (_prepareGate)
+                    {
+                        _prepared = new PreparedSegment
+                        {
+                            Encoder = encoder,
+                            Path = path,
+                            StartUtc = boundary,
+                            Width = width,
+                            Height = height,
+                        };
+                    }
+                }
+                catch (Exception ex)
+                {
+                    _logger?.Debug(ex, "[Recording] Preparing the next capture segment failed; it will be built inline.");
+                    TryDeleteSegmentFile(path);
+                }
+            });
+        }
+
+        /// <summary>Hands over the prepared segment, waiting briefly if it is still being built.</summary>
+        private PreparedSegment TakePreparedSegment()
+        {
+            var task = _prepareTask;
+            if (task != null && !task.IsCompleted)
+            {
+                // Should not happen: preparation starts PrepareLead before the boundary and takes about
+                // a tenth of that. If it does, waiting still beats building a second one.
+                try { task.Wait(TimeSpan.FromSeconds(2)); } catch { }
+            }
+
+            _prepareTask = null;
+            lock (_prepareGate)
+            {
+                var prepared = _prepared;
+                _prepared = null;
+                return prepared;
+            }
+        }
+
+        /// <summary>Throws away a prepared segment that turned out not to fit, file included.</summary>
+        private void DiscardPrepared(PreparedSegment prepared)
+        {
+            if (prepared == null)
+            {
+                return;
+            }
+
+            try { prepared.Encoder.Dispose(); } catch { }
+            TryDeleteSegmentFile(prepared.Path);
+        }
+
+        private void TryDeleteSegmentFile(string path)
+        {
+            try
+            {
+                if (path != null && File.Exists(path))
+                {
+                    File.Delete(path);
+                }
+            }
+            catch (Exception ex)
+            {
+                _logger?.Debug(ex, "[Recording] Could not remove an unused prepared segment file.");
+            }
+        }
+
+        private sealed class PreparedSegment
+        {
+            public MediaFoundationH264Encoder Encoder;
+            public string Path;
+            public DateTime StartUtc;
+            public int Width;
+            public int Height;
+        }
+
+        /// <summary>
+        /// Hands the current segment to the background finalizer and clears it. Idempotent.
+        /// <para>
+        /// Writing out a segment costs far more than a frame interval — the sink writes the moov atom
+        /// and drains the hardware encoder — so doing it on the pump thread stopped capture for that
+        /// long once every <c>_segmentSeconds</c>, losing frames the clip then holds still for.
+        /// Finalizes are chained so only one runs at a time, and teardown waits for the chain. A clip
+        /// export cannot race this: it waits a segment length plus a margin past its window end
+        /// before it reads any segment.
+        /// </para>
+        /// </summary>
         private void FinalizeSegment()
         {
-            var encoder = _encoder;
+            var outgoing = _encoder;
             _encoder = null;
-            encoder?.Dispose();
+            if (outgoing == null)
+            {
+                return;
+            }
+
+            lock (_finalizeGate)
+            {
+                _finalizeChain = _finalizeChain.ContinueWith(
+                    _ =>
+                    {
+                        try
+                        {
+                            outgoing.Dispose();
+                        }
+                        catch (Exception ex)
+                        {
+                            _logger?.Debug(ex, "[Recording] Writing out a capture segment failed.");
+                        }
+                    },
+                    TaskContinuationOptions.None);
+            }
+        }
+
+        /// <summary>Blocks until every handed-off segment has been written out.</summary>
+        private void WaitForFinalizers()
+        {
+            Task chain;
+            lock (_finalizeGate)
+            {
+                chain = _finalizeChain;
+            }
+
+            try
+            {
+                chain.Wait(TimeSpan.FromSeconds(10));
+            }
+            catch (Exception ex)
+            {
+                _logger?.Debug(ex, "[Recording] Waiting for capture segments to finish writing failed.");
+            }
         }
 
         private static string EnsureUniqueSegment(string path)
@@ -545,6 +901,8 @@ namespace PlayniteAchievements.Services.Capture
             _disposed = true;
             Stop();
             FinalizeSegment();
+            // The device the encoders write from is torn down below, so nothing may still be draining.
+            WaitForFinalizers();
             _latest?.Dispose();
             _scaled?.Dispose();
             _frameScaler?.Dispose();
@@ -554,6 +912,19 @@ namespace PlayniteAchievements.Services.Capture
             _device?.ImmediateContext?.Dispose();
             _device?.Dispose();
             _winrtDevice = null;
+
+            if (_mediaFoundationStarted)
+            {
+                _mediaFoundationStarted = false;
+                try
+                {
+                    MediaManager.Shutdown();
+                }
+                catch
+                {
+                    // Refcounted per process; ignore an unbalanced shutdown at teardown.
+                }
+            }
         }
     }
 }

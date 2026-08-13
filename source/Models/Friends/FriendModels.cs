@@ -294,6 +294,12 @@ namespace PlayniteAchievements.Models.Friends
 
         Task<FriendsProviderResult<IReadOnlyList<FriendIdentity>>> GetFriendsAsync(CancellationToken cancel);
 
+        // The signed-in account for this provider, used to cache the current user's own avatar
+        // alongside the friend avatars. Returns a failed result when the provider has no
+        // configured account. The returned identity carries the same fields a friend does, so it
+        // flows through the shared avatar download and cache-path builders unchanged.
+        Task<FriendsProviderResult<FriendIdentity>> GetCurrentUserAsync(CancellationToken cancel);
+
         Task<FriendsProviderResult<IReadOnlyList<FriendGameOwnership>>> GetOwnedGamesAsync(
             FriendIdentity friend,
             CancellationToken cancel);

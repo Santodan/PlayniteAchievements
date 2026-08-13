@@ -9,7 +9,7 @@ using PlayniteAchievements.Models.Settings;
 
 namespace PlayniteAchievements.Models.Achievements
 {
-    public static class RarityAppearanceHelper
+    public static partial class RarityAppearanceHelper
     {
         private static readonly Uri BadgeResourcesUri =
             new Uri("pack://application:,,,/PlayniteAchievements;component/Resources/RarityBadges.xaml", UriKind.Absolute);
@@ -137,6 +137,30 @@ namespace PlayniteAchievements.Models.Achievements
 
             resources["PlayAch.Effect.CompletedGlowStart"] = GetCompletedGlow(useEndColor: false, settings);
             resources["PlayAch.Effect.CompletedGlowEnd"] = GetCompletedGlow(useEndColor: true, settings);
+            resources["PlayAch.Effect.CompletedGlowEdge"] = GetCompletedEdge(settings);
+        }
+
+        /// <summary>
+        /// Completion counterpart to the rays' edge: the completed bloom's own colour at a blur small
+        /// enough to read as a line along the artwork, and centred rather than offset so it traces the
+        /// whole edge instead of falling to one side.
+        /// </summary>
+        public static DropShadowEffect GetCompletedEdge(PersistedSettings settings = null)
+        {
+            var effect = new DropShadowEffect
+            {
+                BlurRadius = 4,
+                ShadowDepth = 0,
+                Color = GetCompletedEndColor(settings),
+                Opacity = 1.0
+            };
+
+            if (effect.CanFreeze)
+            {
+                effect.Freeze();
+            }
+
+            return effect;
         }
 
         /// <summary>
@@ -223,13 +247,46 @@ namespace PlayniteAchievements.Models.Achievements
         /// </summary>
         public static void BindAnimateRarityGlows(FrameworkElement element, DependencyProperty property)
         {
+            BindPersistedSetting(element, property, nameof(PersistedSettings.AnimateRarityGlows));
+        }
+
+        /// <summary>
+        /// Binds a control's soft-glow tier selection to the global setting, so the per-tier choice
+        /// reaches every glow surface the same way the pulse toggle does — and so changing it updates
+        /// glows already on screen.
+        /// </summary>
+        public static void BindSoftGlowTiers(FrameworkElement element, DependencyProperty property)
+        {
+            BindPersistedSetting(element, property, nameof(PersistedSettings.RarityGlowSoftTiers));
+        }
+
+        /// <summary>Ray counterpart to <see cref="BindSoftGlowTiers"/>.</summary>
+        public static void BindRayGlowTiers(FrameworkElement element, DependencyProperty property)
+        {
+            BindPersistedSetting(element, property, nameof(PersistedSettings.RarityGlowRayTiers));
+        }
+
+        /// <summary>
+        /// Binds a control's ShowHardcoreBorder dependency property to the global setting, so turning
+        /// the Hardcore border off hands those unlocks back to the normal glow everywhere at once.
+        /// </summary>
+        public static void BindShowHardcoreBorder(FrameworkElement element, DependencyProperty property)
+        {
+            BindPersistedSetting(element, property, nameof(PersistedSettings.ShowHardcoreBorder));
+        }
+
+        private static void BindPersistedSetting(
+            FrameworkElement element,
+            DependencyProperty property,
+            string settingName)
+        {
             var persisted = PlayniteAchievementsPlugin.Instance?.Settings?.Persisted;
             if (element == null || property == null || persisted == null)
             {
                 return;
             }
 
-            element.SetBinding(property, new Binding(nameof(PersistedSettings.AnimateRarityGlows))
+            element.SetBinding(property, new Binding(settingName)
             {
                 Source = persisted,
                 Mode = BindingMode.OneWay
@@ -292,6 +349,9 @@ namespace PlayniteAchievements.Models.Achievements
 
             _activeSettings = settings;
 
+            // Cleared before AppearanceChanged fires, so the bursts re-resolving on that event pick up
+            // recolored tiers rather than the palette built from the previous colors.
+            ClearRayGlowPalettes();
             ApplyBadgeResources(resources, settings);
 
             AppearanceChanged?.Invoke(null, EventArgs.Empty);

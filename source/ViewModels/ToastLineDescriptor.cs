@@ -1,3 +1,4 @@
+using System;
 using System.Windows;
 using System.Windows.Media;
 using System.Windows.Media.Effects;
@@ -87,10 +88,58 @@ namespace PlayniteAchievements.ViewModels
         public double VerticalPadding { get; set; }
 
         /// <summary>
-        /// The line's container margin: the <see cref="LeftIndent"/> on the left and the
-        /// <see cref="VerticalPadding"/> on top and bottom.
+        /// Whether this is the bottom-most visible line of its surface, set by the owning view
+        /// model once the user's line order is resolved. Only that line needs
+        /// <see cref="DescenderSlack"/>: a line with another line under it overhangs into the
+        /// next line box's empty top leading, which nothing clips.
         /// </summary>
-        public Thickness LeftIndentMargin => new Thickness(LeftIndent, VerticalPadding, 0, VerticalPadding);
+        public bool IsBottomLine { get; set; }
+
+        /// <summary>
+        /// Glyph ink can fall below a TextBlock's measured height, so a descender (p, q, g, y) on
+        /// the bottom line renders outside the bounds that the line host's ClipToBounds, the
+        /// description's <see cref="ToastDescriptionLine.MaxTextHeight"/> clamp, and the overlay
+        /// capture's layout-bounds viewbox all cut at. This reserves room for that overhang.
+        /// <para>
+        /// Measured over 1584 cases -- 18 font families, 8 to 48 DIP, every weight/style
+        /// combination, one and two lines -- the overhang never exceeds 1.026 DIP and does not
+        /// scale with the font, being a sub-pixel baseline residual rather than the descent. A flat
+        /// cap therefore covers it, and the font's own descent bounds it from the other side: no
+        /// measured face reported a descent smaller than its overhang.
+        /// </para>
+        /// </summary>
+        public double DescenderSlack =>
+            IsBottomLine ? Math.Min(FontDescent, MaxDescenderOverhangDip) : 0;
+
+        private const double MaxDescenderOverhangDip = 1.5d;
+
+        /// <summary>
+        /// The font's declared descent (DIPs) at this line's size. FontFamily.LineSpacing and
+        /// .Baseline are both em-relative, so their difference is the descent in ems.
+        /// </summary>
+        public double FontDescent
+        {
+            get
+            {
+                var family = FontFamily;
+                if (family == null)
+                {
+                    return 0;
+                }
+
+                var descent = family.LineSpacing - family.Baseline;
+                return descent > 0 ? FontSize * descent : 0;
+            }
+        }
+
+        /// <summary>
+        /// The line's container margin: the <see cref="LeftIndent"/> on the left, the
+        /// <see cref="VerticalPadding"/> on top and bottom, and <see cref="DescenderSlack"/> added
+        /// below. Carrying the slack on the container (rather than inside each line's own markup)
+        /// covers every line type at once, because the line host sizes to its items' margins.
+        /// </summary>
+        public Thickness LeftIndentMargin =>
+            new Thickness(LeftIndent, VerticalPadding, 0, VerticalPadding + DescenderSlack);
 
         /// <summary>
         /// Whether this line renders at all. Bound on the item container so an empty line collapses
@@ -242,20 +291,31 @@ namespace PlayniteAchievements.ViewModels
         public int MaxLines { get; }
 
         /// <summary>
-        /// Fixed line-box height (DIPs) for the description. Paired with
-        /// LineStackingStrategy="BlockLineHeight" in the template, every wrapped line occupies
-        /// exactly this height, so <see cref="MaxTextHeight"/> admits precisely
-        /// <see cref="MaxLines"/> lines. The template also turns off layout rounding on this text so
-        /// the floating toast window cannot round the height below the exact line boxes and clip the
-        /// last line (which the settings mockup, rendering without rounding, never does).
+        /// One rendered line's height (DIPs), read from the font's own designed line spacing --
+        /// which is the same metric WPF lays the text out with, so <see cref="MaxTextHeight"/>
+        /// admits precisely <see cref="MaxLines"/> lines and lands on a line boundary.
+        /// <para>
+        /// This was a flat 1.4 em pinned onto the text with LineStackingStrategy="BlockLineHeight".
+        /// That over-reserved 2-3 DIP per line for most faces (Source Sans Pro designs 1.256 em,
+        /// Segoe UI 1.330), bought no descender safety -- the ink overhang is a sub-pixel residual
+        /// either way, which <see cref="ToastLineDescriptor.DescenderSlack"/> covers -- and on a
+        /// card with a fixed height was enough to push a wrapped description past the card and get
+        /// its last line sliced. How far apart lines sit is the surface's line padding setting.
+        /// </para>
+        /// The template still turns off layout rounding on this text so the floating toast window
+        /// cannot round the height below the exact lines and clip the last one (which the settings
+        /// mockup, rendering without rounding, never does).
         /// </summary>
-        public double LineBoxHeight => FontSize * 1.4;
+        public double LineBoxHeight => FontSize * (FontFamily?.LineSpacing ?? 0);
 
         /// <summary>
         /// The clamp height for <see cref="MaxLines"/> pinned line boxes. A sub-pixel epsilon guards
-        /// against floating-point equality shaving the final line box.
+        /// against floating-point equality shaving the final line box. A description longer than its
+        /// line budget is arranged at exactly this height and layout-clipped to it, so the bottom
+        /// line's <see cref="ToastLineDescriptor.DescenderSlack"/> has to raise the ceiling too --
+        /// the container margin that covers every other line sits outside this clip.
         /// </summary>
-        public double MaxTextHeight => (LineBoxHeight * MaxLines) + 0.5;
+        public double MaxTextHeight => (LineBoxHeight * MaxLines) + DescenderSlack + 0.5;
 
         // Collapses when the description is hidden or the achievement has no description text.
         public override Visibility LineVisibility =>
@@ -320,18 +380,29 @@ namespace PlayniteAchievements.ViewModels
             }
         }
 
-        /// <summary>
-        /// Fixed line-box height (DIPs), matching the description line's rhythm
-        /// (<see cref="ToastDescriptionLine.LineBoxHeight"/>), so the game/category row reserves the
-        /// same vertical leading as the other text lines instead of rendering cramped against the
-        /// line above it.
-        /// </summary>
-        public double LineBoxHeight => FontSize * 1.4;
-
         /// <summary>Collapses the row when neither the game name nor the category is shown.</summary>
         public bool HasGameCategoryContent => !string.IsNullOrEmpty(GameCategoryText);
 
         public override Visibility LineVisibility =>
             HasGameCategoryContent ? Visibility.Visible : Visibility.Collapsed;
+    }
+
+    /// <summary>
+    /// The rarity percent text. Not a reorderable line: the surface templates draw the percent
+    /// themselves (under the icon footer or under the right-side badge) and gate it on their own
+    /// visibility flags, so this never joins the line list and takes no part in the line order or
+    /// the bottom-line descender pass. It reuses the descriptor purely to carry the same resolved
+    /// font values the real lines do, so the percent honors the same family and emphasis options.
+    /// </summary>
+    public sealed class ToastRarityTextLine : ToastLineDescriptor
+    {
+        public ToastRarityTextLine(
+            AchievementToastViewModel parent,
+            double fontSize,
+            FontFamily fontFamily,
+            Effect textShadow)
+            : base(parent, fontSize, fontFamily, textShadow)
+        {
+        }
     }
 }

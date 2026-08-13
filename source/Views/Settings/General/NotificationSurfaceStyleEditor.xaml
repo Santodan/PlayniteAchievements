@@ -187,6 +187,7 @@
                         <RowDefinition Height="Auto"/>
                         <RowDefinition Height="Auto"/>
                         <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="Auto"/>
                     </Grid.RowDefinitions>
 
                     <TextBlock Grid.Row="0" Grid.Column="0"
@@ -213,12 +214,62 @@
 
                     <TextBlock Grid.Row="2" Grid.Column="0"
                                Text="{DynamicResource LOCPlayAch_Settings_ToastShowRarityGlow}"
-                               Style="{StaticResource EditorRowLabelStyle}"/>
+                               Style="{StaticResource EditorRowLabelStyle}"
+                               Margin="0,0,8,8"/>
                     <ComboBox Grid.Row="2" Grid.Column="1"
                               ItemsSource="{Binding GlowDisplayOptions}"
                               SelectedItem="{Binding SelectedGlowDisplay, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
                               DisplayMemberPath="Display"
-                              MinWidth="190"/>
+                              MinWidth="190"
+                              Margin="0,0,0,8"/>
+
+                    <!-- The percent's font family and emphasis, mirroring the per-line columns in
+                         the text-lines grid. It lives here rather than as a fifth row of that grid
+                         because that grid's rows are the reorderable line order, which the percent
+                         is not part of. Its size stays with the other size sliders. -->
+                    <TextBlock Grid.Row="3" Grid.Column="0"
+                               Text="{DynamicResource LOCPlayAch_Settings_Style_FontFamily}"
+                               Style="{StaticResource EditorRowLabelStyle}"
+                               Margin="0,0,8,0"/>
+                    <StackPanel Grid.Row="3" Grid.Column="1"
+                                Orientation="Horizontal">
+                        <ComboBox ItemsSource="{Binding RarityFontFamilyOptions}"
+                                  SelectedItem="{Binding SelectedRarityFontFamilyOption, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                  helpers:FontPickerBehavior.EnableSearch="True"
+                                  MinWidth="190"
+                                  MaxDropDownHeight="360"
+                                  VerticalAlignment="Center"
+                                  VirtualizingPanel.IsVirtualizing="True">
+                            <ComboBox.ItemsPanel>
+                                <ItemsPanelTemplate>
+                                    <VirtualizingStackPanel/>
+                                </ItemsPanelTemplate>
+                            </ComboBox.ItemsPanel>
+                            <ComboBox.ItemTemplate>
+                                <DataTemplate>
+                                    <TextBlock Text="{Binding DisplayName}"
+                                               FontFamily="{Binding PreviewFamily}"/>
+                                </DataTemplate>
+                            </ComboBox.ItemTemplate>
+                        </ComboBox>
+                        <ToggleButton Style="{StaticResource LineEmphasisToggleStyle}"
+                                      Margin="8,0,0,0"
+                                      IsChecked="{Binding IsRarityBold, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}">
+                            <TextBlock Text="B" FontWeight="Bold"/>
+                        </ToggleButton>
+                        <ToggleButton Style="{StaticResource LineEmphasisToggleStyle}"
+                                      IsChecked="{Binding IsRarityItalic, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}">
+                            <TextBlock Text="I" FontStyle="Italic"/>
+                        </ToggleButton>
+                        <ToggleButton Style="{StaticResource LineEmphasisToggleStyle}"
+                                      IsChecked="{Binding IsRarityUnderline, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}">
+                            <TextBlock Text="U" TextDecorations="Underline"/>
+                        </ToggleButton>
+                        <ToggleButton Style="{StaticResource LineEmphasisToggleStyle}"
+                                      IsChecked="{Binding IsRarityStrikethrough, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}">
+                            <TextBlock Text="S" TextDecorations="Strikethrough"/>
+                        </ToggleButton>
+                    </StackPanel>
                 </Grid>
             </StackPanel>
         </Border>

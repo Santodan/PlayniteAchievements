@@ -1,5 +1,6 @@
 <ResourceDictionary xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
                     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+                    xmlns:controls="clr-namespace:PlayniteAchievements.Views.Controls;assembly=PlayniteAchievements"
                     xmlns:vm="clr-namespace:PlayniteAchievements.ViewModels;assembly=PlayniteAchievements">
     <!--
         Default screenshot frame template. Single source of truth: this same file is what the
@@ -83,7 +84,36 @@
                                 VerticalAlignment="Center">
                         <Grid Width="{Binding FrameIconSize}"
                               Height="{Binding FrameIconSize}"
+                              ClipToBounds="False"
                               HorizontalAlignment="Center">
+                            <!-- Rays glow style: arrows riding the icon's own silhouette, behind its
+                                 soft halo, which keeps rendering under both styles. Deliberately not
+                                 animated — the frame is rendered offscreen to a still image, so the
+                                 burst is held at the start of its cycle. The track is read straight
+                                 from the cache, which the capture path warms beforehand, since
+                                 nothing here can await. -->
+                            <controls:RarityRayBurst Rarity="{Binding Rarity}"
+                                                     UseCompletedColors="{Binding IsGameCompleted}"
+                                                     PhaseLock="False"
+                                                     SubjectUri="{Binding IconPath}"
+                                                     Visibility="{Binding FrameShowRayBurst, Converter={StaticResource BooleanToVisibilityConverter}}"/>
+                            <!-- Completion's other half: the pair of corner-thrown glows is what reads
+                                 as the completion gradient on game and category art. Completion only. -->
+                            <Image Stretch="Uniform"
+                                   RenderOptions.BitmapScalingMode="HighQuality">
+                                <Image.Style>
+                                    <Style TargetType="Image">
+                                        <Setter Property="Visibility" Value="Collapsed"/>
+                                        <Style.Triggers>
+                                            <DataTrigger Binding="{Binding IsGameCompleted}" Value="True">
+                                                <Setter Property="Visibility" Value="Visible"/>
+                                                <Setter Property="Source" Value="{Binding FrameCompletedBadgeImage}"/>
+                                                <Setter Property="Effect" Value="{Binding FrameCompletedGlowStartEffect}"/>
+                                            </DataTrigger>
+                                        </Style.Triggers>
+                                    </Style>
+                                </Image.Style>
+                            </Image>
                             <!-- Completion notifications swap the achievement icon for the
                                  completed-game badge and the completed glow (all sync-loaded, as
                                  offscreen rendering requires). -->
@@ -97,6 +127,26 @@
                                             <DataTrigger Binding="{Binding IsGameCompleted}" Value="True">
                                                 <Setter Property="Source" Value="{Binding FrameCompletedBadgeImage}"/>
                                                 <Setter Property="Effect" Value="{Binding FrameCompletedGlowEffect}"/>
+                                            </DataTrigger>
+                                        </Style.Triggers>
+                                    </Style>
+                                </Image.Style>
+                            </Image>
+                            <!-- Edge that comes with the rays: the same drop shadow at a small blur, so
+                                 it reads as a line along the artwork and hugs its alpha. Sync-loaded
+                                 like everything else here, as offscreen rendering requires. -->
+                            <Image Stretch="Uniform"
+                                   RenderOptions.BitmapScalingMode="HighQuality">
+                                <Image.Style>
+                                    <Style TargetType="Image">
+                                        <Setter Property="Source" Value="{Binding IconPath}"/>
+                                        <Setter Property="Effect" Value="{Binding FrameRarityEdgeEffect}"/>
+                                        <Style.Triggers>
+                                            <DataTrigger Binding="{Binding IsGameCompleted}" Value="True">
+                                                <Setter Property="Source" Value="{Binding FrameCompletedBadgeImage}"/>
+                                                <!-- The effect swaps too, or the edge stays the rarity
+                                                     colour beside a completion-coloured glow. -->
+                                                <Setter Property="Effect" Value="{Binding FrameCompletedEdgeEffect}"/>
                                             </DataTrigger>
                                         </Style.Triggers>
                                     </Style>
@@ -134,8 +184,11 @@
                                 <TextBlock Text="{Binding PercentText}"
                                            Style="{DynamicResource PlayAch.TextBlock.BaseStyle}"
                                            Foreground="{DynamicResource PlayAch.Brush.Text}"
-                                           FontSize="{Binding FrameRarityFontSize}"
-                                           FontFamily="{Binding FrameFontFamily}"
+                                           FontSize="{Binding FrameRarityText.FontSize}"
+                                           FontFamily="{Binding FrameRarityText.FontFamily}"
+                                           FontWeight="{Binding FrameRarityText.FontWeight}"
+                                           FontStyle="{Binding FrameRarityText.FontStyle}"
+                                           TextDecorations="{Binding FrameRarityText.TextDecorations}"
                                            Effect="{Binding FrameContentShadowInner}"/>
                             </Grid>
                         </StackPanel>
@@ -199,8 +252,11 @@
                                 <TextBlock Text="{Binding PercentText}"
                                            Style="{DynamicResource PlayAch.TextBlock.BaseStyle}"
                                            Foreground="{DynamicResource PlayAch.Brush.Text}"
-                                           FontSize="{Binding FrameRarityFontSize}"
-                                           FontFamily="{Binding FrameFontFamily}"
+                                           FontSize="{Binding FrameRarityText.FontSize}"
+                                           FontFamily="{Binding FrameRarityText.FontFamily}"
+                                           FontWeight="{Binding FrameRarityText.FontWeight}"
+                                           FontStyle="{Binding FrameRarityText.FontStyle}"
+                                           TextDecorations="{Binding FrameRarityText.TextDecorations}"
                                            Effect="{Binding FrameContentShadowInner}"/>
                             </Grid>
                         </StackPanel>

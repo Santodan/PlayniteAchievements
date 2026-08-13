@@ -99,8 +99,12 @@ The entries below are fork-side changes, grouped by date. When a date includes a
 
 ## Next release - TBD
 
+## 2026-08-13 - v3.1.2.1
+
+- v3.1.2 merge
 - Fixed steamhunters hidden achievements not respecting the extension language setting
 - Fixed the multiple folders dropdown not showing correctly
+- Fixed the RA subset selection not been saved after Playnite's restart
 
 ## 2026-08-08 - v3.1.1.1
 
@@ -129,6 +133,10 @@ The entries below are fork-side changes, grouped by date. When a date includes a
 - Removed the always on overlay for the `Achievement Notification`
 - Fixed the `<rarity>` wildcard showing the rarity tier instead of percentage.
 
+
+## Old Changelogs
+<details>
+
 ## 2026-08-02 - v3.0.0.1
 
 - v3.0.0 merge
@@ -140,9 +148,6 @@ The entries below are fork-side changes, grouped by date. When a date includes a
 - Change the `Local save folder override` to mention that it isn't using any local folder if that's the case
 - Added a refresh icon in the `View Achievements` window to refresh the achievements from that window
 - Added a dedicated file for the `Debug` setting for the `Achievement Notification`. The file is called `AchNotifDebug.log`
-
-## Old Changelogs
-<details>
 
 ## 2026-07-27 - v2.5.3.4
 

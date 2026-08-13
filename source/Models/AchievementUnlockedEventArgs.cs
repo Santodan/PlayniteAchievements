@@ -2,6 +2,13 @@ using System;
 
 namespace PlayniteAchievements.Models
 {
+    public enum UnlockVideoAnchorSource
+    {
+        Unknown = 0,
+        ProviderReported = 1,
+        SourceObservation = 2
+    }
+
     public sealed class AchievementUnlockedEventArgs : EventArgs
     {
         public Guid PlayniteGameId { get; set; }
@@ -24,9 +31,37 @@ namespace PlayniteAchievements.Models
         public string RarityTier { get; set; }
         public string TrophyType { get; set; }
         public bool IsHardcore { get; set; }
+
+        /// <summary>
+        /// The achievement is flagged hidden (secret) in the provider's schema. This describes the
+        /// achievement definition, so it stays true after the achievement is unlocked and revealed.
+        /// </summary>
+        public bool IsHidden { get; set; }
+
         public int? Points { get; set; }
         public int? ScaledPoints { get; set; }
         public DateTime? UnlockTimeUtc { get; set; }
+
+        /// <summary>
+        /// Immutable monitor-level observation time. This is stamped before the event is marshalled
+        /// to the UI thread, so capture timing never depends on toast or subscriber latency.
+        /// </summary>
+        public DateTime ObservedUtc { get; set; }
+
+        /// <summary>
+        /// Best provider/source-specific timestamp for placing the synthetic notification in video.
+        /// The provider's reported unlock time remains in <see cref="UnlockTimeUtc"/> for metadata.
+        /// </summary>
+        public DateTime? VideoAnchorUtc { get; set; }
+
+        public UnlockVideoAnchorSource VideoAnchorSource { get; set; }
+
+        /// <summary>
+        /// Per-notification identity shared by the toast and recording subscribers. It prevents two
+        /// achievements with the same display name (or the same achievement in overlapping games)
+        /// from receiving one another's overlay track or chime.
+        /// </summary>
+        public Guid CaptureCorrelationId { get; set; } = Guid.NewGuid();
         public int UnlockedCount { get; set; }
         public int TotalCount { get; set; }
 

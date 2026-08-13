@@ -16,7 +16,17 @@ namespace PlayniteAchievements.Models.Achievements
         Uncommon = 1 << (int)RarityTier.Uncommon,   // 2
         Rare = 1 << (int)RarityTier.Rare,           // 4
         UltraRare = 1 << (int)RarityTier.UltraRare, // 8
-        All = Common | Uncommon | Rare | UltraRare
+        All = Common | Uncommon | Rare | UltraRare,
+
+        /// <summary>
+        /// Game completion, which is not a rarity tier: it is the completed-game glow, whose subject
+        /// has no rarity of its own. It rides in this enum so the glow settings can offer it alongside
+        /// the tiers in one selector.
+        ///
+        /// Deliberately outside <see cref="All"/>, so every consumer that means "all rarity tiers" —
+        /// the capture filters especially — keeps its existing meaning untouched.
+        /// </summary>
+        Completed = 1 << 4                          // 16
     }
 
     public static class RaritySelectionExtensions
@@ -31,6 +41,15 @@ namespace PlayniteAchievements.Models.Achievements
         public static bool Contains(this RaritySelection selection, RarityTier tier)
         {
             return (selection & tier.ToFlag()) != RaritySelection.None;
+        }
+
+        /// <summary>
+        /// Whether <paramref name="selection"/> includes game completion. Separate from
+        /// <see cref="Contains(RaritySelection, RarityTier)"/> because completion is not a tier.
+        /// </summary>
+        public static bool IncludesCompleted(this RaritySelection selection)
+        {
+            return (selection & RaritySelection.Completed) != RaritySelection.None;
         }
     }
 

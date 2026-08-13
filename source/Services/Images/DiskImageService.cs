@@ -744,6 +744,70 @@ namespace PlayniteAchievements.Services.Images
         }
 
         /// <summary>
+        /// Replaces the bytes of a file already in the cache, leaving its path and extension alone.
+        /// </summary>
+        /// <remarks>
+        /// Written for the compression sweep, which rewrites cached images smaller in place. It
+        /// takes the same per-path write lock as the download path so a concurrent refresh cannot
+        /// interleave with the rewrite, stages the new bytes in a sibling temp file, and swaps them
+        /// in with <see cref="File.Replace(string, string, string)"/> so a cancel or crash mid-write
+        /// can never leave a truncated image behind.
+        /// </remarks>
+        internal async Task ReplaceCachedImageBytesAsync(
+            string path,
+            byte[] bytes,
+            CancellationToken cancel)
+        {
+            if (string.IsNullOrWhiteSpace(path) || bytes == null || bytes.Length == 0)
+            {
+                return;
+            }
+
+            var pathLock = await AcquirePathWriteLockAsync(path, cancel).ConfigureAwait(false);
+            using (pathLock)
+            {
+                cancel.ThrowIfCancellationRequested();
+                if (!File.Exists(path))
+                {
+                    return;
+                }
+
+                var tempPath = path + ".compress.tmp";
+                try
+                {
+                    await SaveBytesWithRetryAsync(tempPath, bytes, cancel).ConfigureAwait(false);
+
+                    try
+                    {
+                        File.Replace(tempPath, path, null);
+                    }
+                    catch (Exception)
+                    {
+                        // File.Replace refuses across volumes and on some filesystems; the
+                        // delete-then-move fallback is not atomic but stays within the same folder.
+                        File.Delete(path);
+                        File.Move(tempPath, path);
+                    }
+                }
+                finally
+                {
+                    try
+                    {
+                        if (File.Exists(tempPath))
+                        {
+                            File.Delete(tempPath);
+                        }
+                    }
+                    catch
+                    {
+                    }
+                }
+
+                NotifyImageFileOverwritten(path);
+            }
+        }
+
+        /// <summary>
         /// Crop a bitmap to square from center. If already square, returns original.
         /// For rectangular images, crops to square using center horizontally.
         /// </summary>

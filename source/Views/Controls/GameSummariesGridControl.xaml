@@ -135,6 +135,53 @@
                               SnapsToDevicePixels="True"
                               HorizontalAlignment="{Binding RelativeSource={RelativeSource AncestorType={x:Type DataGridCell}}, Path=Column.(helpers:DataGridAlignmentBehavior.CellHorizontalAlignment)}"
                               VerticalAlignment="{Binding RelativeSource={RelativeSource AncestorType={x:Type DataGridCell}}, Path=Column.(helpers:DataGridAlignmentBehavior.CellVerticalAlignment)}">
+                            <!-- Rays glow style: arrows riding the art's own silhouette in the
+                                 completed gradient's colors, under the two-tone bloom below rather
+                                 than in place of it. The same reach as the icon sites, because reach
+                                 scales with the artwork: a tighter value here left cover rays looking
+                                 stunted beside the same rays on an icon. Only the corner rounding
+                                 differs, matching the rounded card this art is clipped to. -->
+                            <controls:RarityRayBurst UseCompletedColors="True"
+                                                     BurstScale="1.55"
+                                                     CornerRadiusRatio="0.14">
+                                <controls:RarityRayBurst.Style>
+                                    <Style TargetType="controls:RarityRayBurst">
+                                        <Setter Property="Visibility" Value="Collapsed"/>
+                                        <!-- Follows the same art the cell draws, so the track carries
+                                             the cover's proportions rather than assuming a square. -->
+                                        <Setter Property="SubjectUri" Value="{Binding GameLogo, Converter={StaticResource DefaultGameImage}, ConverterParameter=icon}"/>
+                                        <Style.Triggers>
+                                            <DataTrigger Binding="{Binding UseCoverImages, RelativeSource={RelativeSource AncestorType=controls:GameSummariesGridControl}}" Value="True">
+                                                <Setter Property="SubjectUri" Value="{Binding GameCoverPath, Converter={StaticResource DefaultGameImage}, ConverterParameter=cover}"/>
+                                            </DataTrigger>
+                                            <MultiDataTrigger>
+                                                <MultiDataTrigger.Conditions>
+                                                    <Condition Binding="{Binding IsCompleted}" Value="True"/>
+                                                    <Condition Binding="{Binding ShowCompletionGlow, RelativeSource={RelativeSource AncestorType=controls:GameSummariesGridControl}}" Value="True"/>
+                                                </MultiDataTrigger.Conditions>
+                                                <Setter Property="Visibility" Value="Visible"/>
+                                            </MultiDataTrigger>
+                                            <MultiDataTrigger>
+                                                <MultiDataTrigger.Conditions>
+                                                    <Condition Binding="{Binding IsCompleted}" Value="True"/>
+                                                    <Condition Binding="{Binding ShowCompletionGlow, RelativeSource={RelativeSource AncestorType=controls:GameSummariesGridControl}}" Value="True"/>
+                                                    <Condition Binding="{Binding AnimateRarityGlows, RelativeSource={RelativeSource AncestorType=controls:GameSummariesGridControl}}" Value="True"/>
+                                                </MultiDataTrigger.Conditions>
+                                                <Setter Property="IsActive" Value="True"/>
+                                            </MultiDataTrigger>
+                                            <!-- Completed art has no rarity tier of its own, so it
+                                                 follows the selection's own completion entry rather
+                                                 than any tier. Last, so it overrides the triggers
+                                                 above. -->
+                                            <DataTrigger Binding="{Binding RayGlowTiers, RelativeSource={RelativeSource AncestorType=controls:GameSummariesGridControl}, Converter={StaticResource RaritySelectionIncludesCompleted}}" Value="False">
+                                                <Setter Property="Visibility" Value="Collapsed"/>
+                                                <Setter Property="IsActive" Value="False"/>
+                                            </DataTrigger>
+                                        </Style.Triggers>
+                                    </Style>
+                                </controls:RarityRayBurst.Style>
+                            </controls:RarityRayBurst>
+
                             <!-- Backing completion-glow layer: two art copies carrying the
                                  completed-gradient start/end glows, cached as one bitmap so the
                                  blur is not re-rasterized while scrolling. Sits outside the
@@ -149,6 +196,7 @@
                                                 <MultiDataTrigger.Conditions>
                                                     <Condition Binding="{Binding IsCompleted}" Value="True"/>
                                                     <Condition Binding="{Binding ShowCompletionGlow, RelativeSource={RelativeSource AncestorType=controls:GameSummariesGridControl}}" Value="True"/>
+                                                    <Condition Binding="{Binding SoftGlowTiers, RelativeSource={RelativeSource AncestorType=controls:GameSummariesGridControl}, Converter={StaticResource RaritySelectionIncludesCompleted}}" Value="True"/>
                                                 </MultiDataTrigger.Conditions>
                                                 <Setter Property="Visibility" Value="Visible"/>
                                             </MultiDataTrigger>
@@ -157,6 +205,7 @@
                                                 <MultiDataTrigger.Conditions>
                                                     <Condition Binding="{Binding IsCompleted}" Value="True"/>
                                                     <Condition Binding="{Binding ShowCompletionGlow, RelativeSource={RelativeSource AncestorType=controls:GameSummariesGridControl}}" Value="True"/>
+                                                    <Condition Binding="{Binding SoftGlowTiers, RelativeSource={RelativeSource AncestorType=controls:GameSummariesGridControl}, Converter={StaticResource RaritySelectionIncludesCompleted}}" Value="True"/>
                                                     <Condition Binding="{Binding AnimateRarityGlows, RelativeSource={RelativeSource AncestorType=controls:GameSummariesGridControl}}" Value="True"/>
                                                 </MultiDataTrigger.Conditions>
                                                 <Setter Property="helpers:RarityGlowPulse.IsActive" Value="True"/>
@@ -169,6 +218,22 @@
                                            Effect="{DynamicResource PlayAch.Effect.CompletedGlowStart}"/>
                                     <Image Style="{StaticResource GameImageStyle}"
                                            Effect="{DynamicResource PlayAch.Effect.CompletedGlowEnd}"/>
+                                    <!-- Edge that comes with the rays: the bloom's own colour at a small
+                                         blur, so it reads as a line along the art rather than around it.
+                                         The enclosing layer already gates on completion, so this only
+                                         has to follow the selection's completion entry. -->
+                                    <Image Effect="{DynamicResource PlayAch.Effect.CompletedGlowEdge}">
+                                        <Image.Style>
+                                            <Style TargetType="Image" BasedOn="{StaticResource GameImageStyle}">
+                                                <Setter Property="Visibility" Value="Collapsed"/>
+                                                <Style.Triggers>
+                                                    <DataTrigger Binding="{Binding RayGlowTiers, RelativeSource={RelativeSource AncestorType=controls:GameSummariesGridControl}, Converter={StaticResource RaritySelectionIncludesCompleted}}" Value="True">
+                                                        <Setter Property="Visibility" Value="Visible"/>
+                                                    </DataTrigger>
+                                                </Style.Triggers>
+                                            </Style>
+                                        </Image.Style>
+                                    </Image>
                                 </Grid>
                             </Border>
                             <Border CornerRadius="{StaticResource PlayAch.Radius.Card}"

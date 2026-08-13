@@ -34,6 +34,7 @@ namespace PlayniteAchievements.ViewModels
         private readonly ILogger _logger;
         private readonly PlayniteAchievementsSettings _settings;
         private readonly GameSummaryItemBuilder _summaryBuilder;
+        private readonly Services.Captures.CaptureLibraryService _captureLibrary;
         private readonly Guid _gameId;
         private Guid? _activeRefreshOperationId;
         private bool _isApplyingTimelineState;
@@ -168,6 +169,11 @@ namespace PlayniteAchievements.ViewModels
             _refreshService.GameCacheUpdated += OnGameCacheUpdated;
             _refreshService.CacheDeltaUpdated += OnCacheDeltaUpdated;
             _refreshService.RebuildProgress += OnRebuildProgress;
+            _captureLibrary = PlayniteAchievementsPlugin.Instance?.CaptureLibraryService;
+            if (_captureLibrary != null)
+            {
+                _captureLibrary.CapturesChanged += OnCapturesChanged;
+            }
 
             // Restore the previous session's sort/filter state for this game (if any) before
             // the initial load so the first display reflects it.
@@ -589,8 +595,7 @@ namespace PlayniteAchievements.ViewModels
                 }
 
                 _allAchievements = displayItems;
-                Services.Captures.CapturePresenceMarker.MarkAchievements(
-                    _allAchievements, PlayniteAchievementsPlugin.Instance?.CaptureLibraryService);
+                Services.Captures.CapturePresenceMarker.MarkAchievements(_allAchievements, _captureLibrary);
                 var localProvider = _refreshService?.Providers?.OfType<LocalSavesProvider>().FirstOrDefault();
                 CanEditLocalAchievements =
                     localProvider != null &&
@@ -671,10 +676,19 @@ namespace PlayniteAchievements.ViewModels
                 ? new List<GameSummaryItem> { item }
                 : new List<GameSummaryItem>();
 
+            // SynchronizeCollection matches by reference, so SummaryItems holds these very instances.
             System.Windows.Application.Current?.Dispatcher?.Invoke(() =>
                 CollectionHelper.SynchronizeCollection(SummaryItems, items));
+            Services.Captures.CapturePresenceMarker.MarkSummaries(items, _captureLibrary);
+        }
+
+        private void OnCapturesChanged(object sender, Services.Captures.CapturesChangedEventArgs e)
+        {
+            var folder = e?.FolderName;
+            Services.Captures.CapturePresenceMarker.MarkAchievements(
+                _allAchievements, _captureLibrary, folder);
             Services.Captures.CapturePresenceMarker.MarkSummaries(
-                items, PlayniteAchievementsPlugin.Instance?.CaptureLibraryService);
+                SummaryItems?.ToList(), _captureLibrary, folder);
         }
 
         private void RaiseSummaryAppearanceProperties()
@@ -1093,6 +1107,10 @@ namespace PlayniteAchievements.ViewModels
             _refreshService.GameCacheUpdated -= OnGameCacheUpdated;
             _refreshService.CacheDeltaUpdated -= OnCacheDeltaUpdated;
             _refreshService.RebuildProgress -= OnRebuildProgress;
+            if (_captureLibrary != null)
+            {
+                _captureLibrary.CapturesChanged -= OnCapturesChanged;
+            }
             if (_progressHideTimer != null)
             {
                 _progressHideTimer.Stop();

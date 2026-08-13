@@ -127,6 +127,7 @@ namespace PlayniteAchievements.ViewModels
         private readonly ILogger _logger;
         private readonly PlayniteAchievementsSettings _settings;
         private readonly OverviewLaunchContext _launchContext;
+        private readonly Services.Captures.CaptureLibraryService _captureLibrary;
 
         private readonly OverviewDataBuilder _dataBuilder;
 
@@ -339,6 +340,11 @@ namespace PlayniteAchievements.ViewModels
             // Subscribe to progress events
             _refreshService.CacheDeltaUpdated += OnCacheDeltaUpdated;
             _refreshService.CacheInvalidated += OnCacheInvalidated;
+            _captureLibrary = PlayniteAchievementsPlugin.Instance?.CaptureLibraryService;
+            if (_captureLibrary != null)
+            {
+                _captureLibrary.CapturesChanged += OnCapturesChanged;
+            }
             if (_gameCustomDataStore != null)
             {
                 _gameCustomDataStore.CustomDataChanged += OnCustomDataChanged;
@@ -1942,8 +1948,7 @@ namespace PlayniteAchievements.ViewModels
             CollectionHelper.Replace(AllAchievements, _allAchievements);
 
             _allGameSummaries = snapshot.GameSummaries ?? new List<GameSummaryItem>();
-            Services.Captures.CapturePresenceMarker.MarkSummaries(
-                _allGameSummaries, PlayniteAchievementsPlugin.Instance?.CaptureLibraryService);
+            Services.Captures.CapturePresenceMarker.MarkSummaries(_allGameSummaries, _captureLibrary);
             if (gameSummarySearchEntries != null)
             {
                 _gameSummarySearchIndex.LoadEntries(gameSummarySearchEntries);
@@ -1997,8 +2002,7 @@ namespace PlayniteAchievements.ViewModels
             Dictionary<AchievementDisplayItem, string> recentSearchEntries = null)
         {
             _allRecentAchievements = recentAchievements ?? new List<AchievementDisplayItem>();
-            Services.Captures.CapturePresenceMarker.MarkAchievements(
-                _allRecentAchievements, PlayniteAchievementsPlugin.Instance?.CaptureLibraryService);
+            Services.Captures.CapturePresenceMarker.MarkAchievements(_allRecentAchievements, _captureLibrary);
             _filteredRecentAchievements = new List<AchievementDisplayItem>(_allRecentAchievements);
             if (recentSearchEntries != null)
             {
@@ -3284,6 +3288,11 @@ namespace PlayniteAchievements.ViewModels
                     AchievementSortScope.RecentAchievements);
             }
 
+            // ApplyFragmentDelta swaps in freshly built row instances whose session-only HasCaptures
+            // defaults to false, so the Captures button for the game being played would vanish on
+            // its first unlock. Re-stamp the replaced rows.
+            RemarkCapturePresence();
+
             RefreshOverviewSearchIndexes();
 
             var snapshot = BuildSnapshotFromSourceLists();
@@ -3293,6 +3302,32 @@ namespace PlayniteAchievements.ViewModels
             UpdateAggregatePieCharts();
             ApplyRightFilters();
             UpdateFilteredStatus();
+        }
+
+        /// <summary>
+        /// Re-stamps the Captures flag on the row collections that own the rendered instances. The
+        /// display collections are CollectionHelper.Replace'd with subsets of these same backing
+        /// lists, so marking the backing lists reaches the grids. Pass a sanitized capture folder to
+        /// touch only one game's rows.
+        /// </summary>
+        private void RemarkCapturePresence(string gameFolderFilter = null)
+        {
+            Services.Captures.CapturePresenceMarker.MarkSummaries(
+                _allGameSummaries, _captureLibrary, gameFolderFilter);
+            Services.Captures.CapturePresenceMarker.MarkAchievements(
+                _allRecentAchievements, _captureLibrary, gameFolderFilter);
+            Services.Captures.CapturePresenceMarker.MarkAchievements(
+                _allSelectedGameAchievements, _captureLibrary, gameFolderFilter);
+        }
+
+        private void OnCapturesChanged(object sender, Services.Captures.CapturesChangedEventArgs e)
+        {
+            if (_disposed)
+            {
+                return;
+            }
+
+            RemarkCapturePresence(e?.FolderName);
         }
 
         private void RefreshOverviewSearchIndexes()
@@ -4450,8 +4485,7 @@ namespace PlayniteAchievements.ViewModels
                 SelectedGameHasCustomAchievementOrder = hasCustomOrder;
 
                 _allSelectedGameAchievements = items;
-                Services.Captures.CapturePresenceMarker.MarkAchievements(
-                    items, PlayniteAchievementsPlugin.Instance?.CaptureLibraryService);
+                Services.Captures.CapturePresenceMarker.MarkAchievements(items, _captureLibrary);
                 _selectedGameDefaultOrderedAchievements = new List<AchievementDisplayItem>(items);
                 FriendCompare?.SetTargetItems(items);
                 UpdateSelectedGameAchievementFilterOptions(_allSelectedGameAchievements);
@@ -5019,6 +5053,10 @@ namespace PlayniteAchievements.ViewModels
             {
                 _refreshService.CacheDeltaUpdated -= OnCacheDeltaUpdated;
                 _refreshService.CacheInvalidated -= OnCacheInvalidated;
+            }
+            if (_captureLibrary != null)
+            {
+                _captureLibrary.CapturesChanged -= OnCapturesChanged;
             }
             if (_gameCustomDataStore != null)
             {

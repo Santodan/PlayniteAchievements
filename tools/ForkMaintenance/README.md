@@ -51,22 +51,36 @@ git diff -- tools/ForkMaintenance
 The generated `bundle/bundle.json` records the exact upstream commit and SHA-256
 hashes for every generated component.
 
-## Apply after an upstream update
+## Update the current checkout in place
 
-Use a clean branch or detached worktree based on the new upstream commit:
+Run the `Update` action from the normal project directory. It fetches upstream,
+replaces the tracked non-protected project files with `upstream/main`, and applies
+the fork bundle directly in the current checkout:
 
 ```powershell
-git fetch upstream
-git worktree add ..\PlayniteAchievements-next upstream/main
-
 powershell.exe -NoProfile -ExecutionPolicy Bypass `
-    -File .\tools\ForkMaintenance\Apply-ForkBundle.ps1 `
-    -RepositoryPath ..\PlayniteAchievements-next `
-    -DryRun
+    -File .\tools\ForkMaintenance\Run-ForkMaintenance.ps1 `
+    -Action Update `
+    -UpstreamRef upstream/main `
+    -NoPause
+```
 
+The changes remain uncommitted and appear immediately in the current checkout's
+VS Code Source Control panel. The action preserves `README.md`,
+`source/extension.yaml`, `InstallerManifest.yaml`, and `tools/ForkMaintenance`.
+It refuses to start if other local changes exist, preventing unrelated work from
+being overwritten. Use `-SkipFetch` only when the selected upstream ref is
+already current locally.
+
+If the patch reports conflicts, resolve and stage those files, then resume the
+same in-place workflow without resetting the checkout again:
+
+```powershell
 powershell.exe -NoProfile -ExecutionPolicy Bypass `
-    -File .\tools\ForkMaintenance\Apply-ForkBundle.ps1 `
-    -RepositoryPath ..\PlayniteAchievements-next
+    -File .\tools\ForkMaintenance\Run-ForkMaintenance.ps1 `
+    -Action Update `
+    -ResumeAfterConflict `
+    -NoPause
 ```
 
 `-ExecutionPolicy Bypass` applies only to that PowerShell process. It does not
@@ -89,13 +103,12 @@ reviewed; those switches deliberately choose the fork's version.
 
 ## Recommended upstream workflow
 
-1. Keep the last working fork checkout intact.
-2. Fetch upstream and create a clean temporary worktree at the new upstream.
-3. Dry-run and apply the saved fork bundle there.
-4. Resolve only the reported shared-file conflicts.
-5. Build and test the extension.
-6. Export a fresh bundle against the new upstream baseline.
-7. Update the two protected manifests manually, outside this tooling.
+1. Run `Run-ForkMaintenance.ps1 -Action Update` in the normal checkout.
+2. Resolve only the reported shared-file conflicts, if any.
+3. Build and test the extension.
+4. Review every change in VS Code.
+5. Export a fresh bundle against the new upstream baseline.
+6. Update the protected manifests manually, outside this tooling.
 
 ## Reducing the remaining shared patch
 

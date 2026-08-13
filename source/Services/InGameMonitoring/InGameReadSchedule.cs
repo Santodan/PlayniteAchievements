@@ -14,6 +14,15 @@ namespace PlayniteAchievements.Services.InGameMonitoring
 
         public DateTime LastFileEventUtc { get; private set; }
 
+        /// <summary>
+        /// Timestamp assigned to the read currently in flight. A file-triggered read carries the
+        /// unconsumed watcher event; safety/remote reads use their local start time.
+        /// </summary>
+        public DateTime ActiveReadObservedUtc { get; private set; }
+
+        private DateTime _activeFileEventUtc;
+        private DateTime _consumedFileEventUtc;
+
         public bool Primed { get; private set; }
 
         public bool Dirty { get; private set; }
@@ -55,6 +64,9 @@ namespace PlayniteAchievements.Services.InGameMonitoring
 
             Primed = false;
             LastFileEventUtc = default;
+            ActiveReadObservedUtc = default;
+            _activeFileEventUtc = default;
+            _consumedFileEventUtc = default;
             NextDueUtc = hasProgressSource
                 ? isRemote ? nowUtc : DateTime.MaxValue
                 : firstFallbackDueUtc > nowUtc ? firstFallbackDueUtc : nowUtc;
@@ -70,8 +82,14 @@ namespace PlayniteAchievements.Services.InGameMonitoring
             }
         }
 
-        public void BeginRead()
+        public void BeginRead(DateTime nowUtc)
         {
+            _activeFileEventUtc = LastFileEventUtc > _consumedFileEventUtc
+                ? LastFileEventUtc
+                : default;
+            ActiveReadObservedUtc = _activeFileEventUtc != default
+                ? _activeFileEventUtc
+                : nowUtc;
             Dirty = false;
         }
 
@@ -93,6 +111,13 @@ namespace PlayniteAchievements.Services.InGameMonitoring
 
         public void Succeeded(DateTime nowUtc, TimeSpan safetyCadence)
         {
+            if (_activeFileEventUtc > _consumedFileEventUtc)
+            {
+                _consumedFileEventUtc = _activeFileEventUtc;
+            }
+
+            ActiveReadObservedUtc = default;
+            _activeFileEventUtc = default;
             Primed = true;
             RetryAttempt = 0;
             Degraded = false;
@@ -107,6 +132,10 @@ namespace PlayniteAchievements.Services.InGameMonitoring
             IReadOnlyList<int> retryMilliseconds,
             TimeSpan degradedCadence)
         {
+            // Do not consume the active file event. A retry must retain the original source
+            // correlation point unless a newer watcher event supersedes it.
+            ActiveReadObservedUtc = default;
+            _activeFileEventUtc = default;
             var attempt = RetryAttempt++;
             if (retryMilliseconds != null && attempt < retryMilliseconds.Count)
             {

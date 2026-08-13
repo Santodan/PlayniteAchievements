@@ -222,6 +222,80 @@ namespace PlayniteAchievements.ViewModels.Settings
             }
         }
 
+        /// <summary>
+        /// The rarity percent's font dropdown options. Its own list instance for the same reason
+        /// as <see cref="FontFamilyOptions"/>: a dropdown's type-to-search filter runs against the
+        /// bound list's default collection view, which is per list instance.
+        /// </summary>
+        public IReadOnlyList<FontFamilyOption> RarityFontFamilyOptions =>
+            _rarityFontFamilyOptions
+            ?? (_rarityFontFamilyOptions = new List<FontFamilyOption>(EnsureLineFontFamilyOptions()));
+
+        private IReadOnlyList<FontFamilyOption> _rarityFontFamilyOptions;
+
+        public FontFamilyOption SelectedRarityFontFamilyOption
+        {
+            get => FindOption(RarityFontFamilyOptions, Surface?.RarityFontFamily);
+            set
+            {
+                var surface = Surface;
+                if (surface == null)
+                {
+                    return;
+                }
+
+                var familyName = value?.FamilyName;
+                if (!string.Equals(surface.RarityFontFamily, familyName, StringComparison.Ordinal))
+                {
+                    surface.RarityFontFamily = familyName;
+                }
+            }
+        }
+
+        public bool IsRarityBold
+        {
+            get => HasRarityEmphasis(NotificationLineEmphasis.Bold);
+            set => SetRarityEmphasis(NotificationLineEmphasis.Bold, value);
+        }
+
+        public bool IsRarityItalic
+        {
+            get => HasRarityEmphasis(NotificationLineEmphasis.Italic);
+            set => SetRarityEmphasis(NotificationLineEmphasis.Italic, value);
+        }
+
+        public bool IsRarityUnderline
+        {
+            get => HasRarityEmphasis(NotificationLineEmphasis.Underline);
+            set => SetRarityEmphasis(NotificationLineEmphasis.Underline, value);
+        }
+
+        public bool IsRarityStrikethrough
+        {
+            get => HasRarityEmphasis(NotificationLineEmphasis.Strikethrough);
+            set => SetRarityEmphasis(NotificationLineEmphasis.Strikethrough, value);
+        }
+
+        private bool HasRarityEmphasis(NotificationLineEmphasis flag) =>
+            Surface != null && (Surface.RarityEmphasis & flag) != 0;
+
+        private void SetRarityEmphasis(NotificationLineEmphasis flag, bool enabled)
+        {
+            var surface = Surface;
+            if (surface == null || !_isEditable)
+            {
+                return;
+            }
+
+            var updated = enabled
+                ? surface.RarityEmphasis | flag
+                : surface.RarityEmphasis & ~flag;
+            if (updated != surface.RarityEmphasis)
+            {
+                surface.RarityEmphasis = updated;
+            }
+        }
+
         private static FontFamilyOption FindOption(IReadOnlyList<FontFamilyOption> options, string familyName)
         {
             if (string.IsNullOrWhiteSpace(familyName))
@@ -255,6 +329,9 @@ namespace PlayniteAchievements.ViewModels.Settings
             surface.TitleFontFamily = null;
             surface.BodyFontFamily = null;
             surface.GameCategoryFontFamily = null;
+            // The rarity percent follows too, so "apply to all" leaves no holdout.
+            surface.RarityFontFamily = null;
+            OnPropertyChanged(nameof(SelectedRarityFontFamilyOption));
             RefreshLineSizes();
         }
 
@@ -753,6 +830,13 @@ namespace PlayniteAchievements.ViewModels.Settings
             OnPropertyChanged(nameof(TextShadowOffsetSlider));
             OnPropertyChanged(nameof(ImageShadowSlider));
             OnPropertyChanged(nameof(ImageShadowOffsetSlider));
+
+            // The rarity percent's font controls read straight from the surface too.
+            OnPropertyChanged(nameof(SelectedRarityFontFamilyOption));
+            OnPropertyChanged(nameof(IsRarityBold));
+            OnPropertyChanged(nameof(IsRarityItalic));
+            OnPropertyChanged(nameof(IsRarityUnderline));
+            OnPropertyChanged(nameof(IsRarityStrikethrough));
         }
 
         // Slider/textbox range for the name-line offset; must match the Slider bounds in the view.
@@ -1882,6 +1966,17 @@ namespace PlayniteAchievements.ViewModels.Settings
             else if (e.PropertyName == nameof(NotificationSurfaceStyle.FontFamily))
             {
                 OnPropertyChanged(nameof(SelectedFontFamilyOption));
+            }
+            else if (e.PropertyName == nameof(NotificationSurfaceStyle.RarityFontFamily))
+            {
+                OnPropertyChanged(nameof(SelectedRarityFontFamilyOption));
+            }
+            else if (e.PropertyName == nameof(NotificationSurfaceStyle.RarityEmphasis))
+            {
+                OnPropertyChanged(nameof(IsRarityBold));
+                OnPropertyChanged(nameof(IsRarityItalic));
+                OnPropertyChanged(nameof(IsRarityUnderline));
+                OnPropertyChanged(nameof(IsRarityStrikethrough));
             }
             else if (e.PropertyName == nameof(NotificationSurfaceStyle.CardWidth) ||
                      e.PropertyName == nameof(NotificationSurfaceStyle.CardHeight))

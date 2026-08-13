@@ -109,6 +109,7 @@ namespace PlayniteAchievements.Models.Settings
         private string _titleFontFamily;
         private string _bodyFontFamily;
         private string _gameCategoryFontFamily;
+        private string _rarityFontFamily;
         private double? _headerFontSize;
         private double? _titleFontSize;
         private double? _bodyFontSize;
@@ -118,6 +119,7 @@ namespace PlayniteAchievements.Models.Settings
         private NotificationLineEmphasis _titleEmphasis;
         private NotificationLineEmphasis _bodyEmphasis;
         private NotificationLineEmphasis _gameCategoryEmphasis;
+        private NotificationLineEmphasis _rarityEmphasis;
         private double? _cardWidth;
         private double? _cardHeight;
         private double? _iconSize;
@@ -462,6 +464,16 @@ namespace PlayniteAchievements.Models.Settings
         }
 
         /// <summary>
+        /// Font family override for the rarity percent text, or null/blank to follow
+        /// <see cref="FontFamily"/>.
+        /// </summary>
+        public string RarityFontFamily
+        {
+            get => _rarityFontFamily;
+            set => SetValue(ref _rarityFontFamily, value);
+        }
+
+        /// <summary>
         /// Font size for the header/caption line (the header row), or null for the theme-derived
         /// size. The rarity percent text has its own <see cref="RarityFontSize"/>.
         /// </summary>
@@ -549,6 +561,16 @@ namespace PlayniteAchievements.Models.Settings
         {
             get => _gameCategoryEmphasis;
             set => SetValue(ref _gameCategoryEmphasis, value);
+        }
+
+        /// <summary>
+        /// Whole-line emphasis for the rarity percent text.
+        /// </summary>
+        [JsonProperty(DefaultValueHandling = DefaultValueHandling.Include)]
+        public NotificationLineEmphasis RarityEmphasis
+        {
+            get => _rarityEmphasis;
+            set => SetValue(ref _rarityEmphasis, value);
         }
 
         /// <summary>
@@ -673,6 +695,7 @@ namespace PlayniteAchievements.Models.Settings
                 TitleFontFamily = TitleFontFamily,
                 BodyFontFamily = BodyFontFamily,
                 GameCategoryFontFamily = GameCategoryFontFamily,
+                RarityFontFamily = RarityFontFamily,
                 HeaderFontSize = HeaderFontSize,
                 TitleFontSize = TitleFontSize,
                 BodyFontSize = BodyFontSize,
@@ -682,6 +705,7 @@ namespace PlayniteAchievements.Models.Settings
                 TitleEmphasis = TitleEmphasis,
                 BodyEmphasis = BodyEmphasis,
                 GameCategoryEmphasis = GameCategoryEmphasis,
+                RarityEmphasis = RarityEmphasis,
                 CardWidth = CardWidth,
                 CardHeight = CardHeight,
                 IconSize = IconSize,

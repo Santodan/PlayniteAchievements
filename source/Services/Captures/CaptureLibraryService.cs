@@ -15,8 +15,10 @@ namespace PlayniteAchievements.Services.Captures
     /// <c>&lt;baseDir&gt;\&lt;Game&gt;\NNN_AchievementName[_variant].png|mp4</c> with no index; this
     /// service enumerates them and parses each via <see cref="CaptureFileNameParser"/> into a per-game
     /// <see cref="GameCaptureSet"/>. Results are cached per game (deterministic, no TTL); writers call
-    /// <see cref="Invalidate(string)"/> after a successful save and the gallery viewer re-scans fresh
-    /// on open.
+    /// <see cref="Invalidate(string)"/> after a successful save, which also raises
+    /// <see cref="CapturesChanged"/> so grids that are already open re-stamp their rows instead of
+    /// waiting for a rebuild. The gallery viewer re-scans fresh on open via <see cref="RefreshGame"/>,
+    /// which stays silent because it is a read path.
     /// </summary>
     internal sealed class CaptureLibraryService
     {
@@ -32,6 +34,12 @@ namespace PlayniteAchievements.Services.Captures
             _settingsAccessor = settingsAccessor;
             _logger = logger;
         }
+
+        /// <summary>
+        /// Raised on the UI dispatcher after a game's captures on disk have changed. Subscribers may
+        /// touch UI-bound collections directly; a throwing subscriber never reaches the writer.
+        /// </summary>
+        public event EventHandler<CapturesChangedEventArgs> CapturesChanged;
 
         /// <summary>Parses (or returns the cached) capture set for a game. Never throws.</summary>
         public GameCaptureSet ScanGame(string gameName)
@@ -98,25 +106,22 @@ namespace PlayniteAchievements.Services.Captures
             return set;
         }
 
-        /// <summary>Forces a fresh scan of one game (used by the viewer on open) and returns it.</summary>
+        /// <summary>
+        /// Forces a fresh scan of one game (used by the viewer on open) and returns it. Deliberately
+        /// silent: opening the gallery is a read, not a change, and must not make every open grid
+        /// re-stamp itself.
+        /// </summary>
         public GameCaptureSet RefreshGame(string gameName)
         {
-            Invalidate(gameName);
+            InvalidateGameCore(UnlockScreenshotService.SanitizeCaptureGameName(gameName));
             return ScanGame(gameName);
         }
 
         public void Invalidate(string gameName)
         {
             var folder = UnlockScreenshotService.SanitizeCaptureGameName(gameName);
-            lock (_lock)
-            {
-                if (!string.IsNullOrEmpty(folder))
-                {
-                    _gameCache.Remove(folder);
-                }
-
-                _foldersWithCaptures = null;
-            }
+            InvalidateGameCore(folder);
+            RaiseCapturesChanged(gameName, folder);
         }
 
         public void Invalidate()
@@ -125,6 +130,116 @@ namespace PlayniteAchievements.Services.Captures
             {
                 _gameCache.Clear();
                 _foldersWithCaptures = null;
+            }
+
+            RaiseCapturesChanged(null, null);
+        }
+
+        /// <summary>
+        /// Drops one game's parsed set and re-probes just that folder in the membership set. Probing
+        /// the single folder keeps the cheap summary-grid set warm: nulling it would make every saved
+        /// capture force a full re-enumeration of every game folder on the next summary mark, once per
+        /// capture while a game is running. Nothing to sync when the set was never materialized.
+        /// </summary>
+        private void InvalidateGameCore(string sanitizedFolder)
+        {
+            if (string.IsNullOrEmpty(sanitizedFolder))
+            {
+                return;
+            }
+
+            bool needsProbe;
+            lock (_lock)
+            {
+                _gameCache.Remove(sanitizedFolder);
+                needsProbe = _foldersWithCaptures != null;
+            }
+
+            if (!needsProbe)
+            {
+                return;
+            }
+
+            // Probe outside the lock: it touches the file system.
+            var hasCaptures = ProbeFolderHasCaptures(sanitizedFolder);
+
+            lock (_lock)
+            {
+                if (_foldersWithCaptures == null)
+                {
+                    // A racing Invalidate() dropped the set; it will be recomputed on next read.
+                    return;
+                }
+
+                // Copy-on-write: GetGameFoldersWithCaptures hands the live set to lock-free readers.
+                var updated = new HashSet<string>(_foldersWithCaptures, StringComparer.OrdinalIgnoreCase);
+                if (hasCaptures)
+                {
+                    updated.Add(sanitizedFolder);
+                }
+                else
+                {
+                    updated.Remove(sanitizedFolder);
+                }
+
+                _foldersWithCaptures = updated;
+            }
+        }
+
+        private bool ProbeFolderHasCaptures(string sanitizedFolder)
+        {
+            foreach (var baseDir in ResolveBaseDirectories())
+            {
+                try
+                {
+                    var folder = Path.Combine(baseDir, sanitizedFolder);
+                    if (Directory.Exists(folder) && FolderHasCaptureFile(folder))
+                    {
+                        return true;
+                    }
+                }
+                catch (Exception ex)
+                {
+                    _logger?.Debug(ex, $"Capture folder probe failed for '{sanitizedFolder}'.");
+                }
+            }
+
+            return false;
+        }
+
+        /// <summary>
+        /// Marshals to the UI dispatcher so subscribers can read UI-bound collections, and swallows
+        /// subscriber failures: this runs on the capture pipeline's thread right after a save.
+        /// </summary>
+        private void RaiseCapturesChanged(string gameName, string folderName)
+        {
+            var handler = CapturesChanged;
+            if (handler == null)
+            {
+                return;
+            }
+
+            var args = new CapturesChangedEventArgs(gameName, folderName);
+            Action raise = () =>
+            {
+                try
+                {
+                    handler(this, args);
+                }
+                catch (Exception ex)
+                {
+                    _logger?.Debug(ex, "Captures-changed subscriber failed.");
+                }
+            };
+
+            var dispatcher = System.Windows.Application.Current?.Dispatcher;
+            if (dispatcher == null || dispatcher.CheckAccess())
+            {
+                raise();
+            }
+            else
+            {
+                dispatcher.BeginInvoke(raise);
             }
         }
 

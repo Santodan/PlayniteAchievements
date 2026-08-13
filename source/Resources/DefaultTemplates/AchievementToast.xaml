@@ -1,6 +1,7 @@
 <ResourceDictionary xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
                     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
                     xmlns:helpers="clr-namespace:PlayniteAchievements.Views.Helpers;assembly=PlayniteAchievements"
+                    xmlns:controls="clr-namespace:PlayniteAchievements.Views.Controls;assembly=PlayniteAchievements"
                     xmlns:vm="clr-namespace:PlayniteAchievements.ViewModels;assembly=PlayniteAchievements">
     <!--
         Default achievement toast template. Single source of truth: this same file is what the
@@ -22,6 +23,17 @@
               Height="{Binding ToastCardHeight}"
               MinHeight="64"
               Margin="{Binding ToastGlowMargin}">
+            <!-- Rays around the card itself, behind everything. No SubjectUri: there is no artwork to
+                 trace here, so the burst rides the card's own rectangle. The reach is a small multiple
+                 because it scales with the subject, and the card is far larger than an icon; the
+                 surrounding margin widens to match so the arrows are not clipped by the window. -->
+            <controls:RarityRayBurst Rarity="{Binding Rarity}"
+                                     UseCompletedColors="{Binding IsGameCompleted}"
+                                     IsActive="{Binding AnimateRarityGlows}"
+                                     PhaseLock="{Binding IsPreview}"
+                                     BurstScale="1.14"
+                                     CornerRadiusRatio="0.09"
+                                     Visibility="{Binding ShowRayBurst, Converter={StaticResource BooleanToVisibilityConverter}}"/>
             <!-- Shadow / glow layer: a content-free shape carries the card's drop shadow (or the
                  rarity border glow). Because the effect lives off the content layer, the text and
                  icons are never rasterized through WPF's 96-DPI effect intermediate and stay crisp
@@ -84,7 +96,7 @@
                     <Border.Background>
                         <ImageBrush Stretch="UniformToFill"
                                     helpers:AsyncImage.Uri="{Binding ToastBackgroundImagePath}"
-                                    helpers:AsyncImage.DecodePixel="512"
+                                    helpers:AsyncImage.DecodePixel="768"
                                     helpers:AsyncImage.PhaseLock="{Binding IsPreview}"/>
                     </Border.Background>
                 </Border>
@@ -103,7 +115,7 @@
                         <Border.Background>
                             <ImageBrush Stretch="UniformToFill"
                                         helpers:AsyncImage.Uri="{Binding ToastBackgroundImagePath}"
-                                        helpers:AsyncImage.DecodePixel="512"
+                                        helpers:AsyncImage.DecodePixel="768"
                                         helpers:AsyncImage.PhaseLock="{Binding IsPreview}"/>
                         </Border.Background>
                     </Border>
@@ -168,8 +180,11 @@
                                        Text="{Binding PercentText}"
                                        Style="{DynamicResource PlayAch.TextBlock.BaseStyle}"
                                        Foreground="{DynamicResource PlayAch.Brush.Text}"
-                                       FontSize="{Binding ToastRarityFontSize}"
-                                       FontFamily="{Binding ToastFontFamily}"
+                                       FontSize="{Binding ToastRarityText.FontSize}"
+                                       FontFamily="{Binding ToastRarityText.FontFamily}"
+                                       FontWeight="{Binding ToastRarityText.FontWeight}"
+                                       FontStyle="{Binding ToastRarityText.FontStyle}"
+                                       TextDecorations="{Binding ToastRarityText.TextDecorations}"
                                        Effect="{Binding ToastContentShadowInner}"/>
                         </Grid>
                     </StackPanel>
@@ -193,7 +208,40 @@
                             Margin="0,0,14,0">
                     <Grid Width="{Binding ToastIconSize}"
                           Height="{Binding ToastIconSize}"
+                          ClipToBounds="False"
                           HorizontalAlignment="Center">
+                        <!-- Rays glow style: arrows riding the icon's own silhouette, behind the soft
+                             halo on the backing layer below, which keeps rendering under both styles.
+                             PhaseLock is off for live waves so every notification (and its
+                             screenshot/clip) starts from the same point in the cycle. A completion
+                             notification swaps in a prebuilt badge image with no path to trace, and
+                             falls back to a rounded rectangle. -->
+                        <controls:RarityRayBurst Rarity="{Binding Rarity}"
+                                                 UseCompletedColors="{Binding IsGameCompleted}"
+                                                 IsActive="{Binding AnimateRarityGlows}"
+                                                 PhaseLock="{Binding IsPreview}"
+                                                 SubjectUri="{Binding IconPath}"
+                                                 Visibility="{Binding ShowRayBurst, Converter={StaticResource BooleanToVisibilityConverter}}"/>
+                        <!-- Completion's other half: game and category art stack two copies, one glow
+                             thrown from each corner, and it is the pair that reads as the completion
+                             gradient. Only shown for completion, so a normal unlock is unaffected. -->
+                        <Image Stretch="Uniform"
+                               RenderOptions.BitmapScalingMode="HighQuality"
+                               helpers:AsyncImage.DecodePixel="160"
+                               IsHitTestVisible="False">
+                            <Image.Style>
+                                <Style TargetType="Image">
+                                    <Setter Property="Visibility" Value="Collapsed"/>
+                                    <Style.Triggers>
+                                        <DataTrigger Binding="{Binding IsGameCompleted}" Value="True">
+                                            <Setter Property="Visibility" Value="Visible"/>
+                                            <Setter Property="helpers:AsyncImage.Uri" Value="{Binding ToastCompletedBadgeSource}"/>
+                                            <Setter Property="Effect" Value="{Binding CompletedGlowStartEffect}"/>
+                                        </DataTrigger>
+                                    </Style.Triggers>
+                                </Style>
+                            </Image.Style>
+                        </Image>
                         <!-- Completion notifications swap the achievement icon for the
                              completed-game badge and the completed glow. The glow lives on this
                              backing layer (a crisp front copy sits on top); it renders un-cached so
@@ -217,6 +265,29 @@
                                         <!-- Fade in/out pulse when AnimateRarityGlows is on. -->
                                         <DataTrigger Binding="{Binding AnimateRarityGlows}" Value="True">
                                             <Setter Property="helpers:RarityGlowPulse.IsActive" Value="True"/>
+                                        </DataTrigger>
+                                    </Style.Triggers>
+                                </Style>
+                            </Image.Style>
+                        </Image>
+                        <!-- Edge that comes with the rays: the same drop shadow as the halo above at a
+                             small blur, so it reads as a line along the artwork. A blur of the picture
+                             itself, so it hugs the alpha whatever shape it is. -->
+                        <Image Stretch="Uniform"
+                               RenderOptions.BitmapScalingMode="HighQuality"
+                               helpers:AsyncImage.DecodePixel="160"
+                               IsHitTestVisible="False">
+                            <Image.Style>
+                                <Style TargetType="Image">
+                                    <Setter Property="helpers:AsyncImage.Uri" Value="{Binding IconPath}"/>
+                                    <Setter Property="helpers:AsyncImage.PhaseLock" Value="{Binding IsPreview}"/>
+                                    <Setter Property="Effect" Value="{Binding RarityEdgeEffect}"/>
+                                    <Style.Triggers>
+                                        <DataTrigger Binding="{Binding IsGameCompleted}" Value="True">
+                                            <Setter Property="helpers:AsyncImage.Uri" Value="{Binding ToastCompletedBadgeSource}"/>
+                                            <!-- The effect has to swap too. Swapping only the picture
+                                                 left a rarity-coloured edge around a completion glow. -->
+                                            <Setter Property="Effect" Value="{Binding CompletedEdgeEffect}"/>
                                         </DataTrigger>
                                     </Style.Triggers>
                                 </Style>
@@ -284,8 +355,11 @@
                                 <TextBlock Text="{Binding PercentText}"
                                            Style="{DynamicResource PlayAch.TextBlock.BaseStyle}"
                                            Foreground="{DynamicResource PlayAch.Brush.Text}"
-                                           FontSize="{Binding ToastRarityFontSize}"
-                                           FontFamily="{Binding ToastFontFamily}"
+                                           FontSize="{Binding ToastRarityText.FontSize}"
+                                           FontFamily="{Binding ToastRarityText.FontFamily}"
+                                           FontWeight="{Binding ToastRarityText.FontWeight}"
+                                           FontStyle="{Binding ToastRarityText.FontStyle}"
+                                           TextDecorations="{Binding ToastRarityText.TextDecorations}"
                                            Effect="{Binding ToastContentShadowInner}"/>
                             </Grid>
                         </StackPanel>

@@ -200,6 +200,48 @@ namespace PlayniteAchievements.Providers.Exophase
             return FriendsProviderResult<IReadOnlyList<FriendIdentity>>.FromData(identities);
         }
 
+        // Reads the signed-in account's display name and avatar from its own Exophase profile page,
+        // through the same metadata parse the friend probe uses.
+        public async Task<FriendsProviderResult<FriendIdentity>> GetCurrentUserAsync(CancellationToken cancel)
+        {
+            var username = _settings?.UserId?.Trim();
+            if (string.IsNullOrWhiteSpace(username))
+            {
+                return FriendsProviderResult<FriendIdentity>.Failed(
+                    "Exophase username is not configured.",
+                    authRequired: true);
+            }
+
+            ExophaseProfileMetadata metadata;
+            try
+            {
+                metadata = await FetchProfileMetadataAsync(username, cancel).ConfigureAwait(false);
+            }
+            catch (OperationCanceledException) { throw; }
+            catch (Exception ex)
+            {
+                _logger?.Debug(ex, "[ExophaseFriends] Failed to probe profile metadata for the current user.");
+                return FriendsProviderResult<FriendIdentity>.Failed(
+                    "Exophase profile metadata could not be fetched for the current user.",
+                    transientFailure: true);
+            }
+
+            if (string.IsNullOrWhiteSpace(metadata?.AvatarUrl))
+            {
+                return FriendsProviderResult<FriendIdentity>.Failed(
+                    "Exophase profile did not contain an avatar for the current user.");
+            }
+
+            return FriendsProviderResult<FriendIdentity>.FromData(new FriendIdentity
+            {
+                ProviderKey = Provider,
+                ExternalUserId = username,
+                DisplayName = string.IsNullOrWhiteSpace(metadata.DisplayName) ? username : metadata.DisplayName.Trim(),
+                AvatarUrl = metadata.AvatarUrl,
+                LastRefreshedUtc = DateTime.UtcNow
+            });
+        }
+
         public async Task<FriendsProviderResult<IReadOnlyList<FriendGameOwnership>>> GetOwnedGamesAsync(
             FriendIdentity friend,
             CancellationToken cancel)

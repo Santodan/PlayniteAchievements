@@ -228,6 +228,10 @@ namespace PlayniteAchievements.Services.Refresh
 
             public List<FriendIdentity> LoadFriendIdentities(string providerKey) => new List<FriendIdentity>();
 
+            public List<FriendIdentity> LoadCurrentUserIdentities() => new List<FriendIdentity>();
+
+            public bool SaveCurrentUserProfile(string providerKey, FriendIdentity self) => true;
+
             public DateTime? GetMostRecentFriendLastRefreshedUtc() => null;
 
             public List<FriendRefreshCandidate> LoadFriendRefreshCandidates(string providerKey, FriendRefreshOptions options) =>

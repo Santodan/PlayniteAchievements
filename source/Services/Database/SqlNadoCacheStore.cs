@@ -4438,6 +4438,125 @@ namespace PlayniteAchievements.Services.Database
             }
         }
 
+        // The signed-in account for every provider that has one, keyed by provider. Feeds the
+        // compare grids' own-row avatar; the friend-scoped loader above is the sibling for the
+        // other side of the comparison.
+        public List<FriendIdentity> LoadCurrentUserIdentities()
+        {
+            try
+            {
+                return WithDb(db =>
+                    db.Load<FriendIdentityRow>(
+                        @"SELECT
+                            u.ProviderKey AS ProviderKey,
+                            u.ExternalUserId AS ExternalUserId,
+                            u.DisplayName AS DisplayName,
+                            u.ProviderNickname AS ProviderNickname,
+                            u.AvatarUrl AS AvatarUrl,
+                            u.AvatarPath AS AvatarPath
+                          FROM Users u
+                          WHERE u.IsCurrentUser = 1;")
+                    .Select(row => new FriendIdentity
+                    {
+                        ProviderKey = row.ProviderKey,
+                        ExternalUserId = row.ExternalUserId,
+                        DisplayName = row.DisplayName,
+                        ProviderNickname = row.ProviderNickname,
+                        AvatarUrl = row.AvatarUrl,
+                        AvatarPath = !string.IsNullOrWhiteSpace(row.AvatarPath)
+                            ? MakeAbsolutePath(row.AvatarPath)
+                            : row.AvatarUrl
+                    })
+                    .ToList());
+            }
+            catch (Exception ex)
+            {
+                _logger?.Warn(ex, "Failed to load current user identities.");
+                return new List<FriendIdentity>();
+            }
+        }
+
+        // Stamps the signed-in account's display name and avatar onto the current-user row the
+        // achievement save path already maintains. The row is located through the same
+        // ResolveCurrentUser identity that path uses, so this never creates a second row.
+        // AvatarPath uses COALESCE so a failed download never clears a cached file.
+        public bool SaveCurrentUserProfile(string providerKey, FriendIdentity self)
+        {
+            if (self == null)
+            {
+                return false;
+            }
+
+            providerKey = NormalizeProviderKey(providerKey);
+            var externalUserId = ResolveCurrentUser(providerKey)?.ExternalUserId;
+            if (string.IsNullOrWhiteSpace(externalUserId))
+            {
+                return false;
+            }
+
+            var displayName = string.IsNullOrWhiteSpace(self.DisplayName) ? null : self.DisplayName.Trim();
+            var avatarPath = MakeRelativePath(self.AvatarPath);
+            var nowIso = ToIso(DateTime.UtcNow);
+
+            try
+            {
+                return WithDb(db =>
+                {
+                    db.RunTransaction(() =>
+                    {
+                        // UX_Users_CurrentPerProvider allows one IsCurrentUser row per provider, so
+                        // a stale row under a previous account id has to be demoted first or the
+                        // insert below is silently ignored. Mirrors UpsertCurrentUser's demote step.
+                        db.ExecuteNonQuery(
+                            @"UPDATE Users
+                              SET IsCurrentUser = 0,
+                                  UpdatedUtc = ?
+                              WHERE ProviderKey = ?
+                                AND IsCurrentUser = 1
+                                AND ExternalUserId <> ?;",
+                            nowIso,
+                            providerKey,
+                            externalUserId);
+
+                        db.ExecuteNonQuery(
+                            @"INSERT OR IGNORE INTO Users
+                                (ProviderKey, ExternalUserId, DisplayName, IsCurrentUser, AvatarUrl, AvatarPath, CreatedUtc, UpdatedUtc)
+                              VALUES
+                                (?, ?, ?, 1, ?, ?, ?, ?);",
+                            providerKey,
+                            externalUserId,
+                            DbValue(displayName ?? externalUserId),
+                            DbValue(self.AvatarUrl),
+                            DbValue(avatarPath),
+                            nowIso,
+                            nowIso);
+
+                        db.ExecuteNonQuery(
+                            @"UPDATE Users
+                              SET DisplayName = COALESCE(?, DisplayName),
+                                  AvatarUrl = ?,
+                                  AvatarPath = COALESCE(?, AvatarPath),
+                                  UpdatedUtc = ?
+                              WHERE ProviderKey = ?
+                                AND ExternalUserId = ?;",
+                            DbValue(displayName),
+                            DbValue(self.AvatarUrl),
+                            DbValue(avatarPath),
+                            nowIso,
+                            providerKey,
+                            externalUserId);
+                    });
+
+                    return true;
+                });
+            }
+            catch (Exception ex)
+            {
+                _logger?.Warn(ex, $"Failed to save the current user profile for provider={providerKey}.");
+                return false;
+            }
+        }
+
         private sealed class FriendIdentityRow
         {
             public string ProviderKey { get; set; }

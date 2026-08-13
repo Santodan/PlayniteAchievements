@@ -346,17 +346,12 @@ namespace PlayniteAchievements.Views
             favoriteItem.IsEnabled = FriendFavoriteToggleHelper.HasConfigurableAccounts(friend);
             menu.Items.Add(favoriteItem);
 
-            menu.Items.Add(CreateMenuItem(
-                "LOCPlayAch_Menu_OpenGameInLibrary",
-                "Open Game in Library",
-                () =>
-                {
-                    var command = ViewModel?.OpenGameInLibraryCommand;
-                    if (command?.CanExecute(null) == true)
-                    {
-                        command.Execute(null);
-                    }
-                }));
+            menu.Items.Add(GameRowContextMenuBuilder.CreateOpenMenu(
+                this,
+                ViewModel?.GameId ?? Guid.Empty,
+                () => GameRowContextMenuBuilder.ExecuteCommand(ViewModel?.OpenGameInLibraryCommand, null),
+                _playniteApi,
+                _logger));
 
             return menu;
         }

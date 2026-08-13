@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Threading.Tasks;
 using Playnite.SDK;
+using PlayniteAchievements.Common;
 using PlayniteAchievements.Services.Capture;
 using PlayniteAchievements.ViewModels;
 
@@ -111,9 +112,10 @@ namespace PlayniteAchievements.Services.UI
                 {
                     Track = new ToastOverlayTrack
                     {
+                        CaptureCorrelationId = vm.CaptureCorrelationId,
                         ProviderKey = vm.ProviderKey,
                         AchievementName = vm.AchievementName,
-                        StartUtc = DateTime.UtcNow,
+                        StartUtc = CaptureTimelineClock.UtcNow,
                     },
                 };
                 _items[vm] = state;
