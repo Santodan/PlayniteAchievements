@@ -46,8 +46,8 @@ $valueTuple = Get-ChildItem (Join-Path $repo 'source\packages') -Recurse -Filter
     Where-Object { $_.FullName -match 'net4' } | Select-Object -First 1
 if ($valueTuple) { Copy-Item $valueTuple.FullName $out -Force }
 
-# WPF is here for SlideProbe, which drives a real layered window and the composition tick. The extra
-# references are harmless to the tools that ignore them.
+# WPF is here for SlideProbe and SlideStoryboardProbe, which drive a real layered window and the
+# composition tick. The extra references are harmless to the tools that ignore them.
 $framework = @(
     'mscorlib', 'System', 'System.Core', 'System.Drawing', 'System.Windows.Forms',
     'PresentationCore', 'PresentationFramework', 'WindowsBase', 'System.Xaml'
@@ -56,7 +56,9 @@ $sharp = Get-ChildItem $out -Filter 'SharpDX*.dll' | ForEach-Object { "/r:$($_.F
 $tuple = if (Test-Path (Join-Path $out 'System.ValueTuple.dll')) { @("/r:$out\System.ValueTuple.dll") } else { @() }
 $refs = $framework + $sharp + $tuple
 
-$tools = @('CaptureHarness', 'FrameDump', 'AttributeBisect', 'PacerProbe', 'GenerationLoss', 'SlideProbe')
+$tools = @(
+    'CaptureHarness', 'FrameDump', 'AttributeBisect', 'PacerProbe', 'GenerationLoss',
+    'SlideProbe', 'SlideStoryboardProbe')
 $failed = @()
 foreach ($tool in $tools) {
     $source = Join-Path $here ($tool + '.cs')
