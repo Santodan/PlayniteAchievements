@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Windows;
 using System.Windows.Controls;
+using System.Windows.Media;
 using PlayniteAchievements.ViewModels;
 
 namespace PlayniteAchievements.Services.UI
@@ -93,6 +94,68 @@ namespace PlayniteAchievements.Services.UI
             }
 
             return control;
+        }
+
+        /// <summary>
+        /// Wraps the card surface in the element the slide animates. The live toast slides by
+        /// translating this host inside a stationary window; the settings inline preview does not move
+        /// and keeps using the bare surface.
+        ///
+        /// The transform sits here, outside the surface, on purpose. The surface carries the fit and DPI
+        /// compensation as a <c>LayoutTransform</c>, and a <c>RenderTransform</c> on the same element
+        /// composes inside that scale — so an identical translate would travel a different distance at
+        /// every display scale. On the host it is plain window DIPs.
+        ///
+        /// Layout rounding and device-pixel snapping are turned off for the same reason the slide moved
+        /// off <c>SetWindowPos</c>: both quantise the rendered position to whole pixels, which is the
+        /// sub-pixel precision this is here to gain.
+        /// </summary>
+        public static Grid BuildSlideHost(ItemsControl surface, out TranslateTransform slide)
+        {
+            // A group rather than the bare translate, so a theme storyboard can animate a scale
+            // (a pop or a shrink-away) alongside — or instead of — the slide. The order is fixed and
+            // the plugin's slide is index 1; see ToastNotificationService.SlideTargetPath.
+            slide = new TranslateTransform();
+            var transforms = new TransformGroup();
+            transforms.Children.Add(new ScaleTransform(1d, 1d));
+            transforms.Children.Add(slide);
+
+            var host = new Grid
+            {
+                IsHitTestVisible = false,
+                UseLayoutRounding = false,
+                SnapsToDevicePixels = false,
+                RenderTransform = transforms,
+                RenderTransformOrigin = new Point(0.5, 0.5),
+            };
+
+            if (surface != null)
+            {
+                host.Children.Add(surface);
+            }
+
+            return host;
+        }
+
+        /// <summary>
+        /// Reserves <paramref name="travelDip"/> of empty room past the card on the side the card slides
+        /// in from, so the window is large enough to contain it at both ends of the slide. An HWND clips
+        /// its content unconditionally, so without this the card is simply cut off mid-slide.
+        ///
+        /// The room is transparent and hit-test-invisible like the rest of the window, and the card's
+        /// resting offset inside the window becomes the top pad — which placement reads back by
+        /// measurement rather than recomputing (see <c>ToastWindowPlacer.TryMeasureCardPhysical</c>).
+        /// </summary>
+        public static void ApplySlideTravel(ItemsControl surface, double travelDip, bool fromBottom)
+        {
+            if (surface == null || double.IsNaN(travelDip) || travelDip <= 0)
+            {
+                return;
+            }
+
+            surface.Margin = fromBottom
+                ? new Thickness(0, 0, 0, travelDip)
+                : new Thickness(0, travelDip, 0, 0);
         }
     }
 }
