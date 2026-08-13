@@ -25,15 +25,18 @@
         its PlayniteAchievements/AchievementToast.xaml to change the easing, timing, or add extra
         child animations. Values the plugin must supply at runtime are left unset here and patched
         in code before the storyboard runs:
-          - Slide in/out: From/To (the window's off-screen and resting Top, which depend on the
-            live game-window position and toast corner) are set in code; easing and duration below
-            are honored as authored.
+          - Slide in/out: these storyboards are run as authored, against the toast's slide host. Any
+            child that names no target is aimed at that host, so a child may animate the host's
+            Opacity or a scale alongside the slide. The slide child itself animates the host's
+            TranslateTransform.Y, in window DIPs; leave From/To unset and the plugin fills in the
+            travel, which depends on the card's laid-out height and the toast corner. A finite,
+            non-zero Duration is required — the plugin falls back to its built-in slide without one.
           - Countdown: Duration is set in code to the toast's display time; the animated target
             (each toast's PART_ToastCountdown bar) is also assigned in code. The animation must
             drive the bar's ScaleX (contract) so it reads as a depleting auto-dismiss timer.
     -->
     <Storyboard x:Key="PlayAch.Storyboard.ToastSlideIn">
-        <DoubleAnimation Storyboard.TargetProperty="(Window.Top)"
+        <DoubleAnimation Storyboard.TargetProperty="(UIElement.RenderTransform).(TranslateTransform.Y)"
                          Duration="0:0:0.24"
                          FillBehavior="HoldEnd">
             <DoubleAnimation.EasingFunction>
@@ -44,7 +47,7 @@
     </Storyboard>
 
     <Storyboard x:Key="PlayAch.Storyboard.ToastSlideOut">
-        <DoubleAnimation Storyboard.TargetProperty="(Window.Top)"
+        <DoubleAnimation Storyboard.TargetProperty="(UIElement.RenderTransform).(TranslateTransform.Y)"
                          Duration="0:0:0.2"
                          FillBehavior="HoldEnd">
             <DoubleAnimation.EasingFunction>
