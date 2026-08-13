@@ -838,16 +838,58 @@ namespace PlayniteAchievements.Providers.RPCS3
                 }
             }
 
-            var tropdirs = directoriesToCheck
-                .SelectMany(dir => new[]
-                {
-                    Path.Combine(dir, "TROPDIR"),
-                    Path.Combine(dir, "PS3_GAME", "TROPDIR")
-                })
+            var trpPaths = directoriesToCheck
+                .SelectMany(EnumerateTropdirTrpPaths)
                 .Distinct(StringComparer.OrdinalIgnoreCase);
 
-            foreach (var tropdir in tropdirs)
+            foreach (var trpPath in trpPaths)
             {
+                string npCommId = null;
+                try
+                {
+                    npCommId = ExtractNpCommIdFromTrpFile(trpPath);
+                }
+                catch (Exception ex)
+                {
+                    _logger?.Debug(ex, $"[RPCS3] Failed to extract NPWR ID from '{trpPath}'");
+                }
+
+                var normalized = Rpcs3MatchIdHelper.Normalize(npCommId);
+                if (string.IsNullOrWhiteSpace(normalized))
+                {
+                    continue;
+                }
+
+                if (!trophyFolderCache.ContainsKey(normalized))
+                {
+                    continue;
+                }
+
+                yield return new GameTrophySource
+                {
+                    NpCommId = normalized,
+                    TrpPath = trpPath
+                };
+            }
+        }
+
+        /// <summary>
+        /// TROPHY.TRP paths under a game directory's TROPDIR, one per trophy set
+        /// directory. Both the directory itself and its PS3_GAME child are
+        /// probed, so a dump root and the PS3_GAME inside it resolve alike.
+        /// Ordered for deterministic selection; yields nothing when no TROPDIR
+        /// exists or it cannot be read.
+        /// </summary>
+        private static IEnumerable<string> EnumerateTropdirTrpPaths(string directory)
+        {
+            if (string.IsNullOrWhiteSpace(directory))
+            {
+                yield break;
+            }
+
+            foreach (var root in new[] { directory, Path.Combine(directory, "PS3_GAME") })
+            {
+                var tropdir = Path.Combine(root, "TROPDIR");
                 if (!Directory.Exists(tropdir))
                 {
                     continue;
@@ -866,37 +908,10 @@ namespace PlayniteAchievements.Providers.RPCS3
                 foreach (var setDirectory in setDirectories.OrderBy(path => path, StringComparer.OrdinalIgnoreCase))
                 {
                     var trpPath = Path.Combine(setDirectory, "TROPHY.TRP");
-                    if (!File.Exists(trpPath))
+                    if (File.Exists(trpPath))
                     {
-                        continue;
+                        yield return trpPath;
                     }
-
-                    string npCommId = null;
-                    try
-                    {
-                        npCommId = ExtractNpCommIdFromTrpFile(trpPath);
-                    }
-                    catch (Exception ex)
-                    {
-                        _logger?.Debug(ex, $"[RPCS3] Failed to extract NPWR ID from '{trpPath}'");
-                    }
-
-                    var normalized = Rpcs3MatchIdHelper.Normalize(npCommId);
-                    if (string.IsNullOrWhiteSpace(normalized))
-                    {
-                        continue;
-                    }
-
-                    if (!trophyFolderCache.ContainsKey(normalized))
-                    {
-                        continue;
-                    }
-
-                    yield return new GameTrophySource
-                    {
-                        NpCommId = normalized,
-                        TrpPath = trpPath
-                    };
                 }
             }
         }
@@ -2088,33 +2103,13 @@ namespace PlayniteAchievements.Providers.RPCS3
             }
 
             // Possible TROPHY.TRP locations for installed games
-            // PKG games: {game_root}/TROPDIR/{npcommid}/TROPHY.TRP
-            // Disc-based games: {game_root}/TROPHY/TROPHY.TRP or {game_root}/PS3_GAME/TROPHY/TROPHY.TRP
+            // PKG and disc games: {game_root}/TROPDIR/{npcommid}/TROPHY.TRP, also
+            // under PS3_GAME for an extracted disc dump
+            // Alternative disc structure: {game_root}/TROPHY/TROPHY.TRP or {game_root}/PS3_GAME/TROPHY/TROPHY.TRP
             var trpPaths = new List<string>();
             foreach (var dir in directoriesToCheck)
             {
-                // PKG games: TROPDIR contains subdirectories named after npcommid
-                var tropdir = Path.Combine(dir, "TROPDIR");
-                if (Directory.Exists(tropdir))
-                {
-                    try
-                    {
-                        foreach (var subDir in Directory.GetDirectories(tropdir).OrderBy(path => path, StringComparer.OrdinalIgnoreCase))
-                        {
-                            var trpPath = Path.Combine(subDir, "TROPHY.TRP");
-                            if (File.Exists(trpPath))
-                            {
-                                trpPaths.Add(trpPath);
-                            }
-                        }
-                    }
-                    catch
-                    {
-                        // Ignore errors scanning TROPDIR
-                    }
-                }
-
-                // Disc-based game paths
+                trpPaths.AddRange(EnumerateTropdirTrpPaths(dir));
                 trpPaths.Add(Path.Combine(dir, "TROPHY", "TROPHY.TRP"));
                 trpPaths.Add(Path.Combine(dir, "PS3_GAME", "TROPHY", "TROPHY.TRP"));
             }
@@ -2210,25 +2205,11 @@ namespace PlayniteAchievements.Providers.RPCS3
 
             foreach (var dir in directoriesToCheck)
             {
-                // PKG games: TROPDIR contains subdirectories named after npcommid
-                var tropdir = Path.Combine(dir, "TROPDIR");
-                if (Directory.Exists(tropdir))
+                // PKG and disc games: TROPDIR contains subdirectories named after npcommid
+                var tropdirTrpPath = EnumerateTropdirTrpPaths(dir).FirstOrDefault();
+                if (!string.IsNullOrWhiteSpace(tropdirTrpPath))
                 {
-                    try
-                    {
-                        foreach (var subDir in Directory.GetDirectories(tropdir))
-                        {
-                            var trpPath = Path.Combine(subDir, "TROPHY.TRP");
-                            if (File.Exists(trpPath))
-                            {
-                                return trpPath;
-                            }
-                        }
-                    }
-                    catch
-                    {
-                        // Ignore errors scanning TROPDIR
-                    }
+                    return tropdirTrpPath;
                 }
 
                 // Disc-based game: TROPHY/TROPHY.TRP
