@@ -630,11 +630,12 @@ namespace PlayniteAchievements.Services.ThemeIntegration
                      (_requestedGameId.HasValue && _requestedGameId.Value == resolvedGameId.Value) ||
                      (_settings?.SelectedGame?.Id == resolvedGameId.Value));
 
+                // Only rebuild the selected-game surface when it is actually showing the game
+                // that changed. RequestUpdate repoints that surface at whatever game it is given,
+                // so running it for some other game — which any library-scope edit would do —
+                // would swap the selected game out from under the user. Library-scope lists are
+                // covered by the library refresh below.
                 if (shouldRefreshSelectedGame)
-                {
-                    RequestUpdate(resolvedGameId.Value, forceRefresh: true);
-                }
-                else if (resolvedGameId.HasValue)
                 {
                     RequestUpdate(resolvedGameId.Value, forceRefresh: true);
                 }
