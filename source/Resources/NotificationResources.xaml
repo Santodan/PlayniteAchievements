@@ -36,7 +36,7 @@
             drive the bar's ScaleX (contract) so it reads as a depleting auto-dismiss timer.
     -->
     <Storyboard x:Key="PlayAch.Storyboard.ToastSlideIn">
-        <DoubleAnimation Storyboard.TargetProperty="(UIElement.RenderTransform).(TranslateTransform.Y)"
+        <DoubleAnimation Storyboard.TargetProperty="(UIElement.RenderTransform).(TransformGroup.Children)[1].(TranslateTransform.Y)"
                          Duration="0:0:0.24"
                          FillBehavior="HoldEnd">
             <DoubleAnimation.EasingFunction>
@@ -47,7 +47,7 @@
     </Storyboard>
 
     <Storyboard x:Key="PlayAch.Storyboard.ToastSlideOut">
-        <DoubleAnimation Storyboard.TargetProperty="(UIElement.RenderTransform).(TranslateTransform.Y)"
+        <DoubleAnimation Storyboard.TargetProperty="(UIElement.RenderTransform).(TransformGroup.Children)[1].(TranslateTransform.Y)"
                          Duration="0:0:0.2"
                          FillBehavior="HoldEnd">
             <DoubleAnimation.EasingFunction>
