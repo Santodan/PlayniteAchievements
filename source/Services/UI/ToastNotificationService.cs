@@ -16,6 +16,7 @@ using PlayniteAchievements.Models.Achievements;
 using PlayniteAchievements.Models.Settings;
 using PlayniteAchievements.Services.Capture;
 using PlayniteAchievements.Services.GameCustomData;
+using PlayniteAchievements.Services.Images;
 using PlayniteAchievements.ViewModels;
 using PlayniteAchievements.Views.Helpers;
 
@@ -60,6 +61,8 @@ namespace PlayniteAchievements.Services.UI
         private const int SoundAlignmentDelayMs = 450;
 
         private bool _disposed;
+        // Window-bearing waves shown by this process; see the [Toast] Fire diagnostic line.
+        private int _waveSequence;
         private Window _activeWindow;
         // The corner the current wave uses, resolved once per wave (theme override or plugin
         // setting). Read by the per-frame positioning path so it isn't re-resolved every frame.
@@ -92,6 +95,20 @@ namespace PlayniteAchievements.Services.UI
         private int _activeMonitorRefreshHz;
         // The running physical slide's per-frame tick handler (CompositionTarget.Rendering), or null.
         private EventHandler _activeSlideTick;
+        // The running slide's frame bookkeeping, direction and requested duration, kept out of the tick
+        // closure so the one diagnostic line each slide emits can be written from either exit: the slide
+        // is routinely force-stopped (the post-slide snap, teardown) before its final frame runs.
+        // ReportActiveSlide nulls the counter, so whichever exit comes first reports and the other is a
+        // no-op.
+        private RenderTickCounter _activeSlideTicks;
+        private string _activeSlideLabel;
+        private double _activeSlideRequestedMs;
+        // The wave's slide easing and duration, resolved once per wave by ResolveWaveSlideTiming from
+        // the themeable storyboards. Seeded with the code defaults so a slide can never run on nothing.
+        private IEasingFunction _activeSlideInEase = DefaultSlideInEase;
+        private double _activeSlideInMs = SlideInDurationMs;
+        private IEasingFunction _activeSlideOutEase = DefaultSlideOutEase;
+        private double _activeSlideOutMs = SlideOutDurationMs;
         // Per-wave placement state: the offset between where SetWindowPos is asked to put the toast
         // and where its HWND lands (measured once, on the wave's first settled placement), and whether
         // this wave has already logged that its placement needed rescuing.
@@ -1137,6 +1154,12 @@ namespace PlayniteAchievements.Services.UI
             // setting. Positioning (including the per-frame game-window follow) and slide direction
             // both read the resolved value.
             _activePosition = EffectivePosition();
+            // Same reason, and the reason it is here rather than at the slides: resolving the themeable
+            // slide storyboards reaches the filesystem and the resource dictionaries, and doing that
+            // inside SlideInPhysical/SlideOutPhysical put it on the UI thread on the very frame the
+            // slide subscribed to the render loop. Called unconditionally so all four fields are always
+            // this wave's, never a previous wave's.
+            ResolveWaveSlideTiming();
             _activeCardGlow = wave[0].ToastGlowMargin.Top;
             // Placement state is per-wave: the correction is measured on this wave's first settled
             // placement, and the anomaly warning is emitted at most once for it.
@@ -1173,6 +1196,32 @@ namespace PlayniteAchievements.Services.UI
                 return;
             }
 
+            // Everything the card needs that costs nothing on screen is built here, ahead of the chime
+            // and its alignment delay: the template instantiation, the surface, and the icon decodes and
+            // ray traces the card would otherwise finish while it is already sliding. None of it touches
+            // an HWND or a pixel, so the base capture above still completes against a screen with no
+            // toast on it, and the window is still created and shown at the same point as before.
+            //
+            // A wave is game-homogeneous, so scope the custom template to this wave's game and
+            // provider (game > provider > global) for real unlocks. The template decision (fire-test
+            // preview source vs normal theme-styling resolve) and the host element are built through
+            // the shared ToastSurfaceFactory so the live toast and the settings inline preview
+            // cannot drift.
+            var waveProviderKey = cardItems.FirstOrDefault()?.ProviderKey;
+            var waveScopeGameId = _activeWaveGameId ?? Guid.Empty;
+            // A fire-test carries a forced preview source; captured here for the render-failure
+            // handler below (the template decision itself lives in ToastSurfaceFactory).
+            var previewSource = cardItems
+                .Select(vm => vm.PreviewTemplateSource)
+                .FirstOrDefault(source => source.HasValue);
+            var template = ToastSurfaceFactory.ResolveToastTemplate(
+                _templateResolver, cardItems, ToastThemeStylingEnabled, waveProviderKey, waveScopeGameId);
+            var items = ToastSurfaceFactory.BuildToastSurface(cardItems, template);
+
+            LogWaveDiagnostics(cardItems, template, wavePlan.Mode);
+
+            PrimeWaveVisuals(cardItems);
+
             // Chime and vibration belong to the on-screen notification, so an unrevealed wave skips
             // both — and skips the alignment delay that exists only to line them up with the
             // reveal. Its clips carry no chime because none was played.
@@ -1194,28 +1243,14 @@ namespace PlayniteAchievements.Services.UI
                 VibrateControllers();
             }
 
+            // Counts the window-bearing waves this process has shown, so a diagnostic line says whether
+            // it came from the session's first toast (which pays every one-time cost) or a later one.
+            var waveSequence = ++_waveSequence;
+
             var window = PlayniteUiProvider.CreateBorderlessTopmostWindow(
                 _api,
                 ResourceProvider.GetString("LOCPlayAch_Title_PluginName"));
             _activeWindow = window;
-
-            // A wave is game-homogeneous, so scope the custom template to this wave's game and
-            // provider (game > provider > global) for real unlocks. The template decision (fire-test
-            // preview source vs normal theme-styling resolve) and the host element are built through
-            // the shared ToastSurfaceFactory so the live toast and the settings inline preview
-            // cannot drift.
-            var waveProviderKey = cardItems.FirstOrDefault()?.ProviderKey;
-            var waveScopeGameId = _activeWaveGameId ?? Guid.Empty;
-            // A fire-test carries a forced preview source; captured here for the render-failure
-            // handler below (the template decision itself lives in ToastSurfaceFactory).
-            var previewSource = cardItems
-                .Select(vm => vm.PreviewTemplateSource)
-                .FirstOrDefault(source => source.HasValue);
-            var template = ToastSurfaceFactory.ResolveToastTemplate(
-                _templateResolver, cardItems, ToastThemeStylingEnabled, waveProviderKey, waveScopeGameId);
-            var items = ToastSurfaceFactory.BuildToastSurface(cardItems, template);
-
-            LogWaveDiagnostics(cardItems, template, wavePlan.Mode);
 
             window.Content = items;
 
@@ -1308,9 +1343,11 @@ namespace PlayniteAchievements.Services.UI
                 var needsPerMonitorWindow = systemScale > 0 &&
                     Math.Abs(_activeMonitorScale - systemScale) >= DpiSettleTolerance;
                 _logger?.Info(
-                    $"[Toast] Fire: monitorScale={_activeMonitorScale:0.###}, systemScale={systemScale:0.###}, " +
-                    $"perMonitorWindow={needsPerMonitorWindow}, isGame={_activeIsGame}, " +
-                    $"revealed={visible}");
+                    $"[Toast] Fire: wave={waveSequence}, monitorScale={_activeMonitorScale:0.###}, " +
+                    $"systemScale={systemScale:0.###}, perMonitorWindow={needsPerMonitorWindow}, " +
+                    $"isGame={_activeIsGame}, revealed={visible}, mode={wavePlan.Mode}, " +
+                    $"testFire={waveIsTestFire}, preview={previewSource.HasValue}, cards={cardItems.Count}, " +
+                    $"shots={plan != null}, recordings={_settings?.Persisted?.EnableUnlockRecordings ?? false}");
                 if (needsPerMonitorWindow)
                 {
                     using (Common.DpiAwarenessScope.PerMonitorV2())
@@ -1349,6 +1386,32 @@ namespace PlayniteAchievements.Services.UI
                 // actual render scale, snap to the corner, and (for a visible wave) reveal.
                 ApplyDpiCompensation(window, items, fitScale);
                 PlaceWindow(window, "shown");
+
+                // Let the card actually reach the screen before the slide starts timing itself.
+                // ApplyDpiCompensation's UpdateLayout is measure/arrange, not pixels; on a monitor at
+                // the system scale the settle loop above does not await at all, so without this the
+                // slide's first frame is also the toast's first frame — the one paying for the layered
+                // window's surface, the template's visuals, text realization and the shadow effects.
+                // The slide reads progress from frame timestamps, so that cost does not slow the slide,
+                // it skips it: the second frame reports a clock that has already run most of the
+                // duration and the card jumps. Two composed frames put that work before the clock
+                // starts. Bounded like the settle loop above, and it runs for an unrevealed wave too,
+                // whose recorded track would otherwise carry the same jump.
+                var warmFrames = await WaitForComposedFramesAsync(WarmFrameCount, WarmFrameTimeoutMs)
+                    .ConfigureAwait(true);
+                if (_disposed)
+                {
+                    return;
+                }
+
+                // Only the shortfall is logged, so no line means the toast did get its frames — which is
+                // what makes the slide line below readable: a large first-frame gap under a silent warm
+                // is a cost the warm frames failed to absorb, not a warm that never ran.
+                if (warmFrames < WarmFrameCount)
+                {
+                    _logger?.Info($"[Toast] Warm: frames={warmFrames}/{WarmFrameCount}, timedOut=true");
+                }
+
                 SlideInPhysical(window, reveal: visible);
 
                 // Start recording each card's overlay track now, at the slide-in — revealed or not
@@ -2341,6 +2404,19 @@ namespace PlayniteAchievements.Services.UI
         // the common case and never hangs.
         private const int MaxDpiSettleFrames = 8;
         private const double DpiSettleTolerance = 0.01;
+        // Composed frames of the invisible toast to wait for before starting the slide, and the ceiling
+        // on that wait. Two, because the first frame after Show is the one that realizes the card, and a
+        // second proves that frame was presented rather than merely queued.
+        //
+        // The ceiling is a stall guard, not the expected path: subscribing to Rendering itself keeps the
+        // render loop ticking, so the frames arrive on their own even with nothing on the card animating.
+        // Measured with tools\capture-harness SlideProbe on a static Opacity=0 window, this wait costs
+        // 6-25 ms and never reaches the ceiling. Do not shorten it toward a frame period: its other
+        // effect is bounding how much first-paint work the warm can absorb, so a tight ceiling would cut
+        // an expensive first paint short and hand the remainder back to the slide's first frame, which is
+        // the whole defect. It only costs latency in a pathological case where frames stop entirely.
+        private const int WarmFrameCount = 2;
+        private const int WarmFrameTimeoutMs = 150;
         // Frame period assumed when the anchor monitor's refresh rate can't be read (60 Hz).
         private const double FallbackFramePeriodMs = 1000d / 60d;
         // Recording frame rate assumed when settings are unreachable; matches PersistedSettings' default.
@@ -2397,6 +2473,20 @@ namespace PlayniteAchievements.Services.UI
             /// <summary>Mean interval between the observed frames (ms); 0 below two frames.</summary>
             public double MeanIntervalMs => Frames > 1 ? (_lastMs - _firstMs) / (Frames - 1) : 0d;
 
+            /// <summary>Time from the first observed frame to the last (ms); 0 below two frames.</summary>
+            public double SpanMs => Frames > 1 ? _lastMs - _firstMs : 0d;
+
+            /// <summary>
+            /// Interval between the first two observed frames (ms); 0 below two frames. For motion
+            /// driven off frame timestamps this is the interval that shows as a jump rather than as
+            /// slowness: whatever the first frame had to rasterize is charged entirely to it, and the
+            /// eased progress the second frame reports has already skipped that far ahead.
+            /// </summary>
+            public double FirstIntervalMs { get; private set; }
+
+            /// <summary>Largest interval between consecutive observed frames (ms); 0 below two frames.</summary>
+            public double MaxIntervalMs { get; private set; }
+
             /// <summary>
             /// True when this event carries a frame not seen yet, with <paramref name="elapsedMs"/> set to
             /// that frame's time since the first observed one.
@@ -2422,6 +2512,19 @@ namespace PlayniteAchievements.Services.UI
                 if (Frames == 0)
                 {
                     _firstMs = nowMs;
+                }
+                else
+                {
+                    var intervalMs = nowMs - _lastMs;
+                    if (Frames == 1)
+                    {
+                        FirstIntervalMs = intervalMs;
+                    }
+
+                    if (intervalMs > MaxIntervalMs)
+                    {
+                        MaxIntervalMs = intervalMs;
+                    }
                 }
 
                 _lastMs = nowMs;
@@ -2453,12 +2556,9 @@ namespace PlayniteAchievements.Services.UI
                 return;
             }
 
-            ResolveSlideTiming(
-                AchievementToastTemplateResolver.SlideInStoryboardKey, DefaultSlideInEase, SlideInDurationMs,
-                out var ease, out var durationMs);
             var distance = SlideDistancePhysical(window);
             var startY = SlideFromBottom() ? ry + distance : ry - distance;
-            RunPhysicalSlide(window, rx, startY, ry, ease, durationMs);
+            RunPhysicalSlide(window, rx, startY, ry, _activeSlideInEase, _activeSlideInMs, "in");
         }
 
         // Returns the slide-out duration (ms) so the caller waits exactly that long; 0 if it didn't run.
@@ -2474,13 +2574,76 @@ namespace PlayniteAchievements.Services.UI
                 return 0;
             }
 
-            ResolveSlideTiming(
-                AchievementToastTemplateResolver.SlideOutStoryboardKey, DefaultSlideOutEase, SlideOutDurationMs,
-                out var ease, out var durationMs);
             var distance = SlideDistancePhysical(window);
             var endY = SlideFromBottom() ? ry + distance : ry - distance;
-            RunPhysicalSlide(window, rx, ry, endY, ease, durationMs);
-            return durationMs;
+            RunPhysicalSlide(window, rx, ry, endY, _activeSlideOutEase, _activeSlideOutMs, "out");
+            return _activeSlideOutMs;
+        }
+
+        /// <summary>
+        /// Waits for <paramref name="frames"/> distinct composed frames, or <paramref name="timeoutMs"/>,
+        /// whichever comes first; returns the frames actually observed.
+        ///
+        /// Counting distinct frames is the point. WPF raises <c>Rendering</c> more than once for a single
+        /// frame, so waiting for N events can return within one frame; <see cref="RenderTickCounter"/>
+        /// already de-duplicates by composition timestamp. Nothing else here proves a frame was
+        /// presented: <c>DispatcherPriority.Render</c> only orders against the queued render operation
+        /// (and outranks <c>Loaded</c>, so it would run before the card's images have even been asked
+        /// for), and <c>ContentRendered</c> fires once per window and already carries placement work.
+        /// </summary>
+        private static async Task<int> WaitForComposedFramesAsync(int frames, int timeoutMs)
+        {
+            if (frames <= 0)
+            {
+                return 0;
+            }
+
+            var ticks = new RenderTickCounter();
+            // RunContinuationsAsynchronously because TrySetResult below runs inside a Rendering handler,
+            // and a TaskCompletionSource otherwise completes its continuations synchronously on the
+            // thread that set it — resuming the caller in the middle of a composition pass, where it
+            // would move the window and subscribe the slide. ConfigureAwait(true) on a captured
+            // dispatcher context already posts rather than inlines, so this guards the invariant rather
+            // than fixing a live defect; it costs nothing and does not depend on that reasoning holding.
+            var reached = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
+            EventHandler tick = null;
+            tick = (s, e) =>
+            {
+                if (ticks.TryAdvance(e, out _) && ticks.Frames >= frames)
+                {
+                    reached.TrySetResult(true);
+                }
+            };
+
+            CompositionTarget.Rendering += tick;
+            try
+            {
+                await Task.WhenAny(reached.Task, Task.Delay(timeoutMs)).ConfigureAwait(true);
+            }
+            finally
+            {
+                CompositionTarget.Rendering -= tick;
+            }
+
+            return ticks.Frames;
+        }
+
+        /// <summary>
+        /// Resolves both slides' easing and duration for the wave that is starting. Called once per
+        /// wave, off the render loop; the slides themselves then only read the fields.
+        ///
+        /// The countdown bar deliberately keeps resolving its own storyboard when it starts, since it
+        /// is nowhere near a slide — so a theme author editing timing still sees the countdown change
+        /// immediately, and the slides on the next notification.
+        /// </summary>
+        private void ResolveWaveSlideTiming()
+        {
+            ResolveSlideTiming(
+                AchievementToastTemplateResolver.SlideInStoryboardKey, DefaultSlideInEase, SlideInDurationMs,
+                out _activeSlideInEase, out _activeSlideInMs);
+            ResolveSlideTiming(
+                AchievementToastTemplateResolver.SlideOutStoryboardKey, DefaultSlideOutEase, SlideOutDurationMs,
+                out _activeSlideOutEase, out _activeSlideOutMs);
         }
 
         // Easing + duration for a physical slide, taken from the themeable storyboard when it defines
@@ -2518,12 +2681,19 @@ namespace PlayniteAchievements.Services.UI
         // Animates the toast's physical Y from fromY to toY over durationMs, eased per `ease`, moving
         // the HWND each frame. Any prior slide is stopped first. Replaces the WPF Window.Top slide for
         // the physical (in-game) path.
-        private void RunPhysicalSlide(Window window, int x, int fromY, int toY, IEasingFunction ease, double durationMs)
+        private void RunPhysicalSlide(
+            Window window, int x, int fromY, int toY, IEasingFunction ease, double durationMs, string label)
         {
             StopActiveSlide();
+            _activeSlideLabel = label;
+            _activeSlideRequestedMs = durationMs;
             if (durationMs <= 0)
             {
                 MoveCorrected(window, x, toY);
+                // Reported too: a theme authoring a zero duration gets a snap rather than a slide,
+                // which is worth seeing in the log instead of an absent line.
+                _activeSlideTicks = new RenderTickCounter();
+                ReportActiveSlide("instant");
                 return;
             }
 
@@ -2550,12 +2720,56 @@ namespace PlayniteAchievements.Services.UI
                     {
                         _activeSlideTick = null;
                     }
+
+                    if (ReferenceEquals(_activeSlideTicks, ticks))
+                    {
+                        ReportActiveSlide("complete");
+                    }
                 }
             };
 
+            _activeSlideTicks = ticks;
             _activeSlideTick = tick;
             MoveCorrected(window, x, fromY);
             CompositionTarget.Rendering += tick;
+        }
+
+        /// <summary>
+        /// Writes the running slide's one diagnostic line and clears the bookkeeping so it is written
+        /// exactly once, from whichever of natural completion or <see cref="StopActiveSlide"/> comes
+        /// first. Ungated (unlike the PerfScope-gated wave lines) because the numbers it carries —
+        /// above all the gap between the slide's first two frames — are what distinguish a slide that
+        /// ran short of frames from one that was merely slow.
+        /// </summary>
+        private void ReportActiveSlide(string end)
+        {
+            var ticks = _activeSlideTicks;
+            if (ticks == null)
+            {
+                return;
+            }
+
+            _activeSlideTicks = null;
+            try
+            {
+                _logger?.Info(string.Format(
+                    System.Globalization.CultureInfo.InvariantCulture,
+                    "[Toast] Slide {0}: requestedMs={1:0} spanMs={2:0.00} frames={3} meanMs={4:0.00} " +
+                    "firstGapMs={5:0.00} maxGapMs={6:0.00} monitorHz={7} end={8}",
+                    _activeSlideLabel,
+                    _activeSlideRequestedMs,
+                    ticks.SpanMs,
+                    ticks.Frames,
+                    ticks.MeanIntervalMs,
+                    ticks.FirstIntervalMs,
+                    ticks.MaxIntervalMs,
+                    _activeMonitorRefreshHz,
+                    end));
+            }
+            catch
+            {
+                // Diagnostics only; a formatting or logging failure must never affect a wave.
+            }
         }
 
         // Slide frames move the HWND directly (deliberately off the anchor corner, so they must not be
@@ -2565,6 +2779,140 @@ namespace PlayniteAchievements.Services.UI
         {
             ToastWindowPlacer.MovePhysical(
                 window, x + _placementCorrection.OffsetX, y + _placementCorrection.OffsetY);
+        }
+
+        // Decode sizes the card's images are requested at. Hints, not cache keys: for an Image element
+        // AsyncImage takes the larger of the authored value and one inferred from the element's laid-out
+        // size and the monitor scale, so a configurable icon size or a scaled monitor produces a
+        // different key and the prime warms the codec, the file read and any download but not the final
+        // decode. The background is the exception — it is painted by an ImageBrush, which is not a
+        // FrameworkElement, so its authored value is used verbatim and the prime hits exactly.
+        private const int PrimeIconDecodePixel = 160;
+        private const int PrimeRightBadgeDecodePixel = 96;
+        private const int PrimeIconBadgeDecodePixel = 64;
+        private const int PrimeBackgroundDecodePixel = 768;
+
+        /// <summary>
+        /// Starts the card's image decodes and ray-silhouette traces for a wave that is about to show,
+        /// so the card is complete on its first frame instead of completing itself while it slides.
+        /// Everything here is work the card would do anyway, only earlier — into the same caches — and
+        /// none of it is awaited or required: on failure the card loads exactly as it does today.
+        ///
+        /// A late-arriving image is the second of the two visible defects. The window is
+        /// SizeToContent, so an image landing mid-slide resizes the HWND while the slide is moving it
+        /// with SWP_NOSIZE, and the resting Y was computed from the pre-resize height — so the card
+        /// lands short and the placement snap jumps it the rest of the way.
+        /// </summary>
+        private void PrimeWaveVisuals(IReadOnlyList<AchievementToastViewModel> cardItems)
+        {
+            if (cardItems == null || cardItems.Count == 0)
+            {
+                return;
+            }
+
+            // Collected on the UI thread: these getters read the style, the provider registry and the
+            // filesystem. The decodes themselves are thread-agnostic and hand back frozen bitmaps.
+            var iconPaths = new List<string>();
+            var requests = new List<KeyValuePair<string, int>>();
+            var seenRequests = new HashSet<string>(StringComparer.Ordinal);
+            foreach (var vm in cardItems)
+            {
+                if (vm == null)
+                {
+                    continue;
+                }
+
+                if (!string.IsNullOrWhiteSpace(vm.IconPath) && !iconPaths.Contains(vm.IconPath))
+                {
+                    iconPaths.Add(vm.IconPath);
+                }
+
+                AddPrimeRequest(requests, seenRequests, vm.IconPath, PrimeIconDecodePixel);
+                if (vm.ShowRightBadge)
+                {
+                    AddPrimeRequest(
+                        requests, seenRequests, vm.ToastBadgeSource as string, PrimeRightBadgeDecodePixel);
+                }
+
+                if (vm.ShowBadge)
+                {
+                    AddPrimeRequest(
+                        requests, seenRequests, vm.ToastBadgeSource as string, PrimeIconBadgeDecodePixel);
+                }
+
+                if (vm.IsGameCompleted)
+                {
+                    AddPrimeRequest(
+                        requests, seenRequests, vm.ToastCompletedBadgeSource as string, PrimeIconDecodePixel);
+                }
+
+                if (vm.HasToastBackground)
+                {
+                    AddPrimeRequest(
+                        requests, seenRequests, vm.ToastBackgroundImagePath, PrimeBackgroundDecodePixel);
+                }
+            }
+
+            // Traces and decodes run as two concurrent chains so a slow silhouette trace cannot starve
+            // the image decodes inside the window before the toast shows.
+            var imageService = PlayniteAchievementsPlugin.Instance?.ImageService;
+            _ = Task.Run(async () =>
+            {
+                try
+                {
+                    await Task.WhenAll(
+                        PrimeRayTracksAsync(iconPaths),
+                        PrimeImagesAsync(imageService, requests)).ConfigureAwait(false);
+                }
+                catch
+                {
+                    // Priming is an optimization; a failure must never surface as an unobserved fault.
+                }
+            });
+        }
+
+        // A badge source is either a path string or an already-built image; only the former is fetched.
+        private static void AddPrimeRequest(
+            List<KeyValuePair<string, int>> requests, HashSet<string> seen, string uri, int decodePixel)
+        {
+            if (string.IsNullOrWhiteSpace(uri) || !seen.Add($"{decodePixel}{uri}"))
+            {
+                return;
+            }
+
+            requests.Add(new KeyValuePair<string, int>(uri, decodePixel));
+        }
+
+        private static async Task PrimeRayTracksAsync(IReadOnlyList<string> iconPaths)
+        {
+            for (var i = 0; i < iconPaths.Count; i++)
+            {
+                // Already bounded and exception-swallowing per icon.
+                await WarmRayTrackAsync(iconPaths[i]).ConfigureAwait(false);
+            }
+        }
+
+        private static async Task PrimeImagesAsync(
+            MemoryImageService imageService, IReadOnlyList<KeyValuePair<string, int>> requests)
+        {
+            if (imageService == null)
+            {
+                return;
+            }
+
+            for (var i = 0; i < requests.Count; i++)
+            {
+                try
+                {
+                    await imageService
+                        .GetAsync(requests[i].Key, requests[i].Value, System.Threading.CancellationToken.None)
+                        .ConfigureAwait(false);
+                }
+                catch
+                {
+                    // A missing or undecodable image is the card's problem to handle, as it is today.
+                }
+            }
         }
 
         private const int RayTrackWarmupTimeoutMs = 250;
@@ -2604,6 +2952,10 @@ namespace PlayniteAchievements.Services.UI
                 CompositionTarget.Rendering -= _activeSlideTick;
                 _activeSlideTick = null;
             }
+
+            // Outside the guard: a slide that reached its final frame already unhooked itself and
+            // reported, so this is a no-op for it and only a genuinely cut-short slide reports here.
+            ReportActiveSlide("stopped");
         }
 
         private static double SlideDistance(Window window)

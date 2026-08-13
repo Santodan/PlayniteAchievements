@@ -73,6 +73,9 @@ namespace PlayniteAchievements.Services.UI
         private static readonly Dictionary<string, ResourceDictionary> PluginDefaultTemplateCache =
             new Dictionary<string, ResourceDictionary>(StringComparer.Ordinal);
 
+        // Parsed bundled notification resources; see LoadNotificationResourcesDictionary.
+        private static ResourceDictionary NotificationResourcesCache;
+
         private readonly IPlayniteAPI _api;
         private readonly ILogger _logger;
         private readonly Func<DataTemplate> _loadDefaultTemplate;
@@ -661,10 +664,7 @@ namespace PlayniteAchievements.Services.UI
                 }
                 else
                 {
-                    dictionary = new ResourceDictionary
-                    {
-                        Source = new Uri(NotificationResourcesUri, UriKind.Absolute)
-                    };
+                    dictionary = LoadNotificationResourcesDictionary();
                 }
 
                 return dictionary != null && TryGetDirectResource(dictionary, key, out T resource)
@@ -676,6 +676,31 @@ namespace PlayniteAchievements.Services.UI
                 _logger?.Debug(ex, $"Failed to load default achievement toast resource '{key}'.");
                 return null;
             }
+        }
+
+        /// <summary>
+        /// Loads (and caches process-wide) the bundled notification resources: the slide and countdown
+        /// storyboards, the content shadow, and the shared line templates. The embedded XAML is
+        /// immutable, so it is instantiated once. Instantiating it per resolve meant every slide built
+        /// this file plus its four merged dictionaries on the UI thread to read one Duration, on the
+        /// same frame the slide subscribed to the render loop.
+        ///
+        /// Callers must treat what they take out of it as read-only. <c>ResolveAnimation</c> clones the
+        /// storyboard's animation before patching it, which is what keeps a shared instance safe; a
+        /// resolved storyboard must never be <c>Begin()</c>-ed directly. A failed load throws to the
+        /// caller's handler rather than caching null, so a transient failure is retried.
+        /// </summary>
+        private ResourceDictionary LoadNotificationResourcesDictionary()
+        {
+            if (NotificationResourcesCache == null)
+            {
+                NotificationResourcesCache = new ResourceDictionary
+                {
+                    Source = new Uri(NotificationResourcesUri, UriKind.Absolute)
+                };
+            }
+
+            return NotificationResourcesCache;
         }
 
         /// <summary>
