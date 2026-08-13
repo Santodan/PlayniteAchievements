@@ -23,6 +23,18 @@
               Height="{Binding ToastCardHeight}"
               MinHeight="64"
               Margin="{Binding ToastGlowMargin}">
+            <!-- One loaded Image owns background decoding. Its Source is a stable mutable bitmap
+                 for GIFs; the single background brush below consumes that object. It remains in
+                 the visual tree at zero size because XamlAnimatedGif stops an unloaded Image. -->
+            <Image x:Name="ToastBackgroundSourceHost"
+                   Width="0"
+                   Height="0"
+                   Opacity="0"
+                   IsHitTestVisible="False"
+                   RenderOptions.BitmapScalingMode="HighQuality"
+                   helpers:AsyncImage.Uri="{Binding ToastBackgroundRenderSource}"
+                   helpers:AsyncImage.DecodePixel="768"
+                   helpers:AsyncImage.PhaseLock="{Binding IsPreview}"/>
             <!-- Rays around the card itself, behind everything. No SubjectUri: there is no artwork to
                  trace here, so the burst rides the card's own rectangle. The reach is a small multiple
                  because it scales with the subject, and the card is far larger than an icon; the
@@ -34,12 +46,9 @@
                                      BurstScale="1.14"
                                      CornerRadiusRatio="0.09"
                                      Visibility="{Binding ShowRayBurst, Converter={StaticResource BooleanToVisibilityConverter}}"/>
-            <!-- Shadow / glow layer: a content-free shape carries the card's drop shadow (or the
-                 rarity border glow). Because the effect lives off the content layer, the text and
-                 icons are never rasterized through WPF's 96-DPI effect intermediate and stay crisp
-                 at any display scale; only this shape is rasterized, where the softness is exactly
-                 the shadow. Mirrors the achievement icon below (blurred backing layer + crisp
-                 front copy). -->
+            <!-- Background and shadow / glow layer. The background is rendered once: its border
+                 carries the effect as well as the visible image. Text and icons remain in the
+                 separate effect-free content layer below, so they stay crisp at every DPI. -->
             <Grid helpers:RarityGlowPulse.Target="Effect"
                   helpers:RarityGlowPulse.PhaseLock="{Binding IsPreview}">
                 <Grid.Style>
@@ -87,17 +96,16 @@
                         </Style>
                     </Border.Style>
                 </Border>
-                <!-- Blurred backing copy of the user background image, present only so the shadow /
-                     glow wraps the image's real shape. The crisp copy the user sees sits directly on
-                     top of this in the content layer below. DecodePixel is explicit because
-                     ImageBrush is a Freezable with no size AsyncImage could infer. -->
+                <!-- Backing copy of the user background, present so the shadow / glow wraps the
+                     image's real shape instead of a solid rectangle. Not what the user sees: this one
+                     is inside the effect, so it renders through an effect intermediate. The crisp copy
+                     sits directly on top of it in the content layer below. Both consume the single
+                     decoding Image above, so there is one decode and one animation clock. -->
                 <Border CornerRadius="8"
                         Visibility="{Binding HasToastBackground, Converter={StaticResource BooleanToVisibilityConverter}}">
                     <Border.Background>
                         <ImageBrush Stretch="UniformToFill"
-                                    helpers:AsyncImage.Uri="{Binding ToastBackgroundImagePath}"
-                                    helpers:AsyncImage.DecodePixel="768"
-                                    helpers:AsyncImage.PhaseLock="{Binding IsPreview}"/>
+                                    ImageSource="{Binding Source, ElementName=ToastBackgroundSourceHost}"/>
                     </Border.Background>
                 </Border>
             </Grid>
@@ -108,15 +116,17 @@
                     ClipToBounds="True">
                 <Grid>
                     <!-- Crisp user background image (what is actually seen), full-bleed behind the
-                         content and matching the blurred shadow-caster copy above. Animated
-                         backgrounds play (AnimatedImageHelper animates ImageBrush.ImageSource). -->
+                         content and covering the backing copy above. It is here rather than reusing
+                         that copy because this layer carries no effect: content inside an effect is
+                         rasterized to an intermediate first, and the card's DPI compensation applies a
+                         fractional LayoutTransform, so an intermediate would resample the image.
+                         Shares the decoding Image above, so animated backgrounds stay in step with the
+                         backing copy for free. -->
                     <Border CornerRadius="8"
                             Visibility="{Binding HasToastBackground, Converter={StaticResource BooleanToVisibilityConverter}}">
                         <Border.Background>
                             <ImageBrush Stretch="UniformToFill"
-                                        helpers:AsyncImage.Uri="{Binding ToastBackgroundImagePath}"
-                                        helpers:AsyncImage.DecodePixel="768"
-                                        helpers:AsyncImage.PhaseLock="{Binding IsPreview}"/>
+                                        ImageSource="{Binding Source, ElementName=ToastBackgroundSourceHost}"/>
                         </Border.Background>
                     </Border>
 

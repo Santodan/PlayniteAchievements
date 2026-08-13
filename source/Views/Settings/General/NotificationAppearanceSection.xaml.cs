@@ -7,6 +7,7 @@ using System.Threading;
 using System.Threading.Tasks;
 using System.Windows;
 using System.Windows.Controls;
+using System.Windows.Media;
 // WinForms file dialogs: on .NET Framework the WPF Microsoft.Win32 dialogs render the legacy
 // pre-Vista picker (their hook blocks the common-item-dialog upgrade); the WinForms ones
 // auto-upgrade to the modern Explorer-style dialog.
@@ -53,6 +54,8 @@ namespace PlayniteAchievements.Views.Settings.General
         private bool _suppressCustomizeEvents;
         private bool _suppressThemeStylingEvents;
         private bool _suppressSelectionChanged;
+        private AchievementToastViewModel _toastPreviewViewModel;
+        private ImageSource _lastToastBackgroundRenderSource;
 
         private bool IsGameMode => _gameId != Guid.Empty;
 
@@ -102,6 +105,10 @@ namespace PlayniteAchievements.Views.Settings.General
             FrameEditor.DataContext = _frameEditorViewModel;
             ToastEditor.ColorPicker = (owner, current) => _plugin.PickColor(owner, current);
             FrameEditor.ColorPicker = (owner, current) => _plugin.PickColor(owner, current);
+
+            AsyncImage.AddSourceReadyHandler(
+                ToastBackgroundAnimationHost,
+                OnToastBackgroundSourceChanged);
 
             if (IsGameMode)
             {
@@ -739,22 +746,24 @@ namespace PlayniteAchievements.Views.Settings.General
                 return;
             }
 
+            UpdateToastBackgroundAnimationHost();
+
             // The toast mockup is built through the same ToastSurfaceFactory the live toast wave
             // uses (single-item list), so the inline preview and the fired notification cannot
             // drift. The sample kind mirrors the fire-test dropdown so the preview shows whatever
             // firing would produce; a null preview source keeps ResolveTemplate parity with a real
             // unlock.
             var toastKind = NotificationSampleSelector?.SelectedValue as string ?? "rare";
-            var toastItems = new[]
-            {
-                new AchievementToastViewModel(
-                    BuildPreviewArgs(toastKind),
-                    persisted,
-                    _currentStyle,
-                    gameCustomDataStore: null,
-                    toastUseThemeStylingOverride: _currentToastUseThemeStyling,
-                    frameUseThemeStylingOverride: _currentFrameUseThemeStyling),
-            };
+            _toastPreviewViewModel = new AchievementToastViewModel(
+                BuildPreviewArgs(toastKind),
+                persisted,
+                _currentStyle,
+                gameCustomDataStore: null,
+                toastUseThemeStylingOverride: _currentToastUseThemeStyling,
+                frameUseThemeStylingOverride: _currentFrameUseThemeStyling,
+                toastBackgroundRenderSourceOverride: ToastBackgroundAnimationHost?.Source,
+                useToastBackgroundRenderSourceOverride: true);
+            var toastItems = new[] { _toastPreviewViewModel };
             var toastTemplate = ToastSurfaceFactory.ResolveToastTemplate(
                 _toastTemplateResolver, toastItems, _currentToastUseThemeStyling, ScopeProviderKey, ScopeGameId);
             ToastMockupHost.ContentTemplate = null;
@@ -772,6 +781,38 @@ namespace PlayniteAchievements.Views.Settings.General
                 gameCustomDataStore: null,
                 toastUseThemeStylingOverride: _currentToastUseThemeStyling,
                 frameUseThemeStylingOverride: _currentFrameUseThemeStyling);
+        }
+
+        private void UpdateToastBackgroundAnimationHost()
+        {
+            if (ToastBackgroundAnimationHost == null)
+            {
+                return;
+            }
+
+            var requested = PlayniteAchievements.Models.Achievements.AchievementIconResolver.ApplyCacheBust(
+                _currentStyle?.ToastBackgroundImagePath);
+            if (!Equals(AsyncImage.GetUri(ToastBackgroundAnimationHost), requested))
+            {
+                _lastToastBackgroundRenderSource = null;
+                AsyncImage.SetUri(ToastBackgroundAnimationHost, requested);
+            }
+        }
+
+        private void OnToastBackgroundSourceChanged(object sender, RoutedEventArgs e)
+        {
+            // AsyncImage raises this only when the source object is replaced. Listening to the
+            // raw Source dependency property here would also receive every mutable GIF frame and
+            // rebuild the whole toast repeatedly, which presents as flicker and severe stutter.
+            var renderSource = ToastBackgroundAnimationHost?.Source;
+            if (!IsLoaded || renderSource == null ||
+                ReferenceEquals(_lastToastBackgroundRenderSource, renderSource))
+            {
+                return;
+            }
+
+            _lastToastBackgroundRenderSource = renderSource;
+            _toastPreviewViewModel?.SetToastBackgroundRenderSourceOverride(renderSource);
         }
 
         // Both sample-kind dropdowns refresh the inline mockups through one handler so the preview
@@ -1906,6 +1947,16 @@ namespace PlayniteAchievements.Views.Settings.General
 
         public void Dispose()
         {
+            if (ToastBackgroundAnimationHost != null)
+            {
+                AsyncImage.RemoveSourceReadyHandler(
+                    ToastBackgroundAnimationHost,
+                    OnToastBackgroundSourceChanged);
+                AsyncImage.SetUri(ToastBackgroundAnimationHost, null);
+            }
+
+            _toastPreviewViewModel = null;
+
             _persistedSubscription?.Dispose();
             _toastEditorViewModel?.Dispose();
             _frameEditorViewModel?.Dispose();

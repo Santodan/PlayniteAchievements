@@ -25,10 +25,11 @@ namespace PlayniteAchievements.Tests.Services.UI
             var primeMatch = Regex.Match(service, @"PrimeBackgroundDecodePixel\s*=\s*(\d+)\s*;");
             Assert.IsTrue(primeMatch.Success, "PrimeBackgroundDecodePixel is no longer declared.");
 
-            // The background is painted by an ImageBrush, which is not a FrameworkElement, so
-            // AsyncImage uses the authored value verbatim and it is the cache key. Every other image
-            // on the card is an Image element, whose key also folds in its laid-out size and the
-            // monitor scale, so those sizes are hints and are deliberately not asserted here.
+            // The background's authored decode size is the cache key however the template carries it:
+            // on an ImageBrush, a Freezable with no size to infer from, or on a zero-size host Image
+            // feeding one, where the inferred size is 0 and the explicit value wins. Every other image
+            // on the card is a laid-out Image element, whose key folds in its own size and the monitor
+            // scale, so those sizes are hints and are deliberately not asserted here.
             //
             // Matched on the ToastBackground* prefix rather than one property name. Which source the
             // template binds is free to change -- ToastBackgroundImagePath, a render-source variant for

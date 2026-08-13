@@ -49,11 +49,10 @@ namespace PlayniteAchievements.Views.Helpers
         public static void SetGray(DependencyObject element, bool value) => element.SetValue(GrayProperty, value);
         public static bool GetGray(DependencyObject element) => (bool)element.GetValue(GrayProperty);
 
-        // When true (default), animations phase-lock to the process-wide epoch so recreated
-        // elements (settings mockup rebuilds, grid recycling) resume mid-cycle. Set false on
-        // surfaces that should play from the first frame each time they are built — the toast
-        // templates opt out so every wave's cards (and their screenshots/clips) start the
-        // animation at frame one.
+        // When true (default), retained-frame animations (WebP and the legacy ImageBrush GIF
+        // path) phase-lock to the process-wide epoch so recreated elements resume mid-cycle.
+        // Native GIF Image controls intentionally ignore this value and start at frame one; the
+        // settings background preview preserves continuity by sharing one persistent Source.
         public static readonly DependencyProperty PhaseLockProperty = DependencyProperty.RegisterAttached(
             "PhaseLock",
             typeof(bool),
@@ -62,6 +61,33 @@ namespace PlayniteAchievements.Views.Helpers
 
         public static void SetPhaseLock(DependencyObject element, bool value) => element.SetValue(PhaseLockProperty, value);
         public static bool GetPhaseLock(DependencyObject element) => (bool)element.GetValue(PhaseLockProperty);
+
+        /// <summary>
+        /// Raised when a new source object has finished loading and is ready to be shared with
+        /// another visual. This is deliberately separate from Image.Source change notifications:
+        /// WPF reports every WriteableBitmap frame invalidation as a Source sub-property change.
+        /// </summary>
+        public static readonly RoutedEvent SourceReadyEvent = EventManager.RegisterRoutedEvent(
+            "SourceReady",
+            RoutingStrategy.Direct,
+            typeof(RoutedEventHandler),
+            typeof(AsyncImage));
+
+        public static void AddSourceReadyHandler(DependencyObject element, RoutedEventHandler handler)
+        {
+            if (element is UIElement uiElement)
+            {
+                uiElement.AddHandler(SourceReadyEvent, handler);
+            }
+        }
+
+        public static void RemoveSourceReadyHandler(DependencyObject element, RoutedEventHandler handler)
+        {
+            if (element is UIElement uiElement)
+            {
+                uiElement.RemoveHandler(SourceReadyEvent, handler);
+            }
+        }
 
         // Private attached state
         private static readonly DependencyProperty LoadCtsProperty = DependencyProperty.RegisterAttached(
@@ -112,6 +138,18 @@ namespace PlayniteAchievements.Views.Helpers
         private static void SetActiveAnimationSource(DependencyObject element, string value) =>
             element?.SetValue(ActiveAnimationSourceProperty, value);
 
+        private static readonly DependencyProperty NativeGifAnimationProperty = DependencyProperty.RegisterAttached(
+            "NativeGifAnimation",
+            typeof(NativeGifAnimation),
+            typeof(AsyncImage),
+            new PropertyMetadata(null));
+
+        private static NativeGifAnimation GetNativeGifAnimation(DependencyObject element) =>
+            element?.GetValue(NativeGifAnimationProperty) as NativeGifAnimation;
+
+        private static void SetNativeGifAnimation(DependencyObject element, NativeGifAnimation value) =>
+            element?.SetValue(NativeGifAnimationProperty, value);
+
         private static void OnUriChanged(DependencyObject d, DependencyPropertyChangedEventArgs e)
         {
             if (d == null)
@@ -122,6 +160,22 @@ namespace PlayniteAchievements.Views.Helpers
             var previousIdentity = GetLastEffectiveSourceIdentity(d);
             var nextIdentity = GetEffectiveSourceIdentity(d);
             var sourceIdentityChanged = !Equals(previousIdentity, nextIdentity);
+
+            // A mutable ImageSource stored in this attached property reports every frame dirty as
+            // a dependency-property sub-change. Its identity has not changed, so leave the shared
+            // source attached and let WPF redraw it instead of reapplying it on every GIF frame.
+            if (!sourceIdentityChanged && GetUri(d) is ImageSource)
+            {
+                return;
+            }
+
+            // Native GIFs render at their own dimensions, so DecodePixel changes do not require a
+            // reload. PhaseLock has no change callback; a running native GIF likewise ignores it.
+            // Gray participates in the effective identity and therefore still restarts correctly.
+            if (!sourceIdentityChanged && GetNativeGifAnimation(d) != null)
+            {
+                return;
+            }
 
             CancelExisting(d);
             SetLastRequestedDecodePixel(d, 0);
@@ -370,12 +424,28 @@ namespace PlayniteAchievements.Views.Helpers
                     return;
                 }
 
+                // XamlAnimatedGif clears Image.Source while it initializes. Do not first publish
+                // the static frame for a GIF and create a visible static -> blank -> live flash;
+                // keep it blank until the live bitmap is attached, retaining bmp only as the
+                // corrupt/unsupported fallback.
+                var applyGray = GetGray(d) || AnimatedImageHelper.HasGrayPrefix(uriString);
+                if (d is System.Windows.Controls.Image image &&
+                    await TryStartNativeGifAsync(
+                        image,
+                        uriString,
+                        bmp,
+                        applyGray,
+                        cts.Token))
+                {
+                    return;
+                }
+
                 ApplySource(d, bmp);
 
-                // Start animation asynchronously after the first static frame is already
-                // visible. Runs synchronously up to its first await, so Task.Run registers
-                // with cts.Token before the finally below disposes cts.
-                _ = StartAnimationAsync(d, uriString, decode, cts.Token);
+                // Start animation after the first static frame is available. Await setup so this
+                // CTS remains cancellable until the native decoder or retained-frame fallback has
+                // actually been attached; a recycled control cannot receive an obsolete source.
+                await StartAnimationAsync(d, uriString, decode, cts.Token);
             }
             catch (OperationCanceledException)
             {
@@ -412,7 +482,7 @@ namespace PlayniteAchievements.Views.Helpers
             try
             {
                 // Read on the UI thread so the background decode below never touches the target.
-                var applyGray = GetGray(d);
+                var applyGray = GetGray(d) || AnimatedImageHelper.HasGrayPrefix(uriString);
 
                 // Fast path: with the frames already cached (e.g. a settings mockup
                 // rebuilt during a slider drag), building the animation is cheap — attach it
@@ -429,25 +499,14 @@ namespace PlayniteAchievements.Views.Helpers
                 var decoded = await Task.Run(
                     () => !cancellationToken.IsCancellationRequested &&
                           AnimatedImageHelper.TryEnsureCachedFrames(uriString, applyGray, decodePixel),
-                    cancellationToken).ConfigureAwait(false);
+                    cancellationToken);
 
                 if (!decoded || cancellationToken.IsCancellationRequested)
                 {
                     return;
                 }
 
-                var dispatcher = Application.Current?.Dispatcher;
-                if (dispatcher != null && !dispatcher.CheckAccess())
-                {
-                    _ = dispatcher.BeginInvoke(new Action(() =>
-                    {
-                        if (!cancellationToken.IsCancellationRequested)
-                        {
-                            TryApplyCachedAnimation(d, uriString, applyGray, decodePixel);
-                        }
-                    }));
-                }
-                else if (!cancellationToken.IsCancellationRequested)
+                if (!cancellationToken.IsCancellationRequested)
                 {
                     TryApplyCachedAnimation(d, uriString, applyGray, decodePixel);
                 }
@@ -458,6 +517,73 @@ namespace PlayniteAchievements.Views.Helpers
             catch (Exception ex)
             {
                 Logger?.Debug(ex, $"Animation setup failed for '{uriString}'.");
+            }
+        }
+
+        private static async Task<bool> TryStartNativeGifAsync(
+            System.Windows.Controls.Image image,
+            string uriString,
+            ImageSource fallback,
+            bool applyGray,
+            CancellationToken cancellationToken)
+        {
+            var localPath = AnimatedImageHelper.NormalizeSourceUri(uriString);
+            if (string.IsNullOrWhiteSpace(localPath) ||
+                !Services.Images.ImageFormats.IsGifExtension(
+                    Services.Images.ImageFormats.GetExtension(localPath)) ||
+                !System.IO.Path.IsPathRooted(localPath) ||
+                !System.IO.File.Exists(localPath))
+            {
+                return false;
+            }
+
+            NativeGifAnimation animation = null;
+            try
+            {
+                animation = await NativeGifAnimation.CreateAsync(
+                    image,
+                    uriString,
+                    localPath,
+                    fallback,
+                    applyGray,
+                    cancellationToken,
+                    ex => Logger?.Debug(ex, $"Native GIF playback failed for '{uriString}'."),
+                    () => RaiseSourceReady(image));
+
+                cancellationToken.ThrowIfCancellationRequested();
+                animation.Failed += OnNativeGifFailed;
+                SetNativeGifAnimation(image, animation);
+                SetActiveAnimationSource(image, localPath);
+                animation.Start();
+                return true;
+            }
+            catch
+            {
+                if (animation != null)
+                {
+                    animation.Failed -= OnNativeGifFailed;
+                    animation.Dispose();
+                }
+
+                image.Source = fallback;
+                RaiseSourceReady(image);
+                throw;
+            }
+        }
+
+        private static void OnNativeGifFailed(object sender, EventArgs e)
+        {
+            if (!(sender is NativeGifAnimation animation))
+            {
+                return;
+            }
+
+            var image = animation.Target;
+            animation.Failed -= OnNativeGifFailed;
+            if (ReferenceEquals(GetNativeGifAnimation(image), animation))
+            {
+                SetNativeGifAnimation(image, null);
+                SetActiveAnimationSource(image, null);
             }
         }
 
@@ -495,6 +621,7 @@ namespace PlayniteAchievements.Views.Helpers
             {
                 StopAnimation(d);
                 img.Source = source;
+                RaiseSourceReady(img);
                 return;
             }
 
@@ -504,6 +631,11 @@ namespace PlayniteAchievements.Views.Helpers
                 brush.ImageSource = source;
                 return;
             }
+        }
+
+        private static void RaiseSourceReady(System.Windows.Controls.Image image)
+        {
+            image?.RaiseEvent(new RoutedEventArgs(SourceReadyEvent, image));
         }
 
         private static object GetEffectiveSourceIdentity(DependencyObject d)
@@ -598,6 +730,14 @@ namespace PlayniteAchievements.Views.Helpers
 
             if (target is System.Windows.Controls.Image image)
             {
+                var nativeGif = GetNativeGifAnimation(image);
+                if (nativeGif != null)
+                {
+                    SetNativeGifAnimation(image, null);
+                    nativeGif.Failed -= OnNativeGifFailed;
+                    nativeGif.Dispose();
+                }
+
                 image.BeginAnimation(System.Windows.Controls.Image.SourceProperty, null);
                 return;
             }

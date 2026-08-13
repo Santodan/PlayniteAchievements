@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.ComponentModel;
 using System.IO;
 using System.Windows;
 using System.Windows.Media;
@@ -14,7 +15,7 @@ using PlayniteAchievements.Services.UI;
 
 namespace PlayniteAchievements.ViewModels
 {
-    public sealed class AchievementToastViewModel
+    public sealed class AchievementToastViewModel : INotifyPropertyChanged
     {
         private const string DefaultIcon =
             "pack://application:,,,/PlayniteAchievements;component/Resources/UnlockedAchIcon.png";
@@ -49,11 +50,15 @@ namespace PlayniteAchievements.ViewModels
         private readonly AchievementUnlockedEventArgs _args;
         private readonly PersistedSettings _settings;
         private readonly NotificationStyleSettings _style;
+        private ImageSource _toastBackgroundRenderSourceOverride;
+        private readonly bool _useToastBackgroundRenderSourceOverride;
         private readonly RarityTier _rarity;
         private IReadOnlyList<ToastLineDescriptor> _toastLines;
         private IReadOnlyList<ToastLineDescriptor> _frameLines;
         private ToastRarityTextLine _toastRarityText;
         private ToastRarityTextLine _frameRarityText;
+
+        public event PropertyChangedEventHandler PropertyChanged;
 
         public AchievementToastViewModel(
             AchievementUnlockedEventArgs args,
@@ -61,7 +66,9 @@ namespace PlayniteAchievements.ViewModels
             NotificationStyleSettings styleOverride = null,
             GameCustomDataStore gameCustomDataStore = null,
             bool? toastUseThemeStylingOverride = null,
-            bool? frameUseThemeStylingOverride = null)
+            bool? frameUseThemeStylingOverride = null,
+            ImageSource toastBackgroundRenderSourceOverride = null,
+            bool useToastBackgroundRenderSourceOverride = false)
         {
             _args = args ?? new AchievementUnlockedEventArgs();
             _settings = settings ?? new PersistedSettings();
@@ -75,6 +82,8 @@ namespace PlayniteAchievements.ViewModels
                 toastUseThemeStylingOverride ?? resolved.ToastUseThemeStyling;
             FrameUseThemeStyling =
                 frameUseThemeStylingOverride ?? resolved.FrameUseThemeStyling;
+            _toastBackgroundRenderSourceOverride = toastBackgroundRenderSourceOverride;
+            _useToastBackgroundRenderSourceOverride = useToastBackgroundRenderSourceOverride;
             _rarity = ParseRarity(_args.RarityTier);
         }
 
@@ -723,6 +732,31 @@ namespace PlayniteAchievements.ViewModels
         // size token) so overwriting the image at the same managed path shows the new one rather
         // than a stale cached bitmap; AsyncImage strips the token before decoding.
         public string ToastBackgroundImagePath => AchievementIconResolver.ApplyCacheBust(_style.ToastBackgroundImagePath);
+
+        /// <summary>
+        /// Preferred toast-template background binding. Live toasts receive the ordinary path so
+        /// their source-host Image owns a new animation; the appearance editor can inject the
+        /// stable ImageSource owned by its persistent host so rebuilding the preview does not
+        /// restart the GIF. ToastBackgroundImagePath remains available to existing templates.
+        /// </summary>
+        public object ToastBackgroundRenderSource => _useToastBackgroundRenderSourceOverride
+            ? (object)_toastBackgroundRenderSourceOverride
+            : ToastBackgroundImagePath;
+
+        internal void SetToastBackgroundRenderSourceOverride(ImageSource source)
+        {
+            if (!_useToastBackgroundRenderSourceOverride ||
+                ReferenceEquals(_toastBackgroundRenderSourceOverride, source))
+            {
+                return;
+            }
+
+            _toastBackgroundRenderSourceOverride = source;
+            PropertyChanged?.Invoke(
+                this,
+                new PropertyChangedEventArgs(nameof(ToastBackgroundRenderSource)));
+        }
+
         public bool HasToastBackground
         {
             get

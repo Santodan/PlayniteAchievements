@@ -4,6 +4,7 @@
              xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
              xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
              xmlns:general="clr-namespace:PlayniteAchievements.Views.Settings.General"
+             xmlns:helpers="clr-namespace:PlayniteAchievements.Views.Helpers"
              mc:Ignorable="d"
              d:DesignHeight="700"
              d:DesignWidth="700">
@@ -36,6 +37,18 @@
                 <RowDefinition Height="Auto"/>
                 <RowDefinition Height="*"/>
             </Grid.RowDefinitions>
+
+            <!-- Lives outside both the repeatedly rebuilt mockup and the tab content. It owns the
+                 preview GIF decoder for this editor session; rebuilt toast templates receive its
+                 stable Image.Source, and switching between Toast/Frame does not restart it. -->
+            <Image x:Name="ToastBackgroundAnimationHost"
+                   Grid.Row="0"
+                   Width="0"
+                   Height="0"
+                   Opacity="0"
+                   IsHitTestVisible="False"
+                   RenderOptions.BitmapScalingMode="HighQuality"
+                   helpers:AsyncImage.DecodePixel="768"/>
 
             <!-- ============================ PINNED: preview + tester ============================ -->
             <Border Grid.Row="0"
