@@ -21,6 +21,8 @@ tools\capture-harness\build.ps1
 Compiles each tool with Roslyn against .NET Framework 4.6.2 and the SharpDX assemblies from
 `source\bin\Debug`, so **build the plugin first**.
 Executables land in `tools\capture-harness\bin\` and are git-ignored.
+`CaptureHarness.exe` is built x86 because it loads the plugin into Playnite's 32-bit process model;
+the standalone artifact-analysis tools remain x64.
 
 Needs Visual Studio 2022 or the Build Tools (the script finds Roslyn itself, whatever the edition) and the
 .NET Framework 4.6.2 targeting pack.
@@ -64,6 +66,44 @@ What it reports, and why each check exists:
 looks like to the capture. Wired but not yet exercised.
 
 Per-frame offsets are written to `alignment_*.csv` next to the executable.
+
+### Native lifetime/page-heap stress
+
+```powershell
+tools\capture-harness\bin\CaptureHarness.exe --stress <seconds> <fps> [pluginDir] [exportEverySeconds] [teardownCycles] [width] [height]
+```
+
+Stress mode keeps the real recorder active while it repeatedly exports finalized MP4 segments and
+overlay-reencodes those exports. It then disposes a live recorder and repeats short teardown cycles at
+the next-writer preparation boundary. This exercises the Media Foundation, D3D11 and WGC lifetime
+overlaps that a normal correctness run does not.
+
+For a guarded native-heap run, install **Debugging Tools for Windows** from the Windows SDK and launch
+an elevated PowerShell:
+
+```powershell
+tools\capture-harness\Invoke-PageHeapSoak.ps1 -Seconds 600
+```
+
+The script builds the x86 harness, enables full page heap only for `CaptureHarness.exe`, runs it under
+the x86 CDB debugger, writes a log under `artifacts\pageheap`, and disables page heap in a `finally`
+block. Its 1280x720 default is deliberate: full page heap expands every native allocation and a 32-bit
+1080p re-encode can exhaust virtual address space before it reaches a guard-page fault. Pass
+`-Width 1920 -Height 1080` for a shorter crash-resolution run when address-space pressure permits.
+
+Do not enable page heap for `Playnite.DesktopApp.exe`; this harness isolates the plugin's native
+capture paths without destabilizing the user's Playnite installation.
+
+If `--stress` reports `0x80070424` because the interactive user's per-user `CaptureService` is stopped,
+the focused fallback still covers D3D11 texture encoding plus overlapping MF export/re-encode and the
+shared runtime lease:
+
+```powershell
+tools\capture-harness\Invoke-PageHeapSoak.ps1 -MediaFoundationOnly -Seconds 300
+```
+
+That fallback cannot validate the WGC pump/session teardown; rerun the primary mode after signing back
+into an interactive Windows session so `CaptureService` is available.
 
 ### The short-buffer case matters most
 
