@@ -39,6 +39,11 @@
     <ErrorReport>prompt</ErrorReport>
     <WarningLevel>4</WarningLevel>
     <LangVersion>preview</LangVersion>
+    <!-- Release output is what Toolbox packs into the .pext. Suppress the .pdb and IntelliSense .xml
+         files MSBuild otherwise copies next to each referenced assembly: neither is loaded at runtime,
+         and together they accounted for 1.59 MB of the 10.36 MB 3.1.2 package. Does not affect this
+         project's own .pdb, which is kept for file/line numbers in user-submitted crash logs. -->
+    <AllowedReferenceRelatedFileExtensions>none</AllowedReferenceRelatedFileExtensions>
   </PropertyGroup>
   <ItemGroup>
     <!-- Plugin dependencies -->
