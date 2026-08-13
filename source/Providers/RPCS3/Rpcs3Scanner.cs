@@ -585,7 +585,10 @@ namespace PlayniteAchievements.Providers.RPCS3
             if (GameCustomDataLookup.TryGetRpcs3MatchIdOverride(game.Id, out var overrideMatchId))
             {
                 var normalizedOverride = Rpcs3MatchIdHelper.Normalize(overrideMatchId) ?? overrideMatchId;
-                return new[] { new GameTrophySource { NpCommId = normalizedOverride, TrpPath = null } };
+                return new[]
+                {
+                    ResolveOverrideSource(game, normalizedOverride, trophyFolderCache, cancel, allowRawIsoScan, serialBridge)
+                };
             }
 
             var collectionSources = FindCollectionTrophySourcesForGame(game, trophyFolderCache, cancel, allowRawIsoScan, serialBridge);
@@ -601,6 +604,50 @@ namespace PlayniteAchievements.Providers.RPCS3
             }
 
             return collectionSources;
+        }
+
+        /// <summary>
+        /// The trophy source for a user-set match ID override. A set RPCS3 has
+        /// already created a trophy folder for needs nothing further; otherwise
+        /// the game's own files are searched for that set's TROPHY.TRP, so an
+        /// override still yields the full (locked) trophy list for a game that
+        /// has never been booted in RPCS3.
+        /// </summary>
+        private GameTrophySource ResolveOverrideSource(
+            Game game,
+            string npCommId,
+            Dictionary<string, string> trophyFolderCache,
+            CancellationToken cancel,
+            bool allowRawIsoScan,
+            Rpcs3SerialNpwrBridge serialBridge)
+        {
+            if (trophyFolderCache?.ContainsKey(npCommId) == true)
+            {
+                return new GameTrophySource { NpCommId = npCommId, TrpPath = null };
+            }
+
+            var discovered = FindCollectionTrophySourcesForGame(game, trophyFolderCache, cancel, allowRawIsoScan, serialBridge)
+                .Concat(new[] { FindSingleNpCommIdForGame(game, trophyFolderCache, cancel, allowRawIsoScan, serialBridge) })
+                .FirstOrDefault(source =>
+                    source != null &&
+                    string.Equals(Rpcs3MatchIdHelper.Normalize(source.NpCommId), npCommId, StringComparison.OrdinalIgnoreCase) &&
+                    !string.IsNullOrWhiteSpace(source.TrpPath) &&
+                    File.Exists(source.TrpPath));
+
+            if (discovered != null)
+            {
+                _logger?.Info(
+                    $"[RPCS3] '{game?.Name}': override trophy set '{npCommId}' has no trophy folder; " +
+                    $"reading definitions from '{discovered.TrpPath}'.");
+                return discovered;
+            }
+
+            _logger?.Warn(
+                $"[RPCS3] '{game?.Name}': override trophy set '{npCommId}' has no trophy folder in the resolved " +
+                $"RPCS3 profile ({trophyFolderCache?.Count ?? 0} set(s) scanned) and no TROPHY.TRP for it was " +
+                "found in the game's files.");
+
+            return new GameTrophySource { NpCommId = npCommId, TrpPath = null };
         }
 
         private List<GameTrophySource> FindCollectionTrophySourcesForGame(
