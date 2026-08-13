@@ -188,6 +188,24 @@ namespace PlayniteAchievements.Models.Tests
         }
 
         [TestMethod]
+        public void StartPagePlayniteContextMenu_DefaultsOff_AndSurvivesCloneAndCopy()
+        {
+            var defaults = new PersistedSettings();
+            var source = new PersistedSettings
+            {
+                UsePlayniteContextMenuOnStartPage = true
+            };
+
+            var clone = source.Clone();
+            var target = new PersistedSettings();
+            target.CopyFrom(source);
+
+            Assert.IsFalse(defaults.UsePlayniteContextMenuOnStartPage);
+            Assert.IsTrue(clone.UsePlayniteContextMenuOnStartPage);
+            Assert.IsTrue(target.UsePlayniteContextMenuOnStartPage);
+        }
+
+        [TestMethod]
         public void CloneAndCopyFrom_PreserveEnableFriendsFeatures()
         {
             var source = new PersistedSettings

@@ -217,6 +217,7 @@ namespace PlayniteAchievements.Models.Settings
         private bool _firstTimeSetupCompleted = false;
         private bool _seenThemeMigration = false;
         private bool _enableAutomaticThemeMigration = true;
+        private bool _usePlayniteContextMenuOnStartPage = false;
         private HashSet<Guid> _excludedGameIds = new HashSet<Guid>();
         private HashSet<Guid> _excludedFromSummariesGameIds = new HashSet<Guid>();
         private Dictionary<Guid, string> _manualCapstones = new Dictionary<Guid, string>();
@@ -2347,6 +2348,16 @@ namespace PlayniteAchievements.Models.Settings
         }
 
         /// <summary>
+        /// Replaces StartPage's inherited shelf menu with Playnite's native game menu
+        /// when a game cover is right-clicked.
+        /// </summary>
+        public bool UsePlayniteContextMenuOnStartPage
+        {
+            get => _usePlayniteContextMenuOnStartPage;
+            set => SetValue(ref _usePlayniteContextMenuOnStartPage, value);
+        }
+
+        /// <summary>
         /// Cache mapping ThemePath -> last migrated theme.yaml Version.
         /// Used to detect themes that have been upgraded since migration and may need re-migration.
         /// </summary>
@@ -2875,6 +2886,7 @@ namespace PlayniteAchievements.Models.Settings
                 FirstTimeSetupCompleted = this.FirstTimeSetupCompleted,
                 SeenThemeMigration = this.SeenThemeMigration,
                 EnableAutomaticThemeMigration = this.EnableAutomaticThemeMigration,
+                UsePlayniteContextMenuOnStartPage = this.UsePlayniteContextMenuOnStartPage,
                 ThemeMigrationVersionCache = this.ThemeMigrationVersionCache != null
                     ? this.ThemeMigrationVersionCache.ToDictionary(
                         kvp => kvp.Key,

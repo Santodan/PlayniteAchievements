@@ -511,6 +511,7 @@ namespace PlayniteAchievements
                     _settingsViewModel?.Settings?.Persisted?.RoundRarityPercentages ?? false;
 
                 FormattingCulture.Initialize(() => _settingsViewModel?.Settings?.Persisted?.GlobalLanguage);
+                StartPageGameContextMenuBridge.Initialize();
 
                 // NECESSARY TO MAKE SURE CHARTS WORK
                 var Circle = LiveCharts.Wpf.DefaultGeometries.Circle;
