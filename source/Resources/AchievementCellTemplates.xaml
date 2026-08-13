@@ -89,7 +89,13 @@
                             </Style.Triggers>
                         </Style>
                     </Grid.Style>
-                    <Path Stretch="None"
+                    <!-- Uniform into an explicit box, like the padlock. With Stretch="None" the
+                         path measures to its geometry's bottom-right bounds, so the hexagon's
+                         leading 2px offset counted as part of the element and pushed the ink
+                         off-centre. -->
+                    <Path Stretch="Uniform"
+                          Width="18"
+                          Height="18"
                           Fill="{DynamicResource PlayAch.Brush.Glyph}"
                           UseLayoutRounding="True"
                           SnapsToDevicePixels="True"
