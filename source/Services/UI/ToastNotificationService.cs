@@ -1377,6 +1377,32 @@ namespace PlayniteAchievements.Services.UI
                 // actual render scale, snap to the corner, and (for a visible wave) reveal.
                 ApplyDpiCompensation(window, items, fitScale);
                 PlaceWindow(window, "shown");
+
+                // Let the card actually reach the screen before the slide starts timing itself.
+                // ApplyDpiCompensation's UpdateLayout is measure/arrange, not pixels; on a monitor at
+                // the system scale the settle loop above does not await at all, so without this the
+                // slide's first frame is also the toast's first frame — the one paying for the layered
+                // window's surface, the template's visuals, text realization and the shadow effects.
+                // The slide reads progress from frame timestamps, so that cost does not slow the slide,
+                // it skips it: the second frame reports a clock that has already run most of the
+                // duration and the card jumps. Two composed frames put that work before the clock
+                // starts. Bounded like the settle loop above, and it runs for an unrevealed wave too,
+                // whose recorded track would otherwise carry the same jump.
+                var warmFrames = await WaitForComposedFramesAsync(WarmFrameCount, WarmFrameTimeoutMs)
+                    .ConfigureAwait(true);
+                if (_disposed)
+                {
+                    return;
+                }
+
+                // Only the shortfall is logged, so no line means the toast did get its frames — which is
+                // what makes the slide line below readable: a large first-frame gap under a silent warm
+                // is a cost the warm frames failed to absorb, not a warm that never ran.
+                if (warmFrames < WarmFrameCount)
+                {
+                    _logger?.Info($"[Toast] Warm: frames={warmFrames}/{WarmFrameCount}, timedOut=true");
+                }
+
                 SlideInPhysical(window, reveal: visible);
 
                 // Start recording each card's overlay track now, at the slide-in — revealed or not
@@ -2369,6 +2395,11 @@ namespace PlayniteAchievements.Services.UI
         // the common case and never hangs.
         private const int MaxDpiSettleFrames = 8;
         private const double DpiSettleTolerance = 0.01;
+        // Composed frames of the invisible toast to wait for before starting the slide, and the ceiling
+        // on that wait. Two, because the first frame after Show is the one that realizes the card, and a
+        // second proves that frame was presented rather than merely queued.
+        private const int WarmFrameCount = 2;
+        private const int WarmFrameTimeoutMs = 150;
         // Frame period assumed when the anchor monitor's refresh rate can't be read (60 Hz).
         private const double FallbackFramePeriodMs = 1000d / 60d;
         // Recording frame rate assumed when settings are unreachable; matches PersistedSettings' default.
@@ -2530,6 +2561,48 @@ namespace PlayniteAchievements.Services.UI
             var endY = SlideFromBottom() ? ry + distance : ry - distance;
             RunPhysicalSlide(window, rx, ry, endY, _activeSlideOutEase, _activeSlideOutMs, "out");
             return _activeSlideOutMs;
+        }
+
+        /// <summary>
+        /// Waits for <paramref name="frames"/> distinct composed frames, or <paramref name="timeoutMs"/>,
+        /// whichever comes first; returns the frames actually observed.
+        ///
+        /// Counting distinct frames is the point. WPF raises <c>Rendering</c> more than once for a single
+        /// frame, so waiting for N events can return within one frame; <see cref="RenderTickCounter"/>
+        /// already de-duplicates by composition timestamp. Nothing else here proves a frame was
+        /// presented: <c>DispatcherPriority.Render</c> only orders against the queued render operation
+        /// (and outranks <c>Loaded</c>, so it would run before the card's images have even been asked
+        /// for), and <c>ContentRendered</c> fires once per window and already carries placement work.
+        /// </summary>
+        private static async Task<int> WaitForComposedFramesAsync(int frames, int timeoutMs)
+        {
+            if (frames <= 0)
+            {
+                return 0;
+            }
+
+            var ticks = new RenderTickCounter();
+            var reached = new TaskCompletionSource<bool>();
+            EventHandler tick = null;
+            tick = (s, e) =>
+            {
+                if (ticks.TryAdvance(e, out _) && ticks.Frames >= frames)
+                {
+                    reached.TrySetResult(true);
+                }
+            };
+
+            CompositionTarget.Rendering += tick;
+            try
+            {
+                await Task.WhenAny(reached.Task, Task.Delay(timeoutMs)).ConfigureAwait(true);
+            }
+            finally
+            {
+                CompositionTarget.Rendering -= tick;
+            }
+
+            return ticks.Frames;
         }
 
         /// <summary>
