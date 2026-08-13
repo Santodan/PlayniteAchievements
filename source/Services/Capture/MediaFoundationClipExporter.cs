@@ -55,61 +55,52 @@ namespace PlayniteAchievements.Services.Capture
                 return false;
             }
 
-            MediaManager.Startup();
-            try
+            using (MediaFoundationRuntime.Acquire())
             {
-                SinkWriter sink = null;
                 try
                 {
-                    _logger?.Debug($"[Recording] MF export: creating sink for {System.IO.Path.GetFileName(outputPath)} ({videoPlan.Segments.Count} video segs, audio={audioPlan?.Segments?.Count ?? 0}).");
-                    sink = MediaFactory.CreateSinkWriterFromURL(outputPath, null, null);
-
-                    var videoStream = AddVideoStream(sink, videoPlan.Segments[0].Path);
-                    _logger?.Debug("[Recording] MF export: video stream added.");
-                    var audioStream = -1;
+                    SinkWriter sink = null;
                     MediaType pcmType = null;
-                    if (audioPlan?.Segments != null && audioPlan.Segments.Count > 0)
+                    try
                     {
-                        audioStream = TryAddAudioStream(sink, out pcmType);
-                        _logger?.Debug($"[Recording] MF export: audio stream added ({audioStream}).");
+                        _logger?.Debug($"[Recording] MF export: creating sink for {System.IO.Path.GetFileName(outputPath)} ({videoPlan.Segments.Count} video segs, audio={audioPlan?.Segments?.Count ?? 0}).");
+                        sink = MediaFactory.CreateSinkWriterFromURL(outputPath, null, null);
+
+                        var videoStream = AddVideoStream(sink, videoPlan.Segments[0].Path);
+                        _logger?.Debug("[Recording] MF export: video stream added.");
+                        var audioStream = -1;
+                        if (audioPlan?.Segments != null && audioPlan.Segments.Count > 0)
+                        {
+                            audioStream = TryAddAudioStream(sink, out pcmType);
+                            _logger?.Debug($"[Recording] MF export: audio stream added ({audioStream}).");
+                        }
+
+                        sink.BeginWriting();
+
+                        var clipStart = ToTicks(videoPlan.StartOffsetSeconds);
+                        var clipEnd = clipStart + ToTicks(videoPlan.DurationSeconds);
+                        var keyframeStart = FindKeyframeStart(videoPlan.Segments[0].Path, clipStart);
+                        var videoLead = clipStart - keyframeStart; // ≥ 0
+                        videoLeadSeconds = videoLead / (double)OneSecond100ns;
+                        _logger?.Debug($"[Recording] MF export: keyframeStart={keyframeStart / 10000}ms lead={videoLead / 10000}ms; writing video.");
+
+                        WriteInterleaved(sink, videoStream, videoPlan, keyframeStart, clipEnd, audioStream, pcmType, audioPlan, videoLead);
+                        _logger?.Debug("[Recording] MF export: samples written.");
+
+                        sink.Finalize();
+                        _logger?.Debug("[Recording] MF export: finalized.");
+                        return true;
                     }
-
-                    sink.BeginWriting();
-
-                    var clipStart = ToTicks(videoPlan.StartOffsetSeconds);
-                    var clipEnd = clipStart + ToTicks(videoPlan.DurationSeconds);
-                    var keyframeStart = FindKeyframeStart(videoPlan.Segments[0].Path, clipStart);
-                    var videoLead = clipStart - keyframeStart; // ≥ 0
-                    videoLeadSeconds = videoLead / (double)OneSecond100ns;
-                    _logger?.Debug($"[Recording] MF export: keyframeStart={keyframeStart / 10000}ms lead={videoLead / 10000}ms; writing video.");
-
-                    WriteInterleaved(sink, videoStream, videoPlan, keyframeStart, clipEnd, audioStream, pcmType, audioPlan, videoLead);
-                    _logger?.Debug("[Recording] MF export: samples written.");
-
-                    pcmType?.Dispose();
-                    sink.Finalize();
-                    _logger?.Debug("[Recording] MF export: finalized.");
-                    return true;
+                    finally
+                    {
+                        pcmType?.Dispose();
+                        sink?.Dispose();
+                    }
                 }
-                finally
+                catch (Exception ex)
                 {
-                    sink?.Dispose();
-                }
-            }
-            catch (Exception ex)
-            {
-                _logger?.Warn(ex, "[Recording] Media Foundation clip export failed.");
-                return false;
-            }
-            finally
-            {
-                try
-                {
-                    MediaManager.Shutdown();
-                }
-                catch
-                {
-                    // Startup/Shutdown are refcounted per process; ignore an unbalanced shutdown.
+                    _logger?.Warn(ex, "[Recording] Media Foundation clip export failed.");
+                    return false;
                 }
             }
         }
@@ -194,48 +185,39 @@ namespace PlayniteAchievements.Services.Capture
                 return null;
             }
 
-            MediaManager.Startup();
-            try
-            {
-                using (var pcmType = CreatePcmType())
-                using (var stream = new System.IO.MemoryStream())
-                {
-                    foreach (var timed in AudioSamples(plan, pcmType, videoLead: 0))
-                    {
-                        using (var sample = timed.Sample)
-                        using (var buffer = sample.ConvertToContiguousBuffer())
-                        {
-                            var ptr = buffer.Lock(out _, out var length);
-                            try
-                            {
-                                var bytes = new byte[length];
-                                System.Runtime.InteropServices.Marshal.Copy(ptr, bytes, 0, length);
-                                stream.Write(bytes, 0, length);
-                            }
-                            finally
-                            {
-                                buffer.Unlock();
-                            }
-                        }
-                    }
-
-                    return stream.Length > 0 ? stream.ToArray() : null;
-                }
-            }
-            catch (Exception ex)
-            {
-                logger?.Debug(ex, "[Recording] Chime PCM window read failed; the clip keeps its audio without the chime.");
-                return null;
-            }
-            finally
+            using (MediaFoundationRuntime.Acquire())
             {
                 try
                 {
-                    MediaManager.Shutdown();
+                    using (var pcmType = CreatePcmType())
+                    using (var stream = new System.IO.MemoryStream())
+                    {
+                        foreach (var timed in AudioSamples(plan, pcmType, videoLead: 0))
+                        {
+                            using (var sample = timed.Sample)
+                            using (var buffer = sample.ConvertToContiguousBuffer())
+                            {
+                                var ptr = buffer.Lock(out _, out var length);
+                                try
+                                {
+                                    var bytes = new byte[length];
+                                    System.Runtime.InteropServices.Marshal.Copy(ptr, bytes, 0, length);
+                                    stream.Write(bytes, 0, length);
+                                }
+                                finally
+                                {
+                                    buffer.Unlock();
+                                }
+                            }
+                        }
+
+                        return stream.Length > 0 ? stream.ToArray() : null;
+                    }
                 }
-                catch
+                catch (Exception ex)
                 {
-                    // Startup/Shutdown are refcounted per process; ignore an unbalanced shutdown.
+                    logger?.Debug(ex, "[Recording] Chime PCM window read failed; the clip keeps its audio without the chime.");
+                    return null;
                 }
             }
         }
