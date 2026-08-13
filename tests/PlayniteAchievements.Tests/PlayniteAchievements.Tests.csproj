@@ -126,6 +126,7 @@
     <Compile Include="..\..\source\Services\Images\AchievementIconService.cs" Link="Source\Services\Images\AchievementIconService.cs" />
     <Compile Include="..\..\source\Services\Images\NotificationImageSlotMap.cs" Link="Source\Services\Images\NotificationImageSlotMap.cs" />
     <Compile Include="..\..\source\Services\Images\NotificationImageStore.cs" Link="Source\Services\Images\NotificationImageStore.cs" />
+    <Compile Include="..\..\source\Services\Achievements\AchievementMarkerTarget.cs" Link="Source\Services\Achievements\AchievementMarkerTarget.cs" />
     <Compile Include="..\..\source\Services\Achievements\AchievementSortHelper.cs" Link="Source\Services\Achievements\AchievementSortHelper.cs" />
     <Compile Include="..\..\source\Services\Achievements\AchievementCategoryFilterOrderHelper.cs" Link="Source\Services\Achievements\AchievementCategoryFilterOrderHelper.cs" />
     <Compile Include="..\..\source\Services\Achievements\AchievementOrderHelper.cs" Link="Source\Services\Achievements\AchievementOrderHelper.cs" />
