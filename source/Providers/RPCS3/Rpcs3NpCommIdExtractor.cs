@@ -13,10 +13,16 @@ namespace PlayniteAchievements.Providers.RPCS3
             new Regex(@"<npcommid>\s*(NPWR\d{5}_\d{2})\s*</npcommid>",
                 RegexOptions.IgnoreCase | RegexOptions.Compiled);
 
+        /// <summary>
+        /// How far into a file the raw scan reads. Bounds the cost for images
+        /// the structured readers cannot open, which can run to tens of GB.
+        /// </summary>
+        public const long DefaultMaxSearchBytes = 100L * 1024 * 1024;
+
         public static IReadOnlyList<string> ExtractNpCommIdsFromRawFile(
             string filePath,
             ILogger logger = null,
-            long maxSearchBytes = 100L * 1024 * 1024)
+            long maxSearchBytes = DefaultMaxSearchBytes)
         {
             var results = new List<string>();
             var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
