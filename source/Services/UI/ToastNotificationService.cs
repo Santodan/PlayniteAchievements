@@ -2848,6 +2848,9 @@ namespace PlayniteAchievements.Services.UI
 
                 if (vm.HasToastBackground)
                 {
+                    // Must stay the same property the template's background ImageBrush binds, since the
+                    // cache key is the source string: priming a different one warms an entry nothing asks
+                    // for and the image still arrives mid-slide, with nothing failing to say so.
                     AddPrimeRequest(
                         requests, seenRequests, vm.ToastBackgroundImagePath, PrimeBackgroundDecodePixel);
                 }
