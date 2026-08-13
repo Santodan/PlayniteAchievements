@@ -102,6 +102,12 @@ namespace PlayniteAchievements.Services.UI
         private RenderTickCounter _activeSlideTicks;
         private string _activeSlideLabel;
         private double _activeSlideRequestedMs;
+        // The wave's slide easing and duration, resolved once per wave by ResolveWaveSlideTiming from
+        // the themeable storyboards. Seeded with the code defaults so a slide can never run on nothing.
+        private IEasingFunction _activeSlideInEase = DefaultSlideInEase;
+        private double _activeSlideInMs = SlideInDurationMs;
+        private IEasingFunction _activeSlideOutEase = DefaultSlideOutEase;
+        private double _activeSlideOutMs = SlideOutDurationMs;
         // Per-wave placement state: the offset between where SetWindowPos is asked to put the toast
         // and where its HWND lands (measured once, on the wave's first settled placement), and whether
         // this wave has already logged that its placement needed rescuing.
@@ -1147,6 +1153,12 @@ namespace PlayniteAchievements.Services.UI
             // setting. Positioning (including the per-frame game-window follow) and slide direction
             // both read the resolved value.
             _activePosition = EffectivePosition();
+            // Same reason, and the reason it is here rather than at the slides: resolving the themeable
+            // slide storyboards reaches the filesystem and the resource dictionaries, and doing that
+            // inside SlideInPhysical/SlideOutPhysical put it on the UI thread on the very frame the
+            // slide subscribed to the render loop. Called unconditionally so all four fields are always
+            // this wave's, never a previous wave's.
+            ResolveWaveSlideTiming();
             _activeCardGlow = wave[0].ToastGlowMargin.Top;
             // Placement state is per-wave: the correction is measured on this wave's first settled
             // placement, and the anomaly warning is emitted at most once for it.
@@ -2496,12 +2508,9 @@ namespace PlayniteAchievements.Services.UI
                 return;
             }
 
-            ResolveSlideTiming(
-                AchievementToastTemplateResolver.SlideInStoryboardKey, DefaultSlideInEase, SlideInDurationMs,
-                out var ease, out var durationMs);
             var distance = SlideDistancePhysical(window);
             var startY = SlideFromBottom() ? ry + distance : ry - distance;
-            RunPhysicalSlide(window, rx, startY, ry, ease, durationMs, "in");
+            RunPhysicalSlide(window, rx, startY, ry, _activeSlideInEase, _activeSlideInMs, "in");
         }
 
         // Returns the slide-out duration (ms) so the caller waits exactly that long; 0 if it didn't run.
@@ -2517,13 +2526,28 @@ namespace PlayniteAchievements.Services.UI
                 return 0;
             }
 
-            ResolveSlideTiming(
-                AchievementToastTemplateResolver.SlideOutStoryboardKey, DefaultSlideOutEase, SlideOutDurationMs,
-                out var ease, out var durationMs);
             var distance = SlideDistancePhysical(window);
             var endY = SlideFromBottom() ? ry + distance : ry - distance;
-            RunPhysicalSlide(window, rx, ry, endY, ease, durationMs, "out");
-            return durationMs;
+            RunPhysicalSlide(window, rx, ry, endY, _activeSlideOutEase, _activeSlideOutMs, "out");
+            return _activeSlideOutMs;
+        }
+
+        /// <summary>
+        /// Resolves both slides' easing and duration for the wave that is starting. Called once per
+        /// wave, off the render loop; the slides themselves then only read the fields.
+        ///
+        /// The countdown bar deliberately keeps resolving its own storyboard when it starts, since it
+        /// is nowhere near a slide — so a theme author editing timing still sees the countdown change
+        /// immediately, and the slides on the next notification.
+        /// </summary>
+        private void ResolveWaveSlideTiming()
+        {
+            ResolveSlideTiming(
+                AchievementToastTemplateResolver.SlideInStoryboardKey, DefaultSlideInEase, SlideInDurationMs,
+                out _activeSlideInEase, out _activeSlideInMs);
+            ResolveSlideTiming(
+                AchievementToastTemplateResolver.SlideOutStoryboardKey, DefaultSlideOutEase, SlideOutDurationMs,
+                out _activeSlideOutEase, out _activeSlideOutMs);
         }
 
         // Easing + duration for a physical slide, taken from the themeable storyboard when it defines
