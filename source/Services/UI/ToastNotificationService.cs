@@ -112,6 +112,9 @@ namespace PlayniteAchievements.Services.UI
         private RenderTickCounter _activeSlideTicks;
         private string _activeSlideLabel;
         private double _activeSlideRequestedMs;
+        // Peak-to-peak travel the running slide actually produced, in host DIPs. Reported so a slide
+        // that animated nothing is visible in the log rather than looking identical to a healthy one.
+        private double _activeSlideMovedDip;
         // The wave's slide storyboards and their durations, resolved once per wave by
         // ResolveWaveSlideTiming from the themeable resources. The storyboards are what actually run;
         // the durations are kept alongside because the wave waits a computed duration rather than a
@@ -2894,8 +2897,34 @@ namespace PlayniteAchievements.Services.UI
 
             // Counting only. The slide no longer needs a per-frame callback to move anything, but the
             // cadence it achieved is the number this change is judged on, so it is still measured.
+            // How far the card actually moved, watched per frame. A storyboard that resolves to no
+            // property animates nothing and does NOT throw, so without this a slide that never moved is
+            // indistinguishable in the log from one that ran perfectly — which is exactly how a target
+            // path that did not match the host's transform shape shipped twice.
             var ticks = new RenderTickCounter();
-            EventHandler tick = (s, e) => ticks.TryAdvance(e, out _);
+            var minY = double.MaxValue;
+            var maxY = double.MinValue;
+            _activeSlideMovedDip = 0d;
+            EventHandler tick = (s, e) =>
+            {
+                if (!ticks.TryAdvance(e, out _))
+                {
+                    return;
+                }
+
+                var y = transform.Y;
+                if (y < minY)
+                {
+                    minY = y;
+                }
+
+                if (y > maxY)
+                {
+                    maxY = y;
+                }
+
+                _activeSlideMovedDip = maxY - minY;
+            };
             _activeSlideTicks = ticks;
             _activeSlideTick = tick;
             _runningSlideStoryboard = storyboard;
@@ -3005,7 +3034,7 @@ namespace PlayniteAchievements.Services.UI
                 _logger?.Info(string.Format(
                     System.Globalization.CultureInfo.InvariantCulture,
                     "[Toast] Slide {0}: requestedMs={1:0} spanMs={2:0.00} frames={3} meanMs={4:0.00} " +
-                    "firstGapMs={5:0.00} maxGapMs={6:0.00} monitorHz={7} end={8}",
+                    "firstGapMs={5:0.00} maxGapMs={6:0.00} monitorHz={7} movedDip={8:0.0} end={9}",
                     _activeSlideLabel,
                     _activeSlideRequestedMs,
                     ticks.SpanMs,
@@ -3014,6 +3043,7 @@ namespace PlayniteAchievements.Services.UI
                     ticks.FirstIntervalMs,
                     ticks.MaxIntervalMs,
                     _activeMonitorRefreshHz,
+                    _activeSlideMovedDip,
                     end));
             }
             catch
