@@ -91,16 +91,17 @@ namespace PlayniteAchievements.Views.Helpers
             };
             item.Click += (_, __) =>
             {
-                var nextIsGoal = !context.IsGoal;
-
                 // The write returns the new goal position, so the row can be stamped without a
                 // second read. The surface then re-sorts in the same pass, landing the accent and
                 // the new position in one frame.
-                var goalIndex = CurrentOverridesService?.SetAchievementGoal(
-                    context.GameId,
-                    context.ApiName,
-                    nextIsGoal) ?? -1;
-                context.ApplyGoal(goalIndex >= 0, goalIndex >= 0 ? goalIndex : int.MaxValue);
+                var result = CurrentMarkerToggle?.ToggleGoal(context.ToMarkerTarget())
+                    ?? default(AchievementMarkerToggle.GoalToggleResult);
+                if (!result.Attempted)
+                {
+                    return;
+                }
+
+                context.ApplyGoal(result.IsGoal, result.GoalOrderIndex);
 
                 if (onGoalChanged?.Invoke() == true)
                 {
@@ -119,32 +120,26 @@ namespace PlayniteAchievements.Views.Helpers
             Action onChanged,
             Func<string, bool> onCapstoneChanged)
         {
-            var manualCapstone = GameCustomDataLookup.GetManualCapstone(
-                context.GameId,
-                CurrentSettings,
-                CurrentStore);
-            var isManualCapstone = string.Equals(
-                manualCapstone,
-                context.ApiName,
-                StringComparison.OrdinalIgnoreCase);
-            var isEffectiveCapstone = context.IsCapstone || isManualCapstone;
-
             var item = new MenuItem
             {
                 Header = L(resourceOwner, "LOCPlayAch_Menu_SetCapstone"),
                 IsCheckable = true,
-                IsChecked = isEffectiveCapstone
+                IsChecked = CurrentMarkerToggle?.IsEffectiveCapstone(context.ToMarkerTarget()) == true
             };
             item.Click += async (_, __) =>
             {
-                var service = CurrentOverridesService;
-                if (service == null)
+                var toggle = CurrentMarkerToggle;
+                if (toggle == null)
                 {
                     return;
                 }
 
-                var nextCapstone = isEffectiveCapstone ? null : context.ApiName;
-                var result = await service.SetCapstoneAsync(context.GameId, nextCapstone);
+                var result = await toggle.ToggleCapstoneAsync(context.ToMarkerTarget());
+                if (!result.Attempted)
+                {
+                    return;
+                }
+
                 if (!result.Success)
                 {
                     ShowError(result.ErrorMessage);
@@ -154,7 +149,7 @@ namespace PlayniteAchievements.Views.Helpers
                 // Setting a capstone makes every other row a non-capstone, which is exactly what
                 // hydration would do, so the rows can be re-stamped in place. Clearing one lets
                 // provider-assigned capstones reappear, and only hydration knows those.
-                if (nextCapstone != null && onCapstoneChanged?.Invoke(nextCapstone) == true)
+                if (result.WasSet && onCapstoneChanged?.Invoke(result.CapstoneApiName) == true)
                 {
                     return;
                 }
@@ -556,6 +551,9 @@ namespace PlayniteAchievements.Views.Helpers
         private static AchievementOverridesService CurrentOverridesService =>
             PlayniteAchievementsPlugin.Instance?.AchievementOverridesService;
 
+        private static AchievementMarkerToggle CurrentMarkerToggle =>
+            PlayniteAchievementsPlugin.Instance?.AchievementMarkerToggle;
+
         private static PlayniteAchievements.Models.Settings.PersistedSettings CurrentSettings =>
             PlayniteAchievementsPlugin.Instance?.Settings?.Persisted;
 
@@ -641,6 +639,9 @@ namespace PlayniteAchievements.Views.Helpers
 
                 return false;
             }
+
+            public AchievementMarkerTarget ToMarkerTarget() =>
+                new AchievementMarkerTarget(GameId, ApiName, IsCapstone, IsGoal, Unlocked);
 
             public void ApplyCategoryLabel(string value)
             {
