@@ -123,10 +123,8 @@ namespace PlayniteAchievements.Services.Overview
                         gameData.AchievementOrder)
                     : achievements;
 
-                // Goals lead the default order too, so the surface is correct even when the
-                // caller skips its default sort.
-                AchievementSortHelper.ApplyGoalsFirst(orderedItems);
-
+                // Deliberately not goal-partitioned: this is the surface's natural order, and the
+                // caller keeps it as the snapshot it restores to when a goal is removed.
                 return (orderedItems, hasCustomOrder);
             }, cancellationToken).ConfigureAwait(false);
 

@@ -247,6 +247,13 @@ namespace PlayniteAchievements.Providers.RPCS3
                 Rpcs3InstallationResolver.Resolve(game, _providerSettings, _playniteApi, _logger);
             if (installation == null)
             {
+                // Without an installation there is no trophy folder to read, so
+                // every source resolves against an empty cache and is dropped.
+                // Say so here; downstream this is indistinguishable from a game
+                // whose trophy set could not be matched.
+                _logger?.Warn(
+                    $"[RPCS3] '{game.Name}': no RPCS3 installation or user profile could be resolved; " +
+                    "no trophy folders were scanned for this game.");
                 return null;
             }
 
@@ -585,7 +592,10 @@ namespace PlayniteAchievements.Providers.RPCS3
             if (GameCustomDataLookup.TryGetRpcs3MatchIdOverride(game.Id, out var overrideMatchId))
             {
                 var normalizedOverride = Rpcs3MatchIdHelper.Normalize(overrideMatchId) ?? overrideMatchId;
-                return new[] { new GameTrophySource { NpCommId = normalizedOverride, TrpPath = null } };
+                return new[]
+                {
+                    ResolveOverrideSource(game, normalizedOverride, trophyFolderCache, cancel, allowRawIsoScan, serialBridge)
+                };
             }
 
             var collectionSources = FindCollectionTrophySourcesForGame(game, trophyFolderCache, cancel, allowRawIsoScan, serialBridge);
@@ -601,6 +611,50 @@ namespace PlayniteAchievements.Providers.RPCS3
             }
 
             return collectionSources;
+        }
+
+        /// <summary>
+        /// The trophy source for a user-set match ID override. A set RPCS3 has
+        /// already created a trophy folder for needs nothing further; otherwise
+        /// the game's own files are searched for that set's TROPHY.TRP, so an
+        /// override still yields the full (locked) trophy list for a game that
+        /// has never been booted in RPCS3.
+        /// </summary>
+        private GameTrophySource ResolveOverrideSource(
+            Game game,
+            string npCommId,
+            Dictionary<string, string> trophyFolderCache,
+            CancellationToken cancel,
+            bool allowRawIsoScan,
+            Rpcs3SerialNpwrBridge serialBridge)
+        {
+            if (trophyFolderCache?.ContainsKey(npCommId) == true)
+            {
+                return new GameTrophySource { NpCommId = npCommId, TrpPath = null };
+            }
+
+            var discovered = FindCollectionTrophySourcesForGame(game, trophyFolderCache, cancel, allowRawIsoScan, serialBridge)
+                .Concat(new[] { FindSingleNpCommIdForGame(game, trophyFolderCache, cancel, allowRawIsoScan, serialBridge) })
+                .FirstOrDefault(source =>
+                    source != null &&
+                    string.Equals(Rpcs3MatchIdHelper.Normalize(source.NpCommId), npCommId, StringComparison.OrdinalIgnoreCase) &&
+                    !string.IsNullOrWhiteSpace(source.TrpPath) &&
+                    File.Exists(source.TrpPath));
+
+            if (discovered != null)
+            {
+                _logger?.Info(
+                    $"[RPCS3] '{game?.Name}': override trophy set '{npCommId}' has no trophy folder; " +
+                    $"reading definitions from '{discovered.TrpPath}'.");
+                return discovered;
+            }
+
+            _logger?.Warn(
+                $"[RPCS3] '{game?.Name}': override trophy set '{npCommId}' has no trophy folder in the resolved " +
+                $"RPCS3 profile ({trophyFolderCache?.Count ?? 0} set(s) scanned) and no TROPHY.TRP for it was " +
+                "found in the game's files.");
+
+            return new GameTrophySource { NpCommId = npCommId, TrpPath = null };
         }
 
         private List<GameTrophySource> FindCollectionTrophySourcesForGame(
@@ -838,16 +892,58 @@ namespace PlayniteAchievements.Providers.RPCS3
                 }
             }
 
-            var tropdirs = directoriesToCheck
-                .SelectMany(dir => new[]
-                {
-                    Path.Combine(dir, "TROPDIR"),
-                    Path.Combine(dir, "PS3_GAME", "TROPDIR")
-                })
+            var trpPaths = directoriesToCheck
+                .SelectMany(EnumerateTropdirTrpPaths)
                 .Distinct(StringComparer.OrdinalIgnoreCase);
 
-            foreach (var tropdir in tropdirs)
+            foreach (var trpPath in trpPaths)
             {
+                string npCommId = null;
+                try
+                {
+                    npCommId = ExtractNpCommIdFromTrpFile(trpPath);
+                }
+                catch (Exception ex)
+                {
+                    _logger?.Debug(ex, $"[RPCS3] Failed to extract NPWR ID from '{trpPath}'");
+                }
+
+                var normalized = Rpcs3MatchIdHelper.Normalize(npCommId);
+                if (string.IsNullOrWhiteSpace(normalized))
+                {
+                    continue;
+                }
+
+                if (!trophyFolderCache.ContainsKey(normalized))
+                {
+                    continue;
+                }
+
+                yield return new GameTrophySource
+                {
+                    NpCommId = normalized,
+                    TrpPath = trpPath
+                };
+            }
+        }
+
+        /// <summary>
+        /// TROPHY.TRP paths under a game directory's TROPDIR, one per trophy set
+        /// directory. Both the directory itself and its PS3_GAME child are
+        /// probed, so a dump root and the PS3_GAME inside it resolve alike.
+        /// Ordered for deterministic selection; yields nothing when no TROPDIR
+        /// exists or it cannot be read.
+        /// </summary>
+        private static IEnumerable<string> EnumerateTropdirTrpPaths(string directory)
+        {
+            if (string.IsNullOrWhiteSpace(directory))
+            {
+                yield break;
+            }
+
+            foreach (var root in new[] { directory, Path.Combine(directory, "PS3_GAME") })
+            {
+                var tropdir = Path.Combine(root, "TROPDIR");
                 if (!Directory.Exists(tropdir))
                 {
                     continue;
@@ -866,37 +962,10 @@ namespace PlayniteAchievements.Providers.RPCS3
                 foreach (var setDirectory in setDirectories.OrderBy(path => path, StringComparer.OrdinalIgnoreCase))
                 {
                     var trpPath = Path.Combine(setDirectory, "TROPHY.TRP");
-                    if (!File.Exists(trpPath))
+                    if (File.Exists(trpPath))
                     {
-                        continue;
+                        yield return trpPath;
                     }
-
-                    string npCommId = null;
-                    try
-                    {
-                        npCommId = ExtractNpCommIdFromTrpFile(trpPath);
-                    }
-                    catch (Exception ex)
-                    {
-                        _logger?.Debug(ex, $"[RPCS3] Failed to extract NPWR ID from '{trpPath}'");
-                    }
-
-                    var normalized = Rpcs3MatchIdHelper.Normalize(npCommId);
-                    if (string.IsNullOrWhiteSpace(normalized))
-                    {
-                        continue;
-                    }
-
-                    if (!trophyFolderCache.ContainsKey(normalized))
-                    {
-                        continue;
-                    }
-
-                    yield return new GameTrophySource
-                    {
-                        NpCommId = normalized,
-                        TrpPath = trpPath
-                    };
                 }
             }
         }
@@ -945,7 +1014,7 @@ namespace PlayniteAchievements.Providers.RPCS3
                 {
                     var rootDirectoryNames = disc.GetRootDirectoryNames();
 
-                    foreach (var trpImagePath in GetIsoTrophyTrpPaths(rootDirectoryNames))
+                    foreach (var trpImagePath in GetIsoTrophyTrpPaths(disc, rootDirectoryNames))
                     {
                         var trpBytes = disc.ReadAllBytesOrNull(trpImagePath);
                         if (trpBytes == null ||
@@ -983,8 +1052,22 @@ namespace PlayniteAchievements.Providers.RPCS3
             }
             catch (Exception ex)
             {
-                // Unreadable disc image; the raw scan below is the only option left.
-                _logger?.Debug(ex, $"[RPCS3] Could not read ISO '{isoPath}' as a filesystem; falling back to raw scan.");
+                // Unreadable disc image; the raw scan below is the only option
+                // left, and it only matches sets RPCS3 has already booted. A PS3
+                // image the UDF reader cannot open is the difference between a
+                // matched game and a silent miss, so a refresh reports it;
+                // capability probes (raw scan off) stay quiet since they run
+                // across the whole library.
+                if (allowRawIsoScan)
+                {
+                    _logger?.Warn(
+                        $"[RPCS3] Could not read ISO '{isoPath}' as a filesystem ({ex.GetType().Name}: {ex.Message}); " +
+                        "falling back to a raw scan.");
+                }
+                else
+                {
+                    _logger?.Debug(ex, $"[RPCS3] Could not read ISO '{isoPath}' as a filesystem.");
+                }
             }
 
             // The structured read is authoritative; raw scanning is the fallback for
@@ -1008,6 +1091,11 @@ namespace PlayniteAchievements.Providers.RPCS3
 
                     sources.Add(new GameTrophySource { NpCommId = normalized, TrpPath = null });
                 }
+
+                if (seen.Count == 0)
+                {
+                    LogRawScanExhausted(isoPath);
+                }
             }
 
             sources = ApplyTitleAmbiguityGuard(sources, dropped, isoPath);
@@ -1021,26 +1109,92 @@ namespace PlayniteAchievements.Providers.RPCS3
         }
 
         /// <summary>
-        /// TROPHY.TRP locations inside a PS3 disc image: the standard PS3_GAME,
-        /// multi-game collection PS3_GMxx sub-games, and the bare TROPHY root
-        /// some structures use. Probes only directories present in the image root
-        /// so the per-image cost stays at the sets that actually exist.
+        /// Records that the raw scan reached its byte cap without finding an
+        /// NPWR id, which is the expected outcome for a large image whose
+        /// trophy data sits past the cap. Distinguishes "scanned, found
+        /// nothing" from "image holds no trophy set".
         /// </summary>
-        private static IEnumerable<string> GetIsoTrophyTrpPaths(IReadOnlyCollection<string> rootDirectoryNames)
+        private void LogRawScanExhausted(string isoPath)
+        {
+            long length;
+            try
+            {
+                length = new FileInfo(isoPath).Length;
+            }
+            catch
+            {
+                return;
+            }
+
+            if (length <= Rpcs3NpCommIdExtractor.DefaultMaxSearchBytes)
+            {
+                return;
+            }
+
+            const long megabyte = 1024 * 1024;
+            _logger?.Info(
+                $"[RPCS3] Raw scan of ISO '{isoPath}' found no NPWR id in its first " +
+                $"{Rpcs3NpCommIdExtractor.DefaultMaxSearchBytes / megabyte} MB ({length / megabyte} MB image); " +
+                "no trophy set was matched from it.");
+        }
+
+        /// <summary>
+        /// TROPHY.TRP locations inside a PS3 disc image: the TROPDIR sets a PS3
+        /// disc carries (one directory per NPWR id), and the bare TROPHY layout
+        /// some structures use, under the standard PS3_GAME, multi-game
+        /// collection PS3_GMxx sub-games, or the image root. Probes only
+        /// directories present in the image root so the per-image cost stays at
+        /// the sets that actually exist.
+        /// </summary>
+        private static IEnumerable<string> GetIsoTrophyTrpPaths(
+            DiscFileSystemReader disc,
+            IReadOnlyCollection<string> rootDirectoryNames)
         {
             var rootDirs = new HashSet<string>(rootDirectoryNames, StringComparer.OrdinalIgnoreCase);
 
             foreach (var subgameDirectory in GetIsoSubgameDirectoryNames())
             {
-                if (rootDirs.Contains(subgameDirectory))
+                if (!rootDirs.Contains(subgameDirectory))
                 {
-                    yield return $"{subgameDirectory}/TROPHY/TROPHY.TRP";
+                    continue;
+                }
+
+                foreach (var trpPath in GetIsoTropdirTrpPaths(disc, subgameDirectory))
+                {
+                    yield return trpPath;
+                }
+
+                yield return $"{subgameDirectory}/TROPHY/TROPHY.TRP";
+            }
+
+            if (rootDirs.Contains("TROPDIR"))
+            {
+                foreach (var trpPath in GetIsoTropdirTrpPaths(disc, null))
+                {
+                    yield return trpPath;
                 }
             }
 
             if (rootDirs.Contains("TROPHY"))
             {
                 yield return "TROPHY/TROPHY.TRP";
+            }
+        }
+
+        /// <summary>
+        /// TROPHY.TRP paths under a TROPDIR inside a disc image, one per trophy
+        /// set directory. <paramref name="parentDirectory"/> is null for a
+        /// TROPDIR at the image root.
+        /// </summary>
+        private static IEnumerable<string> GetIsoTropdirTrpPaths(DiscFileSystemReader disc, string parentDirectory)
+        {
+            var tropdir = string.IsNullOrWhiteSpace(parentDirectory)
+                ? "TROPDIR"
+                : $"{parentDirectory}/TROPDIR";
+
+            foreach (var setDirectory in disc.GetDirectoryNames(tropdir).OrderBy(name => name, StringComparer.OrdinalIgnoreCase))
+            {
+                yield return $"{tropdir}/{setDirectory}/TROPHY.TRP";
             }
         }
 
@@ -2052,33 +2206,13 @@ namespace PlayniteAchievements.Providers.RPCS3
             }
 
             // Possible TROPHY.TRP locations for installed games
-            // PKG games: {game_root}/TROPDIR/{npcommid}/TROPHY.TRP
-            // Disc-based games: {game_root}/TROPHY/TROPHY.TRP or {game_root}/PS3_GAME/TROPHY/TROPHY.TRP
+            // PKG and disc games: {game_root}/TROPDIR/{npcommid}/TROPHY.TRP, also
+            // under PS3_GAME for an extracted disc dump
+            // Alternative disc structure: {game_root}/TROPHY/TROPHY.TRP or {game_root}/PS3_GAME/TROPHY/TROPHY.TRP
             var trpPaths = new List<string>();
             foreach (var dir in directoriesToCheck)
             {
-                // PKG games: TROPDIR contains subdirectories named after npcommid
-                var tropdir = Path.Combine(dir, "TROPDIR");
-                if (Directory.Exists(tropdir))
-                {
-                    try
-                    {
-                        foreach (var subDir in Directory.GetDirectories(tropdir).OrderBy(path => path, StringComparer.OrdinalIgnoreCase))
-                        {
-                            var trpPath = Path.Combine(subDir, "TROPHY.TRP");
-                            if (File.Exists(trpPath))
-                            {
-                                trpPaths.Add(trpPath);
-                            }
-                        }
-                    }
-                    catch
-                    {
-                        // Ignore errors scanning TROPDIR
-                    }
-                }
-
-                // Disc-based game paths
+                trpPaths.AddRange(EnumerateTropdirTrpPaths(dir));
                 trpPaths.Add(Path.Combine(dir, "TROPHY", "TROPHY.TRP"));
                 trpPaths.Add(Path.Combine(dir, "PS3_GAME", "TROPHY", "TROPHY.TRP"));
             }
@@ -2174,25 +2308,11 @@ namespace PlayniteAchievements.Providers.RPCS3
 
             foreach (var dir in directoriesToCheck)
             {
-                // PKG games: TROPDIR contains subdirectories named after npcommid
-                var tropdir = Path.Combine(dir, "TROPDIR");
-                if (Directory.Exists(tropdir))
+                // PKG and disc games: TROPDIR contains subdirectories named after npcommid
+                var tropdirTrpPath = EnumerateTropdirTrpPaths(dir).FirstOrDefault();
+                if (!string.IsNullOrWhiteSpace(tropdirTrpPath))
                 {
-                    try
-                    {
-                        foreach (var subDir in Directory.GetDirectories(tropdir))
-                        {
-                            var trpPath = Path.Combine(subDir, "TROPHY.TRP");
-                            if (File.Exists(trpPath))
-                            {
-                                return trpPath;
-                            }
-                        }
-                    }
-                    catch
-                    {
-                        // Ignore errors scanning TROPDIR
-                    }
+                    return tropdirTrpPath;
                 }
 
                 // Disc-based game: TROPHY/TROPHY.TRP

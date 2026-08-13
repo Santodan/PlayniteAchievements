@@ -3062,10 +3062,68 @@ namespace PlayniteAchievements.ViewModels
                 return true;
             }
 
+            // No column sort, so re-run exactly what the load path does: restore the natural order
+            // as the base (the configured sort may preserve source order), apply the configured
+            // default sort, then pin goals. Partitioning alone is stable, so without this a
+            // removed goal would stay stranded at the top.
+            RestoreSelectedGameNaturalOrder();
+            AchievementSortHelper.ApplyConfiguredDefaultSort(
+                _filteredSelectedGameAchievements,
+                _settings?.Persisted,
+                AchievementSortSurface.OverviewSelectedGame,
+                AchievementSortScope.GameAchievements,
+                stableOrder: AchievementSortHelper.CreateStableOrderMap(_filteredSelectedGameAchievements));
             AchievementSortHelper.ApplyGoalsFirst(_allSelectedGameAchievements);
             AchievementSortHelper.ApplyGoalsFirst(_filteredSelectedGameAchievements);
             SyncSelectedGameAchievementsDisplay();
             return true;
+        }
+
+        /// <summary>
+        /// Re-orders the selected game's live lists to follow the natural-order snapshot taken
+        /// when the game loaded. Items missing from the snapshot keep their relative position at
+        /// the end.
+        /// </summary>
+        private void RestoreSelectedGameNaturalOrder()
+        {
+            var natural = _selectedGameDefaultOrderedAchievements;
+            if (natural == null || natural.Count == 0)
+            {
+                return;
+            }
+
+            var indexByItem = new Dictionary<AchievementDisplayItem, int>();
+            for (var i = 0; i < natural.Count; i++)
+            {
+                var item = natural[i];
+                if (item != null && !indexByItem.ContainsKey(item))
+                {
+                    indexByItem[item] = i;
+                }
+            }
+
+            SortByNaturalOrder(_allSelectedGameAchievements, indexByItem);
+            SortByNaturalOrder(_filteredSelectedGameAchievements, indexByItem);
+        }
+
+        private static void SortByNaturalOrder(
+            List<AchievementDisplayItem> items,
+            IReadOnlyDictionary<AchievementDisplayItem, int> indexByItem)
+        {
+            if (items == null || items.Count < 2)
+            {
+                return;
+            }
+
+            // OrderBy is stable, so anything absent from the snapshot keeps its relative order.
+            var ordered = items
+                .OrderBy(item => item != null && indexByItem.TryGetValue(item, out var index)
+                    ? index
+                    : int.MaxValue)
+                .ToList();
+
+            items.Clear();
+            items.AddRange(ordered);
         }
 
         private void SyncSelectedGameAchievementsDisplay()
@@ -3870,7 +3928,10 @@ namespace PlayniteAchievements.ViewModels
 
                 _allSelectedGameAchievements = items;
                 Services.Captures.CapturePresenceMarker.MarkAchievements(items, _captureLibrary);
+                // Snapshot the natural order before goals are pinned, so removing a goal can put
+                // the achievement back where it belongs instead of leaving it stranded on top.
                 _selectedGameDefaultOrderedAchievements = new List<AchievementDisplayItem>(items);
+                AchievementSortHelper.ApplyGoalsFirst(_allSelectedGameAchievements);
                 FriendCompare?.SetTargetItems(items);
                 UpdateSelectedGameAchievementFilterOptions(_allSelectedGameAchievements);
                 ApplyRightFilters();
