@@ -33,6 +33,8 @@ namespace PlayniteAchievements.Models.Settings
 
         public List<string> SummaryFilteredAchievementApiNames { get; set; }
 
+        public List<string> GoalAchievementApiNames { get; set; }
+
         public Dictionary<string, string> AchievementUnlockedIconOverrides { get; set; }
 
         public Dictionary<string, string> AchievementLockedIconOverrides { get; set; }
@@ -82,6 +84,9 @@ namespace PlayniteAchievements.Models.Settings
                     : null,
                 SummaryFilteredAchievementApiNames = SummaryFilteredAchievementApiNames != null
                     ? new List<string>(SummaryFilteredAchievementApiNames)
+                    : null,
+                GoalAchievementApiNames = GoalAchievementApiNames != null
+                    ? new List<string>(GoalAchievementApiNames)
                     : null,
                 AchievementUnlockedIconOverrides = AchievementUnlockedIconOverrides != null
                     ? new Dictionary<string, string>(AchievementUnlockedIconOverrides, StringComparer.OrdinalIgnoreCase)

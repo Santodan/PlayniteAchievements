@@ -1,4 +1,5 @@
 using PlayniteAchievements.Models;
+using PlayniteAchievements.Models.Achievements;
 using PlayniteAchievements.Models.Settings;
 using PlayniteAchievements.Providers;
 using PlayniteAchievements.Providers.Manual;
@@ -40,10 +41,18 @@ namespace PlayniteAchievements.Services.Achievements
 
             try
             {
-                _gameCustomDataStore.Update(playniteGameId, customData =>
-                {
-                    customData.ManualCapstoneApiName = capstoneApiName;
-                });
+                // A capstone's only summary-visible effect is GameAchievementData.IsCompleted, so
+                // the summary and projection rebuild is only warranted when completion actually
+                // flips. Setting one on a still-locked achievement cannot flip it.
+                var affectsSummaryData = CapstoneChangeFlipsCompletion(playniteGameId, capstoneApiName);
+
+                _gameCustomDataStore.Update(
+                    playniteGameId,
+                    customData =>
+                    {
+                        customData.ManualCapstoneApiName = capstoneApiName;
+                    },
+                    affectsSummaryData);
 
                 return CacheWriteResult.CreateSuccess(playniteGameId.ToString(), DateTime.UtcNow);
             }
@@ -56,6 +65,61 @@ namespace PlayniteAchievements.Services.Achievements
                     ex.Message,
                     ex);
             }
+        }
+
+        /// <summary>
+        /// Whether changing the manual capstone changes the game's completion state, which is the
+        /// only thing about a capstone any summary or rollup can see. Fails safe: anything it
+        /// cannot determine is reported as a change, so summaries are never left stale.
+        /// </summary>
+        private bool CapstoneChangeFlipsCompletion(Guid playniteGameId, string nextCapstoneApiName)
+        {
+            try
+            {
+                var achievements = _cacheService?.LoadGameData(playniteGameId.ToString())?.Achievements;
+                if (achievements == null || achievements.Count == 0)
+                {
+                    return true;
+                }
+
+                // A fully unlocked game counts as complete whatever the capstone is.
+                if (achievements.All(a => a?.Unlocked == true))
+                {
+                    return false;
+                }
+
+                var previousCapstone = _gameCustomDataStore.TryLoad(playniteGameId, out var customData)
+                    ? customData?.ManualCapstoneApiName
+                    : null;
+
+                return IsCapstoneUnlocked(achievements, previousCapstone) !=
+                       IsCapstoneUnlocked(achievements, nextCapstoneApiName);
+            }
+            catch (Exception ex)
+            {
+                _logger?.Debug(ex, $"Failed evaluating capstone completion impact for gameId={playniteGameId}.");
+                return true;
+            }
+        }
+
+        /// <summary>
+        /// Mirrors hydration: a manual capstone replaces the provider's own capstone flags
+        /// outright, so with one set only that achievement counts.
+        /// </summary>
+        private static bool IsCapstoneUnlocked(
+            IReadOnlyList<AchievementDetail> achievements,
+            string manualCapstoneApiName)
+        {
+            if (string.IsNullOrWhiteSpace(manualCapstoneApiName))
+            {
+                return achievements.Any(a => a?.IsCapstone == true && a.Unlocked);
+            }
+
+            var trimmed = manualCapstoneApiName.Trim();
+            return achievements.Any(a =>
+                a != null &&
+                a.Unlocked &&
+                string.Equals((a.ApiName ?? string.Empty).Trim(), trimmed, StringComparison.OrdinalIgnoreCase));
         }
 
         public Task<CacheWriteResult> SetCapstoneAsync(Guid playniteGameId, string capstoneApiName)
@@ -76,6 +140,131 @@ namespace PlayniteAchievements.Services.Achievements
                     ? new List<string>(orderedApiNames)
                     : null;
             });
+        }
+
+        /// <summary>
+        /// Replaces the game's goal achievements. List position carries the goal order.
+        /// </summary>
+        public void SetGoalAchievements(Guid gameId, IReadOnlyList<string> orderedApiNames)
+        {
+            if (gameId == Guid.Empty)
+            {
+                return;
+            }
+
+            var normalized = AchievementOrderHelper.NormalizeApiNames(orderedApiNames);
+            // Goals only pin existing achievements to the top of a list, so no count, filter or
+            // library rollup can move; summary and projection subscribers skip this.
+            _gameCustomDataStore.Update(
+                gameId,
+                customData =>
+                {
+                    customData.GoalAchievementApiNames = normalized.Count > 0 ? normalized : null;
+                },
+                affectsSummaryData: false);
+        }
+
+        /// <summary>
+        /// Adds or removes a single goal. New goals append, so the goal added first stays on top.
+        /// Returns the achievement's resulting position in the goal list, or -1 when it is not a
+        /// goal, which saves the caller a second read to find out.
+        /// </summary>
+        /// <remarks>
+        /// The list is read and rewritten inside one store mutation. Reading it up front via
+        /// <see cref="GameCustomDataLookup"/> would clone the game's entire custom data, notes and
+        /// icon overrides included, just to see one list.
+        /// </remarks>
+        public int SetAchievementGoal(Guid gameId, string achievementApiName, bool isGoal)
+        {
+            if (gameId == Guid.Empty)
+            {
+                return -1;
+            }
+
+            var apiName = (achievementApiName ?? string.Empty).Trim();
+            if (string.IsNullOrWhiteSpace(apiName))
+            {
+                return -1;
+            }
+
+            var resultIndex = -1;
+            _gameCustomDataStore.Update(
+                gameId,
+                customData =>
+                {
+                    var goals = AchievementOrderHelper.NormalizeApiNames(customData.GoalAchievementApiNames);
+                    var existingIndex = goals.FindIndex(entry =>
+                        string.Equals(entry, apiName, StringComparison.OrdinalIgnoreCase));
+
+                    if (isGoal)
+                    {
+                        if (existingIndex < 0)
+                        {
+                            goals.Add(apiName);
+                            existingIndex = goals.Count - 1;
+                        }
+
+                        resultIndex = existingIndex;
+                    }
+                    else if (existingIndex >= 0)
+                    {
+                        goals.RemoveAt(existingIndex);
+                    }
+
+                    customData.GoalAchievementApiNames = goals.Count > 0 ? goals : null;
+                },
+                affectsSummaryData: false);
+
+            return resultIndex;
+        }
+
+        /// <summary>
+        /// Drops goals that have since been unlocked. Display already treats an unlocked goal as
+        /// no longer a goal, so this only keeps the stored list tidy.
+        /// </summary>
+        public bool PruneUnlockedGoals(Guid gameId, IEnumerable<string> unlockedApiNames)
+        {
+            if (gameId == Guid.Empty || unlockedApiNames == null)
+            {
+                return false;
+            }
+
+            var unlocked = new HashSet<string>(
+                unlockedApiNames.Where(name => !string.IsNullOrWhiteSpace(name)).Select(name => name.Trim()),
+                StringComparer.OrdinalIgnoreCase);
+            if (unlocked.Count == 0)
+            {
+                return false;
+            }
+
+            // Cheap pre-check against the cached file. Update always saves and raises, so an
+            // unlock that clears nothing, by far the common case, must not reach it.
+            if (!_gameCustomDataStore.TryLoad(gameId, out var existing) ||
+                existing?.GoalAchievementApiNames == null ||
+                !existing.GoalAchievementApiNames.Any(entry =>
+                    !string.IsNullOrWhiteSpace(entry) && unlocked.Contains(entry.Trim())))
+            {
+                return false;
+            }
+
+            var pruned = false;
+            _gameCustomDataStore.Update(
+                gameId,
+                customData =>
+                {
+                    var goals = AchievementOrderHelper.NormalizeApiNames(customData.GoalAchievementApiNames);
+                    var remaining = goals.Where(entry => !unlocked.Contains(entry)).ToList();
+                    if (remaining.Count == goals.Count)
+                    {
+                        return;
+                    }
+
+                    customData.GoalAchievementApiNames = remaining.Count > 0 ? remaining : null;
+                    pruned = true;
+                },
+                affectsSummaryData: false);
+
+            return pruned;
         }
 
         public void SetAchievementCategoryOverrides(Guid gameId, IReadOnlyDictionary<string, string> categoryOverrides)
@@ -164,6 +353,7 @@ namespace PlayniteAchievements.Services.Achievements
                 return;
             }
 
+            // A note is annotation only: it cannot change counts, filters or library rollups.
             var apiName = AchievementNoteHelper.NormalizeApiName(achievementApiName);
             if (string.IsNullOrWhiteSpace(apiName))
             {
@@ -171,23 +361,26 @@ namespace PlayniteAchievements.Services.Achievements
             }
 
             var normalizedNote = AchievementNoteHelper.NormalizeNote(note);
-            _gameCustomDataStore.Update(gameId, customData =>
-            {
-                var notes = customData.AchievementNotes != null
-                    ? new Dictionary<string, string>(customData.AchievementNotes, StringComparer.OrdinalIgnoreCase)
-                    : new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
-
-                if (string.IsNullOrWhiteSpace(normalizedNote))
+            _gameCustomDataStore.Update(
+                gameId,
+                customData =>
                 {
-                    notes.Remove(apiName);
-                }
-                else
-                {
-                    notes[apiName] = normalizedNote;
-                }
+                    var notes = customData.AchievementNotes != null
+                        ? new Dictionary<string, string>(customData.AchievementNotes, StringComparer.OrdinalIgnoreCase)
+                        : new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
 
-                customData.AchievementNotes = notes.Count > 0 ? notes : null;
-            });
+                    if (string.IsNullOrWhiteSpace(normalizedNote))
+                    {
+                        notes.Remove(apiName);
+                    }
+                    else
+                    {
+                        notes[apiName] = normalizedNote;
+                    }
+
+                    customData.AchievementNotes = notes.Count > 0 ? notes : null;
+                },
+                affectsSummaryData: false);
         }
 
         public void SetAchievementIconOverrides(

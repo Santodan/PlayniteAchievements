@@ -15,7 +15,7 @@ namespace PlayniteAchievements.Services.Recording
     /// </summary>
     internal static class SegmentTimeline
     {
-        /// <summary>Tolerance (seconds past detection) a trusted unlock timestamp may carry.</summary>
+        /// <summary>Tolerance (seconds past observation) a selected anchor timestamp may carry.</summary>
         public const int PreciseLeadSeconds = 5;
 
         /// <summary>Windows that collapse below this are skipped by the caller.</summary>
@@ -65,7 +65,7 @@ namespace PlayniteAchievements.Services.Recording
 
         /// <summary>
         /// A computed clip window plus the moment the toast should appear inside it: the trusted
-        /// unlock time when available, else detection. The toast is composited at export, so the
+        /// source-selected video anchor when available, else local observation. The toast is composited at export, so the
         /// anchor is a choice, not an observation — it mimics a zero-latency notification.
         /// </summary>
         public sealed class ClipWindow
@@ -78,11 +78,10 @@ namespace PlayniteAchievements.Services.Recording
         }
 
         /// <summary>
-        /// Parses buffer files from their wall-clock filenames (default: the video segments,
-        /// seg_yyyyMMdd-HHmmss_WxH.mp4; pass the aud_/.wav pair for audio chunks — both are
-        /// written in the machine's local time zone, injected for tests) into UTC-stamped infos
-        /// ordered oldest-first, carrying the encoded dimensions where the name declares them.
-        /// Unparseable names (and local times invalidated by DST) are skipped.
+        /// Parses buffer files from their timestamped filenames (current files carry an explicit
+        /// UTC Z; legacy files contain local wall time and use the injected zone) into UTC-stamped
+        /// infos ordered oldest-first, carrying encoded dimensions where the name declares them.
+        /// Unparseable names and legacy local times invalidated by DST are skipped.
         /// </summary>
         public static List<SegmentInfo> ParseSegments(
             IEnumerable<(string Path, long SizeBytes)> files,
@@ -151,7 +150,7 @@ namespace PlayniteAchievements.Services.Recording
             var body = name.Substring(
                 prefix.Length,
                 name.Length - prefix.Length - extension.Length);
-            if (!TryParseStamp(body, out var local, out var suffix))
+            if (!TryParseStamp(body, out var stamp, out var isUtc, out var suffix))
             {
                 return false;
             }
@@ -160,9 +159,11 @@ namespace PlayniteAchievements.Services.Recording
 
             try
             {
-                startUtc = TimeZoneInfo.ConvertTimeToUtc(
-                    DateTime.SpecifyKind(local, DateTimeKind.Unspecified),
-                    localTimeZone ?? TimeZoneInfo.Local);
+                startUtc = isUtc
+                    ? DateTime.SpecifyKind(stamp, DateTimeKind.Utc)
+                    : TimeZoneInfo.ConvertTimeToUtc(
+                        DateTime.SpecifyKind(stamp, DateTimeKind.Unspecified),
+                        localTimeZone ?? TimeZoneInfo.Local);
                 return true;
             }
             catch
@@ -178,10 +179,30 @@ namespace PlayniteAchievements.Services.Recording
         /// buffers written before milliseconds were included carry. Only the writers' own suffixes
         /// may follow — anything else is a foreign file that happens to share the prefix.
         /// </summary>
-        private static bool TryParseStamp(string body, out DateTime local, out string suffix)
+        private static bool TryParseStamp(string body, out DateTime stamp, out bool isUtc, out string suffix)
         {
-            local = default;
+            stamp = default;
+            isUtc = false;
             suffix = string.Empty;
+
+            if (body.Length >= RecordingPaths.UtcStampLength)
+            {
+                var candidate = body.Substring(0, RecordingPaths.UtcStampLength);
+                var rest = body.Substring(RecordingPaths.UtcStampLength);
+                if ((rest.Length == 0 || rest[0] == RecordingPaths.DimensionSeparator || rest[0] == '-') &&
+                    DateTime.TryParseExact(
+                        candidate,
+                        RecordingPaths.UtcStampFormat,
+                        CultureInfo.InvariantCulture,
+                        DateTimeStyles.AssumeUniversal | DateTimeStyles.AdjustToUniversal,
+                        out stamp))
+                {
+                    isUtc = true;
+                    suffix = rest;
+                    return true;
+                }
+            }
+
             foreach (var length in new[] { RecordingPaths.StampLength, RecordingPaths.LegacyStampLength })
             {
                 if (body.Length < length)
@@ -200,7 +221,7 @@ namespace PlayniteAchievements.Services.Recording
                     ? RecordingPaths.StampFormat
                     : "yyyyMMdd-HHmmss";
                 if (DateTime.TryParseExact(
-                        candidate, format, CultureInfo.InvariantCulture, DateTimeStyles.None, out local))
+                        candidate, format, CultureInfo.InvariantCulture, DateTimeStyles.None, out stamp))
                 {
                     suffix = rest;
                     return true;
@@ -246,46 +267,43 @@ namespace PlayniteAchievements.Services.Recording
         }
 
         /// <summary>
-        /// True when the provider-reported unlock time can anchor the clip start directly:
+        /// True when the source-selected video anchor can anchor the clip start directly:
         /// non-null, carries a real time-of-day (midnight means a date-only timestamp), and falls
-        /// inside the capture window [captureStartUtc, detectionUtc + lead].
+        /// inside the capture window [captureStartUtc, observedUtc + lead].
         /// </summary>
-        public static bool IsPreciseUnlockTime(DateTime? unlockTimeUtc, DateTime captureStartUtc, DateTime detectionUtc)
+        public static bool IsPreciseUnlockTime(DateTime? anchorUtc, DateTime captureStartUtc, DateTime observedUtc)
         {
-            if (!unlockTimeUtc.HasValue || unlockTimeUtc.Value.TimeOfDay == TimeSpan.Zero)
+            if (!anchorUtc.HasValue || anchorUtc.Value.TimeOfDay == TimeSpan.Zero)
             {
                 return false;
             }
 
-            var value = unlockTimeUtc.Value;
-            return value >= captureStartUtc && value <= detectionUtc.AddSeconds(PreciseLeadSeconds);
+            var value = anchorUtc.Value;
+            return value >= captureStartUtc && value <= observedUtc.AddSeconds(PreciseLeadSeconds);
         }
 
         /// <summary>
-        /// Computes the clip window in UTC. The clip is built around the moment the achievement
-        /// appeared on screen — the on-screen toast never moves the window, because the toast is
-        /// composited into the clip at export.
+        /// Computes the clip window in UTC. The clip is built around the moment the achievement was
+        /// earned — the real on-screen notification never moves the window, because the card is
+        /// composited into the clip at export, on the anchor.
         ///
-        /// The anchor is the provider's unlock timestamp when it is reachable, else detection. Two
+        /// The anchor is the source-selected timestamp when it is reachable, else observation. Two
         /// floors raise the start: it may not open earlier than one poll interval + pre-roll before
-        /// detection, nor earlier than recorded data. When a floor raises the start past the
+        /// observation, nor earlier than recorded data. When a floor raises the start past the
         /// timestamp itself, that timestamp is discarded and the window is recomputed around
-        /// detection.
+        /// observation.
         ///
-        /// That last rule is the difference between a clip of the achievement and a clip of
-        /// something else. A platform can record an unlock well before the player sees it — Steam
-        /// stores the time the game called SetAchievement, while the overlay pops (and the stats
-        /// file is written, and we detect) only at the later StoreStats — so the timestamp can
-        /// point minutes back, at footage that has already left the buffer. Anchoring there used to
-        /// drag the toast forward onto the floored start, leaving a clip of exactly the toast slot
-        /// showing a moment unrelated to the achievement, with no pre-roll at all. Detection is the
-        /// better anchor: it is when the player saw the pop, and it still yields the whole pre-roll.
+        /// That last rule prevents a stale or unreachable source timestamp from collapsing onto the
+        /// oldest buffered frame and showing unrelated footage. Local observation is the only
+        /// reachable fallback and still yields the full configured pre-roll.
         ///
-        /// End: the toast anchor plus the toast slot and tail.
+        /// End: the later of (a) the toast anchor plus the toast slot and tail and (b) the local
+        /// observation plus the tail. The second bound guarantees the event that caused detection
+        /// remains in the footage even when the two timestamps do not share a clock domain.
         /// </summary>
         public static ClipWindow ComputeClipWindow(
-            DateTime? unlockTimeUtc,
-            DateTime detectionUtc,
+            DateTime? preferredAnchorUtc,
+            DateTime observedUtc,
             DateTime captureStartUtc,
             DateTime? oldestSegmentStartUtc,
             int pollIntervalSeconds,
@@ -302,19 +320,19 @@ namespace PlayniteAchievements.Services.Recording
                 floor = oldestSegmentStartUtc.Value;
             }
 
-            var anchor = IsPreciseUnlockTime(unlockTimeUtc, captureStartUtc, detectionUtc)
-                ? unlockTimeUtc.Value
-                : detectionUtc;
+            var anchor = IsPreciseUnlockTime(preferredAnchorUtc, captureStartUtc, observedUtc)
+                ? preferredAnchorUtc.Value
+                : observedUtc;
             var start = ClampWindowStart(
-                anchor.AddSeconds(-preRoll), detectionUtc, pollIntervalSeconds, preRoll, floor);
+                anchor.AddSeconds(-preRoll), observedUtc, pollIntervalSeconds, preRoll, floor);
 
             if (start > anchor)
             {
-                // The timestamp is unreachable — older than the buffer, or than a promptly-detected
-                // unlock could be. Re-anchor on the moment the player saw the pop.
-                anchor = detectionUtc;
+                // The timestamp is unreachable — older than the buffer, or than a promptly-observed
+                // unlock could be. Re-anchor on the local source observation.
+                anchor = observedUtc;
                 start = ClampWindowStart(
-                    anchor.AddSeconds(-preRoll), detectionUtc, pollIntervalSeconds, preRoll, floor);
+                    anchor.AddSeconds(-preRoll), observedUtc, pollIntervalSeconds, preRoll, floor);
             }
 
             // The toast begins at the clip start when the pre-roll got clamped away entirely (a
@@ -324,19 +342,31 @@ namespace PlayniteAchievements.Services.Recording
                 anchor = start;
             }
 
-            var end = anchor.AddSeconds(Math.Max(0, toastSlotSeconds) + Math.Max(0, tailSeconds));
+            var tail = Math.Max(0, tailSeconds);
+            var end = anchor.AddSeconds(Math.Max(0, toastSlotSeconds) + tail);
+
+            // A provider/source anchor and the local observation can be in different clock domains,
+            // or a provider can persist before its state becomes observable. Never let that make the
+            // clip end before the source event that caused us to produce it. This is a guardrail even
+            // for providers that normally supply an authoritative historical anchor.
+            var observedEnd = observedUtc.AddSeconds(tail);
+            if (observedEnd > end)
+            {
+                end = observedEnd;
+            }
+
             return new ClipWindow { StartUtc = start, EndUtc = end, ToastAnchorUtc = anchor };
         }
 
         /// <summary>
         /// Raises a window start to the earliest moment it may open: no earlier than a promptly
-        /// detected unlock could have occurred (one poll interval plus the pre-roll before
-        /// detection), and no earlier than recorded data.
+        /// observed unlock could have occurred (one poll interval plus the pre-roll before
+        /// observation), and no earlier than recorded data.
         /// </summary>
         private static DateTime ClampWindowStart(
-            DateTime start, DateTime detectionUtc, int pollIntervalSeconds, int preRoll, DateTime floor)
+            DateTime start, DateTime observedUtc, int pollIntervalSeconds, int preRoll, DateTime floor)
         {
-            var earliest = detectionUtc.AddSeconds(-(Math.Max(0, pollIntervalSeconds) + preRoll));
+            var earliest = observedUtc.AddSeconds(-(Math.Max(0, pollIntervalSeconds) + preRoll));
             if (start < earliest)
             {
                 start = earliest;

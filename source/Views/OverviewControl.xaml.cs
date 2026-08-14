@@ -1567,14 +1567,21 @@ namespace PlayniteAchievements.Views
                 menu.Items.Add(GameRowContextMenuBuilder.CreateMenuItem(this, "LOCPlayAch_Menu_OpenGameInOverview",
                     () => GameRowContextMenuBuilder.ExecuteCommand(_viewModel?.OpenGameInOverviewCommand, data)));
             }
-            menu.Items.Add(GameRowContextMenuBuilder.CreateMenuItem(this, "LOCPlayAch_Menu_OpenGameInLibrary",
-                () => GameRowContextMenuBuilder.ExecuteCommand(_viewModel?.OpenGameInLibraryCommand, data)));
+            GameRowContextMenuBuilder.TryGetGameId(data, out var achievementGameId);
+            menu.Items.Add(GameRowContextMenuBuilder.CreateOpenMenu(
+                this,
+                achievementGameId,
+                () => GameRowContextMenuBuilder.ExecuteCommand(_viewModel?.OpenGameInLibraryCommand, data),
+                _playniteApi,
+                _logger));
             AchievementRowOptionsMenuBuilder.AppendAchievementOptions(
                 menu,
                 data,
                 this,
                 RefreshView,
-                includeViewCaptures: true);
+                includeViewCaptures: true,
+                onGoalChanged: () => _viewModel?.ReapplyGoalOrder() == true,
+                onCapstoneChanged: apiName => _viewModel?.ApplyCapstone(apiName) == true);
             return menu;
         }
 

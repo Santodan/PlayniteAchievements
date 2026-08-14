@@ -21,6 +21,9 @@ namespace PlayniteAchievements.Providers.Tests
     [TestClass]
     public class ShadPS4ScannerTests
     {
+        // shadPS4's s_language_xml_names index for Italian (TROP_05.XML).
+        private const int ItalianTropIndex = 5;
+
         [TestMethod]
         public async Task RefreshAsync_NpwrOverride_BeatsNpbindDetection()
         {
@@ -469,6 +472,285 @@ namespace PlayniteAchievements.Providers.Tests
             }
         }
 
+        [TestMethod]
+        public async Task RefreshAsync_NewFormatItalian_PrefersLocalizedXmlOverPerUserText()
+        {
+            var tempDir = CreateTempDirectory();
+            var appDataRoot = Path.Combine(tempDir, "shadps4");
+            var installDir = Path.Combine(tempDir, "game");
+            const string npCommId = "NPWR55555_00";
+
+            try
+            {
+                // shadPS4 seeds the per-user progress file by copying the language-neutral
+                // TROPCONF.XML, so it carries default-language text alongside unlock state.
+                WriteNewFormatTrophyData(
+                    appDataRoot,
+                    "1000",
+                    npCommId,
+                    BuildPerUserTrophyConfXml(npCommId, "Default Trophy", "Default Description", "Default Group"));
+                WriteSharedTrophyMetadata(
+                    appDataRoot,
+                    npCommId,
+                    BuildSharedTrophyMetadataXml(
+                        npCommId,
+                        "Shared Trophy",
+                        "Shared Description",
+                        "Shared Group",
+                        trophyType: "B",
+                        hidden: "no"));
+                WriteLocalizedTrophyMetadata(
+                    appDataRoot,
+                    npCommId,
+                    ItalianTropIndex,
+                    BuildSharedTrophyMetadataXml(
+                        npCommId,
+                        "Trofeo Italiano",
+                        "Descrizione Italiana",
+                        "Gruppo Italiano",
+                        trophyType: "B",
+                        hidden: "no"));
+                CreateNpbindFile(installDir, npCommId);
+
+                var provider = CreateProvider(appDataRoot, globalLanguage: "italian");
+                var game = new Game
+                {
+                    Id = Guid.NewGuid(),
+                    Name = "Localized Game",
+                    InstallDirectory = installDir
+                };
+
+                var data = await RefreshSingleGameAsync(provider, game).ConfigureAwait(false);
+
+                Assert.IsNotNull(data);
+                Assert.AreEqual(1, data.Achievements.Count);
+
+                var trophy = data.Achievements[0];
+                Assert.AreEqual("Trofeo Italiano", trophy.DisplayName);
+                Assert.AreEqual("Descrizione Italiana", trophy.Description);
+                Assert.AreEqual("Gruppo Italiano", trophy.Category);
+
+                // Unlock state still comes from the per-user progress document.
+                Assert.IsTrue(trophy.Unlocked);
+                Assert.IsNotNull(trophy.UnlockTimeUtc);
+            }
+            finally
+            {
+                DeleteDirectory(tempDir);
+            }
+        }
+
+        [TestMethod]
+        public async Task RefreshAsync_NewFormatItalianWithoutLocalizedXml_KeepsPerUserText()
+        {
+            var tempDir = CreateTempDirectory();
+            var appDataRoot = Path.Combine(tempDir, "shadps4");
+            var installDir = Path.Combine(tempDir, "game");
+            const string npCommId = "NPWR55556_00";
+
+            try
+            {
+                WriteNewFormatTrophyData(
+                    appDataRoot,
+                    "1000",
+                    npCommId,
+                    BuildPerUserTrophyConfXml(npCommId, "Default Trophy", "Default Description", "Default Group"));
+                CreateNpbindFile(installDir, npCommId);
+
+                var provider = CreateProvider(appDataRoot, globalLanguage: "italian");
+                var game = new Game
+                {
+                    Id = Guid.NewGuid(),
+                    Name = "Unlocalized Game",
+                    InstallDirectory = installDir
+                };
+
+                var data = await RefreshSingleGameAsync(provider, game).ConfigureAwait(false);
+
+                Assert.IsNotNull(data);
+                Assert.AreEqual(1, data.Achievements.Count);
+
+                var trophy = data.Achievements[0];
+                Assert.AreEqual("Default Trophy", trophy.DisplayName);
+                Assert.AreEqual("Default Description", trophy.Description);
+                Assert.AreEqual("Default Group", trophy.Category);
+            }
+            finally
+            {
+                DeleteDirectory(tempDir);
+            }
+        }
+
+        [TestMethod]
+        public async Task RefreshAsync_NewFormatUnmappedLanguage_IgnoresLocalizedXml()
+        {
+            var tempDir = CreateTempDirectory();
+            var appDataRoot = Path.Combine(tempDir, "shadps4");
+            var installDir = Path.Combine(tempDir, "game");
+            const string npCommId = "NPWR55557_00";
+
+            try
+            {
+                WriteNewFormatTrophyData(
+                    appDataRoot,
+                    "1000",
+                    npCommId,
+                    BuildPerUserTrophyConfXml(npCommId, "Default Trophy", "Default Description", "Default Group"));
+                WriteSharedTrophyMetadata(
+                    appDataRoot,
+                    npCommId,
+                    BuildSharedTrophyMetadataXml(
+                        npCommId,
+                        "Shared Trophy",
+                        "Shared Description",
+                        "Shared Group",
+                        trophyType: "B",
+                        hidden: "no"));
+                WriteLocalizedTrophyMetadata(
+                    appDataRoot,
+                    npCommId,
+                    ItalianTropIndex,
+                    BuildSharedTrophyMetadataXml(
+                        npCommId,
+                        "Trofeo Italiano",
+                        "Descrizione Italiana",
+                        "Gruppo Italiano",
+                        trophyType: "B",
+                        hidden: "no"));
+                CreateNpbindFile(installDir, npCommId);
+
+                // "romanian" has no PS4 locale mapping, so no TROP_XX.XML is eligible.
+                var provider = CreateProvider(appDataRoot, globalLanguage: "romanian");
+                var game = new Game
+                {
+                    Id = Guid.NewGuid(),
+                    Name = "Unmapped Language Game",
+                    InstallDirectory = installDir
+                };
+
+                var data = await RefreshSingleGameAsync(provider, game).ConfigureAwait(false);
+
+                Assert.IsNotNull(data);
+                Assert.AreEqual(1, data.Achievements.Count);
+                Assert.AreEqual("Default Trophy", data.Achievements[0].DisplayName);
+            }
+            finally
+            {
+                DeleteDirectory(tempDir);
+            }
+        }
+
+        [TestMethod]
+        public async Task RefreshAsync_NewFormatFlatMetadataNpCommIdMismatch_IgnoresLocalizedXml()
+        {
+            var tempDir = CreateTempDirectory();
+            var appDataRoot = Path.Combine(tempDir, "shadps4");
+            var installDir = Path.Combine(tempDir, "game");
+            const string npCommId = "NPWR55558_00";
+
+            try
+            {
+                WriteNewFormatTrophyData(
+                    appDataRoot,
+                    "1000",
+                    npCommId,
+                    BuildPerUserTrophyConfXml(npCommId, "Default Trophy", "Default Description", "Default Group"));
+
+                // Flat metadata belongs to a different game, so neither it nor its
+                // localized siblings may contribute text.
+                WriteSharedTrophyMetadata(
+                    appDataRoot,
+                    npCommId,
+                    BuildSharedTrophyMetadataXml(
+                        "NPWR99999_00",
+                        "Other Game Trophy",
+                        "Other Game Description",
+                        "Other Game Group",
+                        trophyType: "B",
+                        hidden: "no"),
+                    flat: true);
+                WriteLocalizedTrophyMetadata(
+                    appDataRoot,
+                    npCommId,
+                    ItalianTropIndex,
+                    BuildSharedTrophyMetadataXml(
+                        "NPWR99999_00",
+                        "Trofeo Di Un Altro Gioco",
+                        "Descrizione Di Un Altro Gioco",
+                        "Gruppo Di Un Altro Gioco",
+                        trophyType: "B",
+                        hidden: "no"),
+                    flat: true);
+                CreateNpbindFile(installDir, npCommId);
+
+                var provider = CreateProvider(appDataRoot, globalLanguage: "italian");
+                var game = new Game
+                {
+                    Id = Guid.NewGuid(),
+                    Name = "Mismatched Flat Metadata Game",
+                    InstallDirectory = installDir
+                };
+
+                var data = await RefreshSingleGameAsync(provider, game).ConfigureAwait(false);
+
+                Assert.IsNotNull(data);
+                Assert.AreEqual(1, data.Achievements.Count);
+                Assert.AreEqual("Default Trophy", data.Achievements[0].DisplayName);
+            }
+            finally
+            {
+                DeleteDirectory(tempDir);
+            }
+        }
+
+        [TestMethod]
+        public async Task RefreshAsync_LegacyFormatItalian_PrefersLocalizedSiblingForTextOnly()
+        {
+            var tempDir = CreateTempDirectory();
+            var legacyGameDataPath = Path.Combine(tempDir, "user", "game_data");
+            var installDir = Path.Combine(tempDir, "Games", "CUSA33333");
+
+            try
+            {
+                CreateLegacyTrophyData(
+                    legacyGameDataPath,
+                    "CUSA33333",
+                    "Default Legacy Trophy",
+                    unlockState: "1",
+                    timestamp: "1710000000");
+                WriteLegacyLocalizedTrophyMetadata(
+                    legacyGameDataPath,
+                    "CUSA33333",
+                    ItalianTropIndex,
+                    BuildLegacyLocalizedXml("Trofeo Legacy", "Descrizione Legacy"));
+
+                var provider = CreateProvider(legacyGameDataPath, globalLanguage: "italian");
+                var game = new Game
+                {
+                    Id = Guid.NewGuid(),
+                    Name = "Legacy Localized Game",
+                    InstallDirectory = installDir
+                };
+
+                var data = await RefreshSingleGameAsync(provider, game).ConfigureAwait(false);
+
+                Assert.IsNotNull(data);
+                Assert.AreEqual(1, data.Achievements.Count);
+
+                var trophy = data.Achievements[0];
+                Assert.AreEqual("Trofeo Legacy", trophy.DisplayName);
+                Assert.AreEqual("Descrizione Legacy", trophy.Description);
+
+                // Unlock state and timestamp still come from TROP.XML.
+                Assert.IsTrue(trophy.Unlocked);
+                Assert.IsNotNull(trophy.UnlockTimeUtc);
+            }
+            finally
+            {
+                DeleteDirectory(tempDir);
+            }
+        }
+
         private static async Task<GameAchievementData> RefreshSingleGameAsync(ShadPS4DataProvider provider, Game game)
         {
             GameAchievementData captured = null;
@@ -486,9 +768,17 @@ namespace PlayniteAchievements.Providers.Tests
             return captured;
         }
 
-        private static ShadPS4DataProvider CreateProvider(string configuredPath, string extensionsDataPath = null)
+        private static ShadPS4DataProvider CreateProvider(
+            string configuredPath,
+            string extensionsDataPath = null,
+            string globalLanguage = null)
         {
             var settings = new PlayniteAchievementsSettings();
+            if (!string.IsNullOrWhiteSpace(globalLanguage))
+            {
+                settings.Persisted.GlobalLanguage = globalLanguage;
+            }
+
             var registry = new ProviderRegistry(settings, new[] { "ShadPS4" });
             var providerSettings = registry.GetSettings<ShadPS4Settings>();
             providerSettings.GameDataPath = configuredPath;
@@ -516,6 +806,31 @@ namespace PlayniteAchievements.Providers.Tests
                 : Path.Combine(appDataRoot, "trophy", npCommId, "Xml");
             Directory.CreateDirectory(xmlDir);
             File.WriteAllText(Path.Combine(xmlDir, "TROP.XML"), xml);
+        }
+
+        private static void WriteLocalizedTrophyMetadata(
+            string appDataRoot,
+            string npCommId,
+            int tropIndex,
+            string xml,
+            bool flat = false)
+        {
+            var xmlDir = flat
+                ? Path.Combine(appDataRoot, "trophy", "Xml")
+                : Path.Combine(appDataRoot, "trophy", npCommId, "Xml");
+            Directory.CreateDirectory(xmlDir);
+            File.WriteAllText(Path.Combine(xmlDir, $"TROP_{tropIndex:00}.XML"), xml);
+        }
+
+        private static void WriteLegacyLocalizedTrophyMetadata(
+            string legacyGameDataPath,
+            string titleId,
+            int tropIndex,
+            string xml)
+        {
+            var xmlDir = Path.Combine(legacyGameDataPath, titleId, "trophyfiles", "trophy00", "Xml");
+            Directory.CreateDirectory(xmlDir);
+            File.WriteAllText(Path.Combine(xmlDir, $"TROP_{tropIndex:00}.XML"), xml);
         }
 
         private static void CreateNewFormatIcon(string appDataRoot, string npCommId, string trophyId)
@@ -579,6 +894,38 @@ namespace PlayniteAchievements.Providers.Tests
     <detail>{groupName} Trophy Set</detail>
   </group>
   <trophy id=""001"" ttype=""{trophyType}"" hidden=""{hidden}"" pid=""000"" gid=""001"">
+    <name>{trophyName}</name>
+    <detail>{trophyDescription}</detail>
+  </trophy>
+</trophyconf>";
+        }
+
+        /// <summary>
+        /// Mimics the per-user progress document shadPS4 seeds from TROPCONF.XML:
+        /// default-language text plus unlock state.
+        /// </summary>
+        private static string BuildPerUserTrophyConfXml(
+            string npCommId,
+            string trophyName,
+            string trophyDescription,
+            string groupName)
+        {
+            return $@"<trophyconf>
+  <npcommid>{npCommId}</npcommid>
+  <group id=""001"">
+    <name>{groupName}</name>
+  </group>
+  <trophy id=""001"" ttype=""B"" hidden=""no"" pid=""000"" gid=""001"" unlockstate=""true"" timestamp=""1710000000"">
+    <name>{trophyName}</name>
+    <detail>{trophyDescription}</detail>
+  </trophy>
+</trophyconf>";
+        }
+
+        private static string BuildLegacyLocalizedXml(string trophyName, string trophyDescription)
+        {
+            return $@"<trophyconf>
+  <trophy id=""1"" ttype=""B"" hidden=""no"">
     <name>{trophyName}</name>
     <detail>{trophyDescription}</detail>
   </trophy>

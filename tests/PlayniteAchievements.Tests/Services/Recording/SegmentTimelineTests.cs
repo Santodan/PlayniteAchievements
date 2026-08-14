@@ -174,9 +174,10 @@ namespace PlayniteAchievements.Services.Tests.Recording
 
             Assert.AreEqual(unlock.AddSeconds(-15), window.StartUtc);
             Assert.AreEqual(unlock, window.ToastAnchorUtc);
-            // End is anchor + slot + tail; the on-screen toast never moves the window.
-            Assert.AreEqual(unlock.AddSeconds(9), window.EndUtc);
-            Assert.AreEqual(24, (window.EndUtc - window.StartUtc).TotalSeconds, 0.001);
+            // The observation guard wins by two seconds, ensuring the locally observed event is
+            // present even when the provider anchor's notification slot ended first.
+            Assert.AreEqual(detection.AddSeconds(1), window.EndUtc);
+            Assert.AreEqual(26, (window.EndUtc - window.StartUtc).TotalSeconds, 0.001);
         }
 
         [TestMethod]
@@ -349,6 +350,40 @@ namespace PlayniteAchievements.Services.Tests.Recording
 
             Assert.AreEqual(unlock, window.ToastAnchorUtc);
             Assert.AreEqual(unlock.AddSeconds(-15), window.StartUtc);
+        }
+
+        [TestMethod]
+        public void ParseSegments_ExplicitUtcStamp_IgnoresLocalTimeZone()
+        {
+            var segments = SegmentTimeline.ParseSegments(
+                new[] { (@"C:\buf\seg_20260101-120000437Z_1884x976.mp4", 123L) },
+                PlusTwo);
+
+            Assert.AreEqual(1, segments.Count);
+            Assert.AreEqual(
+                new DateTime(2026, 1, 1, 12, 0, 0, 437, DateTimeKind.Utc),
+                segments[0].StartUtc);
+            Assert.AreEqual(DateTimeKind.Utc, segments[0].StartUtc.Kind);
+        }
+
+        [TestMethod]
+        public void ComputeClipWindow_EarlyAnchor_CannotCutOffObservedEvent()
+        {
+            // Bills Must Be Paid supplied a Steam epoch 8.1s before the Windows-clock file event.
+            // The old 7s toast+tail window ended before the purchase that triggered the unlock.
+            var captureStart = T0;
+            var reported = T0.AddSeconds(60);
+            var observed = reported.AddSeconds(8.1);
+
+            var window = SegmentTimeline.ComputeClipWindow(
+                reported, observed, captureStart, null,
+                pollIntervalSeconds: 10, preRollSeconds: 15,
+                toastSlotSeconds: 5, tailSeconds: 2);
+
+            Assert.AreEqual(reported, window.ToastAnchorUtc);
+            Assert.AreEqual(observed.AddSeconds(2), window.EndUtc);
+            Assert.IsTrue(window.StartUtc <= reported);
+            Assert.IsTrue(window.EndUtc > observed);
         }
 
         // === Buffer budget ===
@@ -677,14 +712,15 @@ namespace PlayniteAchievements.Services.Tests.Recording
         [TestMethod]
         public void BuildSegmentFileName_RoundTripsThroughTheParser()
         {
-            var localStart = new DateTime(2026, 1, 1, 14, 0, 7, 42);
-            var name = RecordingPaths.BuildSegmentFileName(localStart, 1884, 976);
+            var utcStart = new DateTime(2026, 1, 1, 12, 0, 7, 42, DateTimeKind.Utc);
+            var name = RecordingPaths.BuildSegmentFileName(utcStart, 1884, 976);
 
             var segments = SegmentTimeline.ParseSegments(
                 new[] { ($@"C:\buf\{name}", 1L) }, PlusTwo);
 
             Assert.AreEqual(1, segments.Count);
-            Assert.AreEqual(new DateTime(2026, 1, 1, 12, 0, 7, 42), segments[0].StartUtc);
+            Assert.AreEqual(utcStart, segments[0].StartUtc);
+            StringAssert.Contains(name, "120007042Z_");
             Assert.AreEqual(1884, segments[0].Width);
             Assert.AreEqual(976, segments[0].Height);
         }
@@ -692,8 +728,8 @@ namespace PlayniteAchievements.Services.Tests.Recording
         [TestMethod]
         public void BuildAudioChunkFileName_RoundTripsThroughTheParser()
         {
-            var localStart = new DateTime(2026, 1, 1, 14, 0, 3, 601);
-            var name = RecordingPaths.BuildAudioChunkFileName(RecordingPaths.AudioChunkFilePrefix, localStart);
+            var utcStart = new DateTime(2026, 1, 1, 12, 0, 3, 601, DateTimeKind.Utc);
+            var name = RecordingPaths.BuildAudioChunkFileName(RecordingPaths.AudioChunkFilePrefix, utcStart);
 
             var chunks = SegmentTimeline.ParseSegments(
                 new[] { ($@"C:\buf\{name}", 1L) },
@@ -702,7 +738,8 @@ namespace PlayniteAchievements.Services.Tests.Recording
                 RecordingPaths.AudioChunkFileExtension);
 
             Assert.AreEqual(1, chunks.Count);
-            Assert.AreEqual(new DateTime(2026, 1, 1, 12, 0, 3, 601), chunks[0].StartUtc);
+            Assert.AreEqual(utcStart, chunks[0].StartUtc);
+            StringAssert.Contains(name, "120003601Z.wav");
         }
 
         [TestMethod]

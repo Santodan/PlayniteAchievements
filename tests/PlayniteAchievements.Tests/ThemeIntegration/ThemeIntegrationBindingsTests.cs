@@ -990,6 +990,69 @@ namespace PlayniteAchievements.ThemeIntegration.Tests
         }
 
         [TestMethod]
+        public async Task NotifyCustomDataChanged_ForAnotherGame_LeavesSelectedGameSurfaceAlone()
+        {
+            using var context = CreateServiceContext();
+
+            var selectedGameId = Guid.NewGuid();
+            var otherGameId = Guid.NewGuid();
+
+            var selectedData = new GameAchievementData
+            {
+                PlayniteGameId = selectedGameId,
+                Game = new Game { Id = selectedGameId, Name = "Selected Game" },
+                ProviderKey = "Steam",
+                HasAchievements = true,
+                Achievements = new List<AchievementDetail> { Achievement("Selected Only", 20.0, unlocked: false) }
+            };
+            var otherData = new GameAchievementData
+            {
+                PlayniteGameId = otherGameId,
+                Game = new Game { Id = otherGameId, Name = "Other Game" },
+                ProviderKey = "Steam",
+                HasAchievements = true,
+                Achievements = new List<AchievementDetail> { Achievement("Other Only", 30.0, unlocked: false) }
+            };
+
+            context.AchievementDataService.VisibleGameDataById[selectedGameId] = selectedData;
+            context.AchievementDataService.VisibleGameDataById[otherGameId] = otherData;
+            context.AchievementDataService.VisibleAllGameData =
+                new List<GameAchievementData> { selectedData, otherData };
+
+            context.Settings.OpenAchievementWindow.Execute(null);
+            context.Service.PopulateSingleGameDataSync(selectedGameId);
+            AssertAchievementNames(context.Settings.Achievements, "Selected Only");
+
+            // A marker toggle on a library-scope row belongs to a different game than the one the
+            // selected-game surface is showing. It must refresh the library lists without
+            // repointing that surface at the edited game.
+            var editedOther = new GameAchievementData
+            {
+                PlayniteGameId = otherGameId,
+                Game = otherData.Game,
+                ProviderKey = "Steam",
+                HasAchievements = true,
+                Achievements = new List<AchievementDetail>
+                {
+                    Achievement("Other Only", 30.0, unlocked: false),
+                    Achievement("Other Added", 40.0, unlocked: false)
+                }
+            };
+            context.AchievementDataService.VisibleGameDataById[otherGameId] = editedOther;
+            context.AchievementDataService.VisibleAllGameData =
+                new List<GameAchievementData> { selectedData, editedOther };
+
+            context.Service.NotifyCustomDataChanged(otherGameId);
+
+            // The library refresh landing is the signal that the notify pipeline ran end to end.
+            await WaitForConditionAsync(() => context.Settings.DynamicLibraryAchievements.Count == 3);
+
+            // Had the selected-game surface been repointed, these would be the other game's.
+            AssertAchievementNames(context.Settings.Achievements, "Selected Only");
+            AssertAchievementNames(context.Settings.DynamicAchievements, "Selected Only");
+        }
+
+        [TestMethod]
         public void DynamicSelectedGameBindings_FilterSortAndDirectionPersistAcrossSelectionChanges()
         {
             PercentRarityHelper.Configure(5, 10, 50);
@@ -2497,10 +2560,131 @@ namespace PlayniteAchievements.ThemeIntegration.Tests
             Assert.IsTrue(changedProperties.Contains(nameof(PlayniteAchievementsSettings.AchievementsRarityDesc)));
         }
 
+        [TestMethod]
+        public void ToggleAchievementCommands_AreStampedOnDynamicAchievements()
+        {
+            var capstoneTargets = new List<AchievementMarkerTarget>();
+            var goalTargets = new List<AchievementMarkerTarget>();
+            using var context = CreateServiceContext(
+                toggleAchievementCapstone: capstoneTargets.Add,
+                toggleAchievementGoal: goalTargets.Add);
+
+            var gameId = Guid.NewGuid();
+            context.AchievementDataService.GameDataById[gameId] = new GameAchievementData
+            {
+                PlayniteGameId = gameId,
+                Game = new Game { Id = gameId, Name = "Marker Game" },
+                HasAchievements = true,
+                Achievements = new List<AchievementDetail>
+                {
+                    Achievement("Alpha Locked", 80.0, unlocked: false)
+                }
+            };
+
+            context.Service.PopulateSingleGameDataSync(gameId);
+
+            var row = context.Settings.DynamicAchievements.Single();
+            Assert.IsNotNull(row.ToggleAchievementCapstoneCommand);
+            Assert.IsNotNull(row.ToggleAchievementGoalCommand);
+
+            // The per-item wrapper supplies its own achievement, so a row template binds these
+            // with no CommandParameter.
+            row.ToggleAchievementCapstoneCommand.Execute(null);
+            row.ToggleAchievementGoalCommand.Execute(null);
+
+            Assert.AreEqual(1, capstoneTargets.Count);
+            Assert.AreEqual(1, goalTargets.Count);
+            Assert.AreEqual(gameId, capstoneTargets[0].GameId);
+            Assert.AreEqual("Alpha Locked", capstoneTargets[0].ApiName);
+            Assert.AreEqual(gameId, goalTargets[0].GameId);
+            Assert.AreEqual("Alpha Locked", goalTargets[0].ApiName);
+        }
+
+        [TestMethod]
+        public void ToggleAchievementCommands_CarryRowStateAndOwnGameId()
+        {
+            var capstoneTargets = new List<AchievementMarkerTarget>();
+            using var context = CreateServiceContext(toggleAchievementCapstone: capstoneTargets.Add);
+
+            // A library-scope row belongs to a different game than whatever is selected; the
+            // toggle has to act on the row's own game.
+            var otherGameId = Guid.NewGuid();
+            var achievement = Achievement("Bravo Unlocked", 5.0, unlocked: true);
+            achievement.Game = new Game { Id = otherGameId, Name = "Other Game" };
+            achievement.IsCapstone = true;
+            achievement.IsGoal = true;
+
+            context.Settings.ToggleAchievementCapstoneCommand.Execute(achievement);
+
+            var target = capstoneTargets.Single();
+            Assert.AreEqual(otherGameId, target.GameId);
+            Assert.AreEqual("Bravo Unlocked", target.ApiName);
+            Assert.IsTrue(target.IsCapstone);
+            Assert.IsTrue(target.IsGoal);
+            Assert.IsTrue(target.Unlocked);
+        }
+
+        [TestMethod]
+        public void ToggleAchievementCommands_IgnoreUnusableParameters()
+        {
+            var capstoneTargets = new List<AchievementMarkerTarget>();
+            var goalTargets = new List<AchievementMarkerTarget>();
+            using var context = CreateServiceContext(
+                toggleAchievementCapstone: capstoneTargets.Add,
+                toggleAchievementGoal: goalTargets.Add);
+
+            var blankApiName = Achievement("   ", 10.0, unlocked: false);
+            blankApiName.Game = new Game { Id = Guid.NewGuid(), Name = "Blank" };
+
+            var missingGame = Achievement("Charlie", 10.0, unlocked: false);
+
+            foreach (var parameter in new object[]
+            {
+                null,
+                System.Windows.DependencyProperty.UnsetValue,
+                "not-an-achievement",
+                blankApiName,
+                missingGame
+            })
+            {
+                context.Settings.ToggleAchievementCapstoneCommand.Execute(parameter);
+                context.Settings.ToggleAchievementGoalCommand.Execute(parameter);
+            }
+
+            Assert.AreEqual(0, capstoneTargets.Count);
+            Assert.AreEqual(0, goalTargets.Count);
+        }
+
+        [TestMethod]
+        public void ToggleAchievementCommands_IgnoreFriendRows()
+        {
+            var capstoneTargets = new List<AchievementMarkerTarget>();
+            var goalTargets = new List<AchievementMarkerTarget>();
+            using var context = CreateServiceContext(
+                toggleAchievementCapstone: capstoneTargets.Add,
+                toggleAchievementGoal: goalTargets.Add);
+
+            // A friend's row describes their progress, not the user's, so it must never write a
+            // marker even though it derives from AchievementDisplayItem.
+            var friendRow = new FriendAchievementDisplayItem
+            {
+                PlayniteGameId = Guid.NewGuid(),
+                ApiName = "Delta"
+            };
+
+            context.Settings.ToggleAchievementCapstoneCommand.Execute(friendRow);
+            context.Settings.ToggleAchievementGoalCommand.Execute(friendRow);
+
+            Assert.AreEqual(0, capstoneTargets.Count);
+            Assert.AreEqual(0, goalTargets.Count);
+        }
+
         private static ServiceTestContext CreateServiceContext(
             Dispatcher dispatcher = null,
             IFriendCacheManager friendCache = null,
-            Func<AchievementHotkeyTargetResolution> resolveRunningGameTarget = null)
+            Func<AchievementHotkeyTargetResolution> resolveRunningGameTarget = null,
+            Action<AchievementMarkerTarget> toggleAchievementCapstone = null,
+            Action<AchievementMarkerTarget> toggleAchievementGoal = null)
         {
             var settings = new PlayniteAchievementsSettings();
             var plugin = new PlayniteAchievementsPlugin
@@ -2524,7 +2708,9 @@ namespace PlayniteAchievements.ThemeIntegration.Tests
                 windowService,
                 logger,
                 friendCache: friendCache,
-                resolveRunningGameTarget: resolveRunningGameTarget);
+                resolveRunningGameTarget: resolveRunningGameTarget,
+                toggleAchievementCapstone: toggleAchievementCapstone,
+                toggleAchievementGoal: toggleAchievementGoal);
 
             return new ServiceTestContext(settings, achievementDataService, logger, service);
         }

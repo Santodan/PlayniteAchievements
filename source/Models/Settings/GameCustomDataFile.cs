@@ -113,6 +113,12 @@ namespace PlayniteAchievements.Models.Settings
 
         public List<string> SummaryFilteredAchievementApiNames { get; set; }
 
+        /// <summary>
+        /// Achievements the user is working toward, most-wanted first. Membership is the goal
+        /// flag and list position is the goal order, matching <see cref="AchievementOrder"/>.
+        /// </summary>
+        public List<string> GoalAchievementApiNames { get; set; }
+
         public Dictionary<string, string> AchievementUnlockedIconOverrides { get; set; }
 
         public Dictionary<string, string> AchievementLockedIconOverrides { get; set; }
@@ -165,6 +171,9 @@ namespace PlayniteAchievements.Models.Settings
                 SummaryFilteredAchievementApiNames = SummaryFilteredAchievementApiNames != null
                     ? new List<string>(SummaryFilteredAchievementApiNames)
                     : null,
+                GoalAchievementApiNames = GoalAchievementApiNames != null
+                    ? new List<string>(GoalAchievementApiNames)
+                    : null,
                 AchievementUnlockedIconOverrides = AchievementUnlockedIconOverrides != null
                     ? new Dictionary<string, string>(AchievementUnlockedIconOverrides, StringComparer.OrdinalIgnoreCase)
                     : null,
@@ -212,6 +221,9 @@ namespace PlayniteAchievements.Models.Settings
                     : null,
                 SummaryFilteredAchievementApiNames = SummaryFilteredAchievementApiNames != null
                     ? new List<string>(SummaryFilteredAchievementApiNames)
+                    : null,
+                GoalAchievementApiNames = GoalAchievementApiNames != null
+                    ? new List<string>(GoalAchievementApiNames)
                     : null,
                 AchievementUnlockedIconOverrides = AchievementUnlockedIconOverrides != null
                     ? new Dictionary<string, string>(AchievementUnlockedIconOverrides, StringComparer.OrdinalIgnoreCase)
@@ -266,6 +278,9 @@ namespace PlayniteAchievements.Models.Settings
                     : null,
                 SummaryFilteredAchievementApiNames = portable?.SummaryFilteredAchievementApiNames != null
                     ? new List<string>(portable.SummaryFilteredAchievementApiNames)
+                    : null,
+                GoalAchievementApiNames = portable?.GoalAchievementApiNames != null
+                    ? new List<string>(portable.GoalAchievementApiNames)
                     : null,
                 AchievementUnlockedIconOverrides = portable?.AchievementUnlockedIconOverrides != null
                     ? new Dictionary<string, string>(portable.AchievementUnlockedIconOverrides, StringComparer.OrdinalIgnoreCase)

@@ -200,6 +200,54 @@
                     </Style>
                 </Image.Style>
             </Image>
+
+            <!-- Edge that comes with the rays: the same layer as the halo above at a blur small enough
+                 to read as a line. A blur of the artwork, so it hugs the alpha on any shape. -->
+            <Image Stretch="Uniform"
+                   RenderOptions.BitmapScalingMode="HighQuality"
+                   SnapsToDevicePixels="True"
+                   Width="{Binding IconSize, RelativeSource={RelativeSource AncestorType=UserControl}}"
+                   Height="{Binding IconSize, RelativeSource={RelativeSource AncestorType=UserControl}}"
+                   IsHitTestVisible="False"
+                   CacheMode="BitmapCache"
+                   helpers:AsyncImage.Uri="{Binding DisplayIcon, Mode=OneWay}"
+                   helpers:AsyncImage.DecodePixel="256">
+                <Image.Style>
+                    <Style TargetType="Image">
+                        <Setter Property="Visibility" Value="Collapsed"/>
+                        <Setter Property="Effect" Value="{x:Null}"/>
+                        <Style.Triggers>
+                            <MultiDataTrigger>
+                                <MultiDataTrigger.Conditions>
+                                    <Condition Binding="{Binding Unlocked}" Value="True"/>
+                                    <Condition Binding="{Binding ShowRarityGlow, RelativeSource={RelativeSource AncestorType=modern:AchievementCompactListControlBase}}" Value="True"/>
+                                </MultiDataTrigger.Conditions>
+                                <Setter Property="Visibility" Value="Visible"/>
+                                <Setter Property="Effect">
+                                    <Setter.Value>
+                                        <MultiBinding Converter="{StaticResource RarityGlowForTiers}" ConverterParameter="3">
+                                            <Binding Path="Rarity"/>
+                                            <Binding Path="RayGlowTiers" RelativeSource="{RelativeSource AncestorType=modern:AchievementCompactListControlBase}"/>
+                                        </MultiBinding>
+                                    </Setter.Value>
+                                </Setter>
+                            </MultiDataTrigger>
+                            <!-- Hardcore keeps its solid border instead. -->
+                            <MultiDataTrigger>
+                                <MultiDataTrigger.Conditions>
+                                    <Condition Binding="{Binding Unlocked}" Value="True"/>
+                                    <Condition Binding="{Binding ShowRarityGlow, RelativeSource={RelativeSource AncestorType=modern:AchievementCompactListControlBase}}" Value="True"/>
+                                    <Condition Binding="{Binding IsHardcore}" Value="True"/>
+                                    <Condition Binding="{Binding ShowHardcoreBorder, RelativeSource={RelativeSource AncestorType=modern:AchievementCompactListControlBase}}" Value="True"/>
+                                </MultiDataTrigger.Conditions>
+                                <Setter Property="Visibility" Value="Collapsed"/>
+                                <Setter Property="Effect" Value="{x:Null}"/>
+                            </MultiDataTrigger>
+                        </Style.Triggers>
+                    </Style>
+                </Image.Style>
+            </Image>
+
             <Image Stretch="Uniform"
                    RenderOptions.BitmapScalingMode="HighQuality"
                    SnapsToDevicePixels="True"

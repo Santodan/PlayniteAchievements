@@ -86,6 +86,22 @@ namespace PlayniteAchievements.Views.ThemeIntegration.Legacy.Controls
             set => SetValue(SoftGlowTiersProperty, value);
         }
 
+        /// <summary>
+        /// Which rarity tiers show the rays, and with them the edge along the artwork. The ray layer
+        /// self-binds this; the edge is an effect in the template and needs it reachable from there.
+        /// </summary>
+        public static readonly DependencyProperty RayGlowTiersProperty = DependencyProperty.Register(
+            nameof(RayGlowTiers),
+            typeof(RaritySelection),
+            typeof(AchievementImage),
+            new FrameworkPropertyMetadata(RaritySelection.None)
+        );
+        public RaritySelection RayGlowTiers
+        {
+            get => (RaritySelection)GetValue(RayGlowTiersProperty);
+            set => SetValue(RayGlowTiersProperty, value);
+        }
+
         public static readonly DependencyProperty ShowHardcoreBorderProperty = DependencyProperty.Register(
             nameof(ShowHardcoreBorder),
             typeof(bool),
@@ -286,6 +302,7 @@ namespace PlayniteAchievements.Views.ThemeIntegration.Legacy.Controls
             InitializeComponent();
             RarityAppearanceHelper.BindAnimateRarityGlows(this, AnimateRarityGlowsProperty);
             RarityAppearanceHelper.BindSoftGlowTiers(this, SoftGlowTiersProperty);
+            RarityAppearanceHelper.BindRayGlowTiers(this, RayGlowTiersProperty);
             RarityAppearanceHelper.BindShowHardcoreBorder(this, ShowHardcoreBorderProperty);
             NewProperty();
             UpdatePercentUi();

@@ -2,7 +2,9 @@ using System;
 using System.Diagnostics;
 using System.Runtime.InteropServices;
 using System.Threading;
+using System.Threading.Tasks;
 using NAudio.Wave;
+using PlayniteAchievements.Common;
 
 namespace PlayniteAchievements.Services.Recording
 {
@@ -42,6 +44,7 @@ namespace PlayniteAchievements.Services.Recording
         private Thread _pollThread;
         private volatile bool _capturing;
         private bool _disposed;
+        private int _clientsReleased;
 
         public event EventHandler<WaveInEventArgs> DataAvailable;
         public event EventHandler<StoppedEventArgs> RecordingStopped;
@@ -120,7 +123,7 @@ namespace PlayniteAchievements.Services.Recording
                 return null;
             }
 
-            return DateTime.UtcNow.AddTicks(-age100ns);
+            return CaptureTimelineClock.UtcNow.AddTicks(-age100ns);
         }
 
         /// <summary>48 kHz stereo 32-bit IEEE float — the format the loopback client mixes the process to.</summary>
@@ -147,8 +150,16 @@ namespace PlayniteAchievements.Services.Recording
         {
             _processId = processId;
             _mode = includeProcessTree ? IncludeTargetProcessTree : ExcludeTargetProcessTree;
-            _audioClient = ActivateProcessLoopbackClient(processId, _mode);
-            InitializeClient();
+            try
+            {
+                _audioClient = ActivateProcessLoopbackClient(processId, _mode);
+                InitializeClient();
+            }
+            catch
+            {
+                ReleaseClients();
+                throw;
+            }
         }
 
         private IAudioClient ActivateProcessLoopbackClient(int processId, int mode)
@@ -177,25 +188,37 @@ namespace PlayniteAchievements.Services.Recording
                 };
 
                 var handler = new ActivationHandler();
-                var iid = IID_IAudioClient;
-                var hr = ActivateAudioInterfaceAsync(
-                    VirtualAudioDeviceProcessLoopback, ref iid, ref prop, handler, out var op);
-                if (hr != 0)
+                IActivateAudioInterfaceAsyncOperation op = null;
+                try
                 {
-                    Marshal.ThrowExceptionForHR(hr);
-                }
+                    var iid = IID_IAudioClient;
+                    var hr = ActivateAudioInterfaceAsync(
+                        VirtualAudioDeviceProcessLoopback, ref iid, ref prop, handler, out op);
+                    if (hr != 0)
+                    {
+                        Marshal.ThrowExceptionForHR(hr);
+                    }
 
-                if (!handler.Completed.WaitOne(TimeSpan.FromSeconds(5)))
+                    if (!handler.Completed.WaitOne(TimeSpan.FromSeconds(5)))
+                    {
+                        throw new TimeoutException("ActivateAudioInterfaceAsync did not complete.");
+                    }
+
+                    if (handler.ActivateHr != 0 || handler.Interface == null)
+                    {
+                        Marshal.ThrowExceptionForHR(
+                            handler.ActivateHr != 0 ? handler.ActivateHr : unchecked((int)0x80004005));
+                    }
+
+                    return (IAudioClient)handler.Interface;
+                }
+                finally
                 {
-                    throw new TimeoutException("ActivateAudioInterfaceAsync did not complete.");
+                    if (op != null)
+                    {
+                        Marshal.ReleaseComObject(op);
+                    }
                 }
-
-                if (handler.ActivateHr != 0 || handler.Interface == null)
-                {
-                    Marshal.ThrowExceptionForHR(handler.ActivateHr != 0 ? handler.ActivateHr : unchecked((int)0x80004005));
-                }
-
-                return (IAudioClient)handler.Interface;
             }
             finally
             {
@@ -222,7 +245,7 @@ namespace PlayniteAchievements.Services.Recording
                 Marshal.StructureToPtr(format, formatPtr, false);
                 // 200 ms buffer (100-ns units). Process loopback requires shared mode + the loopback flag.
                 var hr = _audioClient.Initialize(
-                    AUDCLNT_SHAREMODE_SHARED, AUDCLNT_STREAMFLAGS_LOOPBACK, 2_000_000, 0, formatPtr, Guid.Empty);
+                    AUDCLNT_SHAREMODE_SHARED, AUDCLNT_STREAMFLAGS_LOOPBACK, 2_000_000, 0, formatPtr, IntPtr.Zero);
                 if (hr != 0)
                 {
                     Marshal.ThrowExceptionForHR(hr);
@@ -340,8 +363,9 @@ namespace PlayniteAchievements.Services.Recording
             }
 
             _capturing = false;
-            try { _pollThread?.Join(500); } catch { }
+            // Stop the native engine first so a poll blocked in an audio-client call can return.
             try { _audioClient?.Stop(); } catch { }
+            try { _pollThread?.Join(500); } catch { }
         }
 
         public void Dispose()
@@ -353,6 +377,29 @@ namespace PlayniteAchievements.Services.Recording
 
             _disposed = true;
             StopRecording();
+            var poll = _pollThread;
+            if (poll != null && poll.IsAlive)
+            {
+                // Never release COM interfaces while PollLoop can still call through them. A slow
+                // driver may outlive the bounded Dispose call, so retain ownership until it exits.
+                Task.Run(() =>
+                {
+                    try { poll.Join(); } catch { }
+                    ReleaseClients();
+                });
+                return;
+            }
+
+            ReleaseClients();
+        }
+
+        private void ReleaseClients()
+        {
+            if (Interlocked.Exchange(ref _clientsReleased, 1) != 0)
+            {
+                return;
+            }
+
             if (_captureClient != null)
             {
                 Marshal.ReleaseComObject(_captureClient);
@@ -434,7 +481,9 @@ namespace PlayniteAchievements.Services.Recording
         private interface IAudioClient
         {
             [PreserveSig]
-            int Initialize(int shareMode, int streamFlags, long bufferDuration, long periodicity, IntPtr format, Guid audioSessionGuid);
+            int Initialize(
+                int shareMode, int streamFlags, long bufferDuration, long periodicity,
+                IntPtr format, IntPtr audioSessionGuid);
 
             [PreserveSig]
             int GetBufferSize(out uint bufferFrames);

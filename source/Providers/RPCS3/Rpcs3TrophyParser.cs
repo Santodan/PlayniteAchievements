@@ -58,9 +58,50 @@ namespace PlayniteAchievements.Providers.RPCS3
             catch (Exception ex)
             {
                 logger?.Error(ex, $"[RPCS3] Failed to parse TROPCONF.SFM at '{tropconfPath}'");
+                return trophies;
             }
 
+            ApplyLocalizedSfmSibling(trophies, tropconfPath, language, logger);
             return trophies;
+        }
+
+        /// <summary>
+        /// Overlays display text from the TROP_XX.SFM sibling matching the requested
+        /// locale. RPCS3 installs every TRP entry into the trophy folder, so the
+        /// localized files sit next to the language-neutral TROPCONF.SFM.
+        /// </summary>
+        private static void ApplyLocalizedSfmSibling(
+            List<Rpcs3Trophy> trophies,
+            string tropconfPath,
+            string language,
+            ILogger logger)
+        {
+            var tropIndex = MapPs3LocaleToTropIndex(language);
+            if (trophies.Count == 0 || !tropIndex.HasValue)
+            {
+                return;
+            }
+
+            try
+            {
+                var folder = Path.GetDirectoryName(tropconfPath);
+                if (string.IsNullOrWhiteSpace(folder))
+                {
+                    return;
+                }
+
+                var localizedPath = Path.Combine(folder, $"TROP_{tropIndex.Value:00}.SFM");
+                if (!File.Exists(localizedPath))
+                {
+                    return;
+                }
+
+                ApplyLocalizedText(trophies, XDocument.Load(localizedPath));
+            }
+            catch (Exception ex)
+            {
+                logger?.Debug(ex, $"[RPCS3] Failed to apply localized trophy text alongside '{tropconfPath}'");
+            }
         }
 
         /// <summary>

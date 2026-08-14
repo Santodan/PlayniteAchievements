@@ -474,6 +474,24 @@ namespace PlayniteAchievements.Views.Controls
         }
 
         /// <summary>
+        /// Identifies the RayGlowTiers dependency property: which rarity tiers show the rays in this
+        /// grid. The ray layer itself self-binds this, but the edge that comes with it is an effect on
+        /// a cell layer, which needs the selection reachable from the template.
+        /// </summary>
+        public static readonly DependencyProperty RayGlowTiersProperty =
+            DependencyProperty.Register(nameof(RayGlowTiers), typeof(RaritySelection),
+                typeof(AchievementDataGridControl), new PropertyMetadata(RaritySelection.None));
+
+        /// <summary>
+        /// Gets or sets which rarity tiers show the rays in this grid.
+        /// </summary>
+        public RaritySelection RayGlowTiers
+        {
+            get => (RaritySelection)GetValue(RayGlowTiersProperty);
+            set => SetValue(RayGlowTiersProperty, value);
+        }
+
+        /// <summary>
         /// Identifies the ShowHardcoreBorder dependency property: whether Hardcore unlocks take the
         /// crisp metallic border in place of a glow. Self-bound to the global setting.
         /// </summary>
@@ -1730,6 +1748,7 @@ namespace PlayniteAchievements.Views.Controls
                 return;
             }
 
+            AchievementSortHelper.ApplyGoalsFirst(items);
             _drillItems.ReplaceAll(items);
         }
 
@@ -1883,6 +1902,7 @@ namespace PlayniteAchievements.Views.Controls
             InitializeComponent();
             RarityAppearanceHelper.BindAnimateRarityGlows(this, AnimateRarityGlowsProperty);
             RarityAppearanceHelper.BindSoftGlowTiers(this, SoftGlowTiersProperty);
+            RarityAppearanceHelper.BindRayGlowTiers(this, RayGlowTiersProperty);
             RarityAppearanceHelper.BindShowHardcoreBorder(this, ShowHardcoreBorderProperty);
             DataContextChanged += OnDataContextChanged;
             Unloaded += OnUnloaded;
@@ -2670,6 +2690,7 @@ namespace PlayniteAchievements.Views.Controls
                 return;
             }
 
+            AchievementSortHelper.ApplyGoalsFirst(items);
             ReplaceItemsInSource(items);
         }
 

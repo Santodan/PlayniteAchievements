@@ -3,7 +3,6 @@ using System.Collections.Generic;
 using System.Globalization;
 using System.Runtime.InteropServices;
 using System.Text;
-using System.Threading.Tasks;
 using Microsoft.Win32.SafeHandles;
 using Playnite.SDK;
 
@@ -25,19 +24,14 @@ namespace PlayniteAchievements.Services.UI
         private const int SteamControllerReportLength = 10;
 
         /// <summary>
-        /// Temporary: when true the settings Test button sweeps candidate report variants instead of
-        /// firing a normal pulse, so the variant real hardware responds to can be identified. Set
-        /// back to false once the answer is folded into the builders.
+        /// Sony pads are sent on the control channel as well as the interrupt one, because which of
+        /// the two a pad or adapter honours cannot be probed. The Steam Controller is excluded: it is
+        /// resent every 40 ms and a synchronous control transfer on each resend would be costly,
+        /// while SDL drives it over the interrupt endpoint successfully.
         /// </summary>
-        internal static readonly bool DiagnosticVariantSweep = true;
-
-        /// <summary>
-        /// Only the DualShock 4 still has an open question: whether the required high nibble works
-        /// without also claiming the lightbar. Every other family is settled.
-        /// </summary>
-        private static int VariantCount(PadFamily family)
+        private static bool UsesControlTransfer(PadFamily family)
         {
-            return family == PadFamily.DualShock4 ? 2 : 1;
+            return family != PadFamily.SteamController;
         }
 
         private enum PadFamily
@@ -175,7 +169,7 @@ namespace PlayniteAchievements.Services.UI
                     BuildReport(pad.Family, pad.LogicalLength, speed),
                     pad.TransmitLength);
                 var error = 0;
-                if (report != null && Write(pad.Handle, report, out error))
+                if (report != null && Write(pad.Handle, report, UsesControlTransfer(pad.Family), out error))
                 {
                     continue;
                 }
@@ -198,110 +192,6 @@ namespace PlayniteAchievements.Services.UI
             }
 
             _pads.Clear();
-        }
-
-        /// <summary>
-        /// Temporary hardware-identification aid. Tries each candidate report variant in turn, and
-        /// makes each one self-identifying by buzzing it a countable number of times: variant 0
-        /// buzzes once, variant 1 twice, variant 2 three times, variant 3 four times. Groups are
-        /// separated by a long pause, so whichever variant the pad responds to can be named by
-        /// counting the pulses felt, with no need to match log timestamps.
-        ///
-        /// Remove once the working variant is known and folded into the builders as variant 0.
-        /// </summary>
-        public static void RunDiagnosticSweep(int strengthPercent, ILogger logger)
-        {
-            const int BuzzMs = 220;
-            const int WithinGroupGapMs = 170;
-            const int BetweenGroupsMs = 1500;
-            const int BetweenPadsMs = 2500;
-
-            var clamped = Math.Max(1, Math.Min(100, strengthPercent));
-            var speed = (ushort)Math.Round(clamped / 100.0 * ushort.MaxValue);
-            Task.Run(async () =>
-            {
-                try
-                {
-                    using (var set = Open(logger))
-                    {
-                        if (set._pads.Count == 0)
-                        {
-                            logger?.Info("Vibration variant sweep: no HID pads found to test.");
-                            return;
-                        }
-
-                        for (var padIndex = 0; padIndex < set._pads.Count; padIndex++)
-                        {
-                            var pad = set._pads[padIndex];
-                            if (padIndex > 0)
-                            {
-                                await Task.Delay(BetweenPadsMs).ConfigureAwait(false);
-                            }
-
-                            var variants = VariantCount(pad.Family);
-                            logger?.Info(string.Format(
-                                CultureInfo.InvariantCulture,
-                                "Vibration variant sweep: {0} — {1} variants, each buzzing (variant + 1) times.",
-                                pad.Label,
-                                variants));
-
-                            for (var variant = 0; variant < variants; variant++)
-                            {
-                                if (variant > 0)
-                                {
-                                    await Task.Delay(BetweenGroupsMs).ConfigureAwait(false);
-                                }
-
-                                var on = PadToTransmitLength(
-                                    BuildReport(pad.Family, pad.LogicalLength, speed, variant),
-                                    pad.TransmitLength);
-                                var off = PadToTransmitLength(
-                                    BuildReport(pad.Family, pad.LogicalLength, 0, variant),
-                                    pad.TransmitLength);
-                                if (on == null || off == null)
-                                {
-                                    continue;
-                                }
-
-                                logger?.Info(string.Format(
-                                    CultureInfo.InvariantCulture,
-                                    "Vibration variant sweep: variant {0} now — expect {1} buzz(es).",
-                                    variant,
-                                    variant + 1));
-
-                                var error = 0;
-                                var wrote = true;
-                                for (var buzz = 0; buzz <= variant && wrote; buzz++)
-                                {
-                                    if (buzz > 0)
-                                    {
-                                        await Task.Delay(WithinGroupGapMs).ConfigureAwait(false);
-                                    }
-
-                                    wrote = Write(pad.Handle, on, out error);
-                                    await Task.Delay(BuzzMs).ConfigureAwait(false);
-                                    Write(pad.Handle, off, out _);
-                                }
-
-                                if (!wrote)
-                                {
-                                    logger?.Info(string.Format(
-                                        CultureInfo.InvariantCulture,
-                                        "Vibration variant sweep: variant {0} write failed (win32={1}).",
-                                        variant,
-                                        error));
-                                }
-                            }
-                        }
-
-                        logger?.Info("Vibration variant sweep: finished. Report how many buzzes you felt.");
-                    }
-                }
-                catch (Exception ex)
-                {
-                    logger?.Debug(ex, "Vibration variant sweep failed.");
-                }
-            });
         }
 
         private static Pad TryOpenPad(string path, List<string> unmatched)
@@ -362,7 +252,7 @@ namespace PlayniteAchievements.Services.UI
                     EnableEnhancedReports(handle, family, featureLength);
                 }
 
-                if (!Write(handle, BuildNeutralReport(family, logicalLength, transmitLength), out var probeError))
+                if (!Write(handle, BuildNeutralReport(family, logicalLength, transmitLength), UsesControlTransfer(family), out var probeError))
                 {
                     unmatched.Add(string.Format(
                         CultureInfo.InvariantCulture,
@@ -541,31 +431,57 @@ namespace PlayniteAchievements.Services.UI
                 ReadOutputReportLength(handle));
         }
 
-        private static bool Write(SafeFileHandle handle, byte[] report, out int error)
+        /// <summary>
+        /// Sends an output report. There are two channels and they are not interchangeable:
+        /// WriteFile goes to the interrupt OUT endpoint when the device declares one, while
+        /// HidD_SetOutputReport always uses a control transfer with a Set_Report request.
+        ///
+        /// A Sony pad may act on only one of them, and the failure is silent: the report is queued
+        /// and acknowledged, so WriteFile reports success while nothing happens on the pad. This is
+        /// why DS4Windows drives Bluetooth through the control transfer and USB through the
+        /// interrupt endpoint. Since which channel a given pad or wireless adapter honours cannot
+        /// be probed, Sony pads are sent both and a duplicate rumble command is harmless.
+        /// </summary>
+        private static bool Write(SafeFileHandle handle, byte[] report, bool alsoControlTransfer, out int error)
         {
-            if (!NativeMethods.WriteFile(handle, report, (uint)report.Length, out var written, IntPtr.Zero))
+            error = 0;
+            var wrote = false;
+
+            if (NativeMethods.WriteFile(handle, report, (uint)report.Length, out var written, IntPtr.Zero))
+            {
+                // A short write leaves no win32 error to report, so flag it distinctly.
+                wrote = written == report.Length;
+                if (!wrote)
+                {
+                    error = -1;
+                }
+            }
+            else
             {
                 error = Marshal.GetLastWin32Error();
-                return false;
             }
 
-            // A short write leaves no win32 error to report, so flag it distinctly.
-            error = written == report.Length ? 0 : -1;
-            return error == 0;
+            if (alsoControlTransfer && NativeMethods.HidD_SetOutputReport(handle, report, (uint)report.Length))
+            {
+                wrote = true;
+                error = 0;
+            }
+
+            return wrote;
         }
 
         /// <summary>
         /// Builds the rumble report at its own logical length. The caller pads the result out to the
         /// length the device demands for a write.
         /// </summary>
-        private static byte[] BuildReport(PadFamily family, int logicalLength, ushort speed, int variant = 0)
+        private static byte[] BuildReport(PadFamily family, int logicalLength, ushort speed)
         {
             switch (family)
             {
                 case PadFamily.DualSense:
-                    return BuildDualSense(logicalLength, speed, variant);
+                    return BuildDualSense(logicalLength, speed);
                 case PadFamily.DualShock4:
-                    return BuildDualShock4(logicalLength, speed, variant);
+                    return BuildDualShock4(logicalLength, speed);
                 case PadFamily.SteamController:
                     return BuildSteamController(logicalLength, speed);
                 default:
@@ -578,7 +494,7 @@ namespace PlayniteAchievements.Services.UI
         /// Bluetooth (78 bytes, effects at offset 3 behind a tag and magic byte, CRC trailer).
         /// See <see cref="BuildDualSenseRelease"/> for the report that ends rumble emulation.
         /// </summary>
-        private static byte[] BuildDualSense(int reportLength, ushort speed, int variant)
+        private static byte[] BuildDualSense(int reportLength, ushort speed)
         {
             var report = new byte[reportLength];
             int offset;
@@ -599,26 +515,36 @@ namespace PlayniteAchievements.Services.UI
                 return null;
             }
 
-            // A DualSense has two rumble paths and SDL chooses between them by reading the firmware
-            // version out of a feature report: emulation via ucEnableBits1 bit 0 with the magnitude
-            // halved on older firmware, or improved rumble via ucEnableBits3 bit 2 at full magnitude
-            // on 2.24 and newer. Rather than probe the firmware, both enable bits are set — each
-            // path reads the same two magnitude bytes, so whichever one the pad implements drives
-            // the motors and the other is ignored. This is what makes a wireless adapter work, since
-            // an adapter need not implement the same path as a directly connected pad.
+            // Field names and bit positions below come from the reverse-engineered DualSense
+            // SetStateData layout (as used by the DS5Dongle firmware), which is more explicit than
+            // SDL's terser comments:
             //
-            // Confirmed on a DualSense, a DualSense Edge and a DualShock 4: additionally setting the
-            // audio-haptics-disable bit (0x02), as SDL does, silences the motors instead of driving
-            // them, so it is left alone. That also means audio haptics are never disturbed and no
-            // follow-up release report is needed.
+            //   byte 0 bit 0  EnableRumbleEmulation          "suggest halving rumble strength"
+            //   byte 0 bit 1  UseRumbleNotHaptics
+            //   byte 2        RumbleEmulationRight           light weight
+            //   byte 3        RumbleEmulationLeft            heavy weight
+            //   byte 38 bit 2 EnableImprovedRumbleEmulation  "use instead of EnableRumbleEmulation"
+            //   byte 38 bit 3 UseRumbleNotHaptics2           "works the same as UseRumbleNotHaptics"
+            //
+            // UseRumbleNotHaptics is the bit that matters most: without it the pad renders rumble
+            // through its voice-coil haptic actuators rather than the motors, which is easy to
+            // mistake for nothing happening at all — especially over a wireless bridge that is also
+            // streaming audio to those same actuators. SDL always sets it; its comment calls it
+            // "disable audio haptics", which undersells what it does.
+            //
+            // Both enable paths are offered because SDL picks between them by reading the firmware
+            // version, which would cost an extra feature report: older firmware honours
+            // EnableRumbleEmulation, 2.24 and newer honour the improved one, and both read the same
+            // two magnitude bytes. The magnitude is not halved — the halving is only a suggestion
+            // that pairs with the classic path.
             //
             // The bits stay set for a stop as well: a zero magnitude with the paths still enabled is
             // what halts the motors.
-            report[offset] = 0x01;                        // ucEnableBits1: rumble emulation.
-            report[offset + 38] = 0x04;                   // ucEnableBits3: improved rumble.
+            report[offset] = 0x01 | 0x02;                 // EnableRumbleEmulation, UseRumbleNotHaptics
+            report[offset + 38] = 0x04 | 0x08;            // EnableImprovedRumbleEmulation, UseRumbleNotHaptics2
             var magnitude = (byte)(speed >> 8);
-            report[offset + 2] = magnitude;               // ucRumbleRight
-            report[offset + 3] = magnitude;               // ucRumbleLeft
+            report[offset + 2] = magnitude;               // RumbleEmulationRight
+            report[offset + 3] = magnitude;               // RumbleEmulationLeft
 
             AppendBluetoothCrc(report, reportLength == 78);
             return report;
@@ -626,57 +552,32 @@ namespace PlayniteAchievements.Services.UI
 
         /// <summary>
         /// DualShock 4 effects report: 0x05 over USB (32 bytes, effects at offset 4) and 0x11 over
-        /// Bluetooth (78 bytes, effects at offset 6, CRC trailer). The effect mask selects rumble
-        /// only, so the lightbar keeps whatever colour it already has.
+        /// Bluetooth (78 bytes, effects at offset 6, CRC trailer).
+        ///
+        /// valid_flag0 is 0xF3. Testing showed 0xF3 drives the motors while a bare 0x03 does not, so
+        /// the high nibble is required and SDL's rumble-only 0x01 is not enough. 0xF3 also sets the
+        /// lightbar valid bit, which obliges the report to carry a colour, so each pulse sets the
+        /// light green. Whether the high nibble works without also claiming the lightbar was never
+        /// confirmed on hardware, so the confirmed form is the one sent.
         /// </summary>
-        private static byte[] BuildDualShock4(int reportLength, ushort speed, int variant)
+        private static byte[] BuildDualShock4(int reportLength, ushort speed)
         {
-            const byte EffectRumble = 0x01;
-
             var report = new byte[reportLength];
             int offset;
             if (reportLength == 32)
             {
                 report[0] = 0x05;
-                offset = 4;
-
                 // Byte 1 is valid_flag0: bit 0 motor, bit 1 lightbar, bit 2 lightbar blink.
-                // Testing showed 0xF3 works while 0x03 does not, so the high nibble is required and
-                // SDL's rumble-only 0x01 is not enough. 0xF3 also sets the lightbar bit, which
-                // obliges us to send a colour and would recolour the pad on every notification.
-                //
-                // Variant 0 asks whether the high nibble alone is sufficient (motor bit, no lightbar
-                // bit, light untouched). Variant 1 is the known-good 0xF3, which sets the light
-                // green. One buzz means we can leave the lightbar alone; two means we cannot.
-                switch (variant)
-                {
-                    case 1:
-                        report[1] = 0xF3; // Known good; sets the lightbar.
-                        SetDualShock4Lightbar(report, offset, 0x00, 0xFF, 0x00);
-                        break;
-                    default:
-                        report[1] = 0xF0 | EffectRumble; // High nibble, motor only, light untouched.
-                        break;
-                }
+                report[1] = 0xF3;
+                offset = 4;
             }
             else if (reportLength == 78)
             {
                 report[0] = 0x11;
                 report[1] = 0xC0 | 4; // HID + CRC magic, and a 4 ms report interval.
+                report[2] = 0x20;
+                report[3] = 0xF3;     // valid_flag0 sits at byte 3 over Bluetooth.
                 offset = 6;
-
-                // Same question as USB, but valid_flag0 sits at byte 3 over Bluetooth.
-                switch (variant)
-                {
-                    case 1:
-                        report[2] = 0x20;
-                        report[3] = 0xF3;
-                        SetDualShock4Lightbar(report, offset, 0x00, 0xFF, 0x00);
-                        break;
-                    default:
-                        report[3] = 0xF0 | EffectRumble;
-                        break;
-                }
             }
             else
             {
@@ -686,6 +587,7 @@ namespace PlayniteAchievements.Services.UI
             var magnitude = (byte)(speed >> 8);
             report[offset] = magnitude;     // ucRumbleRight
             report[offset + 1] = magnitude; // ucRumbleLeft
+            SetDualShock4Lightbar(report, offset, 0x00, 0xFF, 0x00);
 
             AppendBluetoothCrc(report, reportLength == 78);
             return report;
@@ -1005,6 +907,10 @@ namespace PlayniteAchievements.Services.UI
             [DllImport("hid.dll", SetLastError = true)]
             [return: MarshalAs(UnmanagedType.Bool)]
             public static extern bool HidD_GetFeature(SafeFileHandle handle, byte[] reportBuffer, uint reportBufferLength);
+
+            [DllImport("hid.dll", SetLastError = true)]
+            [return: MarshalAs(UnmanagedType.Bool)]
+            public static extern bool HidD_SetOutputReport(SafeFileHandle handle, byte[] reportBuffer, uint reportBufferLength);
         }
     }
 }

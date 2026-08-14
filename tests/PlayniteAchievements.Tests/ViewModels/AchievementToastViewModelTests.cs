@@ -8,6 +8,7 @@ using PlayniteAchievements.ViewModels;
 using System;
 using System.IO;
 using System.Windows;
+using System.Windows.Media.Imaging;
 
 namespace PlayniteAchievements.Tests.ViewModels
 {
@@ -245,6 +246,64 @@ namespace PlayniteAchievements.Tests.ViewModels
 
             Assert.AreEqual(string.Empty, viewModel.TrophyType);
             Assert.IsNull(viewModel.Points);
+        }
+
+        [TestMethod]
+        public void ToastBackgroundRenderSource_DefaultsToTheCompatiblePathBinding()
+        {
+            var style = NotificationStyleSettings.CreateDefault();
+            style.ToastBackgroundImagePath = "background.gif";
+            var viewModel = new AchievementToastViewModel(
+                new AchievementUnlockedEventArgs(),
+                new PersistedSettings(),
+                styleOverride: style);
+
+            Assert.AreEqual("background.gif", viewModel.ToastBackgroundRenderSource);
+            Assert.AreEqual("background.gif", viewModel.ToastBackgroundImagePath);
+        }
+
+        [TestMethod]
+        public void ToastBackgroundRenderSource_PreviewCanInjectAStableImageSourceOrPendingNull()
+        {
+            LocalizationAssemblyInitializer.RunOnSta(() =>
+            {
+                var source = BitmapSource.Create(
+                    1,
+                    1,
+                    96,
+                    96,
+                    System.Windows.Media.PixelFormats.Bgra32,
+                    null,
+                    new byte[] { 1, 2, 3, 255 },
+                    4);
+
+                var ready = new AchievementToastViewModel(
+                    new AchievementUnlockedEventArgs(),
+                    new PersistedSettings(),
+                    toastBackgroundRenderSourceOverride: source,
+                    useToastBackgroundRenderSourceOverride: true);
+                var pending = new AchievementToastViewModel(
+                    new AchievementUnlockedEventArgs(),
+                    new PersistedSettings(),
+                    toastBackgroundRenderSourceOverride: null,
+                    useToastBackgroundRenderSourceOverride: true);
+
+                Assert.AreSame(source, ready.ToastBackgroundRenderSource);
+                Assert.IsNull(pending.ToastBackgroundRenderSource);
+
+                var changed = 0;
+                pending.PropertyChanged += (sender, args) =>
+                {
+                    if (args.PropertyName == nameof(AchievementToastViewModel.ToastBackgroundRenderSource))
+                    {
+                        changed++;
+                    }
+                };
+                pending.SetToastBackgroundRenderSourceOverride(source);
+
+                Assert.AreSame(source, pending.ToastBackgroundRenderSource);
+                Assert.AreEqual(1, changed);
+            });
         }
 
         [TestMethod]

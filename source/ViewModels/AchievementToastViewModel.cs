@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.ComponentModel;
 using System.IO;
 using System.Windows;
 using System.Windows.Media;
@@ -14,7 +15,7 @@ using PlayniteAchievements.Services.UI;
 
 namespace PlayniteAchievements.ViewModels
 {
-    public sealed class AchievementToastViewModel
+    public sealed class AchievementToastViewModel : INotifyPropertyChanged
     {
         private const string DefaultIcon =
             "pack://application:,,,/PlayniteAchievements;component/Resources/UnlockedAchIcon.png";
@@ -49,11 +50,15 @@ namespace PlayniteAchievements.ViewModels
         private readonly AchievementUnlockedEventArgs _args;
         private readonly PersistedSettings _settings;
         private readonly NotificationStyleSettings _style;
+        private ImageSource _toastBackgroundRenderSourceOverride;
+        private readonly bool _useToastBackgroundRenderSourceOverride;
         private readonly RarityTier _rarity;
         private IReadOnlyList<ToastLineDescriptor> _toastLines;
         private IReadOnlyList<ToastLineDescriptor> _frameLines;
         private ToastRarityTextLine _toastRarityText;
         private ToastRarityTextLine _frameRarityText;
+
+        public event PropertyChangedEventHandler PropertyChanged;
 
         public AchievementToastViewModel(
             AchievementUnlockedEventArgs args,
@@ -61,7 +66,9 @@ namespace PlayniteAchievements.ViewModels
             NotificationStyleSettings styleOverride = null,
             GameCustomDataStore gameCustomDataStore = null,
             bool? toastUseThemeStylingOverride = null,
-            bool? frameUseThemeStylingOverride = null)
+            bool? frameUseThemeStylingOverride = null,
+            ImageSource toastBackgroundRenderSourceOverride = null,
+            bool useToastBackgroundRenderSourceOverride = false)
         {
             _args = args ?? new AchievementUnlockedEventArgs();
             _settings = settings ?? new PersistedSettings();
@@ -75,6 +82,8 @@ namespace PlayniteAchievements.ViewModels
                 toastUseThemeStylingOverride ?? resolved.ToastUseThemeStyling;
             FrameUseThemeStyling =
                 frameUseThemeStylingOverride ?? resolved.FrameUseThemeStyling;
+            _toastBackgroundRenderSourceOverride = toastBackgroundRenderSourceOverride;
+            _useToastBackgroundRenderSourceOverride = useToastBackgroundRenderSourceOverride;
             _rarity = ParseRarity(_args.RarityTier);
         }
 
@@ -110,6 +119,8 @@ namespace PlayniteAchievements.ViewModels
         /// creates the clip request, so the two cannot disagree.
         /// </summary>
         internal bool NeedsOverlayTrack { get; set; }
+
+        internal Guid CaptureCorrelationId => _args.CaptureCorrelationId;
 
         /// <summary>
         /// The unlock's name for screenshot/clip filenames and clip-to-wave matching: the
@@ -417,6 +428,33 @@ namespace PlayniteAchievements.ViewModels
             : null;
 
         /// <summary>
+        /// The completion bloom's other half. Game and category art carry both of these on stacked
+        /// copies, one thrown from each corner, and it is the pair that reads as the completion
+        /// gradient — a single copy is just a coloured halo. The notification surfaces had only the end
+        /// colour, so completion looked like a flat glow there rather than the gradient everywhere else.
+        /// </summary>
+        public Effect CompletedGlowStartEffect => _style.Toast.ShowRarityGlow && HasSoftCompletionGlow
+            ? RarityAppearanceHelper.GetCompletedGlow(useEndColor: false, _settings)
+            : null;
+
+        public Effect FrameCompletedGlowStartEffect => _style.Frame.ShowRarityGlow && HasSoftCompletionGlow
+            ? RarityAppearanceHelper.GetCompletedGlow(useEndColor: false, _settings)
+            : null;
+
+        /// <summary>
+        /// Completion counterpart to <see cref="RarityEdgeEffect"/>. Without it the edge on a completion
+        /// notification kept the rarity colour, which for the completion event is whatever tier the
+        /// unlock behind it carried — so the edge came out ultra rare beside a completion-coloured glow.
+        /// </summary>
+        public Effect CompletedEdgeEffect => ShowRayBurst
+            ? RarityAppearanceHelper.GetCompletedEdge(_settings)
+            : null;
+
+        public Effect FrameCompletedEdgeEffect => FrameShowRayBurst
+            ? RarityAppearanceHelper.GetCompletedEdge(_settings)
+            : null;
+
+        /// <summary>
         /// Whether the completed-game halo is selected. Completion is its own entry in the glow
         /// selections rather than a rarity tier, because the completion notification carries no rarity.
         /// </summary>
@@ -473,6 +511,23 @@ namespace PlayniteAchievements.ViewModels
             _style.Toast.ShowRarityGlow &&
             !HardcoreTakesBorder;
 
+        /// <summary>
+        /// Edge that comes with the rays: the same drop shadow as the soft halo, at a blur small enough
+        /// to read as a line along the artwork rather than a glow around it. It follows the alpha
+        /// because it is a blur of the picture itself, which is the only way to hug cut-out art.
+        /// </summary>
+        public Effect RarityEdgeEffect => ShowRayBurst
+            ? RarityAppearanceHelper.GetGlow(_rarity, RayEdgeBlurRadius, _settings)
+            : null;
+
+        /// <summary>Screenshot-frame counterpart to <see cref="RarityEdgeEffect"/>.</summary>
+        public Effect FrameRarityEdgeEffect => FrameShowRayBurst
+            ? RarityAppearanceHelper.GetGlow(_rarity, RayEdgeBlurRadius, _settings)
+            : null;
+
+        /// <summary>Matches the ConverterParameter the grid templates pass for the same edge.</summary>
+        private const double RayEdgeBlurRadius = 4;
+
         /// <summary>Screenshot-frame counterpart to <see cref="ShowRayBurst"/>.</summary>
         public bool FrameShowRayBurst =>
             HasRaySelection &&
@@ -502,8 +557,34 @@ namespace PlayniteAchievements.ViewModels
         // constant. This margin lives inside the toast window, so the glow stays within the window
         // (never clipped by it) and the window is placed with a gap from the screen edge, keeping
         // the whole glow on-screen — the card simply sits a little further in, which is intended.
-        public Thickness ToastGlowMargin =>
-            new Thickness(HasBorderGlow ? BorderGlowBlurRadius + 6 : 16);
+        /// <summary>
+        /// Transparent room around the card for whatever reaches past it. The window is sized to this,
+        /// so anything drawn beyond it is simply cut off.
+        ///
+        /// The rays reach furthest, and by more than the shadow does: their length scales with the
+        /// subject, and the card is far larger than an icon. Their share is worked out the same way the
+        /// layout does it, rather than guessed, so changing the burst scale in the template cannot
+        /// silently start clipping them.
+        /// </summary>
+        public Thickness ToastGlowMargin
+        {
+            get
+            {
+                var glow = HasBorderGlow ? BorderGlowBlurRadius + 6 : 16;
+                if (!ShowRayBurst)
+                {
+                    return new Thickness(glow);
+                }
+
+                var width = ToastCardWidth > 0 ? ToastCardWidth : DefaultToastCardWidth;
+                var height = ToastCardHeight > 0 ? ToastCardHeight : 96;
+                var reach = (ToastCardBurstScale - 1.0) * 0.5 * Math.Sqrt(width * height);
+                return new Thickness(Math.Max(glow, reach + 6));
+            }
+        }
+
+        /// <summary>Kept in step with the BurstScale the bundled toast template passes.</summary>
+        private const double ToastCardBurstScale = 1.14;
 
 
         // Cloned to an unfrozen copy so the card's border-glow pulse can animate its Opacity
@@ -651,6 +732,31 @@ namespace PlayniteAchievements.ViewModels
         // size token) so overwriting the image at the same managed path shows the new one rather
         // than a stale cached bitmap; AsyncImage strips the token before decoding.
         public string ToastBackgroundImagePath => AchievementIconResolver.ApplyCacheBust(_style.ToastBackgroundImagePath);
+
+        /// <summary>
+        /// Preferred toast-template background binding. Live toasts receive the ordinary path so
+        /// their source-host Image owns a new animation; the appearance editor can inject the
+        /// stable ImageSource owned by its persistent host so rebuilding the preview does not
+        /// restart the GIF. ToastBackgroundImagePath remains available to existing templates.
+        /// </summary>
+        public object ToastBackgroundRenderSource => _useToastBackgroundRenderSourceOverride
+            ? (object)_toastBackgroundRenderSourceOverride
+            : ToastBackgroundImagePath;
+
+        internal void SetToastBackgroundRenderSourceOverride(ImageSource source)
+        {
+            if (!_useToastBackgroundRenderSourceOverride ||
+                ReferenceEquals(_toastBackgroundRenderSourceOverride, source))
+            {
+                return;
+            }
+
+            _toastBackgroundRenderSourceOverride = source;
+            PropertyChanged?.Invoke(
+                this,
+                new PropertyChangedEventArgs(nameof(ToastBackgroundRenderSource)));
+        }
+
         public bool HasToastBackground
         {
             get

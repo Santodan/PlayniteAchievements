@@ -31,14 +31,16 @@ namespace PlayniteAchievements.Models.Friends
         }
 
         /// <summary>
-        /// True when the refresh options discover provider-only games: either the scope does so
-        /// (Full), or the request explicitly targets provider game ids/keys (a selected-game refresh
-        /// of a friend-owned game that is not in the current user's library).
+        /// True when the refresh options discover provider-only games: the scope does so (Full),
+        /// the request opted in explicitly (Recent with unowned friend games enabled), or the
+        /// request explicitly targets provider game ids/keys (a selected-game refresh of a
+        /// friend-owned game that is not in the current user's library).
         /// </summary>
         public static bool DiscoversProviderOnlyGames(this FriendRefreshOptions options)
         {
             return options != null &&
                    (DiscoversProviderOnlyGames(options.Scope) ||
+                    options.DiscoverProviderOnlyGames ||
                     options.ProviderAppIds?.Any(id => id > 0) == true ||
                     options.ProviderGameKeys?.Any(key => !string.IsNullOrWhiteSpace(key)) == true);
         }
@@ -75,6 +77,14 @@ namespace PlayniteAchievements.Models.Friends
         public IReadOnlyCollection<string> FriendExternalUserIds { get; set; }
         public bool ForceDefinitionRefresh { get; set; }
 
+        /// <summary>
+        /// Opt-in for scopes that do not inherently discover provider-only games (Recent): when
+        /// true, candidate building and the definition/probe phase also consider friend games
+        /// that are not in the current user's Playnite library. Resolved once by the planner
+        /// from the IncludeUnownedFriendGames setting.
+        /// </summary>
+        public bool DiscoverProviderOnlyGames { get; set; }
+
         public FriendRefreshOptions Clone()
         {
             return new FriendRefreshOptions
@@ -99,7 +109,8 @@ namespace PlayniteAchievements.Models.Friends
                     .Select(id => id.Trim())
                     .Distinct(StringComparer.OrdinalIgnoreCase)
                     .ToList(),
-                ForceDefinitionRefresh = ForceDefinitionRefresh
+                ForceDefinitionRefresh = ForceDefinitionRefresh,
+                DiscoverProviderOnlyGames = DiscoverProviderOnlyGames
             };
         }
     }

@@ -1,0 +1,279 @@
+# Capture harness
+
+Diagnostic tools for the unlock notification: the clip pipeline (recording, clip export, toast
+compositing, unlock screenshots) and the on-screen slide.
+
+The pipeline is hard to reason about from the outside because a clip looks plausible while being wrong.
+Frames can be duplicated, reordered, or shifted wholesale in time, and none of that is visible by eye
+against unfamiliar game footage.
+These tools remove the guesswork by recording a window whose every frame states which frame it is, then
+reading those statements back out of the finished artifacts.
+
+Everything here is standalone: nothing in `source/` depends on it, and it is compiled on demand rather
+than as part of the build.
+
+## Building
+
+```powershell
+tools\capture-harness\build.ps1
+```
+
+Compiles each tool with Roslyn against .NET Framework 4.6.2 and the SharpDX assemblies from
+`source\bin\Debug`, so **build the plugin first**.
+Executables land in `tools\capture-harness\bin\` and are git-ignored.
+`CaptureHarness.exe` is built x86 because it loads the plugin into Playnite's 32-bit process model;
+the standalone artifact-analysis tools remain x64.
+
+Needs Visual Studio 2022 or the Build Tools (the script finds Roslyn itself, whatever the edition) and the
+.NET Framework 4.6.2 targeting pack.
+
+### Sharing these
+
+Only `CaptureHarness` needs the plugin: it drives the recorder, exporter and re-encoder by reflection, so
+it wants a built `source\bin\Debug` and is really a developer tool.
+`SlideProbe` stands alone unless `--dict` is passed, which loads the plugin's resource graph (and finds
+`Playnite.SDK.dll` in `source\packages`, since it is not copied to the plugin's output).
+The rest stand alone and can be handed to anyone on Windows:
+
+- `Show-Mp4Timeline.ps1` has no dependencies at all — pure PowerShell over the MP4 boxes.
+- `FrameDump`, `AttributeBisect`, `PacerProbe` and `GenerationLoss` need only the `SharpDX*.dll` files that
+  `build.ps1` copies next to them, so the `bin\` folder works as a self-contained bundle.
+- `Match-ShotToClip.ps1` needs `FrameDump.exe` beside it.
+
+## The main harness
+
+```powershell
+tools\capture-harness\bin\CaptureHarness.exe <seconds> <fps> [pluginDir] [freezeAt] [freezeFor]
+```
+
+Opens a window that paints a frame counter as both a human-readable number and a 16-bit binary barcode,
+records it with the real `WgcVideoRecorder`, then drives the real exporter and overlay re-encoder over the
+result and reads the barcodes back.
+
+What it reports, and why each check exists:
+
+| Check | Catches |
+|---|---|
+| Segment frames, `stts` entries, media length vs the wall-clock gap between file names | Capture pacing that does not match real time |
+| Frame order across the clip | Duplicated, stale, or reordered frames |
+| **Absolute alignment** — does output time *t* show the frame that was on screen at `clipStart + t` | A whole-clip time shift, which every relative check passes happily |
+| **Short-buffer case** — a window reaching further back than the buffer holds | Positions measured from the requested window rather than from where the clip actually begins |
+| Screenshot alignment — a live grab's frame vs when the grab happened | How current a live screenshot can be, and that its path involves no mapping |
+| Paint intervals during recording and compositing | Whether the pipeline stutters the application being captured |
+| Encoder duration handling | Per-sample durations being flattened onto a fixed grid |
+
+`freezeAt`/`freezeFor` stop the window painting mid-recording, which is what a game that stops presenting
+looks like to the capture. Wired but not yet exercised.
+
+Per-frame offsets are written to `alignment_*.csv` next to the executable.
+
+### Native lifetime/page-heap stress
+
+```powershell
+tools\capture-harness\bin\CaptureHarness.exe --stress <seconds> <fps> [pluginDir] [exportEverySeconds] [teardownCycles] [width] [height]
+```
+
+Stress mode keeps the real recorder active while it repeatedly exports finalized MP4 segments and
+overlay-reencodes those exports. It then disposes a live recorder and repeats short teardown cycles at
+the next-writer preparation boundary. This exercises the Media Foundation, D3D11 and WGC lifetime
+overlaps that a normal correctness run does not.
+
+For a guarded native-heap run, install **Debugging Tools for Windows** from the Windows SDK and launch
+an elevated PowerShell:
+
+```powershell
+tools\capture-harness\Invoke-PageHeapSoak.ps1 -Seconds 600
+```
+
+The script builds the x86 harness, enables full page heap only for `CaptureHarness.exe`, runs it under
+the x86 CDB debugger, writes a log under `artifacts\pageheap`, and disables page heap in a `finally`
+block. Its 1280x720 default is deliberate: full page heap expands every native allocation and a 32-bit
+1080p re-encode can exhaust virtual address space before it reaches a guard-page fault. Pass
+`-Width 1920 -Height 1080` for a shorter crash-resolution run when address-space pressure permits.
+
+Do not enable page heap for `Playnite.DesktopApp.exe`; this harness isolates the plugin's native
+capture paths without destabilizing the user's Playnite installation.
+
+If `--stress` reports `0x80070424` because the interactive user's per-user `CaptureService` is stopped,
+the focused fallback still covers D3D11 texture encoding plus overlapping MF export/re-encode and the
+shared runtime lease:
+
+```powershell
+tools\capture-harness\Invoke-PageHeapSoak.ps1 -MediaFoundationOnly -Seconds 300
+```
+
+That fallback cannot validate the WGC pump/session teardown; rerun the primary mode after signing back
+into an interactive Windows session so `CaptureService` is available.
+
+### The short-buffer case matters most
+
+It is the regression test for a defect that shipped: `SegmentTimeline.PlanClip` begins a clip at the later
+of the requested window start and the oldest segment it can use, so a young session or a pruned buffer
+makes the clip start after the window did.
+Positions inside the clip must be measured from where the clip actually begins.
+Measuring from the window put the composited toast card early by the shortfall — seconds, in practice.
+
+Note what the harness reports in that case: the footage is still perfectly aligned *to the clip's own
+start*.
+The mapping was never broken; only the reference point was wrong.
+That is why every earlier run of this harness passed while the bug was live, and why the short-buffer case
+had to be added explicitly.
+
+## The slide probe
+
+```powershell
+tools\capture-harness\bin\SlideProbe.exe [--load <ms>] [--duration <ms>] [--repeats <n>] [--dict <pluginDir>]
+```
+
+Measures the notification's slide-in the way the plugin performs it, and answers whether the motion got
+the frames it needed.
+
+The slide is not a WPF animation. `ToastNotificationService.RunPhysicalSlide` hooks
+`CompositionTarget.Rendering` and, per composed frame, reads that frame's composition timestamp, eases
+the elapsed fraction and moves the HWND with `SetWindowPos`. So it is duration-correct by construction
+and can fail only one way: by running out of frames. A late second frame means the eased clock has
+already advanced, and the card jumps rather than slides — while still finishing in exactly 240 ms, which
+is why a stopwatch and the naked eye both miss it.
+
+The probe replicates that interpolation and the `RenderTickCounter` timestamp handling exactly, on a real
+per-pixel-alpha window, and runs three orderings side by side:
+
+| Mode | Ordering |
+|---|---|
+| `None` | Slide on the same UI-thread turn as `Show` — the ordering before the fix. The **control**; it is expected to jump under `--load`, and is not judged. |
+| `Transparent` | Wait for two composed frames at `Opacity=0`, then slide — what the plugin does now. |
+| `NearTransparent` | The same at `Opacity=1/255`, which defeats any `Opacity==0` culling. |
+
+`--load <ms>` arms a one-shot cost consumed by the window's **first composed frame**, wherever that
+lands: in the warm phase when warming, otherwise on the slide's own first frame. That is what makes the
+defect deterministic instead of dependent on a cold process, and it is what the control contrast checks.
+`--dict` additionally times the storyboard resolve the slides used to do inline.
+
+### Reading it
+
+`firstX` is the verdict: the gap **after the slide's first frame**, as a multiple of that run's own
+median. All ratios are against the run's own median rather than the display's rate, because moving a
+per-pixel-alpha window costs a full redirection-surface blit — the slide sustains an even ~82 Hz on a
+165 Hz panel and cannot do better. Uniform coarseness reads as smooth; the specific thing that reads as a
+jump is the frame *after the first* arriving late.
+
+Measured over six control and twelve warmed runs, `firstX` separates with an order of magnitude of margin
+either side of the 3x threshold: the unwarmed control runs **4.3–11.2**, a warmed slide **0.0–0.5**.
+
+`worstX` (the worst gap anywhere) is only a loose stall backstop at 8x. It deliberately is *not* the
+verdict: a warmed run on a machine that is merely busy reaches 4x, which overlaps the control's low end,
+so judging on it cries wolf about one run in ten. `maxStep` is a gap's visible cost in pixels — context,
+not a threshold, since `BackEase` is steep early and an identical gap costs far more travel at the start
+of the slide than at the end.
+
+Four earlier versions of this probe were wrong in ways worth not repeating:
+
+- Injecting the cost into the **slide's** first frame rather than the **window's** penalised every mode
+  equally, so no warm ordering could ever win.
+- Deriving the "ideal" step from the run's own observed mean interval is circular: it hands a starved
+  slide a lenient target, so a three-frame slide passes.
+- Sampling `CompositionTarget.Rendering` while idle to measure the display rate reports the rate the
+  sampler asked for frames, not the display's — 31.8 Hz on a 165 Hz panel, inflating every target twofold.
+  It comes from `EnumDisplaySettings` now.
+- Waiting for warm frames with `Dispatcher.PushFrame` validated the *idea* of warming but not the code
+  that does it, and once the warm became async the nested pump deadlocked against its continuation. The
+  whole probe is await-based now, mirroring how the plugin sequences it.
+
+### What it established
+
+- A window at `Opacity=0` **does** rasterize its content: the transparent warm absorbs the whole injected
+  first-paint cost (first gap ~121 ms → under 0.3 ms), so the near-transparent variant is unnecessary.
+- The warm wait is satisfied by frames arriving, not by its timeout — **6–25 ms** on a fully static
+  `Opacity=0` window with nothing animating, because subscribing to `Rendering` itself keeps the render
+  loop ticking. So it adds no notification latency, and its 150 ms ceiling should *not* be shortened
+  toward a frame period: the ceiling's other role is bounding how much first paint the warm can absorb.
+- The first storyboard resolve of a session costs **90–150 ms** on the UI thread, on the frame the first
+  slide subscribes on. That is the first-notification jank.
+- Later resolves cost only ~1.3 ms, so memoizing the dictionary does **not** explain a janky slide-out;
+  look to the save pipeline's allocation churn instead, via the `[Toast] Slide out` log line.
+
+### Limits
+
+The card is toast-shaped — layered, chromeless, sized to content, carrying the same shadow and blur
+effects — but it is not the real template bound to a real view model, so absolute first-paint costs are
+lower than the live toast's. It measures the mechanism, not the card.
+
+## The storyboard probes
+
+Two tools cover the slide as it works now — a WPF `Storyboard` on the card host's translate inside a
+stationary window, rather than a per-frame `SetWindowPos`.
+
+### `SlideStoryboardProbe.exe`
+
+Loads the real bundled storyboard out of the built assembly and runs it through the service's own
+resolve/retarget logic against a real layered window, reporting the travel it produced.
+
+```powershell
+tools\capture-harness\bin\SlideStoryboardProbe.exe [pluginDir]
+```
+
+`movedDip=0` is the failure it exists for. Source-text tests structurally cannot catch it: XAML
+normalises `Storyboard.TargetProperty` to indexed placeholders (`(0).(1)[1].(2)`) with the real
+properties in `PathParameters`, so matching the authored path string never succeeds, and an unrecognised
+slide child gets no `From`/`To`. A `DoubleAnimation` with neither animates a property from its own value
+to its own value — no motion, no exception, nothing logged. That shipped.
+
+Its stop-and-revert check does **not** faithfully model the app: it passed against knowingly-broken
+seeding. Do not treat that half as a guard.
+
+### `SlideCadenceProbe.exe`
+
+Measures the composition rate actually sustained *during* the motion, per mechanism, against the
+display's own period read from the OS.
+
+```powershell
+tools\capture-harness\bin\SlideCadenceProbe.exe [--repeats 5]
+```
+
+Measured on a 165 Hz display:
+
+| mechanism | sustained | % of refresh |
+|---|---|---|
+| `WindowMove` (the pre-storyboard slide) | 55–82 Hz | **33–50%** |
+| `Transform` (what ships) | 165 Hz | **100%** |
+| `TransformCached` (+ `BitmapCache`) | 165 Hz | 100% |
+| `TransformNoPadding` | 165 Hz | 100% |
+| `TransformWithSampling` (+ overlay-track `RenderTargetBitmap` at 60 fps) | 165 Hz | 100% |
+
+What that establishes: moving a per-pixel-alpha layered HWND once per composed frame costs roughly half
+the display's rate, and animating content inside a stationary one costs none of it. The travel padding
+the window reserves is free, a bitmap cache buys nothing because the transform path is already at the
+ceiling — so it is not worth its invalidation risk against the countdown bar and animated backgrounds —
+and overlay-track sampling does not pull the slide off the refresh rate either.
+
+Counting the animation's own value changes would prove nothing: a WPF timeline advances once per composed
+frame by construction, so that only re-measures the render loop. The rate the loop itself holds is the
+number.
+
+## Supporting tools
+
+- **`Show-Mp4Timeline.ps1 <file.mp4>`** — dumps `mdhd` durations and the `stts` table per track. A single
+  uniform `stts` entry means per-frame durations were flattened; many entries mean real timing survived.
+- **`FrameDump.exe <clip> <outDir> <startSeconds> <endSeconds> [maxWidth]`** — writes frames as PNGs with
+  their timestamps in the file names, plus a per-frame change score.
+- **`Match-ShotToClip.ps1 -Clip <clip> -Shot <screenshot>`** — finds which frame of a clip matches a
+  screenshot. Because a screenshot is taken at a known instant, the matching frame pins how clip time maps
+  to wall clock. This is what localised the toast-placement defect on real footage.
+- **`AttributeBisect.exe <outDir>`** — feeds the H.264 encoder uneven per-sample durations under different
+  media-type attribute combinations. Documents that the shipped combination flattens durations onto the
+  declared frame rate, which is why capture paces itself by frame count instead of by timestamp.
+- **`PacerProbe.exe`** — compares `Thread.Sleep` against a high-resolution waitable timer at a frame
+  interval. Beware `TimeSpan.FromSeconds`: it rounds to the nearest millisecond, so `1.0/60` becomes 17 ms
+  and pins a 60 fps loop to 58.8 fps.
+- **`GenerationLoss.exe <source.mp4> <outDir> [bitrateKbps...]`** — re-encodes a clip at several bitrates
+  and reports PSNR against the source, for sizing the export-time bitrate headroom. Slow: each rate costs a
+  decode plus an encode plus two comparison decodes.
+
+## Limits
+
+- Runs against a GDI window at whatever size the window is, not a real game at 2560x1440. Anything that
+  depends on the capture pump saturating may not reproduce here.
+- The harness drives the plugin's internal types by reflection, so renaming them breaks it silently at
+  runtime rather than at build time.
+- Long-session behaviour is only sampled: a five-minute run showed no cumulative drift, but sessions run
+  far longer than that.

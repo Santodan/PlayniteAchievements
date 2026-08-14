@@ -16,25 +16,15 @@
 
     <!-- Achievement Status Template: Checkmark, padlock, or capstone badge -->
     <DataTemplate x:Key="AchievementStatusTemplate">
+        <!-- Sized natively like the image columns: the Uniform Viewbox is bounded by the cell's
+             content box, so it respects cell padding and grows with the column instead of being
+             given computed dimensions that ignore both. -->
         <Viewbox Stretch="Uniform"
+                 Margin="2"
                  VerticalAlignment="{Binding RelativeSource={RelativeSource AncestorType={x:Type DataGridCell}}, Path=Column.(helpers:DataGridAlignmentBehavior.CellVerticalAlignment)}"
                  HorizontalAlignment="{Binding RelativeSource={RelativeSource AncestorType={x:Type DataGridCell}}, Path=Column.(helpers:DataGridAlignmentBehavior.CellHorizontalAlignment)}"
-                 ClipToBounds="False"
                  UseLayoutRounding="True"
                  SnapsToDevicePixels="True">
-            <Viewbox.Width>
-                <MultiBinding Converter="{StaticResource ImageFitDimension}" ConverterParameter="platform,width,8,12,18">
-                    <Binding RelativeSource="{RelativeSource AncestorType=DataGridRow}" Path="ActualHeight"/>
-                    <Binding RelativeSource="{RelativeSource AncestorType=DataGridCell}" Path="ActualWidth"/>
-                </MultiBinding>
-            </Viewbox.Width>
-            <Viewbox.Height>
-                <MultiBinding Converter="{StaticResource ImageFitDimension}" ConverterParameter="platform,height,8,12,18">
-                    <Binding RelativeSource="{RelativeSource AncestorType=DataGridRow}" Path="ActualHeight"/>
-                    <Binding RelativeSource="{RelativeSource AncestorType=DataGridCell}" Path="ActualWidth"/>
-                </MultiBinding>
-            </Viewbox.Height>
-
             <Grid Width="18" Height="18">
                 <Path Data="{StaticResource GeoCheck}"
                       Stroke="{DynamicResource PlayAch.Brush.Glyph}"
@@ -89,17 +79,27 @@
                         <Style TargetType="Grid">
                             <Setter Property="Visibility" Value="Collapsed"/>
                             <Style.Triggers>
+                                <!-- A goal shows its pin instead, so the two never both render. -->
                                 <MultiDataTrigger>
                                     <MultiDataTrigger.Conditions>
                                         <Condition Binding="{Binding Unlocked}" Value="False"/>
                                         <Condition Binding="{Binding IsCapstone}" Value="True"/>
+                                        <Condition Binding="{Binding IsGoal}" Value="False"/>
                                     </MultiDataTrigger.Conditions>
                                     <Setter Property="Visibility" Value="Visible"/>
                                 </MultiDataTrigger>
                             </Style.Triggers>
                         </Style>
                     </Grid.Style>
+                    <!-- Explicit 18x18 box with Stretch="None": the geometry is already authored
+                         centred on (9,9) in that space, so it needs no scaling. Sizing to the box
+                         rather than letting the path measure to its own bounds is what centres it,
+                         since those bounds include the geometry's leading offset. Uniform would
+                         centre it too, but only by scaling 14x16 up to 18x18, which puts the edges
+                         on fractional pixels and softens them. -->
                     <Path Stretch="None"
+                          Width="18"
+                          Height="18"
                           Fill="{DynamicResource PlayAch.Brush.Glyph}"
                           UseLayoutRounding="True"
                           SnapsToDevicePixels="True"
@@ -138,6 +138,7 @@
                                     <MultiDataTrigger.Conditions>
                                         <Condition Binding="{Binding Unlocked}" Value="False"/>
                                         <Condition Binding="{Binding IsCapstone}" Value="False"/>
+                                        <Condition Binding="{Binding IsGoal}" Value="False"/>
                                     </MultiDataTrigger.Conditions>
                                     <Setter Property="Visibility" Value="Visible"/>
                                 </MultiDataTrigger>
@@ -145,6 +146,31 @@
                         </Style>
                     </Path.Style>
                 </Path>
+
+                <!-- A goal replaces the padlock with a tack pin, and takes priority over the
+                     capstone hexagon. Goals are always locked, so this never competes with the
+                     unlocked check or the completed badge. -->
+                <TextBlock Text="&#xf003;"
+                           FontFamily="{DynamicResource PlayAch.FontFamily.Icon}"
+                           FontSize="16"
+                           Foreground="{DynamicResource PlayAch.Brush.Glyph}"
+                           HorizontalAlignment="Center"
+                           VerticalAlignment="Center">
+                    <TextBlock.Style>
+                        <Style TargetType="TextBlock">
+                            <Setter Property="Visibility" Value="Collapsed"/>
+                            <Style.Triggers>
+                                <MultiDataTrigger>
+                                    <MultiDataTrigger.Conditions>
+                                        <Condition Binding="{Binding Unlocked}" Value="False"/>
+                                        <Condition Binding="{Binding IsGoal}" Value="True"/>
+                                    </MultiDataTrigger.Conditions>
+                                    <Setter Property="Visibility" Value="Visible"/>
+                                </MultiDataTrigger>
+                            </Style.Triggers>
+                        </Style>
+                    </TextBlock.Style>
+                </TextBlock>
             </Grid>
         </Viewbox>
     </DataTemplate>
@@ -451,6 +477,59 @@
                                     </Setter>
                                 </MultiDataTrigger>
                                 <!-- Hardcore achievements use a solid border instead of the soft glow. -->
+                                <MultiDataTrigger>
+                                    <MultiDataTrigger.Conditions>
+                                        <Condition Binding="{Binding Unlocked}" Value="True"/>
+                                        <Condition Binding="{Binding ShowRarityGlow, RelativeSource={RelativeSource AncestorType=controls:AchievementDataGridControl}}" Value="True"/>
+                                        <Condition Binding="{Binding IsHardcore}" Value="True"/>
+                                        <Condition Binding="{Binding ShowHardcoreBorder, RelativeSource={RelativeSource AncestorType=controls:AchievementDataGridControl}}" Value="True"/>
+                                    </MultiDataTrigger.Conditions>
+                                    <Setter Property="Visibility" Value="Collapsed"/>
+                                    <Setter Property="Effect" Value="{x:Null}"/>
+                                </MultiDataTrigger>
+                            </Style.Triggers>
+                        </Style>
+                    </Image.Style>
+                </Image>
+            </Border>
+
+            <!-- Edge that comes with the rays: the same layer as the soft halo above, at a blur small
+                 enough to read as a line rather than a glow. Drawn this way rather than as geometry
+                 because it is a blur of the artwork itself, so it hugs the alpha exactly — on cut-out
+                 and non-square art alike, which no rectangle or convex hull can do. Cached for the same
+                 reason the halo is: it never moves, so it rasterizes once. -->
+            <Border IsHitTestVisible="False">
+                <Border.CacheMode>
+                    <BitmapCache/>
+                </Border.CacheMode>
+                <Image Stretch="Uniform"
+                       Margin="2"
+                       RenderOptions.BitmapScalingMode="HighQuality"
+                       SnapsToDevicePixels="True"
+                       IsHitTestVisible="False"
+                       helpers:AsyncImage.Uri="{Binding DisplayIcon}"
+                       helpers:AsyncImage.DecodePixel="128">
+                    <Image.Style>
+                        <Style TargetType="Image">
+                            <Setter Property="Visibility" Value="Collapsed"/>
+                            <Setter Property="Effect" Value="{x:Null}"/>
+                            <Style.Triggers>
+                                <MultiDataTrigger>
+                                    <MultiDataTrigger.Conditions>
+                                        <Condition Binding="{Binding Unlocked}" Value="True"/>
+                                        <Condition Binding="{Binding ShowRarityGlow, RelativeSource={RelativeSource AncestorType=controls:AchievementDataGridControl}}" Value="True"/>
+                                    </MultiDataTrigger.Conditions>
+                                    <Setter Property="Visibility" Value="Visible"/>
+                                    <Setter Property="Effect">
+                                        <Setter.Value>
+                                            <MultiBinding Converter="{StaticResource RarityGlowForTiers}" ConverterParameter="4">
+                                                <Binding Path="Rarity"/>
+                                                <Binding Path="RayGlowTiers" RelativeSource="{RelativeSource AncestorType=controls:AchievementDataGridControl}"/>
+                                            </MultiBinding>
+                                        </Setter.Value>
+                                    </Setter>
+                                </MultiDataTrigger>
+                                <!-- Hardcore keeps its solid shine border instead. -->
                                 <MultiDataTrigger>
                                     <MultiDataTrigger.Conditions>
                                         <Condition Binding="{Binding Unlocked}" Value="True"/>

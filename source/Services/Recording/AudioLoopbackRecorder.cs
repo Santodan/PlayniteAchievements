@@ -6,6 +6,7 @@ using NAudio.CoreAudioApi;
 using NAudio.Wave;
 using NAudio.Wave.SampleProviders;
 using Playnite.SDK;
+using PlayniteAchievements.Common;
 using PlayniteAchievements.Models.Settings;
 
 namespace PlayniteAchievements.Services.Recording
@@ -16,7 +17,7 @@ namespace PlayniteAchievements.Services.Recording
     /// (WASAPI loopback on the default render endpoint) or just the game process's audio (per-process
     /// loopback, <see cref="ProcessLoopbackCapture"/>, degrading to full system on failure or older
     /// Windows), optionally with the default microphone mixed in. Chunk names mirror the video
-    /// convention (aud_yyyyMMdd-HHmmss.wav, local wall-clock) and rotate every
+    /// convention (aud_yyyyMMdd-HHmmssfffZ.wav, UTC timeline) and rotate every
     /// <see cref="UnlockRecordingService.SegmentSeconds"/> seconds.
     ///
     /// A single pump thread reads the (optionally mixed) audio at a wall-clock pace and writes it,
@@ -342,7 +343,7 @@ namespace PlayniteAchievements.Services.Recording
                         }
 
                         // Frames (per channel) that should have been written by now, wall-clock paced.
-                        var elapsed = (DateTime.UtcNow - _pumpStartUtc).TotalSeconds;
+                        var elapsed = (CaptureTimelineClock.UtcNow - _pumpStartUtc).TotalSeconds;
                         var targetFrames = (long)(elapsed * sampleRate);
                         var writtenFrames = TotalFramesWritten();
                         var frames = (int)Math.Min(buffer.Length / channels, Math.Max(0, targetFrames - writtenFrames));
@@ -395,12 +396,12 @@ namespace PlayniteAchievements.Services.Recording
         private bool AwaitAnchor()
         {
             var stamped = _systemCapture as ProcessLoopbackCapture;
-            var deadline = DateTime.UtcNow.AddMilliseconds(AnchorTimeoutMs);
+            var deadline = CaptureTimelineClock.UtcNow.AddMilliseconds(AnchorTimeoutMs);
 
             while (_running)
             {
                 var packetUtc = stamped?.FirstPacketCaptureUtc;
-                if (stamped == null || packetUtc.HasValue || DateTime.UtcNow >= deadline)
+                if (stamped == null || packetUtc.HasValue || CaptureTimelineClock.UtcNow >= deadline)
                 {
                     lock (_gate)
                     {
@@ -409,7 +410,7 @@ namespace PlayniteAchievements.Services.Recording
                             return false;
                         }
 
-                        _pumpStartUtc = packetUtc ?? DateTime.UtcNow;
+                        _pumpStartUtc = packetUtc ?? CaptureTimelineClock.UtcNow;
                         OpenChunkLocked();
                     }
 
@@ -493,7 +494,7 @@ namespace PlayniteAchievements.Services.Recording
             // however far past the segment length the last write pushed the chunk.
             var startUtc = _pumpStartUtc.AddSeconds(
                 _chunkStartWallClockSamples / (double)_outputFormat.SampleRate);
-            var name = RecordingPaths.BuildAudioChunkFileName(prefix, startUtc.ToLocalTime());
+            var name = RecordingPaths.BuildAudioChunkFileName(prefix, startUtc);
 
             _writer = new WaveFileWriter(Path.Combine(_bufferDirectory, name), _outputFormat);
             _chunkSamplesWritten = 0;

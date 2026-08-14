@@ -147,6 +147,8 @@ namespace PlayniteAchievements.Views.Helpers
                         args.PropertyName == nameof(PersistedSettings.RarityGlowPulseMaxOpacity) ||
                         args.PropertyName == nameof(PersistedSettings.RarityGlowPulseSpeed))
                     {
+                        // Retune the shared clock once; every element then re-attaches to it.
+                        InvalidateSharedClock();
                         ApplyAnimation(element, persisted);
                     }
                 };
@@ -209,6 +211,38 @@ namespace PlayniteAchievements.Views.Helpers
             return min + ((max - min) * eased);
         }
 
+        // One clock drives every phase-locked pulse. Each BeginAnimation would otherwise create an
+        // independent clock that the timing manager ticks separately every frame, so a dense
+        // surface (the showcase icon mosaic shows up to 64 glowing icons at once) paid for dozens
+        // of redundant clocks. Phase-locked pulses all want the identical curve at the identical
+        // phase, so they can share one. Opt-outs (toasts, which must start at the cycle peak) keep
+        // their own clock.
+        private static AnimationClock _sharedElementClock;
+        private static string _sharedClockKey;
+
+        private static AnimationClock GetSharedClock(DoubleAnimation animation, double cycleMilliseconds)
+        {
+            var key = animation.From.ToString() + "|" + animation.To.ToString() + "|" +
+                animation.Duration.ToString();
+            if (_sharedElementClock == null || !string.Equals(_sharedClockKey, key, StringComparison.Ordinal))
+            {
+                animation.BeginTime = GlowAnimationClock.PhaseLockBeginTime(cycleMilliseconds);
+                _sharedElementClock = animation.CreateClock();
+                _sharedClockKey = key;
+            }
+
+            return _sharedElementClock;
+        }
+
+        /// <summary>
+        /// Drops the shared clock so the next activation rebuilds it from current settings.
+        /// </summary>
+        private static void InvalidateSharedClock()
+        {
+            _sharedElementClock = null;
+            _sharedClockKey = null;
+        }
+
         private static void ApplyAnimation(FrameworkElement element, PersistedSettings persisted)
         {
             var (min, max, seconds) = ResolvePulseParams(persisted);
@@ -227,6 +261,14 @@ namespace PlayniteAchievements.Views.Helpers
                 RepeatBehavior = RepeatBehavior.Forever,
                 EasingFunction = new SineEase { EasingMode = EasingMode.EaseInOut }
             };
+
+            if (GetTarget(element) == RarityGlowPulseTarget.Element && GetPhaseLock(element))
+            {
+                element.ApplyAnimationClock(
+                    UIElement.OpacityProperty,
+                    GetSharedClock(animation, cycleMilliseconds));
+                return;
+            }
 
             if (GetTarget(element) == RarityGlowPulseTarget.Effect)
             {
@@ -267,7 +309,8 @@ namespace PlayniteAchievements.Views.Helpers
             }
             else
             {
-                element.BeginAnimation(UIElement.OpacityProperty, null);
+                // Detaches whether the element was driven by the shared clock or its own.
+                element.ApplyAnimationClock(UIElement.OpacityProperty, null);
 
                 // Drop the phase pre-set local value (see OnIsActiveChanged) so the element
                 // returns to its style/default opacity when the pulse is off.

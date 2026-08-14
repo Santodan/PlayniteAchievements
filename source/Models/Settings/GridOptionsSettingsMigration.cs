@@ -77,6 +77,7 @@ namespace PlayniteAchievements.Models.Settings
                 changed |= CopyGameSummaryOptions(persisted, gridOptions);
                 changed |= CopyFriendSummaryOptions(persisted, gridOptions);
                 changed |= SeedStartPageControlBarDefaults(gridOptions);
+                changed |= SeedSingleGameAppearanceFromOverviewSelectedGame(gridOptions);
 
                 return changed
                     ? root.ToString(Formatting.None)
@@ -320,6 +321,26 @@ namespace PlayniteAchievements.Models.Settings
                 ("FriendsOverviewFriendSummariesGridRowHeight", nameof(FriendSummaryGridOptions.RowHeight)),
                 ("FriendsOverviewFriendSummariesGridMaxRows", nameof(FriendSummaryGridOptions.MaxRows)),
                 ("FriendsOverviewFriendSummariesLastUnlockDateMode", nameof(FriendSummaryGridOptions.LastUnlockDateMode)));
+        }
+
+        /// <summary>
+        /// The View Achievements window used to read its rarity glow and name colouring from the
+        /// Overview "Selected Game Achievements" options; it now reads its own SingleGame entry.
+        /// Copies the two members across when the SingleGame entry does not carry them yet, so an
+        /// existing configuration keeps the appearance it had before the switch.
+        /// </summary>
+        private static bool SeedSingleGameAppearanceFromOverviewSelectedGame(JObject gridOptions)
+        {
+            var source = (gridOptions?[nameof(GridOptionsCatalog.Achievement)] as JObject)?
+                [GridOptionKeys.Achievement.OverviewSelectedGame] as JObject;
+
+            return CopyScalars(
+                source,
+                gridOptions,
+                nameof(GridOptionsCatalog.Achievement),
+                GridOptionKeys.Achievement.SingleGame,
+                (nameof(AchievementGridOptions.ShowRarityGlow), nameof(AchievementGridOptions.ShowRarityGlow)),
+                (nameof(AchievementGridOptions.ColorNamesByRarity), nameof(AchievementGridOptions.ColorNamesByRarity)));
         }
 
         private static bool SeedStartPageControlBarDefaults(JObject gridOptions)

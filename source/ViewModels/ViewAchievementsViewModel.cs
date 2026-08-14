@@ -33,6 +33,7 @@ namespace PlayniteAchievements.ViewModels
         private readonly ILogger _logger;
         private readonly PlayniteAchievementsSettings _settings;
         private readonly GameSummaryItemBuilder _summaryBuilder;
+        private readonly Services.Captures.CaptureLibraryService _captureLibrary;
         private readonly Guid _gameId;
         private Guid? _activeRefreshOperationId;
         private bool _isApplyingTimelineState;
@@ -166,6 +167,11 @@ namespace PlayniteAchievements.ViewModels
             _refreshService.GameCacheUpdated += OnGameCacheUpdated;
             _refreshService.CacheDeltaUpdated += OnCacheDeltaUpdated;
             _refreshService.RebuildProgress += OnRebuildProgress;
+            _captureLibrary = PlayniteAchievementsPlugin.Instance?.CaptureLibraryService;
+            if (_captureLibrary != null)
+            {
+                _captureLibrary.CapturesChanged += OnCapturesChanged;
+            }
 
             // Restore the previous session's sort/filter state for this game (if any) before
             // the initial load so the first display reflects it.
@@ -376,6 +382,8 @@ namespace PlayniteAchievements.ViewModels
 
         public bool ShowAchievementGridControlBar => _settings?.Persisted?.ShowViewAchievementsAchievementGridControlBar ?? true;
 
+        public bool ShowAchievementGridColumnHeaders => _settings?.Persisted?.ShowViewAchievementsAchievementGridColumnHeaders ?? true;
+
         public bool HideCategorySummaryRow => _settings?.Persisted?.ViewAchievementsAchievementGridHideCategorySummaryRow ?? false;
 
         public bool CategorySummariesShowColumnHeaders => _settings?.Persisted?.ShowViewAchievementsCategorySummariesGridColumnHeaders ?? true;
@@ -388,11 +396,9 @@ namespace PlayniteAchievements.ViewModels
 
         public double? SingleGameGridRowHeight => _settings?.Persisted?.SingleGameGridRowHeight;
 
-        // The Manage Achievements window follows the Overview "Selected Game Achievements" glow setting.
-        public bool ShowRarityGlow => _settings?.Persisted?.OverviewSelectedGameShowRarityGlow ?? true;
+        public bool ShowRarityGlow => _settings?.Persisted?.ViewAchievementsAchievementGridShowRarityGlow ?? true;
 
-        // The Manage Achievements window follows the Overview "Selected Game Achievements" name-color setting.
-        public bool ColorNamesByRarity => _settings?.Persisted?.OverviewSelectedGameColorNamesByRarity ?? false;
+        public bool ColorNamesByRarity => _settings?.Persisted?.ViewAchievementsAchievementGridColorNamesByRarity ?? false;
 
         public bool ColorRarityColumnsByRarity => _settings?.Persisted?.ViewAchievementsAchievementGridColorRarityColumnsByRarity ?? false;
 
@@ -577,8 +583,7 @@ namespace PlayniteAchievements.ViewModels
                 }
 
                 _allAchievements = displayItems;
-                Services.Captures.CapturePresenceMarker.MarkAchievements(
-                    _allAchievements, PlayniteAchievementsPlugin.Instance?.CaptureLibraryService);
+                Services.Captures.CapturePresenceMarker.MarkAchievements(_allAchievements, _captureLibrary);
                 RefreshOrderedAchievements(skipDefaultSort: false);
 
                 // The control bar's filter option collections are UI-bound.
@@ -653,10 +658,19 @@ namespace PlayniteAchievements.ViewModels
                 ? new List<GameSummaryItem> { item }
                 : new List<GameSummaryItem>();
 
+            // SynchronizeCollection matches by reference, so SummaryItems holds these very instances.
             System.Windows.Application.Current?.Dispatcher?.Invoke(() =>
                 CollectionHelper.SynchronizeCollection(SummaryItems, items));
+            Services.Captures.CapturePresenceMarker.MarkSummaries(items, _captureLibrary);
+        }
+
+        private void OnCapturesChanged(object sender, Services.Captures.CapturesChangedEventArgs e)
+        {
+            var folder = e?.FolderName;
+            Services.Captures.CapturePresenceMarker.MarkAchievements(
+                _allAchievements, _captureLibrary, folder);
             Services.Captures.CapturePresenceMarker.MarkSummaries(
-                items, PlayniteAchievementsPlugin.Instance?.CaptureLibraryService);
+                SummaryItems?.ToList(), _captureLibrary, folder);
         }
 
         private void RaiseSummaryAppearanceProperties()
@@ -808,11 +822,14 @@ namespace PlayniteAchievements.ViewModels
                 ApplyAppearanceSettingsToAchievements();
                 OnPropertyChanged(nameof(SingleGameGridRowHeight));
                 OnPropertyChanged(nameof(ShowAchievementGridControlBar));
+                OnPropertyChanged(nameof(ShowAchievementGridColumnHeaders));
                 OnPropertyChanged(nameof(HideCategorySummaryRow));
                 OnPropertyChanged(nameof(CategorySummariesShowColumnHeaders));
                 OnPropertyChanged(nameof(CategorySummariesGridRowHeight));
                 OnPropertyChanged(nameof(CategorySummariesUseCoverImages));
                 OnPropertyChanged(nameof(CategorySummariesShowCompletionGlow));
+                OnPropertyChanged(nameof(ShowRarityGlow));
+                OnPropertyChanged(nameof(ColorNamesByRarity));
                 OnPropertyChanged(nameof(ColorRarityColumnsByRarity));
                 RaiseSummaryAppearanceProperties();
                 ApplySavedTimelineState();
@@ -870,15 +887,21 @@ namespace PlayniteAchievements.ViewModels
                 return;
             }
 
-            if (e?.PropertyName == nameof(PersistedSettings.OverviewSelectedGameShowRarityGlow))
+            if (e?.PropertyName == nameof(PersistedSettings.ViewAchievementsAchievementGridShowRarityGlow))
             {
                 OnPropertyChanged(nameof(ShowRarityGlow));
                 return;
             }
 
-            if (e?.PropertyName == nameof(PersistedSettings.OverviewSelectedGameColorNamesByRarity))
+            if (e?.PropertyName == nameof(PersistedSettings.ViewAchievementsAchievementGridColorNamesByRarity))
             {
                 OnPropertyChanged(nameof(ColorNamesByRarity));
+                return;
+            }
+
+            if (e?.PropertyName == nameof(PersistedSettings.ShowViewAchievementsAchievementGridColumnHeaders))
+            {
+                OnPropertyChanged(nameof(ShowAchievementGridColumnHeaders));
                 return;
             }
 
@@ -967,6 +990,48 @@ namespace PlayniteAchievements.ViewModels
             System.Windows.Application.Current?.Dispatcher?.Invoke(LoadGameData);
         }
 
+        /// <summary>
+        /// Re-stamps the capstone flag on the rows already in memory. Valid only when a capstone
+        /// is being set, where every other row becomes a non-capstone.
+        /// </summary>
+        public bool ApplyCapstone(string capstoneApiName)
+        {
+            if (_allAchievements == null || _allAchievements.Count == 0 ||
+                string.IsNullOrWhiteSpace(capstoneApiName))
+            {
+                return false;
+            }
+
+            foreach (var item in _allAchievements)
+            {
+                if (item != null)
+                {
+                    item.IsCapstone = string.Equals(
+                        (item.ApiName ?? string.Empty).Trim(),
+                        capstoneApiName.Trim(),
+                        StringComparison.OrdinalIgnoreCase);
+                }
+            }
+
+            return true;
+        }
+
+        /// <summary>
+        /// Re-sorts the rows already in memory after a goal toggle. Goal state only affects
+        /// ordering, so this avoids the cache read, hydration and full row rebuild that
+        /// <see cref="RefreshView"/> pays for.
+        /// </summary>
+        public bool ReapplyGoalOrder()
+        {
+            if (_allAchievements == null || _allAchievements.Count == 0)
+            {
+                return false;
+            }
+
+            ApplySearchFilter(refreshOrder: true);
+            return true;
+        }
+
         #endregion
 
         public void SortDataGrid(string sortMemberPath, ListSortDirection direction)
@@ -991,6 +1056,7 @@ namespace PlayniteAchievements.ViewModels
                 _currentSortDirection = currentSortDirection.Value;
             }
 
+            AchievementSortHelper.ApplyGoalsFirst(items);
             _orderedAchievements = items;
             ApplySearchFilter();
         }
@@ -1020,6 +1086,7 @@ namespace PlayniteAchievements.ViewModels
                     stableOrder: AchievementSortHelper.CreateStableOrderMap(items));
             }
 
+            AchievementSortHelper.ApplyGoalsFirst(items);
             _orderedAchievements = items;
         }
 
@@ -1075,6 +1142,10 @@ namespace PlayniteAchievements.ViewModels
             _refreshService.GameCacheUpdated -= OnGameCacheUpdated;
             _refreshService.CacheDeltaUpdated -= OnCacheDeltaUpdated;
             _refreshService.RebuildProgress -= OnRebuildProgress;
+            if (_captureLibrary != null)
+            {
+                _captureLibrary.CapturesChanged -= OnCapturesChanged;
+            }
             if (_progressHideTimer != null)
             {
                 _progressHideTimer.Stop();

@@ -53,6 +53,7 @@ namespace PlayniteAchievements.ViewModels
         private readonly ILogger _logger;
         private readonly PlayniteAchievementsSettings _settings;
         private readonly OverviewLaunchContext _launchContext;
+        private readonly Services.Captures.CaptureLibraryService _captureLibrary;
 
         private readonly OverviewDataBuilder _dataBuilder;
 
@@ -244,6 +245,11 @@ namespace PlayniteAchievements.ViewModels
             // Subscribe to progress events
             _refreshService.CacheDeltaUpdated += OnCacheDeltaUpdated;
             _refreshService.CacheInvalidated += OnCacheInvalidated;
+            _captureLibrary = PlayniteAchievementsPlugin.Instance?.CaptureLibraryService;
+            if (_captureLibrary != null)
+            {
+                _captureLibrary.CapturesChanged += OnCapturesChanged;
+            }
             if (_gameCustomDataStore != null)
             {
                 _gameCustomDataStore.CustomDataChanged += OnCustomDataChanged;
@@ -1778,8 +1784,7 @@ namespace PlayniteAchievements.ViewModels
             CollectionHelper.Replace(AllAchievements, _allAchievements);
 
             _allGameSummaries = snapshot.GameSummaries ?? new List<GameSummaryItem>();
-            Services.Captures.CapturePresenceMarker.MarkSummaries(
-                _allGameSummaries, PlayniteAchievementsPlugin.Instance?.CaptureLibraryService);
+            Services.Captures.CapturePresenceMarker.MarkSummaries(_allGameSummaries, _captureLibrary);
             if (gameSummarySearchEntries != null)
             {
                 _gameSummarySearchIndex.LoadEntries(gameSummarySearchEntries);
@@ -1831,8 +1836,7 @@ namespace PlayniteAchievements.ViewModels
             Dictionary<AchievementDisplayItem, string> recentSearchEntries = null)
         {
             _allRecentAchievements = recentAchievements ?? new List<AchievementDisplayItem>();
-            Services.Captures.CapturePresenceMarker.MarkAchievements(
-                _allRecentAchievements, PlayniteAchievementsPlugin.Instance?.CaptureLibraryService);
+            Services.Captures.CapturePresenceMarker.MarkAchievements(_allRecentAchievements, _captureLibrary);
             _filteredRecentAchievements = new List<AchievementDisplayItem>(_allRecentAchievements);
             if (recentSearchEntries != null)
             {
@@ -2646,6 +2650,14 @@ namespace PlayniteAchievements.ViewModels
                 return;
             }
 
+            // A reorder-only change (goals) is already applied to the rows in place by
+            // ReapplyGoalOrder. Queuing a delta would rebuild the selected game and re-run the
+            // control bar, discarding the filters the user currently has applied.
+            if (!e.AffectsSummaryData)
+            {
+                return;
+            }
+
             QueueOverviewDelta(isFullReset: false, key: e.PlayniteGameId.ToString("D"));
         }
 
@@ -2807,6 +2819,11 @@ namespace PlayniteAchievements.ViewModels
                     AchievementSortScope.RecentAchievements);
             }
 
+            // ApplyFragmentDelta swaps in freshly built row instances whose session-only HasCaptures
+            // defaults to false, so the Captures button for the game being played would vanish on
+            // its first unlock. Re-stamp the replaced rows.
+            RemarkCapturePresence();
+
             RefreshOverviewSearchIndexes();
 
             var snapshot = BuildSnapshotFromSourceLists();
@@ -2816,6 +2833,32 @@ namespace PlayniteAchievements.ViewModels
             UpdateAggregatePieCharts();
             ApplyRightFilters();
             UpdateFilteredStatus();
+        }
+
+        /// <summary>
+        /// Re-stamps the Captures flag on the row collections that own the rendered instances. The
+        /// display collections are CollectionHelper.Replace'd with subsets of these same backing
+        /// lists, so marking the backing lists reaches the grids. Pass a sanitized capture folder to
+        /// touch only one game's rows.
+        /// </summary>
+        private void RemarkCapturePresence(string gameFolderFilter = null)
+        {
+            Services.Captures.CapturePresenceMarker.MarkSummaries(
+                _allGameSummaries, _captureLibrary, gameFolderFilter);
+            Services.Captures.CapturePresenceMarker.MarkAchievements(
+                _allRecentAchievements, _captureLibrary, gameFolderFilter);
+            Services.Captures.CapturePresenceMarker.MarkAchievements(
+                _allSelectedGameAchievements, _captureLibrary, gameFolderFilter);
+        }
+
+        private void OnCapturesChanged(object sender, Services.Captures.CapturesChangedEventArgs e)
+        {
+            if (_disposed)
+            {
+                return;
+            }
+
+            RemarkCapturePresence(e?.FolderName);
         }
 
         private void RefreshOverviewSearchIndexes()
@@ -2972,6 +3015,115 @@ namespace PlayniteAchievements.ViewModels
                 _settings?.Persisted?.OverviewRecentAchievementsGridMaxRows);
 
             CollectionHelper.Replace(RecentAchievements, displayItems);
+        }
+
+        /// <summary>
+        /// Re-stamps the capstone flag on the selected game's rows. Valid only when a capstone is
+        /// being set, where every other row becomes a non-capstone.
+        /// </summary>
+        public bool ApplyCapstone(string capstoneApiName)
+        {
+            if (_allSelectedGameAchievements == null ||
+                _allSelectedGameAchievements.Count == 0 ||
+                string.IsNullOrWhiteSpace(capstoneApiName))
+            {
+                return false;
+            }
+
+            foreach (var item in _allSelectedGameAchievements)
+            {
+                if (item != null)
+                {
+                    item.IsCapstone = string.Equals(
+                        (item.ApiName ?? string.Empty).Trim(),
+                        capstoneApiName.Trim(),
+                        StringComparison.OrdinalIgnoreCase);
+                }
+            }
+
+            return true;
+        }
+
+        /// <summary>
+        /// Re-sorts the selected game's rows after a goal toggle. Goal state only affects
+        /// ordering, so this avoids the full selected-game rebuild.
+        /// </summary>
+        public bool ReapplyGoalOrder()
+        {
+            if (_allSelectedGameAchievements == null || _allSelectedGameAchievements.Count == 0)
+            {
+                return false;
+            }
+
+            if (!string.IsNullOrEmpty(_selectedGameSortPath))
+            {
+                // Re-runs the active column sort and re-partitions goals, then syncs.
+                SortSelectedGameAchievements(_selectedGameSortPath, _selectedGameSortDirection);
+                return true;
+            }
+
+            // No column sort, so re-run exactly what the load path does: restore the natural order
+            // as the base (the configured sort may preserve source order), apply the configured
+            // default sort, then pin goals. Partitioning alone is stable, so without this a
+            // removed goal would stay stranded at the top.
+            RestoreSelectedGameNaturalOrder();
+            AchievementSortHelper.ApplyConfiguredDefaultSort(
+                _filteredSelectedGameAchievements,
+                _settings?.Persisted,
+                AchievementSortSurface.OverviewSelectedGame,
+                AchievementSortScope.GameAchievements,
+                stableOrder: AchievementSortHelper.CreateStableOrderMap(_filteredSelectedGameAchievements));
+            AchievementSortHelper.ApplyGoalsFirst(_allSelectedGameAchievements);
+            AchievementSortHelper.ApplyGoalsFirst(_filteredSelectedGameAchievements);
+            SyncSelectedGameAchievementsDisplay();
+            return true;
+        }
+
+        /// <summary>
+        /// Re-orders the selected game's live lists to follow the natural-order snapshot taken
+        /// when the game loaded. Items missing from the snapshot keep their relative position at
+        /// the end.
+        /// </summary>
+        private void RestoreSelectedGameNaturalOrder()
+        {
+            var natural = _selectedGameDefaultOrderedAchievements;
+            if (natural == null || natural.Count == 0)
+            {
+                return;
+            }
+
+            var indexByItem = new Dictionary<AchievementDisplayItem, int>();
+            for (var i = 0; i < natural.Count; i++)
+            {
+                var item = natural[i];
+                if (item != null && !indexByItem.ContainsKey(item))
+                {
+                    indexByItem[item] = i;
+                }
+            }
+
+            SortByNaturalOrder(_allSelectedGameAchievements, indexByItem);
+            SortByNaturalOrder(_filteredSelectedGameAchievements, indexByItem);
+        }
+
+        private static void SortByNaturalOrder(
+            List<AchievementDisplayItem> items,
+            IReadOnlyDictionary<AchievementDisplayItem, int> indexByItem)
+        {
+            if (items == null || items.Count < 2)
+            {
+                return;
+            }
+
+            // OrderBy is stable, so anything absent from the snapshot keeps its relative order.
+            var ordered = items
+                .OrderBy(item => item != null && indexByItem.TryGetValue(item, out var index)
+                    ? index
+                    : int.MaxValue)
+                .ToList();
+
+            items.Clear();
+            items.AddRange(ordered);
         }
 
         private void SyncSelectedGameAchievementsDisplay()
@@ -3543,6 +3695,7 @@ namespace PlayniteAchievements.ViewModels
                         AchievementSortScope.GameAchievements,
                         stableOrder: AchievementSortHelper.CreateStableOrderMap(_filteredSelectedGameAchievements));
 
+                    AchievementSortHelper.ApplyGoalsFirst(_filteredSelectedGameAchievements);
                     SyncSelectedGameAchievementsDisplay();
                 }
                 else
@@ -3774,9 +3927,11 @@ namespace PlayniteAchievements.ViewModels
                 SelectedGameHasCustomAchievementOrder = hasCustomOrder;
 
                 _allSelectedGameAchievements = items;
-                Services.Captures.CapturePresenceMarker.MarkAchievements(
-                    items, PlayniteAchievementsPlugin.Instance?.CaptureLibraryService);
+                Services.Captures.CapturePresenceMarker.MarkAchievements(items, _captureLibrary);
+                // Snapshot the natural order before goals are pinned, so removing a goal can put
+                // the achievement back where it belongs instead of leaving it stranded on top.
                 _selectedGameDefaultOrderedAchievements = new List<AchievementDisplayItem>(items);
+                AchievementSortHelper.ApplyGoalsFirst(_allSelectedGameAchievements);
                 FriendCompare?.SetTargetItems(items);
                 UpdateSelectedGameAchievementFilterOptions(_allSelectedGameAchievements);
                 ApplyRightFilters();
@@ -3979,6 +4134,8 @@ namespace PlayniteAchievements.ViewModels
                 ref selectedSortDirection,
                 sortedAllOrder);
 
+            AchievementSortHelper.ApplyGoalsFirst(_allSelectedGameAchievements);
+            AchievementSortHelper.ApplyGoalsFirst(_filteredSelectedGameAchievements);
             SyncSelectedGameAchievementsDisplay();
         }
 
@@ -4009,6 +4166,10 @@ namespace PlayniteAchievements.ViewModels
             {
                 _refreshService.CacheDeltaUpdated -= OnCacheDeltaUpdated;
                 _refreshService.CacheInvalidated -= OnCacheInvalidated;
+            }
+            if (_captureLibrary != null)
+            {
+                _captureLibrary.CapturesChanged -= OnCapturesChanged;
             }
             if (_gameCustomDataStore != null)
             {

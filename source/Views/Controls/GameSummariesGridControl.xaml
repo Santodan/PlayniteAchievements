@@ -218,6 +218,22 @@
                                            Effect="{DynamicResource PlayAch.Effect.CompletedGlowStart}"/>
                                     <Image Style="{StaticResource GameImageStyle}"
                                            Effect="{DynamicResource PlayAch.Effect.CompletedGlowEnd}"/>
+                                    <!-- Edge that comes with the rays: the bloom's own colour at a small
+                                         blur, so it reads as a line along the art rather than around it.
+                                         The enclosing layer already gates on completion, so this only
+                                         has to follow the selection's completion entry. -->
+                                    <Image Effect="{DynamicResource PlayAch.Effect.CompletedGlowEdge}">
+                                        <Image.Style>
+                                            <Style TargetType="Image" BasedOn="{StaticResource GameImageStyle}">
+                                                <Setter Property="Visibility" Value="Collapsed"/>
+                                                <Style.Triggers>
+                                                    <DataTrigger Binding="{Binding RayGlowTiers, RelativeSource={RelativeSource AncestorType=controls:GameSummariesGridControl}, Converter={StaticResource RaritySelectionIncludesCompleted}}" Value="True">
+                                                        <Setter Property="Visibility" Value="Visible"/>
+                                                    </DataTrigger>
+                                                </Style.Triggers>
+                                            </Style>
+                                        </Image.Style>
+                                    </Image>
                                 </Grid>
                             </Border>
                             <Border CornerRadius="{StaticResource PlayAch.Radius.Card}"

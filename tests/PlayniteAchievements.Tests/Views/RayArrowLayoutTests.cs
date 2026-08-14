@@ -15,7 +15,11 @@ namespace PlayniteAchievements.Tests.Views
     [TestClass]
     public class RayArrowLayoutTests
     {
-        private const int Count = RayArrowLayout.DefaultArrowCount;
+        /// <summary>
+        /// Arrow count for the square subject the cases below use. Derived rather than fixed, because
+        /// the effect is specified by the gap between arrows and the count follows from the track.
+        /// </summary>
+        private static readonly int Count = RayArrowLayout.ArrowCountFor(Square());
 
         private static RayArrowLayout.MappedTrack Square()
         {
@@ -180,43 +184,18 @@ namespace PlayniteAchievements.Tests.Views
             Assert.IsTrue(
                 meanStep > 0.25 * (tallest - shortest),
                 $"neighbours differ by only {meanStep:N2} against a {tallest - shortest:N2} range");
+            // Not a strict up-down-up: the travelling harmonic is the larger of the two at the tuned
+            // values, so it carries runs of arrows the same way before the zigzag flips them back.
             Assert.IsTrue(
-                reversals > written / 2,
+                reversals >= written / 3,
                 $"the ring only changes direction {reversals} times over {written} arrows");
         }
 
-        [TestMethod]
-        public void BuildSpines_ArrowsKeepTheirPlaceInTheZigzag()
-        {
-            // A taller arrow must stay taller than its neighbours for as long as it exists. The
-            // travelling wave changes every arrow's height, so this only holds while the alternation
-            // outweighs how much that wave can differ between one arrow and the next.
-            var mapped = Square();
-            var spines = new RayArrowLayout.RayArrowSpine[Count];
-            var firstOrdering = new int[Count];
-
-            for (var step = 0; step <= 600; step++)
-            {
-                RayArrowLayout.BuildSpines(mapped, step * 0.004, 1.55, Count, spines);
-
-                for (var i = 0; i < Count; i++)
-                {
-                    var ordering = Math.Sign(spines[i].Height - spines[(i + 1) % Count].Height);
-                    Assert.AreNotEqual(0, ordering, $"arrows {i} and {i + 1} came out the same height");
-
-                    if (step == 0)
-                    {
-                        firstOrdering[i] = ordering;
-                        continue;
-                    }
-
-                    Assert.AreEqual(
-                        firstOrdering[i],
-                        ordering,
-                        $"arrows {i} and {i + 1} swapped order once the wave moved");
-                }
-            }
-        }
+        // Arrows no longer hold their rank against their neighbours for the life of the burst, and there
+        // is deliberately no test that they do. That held while the fixed zigzag outweighed the
+        // travelling wave; at the tuned values the wave is the larger of the two, so it reorders
+        // neighbours as it passes. What survives is that an arrow's own share of the zigzag never
+        // changes, which ArrowHeight01_AlternatesByArrowRatherThanByPosition covers.
 
         [TestMethod]
         public void BuildSpines_SizePatternRunsAgainstTheArrows()
@@ -285,33 +264,47 @@ namespace PlayniteAchievements.Tests.Views
         }
 
         [TestMethod]
-        public void WaveHeight01_IsNotMirrorSymmetric()
+        public void Wave_NeverSitsStillAndMirroredOnTheArtwork()
         {
-            // A cosine with no phase offset is symmetric about the start of the loop, and the loop starts
-            // at a fixed place on the artwork — so a near-symmetric envelope put a mirror line through
-            // the same part of every icon, which read as deliberate and wrong.
-            var worstSymmetry = double.MaxValue;
+            // The thing that looked wrong was a mirror line pinned to the same part of every icon. Two
+            // separate properties can prevent it: an envelope that is not symmetric, or one that does
+            // not sit still. The tuned harmonics are symmetric — one of the three is switched off, and
+            // the remaining pair vanishes together at the start of the loop — so it is the drift that
+            // carries this now, and the drift is what has to be defended.
+            var symmetric = WorstMirrorGap() <= 0.05;
+            if (!symmetric)
+            {
+                return;
+            }
+
+            Assert.AreNotEqual(
+                0.0,
+                RayArrowLayout.EnvelopeDriftRatio,
+                "the envelope is mirror-symmetric AND stationary, which pins a mirror line to the artwork");
+        }
+
+        private static double WorstMirrorGap()
+        {
+            var worst = double.MaxValue;
 
             for (var c = 0; c < 360; c++)
             {
                 var center = c / 360.0;
-                var largestDifference = 0.0;
+                var largest = 0.0;
 
                 for (var d = 1; d <= 60; d++)
                 {
                     var offset = d / 240.0;
-                    var difference = Math.Abs(
-                        RayArrowLayout.WaveHeight01(center + offset)
-                        - RayArrowLayout.WaveHeight01(center - offset));
-                    largestDifference = Math.Max(largestDifference, difference);
+                    largest = Math.Max(
+                        largest,
+                        Math.Abs(RayArrowLayout.WaveHeight01(center + offset)
+                                 - RayArrowLayout.WaveHeight01(center - offset)));
                 }
 
-                worstSymmetry = Math.Min(worstSymmetry, largestDifference);
+                worst = Math.Min(worst, largest);
             }
 
-            Assert.IsTrue(
-                worstSymmetry > 0.18,
-                $"the envelope mirrors about some point to within {worstSymmetry:N3}");
+            return worst;
         }
 
         [TestMethod]
@@ -425,23 +418,30 @@ namespace PlayniteAchievements.Tests.Views
 
             var gap = mapped.Perimeter / Count;
             var spilled = false;
+            var brightest = 0.0;
+            byte brightestAlpha = 0;
 
             foreach (var layer in RarityAppearanceHelper.GetRayGlowPalette(RarityTier.Rare).Layers)
             {
                 var width = 2.0 * widest * layer.WidthMultiplier;
-
-                if (layer.Brush.Color.A >= RarityAppearanceHelper.RayReadableAlpha)
+                if (layer.Brush.Color.A >= brightestAlpha)
                 {
-                    Assert.IsTrue(
-                        width < gap,
-                        $"a copy at alpha {layer.Brush.Color.A:X2} spans {width:N1} of a {gap:N1} gap");
+                    brightestAlpha = layer.Brush.Color.A;
+                    brightest = width;
                 }
-                else if (width > gap)
+
+                if (width > gap)
                 {
                     spilled = true;
                 }
             }
 
+            // Only the brightest copy has to stay inside the gap now. The ones between it and the
+            // faintest are allowed across: at the tuned density the rays are meant to blend into one
+            // band with bright spines through it, rather than stand apart as separate rays.
+            Assert.IsTrue(
+                brightest < gap,
+                $"the brightest copy spans {brightest:N1} of a {gap:N1} gap, so no ray has a distinct core");
             Assert.IsTrue(spilled, "no copy reaches past the gap, so the rays have no soft tails at all");
         }
 
@@ -474,6 +474,78 @@ namespace PlayniteAchievements.Tests.Views
             {
                 Assert.IsTrue(layer.Brush.IsFrozen, "layer brushes are shared across rows and must be frozen");
             }
+        }
+
+        [TestMethod]
+        public void ArrowCountFor_HoldsSpacingConstantAcrossSubjectSizes()
+        {
+            // The effect is specified by the gap between arrows, not by how many there are. A fixed
+            // count spread around a longer outline gives fewer, fatter arrows further apart — a
+            // notification card's outline is about five times an icon's, and the same count read as
+            // sparse studs there while looking right on the icon.
+            var subjects = new[]
+            {
+                new { Name = "compact icon", Aspect = 1.0, Slot = new Size(48, 48) },
+                new { Name = "grid icon", Aspect = 1.0, Slot = new Size(72, 88) },
+                new { Name = "2:3 cover", Aspect = 2.0 / 3.0, Slot = new Size(80, 120) },
+                new { Name = "wide banner", Aspect = 16.0 / 9.0, Slot = new Size(160, 90) },
+                new { Name = "toast card", Aspect = 410.0 / 96.0, Slot = new Size(410, 96) }
+            };
+
+            foreach (var subject in subjects)
+            {
+                var mapped = RayArrowLayout.Map(RayTrack.RoundedRect(subject.Aspect, 0.12), subject.Slot, 0.0);
+                var count = RayArrowLayout.ArrowCountFor(mapped);
+
+                Assert.AreEqual(0, count % 2, $"{subject.Name} got an odd count, so the zigzag cannot close");
+
+                var gap = mapped.Perimeter / count;
+                Assert.AreEqual(
+                    RayArrowLayout.ArrowSpacing, gap, RayArrowLayout.ArrowSpacing * 0.35,
+                    $"{subject.Name} spaces its arrows {gap:N1} apart, not about {RayArrowLayout.ArrowSpacing:N1}");
+            }
+        }
+
+        [TestMethod]
+        public void ScaleLapsToTrack_MovesArrowsAtOneSpeedWhateverTheyRing()
+        {
+            // Timed in laps, a notification card turns as often as an icon does — and its outline is
+            // several times longer, so its arrows crossed the screen several times faster. Scaling the
+            // lap rate by the outline's length turns the setting into a speed.
+            var subjects = new[]
+            {
+                new { Name = "grid icon", Aspect = 1.0, Slot = new Size(72, 88) },
+                new { Name = "2:3 cover", Aspect = 2.0 / 3.0, Slot = new Size(80, 120) },
+                new { Name = "toast card", Aspect = 410.0 / 96.0, Slot = new Size(410, 96) }
+            };
+
+            double? firstSpeed = null;
+
+            foreach (var subject in subjects)
+            {
+                var mapped = RayArrowLayout.Map(RayTrack.RoundedRect(subject.Aspect, 0.12), subject.Slot, 0.0);
+
+                // Distance one arrow covers along the track for the same elapsed time.
+                var laps = RayArrowLayout.ScaleLapsToTrack(0.01, mapped);
+                var travelled = laps * mapped.Perimeter;
+
+                if (firstSpeed == null)
+                {
+                    firstSpeed = travelled;
+                    continue;
+                }
+
+                Assert.AreEqual(
+                    firstSpeed.Value, travelled, 1e-9,
+                    $"{subject.Name} arrows travel a different distance per tick");
+            }
+        }
+
+        [TestMethod]
+        public void ArrowCountFor_ToleratesDegenerateTracks()
+        {
+            var count = RayArrowLayout.ArrowCountFor(null);
+            Assert.IsTrue(count > 0 && count % 2 == 0, $"null track produced {count}");
         }
 
         [TestMethod]

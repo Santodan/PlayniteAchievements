@@ -1559,7 +1559,18 @@ namespace PlayniteAchievements.Services.Refresh
             {
                 _logger?.Debug(
                     $"Refreshed achievement data for '{game?.Name}' reports fewer unlocks than the cache " +
-                    $"({previousUnlocked} -> {incomingUnlocked}); persisting anyway.");
+                    $"({previousUnlocked} -> {incomingUnlocked}).");
+            }
+
+            // Restore unlocks the payload reports as locked before anything downstream reads it: the
+            // payload is what lands in the memory cache and what the unlocked aggregate is counted
+            // from, so correcting it here keeps the memory cache, the rows, and the count in step.
+            var preservedUnlocks = AchievementWriteGuard.PreserveCachedUnlocks(previous, data);
+            if (preservedUnlocks > 0)
+            {
+                _logger?.Debug(
+                    $"Kept {preservedUnlocks} cached unlock(s) that the refreshed payload for " +
+                    $"'{game?.Name}' reported as locked.");
             }
 
             // When a provider reports which source the achievements came from, a changed

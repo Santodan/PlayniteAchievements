@@ -98,6 +98,10 @@ namespace PlayniteAchievements.Models.Achievements
 
         public bool IsCapstone { get; set; }
 
+        public bool IsGoal { get; set; }
+
+        public int GoalOrderIndex { get; set; } = int.MaxValue;
+
         public bool IsFiltered { get; set; }
 
         public bool IsFilteredFromSummaries { get; set; }
@@ -139,6 +143,10 @@ namespace PlayniteAchievements.Models.Achievements
         public System.Windows.Input.ICommand OpenViewAchievementsWindow { get; set; }
 
         public System.Windows.Input.ICommand OpenManageAchievementsWindow { get; set; }
+
+        public System.Windows.Input.ICommand ToggleAchievementCapstoneCommand { get; set; }
+
+        public System.Windows.Input.ICommand ToggleAchievementGoalCommand { get; set; }
 
         public bool HasRarityPercent => GlobalPercentUnlocked.HasValue;
 
@@ -336,6 +344,10 @@ namespace PlayniteAchievements.ViewModels
         public bool HasAchievementNote => !string.IsNullOrWhiteSpace(AchievementNote);
 
         public bool IsCapstone { get; set; }
+
+        public bool IsGoal { get; set; }
+
+        public int GoalOrderIndex { get; set; } = int.MaxValue;
 
         public bool Hidden { get; set; }
 
@@ -535,6 +547,8 @@ namespace PlayniteAchievements.ViewModels
                 GameCoverPath = GameCoverPath,
                 Hidden = Hidden,
                 IsCapstone = IsCapstone,
+                IsGoal = IsGoal,
+                GoalOrderIndex = GoalOrderIndex,
                 Unlocked = Unlocked,
                 UnlockTimeUtc = UnlockTimeUtc,
                 GlobalPercentUnlocked = GlobalPercentUnlocked,
@@ -588,6 +602,8 @@ namespace PlayniteAchievements.ViewModels
             CategoryLabel = source?.Category;
             Hidden = source?.Hidden == true;
             IsCapstone = source?.IsCapstone == true;
+            IsGoal = source?.IsGoal == true;
+            GoalOrderIndex = source?.GoalOrderIndex ?? int.MaxValue;
             Unlocked = source?.Unlocked == true;
             UnlockTimeUtc = source?.UnlockTimeUtc;
             GlobalPercentUnlocked = source?.GlobalPercentUnlocked;

@@ -1,4 +1,6 @@
+using System;
 using System.Collections.Generic;
+using System.Linq;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
 using PlayniteAchievements.Models.Achievements;
 using PlayniteAchievements.Services.Refresh;
@@ -8,7 +10,11 @@ namespace PlayniteAchievements.Services.Tests
     [TestClass]
     public class AchievementWriteGuardTests
     {
-        private static GameAchievementData Data(int total, int unlocked, bool hasAchievements = true)
+        private static GameAchievementData Data(
+            int total,
+            int unlocked,
+            bool hasAchievements = true,
+            DateTime? unlockTime = null)
         {
             var achievements = new List<AchievementDetail>();
             for (var i = 0; i < total; i++)
@@ -16,7 +22,8 @@ namespace PlayniteAchievements.Services.Tests
                 achievements.Add(new AchievementDetail
                 {
                     ApiName = $"ACH_{i}",
-                    Unlocked = i < unlocked
+                    Unlocked = i < unlocked,
+                    UnlockTimeUtc = i < unlocked ? unlockTime : null
                 });
             }
 
@@ -99,6 +106,61 @@ namespace PlayniteAchievements.Services.Tests
         {
             Assert.IsFalse(AchievementWriteGuard.IsPartialUnlockRegression(Data(38, 20), Data(38, 0), out _, out _));
             Assert.IsFalse(AchievementWriteGuard.IsPartialUnlockRegression(Data(38, 20), Data(38, 25), out _, out _));
+        }
+
+        [TestMethod]
+        public void PreserveCachedUnlocks_PayloadRelocksCachedUnlocks_KeepsThemUnlocked()
+        {
+            var unlockTime = new DateTime(2026, 7, 4, 12, 0, 0, DateTimeKind.Utc);
+            var previous = Data(38, 20, unlockTime: unlockTime);
+            var incoming = Data(38, 5);
+
+            Assert.AreEqual(15, AchievementWriteGuard.PreserveCachedUnlocks(previous, incoming));
+
+            for (var i = 0; i < 20; i++)
+            {
+                Assert.IsTrue(incoming.Achievements[i].Unlocked, $"ACH_{i} should stay unlocked.");
+            }
+
+            Assert.AreEqual(
+                unlockTime,
+                incoming.Achievements[19].UnlockTimeUtc,
+                "The cached unlock time comes along, because the payload carries none for an achievement it reports locked.");
+            Assert.IsFalse(incoming.Achievements[20].Unlocked);
+        }
+
+        [TestMethod]
+        public void PreserveCachedUnlocks_PayloadAddsUnlocks_LeavesPayloadAlone()
+        {
+            var incoming = Data(38, 25, unlockTime: new DateTime(2026, 7, 4, 12, 30, 0, DateTimeKind.Utc));
+
+            Assert.AreEqual(0, AchievementWriteGuard.PreserveCachedUnlocks(Data(38, 20), incoming));
+            Assert.AreEqual(25, incoming.Achievements.Count(a => a.Unlocked));
+            Assert.AreEqual(
+                new DateTime(2026, 7, 4, 12, 30, 0, DateTimeKind.Utc),
+                incoming.Achievements[0].UnlockTimeUtc,
+                "An unlock the payload already reports keeps the payload's own time.");
+        }
+
+        [TestMethod]
+        public void PreserveCachedUnlocks_AchievementAbsentFromCache_LeavesItLocked()
+        {
+            var previous = Data(5, 5);
+            var incoming = Data(38, 0);
+
+            Assert.AreEqual(5, AchievementWriteGuard.PreserveCachedUnlocks(previous, incoming));
+            Assert.AreEqual(5, incoming.Achievements.Count(a => a.Unlocked));
+            Assert.IsFalse(incoming.Achievements[5].Unlocked);
+        }
+
+        [TestMethod]
+        public void PreserveCachedUnlocks_NoCachedData_DoesNothing()
+        {
+            var incoming = Data(38, 3);
+
+            Assert.AreEqual(0, AchievementWriteGuard.PreserveCachedUnlocks(null, incoming));
+            Assert.AreEqual(0, AchievementWriteGuard.PreserveCachedUnlocks(Data(38, 0), incoming));
+            Assert.AreEqual(3, incoming.Achievements.Count(a => a.Unlocked));
         }
     }
 }

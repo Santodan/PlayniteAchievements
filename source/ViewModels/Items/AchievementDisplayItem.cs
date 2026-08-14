@@ -485,6 +485,32 @@ namespace PlayniteAchievements.ViewModels.Items
             }
         }
 
+        public bool IsGoal
+        {
+            get => _source?.IsGoal == true;
+            set
+            {
+                SetSourceValue(
+                    source => source.IsGoal,
+                    (source, next) => source.IsGoal = next,
+                    value,
+                    nameof(IsGoal));
+            }
+        }
+
+        public int GoalOrderIndex
+        {
+            get => _source?.GoalOrderIndex ?? int.MaxValue;
+            set
+            {
+                SetSourceValue(
+                    source => source.GoalOrderIndex,
+                    (source, next) => source.GoalOrderIndex = next,
+                    value,
+                    nameof(GoalOrderIndex));
+            }
+        }
+
         public bool Hidden
         {
             get => _source?.Hidden == true;
@@ -1338,7 +1364,8 @@ namespace PlayniteAchievements.ViewModels.Items
             PlayniteAchievementsSettings settings,
             string gameIconPath,
             string gameCoverPath,
-            AppearanceSettingsSnapshot appearanceSettings = null)
+            AppearanceSettingsSnapshot appearanceSettings = null,
+            CategoryPresentationMemo categoryMemo = null)
         {
             if (achievement == null || !achievement.Unlocked || !achievement.UnlockTimeUtc.HasValue)
             {
@@ -1349,7 +1376,8 @@ namespace PlayniteAchievements.ViewModels.Items
                 gameData,
                 achievement,
                 gameData?.PlayniteGameId,
-                ResolvePoints(achievement, gameData));
+                ResolvePoints(achievement, gameData),
+                categoryMemo);
             item.GameIconPath = gameIconPath;
             item.GameCoverPath = gameCoverPath;
             ApplyCategoryPresentation(
@@ -1357,7 +1385,8 @@ namespace PlayniteAchievements.ViewModels.Items
                 gameData,
                 item.CategoryLabel,
                 achievement.ProviderCategory,
-                gameData?.PlayniteGameId);
+                gameData?.PlayniteGameId,
+                categoryMemo);
             var resolvedAppearanceSettings = appearanceSettings ?? CreateAppearanceSettingsSnapshot(
                 settings,
                 gameData?.PlayniteGameId,
@@ -1511,6 +1540,8 @@ namespace PlayniteAchievements.ViewModels.Items
             OnPropertyChanged(nameof(ShowUnlockDate));
             OnPropertyChanged(nameof(ShowLockedProgress));
             OnPropertyChanged(nameof(IsCapstone));
+            OnPropertyChanged(nameof(IsGoal));
+            OnPropertyChanged(nameof(GoalOrderIndex));
             OnPropertyChanged(nameof(RarityBrush));
             OnPropertyChanged(nameof(RarityNameBrush));
             OnPropertyChanged(nameof(Hidden));

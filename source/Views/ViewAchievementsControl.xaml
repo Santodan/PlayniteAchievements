@@ -301,6 +301,7 @@
                                                  ColorNamesByRarity="{Binding ColorNamesByRarity}"
                                                  ColorRarityColumnsByRarity="{Binding ColorRarityColumnsByRarity}"
                                                  FixedRowHeight="{Binding SingleGameGridRowHeight}"
+                                                 ShowColumnHeaders="{Binding ShowAchievementGridColumnHeaders}"
                                                  ControlBar="{Binding AchievementsControlBar}"
                                                  ShowControlBar="{Binding ShowAchievementGridControlBar}"
                                                  UseExternalSorting="True"

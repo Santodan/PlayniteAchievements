@@ -6,6 +6,7 @@ using System.Threading;
 using System.Threading.Tasks;
 using Playnite.SDK;
 using Playnite.SDK.Models;
+using PlayniteAchievements.Common;
 using PlayniteAchievements.Models;
 using PlayniteAchievements.Models.Achievements;
 using PlayniteAchievements.Models.Friends;
@@ -153,7 +154,7 @@ namespace PlayniteAchievements.Services
                     return;
                 }
 
-                var now = DateTime.UtcNow;
+                var now = CaptureTimelineClock.UtcNow;
                 state = new GamePollState
                 {
                     Game = game,
@@ -347,7 +348,7 @@ namespace PlayniteAchievements.Services
             List<GamePollState> friendStates;
             lock (_stateLock)
             {
-                var now = DateTime.UtcNow;
+                var now = CaptureTimelineClock.UtcNow;
                 var dueSources = _games.Values
                     .Where(state =>
                         state.ProgressSource != null &&
@@ -358,7 +359,7 @@ namespace PlayniteAchievements.Services
                 foreach (var state in dueSources)
                 {
                     state.QueryInFlight = true;
-                    state.Schedule.BeginRead();
+                    state.Schedule.BeginRead(now);
                 }
 
                 sourceGroups = dueSources
@@ -415,7 +416,7 @@ namespace PlayniteAchievements.Services
                         if (_games.TryGetValue(state.Game.Id, out var tracked) &&
                             ReferenceEquals(state, tracked))
                         {
-                            state.NextFallbackDueUtc = DateTime.UtcNow.AddMilliseconds(250);
+                            state.NextFallbackDueUtc = CaptureTimelineClock.UtcNow.AddMilliseconds(250);
                         }
                     }
                 }
@@ -532,7 +533,7 @@ namespace PlayniteAchievements.Services
                         state.QueryInFlight = false;
                         if (retryActiveImmediately)
                         {
-                            state.Schedule.DueAt(DateTime.UtcNow);
+                            state.Schedule.DueAt(CaptureTimelineClock.UtcNow);
                         }
                     }
                 }
@@ -558,7 +559,8 @@ namespace PlayniteAchievements.Services
             var after = _cacheManager?.LoadGameData(state.Game.Id.ToString()) ?? before;
             bool primed;
             DateTime sessionStartUtc;
-            DateTime eventUtc;
+            DateTime observedUtc;
+            InGameUnlockAnchorPolicy anchorPolicy;
             lock (_stateLock)
             {
                 if (!_games.TryGetValue(state.Game.Id, out var tracked) ||
@@ -567,23 +569,31 @@ namespace PlayniteAchievements.Services
                     return;
                 }
 
-                // Captured before Succeeded below sets the baseline flag.
+                // Captured before Succeeded below sets the baseline flag and clears the
+                // in-flight read's observation time.
                 primed = state.Schedule.ShouldEmitUnlocks();
                 sessionStartUtc = state.SessionStartUtc;
+                observedUtc = state.Schedule.ActiveReadObservedUtc;
+                if (observedUtc == default)
+                {
+                    observedUtc = CaptureTimelineClock.UtcNow;
+                }
+
+                anchorPolicy = state.Registration?.UnlockAnchorPolicy ??
+                    InGameUnlockAnchorPolicy.ProviderReported;
                 state.Schedule.Succeeded(
-                    DateTime.UtcNow,
+                    CaptureTimelineClock.UtcNow,
                     state.Registration?.PollInterval ?? TimeSpan.FromSeconds(60));
                 state.CachedSchema = after;
-                eventUtc = state.Schedule.LastFileEventUtc;
 
                 if (write.UnmatchedKeys.Count > 0 &&
-                    DateTime.UtcNow >= state.RecoveryCooldownUtc)
+                    CaptureTimelineClock.UtcNow >= state.RecoveryCooldownUtc)
                 {
                     // Keys the cached schema does not know about mean the schema is stale. Pull the
                     // universal refresh prong forward to rebuild it; the fast prong keeps running
                     // rather than being suspended, and the cooldown stops repeats from hammering.
-                    state.RecoveryCooldownUtc = DateTime.UtcNow.AddMinutes(2);
-                    state.NextFallbackDueUtc = DateTime.UtcNow;
+                    state.RecoveryCooldownUtc = CaptureTimelineClock.UtcNow.AddMinutes(2);
+                    state.NextFallbackDueUtc = CaptureTimelineClock.UtcNow;
                 }
             }
 
@@ -605,7 +615,9 @@ namespace PlayniteAchievements.Services
                     before,
                     after,
                     emittableKeys,
-                    elapsedMilliseconds);
+                    elapsedMilliseconds,
+                    observedUtc,
+                    anchorPolicy);
             }
 
             if (completion != null)
@@ -613,9 +625,7 @@ namespace PlayniteAchievements.Services
                 _notifyUnlocked?.Invoke(completion);
             }
 
-            var totalLatencyMs = eventUtc == default
-                ? elapsedMilliseconds
-                : Math.Max(0, (long)(DateTime.UtcNow - eventUtc).TotalMilliseconds);
+            var totalLatencyMs = Math.Max(0, (long)(CaptureTimelineClock.UtcNow - observedUtc).TotalMilliseconds);
             _logger?.Debug(
                 $"[InGameMonitor] Progress applied: game={state.Game.Name}, provider={state.Provider?.ProviderKey}, " +
                 $"observed={query.Achievements.Count}, new={write.NewlyUnlockedKeys.Count}, " +
@@ -671,7 +681,7 @@ namespace PlayniteAchievements.Services
                 }
 
                 state.Schedule.Failed(
-                    DateTime.UtcNow,
+                    CaptureTimelineClock.UtcNow,
                     StableReadRetryMilliseconds,
                     GetPollInterval());
             }
@@ -734,7 +744,8 @@ namespace PlayniteAchievements.Services
                 string.Equals(state.Provider?.ProviderKey, provider.ProviderKey, StringComparison.OrdinalIgnoreCase) &&
                 ReferenceEquals(state.ProgressSource, progressSource) &&
                 previousTargets.SequenceEqual(nextTargets, StringComparer.OrdinalIgnoreCase) &&
-                state.Registration?.IsRemote == registration?.IsRemote;
+                state.Registration?.IsRemote == registration?.IsRemote &&
+                state.Registration?.UnlockAnchorPolicy == registration?.UnlockAnchorPolicy;
 
             List<IDisposable> oldSubscriptions = null;
             int generation;
@@ -761,7 +772,7 @@ namespace PlayniteAchievements.Services
                     state.WatchSubscriptions.Clear();
                 }
 
-                var now = DateTime.UtcNow;
+                var now = CaptureTimelineClock.UtcNow;
                 state.Schedule.Configure(
                     now,
                     progressSource != null,
@@ -800,7 +811,7 @@ namespace PlayniteAchievements.Services
                         state.Generation == generation)
                     {
                         state.WatchSubscriptions.AddRange(subscriptions);
-                        state.Schedule.SourceAttached(DateTime.UtcNow);
+                        state.Schedule.SourceAttached(CaptureTimelineClock.UtcNow);
                         subscriptions = null;
                     }
                 }
@@ -839,7 +850,7 @@ namespace PlayniteAchievements.Services
                     return;
                 }
 
-                var now = DateTime.UtcNow;
+                var now = CaptureTimelineClock.UtcNow;
                 state.Schedule.SignalFile(now, watcherError, FileDebounce);
             }
 
@@ -859,7 +870,7 @@ namespace PlayniteAchievements.Services
                     {
                         foreach (var state in states)
                         {
-                            state.NextFallbackDueUtc = DateTime.UtcNow.AddSeconds(1);
+                            state.NextFallbackDueUtc = CaptureTimelineClock.UtcNow.AddSeconds(1);
                         }
                     }
                     return;
@@ -928,9 +939,17 @@ namespace PlayniteAchievements.Services
                             state.Schedule.MarkPrimed();
                         }
 
+                        var observedUtc = CaptureTimelineClock.UtcNow;
                         var completion = keys.Count == 0
                             ? null
-                            : EmitUserUnlocks(state, before, after, keys, timer.ElapsedMilliseconds);
+                            : EmitUserUnlocks(
+                                state,
+                                before,
+                                after,
+                                keys,
+                                timer.ElapsedMilliseconds,
+                                observedUtc,
+                                InGameUnlockAnchorPolicy.ProviderReported);
                         if (completion != null)
                         {
                             _notifyUnlocked?.Invoke(completion);
@@ -1020,7 +1039,9 @@ namespace PlayniteAchievements.Services
             GameAchievementData before,
             GameAchievementData after,
             IReadOnlyList<string> allowedKeys,
-            long elapsedMs)
+            long elapsedMs,
+            DateTime observedUtc,
+            InGameUnlockAnchorPolicy anchorPolicy)
         {
             var game = state.Game;
             // Both snapshots take the custom-data overlay. A manual capstone lives in the custom
@@ -1075,14 +1096,23 @@ namespace PlayniteAchievements.Services
             {
                 var isCompletionAchievement = completingApiName != null &&
                     string.Equals(achievement?.ApiName, completingApiName, StringComparison.OrdinalIgnoreCase);
-                _notifyUnlocked?.Invoke(CreateUserEventArgs(game, after, achievement, ResolveAchievementNumber(numberByApiName, achievement), isCompletionAchievement));
+                _notifyUnlocked?.Invoke(CreateUserEventArgs(
+                    game,
+                    after,
+                    achievement,
+                    ResolveAchievementNumber(numberByApiName, achievement),
+                    isCompletionAchievement,
+                    observedUtc,
+                    anchorPolicy));
             }
 
             // The completion time is the triggering achievement's unlock time — the latest in the
             // completing batch. Null when the provider supplies no timestamps, so the completion
             // toast shows no datetime exactly when its unlocks don't.
             var completionTimeUtc = unlocks.Select(a => a?.UnlockTimeUtc).Max();
-            return completesGame ? CreateUserCompletionEventArgs(game, after, completionTimeUtc) : null;
+            return completesGame
+                ? CreateUserCompletionEventArgs(game, after, completionTimeUtc, observedUtc, anchorPolicy)
+                : null;
         }
 
         /// <summary>
@@ -1485,12 +1515,15 @@ namespace PlayniteAchievements.Services
 
                 var game = _api?.Database?.Games?.Get(gameId);
                 var numberByApiName = BuildAchievementNumberMap(data);
+                var observedUtc = CaptureTimelineClock.UtcNow;
                 var args = CreateUserEventArgs(
                     game,
                     data,
                     achievement,
                     ResolveAchievementNumber(numberByApiName, achievement),
-                    isCompletionAchievement: false);
+                    isCompletionAchievement: false,
+                    observedUtc,
+                    InGameUnlockAnchorPolicy.SourceObservation);
                 args.IsTestFire = true;
 
                 _logger?.Debug(
@@ -1596,8 +1629,12 @@ namespace PlayniteAchievements.Services
             GameAchievementData data,
             AchievementDetail achievement,
             int achievementNumber,
-            bool isCompletionAchievement)
+            bool isCompletionAchievement,
+            DateTime observedUtc,
+            InGameUnlockAnchorPolicy anchorPolicy)
         {
+            var reportedUtc = achievement?.UnlockTimeUtc;
+            var videoAnchor = InGameUnlockAnchorSelector.Select(anchorPolicy, reportedUtc, observedUtc);
             return new AchievementUnlockedEventArgs
             {
                 PlayniteGameId = game?.Id ?? data?.PlayniteGameId ?? Guid.Empty,
@@ -1618,7 +1655,10 @@ namespace PlayniteAchievements.Services
                 IsHardcore = IsHardcoreCategory(achievement?.CategoryType),
                 Points = achievement?.Points,
                 ScaledPoints = achievement?.ScaledPoints,
-                UnlockTimeUtc = achievement?.UnlockTimeUtc,
+                UnlockTimeUtc = reportedUtc,
+                ObservedUtc = observedUtc,
+                VideoAnchorUtc = videoAnchor.Utc,
+                VideoAnchorSource = videoAnchor.Source,
                 UnlockedCount = data?.UnlockedCount ?? 0,
                 TotalCount = data?.AchievementCount ?? 0,
                 AchievementNumber = achievementNumber,
@@ -1629,8 +1669,14 @@ namespace PlayniteAchievements.Services
         private AchievementUnlockedEventArgs CreateUserCompletionEventArgs(
             Game game,
             GameAchievementData data,
-            DateTime? completionTimeUtc)
+            DateTime? completionTimeUtc,
+            DateTime observedUtc,
+            InGameUnlockAnchorPolicy anchorPolicy)
         {
+            var videoAnchor = InGameUnlockAnchorSelector.Select(
+                anchorPolicy,
+                completionTimeUtc,
+                observedUtc);
             return new AchievementUnlockedEventArgs
             {
                 PlayniteGameId = game?.Id ?? data?.PlayniteGameId ?? Guid.Empty,
@@ -1639,6 +1685,9 @@ namespace PlayniteAchievements.Services
                 GameCoverPath = ResolveGameArtPath(game?.CoverImage),
                 ProviderKey = data?.ProviderKey,
                 UnlockTimeUtc = completionTimeUtc,
+                ObservedUtc = observedUtc,
+                VideoAnchorUtc = videoAnchor.Utc,
+                VideoAnchorSource = videoAnchor.Source,
                 UnlockedCount = data?.UnlockedCount ?? 0,
                 TotalCount = data?.AchievementCount ?? 0,
                 IsGameCompleted = true

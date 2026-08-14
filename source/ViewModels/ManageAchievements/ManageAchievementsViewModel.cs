@@ -70,9 +70,8 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
         private bool _isExcludedFromSummaries;
         private bool _hasManualTrackingLink;
         private string _manualTrackingSummary;
-        private bool _hasCapstoneData;
+        private bool _hasAchievementData;
         private bool _hasAchievementPageLink;
-        private string _capstoneEmptyMessage;
         private bool _isRefreshing;
         private string _cachedProviderKey;
         private bool _cachedHasAchievements;
@@ -171,13 +170,7 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
                     return;
                 }
 
-                if (!HasCapstoneData &&
-                    (value == ManageAchievementsTab.Capstones ||
-                     value == ManageAchievementsTab.AchievementOrder ||
-                     value == ManageAchievementsTab.Category ||
-                     value == ManageAchievementsTab.Filters ||
-                     value == ManageAchievementsTab.Notes ||
-                     value == ManageAchievementsTab.CustomIcons))
+                if (!HasAchievementData && ManageAchievementsTabs.RequireAchievementData.Contains(value))
                 {
                     return;
                 }
@@ -558,16 +551,10 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
             ? L("LOCPlayAch_Common_Status_Linked")
             : L("LOCPlayAch_Common_Status_NotLinked");
 
-        public bool HasCapstoneData
+        public bool HasAchievementData
         {
-            get => _hasCapstoneData;
-            private set => SetValue(ref _hasCapstoneData, value);
-        }
-
-        public string CapstoneEmptyMessage
-        {
-            get => _capstoneEmptyMessage;
-            private set => SetValue(ref _capstoneEmptyMessage, value);
+            get => _hasAchievementData;
+            private set => SetValue(ref _hasAchievementData, value);
         }
 
         public bool IsRefreshing
@@ -701,8 +688,7 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
                         ? capstone.ApiName.Trim()
                         : L("LOCPlayAch_Common_None");
 
-                HasCapstoneData = (gameData?.HasAchievements ?? false) && list.Count > 0;
-                CapstoneEmptyMessage = L("LOCPlayAch_Common_NoCachedAchievementsForGame");
+                HasAchievementData = (gameData?.HasAchievements ?? false) && list.Count > 0;
 
                 var currentCustomData = TryLoadStoredCustomData(_plugin?.GameCustomDataStore);
                 IsExcluded = isExcluded;
@@ -727,12 +713,7 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
                     SelectedTab = ManageAchievementsTab.Overview;
                 }
 
-                if (!HasCapstoneData &&
-                    (SelectedTab == ManageAchievementsTab.Capstones ||
-                     SelectedTab == ManageAchievementsTab.AchievementOrder ||
-                     SelectedTab == ManageAchievementsTab.Category ||
-                     SelectedTab == ManageAchievementsTab.Filters ||
-                     SelectedTab == ManageAchievementsTab.CustomIcons))
+                if (!HasAchievementData && ManageAchievementsTabs.RequireAchievementData.Contains(SelectedTab))
                 {
                     SelectedTab = ManageAchievementsTab.Overview;
                 }

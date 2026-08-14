@@ -367,65 +367,7 @@ namespace PlayniteAchievements.Providers.RPCS3
         /// <returns>Path to TROPHY.TRP file, or null if not found.</returns>
         internal string FindTrpPathForGameDirectory(string gameDirectory)
         {
-            if (string.IsNullOrWhiteSpace(gameDirectory))
-            {
-                return null;
-            }
-
-            // Build list of directories to check
-            // Playnite may point to USRDIR, but TROPHY folder is in the game root
-            var directoriesToCheck = new List<string> { gameDirectory };
-
-            // If path ends with USRDIR, also check parent directory
-            var normalizedPath = gameDirectory.TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
-            if (normalizedPath.EndsWith("USRDIR", StringComparison.OrdinalIgnoreCase))
-            {
-                var parentDir = Path.GetDirectoryName(normalizedPath);
-                if (!string.IsNullOrWhiteSpace(parentDir))
-                {
-                    directoriesToCheck.Add(parentDir);
-                }
-            }
-
-            foreach (var dir in directoriesToCheck)
-            {
-                // PKG games: TROPDIR contains subdirectories named after npcommid
-                var tropdir = Path.Combine(dir, "TROPDIR");
-                if (Directory.Exists(tropdir))
-                {
-                    try
-                    {
-                        foreach (var subDir in Directory.GetDirectories(tropdir).OrderBy(path => path, StringComparer.OrdinalIgnoreCase))
-                        {
-                            var trpPath = Path.Combine(subDir, "TROPHY.TRP");
-                            if (File.Exists(trpPath))
-                            {
-                                return trpPath;
-                            }
-                        }
-                    }
-                    catch
-                    {
-                        // Ignore errors scanning TROPDIR
-                    }
-                }
-
-                // Disc-based game: TROPHY/TROPHY.TRP
-                var discTrpPath = Path.Combine(dir, "TROPHY", "TROPHY.TRP");
-                if (File.Exists(discTrpPath))
-                {
-                    return discTrpPath;
-                }
-
-                // Alternative disc structure: PS3_GAME/TROPHY/TROPHY.TRP
-                var altDiscTrpPath = Path.Combine(dir, "PS3_GAME", "TROPHY", "TROPHY.TRP");
-                if (File.Exists(altDiscTrpPath))
-                {
-                    return altDiscTrpPath;
-                }
-            }
-
-            return null;
+            return _scanner.FindTrpPathForGameDirectory(gameDirectory);
         }
 
         /// <summary>
@@ -451,6 +393,12 @@ namespace PlayniteAchievements.Providers.RPCS3
                 {
                     directoriesToCheck.Add(parentDir);
                 }
+            }
+
+            // An extracted disc dump keeps TROPDIR under PS3_GAME.
+            foreach (var dir in directoriesToCheck.ToList())
+            {
+                directoriesToCheck.Add(Path.Combine(dir, "PS3_GAME"));
             }
 
             foreach (var dir in directoriesToCheck)

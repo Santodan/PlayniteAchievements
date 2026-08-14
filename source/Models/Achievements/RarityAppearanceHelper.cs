@@ -137,6 +137,30 @@ namespace PlayniteAchievements.Models.Achievements
 
             resources["PlayAch.Effect.CompletedGlowStart"] = GetCompletedGlow(useEndColor: false, settings);
             resources["PlayAch.Effect.CompletedGlowEnd"] = GetCompletedGlow(useEndColor: true, settings);
+            resources["PlayAch.Effect.CompletedGlowEdge"] = GetCompletedEdge(settings);
+        }
+
+        /// <summary>
+        /// Completion counterpart to the rays' edge: the completed bloom's own colour at a blur small
+        /// enough to read as a line along the artwork, and centred rather than offset so it traces the
+        /// whole edge instead of falling to one side.
+        /// </summary>
+        public static DropShadowEffect GetCompletedEdge(PersistedSettings settings = null)
+        {
+            var effect = new DropShadowEffect
+            {
+                BlurRadius = 4,
+                ShadowDepth = 0,
+                Color = GetCompletedEndColor(settings),
+                Opacity = 1.0
+            };
+
+            if (effect.CanFreeze)
+            {
+                effect.Freeze();
+            }
+
+            return effect;
         }
 
         /// <summary>

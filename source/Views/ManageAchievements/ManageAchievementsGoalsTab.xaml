@@ -1,0 +1,213 @@
+<UserControl x:Class="PlayniteAchievements.Views.ManageAchievements.ManageAchievementsGoalsTab"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+             xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+             xmlns:vm="clr-namespace:PlayniteAchievements.ViewModels.ManageAchievements"
+             xmlns:helpers="clr-namespace:PlayniteAchievements.Views.Helpers"
+             xmlns:converters="clr-namespace:PlayniteAchievements.Views.Converters"
+             mc:Ignorable="d"
+             d:DesignHeight="600"
+             d:DesignWidth="800"
+             d:DataContext="{d:DesignInstance vm:ManageAchievementsGoalsViewModel}">
+
+    <UserControl.Resources>
+        <ResourceDictionary>
+            <ResourceDictionary.MergedDictionaries>
+                <ResourceDictionary Source="pack://application:,,,/PlayniteAchievements;component/Resources/ManageAchievementsScopedControlStyles.xaml"/>
+            </ResourceDictionary.MergedDictionaries>
+        </ResourceDictionary>
+    </UserControl.Resources>
+
+    <Grid Margin="0">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="12" />
+            <RowDefinition Height="*" />
+        </Grid.RowDefinitions>
+
+        <Border Grid.Row="0"
+                Style="{StaticResource ManageAchievementsHeaderCardStyle}"
+                Margin="0">
+            <Grid>
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="Auto" />
+                </Grid.ColumnDefinitions>
+                <StackPanel Grid.Column="0">
+                    <TextBlock Text="{DynamicResource LOCPlayAch_ManageAchievements_Tab_Goals}"
+                               Style="{StaticResource ManageAchievementsHeaderTitleStyle}" />
+                    <TextBlock Text="{DynamicResource LOCPlayAch_ManageAchievements_Goals_Hint}"
+                               Style="{StaticResource ManageAchievementsHeaderHintStyle}" />
+                </StackPanel>
+                <Button x:Name="ClearGoalsButton"
+                        Grid.Column="1"
+                        Content="{DynamicResource LOCPlayAch_Button_Clear}"
+                        Click="ClearGoalsButton_Click"
+                        Style="{StaticResource ManageAchievementsHeaderActionButtonStyle}"
+                        IsEnabled="{Binding HasGoals}" />
+            </Grid>
+        </Border>
+
+        <TextBlock Grid.Row="2"
+                   Text="{DynamicResource LOCPlayAch_Common_NoCachedAchievementsForGame}"
+                   Foreground="{DynamicResource PlayAch.Brush.Text}"
+                   Opacity="{StaticResource PlayAch.Opacity.Secondary}"
+                   TextWrapping="Wrap"
+                   VerticalAlignment="Top"
+                   Margin="0"
+                   Visibility="{Binding HasAchievements, Converter={StaticResource InverseBoolToVis}}" />
+
+        <DataGrid x:Name="GoalsDataGrid"
+                  Style="{StaticResource PlayAch.DataGrid.BaseStyle}"
+                  Grid.Row="2"
+                  ItemsSource="{Binding GoalRows}"
+                  AutoGenerateColumns="False"
+                  IsReadOnly="True"
+                  Visibility="{Binding HasAchievements, Converter={StaticResource BoolToVis}}"
+                  SelectionMode="Extended"
+                  SelectionUnit="FullRow"
+                  HeadersVisibility="Column"
+                  GridLinesVisibility="None"
+                  RowBackground="{DynamicResource PlayAch.Brush.Grid.RowBackground}"
+                  BorderThickness="0"
+                  Background="{DynamicResource PlayAch.Brush.Grid.Background}"
+                  CanUserAddRows="False"
+                  CanUserDeleteRows="False"
+                  CanUserResizeRows="False"
+                  CanUserResizeColumns="True"
+                  CanUserReorderColumns="False"
+                  CanUserSortColumns="False"
+                  RowHeight="100"
+                  EnableRowVirtualization="True"
+                  EnableColumnVirtualization="True"
+                  VirtualizingStackPanel.VirtualizationMode="Recycling"
+                  VirtualizingStackPanel.ScrollUnit="Pixel"
+                  ScrollViewer.CanContentScroll="True"
+                  ScrollViewer.HorizontalScrollBarVisibility="Disabled"
+                  ColumnHeaderStyle="{StaticResource ManageAchievementsColumnHeaderStyle}"
+                  helpers:DataGridHoverScrollBarBehavior.IsEnabled="True"
+                  helpers:DataGridAlignmentBehavior.IsEnabled="True"
+                  Tag="ControllerCellFocus"
+                  AllowDrop="True">
+
+            <DataGrid.CellStyle>
+                <Style TargetType="DataGridCell" BasedOn="{StaticResource ManageAchievementsControllerCellStyle}" />
+            </DataGrid.CellStyle>
+
+            <DataGrid.RowStyle>
+                <Style TargetType="DataGridRow" BasedOn="{StaticResource ManageAchievementsDataGridRowStyle}">
+                    <Setter Property="MinHeight" Value="64" />
+                    <Setter Property="ClipToBounds" Value="True" />
+                    <Setter Property="Cursor" Value="Arrow" />
+                    <Style.Triggers>
+                        <DataTrigger Binding="{Binding CanReveal}" Value="True">
+                            <Setter Property="Cursor" Value="Hand" />
+                        </DataTrigger>
+                    </Style.Triggers>
+                </Style>
+            </DataGrid.RowStyle>
+
+            <DataGrid.Columns>
+                <DataGridTemplateColumn Width="44" MinWidth="44" MaxWidth="44" CanUserResize="False" CanUserSort="False">
+                    <DataGridTemplateColumn.CellStyle>
+                        <Style TargetType="DataGridCell" BasedOn="{StaticResource ManageAchievementsControllerCellStyle}">
+                            <Setter Property="Cursor" Value="SizeAll" />
+                        </Style>
+                    </DataGridTemplateColumn.CellStyle>
+                    <DataGridTemplateColumn.CellTemplate>
+                        <DataTemplate>
+                            <!-- Only goals reorder, so only goal rows advertise a drag handle. -->
+                            <Border Tag="DragHandle"
+                                    Background="Transparent"
+                                    HorizontalAlignment="Stretch"
+                                    VerticalAlignment="Stretch"
+                                    Cursor="SizeAll">
+                                <TextBlock Tag="DragHandle"
+                                           Text="☰"
+                                           HorizontalAlignment="Center"
+                                           VerticalAlignment="Center"
+                                           Foreground="{DynamicResource PlayAch.Brush.Text}"
+                                           Opacity="0.65">
+                                    <TextBlock.Style>
+                                        <Style TargetType="TextBlock">
+                                            <Setter Property="Visibility" Value="Collapsed" />
+                                            <Style.Triggers>
+                                                <DataTrigger Binding="{Binding IsGoal}" Value="True">
+                                                    <Setter Property="Visibility" Value="Visible" />
+                                                </DataTrigger>
+                                            </Style.Triggers>
+                                        </Style>
+                                    </TextBlock.Style>
+                                </TextBlock>
+                            </Border>
+                        </DataTemplate>
+                    </DataGridTemplateColumn.CellTemplate>
+                </DataGridTemplateColumn>
+
+                <DataGridTemplateColumn Width="36" MinWidth="36" MaxWidth="36" CanUserResize="False"
+                                        CellStyle="{StaticResource ManageAchievementsIconCellStyle}"
+                                        CellTemplate="{StaticResource AchievementStatusTemplate}" />
+
+                <DataGridTemplateColumn Width="72" MinWidth="44" MaxWidth="160" CanUserResize="True"
+                                        CellStyle="{StaticResource ManageAchievementsIconCellStyle}"
+                                        CellTemplate="{StaticResource AchievementIconTemplate}" />
+
+                <DataGridTemplateColumn Width="*" Header="{DynamicResource LOCPlayAch_Column_Achievement}"
+                                        CellTemplate="{StaticResource ManageAchievementInfoTemplate}" />
+
+                <DataGridTemplateColumn Width="Auto" CanUserResize="False" CanUserSort="False">
+                    <DataGridTemplateColumn.CellTemplate>
+                        <DataTemplate>
+                            <!-- Content comes from a Setter, never a local value, so the trigger
+                                 can win. Every listed row is settable: unlocked achievements are
+                                 filtered out of this tab entirely. -->
+                            <Button Click="ToggleGoalButton_Click">
+                                <Button.Style>
+                                    <Style TargetType="Button" BasedOn="{StaticResource ManageAchievementsHeaderActionButtonStyle}">
+                                        <Setter Property="Content" Value="{DynamicResource LOCPlayAch_Menu_SetGoal}" />
+                                        <Setter Property="VerticalAlignment" Value="Center" />
+                                        <Setter Property="Margin" Value="8,0" />
+                                        <Style.Triggers>
+                                            <DataTrigger Binding="{Binding IsGoal}" Value="True">
+                                                <Setter Property="Content" Value="{DynamicResource LOCPlayAch_Button_Remove}" />
+                                            </DataTrigger>
+                                        </Style.Triggers>
+                                    </Style>
+                                </Button.Style>
+                            </Button>
+                        </DataTemplate>
+                    </DataGridTemplateColumn.CellTemplate>
+                </DataGridTemplateColumn>
+            </DataGrid.Columns>
+        </DataGrid>
+
+        <Border x:Name="DropInsertLine"
+                Grid.Row="2"
+                Height="2"
+                VerticalAlignment="Top"
+                HorizontalAlignment="Stretch"
+                Background="{DynamicResource PlayAch.Brush.Accent}"
+                Visibility="Collapsed"
+                Margin="0,0,0,0"
+                IsHitTestVisible="False"
+                Panel.ZIndex="10" />
+
+        <Popup x:Name="DragCountPopup"
+               Placement="AbsolutePoint"
+               AllowsTransparency="True"
+               StaysOpen="True"
+               IsHitTestVisible="False">
+            <Border Background="{StaticResource PlayAch.Brush.DialogBackdrop}"
+                    BorderBrush="{DynamicResource PlayAch.Brush.Accent}"
+                    BorderThickness="{StaticResource PlayAch.Thickness.Border}"
+                    CornerRadius="10"
+                    Padding="8,3">
+                <TextBlock x:Name="DragCountText"
+                           Foreground="White"
+                           FontWeight="SemiBold"
+                           FontSize="{DynamicResource PlayAch.FontSize.Caption}" />
+            </Border>
+        </Popup>
+    </Grid>
+</UserControl>

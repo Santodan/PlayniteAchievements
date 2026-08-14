@@ -50,7 +50,7 @@ namespace PlayniteAchievements.Services.Images
         /// travelling. Filtering evenly spaced samples instead makes the rounding depend on distance
         /// along the loop rather than on where the hull happened to put its vertices.
         /// </summary>
-        private const int SmoothingPasses = 40;
+        private const int SmoothingPasses = 56;
 
         // Analysis runs at a small decode, so anything this large means an unexpected native-resolution
         // decode. Scanning it would cost more than the effect is worth.

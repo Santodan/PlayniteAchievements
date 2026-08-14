@@ -44,7 +44,7 @@ namespace PlayniteAchievements.Tests.Services
         }
 
         [TestMethod]
-        public void DiffUserUnlocks_ReturnsAchievement_WhenUnlockTimeMovesForward()
+        public void DiffUserUnlocks_ReturnsEmpty_WhenUnlockTimeMovesForward()
         {
             var differ = new AchievementUnlockDiffer();
             var before = Data(Achievement("first", "First", true, new DateTime(2026, 7, 4, 12, 0, 0, DateTimeKind.Utc)));
@@ -52,8 +52,10 @@ namespace PlayniteAchievements.Tests.Services
 
             var result = differ.DiffUserUnlocks(before, after);
 
-            Assert.AreEqual(1, result.Count);
-            Assert.AreEqual("first", result[0].ApiName);
+            Assert.AreEqual(
+                0,
+                result.Count,
+                "An achievement already unlocked in the baseline is not new just because a later source reported a different unlock time.");
         }
 
         [TestMethod]

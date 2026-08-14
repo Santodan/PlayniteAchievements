@@ -7,12 +7,13 @@ namespace PlayniteAchievements.Services.Recording
     /// Filename conventions for the rolling capture buffer, shared by the writers
     /// (<see cref="WgcVideoRecorder"/>, <see cref="AudioLoopbackRecorder"/>) and the readers
     /// (<see cref="SegmentTimeline"/>, the clip exporter). Both video and audio chunks are named
-    /// by local wall-clock time (yyyyMMdd-HHmmss) so the timeline can order and window them.
+    /// by UTC timeline time so the timeline can order and window them without local-time or DST
+    /// ambiguity. The parser still accepts the older local-wall-clock names.
     /// </summary>
     internal static class RecordingPaths
     {
         /// <summary>
-        /// Video segment filenames: seg_yyyyMMdd-HHmmss_WxH.mp4 (H.264 written by WGC + Media
+        /// Video segment filenames: seg_yyyyMMdd-HHmmssfffZ_WxH.mp4 (H.264 written by WGC + Media
         /// Foundation). The encoded dimensions are part of the name so the timeline can group
         /// segments by size without opening any of them: a clip is stream-copied against one
         /// declared media type, so all of its segments must share dimensions.
@@ -34,31 +35,48 @@ namespace PlayniteAchievements.Services.Recording
         /// </summary>
         public const string StampFormat = "yyyyMMdd-HHmmssfff";
 
+        /// <summary>UTC form written by current recorders; the Z also distinguishes it from legacy local stamps.</summary>
+        public const string UtcStampFormat = "yyyyMMdd-HHmmssfff'Z'";
+
+        public const int UtcStampLength = 19;
+
         /// <summary>Length of <see cref="StampFormat"/>, and of the second-resolution stamp before it.</summary>
         public const int StampLength = 18;
 
         /// <summary>Legacy second-resolution stamp length, still parsed for buffers written earlier.</summary>
         public const int LegacyStampLength = 15;
 
-        /// <summary>The segment file name for a capture of the given size started at a local time.</summary>
-        public static string BuildSegmentFileName(DateTime localStart, int width, int height)
+        /// <summary>The segment file name for a capture of the given size started at a UTC timeline time.</summary>
+        public static string BuildSegmentFileName(DateTime utcStart, int width, int height)
         {
             return SegmentFilePrefix +
-                localStart.ToString(StampFormat, CultureInfo.InvariantCulture) +
+                AsUtc(utcStart).ToString(UtcStampFormat, CultureInfo.InvariantCulture) +
                 DimensionSeparator +
                 width.ToString(CultureInfo.InvariantCulture) + "x" + height.ToString(CultureInfo.InvariantCulture) +
                 SegmentFileExtension;
         }
 
-        /// <summary>The audio chunk file name for <paramref name="prefix"/> started at a local time.</summary>
-        public static string BuildAudioChunkFileName(string prefix, DateTime localStart)
+        /// <summary>The audio chunk file name for <paramref name="prefix"/> started at a UTC timeline time.</summary>
+        public static string BuildAudioChunkFileName(string prefix, DateTime utcStart)
         {
             return prefix +
-                localStart.ToString(StampFormat, CultureInfo.InvariantCulture) +
+                AsUtc(utcStart).ToString(UtcStampFormat, CultureInfo.InvariantCulture) +
                 AudioChunkFileExtension;
         }
 
-        /// <summary>Audio chunk filenames: aud_yyyyMMdd-HHmmss.wav (WASAPI loopback PCM).</summary>
+        private static DateTime AsUtc(DateTime value)
+        {
+            if (value.Kind == DateTimeKind.Utc)
+            {
+                return value;
+            }
+
+            return value.Kind == DateTimeKind.Local
+                ? value.ToUniversalTime()
+                : DateTime.SpecifyKind(value, DateTimeKind.Utc);
+        }
+
+        /// <summary>Audio chunk filenames: aud_yyyyMMdd-HHmmssfffZ.wav (WASAPI loopback PCM).</summary>
         public const string AudioChunkFilePrefix = "aud_";
 
         /// <summary>

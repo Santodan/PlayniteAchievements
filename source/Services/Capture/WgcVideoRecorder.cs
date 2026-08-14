@@ -8,7 +8,6 @@ using Playnite.SDK;
 using PlayniteAchievements.Common;
 using PlayniteAchievements.Models.Settings;
 using PlayniteAchievements.Services.Recording;
-using SharpDX.MediaFoundation;
 using Windows.Foundation;
 using Windows.Graphics.Capture;
 using Windows.Graphics.DirectX;
@@ -79,7 +78,9 @@ namespace PlayniteAchievements.Services.Capture
         private Thread _pumpThread;
         private volatile bool _running;
         private bool _disposed;
-        private bool _mediaFoundationStarted;
+        private IDisposable _mediaFoundationLease;
+        private int _cleanupStarted;
+        private int _resourcesReleased;
 
         // Segments are written out off the pump thread; see FinalizeSegment.
         private readonly object _finalizeGate = new object();
@@ -140,12 +141,10 @@ namespace PlayniteAchievements.Services.Capture
         {
             try
             {
-                // One Startup for the whole session, around every segment encoder this recorder builds.
-                // Per-encoder Startup/Shutdown let a segment being written out in the background drop the
-                // refcount to zero while the next segment was starting, and the new writer then never
-                // drained — capture stopped dead on its first frame.
-                MediaManager.Startup();
-                _mediaFoundationStarted = true;
+                // One process-wide lease for the whole session, around every segment encoder this
+                // recorder builds. Exporters share the same lease count and therefore cannot shut
+                // Media Foundation down while this recorder is still active.
+                _mediaFoundationLease = MediaFoundationRuntime.Acquire();
 
                 _device = new D3D11.Device(SharpDX.Direct3D.DriverType.Hardware,
                     D3D11.DeviceCreationFlags.BgraSupport | D3D11.DeviceCreationFlags.VideoSupport);
@@ -223,6 +222,14 @@ namespace PlayniteAchievements.Services.Capture
 
             TearDownCapture();
             FinalizeSegment();
+
+            // A retarget must not seed the new game's segment with the previous game's held frame.
+            // WGC may need a few ticks to deliver its first frame; until then the new session stays
+            // empty instead of recording unrelated footage under the new timeline.
+            _latest?.Dispose();
+            _latest = null;
+            _scaled?.Dispose();
+            _scaled = null;
 
             _hdr = HdrDisplayDetector.IsHdrActive(hwnd);
             _refWhite = _hdr ? HdrDisplayDetector.GetSdrWhiteScRgb(hwnd) : 1.0f;
@@ -311,7 +318,7 @@ namespace PlayniteAchievements.Services.Capture
             // 1.0/60 became 17 ms and pinned the pump to 58.8 fps — 2% under the rate the segments
             // then declared, which is most of the wall-clock-versus-media gap this loop used to open.
             var frameInterval = TimeSpan.FromTicks(TimeSpan.TicksPerSecond / _fps);
-            var next = DateTime.UtcNow;
+            var next = CaptureTimelineClock.UtcNow;
             var lastResolveUtc = DateTime.MinValue;
             var lastRebuildUtc = DateTime.MinValue;
             var pacer = new FramePacer();
@@ -335,9 +342,9 @@ namespace PlayniteAchievements.Services.Capture
                     // appears. Idle while the game window isn't known yet rather than capturing a
                     // foreground window that isn't the game.
                     var activeDead = _activeHwnd != IntPtr.Zero && !IsWindow(_activeHwnd);
-                    if (activeDead || (DateTime.UtcNow - lastResolveUtc).TotalSeconds >= 1)
+                    if (activeDead || (CaptureTimelineClock.UtcNow - lastResolveUtc).TotalSeconds >= 1)
                     {
-                        lastResolveUtc = DateTime.UtcNow;
+                        lastResolveUtc = CaptureTimelineClock.UtcNow;
                         var hwnd = _resolveHwnd?.Invoke() ?? IntPtr.Zero;
                         if (hwnd != IntPtr.Zero && hwnd != _activeHwnd)
                         {
@@ -355,9 +362,9 @@ namespace PlayniteAchievements.Services.Capture
                         // new segment at the new dimensions instead of encoding a stale crop. Held
                         // to once a second: a window being dragged-resized reports a new size every
                         // frame, and each rebuild costs a segment boundary.
-                        if (_geometryStale && (DateTime.UtcNow - lastRebuildUtc).TotalSeconds >= 1)
+                        if (_geometryStale && (CaptureTimelineClock.UtcNow - lastRebuildUtc).TotalSeconds >= 1)
                         {
-                            lastRebuildUtc = DateTime.UtcNow;
+                            lastRebuildUtc = CaptureTimelineClock.UtcNow;
                             _geometryStale = false;
                             _latest?.Dispose();
                             _latest = null;
@@ -370,7 +377,7 @@ namespace PlayniteAchievements.Services.Capture
                         // Create the first segment once we have a frame (its size), and roll over on
                         // schedule. The encoder can't be built before the first frame, so this — not
                         // a one-time call before the loop — is what starts encoding.
-                        if (_encoder == null || (DateTime.UtcNow - _segmentStartUtc).TotalSeconds >= _segmentSeconds)
+                        if (_encoder == null || (CaptureTimelineClock.UtcNow - _segmentStartUtc).TotalSeconds >= _segmentSeconds)
                         {
                             RotateSegment();
                         }
@@ -389,7 +396,7 @@ namespace PlayniteAchievements.Services.Capture
                                 // Segments record the clean game frame only; the unlock toast is
                                 // composited into each achievement's clip at export from its
                                 // recorded overlay track.
-                                var due = (long)((DateTime.UtcNow - _segmentStartUtc).TotalSeconds * _fps) + 1;
+                                var due = (long)((CaptureTimelineClock.UtcNow - _segmentStartUtc).TotalSeconds * _fps) + 1;
                                 var missing = due - _segmentFrameIndex;
 
                                 // A segment can never hold more than its own length; anything beyond that
@@ -425,7 +432,7 @@ namespace PlayniteAchievements.Services.Capture
                     }
 
                     next += frameInterval;
-                    var now = DateTime.UtcNow;
+                    var now = CaptureTimelineClock.UtcNow;
                     var sleep = next - now;
                     if (sleep > TimeSpan.Zero)
                     {
@@ -451,9 +458,10 @@ namespace PlayniteAchievements.Services.Capture
             }
             finally
             {
+                _running = false;
                 pacer.Dispose();
                 // A writer prepared for a segment that will never open still owns a file.
-                DiscardPrepared(TakePreparedSegment());
+                DiscardPrepared(TakePreparedSegment(waitForCompletion: true));
                 FinalizeSegment();
                 TearDownCapture();
             }
@@ -606,7 +614,7 @@ namespace PlayniteAchievements.Services.Capture
             // re-encode flattens the timeline again and the gap returns as drift. Continuing the grid
             // makes the pump's catch-up fill the gap with the held frame instead. A gap far larger than
             // rotation cost is a genuine stall, where resyncing beats emitting seconds of duplicates.
-            var now = DateTime.UtcNow;
+            var now = CaptureTimelineClock.UtcNow;
             if (_segmentCount > 0)
             {
                 var previousGridEnd = _segmentStartUtc.AddTicks(PtsForFrame(_segmentFrameIndex));
@@ -639,7 +647,7 @@ namespace PlayniteAchievements.Services.Capture
                 // The dimensions ride in the name so the clip planner can group segments by size
                 // without opening them — a capture rebuilt at a new size starts a run the planner
                 // will not concatenate with the old one.
-                var name = RecordingPaths.BuildSegmentFileName(_segmentStartUtc.ToLocalTime(), _encW, _encH);
+                var name = RecordingPaths.BuildSegmentFileName(_segmentStartUtc, _encW, _encH);
                 path = EnsureUniqueSegment(Path.Combine(_bufferDirectory, name));
                 _encoder = new MediaFoundationH264Encoder(
                     _device, path, _encW, _encH, _fps, ComputeBitrate(_encW, _encH));
@@ -680,14 +688,14 @@ namespace PlayniteAchievements.Services.Capture
             }
 
             var boundary = _segmentStartUtc.AddTicks(PtsForFrame((long)_segmentSeconds * _fps));
-            if (DateTime.UtcNow < boundary - PrepareLead)
+            if (CaptureTimelineClock.UtcNow < boundary - PrepareLead)
             {
                 return;
             }
 
             var width = _encW;
             var height = _encH;
-            var name = RecordingPaths.BuildSegmentFileName(boundary.ToLocalTime(), width, height);
+            var name = RecordingPaths.BuildSegmentFileName(boundary, width, height);
             var path = EnsureUniqueSegment(Path.Combine(_bufferDirectory, name));
             _prepareTask = Task.Run(() =>
             {
@@ -715,15 +723,32 @@ namespace PlayniteAchievements.Services.Capture
             });
         }
 
-        /// <summary>Hands over the prepared segment, waiting briefly if it is still being built.</summary>
-        private PreparedSegment TakePreparedSegment()
+        /// <summary>
+        /// Hands over the prepared segment. A normal rotation waits briefly; shutdown waits for the
+        /// task outright because its encoder and output file must not outlive the capture device.
+        /// </summary>
+        private PreparedSegment TakePreparedSegment(bool waitForCompletion = false)
         {
             var task = _prepareTask;
             if (task != null && !task.IsCompleted)
             {
-                // Should not happen: preparation starts PrepareLead before the boundary and takes about
-                // a tenth of that. If it does, waiting still beats building a second one.
-                try { task.Wait(TimeSpan.FromSeconds(2)); } catch { }
+                try
+                {
+                    if (waitForCompletion)
+                    {
+                        task.Wait();
+                    }
+                    else if (!task.Wait(TimeSpan.FromSeconds(2)))
+                    {
+                        // Keep the task reachable. Dropping it here allowed Dispose to release the
+                        // D3D device while the background writer was still being constructed.
+                        return null;
+                    }
+                }
+                catch
+                {
+                    // A failed task has completed and owns no prepared writer.
+                }
             }
 
             _prepareTask = null;
@@ -809,23 +834,74 @@ namespace PlayniteAchievements.Services.Capture
             }
         }
 
-        /// <summary>Blocks until every handed-off segment has been written out.</summary>
-        private void WaitForFinalizers()
+        private Task GetFinalizerChain()
         {
-            Task chain;
             lock (_finalizeGate)
             {
-                chain = _finalizeChain;
+                return _finalizeChain;
+            }
+        }
+
+        private void CompleteCleanup()
+        {
+            if (Interlocked.Exchange(ref _cleanupStarted, 1) != 0)
+            {
+                return;
             }
 
+            // PumpLoop normally handed this off before exiting. Keep the call idempotent for a Start
+            // failure that never created a pump thread.
+            FinalizeSegment();
+            var chain = GetFinalizerChain();
+            var completed = chain.IsCompleted;
             try
             {
-                chain.Wait(TimeSpan.FromSeconds(10));
+                completed = completed || chain.Wait(TimeSpan.FromSeconds(10));
             }
             catch (Exception ex)
             {
                 _logger?.Debug(ex, "[Recording] Waiting for capture segments to finish writing failed.");
+                completed = chain.IsCompleted;
             }
+
+            if (completed)
+            {
+                ReleaseNativeResources();
+                return;
+            }
+
+            // A slow/hung native finalizer must keep the D3D device and MF runtime alive. Releasing
+            // them after an arbitrary timeout was a native use-after-release path.
+            _logger?.Warn("[Recording] Capture finalization exceeded 10s; native resources remain owned until it completes.");
+            chain.ContinueWith(
+                _ => ReleaseNativeResources(),
+                CancellationToken.None,
+                TaskContinuationOptions.ExecuteSynchronously,
+                TaskScheduler.Default);
+        }
+
+        private void ReleaseNativeResources()
+        {
+            if (Interlocked.Exchange(ref _resourcesReleased, 1) != 0)
+            {
+                return;
+            }
+
+            _latest?.Dispose();
+            _latest = null;
+            _scaled?.Dispose();
+            _scaled = null;
+            _frameScaler?.Dispose();
+            _frameScaler = null;
+            _toneMapper?.Dispose();
+            _toneMapper = null;
+            TearDownCapture();
+            _device?.ImmediateContext?.Dispose();
+            _device?.Dispose();
+            _device = null;
+            _winrtDevice = null;
+            _mediaFoundationLease?.Dispose();
+            _mediaFoundationLease = null;
         }
 
         private static string EnsureUniqueSegment(string path)
@@ -870,16 +946,24 @@ namespace PlayniteAchievements.Services.Capture
         public void Stop()
         {
             _running = false;
+            var pump = _pumpThread;
             try
             {
-                _pumpThread?.Join(TimeSpan.FromSeconds(3));
+                pump?.Join(TimeSpan.FromSeconds(3));
             }
             catch
             {
                 // ignore
             }
 
-            _pumpThread = null;
+            if (pump != null && pump.IsAlive)
+            {
+                _logger?.Warn("[Recording] WGC-MF pump did not stop within 3s; its native resources remain owned.");
+            }
+            else if (ReferenceEquals(_pumpThread, pump))
+            {
+                _pumpThread = null;
+            }
         }
 
         public void Dispose()
@@ -891,31 +975,21 @@ namespace PlayniteAchievements.Services.Capture
 
             _disposed = true;
             Stop();
-            FinalizeSegment();
-            // The device the encoders write from is torn down below, so nothing may still be draining.
-            WaitForFinalizers();
-            _latest?.Dispose();
-            _scaled?.Dispose();
-            _frameScaler?.Dispose();
-            _toneMapper?.Dispose();
-            _session?.Dispose();
-            _framePool?.Dispose();
-            _device?.ImmediateContext?.Dispose();
-            _device?.Dispose();
-            _winrtDevice = null;
-
-            if (_mediaFoundationStarted)
+            var pump = _pumpThread;
+            if (pump != null && pump.IsAlive)
             {
-                _mediaFoundationStarted = false;
-                try
+                // Dispose remains bounded even if a driver call is wedged, but cleanup is ordered
+                // strictly after the pump actually exits. All retained workers are background work,
+                // so a permanently wedged driver still cannot keep Playnite from terminating.
+                Task.Run(() =>
                 {
-                    MediaManager.Shutdown();
-                }
-                catch
-                {
-                    // Refcounted per process; ignore an unbalanced shutdown at teardown.
-                }
+                    try { pump.Join(); } catch { }
+                    CompleteCleanup();
+                });
+                return;
             }
+
+            CompleteCleanup();
         }
     }
 }
