@@ -252,9 +252,12 @@ namespace PlayniteAchievements.Services.Refresh
             {
                 if (context.DiscoverUnowned && context.Preparation.CanRefreshAchievements)
                 {
+                    // Computed once and reused by the probe phase below so both see the same
+                    // snapshot scoping and the definitions sub-band total stays exact.
+                    context.UnownedDefinitionSnapshots = BuildUnownedDefinitionSnapshots(context, options);
                     context.DefinitionPlan = ComputeUnownedDefinitionPlan(
                         context.ProviderKey,
-                        context.OwnershipSnapshots,
+                        context.UnownedDefinitionSnapshots,
                         options);
                     definitionChecksTotal += context.DefinitionPlan.TotalDefinitionChecks;
                 }
@@ -271,7 +274,7 @@ namespace PlayniteAchievements.Services.Refresh
                     await RefreshUnownedDefinitionsAndOwnershipAsync(
                         context.Provider,
                         context.ProviderKey,
-                        context.OwnershipSnapshots,
+                        context.UnownedDefinitionSnapshots,
                         context.ProbedProviderOnlyAchievementKeys,
                         context.DefinitionPlan,
                         payload,
@@ -286,11 +289,11 @@ namespace PlayniteAchievements.Services.Refresh
 
             // Mapped-game scrape work for the discovery scopes (Full/Shared/Installed) is built from the
             // fresh ownership snapshot (game-centric, live hints); provider-only games were already
-            // scraped by the definition/probe phase above. Recent draws from the whole cached friend
-            // library filtered by the ownership-derived recency gate, and SelectedGame targets a specific
-            // library game across friends — both source from the cache-backed candidate loader. The
-            // scrape total is only knowable now, so its sub-band is initialized here, still ahead of its
-            // first completion.
+            // scraped by the definition/probe phase above (for Recent too, when opted into provider-only
+            // discovery). Recent draws from the whole cached friend library filtered by the
+            // ownership-derived recency gate, and SelectedGame targets a specific library game across
+            // friends — both source from the cache-backed candidate loader. The scrape total is only
+            // knowable now, so its sub-band is initialized here, still ahead of its first completion.
             var loadCandidatesTimer = Stopwatch.StartNew();
             var achievementWorkItems = new List<FriendAchievementWorkItem>();
             foreach (var context in activeContexts)
@@ -1552,6 +1555,52 @@ namespace PlayniteAchievements.Services.Refresh
         // Computes the unowned-definition plan without performing any fetch (the only cache access is the
         // read-only LoadFriendGameDefinitionStates). Run up front so the definitions progress sub-band
         // knows its full total before it emits a completion.
+        // Scopes the ownership snapshots the unowned definition/probe phase sees. Full (and any
+        // scope that discovers provider-only games inherently) keeps the full snapshots. Recent,
+        // which reaches this phase only via the DiscoverProviderOnlyGames opt-in, narrows to
+        // provider-only items the fresh ownership fetch did not positively confirm unchanged
+        // (RecencyFreshKeys): mapped games keep their existing cache-loader path, and recency-fresh
+        // provider-only games cost nothing. Provider-only items with no recency baseline (never
+        // probed, or probed empty and left traceless by design) count as stale, so on hint-less
+        // providers zero-unlock unknown-hint games are re-probed every Recent run — accepted; it
+        // matches what a Full run does each time.
+        private List<FriendOwnershipSnapshot> BuildUnownedDefinitionSnapshots(
+            FriendProviderRefreshContext context,
+            FriendRefreshOptions options)
+        {
+            if (options?.Scope != FriendRefreshScope.Recent)
+            {
+                return context.OwnershipSnapshots;
+            }
+
+            var scoped = new List<FriendOwnershipSnapshot>();
+            foreach (var snapshot in context.OwnershipSnapshots ?? Enumerable.Empty<FriendOwnershipSnapshot>())
+            {
+                if (snapshot?.Friend == null || snapshot.Ownership == null)
+                {
+                    continue;
+                }
+
+                var staleProviderOnly = snapshot.Ownership
+                    .Where(item => item != null &&
+                                   !IsPlayniteLibraryFriendGame(context.ProviderKey, item) &&
+                                   !context.RecencyFreshKeys.Contains(BuildRecencyGameKey(
+                                       snapshot.Friend.ExternalUserId,
+                                       GetProviderGameCacheKey(item))))
+                    .ToList();
+                if (staleProviderOnly.Count > 0)
+                {
+                    scoped.Add(new FriendOwnershipSnapshot
+                    {
+                        Friend = snapshot.Friend,
+                        Ownership = staleProviderOnly
+                    });
+                }
+            }
+
+            return scoped;
+        }
+
         private UnownedDefinitionPlan ComputeUnownedDefinitionPlan(
             string providerKey,
             IReadOnlyList<FriendOwnershipSnapshot> ownershipSnapshots,
@@ -3082,9 +3131,11 @@ namespace PlayniteAchievements.Services.Refresh
             FriendRefreshOptions options)
         {
             // This cache-sourced loader now serves only the scopes that do not build candidates from the
-            // fresh ownership snapshot (Recent, SelectedGame, Custom). Recent and SelectedGame resolve to
-            // library-mapped games; Custom provider-only targets are explicit and, when discovered this
-            // run, are de-duplicated against the probe via ProbedProviderOnlyAchievementKeys upstream.
+            // fresh ownership snapshot (Recent, SelectedGame, Custom). SelectedGame resolves to
+            // library-mapped games, as does Recent unless opted into provider-only discovery (where
+            // provider-only rows surface as repair candidates for interrupted probes); Custom
+            // provider-only targets are explicit. All provider-only candidates discovered this run are
+            // de-duplicated against the probe via ProbedProviderOnlyAchievementKeys upstream.
             return (candidates ?? new List<FriendRefreshCandidate>())
                 .Where(candidate => ShouldRefreshFriendGameAchievements(providerKey, candidate, options))
                 .ToList();
@@ -3163,8 +3214,8 @@ namespace PlayniteAchievements.Services.Refresh
             }
 
             // Hint unknown (provider did not supply an earned count): in a scope that discovers
-            // provider-only games (Full) scrape it anyway rather than silently dropping the game.
-            // The post-scrape zero-unlock guard prunes it if it turns out empty.
+            // provider-only games (Full, or Recent opted in) scrape it anyway rather than silently
+            // dropping the game. The post-scrape zero-unlock guard prunes it if it turns out empty.
             return options?.DiscoversProviderOnlyGames() == true;
         }
 
@@ -3519,6 +3570,12 @@ namespace PlayniteAchievements.Services.Refresh
             // definition fetch, plus the provider-only probe count), computed up front so the friend
             // definitions progress sub-band knows its full total before it emits any completion.
             public UnownedDefinitionPlan DefinitionPlan { get; set; }
+
+            // The ownership snapshots the unowned definition/probe phase operates on. Full uses
+            // OwnershipSnapshots verbatim; Recent (opted into provider-only discovery) uses copies
+            // narrowed to recency-stale provider-only items. Computed once so the plan pre-pass and
+            // the probe phase agree on the definitions progress total.
+            public List<FriendOwnershipSnapshot> UnownedDefinitionSnapshots { get; set; }
 
             // Recent-scope only: keys for friend games the freshly-fetched ownership positively confirms
             // unchanged since the last successful scrape (Steam: playtime equal; RA/Exophase: no newer
