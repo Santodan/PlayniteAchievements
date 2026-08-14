@@ -17,7 +17,6 @@ namespace PlayniteAchievements.Tests.Services
 
             schedule.Configure(
                 Start,
-                Start.AddSeconds(20),
                 hasProgressSource: true,
                 isRemote: false,
                 equivalent: false);
@@ -116,7 +115,6 @@ namespace PlayniteAchievements.Tests.Services
 
             schedule.Configure(
                 Start.AddSeconds(4),
-                Start.AddSeconds(20),
                 hasProgressSource: true,
                 isRemote: false,
                 equivalent: true);
@@ -127,12 +125,11 @@ namespace PlayniteAchievements.Tests.Services
         }
 
         [TestMethod]
-        public void RemoteSource_PrimesSilently_WhileFallbackKeepsStartupGrace()
+        public void RemoteSource_PrimesSilently_AndNoFastSourceParksTheSchedule()
         {
             var remote = new InGameReadSchedule();
             remote.Configure(
                 Start,
-                Start.AddSeconds(20),
                 hasProgressSource: true,
                 isRemote: true,
                 equivalent: false);
@@ -145,26 +142,58 @@ namespace PlayniteAchievements.Tests.Services
             remote.Succeeded(Start.AddSeconds(1), TimeSpan.FromSeconds(15));
             Assert.IsTrue(remote.ShouldEmitUnlocks());
 
-            var fallback = new InGameReadSchedule();
-            fallback.Configure(
+            var noFastSource = new InGameReadSchedule();
+            noFastSource.Configure(
                 Start,
-                Start.AddSeconds(20),
                 hasProgressSource: false,
                 isRemote: false,
                 equivalent: false);
 
-            Assert.AreEqual(Start.AddSeconds(20), fallback.NextDueUtc);
-            fallback.MarkFallbackSuccess(Start.AddSeconds(21), TimeSpan.FromSeconds(15));
-            fallback.Configure(
-                Start.AddSeconds(22),
-                Start.AddSeconds(20),
-                hasProgressSource: false,
-                isRemote: false,
-                equivalent: true);
             Assert.AreEqual(
-                Start.AddSeconds(36),
-                fallback.NextDueUtc,
-                "Equivalent reconfiguration must not reset an existing fallback deadline.");
+                DateTime.MaxValue,
+                noFastSource.NextDueUtc,
+                "With no fast source this schedule drives nothing; the universal refresh prong " +
+                "keeps its own deadline outside this type.");
+            Assert.IsFalse(noFastSource.Dirty);
+        }
+
+        [TestMethod]
+        public void MarkPrimed_EstablishesBaseline_WithoutDisturbingTheFastProng()
+        {
+            var schedule = new InGameReadSchedule();
+            schedule.Configure(
+                Start,
+                hasProgressSource: true,
+                isRemote: false,
+                equivalent: false);
+            schedule.SignalFile(Start.AddSeconds(1), watcherError: false, TimeSpan.FromMilliseconds(500));
+            var pendingDueUtc = schedule.NextDueUtc;
+            Assert.IsFalse(schedule.ShouldEmitUnlocks());
+
+            schedule.MarkPrimed();
+
+            Assert.IsTrue(
+                schedule.ShouldEmitUnlocks(),
+                "The refresh prong reading first must establish the shared session baseline.");
+            Assert.IsTrue(
+                schedule.Dirty,
+                "A pending file event must survive the refresh prong priming.");
+            Assert.AreEqual(
+                pendingDueUtc,
+                schedule.NextDueUtc,
+                "The refresh prong must not move the fast prong's deadline.");
+
+            var degraded = new InGameReadSchedule();
+            degraded.Configure(
+                Start,
+                hasProgressSource: true,
+                isRemote: false,
+                equivalent: false);
+            degraded.SignalFile(Start, watcherError: true, TimeSpan.FromMilliseconds(500));
+            degraded.MarkPrimed();
+            Assert.IsTrue(
+                degraded.Degraded,
+                "A refresh prong success says nothing about the fast source's health.");
         }
 
         private static InGameReadSchedule PrimedLocalSchedule()
@@ -172,7 +201,6 @@ namespace PlayniteAchievements.Tests.Services
             var schedule = new InGameReadSchedule();
             schedule.Configure(
                 Start,
-                Start.AddSeconds(20),
                 hasProgressSource: true,
                 isRemote: false,
                 equivalent: false);
