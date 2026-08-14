@@ -259,17 +259,20 @@ namespace PlayniteAchievements.Services.Achievements
                 ? ListSortDirection.Ascending
                 : ListSortDirection.Descending;
 
+            // Goals lead every dynamic view the same way they lead the desktop grids, including
+            // the default view, whose source order is otherwise passed straight through.
             var source = GetDefaultSelectedGameAchievements(state);
             switch (sortKey)
             {
                 case DynamicThemeViewKeys.Default:
                 case null:
-                    return source;
+                    return CreateGoalsFirstDetailList(source);
                 default:
-                    return CreateSortedDetailList(
-                        source,
-                        GetDynamicAchievementSortMemberPath(sortKey),
-                        direction);
+                    return CreateGoalsFirstDetailList(
+                        CreateSortedDetailList(
+                            source,
+                            GetDynamicAchievementSortMemberPath(sortKey),
+                            direction));
             }
         }
 
@@ -295,11 +298,12 @@ namespace PlayniteAchievements.Services.Achievements
             var effectiveSortKey = string.IsNullOrWhiteSpace(sortKey)
                 ? DynamicThemeViewKeys.UnlockTime
                 : sortKey;
-            return CreateSortedDetailList(
-                source,
-                GetDynamicAchievementSortMemberPath(effectiveSortKey),
-                direction,
-                includeGameNameTieBreak: true);
+            return CreateGoalsFirstDetailList(
+                CreateSortedDetailList(
+                    source,
+                    GetDynamicAchievementSortMemberPath(effectiveSortKey),
+                    direction,
+                    includeGameNameTieBreak: true));
         }
 
         public static bool IsSelectedGameAchievementsPropertyName(string propertyName)

@@ -392,27 +392,34 @@ namespace PlayniteAchievements.Services.ThemeIntegration
                     }
                 }
 
-                state.AllAchievements = allAchievements.ToList();
-                state.AllAchievementsUnlockAsc = AchievementSortHelper.CreateSortedDetailList(
-                    allAchievements,
-                    nameof(AchievementDisplayItem.UnlockTime),
-                    ListSortDirection.Ascending,
-                    includeGameNameTieBreak: true);
-                state.AllAchievementsUnlockDesc = AchievementSortHelper.CreateSortedDetailList(
-                    allAchievements,
-                    nameof(AchievementDisplayItem.UnlockTime),
-                    ListSortDirection.Descending,
-                    includeGameNameTieBreak: true);
-                state.AllAchievementsRarityAsc = AchievementSortHelper.CreateSortedDetailList(
-                    allAchievements,
-                    nameof(AchievementDisplayItem.RaritySortValue),
-                    ListSortDirection.Ascending,
-                    includeGameNameTieBreak: true);
-                state.AllAchievementsRarityDesc = AchievementSortHelper.CreateSortedDetailList(
-                    allAchievements,
-                    nameof(AchievementDisplayItem.RaritySortValue),
-                    ListSortDirection.Descending,
-                    includeGameNameTieBreak: true);
+                // Goals lead these the same way they lead the desktop grids. The recent-unlock
+                // lists below need no such treatment: they are unlocked-only, and a goal clears
+                // the moment its achievement unlocks.
+                state.AllAchievements = AchievementSortHelper.CreateGoalsFirstDetailList(allAchievements);
+                state.AllAchievementsUnlockAsc = AchievementSortHelper.CreateGoalsFirstDetailList(
+                    AchievementSortHelper.CreateSortedDetailList(
+                        allAchievements,
+                        nameof(AchievementDisplayItem.UnlockTime),
+                        ListSortDirection.Ascending,
+                        includeGameNameTieBreak: true));
+                state.AllAchievementsUnlockDesc = AchievementSortHelper.CreateGoalsFirstDetailList(
+                    AchievementSortHelper.CreateSortedDetailList(
+                        allAchievements,
+                        nameof(AchievementDisplayItem.UnlockTime),
+                        ListSortDirection.Descending,
+                        includeGameNameTieBreak: true));
+                state.AllAchievementsRarityAsc = AchievementSortHelper.CreateGoalsFirstDetailList(
+                    AchievementSortHelper.CreateSortedDetailList(
+                        allAchievements,
+                        nameof(AchievementDisplayItem.RaritySortValue),
+                        ListSortDirection.Ascending,
+                        includeGameNameTieBreak: true));
+                state.AllAchievementsRarityDesc = AchievementSortHelper.CreateGoalsFirstDetailList(
+                    AchievementSortHelper.CreateSortedDetailList(
+                        allAchievements,
+                        nameof(AchievementDisplayItem.RaritySortValue),
+                        ListSortDirection.Descending,
+                        includeGameNameTieBreak: true));
 
                 var unlockedAchievements = allAchievements
                     .Where(a => a != null && a.UnlockTimeUtc.HasValue && a.UnlockTimeUtc.Value != DateTime.MinValue)
