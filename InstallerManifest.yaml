@@ -1,6 +1,22 @@
 AddonId: PlayniteAchievements
 Packages:
 
+  - Version: 3.1.3
+    RequiredApiVersion: 6.14.0
+    ReleaseDate: 2026-08-14
+    PackageUrl: https://github.com/justin-delano/PlayniteAchievements/releases/download/v3.1.3/PlayniteAchievements_3_1_3.pext
+    Changelog:
+    - "[New] Achievement Goals! Right-click any achievement to set it as a goal. Goals are pinned to the top of your achievement lists (including in themes), marked with a pin in the status column, and managed from a new Goals tab in Manage Achievements. A goal retires itself automatically when you unlock it."
+    - "[New] RPCS3 trophies can now be read directly from PS3 disc images, without extracting the ISO first."
+    - "[New] Themes can now offer capstone and goal toggles on achievement rows."
+    - "[Adjusted] Recent friend refreshes now also pick up friends' games you don't own, when unowned games are enabled."
+    - "[Fixed] RPCS3 and ShadPS4 trophies now show names and descriptions in your language when the game includes translations."
+    - "[Fixed] Notifications slide in more smoothly, and animated images in notifications play more efficiently."
+    - "[Fixed] Smoother rarity glow animations when many achievements are on screen."
+    - "[Fixed] The View Achievements window now correctly uses its own settings for rarity glow, achievement name color, and column headers."
+    - "[Adjusted] Smaller download: the plugin no longer ships debug files it does not use."
+    - "As always, many additional improvements and fixes behind the scenes."
+
   - Version: 3.1.2
     RequiredApiVersion: 6.14.0
     ReleaseDate: 2026-08-12
