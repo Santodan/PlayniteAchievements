@@ -1395,6 +1395,49 @@ namespace PlayniteAchievements.Providers.Tests
         }
 
         [TestMethod]
+        public void InGameTracking_PartiallyBootedCollection_WatchesOnlyExistingTrophyFolders()
+        {
+            var tempDir = CreateTempDirectory();
+            var rpcs3Root = Path.Combine(tempDir, "rpcs3");
+
+            try
+            {
+                // Only the first sub-game of the collection has a trophy folder.
+                CreateRpcs3TrophyData(rpcs3Root, "NPWR01818_00", "Jak and Daxter: The Precursor Legacy", "Jak 1 Cache Trophy");
+
+                var provider = CreateProvider(rpcs3Root);
+                var game = new Game
+                {
+                    Id = Guid.NewGuid(),
+                    Name = "Jak and Daxter Trilogy",
+                    InstallDirectory = Path.Combine(tempDir, "pkg", "NPUA80643")
+                };
+                var schema = new GameAchievementData
+                {
+                    ProviderKey = "RPCS3",
+                    ProviderGameKey = "NPWR01818_00+NPWR01819_00",
+                    Achievements = new List<AchievementDetail>
+                    {
+                        new AchievementDetail { ApiName = "NPWR01818_00:0" },
+                        new AchievementDetail { ApiName = "NPWR01819_00:0" }
+                    }
+                };
+
+                var registration = ((IInGameProgressSource)provider).TryRegister(game, schema);
+
+                Assert.IsNotNull(registration);
+                Assert.AreEqual(1, registration.WatchTargets.Count);
+                StringAssert.EndsWith(
+                    registration.WatchTargets[0],
+                    Path.Combine("NPWR01818_00", "TROPUSR.DAT"));
+            }
+            finally
+            {
+                DeleteDirectory(tempDir);
+            }
+        }
+
+        [TestMethod]
         public async Task RefreshAsync_SerialBridge_ResolvesRenamedIsoViaGamesYml()
         {
             var tempDir = CreateTempDirectory();

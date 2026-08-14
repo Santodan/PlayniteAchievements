@@ -572,9 +572,22 @@ namespace PlayniteAchievements.Providers.RPCS3
                 })
                 .Where(source => Directory.Exists(Path.GetDirectoryName(source.Path)))
                 .ToList();
-            if (sources.Count != npCommIds.Count)
+            if (sources.Count == 0)
             {
                 return null;
+            }
+
+            // A collection may hold sub-games never booted in RPCS3; those have no
+            // trophy folder to watch yet. Track the sets that exist — a sub-game
+            // first booted mid-session is picked up by the next registration or
+            // the regular refresh.
+            if (sources.Count != npCommIds.Count)
+            {
+                var missing = npCommIds.Where(id =>
+                    !sources.Any(source => string.Equals(source.NpCommId, id, StringComparison.OrdinalIgnoreCase)));
+                _logger?.Info(
+                    $"[RPCS3] '{game.Name}': in-game tracking watches {sources.Count} of {npCommIds.Count} trophy sets; " +
+                    $"[{string.Join(", ", missing)}] have no trophy folder yet.");
             }
 
             return new InGameProgressRegistration
