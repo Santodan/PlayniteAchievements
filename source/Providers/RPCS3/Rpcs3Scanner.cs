@@ -1804,13 +1804,15 @@ namespace PlayniteAchievements.Providers.RPCS3
 
                 var gameDirectory = candidate.Path;
 
-                // Strategy 1: For installed games, check for TROPHY.TRP in game directory
+                // Strategy 1: For installed games, check for TROPHY.TRP in game directory.
+                // Multi-set results are collection territory and handled by the
+                // collection pass, which runs before this method.
                 if (!string.IsNullOrWhiteSpace(gameDirectory))
                 {
-                    var (npcommid, trpPath) = FindNpCommIdAndTrpFromInstalledGame(gameDirectory, trophyFolderCache);
-                    if (!string.IsNullOrWhiteSpace(npcommid))
+                    var installedSources = FindTrophySourcesFromInstalledGame(gameDirectory, trophyFolderCache);
+                    if (installedSources.Count == 1)
                     {
-                        return new GameTrophySource { NpCommId = npcommid, TrpPath = trpPath };
+                        return installedSources[0];
                     }
                 }
 
@@ -2087,10 +2089,10 @@ namespace PlayniteAchievements.Providers.RPCS3
                 var installedDir = Path.Combine(serialBridge.DevHdd0Root, "game", serial);
                 if (Directory.Exists(installedDir))
                 {
-                    var (npcommid, trpPath) = FindNpCommIdAndTrpFromInstalledGame(installedDir, trophyFolderCache);
-                    if (!string.IsNullOrWhiteSpace(npcommid))
+                    var installedSources = FindTrophySourcesFromInstalledGame(installedDir, trophyFolderCache);
+                    if (installedSources.Count > 0)
                     {
-                        return new[] { new GameTrophySource { NpCommId = npcommid, TrpPath = trpPath } };
+                        return installedSources;
                     }
                 }
             }
@@ -2108,10 +2110,10 @@ namespace PlayniteAchievements.Providers.RPCS3
 
             if (Directory.Exists(resolvedPath))
             {
-                var (npcommid, trpPath) = FindNpCommIdAndTrpFromInstalledGame(resolvedPath, trophyFolderCache);
-                if (!string.IsNullOrWhiteSpace(npcommid))
+                var installedSources = FindTrophySourcesFromInstalledGame(resolvedPath, trophyFolderCache);
+                if (installedSources.Count > 0)
                 {
-                    return new[] { new GameTrophySource { NpCommId = npcommid, TrpPath = trpPath } };
+                    return installedSources;
                 }
 
                 _logger?.Info($"[RPCS3] Serial bridge: '{serial}' games.yml directory '{resolvedPath}' holds no usable trophy set.");
@@ -2139,18 +2141,22 @@ namespace PlayniteAchievements.Providers.RPCS3
         }
 
         /// <summary>
-        /// Extracts the npcommid and TROPHY.TRP path from an installed PKG game.
-        /// PKG-installed games have TROPHY.TRP at {gameDir}/TROPHY/TROPHY.TRP or
-        /// {gameDir}/PS3_GAME/TROPHY/TROPHY.TRP.
-        /// Note: Playnite's InstallDirectory often points to USRDIR, but TROPHY is
-        /// in the parent game folder (sibling to USRDIR).
+        /// Extracts the trophy sources from an installed PKG or extracted disc game.
+        /// TROPHY.TRP lives at {gameDir}/TROPDIR/{npcommid}/TROPHY.TRP (one directory
+        /// per set; multipacks carry several), {gameDir}/TROPHY/TROPHY.TRP, or the same
+        /// layouts under PS3_GAME. Playnite's InstallDirectory often points to USRDIR,
+        /// so its parent is probed too. Same-title sets (multi-region dumps) are
+        /// collapsed to the booted region or dropped by the shared ambiguity guard;
+        /// distinct titles are all returned so a multipack resolves as a collection.
         /// </summary>
-        private (string npcommid, string trpPath) FindNpCommIdAndTrpFromInstalledGame(string gameDirectory,
+        private List<GameTrophySource> FindTrophySourcesFromInstalledGame(string gameDirectory,
             Dictionary<string, string> trophyFolderCache)
         {
+            var sources = new List<GameTrophySource>();
+
             if (string.IsNullOrWhiteSpace(gameDirectory))
             {
-                return (null, null);
+                return sources;
             }
 
             // Rom paths may point at a file (e.g. USRDIR\EBOOT.BIN); start from its directory.
@@ -2159,15 +2165,12 @@ namespace PlayniteAchievements.Providers.RPCS3
                 gameDirectory = Path.GetDirectoryName(gameDirectory);
                 if (string.IsNullOrWhiteSpace(gameDirectory))
                 {
-                    return (null, null);
+                    return sources;
                 }
             }
 
-            // Build list of directories to check
-            // Playnite may point to USRDIR, but TROPHY folder is in the game root
+            // Playnite may point to USRDIR, but TROPHY folder is in the game root.
             var directoriesToCheck = new List<string> { gameDirectory };
-
-            // If path ends with USRDIR, also check parent directory
             var normalizedPath = gameDirectory.TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
             if (normalizedPath.EndsWith("USRDIR", StringComparison.OrdinalIgnoreCase))
             {
@@ -2178,10 +2181,6 @@ namespace PlayniteAchievements.Providers.RPCS3
                 }
             }
 
-            // Possible TROPHY.TRP locations for installed games
-            // PKG and disc games: {game_root}/TROPDIR/{npcommid}/TROPHY.TRP, also
-            // under PS3_GAME for an extracted disc dump
-            // Alternative disc structure: {game_root}/TROPHY/TROPHY.TRP or {game_root}/PS3_GAME/TROPHY/TROPHY.TRP
             var trpPaths = new List<string>();
             foreach (var dir in directoriesToCheck)
             {
@@ -2190,56 +2189,20 @@ namespace PlayniteAchievements.Providers.RPCS3
                 trpPaths.Add(Path.Combine(dir, "PS3_GAME", "TROPHY", "TROPHY.TRP"));
             }
 
-            var candidates = new List<(string NpCommId, string TrpPath)>();
+            var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
             foreach (var trpPath in trpPaths
                 .Where(File.Exists)
                 .Distinct(StringComparer.OrdinalIgnoreCase)
                 .OrderBy(path => path, StringComparer.OrdinalIgnoreCase))
             {
-                try
+                var source = ReadTrophySourceFromTrpFile(trpPath);
+                if (source != null && seen.Add(source.NpCommId))
                 {
-                    var npcommid = ExtractNpCommIdFromTrpFile(trpPath);
-                    if (string.IsNullOrWhiteSpace(npcommid))
-                    {
-                        continue;
-                    }
-
-                    var normalized = Rpcs3MatchIdHelper.Normalize(npcommid) ?? npcommid;
-                    candidates.Add((normalized, trpPath));
-                }
-                catch
-                {
-                    // Ignore errors reading TROPHY.TRP
+                    sources.Add(source);
                 }
             }
 
-            var profileBacked = candidates
-                .Where(candidate => trophyFolderCache?.ContainsKey(candidate.NpCommId) == true)
-                .GroupBy(candidate => candidate.NpCommId, StringComparer.OrdinalIgnoreCase)
-                .Select(group => group.First())
-                .OrderBy(candidate => candidate.NpCommId, StringComparer.OrdinalIgnoreCase)
-                .ToList();
-            if (profileBacked.Count == 1)
-            {
-                return (profileBacked[0].NpCommId, profileBacked[0].TrpPath);
-            }
-
-            var uniqueCandidates = candidates
-                .GroupBy(candidate => candidate.NpCommId, StringComparer.OrdinalIgnoreCase)
-                .Select(group => group.First())
-                .OrderBy(candidate => candidate.NpCommId, StringComparer.OrdinalIgnoreCase)
-                .ToList();
-            if (uniqueCandidates.Count == 1)
-            {
-                return (uniqueCandidates[0].NpCommId, uniqueCandidates[0].TrpPath);
-            }
-
-            if (uniqueCandidates.Count > 1)
-            {
-                _logger?.Info($"[RPCS3] Installed game '{gameDirectory}' contains ambiguous trophy sets [{string.Join(", ", uniqueCandidates.Select(candidate => candidate.NpCommId))}]; no set selected.");
-            }
-
-            return (null, null);
+            return ApplySourceTitleAmbiguityGuard(sources, trophyFolderCache, gameDirectory, "installed game");
         }
 
         /// <summary>
