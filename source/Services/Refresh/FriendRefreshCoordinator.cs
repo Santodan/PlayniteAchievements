@@ -1552,9 +1552,6 @@ namespace PlayniteAchievements.Services.Refresh
             return true;
         }
 
-        // Computes the unowned-definition plan without performing any fetch (the only cache access is the
-        // read-only LoadFriendGameDefinitionStates). Run up front so the definitions progress sub-band
-        // knows its full total before it emits a completion.
         // Scopes the ownership snapshots the unowned definition/probe phase sees. Full (and any
         // scope that discovers provider-only games inherently) keeps the full snapshots. Recent,
         // which reaches this phase only via the DiscoverProviderOnlyGames opt-in, narrows to
@@ -1601,6 +1598,9 @@ namespace PlayniteAchievements.Services.Refresh
             return scoped;
         }
 
+        // Computes the unowned-definition plan without performing any fetch (the only cache access is the
+        // read-only LoadFriendGameDefinitionStates). Run up front so the definitions progress sub-band
+        // knows its full total before it emits a completion.
         private UnownedDefinitionPlan ComputeUnownedDefinitionPlan(
             string providerKey,
             IReadOnlyList<FriendOwnershipSnapshot> ownershipSnapshots,
