@@ -49,16 +49,6 @@ namespace PlayniteAchievements.Views.Helpers
 
         private const double DueToleranceMs = 1.0;
 
-        /// <summary>
-        /// How many bursts may move at once. Each animated burst redraws its arrow geometry on
-        /// every tick, so a dense surface (an icon mosaic can show 64 unlocked icons at once, and
-        /// a long theme list more) multiplies that cost until the render thread is saturated and
-        /// the whole desktop stutters. Beyond this budget the extra bursts keep their rays - they
-        /// simply stop drifting, which is not noticeable in a wall of small icons - and take an
-        /// animated slot as soon as one frees up.
-        /// </summary>
-        private const int MaxAnimatedBursts = 16;
-
         // Seconds for one lap of the silhouette, at the slow and fast ends of the shared glow speed
         // setting. The visual beat is a lap divided by the arrow count, since the standing wave makes
         // the picture repeat that often — a couple of seconds at the default speed.
@@ -167,25 +157,17 @@ namespace PlayniteAchievements.Views.Helpers
                 ? PerfScope.Start(Logger, "rayglow.tick", 4, "bursts=" + Dispatch.Count)
                 : null)
             {
-                // Subscription order is stable, so the same bursts keep the animated slots
-                // instead of the moving set flickering between ticks.
-                var animated = 0;
                 for (var i = 0; i < Dispatch.Count; i++)
                 {
                     var target = Dispatch[i];
-                    if (!target.WantsRayFrames)
+                    if (target.WantsRayFrames)
+                    {
+                        target.OnRayFrame();
+                    }
+                    else
                     {
                         Unsubscribe(target);
-                        continue;
                     }
-
-                    if (animated >= MaxAnimatedBursts)
-                    {
-                        continue;
-                    }
-
-                    animated++;
-                    target.OnRayFrame();
                 }
             }
 
