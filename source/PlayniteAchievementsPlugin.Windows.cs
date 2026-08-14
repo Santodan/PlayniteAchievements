@@ -165,11 +165,15 @@ namespace PlayniteAchievements
         private bool _settingsViewOpen;
 
         /// <summary>
-        /// Opens Playnite's plugin-settings dialog for hotkey invocations. The dialog is a
-        /// blocking ShowDialog, so the flag stays set for its whole lifetime and repeated
-        /// presses pumped by the nested dispatcher loop are ignored. Other modals (e.g. the
-        /// add-ons window) are detected at the Win32 level: ShowDialog disables sibling
-        /// windows via EnableWindow, which never flows into the IsEnabled dependency property.
+        /// Opens the plugin settings for hotkey invocations: Playnite's plugin-settings
+        /// dialog in desktop mode, the managed settings popout in fullscreen mode where
+        /// that dialog is unavailable. The desktop dialog is a blocking ShowDialog, so the
+        /// flag stays set for its whole lifetime and repeated presses pumped by the nested
+        /// dispatcher loop are ignored. Foreign modals (e.g. the add-ons window) are
+        /// detected at the Win32 level: ShowDialog disables sibling windows via
+        /// EnableWindow, which never flows into the IsEnabled dependency property. The
+        /// plugin's own popouts also disable the main window that way, but they support a
+        /// nested settings dialog on top, so the guard skips them via HasOpenPluginWindow.
         /// </summary>
         private void OpenSettingsViewFromHotkey()
         {
@@ -178,11 +182,17 @@ namespace PlayniteAchievements
                 return;
             }
 
+            if (IsFullscreenMode())
+            {
+                OpenSettingsWindow();
+                return;
+            }
+
             var mainWindow = System.Windows.Application.Current?.MainWindow;
             if (mainWindow != null)
             {
                 var handle = new System.Windows.Interop.WindowInteropHelper(mainWindow).Handle;
-                if (handle != IntPtr.Zero && !IsWindowEnabled(handle))
+                if (handle != IntPtr.Zero && !IsWindowEnabled(handle) && _windowService?.HasOpenPluginWindow() != true)
                 {
                     return;
                 }

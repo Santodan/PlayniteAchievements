@@ -122,6 +122,17 @@ namespace PlayniteAchievements.Services.UI
             }
         }
 
+        /// <summary>
+        /// True when any plugin-owned popout window (view achievements, manage, overview)
+        /// is currently open. Lets hotkey guards distinguish the plugin's own desktop
+        /// modals from foreign ones (e.g. Playnite's add-ons dialog), which keep blocking.
+        /// </summary>
+        public bool HasOpenPluginWindow()
+        {
+            return _achievementWindows.Values.Any(window => window?.IsVisible == true) ||
+                   _overviewWindow?.IsVisible == true;
+        }
+
         private bool DetectFullscreenMode()
         {
             try
