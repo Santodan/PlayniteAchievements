@@ -679,7 +679,13 @@ namespace PlayniteAchievements.Services.Refresh
                     ForceDefinitionRefresh = !options.PreferCachedDefinitions &&
                                              (options.ForceDefinitionRefresh ||
                                               friendScope == FriendRefreshScope.SelectedGame ||
-                                              friendScope == FriendRefreshScope.Full)
+                                              friendScope == FriendRefreshScope.Full),
+                    // Unowned-games opt-in for Recent: like the Full->Shared clamp above, this is
+                    // resolved once here, the single seam all friend refreshes pass through, so
+                    // downstream policy reads options instead of settings. Full needs no flag
+                    // (its scope already discovers provider-only games).
+                    DiscoverProviderOnlyGames = friendScope == FriendRefreshScope.Recent &&
+                                                _settings?.Persisted?.IncludeUnownedFriendGames == true
                 }
             };
         }
