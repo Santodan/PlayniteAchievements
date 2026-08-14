@@ -161,6 +161,7 @@ Der erste Rang ist Bronze V, gefolgt von Bronze IV, weiter über die Ränge Silb
     <sys:String x:Key="LOCPlayAch_Button_Browse">Durchsuchen</sys:String>
     <sys:String x:Key="LOCPlayAch_Button_Cancel">Abbrechen</sys:String>
     <sys:String x:Key="LOCPlayAch_Button_Clear">Entfernen</sys:String>
+    <sys:String x:Key="LOCPlayAch_Button_Compress">Compress</sys:String>
     <sys:String x:Key="LOCPlayAch_Button_Configure">Konfigurieren</sys:String>
     <sys:String x:Key="LOCPlayAch_Button_Delete">Delete</sys:String>
     <sys:String x:Key="LOCPlayAch_Button_Login">Anmelden</sys:String>
@@ -228,7 +229,6 @@ Dadurch wird das Spiel aus Erfolgsansichten ausgeschlossen und sämtliche zugeh�
     <sys:String x:Key="LOCPlayAch_Menu_IncludeGame">Dieses Spiel inkludieren</sys:String>
     <sys:String x:Key="LOCPlayAch_Menu_IncludeInRefreshes">In Aktualisierungen enthalten</sys:String>
     <sys:String x:Key="LOCPlayAch_Menu_IncludeInRefreshesAndRefresh">In allgemeinen und Aktualisierung ausgewählter Spiele enthalten</sys:String>
-    <sys:String x:Key="LOCPlayAch_Menu_OpenGameInLibrary">In Bibliothek anzeigen</sys:String>
     <sys:String x:Key="LOCPlayAch_Menu_OpenOverview">Erfolgsübersicht</sys:String>
     <sys:String x:Key="LOCPlayAch_Menu_OpenGameInOverview">In Übersicht anzeigen</sys:String>
     <sys:String x:Key="LOCPlayAch_Menu_IgnoreFriend">Freund ignorieren</sys:String>
@@ -538,6 +538,28 @@ Passende Plattform aktivieren oder die Authentifizierungseinstellungen überprü
     <sys:String x:Key="LOCPlayAch_Settings_CompactListPreview">Kompakt</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_CompactLockedListPreview">Kompakt - gesperrt</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_CompactUnlockedListPreview">Kompakt - freigeschaltet</sys:String>
+    <sys:String x:Key="LOCPlayAch_Settings_CompressImages_AchievementIconsDescription">Compress cached achievement icons. This is normally the largest group.</sys:String>
+    <sys:String x:Key="LOCPlayAch_Settings_CompressImages_CategoryArtDescription">Compress provider-supplied default category art.</sys:String>
+    <sys:String x:Key="LOCPlayAch_Settings_CompressImages_Confirm">{0} of {1} cached images are larger than {2} px.
+
+Current size: {3}
+Estimated after compression: {4}
+
+Files are rewritten in place and this cannot be undone. Continue?</sys:String>
+    <sys:String x:Key="LOCPlayAch_Settings_CompressImages_CustomIconsDescription">Compress your own icon and category images. A refresh cannot restore these.</sys:String>
+    <sys:String x:Key="LOCPlayAch_Settings_CompressImages_Description">Downscale oversized cached images to reclaim disk space. Images already at or below the selected size are left unchanged, and compression cannot be undone.</sys:String>
+    <sys:String x:Key="LOCPlayAch_Settings_CompressImages_FriendImagesDescription">Compress friend avatars and unowned game images. Most of these are already small.</sys:String>
+    <sys:String x:Key="LOCPlayAch_Settings_CompressImages_MaxSize">Maximum image size:</sys:String>
+    <sys:String x:Key="LOCPlayAch_Settings_CompressImages_NoCandidates">No cached images are larger than {0} px.</sys:String>
+    <sys:String x:Key="LOCPlayAch_Settings_CompressImages_ProgressCompressing">Compressing cached images... ({0}/{1})</sys:String>
+    <sys:String x:Key="LOCPlayAch_Settings_CompressImages_ProgressScanning">Scanning cached images... ({0}/{1})</sys:String>
+    <sys:String x:Key="LOCPlayAch_Settings_CompressImages_Result">Compressed {0} images. Skipped {1}, failed {2}.
+
+Reclaimed {3}.</sys:String>
+    <sys:String x:Key="LOCPlayAch_Settings_CompressImages_ResultCanceled">Canceled after compressing {0} images.
+
+Reclaimed {1}.</sys:String>
+    <sys:String x:Key="LOCPlayAch_Settings_CompressImages_Title">Compress Cached Images</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_Description">Playnite Achievement - Einstellungen</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_Display_StartPageSection">StartPage</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_Display_GridDefaults">Standardeinstellungen für Tabellen</sys:String>
@@ -569,6 +591,9 @@ Passende Plattform aktivieren oder die Authentifizierungseinstellungen überprü
     <sys:String x:Key="LOCPlayAch_Settings_EnableControllerVibration">Vibrate controller on notification</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_ControllerVibrationStrength">Vibration strength (%):</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_ControllerVibrationDuration">Vibration duration (ms):</sys:String>
+    <!-- UniPlaySong is a separate Playnite extension name: do not translate it -->
+    <sys:String x:Key="LOCPlayAch_Settings_UnlockSoundHint">Unlock sounds are provided by the UniPlaySong extension. Install it and assign sounds there to hear audio when achievements unlock.</sys:String>
+    <sys:String x:Key="LOCPlayAch_Settings_UseHiddenUnlockSound">Use the hidden achievement sound instead of the rarity sound</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_ToastPosition_BottomRight">Unten rechts</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_ToastPosition_BottomLeft">Unten links</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_ToastPosition_TopRight">Oben rechts</sys:String>
@@ -673,6 +698,10 @@ Passende Plattform aktivieren oder die Authentifizierungseinstellungen überprü
     <sys:String x:Key="LOCPlayAch_Settings_RecordingFps">Frame rate (FPS)</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_RecordingResolution">Auflösung</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_RecordingResolutionNative">Nativ</sys:String>
+    <sys:String x:Key="LOCPlayAch_Settings_RecordingQuality">Quality</sys:String>
+    <sys:String x:Key="LOCPlayAch_Settings_RecordingQualityHigh">High</sys:String>
+    <sys:String x:Key="LOCPlayAch_Settings_RecordingQualityMedium">Medium</sys:String>
+    <sys:String x:Key="LOCPlayAch_Settings_RecordingQualityLow">Low</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_RecordingIncludeAudio">Audiospur aufnehmen</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_RecordingAudioSource">Audio source</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_RecordingAudioSourceFull">Full system audio</sys:String>
@@ -957,8 +986,13 @@ Passende Plattform aktivieren oder die Authentifizierungseinstellungen überprü
     <sys:String x:Key="LOCPlayAch_Settings_RoundRarityPercentages_Help">Ganzzahlige Prozentwerte anzeigen. Werte unter 1 % werden als &quot;&lt; 1 %&quot; dargestellt.</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_ShowCompletedProgressColoring">Vervollständigte Fortschrittsleisten einfärben</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_ShowCompletedProgressColoring_Help">Verwendet die Farbe vervollständigter Spiele zur Färbung der Fortschrittsleisten.</sys:String>
+    <sys:String x:Key="LOCPlayAch_Settings_SoftGlowTiers">Soft Glow Tiers</sys:String>
+    <sys:String x:Key="LOCPlayAch_Settings_RayGlowTiers">Rotating Ray Tiers</sys:String>
+    <sys:String x:Key="LOCPlayAch_Settings_GlowTiers_Help">Pick what gets each effect. The soft glow is a halo around the icon; rotating rays are a sunburst behind it, with a bright edge, and show up best on dark themes. The two are independent, so anything can have either, both, or neither. Completed covers the glow on completed game and category art.</sys:String>
+    <sys:String x:Key="LOCPlayAch_Settings_ShowHardcoreBorder">Hardcore Border on RetroAchievements Unlocks</sys:String>
+    <sys:String x:Key="LOCPlayAch_Settings_ShowHardcoreBorder_Help">Give Hardcore RetroAchievements unlocks a crisp metallic border instead of a glow. Turn this off to glow them like any other unlock, following their rarity tier.</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_AnimateRarityGlows">Animate Rarity Glows</sys:String>
-    <sys:String x:Key="LOCPlayAch_Settings_AnimateRarityGlows_Help">Gently fade rarity glows in and out on unlocked achievement icons and in unlock notifications.</sys:String>
+    <sys:String x:Key="LOCPlayAch_Settings_AnimateRarityGlows_Help">Gently fade rarity glows in and out on unlocked achievement icons and in unlock notifications, and slowly turn the rays.</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_RarityGlowPulseMinOpacity">Minimum Glow</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_RarityGlowPulseMaxOpacity">Maximum Glow</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_RarityGlowPulseSpeed">Speed</sys:String>
