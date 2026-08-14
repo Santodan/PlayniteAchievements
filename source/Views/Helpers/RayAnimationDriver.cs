@@ -149,6 +149,10 @@ namespace PlayniteAchievements.Views.Helpers
             }
             while (_nextDueMs <= nowMs);
 
+            // Bursts that share a shape build their arrow geometry once for the whole frame; this
+            // releases the previous frame's copies before they start.
+            Controls.RarityRayBurst.BeginFrame();
+
             // A target may unsubscribe itself while being served, so walk a copy.
             Dispatch.Clear();
             Dispatch.AddRange(Subscribers);
