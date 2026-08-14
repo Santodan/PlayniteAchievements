@@ -266,7 +266,33 @@ namespace PlayniteAchievements.Views.Controls
             return finalSize;
         }
 
-        bool IRayAnimationTarget.WantsRayFrames => IsActive && IsVisible && ShouldDraw();
+        bool IRayAnimationTarget.WantsRayFrames =>
+            IsActive && IsVisible && IsWithinViewport() && ShouldDraw();
+
+        /// <summary>
+        /// Whether any part of this burst falls inside the window. IsVisible stays true for an
+        /// element scrolled out of its list's viewport - it is merely clipped - so without this a
+        /// wall of icons keeps rebuilding arrow geometry for rows nobody can see.
+        /// </summary>
+        private bool IsWithinViewport()
+        {
+            var root = PresentationSource.FromVisual(this)?.RootVisual as FrameworkElement;
+            if (root == null || root.ActualWidth <= 0 || root.ActualHeight <= 0)
+            {
+                return false;
+            }
+
+            try
+            {
+                var bounds = TransformToAncestor(root).TransformBounds(new Rect(RenderSize));
+                return bounds.IntersectsWith(new Rect(0, 0, root.ActualWidth, root.ActualHeight));
+            }
+            catch (InvalidOperationException)
+            {
+                // Not connected to the ancestor yet; treat as visible and let the next tick decide.
+                return true;
+            }
+        }
 
         void IRayAnimationTarget.OnRayFrame() => Redraw();
 
