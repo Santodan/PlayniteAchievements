@@ -893,6 +893,15 @@ namespace PlayniteAchievements.Services.Refresh
                         continue;
                     }
 
+                    // Last-played fetch threshold (the planner stamps a cutoff only for Full/Recent;
+                    // explicit targets were matched above and are exempt).
+                    if (!hasExplicitTargets &&
+                        !FriendRefreshWorkPolicy.IsWithinLastPlayedCutoff(item.LastPlayedUtc, options?.LastPlayedCutoffUtc))
+                    {
+                        context.CandidatesSkippedLastPlayedCutoff++;
+                        continue;
+                    }
+
                     // Games the provider reports as having no achievements never qualify.
                     if (item.AchievementTotalHint.HasValue && item.AchievementTotalHint.Value <= 0)
                     {
@@ -948,7 +957,7 @@ namespace PlayniteAchievements.Services.Refresh
             }
 
             _logger?.Debug(
-                $"Built {context.ProviderKey} mapped friend scrape candidates from snapshot: raw={raw}, queued={workItems.Count}, scope={scope}.");
+                $"Built {context.ProviderKey} mapped friend scrape candidates from snapshot: raw={raw}, queued={workItems.Count}, skippedLastPlayedCutoff={context.CandidatesSkippedLastPlayedCutoff}, scope={scope}.");
             return workItems;
         }
 
@@ -1059,6 +1068,19 @@ namespace PlayniteAchievements.Services.Refresh
                     context.CandidatesSkippedAlreadyProbed += Math.Max(0, beforeProbedFilter - candidates.Count);
                 }
 
+                // Last-played fetch threshold: drop candidates older than the planner-stamped cutoff.
+                // Explicit game targets are exempt; candidates with no last-played date always pass.
+                if (options.LastPlayedCutoffUtc.HasValue &&
+                    !FriendRefreshWorkPolicy.HasExplicitProviderGameTargets(options))
+                {
+                    var beforeCutoffFilter = candidates.Count;
+                    candidates = candidates
+                        .Where(candidate => FriendRefreshWorkPolicy.IsWithinLastPlayedCutoff(
+                            candidate.LastPlayedUtc, options.LastPlayedCutoffUtc))
+                        .ToList();
+                    context.CandidatesSkippedLastPlayedCutoff += Math.Max(0, beforeCutoffFilter - candidates.Count);
+                }
+
                 // Recent scope: drop only games the ownership step positively confirmed unchanged since the
                 // last successful scrape (provider-driven recency). Anything not confirmed fresh is still
                 // scraped. Other scopes scrape every candidate.
@@ -1090,7 +1112,7 @@ namespace PlayniteAchievements.Services.Refresh
                 context.CandidatesQueued += candidates.Count;
                 payload.FriendSummary.CandidatesLoaded += candidates.Count;
                 _logger?.Debug(
-                    $"Loaded {context.ProviderKey} friend achievement scrape candidates: raw={rawCandidates.Count}, queued={candidates.Count}, skippedAlreadyProbed={context.CandidatesSkippedAlreadyProbed}, skippedRecencyFresh={context.CandidatesSkippedRecencyFresh}, skippedOwnershipUnavailable={context.CandidatesSkippedOwnershipUnavailable}, scope={options.Scope}.");
+                    $"Loaded {context.ProviderKey} friend achievement scrape candidates: raw={rawCandidates.Count}, queued={candidates.Count}, skippedAlreadyProbed={context.CandidatesSkippedAlreadyProbed}, skippedLastPlayedCutoff={context.CandidatesSkippedLastPlayedCutoff}, skippedRecencyFresh={context.CandidatesSkippedRecencyFresh}, skippedOwnershipUnavailable={context.CandidatesSkippedOwnershipUnavailable}, scope={options.Scope}.");
 
                 if (!context.Preparation.CanRefreshAchievements)
                 {
@@ -3193,6 +3215,15 @@ namespace PlayniteAchievements.Services.Refresh
                 return false;
             }
 
+            // Last-played fetch threshold: games outside the planner-stamped cutoff are skipped
+            // entirely (schema fetch included) unless explicitly targeted. Items with no
+            // last-played date always pass.
+            if (!FriendRefreshWorkPolicy.IsWithinLastPlayedCutoff(ownership.LastPlayedUtc, options?.LastPlayedCutoffUtc) &&
+                !FriendRefreshWorkPolicy.IsExplicitProviderGameTarget(options, ownership.AppId, ownership.ProviderGameKey))
+            {
+                return false;
+            }
+
             if (IsPlayniteLibraryFriendGame(providerKey, ownership))
             {
                 return true;
@@ -3562,6 +3593,7 @@ namespace PlayniteAchievements.Services.Refresh
                 new HashSet<string>(StringComparer.OrdinalIgnoreCase);
             public int RawCandidatesLoaded { get; set; }
             public int CandidatesSkippedAlreadyProbed { get; set; }
+            public int CandidatesSkippedLastPlayedCutoff { get; set; }
             public int CandidatesSkippedRecencyFresh { get; set; }
             public int CandidatesSkippedOwnershipUnavailable { get; set; }
             public int CandidatesQueued { get; set; }
