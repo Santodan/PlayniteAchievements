@@ -51,6 +51,7 @@ namespace PlayniteAchievements.Services.ThemeIntegration
 #endif
         private readonly RefreshEntryPoint _refreshCoordinator;
         private readonly IFriendCacheManager _friendCache;
+        private readonly Captures.CaptureLibraryService _captureLibrary;
         private readonly FriendsOverviewDataCoordinator _friendsOverviewDataCoordinator;
         private readonly bool _ownsFriendsOverviewDataCoordinator;
         private readonly Func<RefreshRequest, string, bool, Action<bool>, Task> _runRefreshWithGlobalProgressAsync;
@@ -133,7 +134,8 @@ namespace PlayniteAchievements.Services.ThemeIntegration
             FriendsOverviewDataCoordinator friendsOverviewDataCoordinator = null,
             Func<AchievementHotkeyTargetResolution> resolveRunningGameTarget = null,
             Action<AchievementMarkerTarget> toggleAchievementCapstone = null,
-            Action<AchievementMarkerTarget> toggleAchievementGoal = null)
+            Action<AchievementMarkerTarget> toggleAchievementGoal = null,
+            Captures.CaptureLibraryService captureLibrary = null)
         {
             _api = api ?? throw new ArgumentNullException(nameof(api));
             _refreshService = refreshRuntime ?? throw new ArgumentNullException(nameof(refreshRuntime));
@@ -483,6 +485,12 @@ namespace PlayniteAchievements.Services.ThemeIntegration
             ApplyDynamicOptionBindings();
 
             _refreshService.CacheInvalidated += RefreshService_CacheInvalidated;
+            _captureLibrary = captureLibrary;
+            if (_captureLibrary != null)
+            {
+                _captureLibrary.CapturesChanged += CaptureLibrary_CapturesChanged;
+            }
+
             if (_friendCache != null)
             {
                 _friendCache.FriendCacheInvalidated += FriendCache_FriendCacheInvalidated;
@@ -504,6 +512,14 @@ namespace PlayniteAchievements.Services.ThemeIntegration
             try { _settings.ModernTheme.FriendDataRequested = null; } catch { }
             try { _settings.DynamicThemeDefaultsChanged -= Settings_DynamicThemeDefaultsChanged; } catch { }
             try { _refreshService.CacheInvalidated -= RefreshService_CacheInvalidated; } catch { }
+            try
+            {
+                if (_captureLibrary != null)
+                {
+                    _captureLibrary.CapturesChanged -= CaptureLibrary_CapturesChanged;
+                }
+            }
+            catch { }
             try
             {
                 if (_friendsOverviewDataCoordinator != null)
@@ -669,7 +685,7 @@ namespace PlayniteAchievements.Services.ThemeIntegration
         /// changed). The library-wide lists deliberately wait for their next natural rebuild — a
         /// full-library rebuild per saved capture is too heavy.
         /// </summary>
-        public void NotifyCapturesChanged(string captureFolderName)
+        private void CaptureLibrary_CapturesChanged(object sender, Captures.CapturesChangedEventArgs e)
         {
             try
             {
@@ -679,6 +695,7 @@ namespace PlayniteAchievements.Services.ThemeIntegration
                     return;
                 }
 
+                var captureFolderName = e?.FolderName;
                 if (captureFolderName != null)
                 {
                     var gameName = _api?.Database?.Games?.Get(resolvedGameId.Value)?.Name;
