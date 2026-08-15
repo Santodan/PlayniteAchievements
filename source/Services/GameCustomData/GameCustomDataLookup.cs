@@ -647,6 +647,38 @@ namespace PlayniteAchievements.Services.GameCustomData
             return false;
         }
 
+        /// <summary>
+        /// Slug forced for Exophase rarity/metadata enrichment when another provider services the
+        /// game. Independent of the provider override path read by
+        /// <see cref="TryGetExophaseSlugOverride"/>, which selects the servicing provider.
+        /// </summary>
+        public static bool TryGetExophaseEnrichmentSlugOverride(
+            Guid gameId,
+            out string slugOverride,
+            GameCustomDataStore store = null)
+        {
+            slugOverride = null;
+            if (gameId == Guid.Empty)
+            {
+                return false;
+            }
+
+            if (!TryLoad(gameId, out var customData, store))
+            {
+                return false;
+            }
+
+            slugOverride = NormalizeValue(customData?.ExophaseEnrichmentSlugOverride);
+            if (slugOverride != null &&
+                slugOverride.StartsWith("http", StringComparison.OrdinalIgnoreCase))
+            {
+                // The UI stores bare slugs; tolerate hand-edited files holding a full URL.
+                slugOverride = NormalizeValue(ExophaseApiClient.ExtractSlugFromUrl(slugOverride));
+            }
+
+            return !string.IsNullOrWhiteSpace(slugOverride);
+        }
+
         public static bool TryGetShadPS4MatchIdOverride(
             Guid gameId,
             out string matchIdOverride,

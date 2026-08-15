@@ -55,6 +55,8 @@ namespace PlayniteAchievements.Models.Settings
 
         public ProviderOverrideData ProviderOverride { get; set; }
 
+        public string ExophaseEnrichmentSlugOverride { get; set; }
+
         public ManualAchievementLink ManualLink { get; set; }
 
         public GameCustomDataPortableFile Clone()
@@ -104,6 +106,7 @@ namespace PlayniteAchievements.Models.Settings
                 ExophaseSlugOverride = ExophaseSlugOverride,
                 NotificationAppearanceOverride = NotificationAppearanceOverride?.Clone(),
                 ProviderOverride = ProviderOverride?.Clone(),
+                ExophaseEnrichmentSlugOverride = ExophaseEnrichmentSlugOverride,
                 ManualLink = ManualLink?.Clone()
             };
         }

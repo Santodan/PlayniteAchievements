@@ -176,6 +176,12 @@ namespace PlayniteAchievements.Providers.Exophase
 
         private async Task<List<string>> ResolveSlugsAsync(Game game, string platformSlug, string regionHint, CancellationToken ct)
         {
+            if (GameCustomDataLookup.TryGetExophaseEnrichmentSlugOverride(game.Id, out var enrichmentSlug) &&
+                !string.IsNullOrWhiteSpace(enrichmentSlug))
+            {
+                return new List<string> { enrichmentSlug.Trim() };
+            }
+
             if (GameCustomDataLookup.TryGetExophaseSlugOverride(
                     game.Id,
                     out var overrideSlug,

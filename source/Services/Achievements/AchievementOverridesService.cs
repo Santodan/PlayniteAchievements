@@ -426,6 +426,19 @@ namespace PlayniteAchievements.Services.Achievements
             });
         }
 
+        public void SetExophaseEnrichmentSlugOverride(Guid gameId, string slug)
+        {
+            if (gameId == Guid.Empty)
+            {
+                return;
+            }
+
+            _gameCustomDataStore.Update(gameId, customData =>
+            {
+                customData.ExophaseEnrichmentSlugOverride = string.IsNullOrWhiteSpace(slug) ? null : slug.Trim();
+            });
+        }
+
         public void SetExcludedByUser(Guid playniteGameId, bool excluded, bool clearCachedDataWhenExcluding)
         {
             if (playniteGameId == Guid.Empty)

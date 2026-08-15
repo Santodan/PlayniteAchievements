@@ -241,6 +241,51 @@ namespace PlayniteAchievements.Providers.Tests
                 ExophaseApiClient.BuildUrlFromSlug("https://www.exophase.com/game/shogun-showdown-psn/trophies/"));
         }
 
+        [TestMethod]
+        public void TryNormalizeSlugInput_BareSlug_ReturnsTrimmedSlug()
+        {
+            Assert.IsTrue(ExophaseApiClient.TryNormalizeSlugInput("  guitar-hero-hits-xbox-360 ", out var slug));
+            Assert.AreEqual("guitar-hero-hits-xbox-360", slug);
+        }
+
+        [TestMethod]
+        public void TryNormalizeSlugInput_FullUrls_ExtractSlug()
+        {
+            var urls = new[]
+            {
+                "https://www.exophase.com/game/guitar-hero-hits-xbox-360/achievements/",
+                "https://www.exophase.com/game/guitar-hero-hits-xbox-360/trophies/",
+                "https://www.exophase.com/game/guitar-hero-hits-xbox-360/challenges/",
+                "https://www.exophase.com/game/guitar-hero-hits-xbox-360/achievements/#4768201",
+                "www.exophase.com/game/guitar-hero-hits-xbox-360/achievements/"
+            };
+
+            foreach (var url in urls)
+            {
+                Assert.IsTrue(ExophaseApiClient.TryNormalizeSlugInput(url, out var slug), url);
+                Assert.AreEqual("guitar-hero-hits-xbox-360", slug, url);
+            }
+        }
+
+        [TestMethod]
+        public void TryNormalizeSlugInput_InvalidInput_ReturnsFalse()
+        {
+            var invalid = new[]
+            {
+                null,
+                "",
+                "   ",
+                "https://www.exophase.com/user/somebody/",
+                "two words",
+                "guitar hero smash hits"
+            };
+
+            foreach (var input in invalid)
+            {
+                Assert.IsFalse(ExophaseApiClient.TryNormalizeSlugInput(input, out _), input ?? "<null>");
+            }
+        }
+
         private static HtmlNode LoadNode(string html)
         {
             var doc = new HtmlDocument();
