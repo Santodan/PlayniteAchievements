@@ -129,6 +129,8 @@
     <sys:String x:Key="LOCPlayAch_Column_Unlocks">Unlocks</sys:String>
     <sys:String x:Key="LOCPlayAch_Column_Ignore">Ignore</sys:String>
     <sys:String x:Key="LOCPlayAch_Column_Favorite">Favorite</sys:String>
+    <sys:String x:Key="LOCPlayAch_Column_SkipFullScans">Skip Full Scans</sys:String>
+    <sys:String x:Key="LOCPlayAch_Column_SkipFullScansHint">Full friend scans treat this friend as Shared: games in your library still refresh, but their other games are not discovered or scanned. Refreshing this friend directly still runs a Full scan.</sys:String>
     <sys:String x:Key="LOCPlayAch_Column_LastPlayed">Last Played</sys:String>
     <sys:String x:Key="LOCPlayAch_Column_Name">Name</sys:String>
     <sys:String x:Key="LOCPlayAch_Column_Points">Points</sys:String>
