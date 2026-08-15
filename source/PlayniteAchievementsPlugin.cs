@@ -597,6 +597,8 @@ namespace PlayniteAchievements
                     _captureLibraryService = new Services.Captures.CaptureLibraryService(
                         () => _settingsViewModel?.Settings?.Persisted,
                         _logger);
+                    Services.Captures.AchievementCapturePathResolver.CaptureLibraryAccessor =
+                        () => _captureLibraryService;
                     _inGameMonitor = new InGameAchievementMonitor(
                         PlayniteApi,
                         settings,
@@ -697,6 +699,15 @@ namespace PlayniteAchievements
                         _friendsOverviewDataCoordinator.SnapshotReleased += FriendsOverviewDataCoordinator_SnapshotReleased;
                         _eventSubscriptions.Add(() =>
                             _friendsOverviewDataCoordinator.SnapshotReleased -= FriendsOverviewDataCoordinator_SnapshotReleased);
+                    }
+
+                    if (_captureLibraryService != null)
+                    {
+                        EventHandler<Services.Captures.CapturesChangedEventArgs> capturesChangedForThemes =
+                            (s, e) => _themeIntegrationService?.NotifyCapturesChanged(e?.FolderName);
+                        _captureLibraryService.CapturesChanged += capturesChangedForThemes;
+                        _eventSubscriptions.Add(() =>
+                            _captureLibraryService.CapturesChanged -= capturesChangedForThemes);
                     }
 
                     SubscribeDatabaseEventHandlers();
