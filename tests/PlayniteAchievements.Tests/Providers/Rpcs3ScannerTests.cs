@@ -11,6 +11,7 @@ using PlayniteAchievements.Providers.EmuLibrary;
 using PlayniteAchievements.Providers.RPCS3;
 using PlayniteAchievements.Services;
 using PlayniteAchievements.Services.GameCustomData;
+using PlayniteAchievements.Services.Images;
 using PlayniteAchievements.Tests.Providers;
 using System;
 using System.Collections.Generic;
@@ -628,6 +629,75 @@ namespace PlayniteAchievements.Providers.Tests
             }
             finally
             {
+                DeleteDirectory(tempDir);
+            }
+        }
+
+        [TestMethod]
+        public async Task RefreshAsync_Collection_PublishesIcon0AsDefaultCategoryArt()
+        {
+            var tempDir = CreateTempDirectory();
+            var rpcs3Root = Path.Combine(tempDir, "rpcs3");
+            var gameRoot = Path.Combine(tempDir, "Jak Trilogy");
+            var pluginDataPath = Path.Combine(tempDir, "plugin-data");
+            var previousPlugin = PlayniteAchievementsPlugin.Instance;
+
+            try
+            {
+                // Booted sub-game: ICON0.PNG sits in its RPCS3 trophy folder.
+                CreateRpcs3TrophyData(rpcs3Root, "NPWR01818_00", "Jak and Daxter: The Precursor Legacy", "Jak 1 Cache Trophy");
+                var jak1Icon = new byte[] { 0x89, 0x50, 0x4E, 0x47, 0x01 };
+                File.WriteAllBytes(
+                    Path.Combine(rpcs3Root, "dev_hdd0", "home", "00000001", "trophy", "NPWR01818_00", "ICON0.PNG"),
+                    jak1Icon);
+                CreateTrpFile(
+                    Path.Combine(gameRoot, "PS3_GAME", "TROPDIR", "NPWR01818_00", "TROPHY.TRP"),
+                    "NPWR01818_00",
+                    "Jak and Daxter: The Precursor Legacy",
+                    "Jak 1 Disc Trophy");
+
+                // Never-booted sub-game: ICON0.PNG comes from the TRP archive.
+                var jak2Icon = new byte[] { 0x89, 0x50, 0x4E, 0x47, 0x02 };
+                var jak2Trp = Rpcs3TrophyParserTrpTests.BuildBinaryTrp(
+                    2,
+                    ("TROPCONF.SFM", Encoding.UTF8.GetBytes(BuildTropconfXml("NPWR01819_00", "Jak II", "Jak 2 Disc Trophy"))),
+                    ("ICON0.PNG", jak2Icon));
+                var jak2TrpPath = Path.Combine(gameRoot, "PS3_GAME", "TROPDIR", "NPWR01819_00", "TROPHY.TRP");
+                Directory.CreateDirectory(Path.GetDirectoryName(jak2TrpPath));
+                File.WriteAllBytes(jak2TrpPath, jak2Trp);
+
+                var diskImageService = new DiskImageService(new FakeLogger(), pluginDataPath);
+                PlayniteAchievementsPlugin.Instance = new PlayniteAchievementsPlugin
+                {
+                    DiskImageService = diskImageService
+                };
+
+                var provider = CreateProvider(rpcs3Root, pluginUserDataPath: pluginDataPath);
+                var game = new Game
+                {
+                    Id = Guid.NewGuid(),
+                    Name = "Jak and Daxter Trilogy",
+                    InstallDirectory = gameRoot
+                };
+
+                var data = await RefreshSingleGameAsync(provider, game).ConfigureAwait(false);
+
+                Assert.IsNotNull(data);
+                Assert.AreEqual(2, data.Achievements.Count);
+
+                var gameIdText = game.Id.ToString("D");
+                var jak1Art = diskImageService.FindExistingDefaultCategoryImagePath(
+                    gameIdText, "Jak and Daxter: The Precursor Legacy");
+                Assert.IsNotNull(jak1Art);
+                CollectionAssert.AreEqual(jak1Icon, File.ReadAllBytes(jak1Art));
+
+                var jak2Art = diskImageService.FindExistingDefaultCategoryImagePath(gameIdText, "Jak II");
+                Assert.IsNotNull(jak2Art);
+                CollectionAssert.AreEqual(jak2Icon, File.ReadAllBytes(jak2Art));
+            }
+            finally
+            {
+                PlayniteAchievementsPlugin.Instance = previousPlugin;
                 DeleteDirectory(tempDir);
             }
         }
