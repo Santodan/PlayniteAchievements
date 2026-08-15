@@ -381,7 +381,7 @@ namespace PlayniteAchievements.Services.ThemeIntegration
                         continue;
                     }
 
-                    var captureSet = AchievementCapturePathResolver.ResolveGameSet(data.GameName ?? data.Game?.Name);
+                    var captureSet = AchievementCapturePathResolver.ResolveGameSet(data);
                     foreach (var achievement in data.Achievements)
                     {
                         if (achievement == null)
@@ -439,7 +439,7 @@ namespace PlayniteAchievements.Services.ThemeIntegration
                     continue;
                 }
 
-                var captureSet = AchievementCapturePathResolver.ResolveGameSet(data.GameName ?? data.Game?.Name);
+                var captureSet = AchievementCapturePathResolver.ResolveGameSet(data);
                 foreach (var achievement in data.Achievements)
                 {
                     if (achievement == null ||
