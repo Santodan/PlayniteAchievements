@@ -189,6 +189,39 @@ namespace PlayniteAchievements.Providers.Exophase
         }
 
         /// <summary>
+        /// Normalizes user input for a game slug: a full exophase.com game URL is reduced to its
+        /// slug, and a bare slug is accepted as-is when it contains no whitespace.
+        /// </summary>
+        public static bool TryNormalizeSlugInput(string input, out string slug)
+        {
+            slug = null;
+            var trimmed = (input ?? string.Empty).Trim();
+            if (string.IsNullOrWhiteSpace(trimmed))
+            {
+                return false;
+            }
+
+            if (trimmed.StartsWith("http", StringComparison.OrdinalIgnoreCase) ||
+                trimmed.IndexOf("exophase.com", StringComparison.OrdinalIgnoreCase) >= 0 ||
+                trimmed.IndexOf('/') >= 0)
+            {
+                slug = ExtractSlugFromUrl(trimmed);
+                return !string.IsNullOrWhiteSpace(slug);
+            }
+
+            foreach (var ch in trimmed)
+            {
+                if (char.IsWhiteSpace(ch))
+                {
+                    return false;
+                }
+            }
+
+            slug = trimmed;
+            return true;
+        }
+
+        /// <summary>
         /// Builds the achievement page URL from a game slug or full URL.
         /// Supports both new format (slug only) and legacy format (full URL) for backward compatibility.
         /// PlayStation games use /trophies/, Ubisoft/Uplay uses /challenges/, others use /achievements/.
