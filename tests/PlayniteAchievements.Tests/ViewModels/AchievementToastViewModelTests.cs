@@ -617,11 +617,11 @@ namespace PlayniteAchievements.Tests.ViewModels
         [TestMethod]
         public void ScaleVignetteStopAlpha_UpperHalfScreenStacksWithoutClipping()
         {
-            // 100 = the original layer composited over itself: 1 - (1 - a)^2.
+            // 100 = the original layer composited over itself twice more: 1 - (1 - a)^3.
             var baseAlphas = new[] { 0x73 / 255.0, 0xF2 / 255.0, 0xD0 / 255.0 };
             foreach (var alpha in baseAlphas)
             {
-                var stacked = 1.0 - Math.Pow(1.0 - alpha, 2.0);
+                var stacked = 1.0 - Math.Pow(1.0 - alpha, 3.0);
                 Assert.AreEqual(stacked, AchievementToastViewModel.ScaleVignetteStopAlpha(alpha, 100), 1e-12);
                 Assert.IsTrue(AchievementToastViewModel.ScaleVignetteStopAlpha(alpha, 100) < 1.0);
             }
