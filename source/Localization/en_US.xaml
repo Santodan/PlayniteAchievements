@@ -837,6 +837,8 @@
     <sys:String x:Key="LOCPlayAch_FriendsSettings_MergeSelected">Merge Selected</sys:String>
     <sys:String x:Key="LOCPlayAch_FriendsSettings_IgnoreSelected">Ignore Selected</sys:String>
     <sys:String x:Key="LOCPlayAch_FriendsSettings_UnignoreSelected">Un-ignore Selected</sys:String>
+    <sys:String x:Key="LOCPlayAch_FriendsSettings_SkipFullScansSelected">Skip Full Scans</sys:String>
+    <sys:String x:Key="LOCPlayAch_FriendsSettings_AllowFullScansSelected">Allow Full Scans</sys:String>
     <sys:String x:Key="LOCPlayAch_FriendsSettings_Merged">Merged</sys:String>
     <sys:String x:Key="LOCPlayAch_FriendsSettings_NoAutoProviders">No auto-discovery platforms are enabled.</sys:String>
     <sys:String x:Key="LOCPlayAch_FriendsSettings_RefreshCompleteFormat">Friends refreshed: {0:N0}.</sys:String>
