@@ -297,6 +297,11 @@ namespace PlayniteAchievements.ViewModels
         private const double RadialVignetteEdgeAlpha = 0xF2 / 255.0;
         private const double BottomWashAlpha = 0xD0 / 255.0;
 
+        // Transparent BLACK: gradient interpolation blends color channels independently of
+        // alpha, so fading from Colors.Transparent (#00FFFFFF, transparent white) into the
+        // dark stops would tint the whole vignette whitish.
+        private static readonly Color TransparentBlack = Color.FromArgb(0, 0, 0, 0);
+
         /// <summary>
         /// Fill of the frame's circular edge vignette, shaped by the vignette strength setting.
         /// Relative radial gradients stretch to the bounds, so the radii undo the 16:9 aspect
@@ -315,8 +320,8 @@ namespace PlayniteAchievements.ViewModels
                     RadiusX = 0.57,
                     RadiusY = 1.02
                 };
-                brush.GradientStops.Add(new GradientStop(Colors.Transparent, 0));
-                brush.GradientStops.Add(new GradientStop(Colors.Transparent, 0.38));
+                brush.GradientStops.Add(new GradientStop(TransparentBlack, 0));
+                brush.GradientStops.Add(new GradientStop(TransparentBlack, 0.38));
                 brush.GradientStops.Add(new GradientStop(VignetteStopColor(RadialVignetteMidAlpha, strength), 0.72));
                 brush.GradientStops.Add(new GradientStop(VignetteStopColor(RadialVignetteEdgeAlpha, strength), 1));
                 brush.Freeze();
@@ -337,7 +342,7 @@ namespace PlayniteAchievements.ViewModels
                     StartPoint = new Point(0, 0),
                     EndPoint = new Point(0, 1)
                 };
-                brush.GradientStops.Add(new GradientStop(Colors.Transparent, 0));
+                brush.GradientStops.Add(new GradientStop(TransparentBlack, 0));
                 brush.GradientStops.Add(new GradientStop(VignetteStopColor(BottomWashAlpha, strength), 1));
                 brush.Freeze();
                 return brush;
