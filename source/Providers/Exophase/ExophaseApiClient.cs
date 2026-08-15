@@ -317,6 +317,9 @@ namespace PlayniteAchievements.Providers.Exophase
                     return $"{PsnSearchUrl}?q={escapedQuery}&sort=added";
                 case "xbox-360":
                     return $"{XboxSearchUrl}?q={escapedQuery}&sort=added&platforms=41";
+                case "xbox":
+                case "xbox-one":
+                    return $"{XboxSearchUrl}?q={escapedQuery}&sort=added";
                 default:
                     var url = $"{SearchUrl}?q={escapedQuery}&sort=added";
                     if (!string.IsNullOrWhiteSpace(normalizedPlatform))
