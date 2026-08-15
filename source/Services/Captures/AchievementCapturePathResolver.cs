@@ -1,5 +1,4 @@
 using System;
-using System.Linq;
 using PlayniteAchievements.Models.Achievements;
 using PlayniteAchievements.Services.Images;
 
@@ -24,6 +23,14 @@ namespace PlayniteAchievements.Services.Captures
             public string Framed;
             public string Video;
         }
+
+        /// <summary>
+        /// Resolves the capture set for a game's achievement data. The live Playnite game name is
+        /// preferred because the capture writers key the on-disk folder by it; the cached name is
+        /// the fallback for games no longer in the library.
+        /// </summary>
+        public static GameCaptureSet ResolveGameSet(GameAchievementData data) =>
+            data == null ? null : ResolveGameSet(data.Game?.Name ?? data.GameName);
 
         /// <summary>
         /// Returns the cached capture set for a game, or null when the capture library is
@@ -94,18 +101,25 @@ namespace PlayniteAchievements.Services.Captures
         }
 
         /// <summary>
-        /// One deterministic file per variant: the original capture wins over " (n)" collision
-        /// duplicates. Ordering by path length first is what makes that hold — the plain name is
-        /// the shortest, and a bare ordinal comparison would put " (2)" ahead of ".png" because
-        /// space sorts before dot. With the original deleted, the lowest counter wins.
+        /// One deterministic file per variant: the original capture (parsed " (n)" collision
+        /// counter 0) wins over duplicates; with the original deleted, the lowest counter wins,
+        /// with an ordinal path tiebreak.
         /// </summary>
         internal static string SelectPath(AchievementCaptureGroup group, CaptureVariant variant)
         {
-            return group
-                .ForVariant(variant)
-                .OrderBy(i => i.FilePath?.Length ?? 0)
-                .ThenBy(i => i.FilePath, StringComparer.OrdinalIgnoreCase)
-                .FirstOrDefault()?.FilePath;
+            CaptureItem best = null;
+            foreach (var item in group.ForVariant(variant))
+            {
+                if (best == null ||
+                    item.DedupCounter < best.DedupCounter ||
+                    (item.DedupCounter == best.DedupCounter &&
+                     string.Compare(item.FilePath, best.FilePath, StringComparison.OrdinalIgnoreCase) < 0))
+                {
+                    best = item;
+                }
+            }
+
+            return best?.FilePath;
         }
     }
 }
