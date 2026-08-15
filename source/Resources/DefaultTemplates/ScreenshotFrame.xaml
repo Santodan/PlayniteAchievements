@@ -35,37 +35,20 @@
                   DataType="{x:Type vm:AchievementToastViewModel}">
         <Grid>
             <!-- Frame chrome: a circular black vignette around the whole shot; no border lines
-                 and no banner card. Relative radial gradients stretch to the bounds, so the radii
-                 undo the 16:9 aspect (radius = half-diagonal: 0.57 of width, 1.02 of height) and
-                 the fade stays a circle through the corners instead of an edge-hugging ellipse. -->
+                 and no banner card. The view model supplies the gradient, shaped by the
+                 surface's vignette strength setting. -->
             <Rectangle IsHitTestVisible="False"
-                       Visibility="{Binding FrameShowRadialVignette, Converter={StaticResource BooleanToVisibilityConverter}}">
-                <Rectangle.Fill>
-                    <RadialGradientBrush Center="0.5,0.5"
-                                         GradientOrigin="0.5,0.5"
-                                         RadiusX="0.57"
-                                         RadiusY="1.02">
-                        <GradientStop Color="#00000000" Offset="0"/>
-                        <GradientStop Color="#00000000" Offset="0.38"/>
-                        <GradientStop Color="#73000000" Offset="0.72"/>
-                        <GradientStop Color="#F2000000" Offset="1"/>
-                    </RadialGradientBrush>
-                </Rectangle.Fill>
-            </Rectangle>
+                       Fill="{Binding FrameRadialVignetteBrush}"
+                       Visibility="{Binding FrameShowRadialVignette, Converter={StaticResource BooleanToVisibilityConverter}}"/>
 
             <!-- Bottom contrast wash so the floating content reads over any game footage; the
-                 circular vignette is lightest at the bottom-center, so this carries the text. -->
+                 circular vignette is lightest at the bottom-center, so this carries the text.
+                 The view model supplies the gradient, shaped by the same strength setting. -->
             <Rectangle VerticalAlignment="Bottom"
                        Height="280"
                        IsHitTestVisible="False"
-                       Visibility="{Binding FrameShowBottomWash, Converter={StaticResource BooleanToVisibilityConverter}}">
-                <Rectangle.Fill>
-                    <LinearGradientBrush StartPoint="0,0" EndPoint="0,1">
-                        <GradientStop Color="#00000000" Offset="0"/>
-                        <GradientStop Color="#D0000000" Offset="1"/>
-                    </LinearGradientBrush>
-                </Rectangle.Fill>
-            </Rectangle>
+                       Fill="{Binding FrameBottomWashBrush}"
+                       Visibility="{Binding FrameShowBottomWash, Converter={StaticResource BooleanToVisibilityConverter}}"/>
 
             <!-- Bottom content floats directly over the vignette; the wash above supplies the
                  contrast behind it. Binds the FrameShow*/Frame* properties (its own settings),
