@@ -399,9 +399,10 @@ namespace PlayniteAchievements.Views.ThemeIntegration.Modern
             // achievement and its comparison fields must be re-resolved.
             _friendCompare.SetGame(theme?.SelectedGameId, DisplayItems.ToList());
 
-            // UpdateFrom carries capture paths between items, but the source details this grid
-            // syncs from are not capture-stamped; the marker resolves the reused rows' paths
-            // from disk so they match the achievement now occupying each position.
+            // On the live path the details are already capture-stamped by the runtime state
+            // builder and UpdateFrom carries the paths. This mark backstops the sources that
+            // bypass the builder: ThemeDataOverride preview items and states built before the
+            // capture library was wired.
             Services.Captures.CapturePresenceMarker.MarkAchievements(
                 DisplayItems.ToList(), CaptureLibrary);
 
