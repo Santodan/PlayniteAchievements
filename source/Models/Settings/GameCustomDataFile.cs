@@ -139,6 +139,13 @@ namespace PlayniteAchievements.Models.Settings
 
         public ProviderOverrideData ProviderOverride { get; set; }
 
+        /// <summary>
+        /// Exophase slug used only for rarity/metadata enrichment when another provider services
+        /// the game. Distinct from the legacy <see cref="ExophaseSlugOverride"/>, which selects
+        /// the servicing provider and is migrated into <see cref="ProviderOverride"/>.
+        /// </summary>
+        public string ExophaseEnrichmentSlugOverride { get; set; }
+
         public ManualAchievementLink ManualLink { get; set; }
 
         public GameCustomDataFile Clone()
@@ -190,6 +197,7 @@ namespace PlayniteAchievements.Models.Settings
                 ExophaseSlugOverride = ExophaseSlugOverride,
                 NotificationAppearanceOverride = NotificationAppearanceOverride?.Clone(),
                 ProviderOverride = ProviderOverride?.Clone(),
+                ExophaseEnrichmentSlugOverride = ExophaseEnrichmentSlugOverride,
                 ManualLink = ManualLink?.Clone()
             };
         }
@@ -241,6 +249,7 @@ namespace PlayniteAchievements.Models.Settings
                 ExophaseSlugOverride = ExophaseSlugOverride,
                 NotificationAppearanceOverride = NotificationAppearanceOverride?.Clone(),
                 ProviderOverride = ProviderOverride?.Clone(),
+                ExophaseEnrichmentSlugOverride = ExophaseEnrichmentSlugOverride,
                 ManualLink = ManualLink?.Clone()
             };
         }
@@ -298,6 +307,7 @@ namespace PlayniteAchievements.Models.Settings
                 ExophaseSlugOverride = portable?.ExophaseSlugOverride,
                 NotificationAppearanceOverride = portable?.NotificationAppearanceOverride?.Clone(),
                 ProviderOverride = portable?.ProviderOverride?.Clone(),
+                ExophaseEnrichmentSlugOverride = portable?.ExophaseEnrichmentSlugOverride,
                 ManualLink = portable?.ManualLink?.Clone()
             };
         }
