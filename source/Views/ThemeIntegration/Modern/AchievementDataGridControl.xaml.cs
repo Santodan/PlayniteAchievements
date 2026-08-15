@@ -399,9 +399,9 @@ namespace PlayniteAchievements.Views.ThemeIntegration.Modern
             // achievement and its comparison fields must be re-resolved.
             _friendCompare.SetGame(theme?.SelectedGameId, DisplayItems.ToList());
 
-            // Same reason the capture flag is stamped here rather than on clonedItems: UpdateFrom
-            // does not carry HasCaptures, so a reused row would otherwise keep the flag of whichever
-            // achievement previously occupied its position.
+            // UpdateFrom carries capture paths between items, but the source details this grid
+            // syncs from are not capture-stamped; the marker resolves the reused rows' paths
+            // from disk so they match the achievement now occupying each position.
             Services.Captures.CapturePresenceMarker.MarkAchievements(
                 DisplayItems.ToList(), CaptureLibrary);
 
