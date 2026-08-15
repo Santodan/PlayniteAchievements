@@ -1599,10 +1599,12 @@ namespace PlayniteAchievements.Services.Refresh
             return scoped;
         }
 
-        // Friends opted out of Full scans are treated as Shared: their library-mapped games still
-        // refresh through the regular candidate builders, but the unowned definition/probe phase
-        // never sees their ownership. A refresh that explicitly names friends (the per-friend
-        // context-menu path) bypasses the opt-out.
+        // Friends opted out of Full scans never reach the unowned definition/probe phase, which is
+        // the only path that DISCOVERS new provider-only games. Their library-mapped games still
+        // refresh through the regular candidate builders, and provider-only games already in the
+        // cache keep updating through the Recent cache loader (which sources only known rows), so
+        // the opt-out stops new unowned games from being added without freezing existing ones. A
+        // refresh that explicitly names friends (the per-friend context-menu path) bypasses it.
         private List<FriendOwnershipSnapshot> FilterFullScanExcludedSnapshots(
             FriendProviderRefreshContext context,
             FriendRefreshOptions options)
