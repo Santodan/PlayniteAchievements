@@ -51,7 +51,6 @@ namespace PlayniteAchievements.Views.Controls
         private int _paletteGeneration = -1;
         private Size _arrangedSize;
         private bool _appearanceHooked;
-        private bool _subscribed;
         private bool _localEpochSet;
         private double _localEpochMs;
 
@@ -267,13 +266,15 @@ namespace PlayniteAchievements.Views.Controls
             return finalSize;
         }
 
-        bool IRayAnimationTarget.WantsRayFrames =>
-            IsActive && IsVisible && IsWithinViewport() && ShouldDraw();
+        bool IRayAnimationTarget.WantsRayFrames => IsActive && IsVisible && ShouldDraw();
 
         /// <summary>
         /// Whether any part of this burst falls inside the window. IsVisible stays true for an
         /// element scrolled out of its list's viewport - it is merely clipped - so without this a
-        /// wall of icons keeps rebuilding arrow geometry for rows nobody can see.
+        /// wall of icons keeps rebuilding arrow geometry for rows nobody can see. Checked per
+        /// frame rather than in WantsRayFrames: the driver drops a target whose WantsRayFrames
+        /// goes false, and no event fires when an element scrolls back into view, so a burst
+        /// unsubscribed for being clipped would stay frozen forever.
         /// </summary>
         private bool IsWithinViewport()
         {
@@ -295,7 +296,15 @@ namespace PlayniteAchievements.Views.Controls
             }
         }
 
-        void IRayAnimationTarget.OnRayFrame() => Redraw();
+        void IRayAnimationTarget.OnRayFrame()
+        {
+            // Clipped out of the scroll viewport: stay subscribed and skip the frame, so the
+            // burst resumes the moment it scrolls back in.
+            if (IsWithinViewport())
+            {
+                Redraw();
+            }
+        }
 
         private void OnLoaded(object sender, RoutedEventArgs e)
         {
@@ -322,7 +331,7 @@ namespace PlayniteAchievements.Views.Controls
             // The track itself is kept: it is cached anyway, and dropping it would only make a
             // re-shown row flash its fallback for a frame.
             CancelPendingLoad();
-            Unsubscribe();
+            RayAnimationDriver.Unsubscribe(this);
         }
 
         private void OnIsVisibleChanged(object sender, DependencyPropertyChangedEventArgs e)
@@ -491,34 +500,19 @@ namespace PlayniteAchievements.Views.Controls
             }
         }
 
+        // No subscribed flag is kept here: the driver drops targets on its own when their
+        // WantsRayFrames goes false, so a local flag can go stale and block resubscription.
+        // Subscribe and Unsubscribe are idempotent, so the driver's list is the single record.
         private void UpdateSubscription()
         {
-            var wants = IsActive && IsVisible && IsLoaded && ShouldDraw();
-            if (wants == _subscribed)
-            {
-                return;
-            }
-
-            if (wants)
+            if (IsActive && IsVisible && IsLoaded && ShouldDraw())
             {
                 RayAnimationDriver.Subscribe(this);
-                _subscribed = true;
             }
             else
             {
-                Unsubscribe();
+                RayAnimationDriver.Unsubscribe(this);
             }
-        }
-
-        private void Unsubscribe()
-        {
-            if (!_subscribed)
-            {
-                return;
-            }
-
-            RayAnimationDriver.Unsubscribe(this);
-            _subscribed = false;
         }
 
         /// <summary>
