@@ -33,6 +33,13 @@ namespace PlayniteAchievements.Models.Settings
 
         public bool IsFavorite { get; set; }
 
+        /// <summary>
+        /// When true, broad Full friend scans treat this friend as Shared: their library-mapped
+        /// games still refresh, but unowned/provider-only games are not discovered or probed for
+        /// them. Explicitly refreshing the friend overrides this.
+        /// </summary>
+        public bool ExcludeFromFullScans { get; set; }
+
         public List<string> SelectedPlatforms { get; set; } = new List<string>();
 
         public DateTime AddedUtc { get; set; } = DateTime.UtcNow;
@@ -62,6 +69,7 @@ namespace PlayniteAchievements.Models.Settings
                 Source = Source,
                 IsIgnored = IsIgnored,
                 IsFavorite = IsFavorite,
+                ExcludeFromFullScans = ExcludeFromFullScans,
                 SelectedPlatforms = SelectedPlatforms?.ToList() ?? new List<string>(),
                 AddedUtc = AddedUtc,
                 LastRefreshedUtc = LastRefreshedUtc,
