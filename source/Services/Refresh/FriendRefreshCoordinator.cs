@@ -1565,13 +1565,14 @@ namespace PlayniteAchievements.Services.Refresh
             FriendProviderRefreshContext context,
             FriendRefreshOptions options)
         {
+            var snapshots = FilterFullScanExcludedSnapshots(context, options);
             if (options?.Scope != FriendRefreshScope.Recent)
             {
-                return context.OwnershipSnapshots;
+                return snapshots;
             }
 
             var scoped = new List<FriendOwnershipSnapshot>();
-            foreach (var snapshot in context.OwnershipSnapshots ?? Enumerable.Empty<FriendOwnershipSnapshot>())
+            foreach (var snapshot in snapshots ?? Enumerable.Empty<FriendOwnershipSnapshot>())
             {
                 if (snapshot?.Friend == null || snapshot.Ownership == null)
                 {
@@ -1596,6 +1597,41 @@ namespace PlayniteAchievements.Services.Refresh
             }
 
             return scoped;
+        }
+
+        // Friends opted out of Full scans are treated as Shared: their library-mapped games still
+        // refresh through the regular candidate builders, but the unowned definition/probe phase
+        // never sees their ownership. A refresh that explicitly names friends (the per-friend
+        // context-menu path) bypasses the opt-out.
+        private List<FriendOwnershipSnapshot> FilterFullScanExcludedSnapshots(
+            FriendProviderRefreshContext context,
+            FriendRefreshOptions options)
+        {
+            var snapshots = context?.OwnershipSnapshots;
+            if (snapshots == null ||
+                snapshots.Count == 0 ||
+                FriendRefreshWorkPolicy.HasExplicitFriendTargets(options))
+            {
+                return snapshots;
+            }
+
+            var excluded = _settings?.Persisted?.GetFullScanExcludedFriendIds(context.ProviderKey);
+            if (excluded == null || excluded.Count == 0)
+            {
+                return snapshots;
+            }
+
+            var kept = snapshots
+                .Where(snapshot => string.IsNullOrWhiteSpace(snapshot?.Friend?.ExternalUserId) ||
+                                   !excluded.Contains(snapshot.Friend.ExternalUserId))
+                .ToList();
+            if (kept.Count != snapshots.Count)
+            {
+                _logger?.Debug(
+                    $"Unowned discovery skipped {snapshots.Count - kept.Count} {context.ProviderKey} friend(s) opted out of Full scans.");
+            }
+
+            return kept;
         }
 
         // Computes the unowned-definition plan without performing any fetch (the only cache access is the
