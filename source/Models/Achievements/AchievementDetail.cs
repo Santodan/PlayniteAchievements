@@ -125,6 +125,41 @@ namespace PlayniteAchievements.Models.Achievements
         [IgnoreDataMember]
         public int CategoryOrderIndex { get; set; } = int.MaxValue;
 
+        /// <summary>
+        /// Runtime-only full path to this achievement's saved clean unlock screenshot (no toast,
+        /// no frame). Null when none exists on disk; when re-fires produced duplicates the
+        /// original file wins. Resolved from the capture library, never persisted.
+        /// </summary>
+        [IgnoreDataMember]
+        public string CleanCapturePath { get; set; }
+
+        /// <summary>
+        /// Runtime-only full path to the screenshot with this achievement's notification card
+        /// composited in. Null when none exists on disk; the original file wins on duplicates.
+        /// </summary>
+        [IgnoreDataMember]
+        public string NotificationCapturePath { get; set; }
+
+        /// <summary>
+        /// Runtime-only full path to the framed screenshot (theme frame rendered over the clean
+        /// capture). Null when none exists on disk; the original file wins on duplicates.
+        /// </summary>
+        [IgnoreDataMember]
+        public string FramedCapturePath { get; set; }
+
+        /// <summary>
+        /// Runtime-only full path to this achievement's unlock video clip (.mp4). Null when none
+        /// exists on disk; the original file wins on duplicates.
+        /// </summary>
+        [IgnoreDataMember]
+        public string VideoCapturePath { get; set; }
+
+        /// <summary>True when any of the four capture paths is set; theme visibility convenience.</summary>
+        [IgnoreDataMember]
+        public bool HasAnyCapture =>
+            CleanCapturePath != null || NotificationCapturePath != null ||
+            FramedCapturePath != null || VideoCapturePath != null;
+
         [IgnoreDataMember]
         public ICommand SetDynamicAchievementsGameCommand { get; set; }
 

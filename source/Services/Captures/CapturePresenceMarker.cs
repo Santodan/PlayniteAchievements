@@ -10,9 +10,10 @@ using PlayniteAchievements.ViewModels.Items;
 namespace PlayniteAchievements.Services.Captures
 {
     /// <summary>
-    /// Sets the session-only <c>HasCaptures</c> flag on grid row items so the Captures column button
-    /// only shows for games/achievements that actually have saved captures. Scanning happens on a
-    /// background thread (the service caches per game) and the flags are applied on the UI dispatcher.
+    /// Stamps session-only capture state onto grid row items: the <c>HasCaptures</c> flag on game
+    /// summaries, and the four resolved capture paths on achievement rows (from which the row's
+    /// <c>HasCaptures</c> derives). Scanning happens on a background thread (the service caches per
+    /// game) and the values are applied on the UI dispatcher.
     /// Fire-and-forget: hosts call it after (re)building a collection and do not await it.
     /// Runs are globally serialized, so a run queued later always computes against state at least as
     /// fresh as an earlier one and always applies last; a stale scan can never overwrite a newer one.
@@ -57,12 +58,19 @@ namespace PlayniteAchievements.Services.Captures
             }
 
             Run(
-                () => snapshot.Select(i => service.AchievementHasCaptures(i.GameName, i.DisplayName)).ToArray(),
-                flags =>
+                () => snapshot
+                    .Select(i => AchievementCapturePathResolver.ResolvePaths(
+                        service.ScanGame(i.GameName),
+                        i.DisplayName))
+                    .ToArray(),
+                stamps =>
                 {
                     for (var i = 0; i < snapshot.Count; i++)
                     {
-                        snapshot[i].HasCaptures = flags[i];
+                        snapshot[i].CleanCapturePath = stamps[i].Clean;
+                        snapshot[i].NotificationCapturePath = stamps[i].Notification;
+                        snapshot[i].FramedCapturePath = stamps[i].Framed;
+                        snapshot[i].VideoCapturePath = stamps[i].Video;
                     }
                 });
         }
@@ -102,7 +110,7 @@ namespace PlayniteAchievements.Services.Captures
             return snapshot.Count == 0 ? null : snapshot;
         }
 
-        private static void Run(Func<bool[]> compute, Action<bool[]> apply)
+        private static void Run<T>(Func<T[]> compute, Action<T[]> apply)
         {
             lock (QueueGate)
             {
@@ -114,9 +122,9 @@ namespace PlayniteAchievements.Services.Captures
             }
         }
 
-        private static void Execute(Func<bool[]> compute, Action<bool[]> apply)
+        private static void Execute<T>(Func<T[]> compute, Action<T[]> apply)
         {
-            bool[] flags;
+            T[] flags;
             try
             {
                 flags = compute();

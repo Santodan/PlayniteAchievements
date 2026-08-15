@@ -63,8 +63,7 @@ namespace PlayniteAchievements.ViewModels
             string achievementDisplayName,
             string achievementStem)
         {
-            var group = fullSet?.Groups?.FirstOrDefault(g =>
-                string.Equals(g.AchievementStem, achievementStem, StringComparison.OrdinalIgnoreCase));
+            var group = fullSet?.FindGroup(achievementStem);
             var narrowed = group != null
                 ? new GameCaptureSet(new List<AchievementCaptureGroup> { group })
                 : GameCaptureSet.Empty;

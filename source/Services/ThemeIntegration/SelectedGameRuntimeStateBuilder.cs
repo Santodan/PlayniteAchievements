@@ -5,6 +5,7 @@ using PlayniteAchievements.Services.Achievements;
 using PlayniteAchievements.ViewModels;
 using PlayniteAchievements.Models.ThemeIntegration;
 using PlayniteAchievements.Services;
+using PlayniteAchievements.Services.Captures;
 using PlayniteAchievements.Services.Images;
 using PlayniteAchievements.Services.Summaries;
 using PlayniteAchievements.ViewModels.Items;
@@ -55,11 +56,12 @@ namespace PlayniteAchievements.Services.ThemeIntegration
             }
 
             var game = data.Game;
+            var captureSet = AchievementCapturePathResolver.ResolveGameSet(data.GameName ?? data.Game?.Name);
             for (int i = 0; i < achievements.Count; i++)
             {
                 if (achievements[i] != null)
                 {
-                    ApplyAchievementPresentation(achievements[i], data);
+                    ApplyAchievementPresentation(achievements[i], data, captureSet);
                 }
             }
 
@@ -134,7 +136,8 @@ namespace PlayniteAchievements.Services.ThemeIntegration
 
         private static void ApplyAchievementPresentation(
             AchievementDetail achievement,
-            GameAchievementData data)
+            GameAchievementData data,
+            GameCaptureSet captureSet)
         {
             if (achievement == null)
             {
@@ -146,6 +149,7 @@ namespace PlayniteAchievements.Services.ThemeIntegration
             achievement.Game = data?.Game;
             achievement.ProviderKey = data?.EffectiveProviderKey;
             ApplyCategoryImagePresentation(achievement, data);
+            AchievementCapturePathResolver.Apply(achievement, captureSet);
         }
 
         private static void ApplyCategoryImagePresentation(

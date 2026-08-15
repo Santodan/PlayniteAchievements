@@ -662,6 +662,41 @@ namespace PlayniteAchievements.Services.ThemeIntegration
             }
         }
 
+        /// <summary>
+        /// Force-refreshes the selected-game theme surface after a game's captures on disk changed,
+        /// so capture-path bindings update without reselecting the game. Only fires when the changed
+        /// capture folder belongs to the game the surface is showing (a null folder means every game
+        /// changed). The library-wide lists deliberately wait for their next natural rebuild — a
+        /// full-library rebuild per saved capture is too heavy.
+        /// </summary>
+        public void NotifyCapturesChanged(string captureFolderName)
+        {
+            try
+            {
+                var resolvedGameId = _appliedGameId ?? _requestedGameId ?? ResolveSelectedGameIdForThemeUpdate();
+                if (!resolvedGameId.HasValue || resolvedGameId.Value == Guid.Empty)
+                {
+                    return;
+                }
+
+                if (captureFolderName != null)
+                {
+                    var gameName = _api?.Database?.Games?.Get(resolvedGameId.Value)?.Name;
+                    var selectedFolder = UnlockScreenshotService.SanitizeCaptureGameName(gameName);
+                    if (!string.Equals(selectedFolder, captureFolderName, StringComparison.OrdinalIgnoreCase))
+                    {
+                        return;
+                    }
+                }
+
+                RequestUpdate(resolvedGameId.Value, forceRefresh: true);
+            }
+            catch (Exception ex)
+            {
+                _logger?.Debug(ex, "Failed to refresh selected-game theme state after captures change.");
+            }
+        }
+
         private bool IsFullscreen()
         {
             try
