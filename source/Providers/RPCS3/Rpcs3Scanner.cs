@@ -986,13 +986,42 @@ namespace PlayniteAchievements.Providers.RPCS3
                 using (var disc = new DiscFileSystemReader(isoPath))
                 {
                     var rootDirectoryNames = disc.GetRootDirectoryNames();
+                    var enumeratedTrpPaths = 0;
 
                     foreach (var trpImagePath in GetIsoTrophyTrpPaths(disc, rootDirectoryNames))
                     {
+                        enumeratedTrpPaths++;
+
                         var trpBytes = disc.ReadAllBytesOrNull(trpImagePath);
                         if (trpBytes == null ||
                             !Rpcs3TrophyParser.TryReadTrpIdentity(trpBytes, out var npCommId, out var titleName, _logger))
                         {
+                            // The TRP contents could not be read or parsed (e.g. an image
+                            // whose file data the filesystem reader cannot surface). A
+                            // TROPDIR set directory is named after its NPWR id, so the
+                            // set can still be matched against a trophy folder RPCS3 has
+                            // already created for it.
+                            var fallbackId = ExtractNpCommIdFromImagePath(trpImagePath);
+                            if (string.IsNullOrWhiteSpace(fallbackId) || !seen.Add(fallbackId))
+                            {
+                                continue;
+                            }
+
+                            if (trophyFolderCache?.ContainsKey(fallbackId) == true)
+                            {
+                                _logger?.Info(
+                                    $"[RPCS3] ISO '{isoPath}': '{trpImagePath}' could not be parsed; matched " +
+                                    $"'{fallbackId}' from its TROPDIR directory name via the RPCS3 trophy folder.");
+                                sources.Add(new GameTrophySource { NpCommId = fallbackId, TrpPath = null });
+                            }
+                            else
+                            {
+                                _logger?.Info(
+                                    $"[RPCS3] ISO '{isoPath}': '{trpImagePath}' could not be parsed and set " +
+                                    $"'{fallbackId}' has no RPCS3 trophy folder; booting it once in RPCS3 surfaces it.");
+                                dropped.Add(fallbackId);
+                            }
+
                             continue;
                         }
 
@@ -1021,6 +1050,21 @@ namespace PlayniteAchievements.Providers.RPCS3
                         }
                     }
 
+                    if (enumeratedTrpPaths == 0)
+                    {
+                        // Distinguishes "the image holds no trophy set" from a
+                        // filesystem the reader could not walk: parse failures in
+                        // the disc reader surface only as empty listings.
+                        var rootSummary = rootDirectoryNames.Count > 0
+                            ? string.Join(", ", rootDirectoryNames)
+                            : "none";
+                        var errorSummary = string.IsNullOrWhiteSpace(disc.LastError)
+                            ? string.Empty
+                            : $"; first filesystem read error: {disc.LastError}";
+                        _logger?.Info(
+                            $"[RPCS3] ISO '{isoPath}': structured read found no TROPHY.TRP paths; " +
+                            $"root directories [{rootSummary}]{errorSummary}.");
+                    }
                 }
             }
             catch (Exception ex)
@@ -1152,6 +1196,24 @@ namespace PlayniteAchievements.Providers.RPCS3
             {
                 yield return "TROPHY/TROPHY.TRP";
             }
+        }
+
+        /// <summary>
+        /// The NPWR id carried in a trophy path's own segments, or null when no
+        /// segment is NPWR-shaped. TROPDIR set directories are named after their
+        /// NPWR id, so the id survives even when the TRP contents are unreadable.
+        /// </summary>
+        private static string ExtractNpCommIdFromImagePath(string pathInsideImage)
+        {
+            if (string.IsNullOrWhiteSpace(pathInsideImage))
+            {
+                return null;
+            }
+
+            return pathInsideImage
+                .Split(new[] { '/', '\\' }, StringSplitOptions.RemoveEmptyEntries)
+                .Select(Rpcs3MatchIdHelper.Normalize)
+                .FirstOrDefault(segment => !string.IsNullOrWhiteSpace(segment));
         }
 
         /// <summary>

@@ -2235,6 +2235,81 @@ BCUS98246: 'D:\RPCS3\Other Collection.iso' # trailing comment
         }
 
         [TestMethod]
+        public async Task RefreshAsync_IsoTropdirUnparseableTrp_BootedSet_MatchesByDirectoryName()
+        {
+            var tempDir = CreateTempDirectory();
+            var rpcs3Root = Path.Combine(tempDir, "rpcs3");
+            var pluginDataPath = Path.Combine(tempDir, "plugin-data");
+            var isoPath = Path.Combine(tempDir, "roms", "Jak Trilogy.iso");
+
+            try
+            {
+                // The TRP contents inside the image are unreadable (e.g. an image
+                // whose file data the reader cannot surface), but the set was booted
+                // in RPCS3: its TROPDIR directory name still identifies it.
+                CreateRpcs3TrophyData(rpcs3Root, "NPWR01818_00", "Jak and Daxter: The Precursor Legacy", "Jak 1 Cache Trophy");
+
+                var garbage = Enumerable.Repeat((byte)0xA5, 4096).ToArray();
+                CreateIso9660WithFiles(isoPath, (@"PS3_GAME\TROPDIR\NPWR01818_00\TROPHY.TRP", garbage));
+
+                var provider = CreateProvider(rpcs3Root, pluginUserDataPath: pluginDataPath);
+                var game = new Game
+                {
+                    Id = Guid.NewGuid(),
+                    Name = "The Jak and Daxter Trilogy",
+                    Roms = new ObservableCollection<GameRom> { new GameRom("Disc", isoPath) }
+                };
+
+                var data = await RefreshSingleGameAsync(provider, game).ConfigureAwait(false);
+
+                Assert.IsNotNull(data);
+                Assert.AreEqual("NPWR01818_00", data.ProviderGameKey);
+                Assert.AreEqual(1, data.Achievements.Count);
+                Assert.AreEqual("0", data.Achievements[0].ApiName);
+                Assert.AreEqual("Jak 1 Cache Trophy", data.Achievements[0].DisplayName);
+            }
+            finally
+            {
+                DeleteDirectory(tempDir);
+            }
+        }
+
+        [TestMethod]
+        public async Task RefreshAsync_IsoTropdirUnparseableTrp_NeverBooted_RemainsUnmatched()
+        {
+            var tempDir = CreateTempDirectory();
+            var rpcs3Root = Path.Combine(tempDir, "rpcs3");
+            var pluginDataPath = Path.Combine(tempDir, "plugin-data");
+            var isoPath = Path.Combine(tempDir, "roms", "Jak Trilogy.iso");
+
+            try
+            {
+                // Unreadable TRP contents and no trophy folder: the directory name
+                // alone cannot produce a trophy list, so the set stays dropped.
+                File.WriteAllBytes(Path.Combine(CreateRpcs3Root(rpcs3Root), "rpcs3.exe"), new byte[] { 0 });
+
+                var garbage = Enumerable.Repeat((byte)0xA5, 4096).ToArray();
+                CreateIso9660WithFiles(isoPath, (@"PS3_GAME\TROPDIR\NPWR01818_00\TROPHY.TRP", garbage));
+
+                var provider = CreateProvider(rpcs3Root, pluginUserDataPath: pluginDataPath);
+                var game = new Game
+                {
+                    Id = Guid.NewGuid(),
+                    Name = "The Jak and Daxter Trilogy",
+                    Roms = new ObservableCollection<GameRom> { new GameRom("Disc", isoPath) }
+                };
+
+                var data = await RefreshSingleGameAsync(provider, game).ConfigureAwait(false);
+
+                Assert.IsNull(data);
+            }
+            finally
+            {
+                DeleteDirectory(tempDir);
+            }
+        }
+
+        [TestMethod]
         public async Task RefreshAsync_IsoTropdirWithDistinctTitleSets_SurfacesCollection()
         {
             var tempDir = CreateTempDirectory();

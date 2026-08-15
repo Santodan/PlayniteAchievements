@@ -20,6 +20,15 @@ namespace PlayniteAchievements.Common.Disc
         private readonly Stream _ownedStream;
         private readonly DiscFileSystem _fs;
 
+        /// <summary>
+        /// The first filesystem read failure swallowed by the tolerant accessors
+        /// (directory listing, file open), as "ExceptionType: message", or null when
+        /// no read has failed. Filesystem parse errors otherwise surface only as
+        /// empty listings; this lets callers report why an image that a desktop OS
+        /// mounts fine yielded nothing.
+        /// </summary>
+        public string LastError { get; private set; }
+
         public DiscFileSystemReader(string imagePath)
             : this(OpenImageStream(imagePath), leaveOpen: false)
         {
@@ -152,8 +161,9 @@ namespace PlayniteAchievements.Common.Disc
                 stream = _fs.OpenFile(normalizedPath, FileMode.Open);
                 return true;
             }
-            catch
+            catch (Exception ex)
             {
+                RecordError(ex);
                 stream?.Dispose();
                 stream = null;
                 return false;
@@ -209,13 +219,21 @@ namespace PlayniteAchievements.Common.Disc
         private IEnumerable<string> SafeGetDirectories(string path)
         {
             try { return _fs.GetDirectories(path) ?? Enumerable.Empty<string>(); }
-            catch { return Enumerable.Empty<string>(); }
+            catch (Exception ex) { RecordError(ex); return Enumerable.Empty<string>(); }
         }
 
         private IEnumerable<string> SafeGetFiles(string path)
         {
             try { return _fs.GetFiles(path) ?? Enumerable.Empty<string>(); }
-            catch { return Enumerable.Empty<string>(); }
+            catch (Exception ex) { RecordError(ex); return Enumerable.Empty<string>(); }
+        }
+
+        private void RecordError(Exception ex)
+        {
+            if (LastError == null && ex != null)
+            {
+                LastError = $"{ex.GetType().Name}: {ex.Message}";
+            }
         }
 
         private static string NormalizeImagePath(string pathInsideImage)
