@@ -357,15 +357,20 @@ namespace PlayniteAchievements.ViewModels
         /// <summary>
         /// Maps the 0-100 vignette strength onto a gradient stop's alpha. 50 returns the
         /// original alpha exactly; below it the vignette fades linearly to nothing; above it
-        /// the original layer is screen-stacked over itself (100 = applied twice), darkening
-        /// asymptotically toward solid without clipping the gradient's shape.
+        /// the original layer is screen-stacked over itself (100 = applied three times),
+        /// darkening asymptotically toward solid without clipping the gradient's shape.
         /// </summary>
         internal static double ScaleVignetteStopAlpha(double baseAlpha, double? strengthPercent)
         {
             var factor = NormalizePercent(strengthPercent, DefaultFrameVignetteStrength) * 2.0;
-            return factor <= 1.0
-                ? baseAlpha * factor
-                : 1.0 - Math.Pow(1.0 - baseAlpha, factor);
+            if (factor <= 1.0)
+            {
+                return baseAlpha * factor;
+            }
+
+            // The exponent ramps 1..3 across the upper half, so 100 stacks two extra layers.
+            var exponent = 1.0 + (factor - 1.0) * 2.0;
+            return 1.0 - Math.Pow(1.0 - baseAlpha, exponent);
         }
 
         // Mirrors TitleBrush but honors the frame's own rarity-colored-name toggle.
