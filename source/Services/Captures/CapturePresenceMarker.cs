@@ -58,11 +58,26 @@ namespace PlayniteAchievements.Services.Captures
             }
 
             Run(
-                () => snapshot
-                    .Select(i => AchievementCapturePathResolver.ResolvePaths(
-                        service.ScanGame(i.GameName),
-                        i.DisplayName))
-                    .ToArray(),
+                () =>
+                {
+                    // Rows cluster by game; resolve each game's set once (null when the game's
+                    // folder holds no captures, which skips all per-row work downstream).
+                    var setsByGame = new Dictionary<string, GameCaptureSet>(StringComparer.OrdinalIgnoreCase);
+                    var stamps = new AchievementCapturePathResolver.CapturePathStamp[snapshot.Count];
+                    for (var i = 0; i < snapshot.Count; i++)
+                    {
+                        var gameName = snapshot[i].GameName ?? string.Empty;
+                        if (!setsByGame.TryGetValue(gameName, out var set))
+                        {
+                            set = service.GameFolderHasCaptures(gameName) ? service.ScanGame(gameName) : null;
+                            setsByGame[gameName] = set;
+                        }
+
+                        stamps[i] = AchievementCapturePathResolver.ResolvePaths(set, snapshot[i].DisplayName);
+                    }
+
+                    return stamps;
+                },
                 stamps =>
                 {
                     for (var i = 0; i < snapshot.Count; i++)
@@ -124,10 +139,10 @@ namespace PlayniteAchievements.Services.Captures
 
         private static void Execute<T>(Func<T[]> compute, Action<T[]> apply)
         {
-            T[] flags;
+            T[] results;
             try
             {
-                flags = compute();
+                results = compute();
             }
             catch
             {
@@ -140,7 +155,7 @@ namespace PlayniteAchievements.Services.Captures
                 // Never let a failed apply fault the shared queue task.
                 try
                 {
-                    apply(flags);
+                    apply(results);
                 }
                 catch
                 {
@@ -150,7 +165,7 @@ namespace PlayniteAchievements.Services.Captures
             else
             {
                 // Same-priority dispatcher posts run FIFO, so applies land in compute order.
-                dispatcher.BeginInvoke((Action)(() => apply(flags)));
+                dispatcher.BeginInvoke((Action)(() => apply(results)));
             }
         }
     }
