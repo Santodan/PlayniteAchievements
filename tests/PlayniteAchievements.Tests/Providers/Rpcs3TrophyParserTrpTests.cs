@@ -109,6 +109,29 @@ namespace PlayniteAchievements.Providers.Tests
         }
 
         [TestMethod]
+        public void TryReadTrpIdentity_TitleOnlyInTropSfm_ReadsTitleFromDefinitionEntry()
+        {
+            // Trophy packs like The Sly Collection keep TROPCONF.SFM to bare ids
+            // and types; the set title lives only in the TROP.SFM definition entry.
+            var tropconf =
+                "<trophyconf version=\"1.1\">\n" +
+                " <npcommid>NPWR01433_00</npcommid>\n" +
+                " <trophy id=\"000\" hidden=\"no\" ttype=\"P\" pid=\"-1\"/>\n" +
+                "</trophyconf>";
+            var tropSfm =
+                "<trophyconf version=\"1.1\">\n" +
+                " <npcommid>NPWR01433_00</npcommid>\n" +
+                " <title-name>Sly 2</title-name>\n" +
+                " <trophy id=\"000\" hidden=\"no\" ttype=\"P\" pid=\"-1\"><name>Platinum</name><detail>All</detail></trophy>\n" +
+                "</trophyconf>";
+            var trpBytes = BuildBinaryTrp(1, ("TROPCONF.SFM", Utf8(tropconf)), ("TROP.SFM", Utf8(tropSfm)));
+
+            Assert.IsTrue(Rpcs3TrophyParser.TryReadTrpIdentity(trpBytes, out var npCommId, out var titleName));
+            Assert.AreEqual("NPWR01433_00", npCommId);
+            Assert.AreEqual("Sly 2", titleName);
+        }
+
+        [TestMethod]
         public void ParseTrophyDefinitionsFromTrp_TruncatedTrp_ReturnsEmptyWithoutThrowing()
         {
             var tropconf = BuildTrophyConfXml("NPWR00950_00", (0, "Trophy", "Detail"));

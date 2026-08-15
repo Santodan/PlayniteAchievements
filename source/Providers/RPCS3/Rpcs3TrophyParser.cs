@@ -455,11 +455,12 @@ namespace PlayniteAchievements.Providers.RPCS3
             try
             {
                 string tropconfXml = null;
+                IReadOnlyList<Rpcs3TrpEntry> entries = null;
 
                 // Binary TRP archive: search the TROPCONF.SFM entry first.
                 if (Rpcs3TrpArchiveReader.HasTrpMagic(trpBytes))
                 {
-                    var entries = Rpcs3TrpArchiveReader.ReadEntries(trpBytes, logger);
+                    entries = Rpcs3TrpArchiveReader.ReadEntries(trpBytes, logger);
                     tropconfXml = entries == null
                         ? null
                         : Rpcs3TrpArchiveReader.ExtractEntryText(trpBytes, entries, "TROPCONF.SFM");
@@ -471,12 +472,28 @@ namespace PlayniteAchievements.Providers.RPCS3
                     titleName = ExtractElementText(tropconfXml, "title-name");
                 }
 
-                // Plaintext documents, and archives whose TROPCONF entry carries
-                // no id, fall back to scanning the whole content.
-                if (string.IsNullOrWhiteSpace(npCommId))
+                // Some trophy packs keep names out of TROPCONF.SFM (bare ids/types
+                // only); the set title then lives in the default-language TROP.SFM
+                // definition entry.
+                if (entries != null && string.IsNullOrWhiteSpace(titleName))
+                {
+                    var tropSfmXml = Rpcs3TrpArchiveReader.ExtractEntryText(trpBytes, entries, "TROP.SFM");
+                    if (!string.IsNullOrWhiteSpace(tropSfmXml))
+                    {
+                        titleName = ExtractElementText(tropSfmXml, "title-name");
+                    }
+                }
+
+                // Plaintext documents, and archives whose entries carry no id or
+                // title, fall back to scanning the whole content.
+                if (string.IsNullOrWhiteSpace(npCommId) || string.IsNullOrWhiteSpace(titleName))
                 {
                     var fullText = Encoding.UTF8.GetString(trpBytes);
-                    npCommId = ExtractNpCommIdFromText(fullText);
+                    if (string.IsNullOrWhiteSpace(npCommId))
+                    {
+                        npCommId = ExtractNpCommIdFromText(fullText);
+                    }
+
                     if (string.IsNullOrWhiteSpace(titleName))
                     {
                         titleName = ExtractElementText(fullText, "title-name");
