@@ -238,7 +238,6 @@ namespace PlayniteAchievements.Models.Settings
         private HashSet<string> _autoDiscoverFriendProviderKeys = CreateDefaultAutoDiscoverFriendProviderKeys();
         private bool _useExophaseForSteamFriendOwnership = false;
         private bool _includeUnownedFriendGames = false;
-        private FriendLastPlayedThreshold _friendLastPlayedFetchThreshold = FriendLastPlayedThreshold.ThisYear;
         private ObservableCollection<FriendSettingsEntry> _friends = new ObservableCollection<FriendSettingsEntry>();
         private ObservableCollection<FriendMergeGroup> _friendMergeGroups = new ObservableCollection<FriendMergeGroup>();
 
@@ -287,17 +286,6 @@ namespace PlayniteAchievements.Models.Settings
         {
             get => _includeUnownedFriendGames;
             set => SetValue(ref _includeUnownedFriendGames, value);
-        }
-
-        /// <summary>
-        /// Calendar window a friend's game must have been played within for Full/Recent friend
-        /// refreshes (and unowned discovery) to fetch its data. Games with no last-played date
-        /// are always fetched. Shared/Installed and explicit game targets ignore this threshold.
-        /// </summary>
-        public FriendLastPlayedThreshold FriendLastPlayedFetchThreshold
-        {
-            get => _friendLastPlayedFetchThreshold;
-            set => SetValue(ref _friendLastPlayedFetchThreshold, value);
         }
 
         public ObservableCollection<FriendSettingsEntry> Friends
@@ -2621,7 +2609,6 @@ namespace PlayniteAchievements.Models.Settings
                     : CreateDefaultAutoDiscoverFriendProviderKeys(),
                 UseExophaseForSteamFriendOwnership = this.UseExophaseForSteamFriendOwnership,
                 IncludeUnownedFriendGames = this.IncludeUnownedFriendGames,
-                FriendLastPlayedFetchThreshold = this.FriendLastPlayedFetchThreshold,
                 Friends = new ObservableCollection<FriendSettingsEntry>(
                     (this.Friends ?? new ObservableCollection<FriendSettingsEntry>())
                     .Where(friend => friend != null)

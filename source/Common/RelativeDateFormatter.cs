@@ -116,14 +116,6 @@ namespace PlayniteAchievements.Common
             }
         }
 
-        /// <summary>
-        /// Start of the culture-local calendar week containing <paramref name="localNow"/>.
-        /// </summary>
-        public static DateTime StartOfCurrentWeek(DateTime localNow)
-        {
-            return StartOfWeek(localNow.Date);
-        }
-
         private static DateTime StartOfWeek(DateTime date)
         {
             var firstDayOfWeek = CultureInfo.CurrentCulture.DateTimeFormat.FirstDayOfWeek;

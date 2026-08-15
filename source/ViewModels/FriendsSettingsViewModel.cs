@@ -181,23 +181,6 @@ namespace PlayniteAchievements.ViewModels
             }
         }
 
-        public FriendLastPlayedThreshold FriendLastPlayedFetchThreshold
-        {
-            get => _settings?.Persisted?.FriendLastPlayedFetchThreshold ?? FriendLastPlayedThreshold.ThisYear;
-            set
-            {
-                var persisted = _settings?.Persisted;
-                if (persisted == null || persisted.FriendLastPlayedFetchThreshold == value)
-                {
-                    return;
-                }
-
-                persisted.FriendLastPlayedFetchThreshold = value;
-                OnPropertyChanged();
-                PersistAndNotify(null);
-            }
-        }
-
         public FriendNameDisplayMode FriendNameDisplayMode
         {
             get => _settings?.Persisted?.FriendNameDisplayMode ?? FriendNameDisplayMode.PersonaAndNickname;

@@ -2,7 +2,6 @@ using Playnite.SDK;
 using Playnite.SDK.Models;
 using PlayniteAchievements.Models;
 using PlayniteAchievements.Models.Friends;
-using PlayniteAchievements.Models.Settings;
 using PlayniteAchievements.Providers;
 using PlayniteAchievements.Services.GameCustomData;
 using System;
@@ -686,16 +685,7 @@ namespace PlayniteAchievements.Services.Refresh
                     // downstream policy reads options instead of settings. Full needs no flag
                     // (its scope already discovers provider-only games).
                     DiscoverProviderOnlyGames = friendScope == FriendRefreshScope.Recent &&
-                                                _settings?.Persisted?.IncludeUnownedFriendGames == true,
-                    // Last-played fetch threshold: resolved once here like the gates above. Only the
-                    // broad-scan scopes (Full/Recent, and the unowned discovery they drive) are
-                    // cutoff-filtered; Shared/Installed and explicit game targets fetch regardless.
-                    LastPlayedCutoffUtc = friendScope == FriendRefreshScope.Full ||
-                                          friendScope == FriendRefreshScope.Recent
-                        ? FriendRefreshWorkPolicy.GetLastPlayedCutoffUtc(
-                            _settings?.Persisted?.FriendLastPlayedFetchThreshold ?? FriendLastPlayedThreshold.AllTime,
-                            DateTime.Now)
-                        : null
+                                                _settings?.Persisted?.IncludeUnownedFriendGames == true
                 }
             };
         }

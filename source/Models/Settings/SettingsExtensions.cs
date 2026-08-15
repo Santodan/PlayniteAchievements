@@ -41,7 +41,6 @@ namespace PlayniteAchievements.Models.Settings
             // merge-group setter normalizes against the current Friends collection)
             target.EnableFriendsFeatures = source.EnableFriendsFeatures;
             target.IncludeUnownedFriendGames = source.IncludeUnownedFriendGames;
-            target.FriendLastPlayedFetchThreshold = source.FriendLastPlayedFetchThreshold;
             target.AutoDiscoverFriendProviderKeys = source.AutoDiscoverFriendProviderKeys != null
                 ? new HashSet<string>(source.AutoDiscoverFriendProviderKeys, StringComparer.OrdinalIgnoreCase)
                 : PersistedSettings.CreateDefaultAutoDiscoverFriendProviderKeys();

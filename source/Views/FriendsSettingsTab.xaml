@@ -96,24 +96,6 @@
                                Margin="18,2,0,0"/>
 
                     <StackPanel Orientation="Horizontal" Margin="0,10,0,0">
-                        <TextBlock Text="{DynamicResource LOCPlayAch_FriendsSettings_LastPlayedFetchWindow}"
-                                   VerticalAlignment="Center"/>
-                        <ComboBox SelectedValue="{Binding FriendLastPlayedFetchThreshold, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
-                                  SelectedValuePath="Tag"
-                                  MinWidth="140"
-                                  Margin="{StaticResource PlayAch.Thickness.Left.Sm}">
-                            <ComboBoxItem Content="{DynamicResource LOCPlayAch_Common_Date_ThisWeek}" Tag="{x:Static settings:FriendLastPlayedThreshold.ThisWeek}"/>
-                            <ComboBoxItem Content="{DynamicResource LOCPlayAch_Common_Date_ThisMonth}" Tag="{x:Static settings:FriendLastPlayedThreshold.ThisMonth}"/>
-                            <ComboBoxItem Content="{DynamicResource LOCPlayAch_Common_Date_ThisYear}" Tag="{x:Static settings:FriendLastPlayedThreshold.ThisYear}"/>
-                            <ComboBoxItem Content="{DynamicResource LOCPlayAch_Common_All}" Tag="{x:Static settings:FriendLastPlayedThreshold.AllTime}"/>
-                        </ComboBox>
-                    </StackPanel>
-                    <TextBlock Text="{DynamicResource LOCPlayAch_FriendsSettings_LastPlayedFetchWindowHint}"
-                               Style="{StaticResource MutedTextStyle}"
-                               TextWrapping="Wrap"
-                               Margin="0,2,0,0"/>
-
-                    <StackPanel Orientation="Horizontal" Margin="0,10,0,0">
                         <TextBlock Text="{DynamicResource LOCPlayAch_Settings_FriendNameDisplay}"
                                    VerticalAlignment="Center"/>
                         <ComboBox SelectedValue="{Binding FriendNameDisplayMode, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"

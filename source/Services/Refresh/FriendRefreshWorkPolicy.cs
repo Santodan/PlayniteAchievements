@@ -273,32 +273,6 @@ namespace PlayniteAchievements.Services.Refresh
                    string.Equals(providerKey, "RetroAchievements", StringComparison.OrdinalIgnoreCase);
         }
 
-        // Last-played fetch threshold: the calendar window start ("this week/month/year") in local
-        // time, converted to UTC for comparison against ownership timestamps. Null means no cutoff.
-        internal static DateTime? GetLastPlayedCutoffUtc(FriendLastPlayedThreshold threshold, DateTime localNow)
-        {
-            switch (threshold)
-            {
-                case FriendLastPlayedThreshold.ThisWeek:
-                    return RelativeDateFormatter.StartOfCurrentWeek(localNow).ToUniversalTime();
-                case FriendLastPlayedThreshold.ThisMonth:
-                    return new DateTime(localNow.Year, localNow.Month, 1).ToUniversalTime();
-                case FriendLastPlayedThreshold.ThisYear:
-                    return new DateTime(localNow.Year, 1, 1).ToUniversalTime();
-                default:
-                    return null;
-            }
-        }
-
-        // Fail open: with no cutoff, or when the provider supplied no last-played date (Steam's
-        // profile-XML fallback omits it), the game is fetched.
-        internal static bool IsWithinLastPlayedCutoff(DateTime? lastPlayedUtc, DateTime? cutoffUtc)
-        {
-            return !cutoffUtc.HasValue ||
-                   !lastPlayedUtc.HasValue ||
-                   lastPlayedUtc.Value >= cutoffUtc.Value;
-        }
-
         internal static bool HasAnyUnlockedFriendAchievements(FriendGameAchievements achievements)
         {
             return achievements?.Rows?.Any(row => row?.Unlocked == true) == true;

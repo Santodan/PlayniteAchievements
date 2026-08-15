@@ -85,14 +85,6 @@ namespace PlayniteAchievements.Models.Friends
         /// </summary>
         public bool DiscoverProviderOnlyGames { get; set; }
 
-        /// <summary>
-        /// When set, Full/Recent candidate building and unowned discovery skip friend games whose
-        /// last-played timestamp is older than this UTC cutoff. Games with no last-played date and
-        /// explicit game targets are always fetched. Resolved once by the planner from the
-        /// FriendLastPlayedFetchThreshold setting; null means no cutoff.
-        /// </summary>
-        public DateTime? LastPlayedCutoffUtc { get; set; }
-
         public FriendRefreshOptions Clone()
         {
             return new FriendRefreshOptions
@@ -118,8 +110,7 @@ namespace PlayniteAchievements.Models.Friends
                     .Distinct(StringComparer.OrdinalIgnoreCase)
                     .ToList(),
                 ForceDefinitionRefresh = ForceDefinitionRefresh,
-                DiscoverProviderOnlyGames = DiscoverProviderOnlyGames,
-                LastPlayedCutoffUtc = LastPlayedCutoffUtc
+                DiscoverProviderOnlyGames = DiscoverProviderOnlyGames
             };
         }
     }
