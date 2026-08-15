@@ -1,4 +1,6 @@
 using System;
+using System.Collections.Generic;
+using System.Linq;
 using PlayniteAchievements.Common;
 
 namespace PlayniteAchievements.Providers.Exophase
@@ -70,6 +72,108 @@ namespace PlayniteAchievements.Providers.Exophase
         public static int ComputeMatchScore(string normalizedSearch, string normalizedTitle)
         {
             return GameNameNormalizer.ComputeMatchScore(normalizedSearch, normalizedTitle);
+        }
+
+        /// <summary>Minimum name-match score an archive-search row must reach to be eligible.</summary>
+        public const int MinimumSearchMatchScore = 60;
+
+        /// <summary>
+        /// Picks the best Exophase archive-search row for a game name and target platform.
+        /// Rows are scored by normalized-name match. When rows carry platform data, only
+        /// rows listing the target platform stay eligible, which separates same-title
+        /// releases on other platforms (e.g. a PS5 remake of a PS3 game). Exophase lists
+        /// regional variants of one game as separate same-title entries whose base region
+        /// has the shortest slug (name, name-2, name-3, ...), so equal scores resolve to
+        /// the shortest slug instead of being discarded; regional trophy lists are the
+        /// same set, and achievement-level matching downstream guards the application.
+        /// Returns null when nothing reaches the score threshold, or when rows carry
+        /// platform data but none lists the target platform. Rows without platform data
+        /// keep the legacy URL-suffix platform heuristic and the conservative rule that
+        /// an exact score tie yields no match.
+        /// </summary>
+        public static ExophaseGame SelectBestSearchMatch(string gameName, IList<ExophaseGame> games, string platformSlug)
+        {
+            if (games == null || games.Count == 0 || string.IsNullOrWhiteSpace(gameName))
+            {
+                return null;
+            }
+
+            var normalizedSearch = NormalizeGameName(gameName);
+            var targetPlatform = string.IsNullOrWhiteSpace(platformSlug)
+                ? null
+                : platformSlug.Trim().ToLowerInvariant();
+
+            var candidates = new List<(ExophaseGame Game, int Score, string Slug, bool PlatformKnown, bool PlatformMatch)>();
+            foreach (var game in games)
+            {
+                if (game == null || string.IsNullOrWhiteSpace(game.EndpointAwards))
+                {
+                    continue;
+                }
+
+                var title = NormalizeGameName(game.Title);
+                if (string.IsNullOrWhiteSpace(title))
+                {
+                    continue;
+                }
+
+                var score = ComputeMatchScore(normalizedSearch, title);
+                if (score < MinimumSearchMatchScore)
+                {
+                    continue;
+                }
+
+                var platformSlugs = game.Platforms?
+                    .Select(platform => platform?.Slug?.Trim().ToLowerInvariant())
+                    .Where(slug => !string.IsNullOrWhiteSpace(slug))
+                    .ToList();
+                var platformKnown = platformSlugs != null && platformSlugs.Count > 0;
+                var platformMatch = targetPlatform != null &&
+                    (platformKnown
+                        ? platformSlugs.Contains(targetPlatform)
+                        : game.EndpointAwards.IndexOf($"-{targetPlatform}", StringComparison.OrdinalIgnoreCase) >= 0);
+
+                var resolvedSlug = ExophaseApiClient.ExtractSlugFromUrl(game.EndpointAwards) ?? game.EndpointAwards;
+                candidates.Add((game, score, resolvedSlug, platformKnown, platformMatch));
+            }
+
+            if (candidates.Count == 0)
+            {
+                return null;
+            }
+
+            if (targetPlatform != null)
+            {
+                var platformMatched = candidates.Where(candidate => candidate.PlatformMatch).ToList();
+                if (platformMatched.Count > 0)
+                {
+                    return platformMatched
+                        .OrderByDescending(candidate => candidate.Score)
+                        .ThenBy(candidate => candidate.Slug.Length)
+                        .ThenBy(candidate => candidate.Slug, StringComparer.OrdinalIgnoreCase)
+                        .First().Game;
+                }
+
+                if (candidates.Any(candidate => candidate.PlatformKnown))
+                {
+                    // Every row declares its platforms and none is the target:
+                    // same-title releases on other platforms only. Enriching from
+                    // one of those would apply another platform's rarity data.
+                    return null;
+                }
+            }
+
+            var ordered = candidates
+                .OrderByDescending(candidate => candidate.Score)
+                .ThenBy(candidate => candidate.Slug.Length)
+                .ThenBy(candidate => candidate.Slug, StringComparer.OrdinalIgnoreCase)
+                .ToList();
+            if (ordered.Count > 1 && ordered[0].Score == ordered[1].Score)
+            {
+                return null;
+            }
+
+            return ordered[0].Game;
         }
     }
 }

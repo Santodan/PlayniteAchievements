@@ -197,7 +197,29 @@ namespace PlayniteAchievements.Providers.Exophase
                 foreach (var candidatePlatformSlug in platformSlugs)
                 {
                     var games = await _apiClient.SearchGamesAsync(normalizedName, candidatePlatformSlug, ct).ConfigureAwait(false);
-                    var match = FindBestSearchMatch(normalizedName, games, candidatePlatformSlug);
+                    if (games.Count == 0 && !string.IsNullOrWhiteSpace(candidatePlatformSlug))
+                    {
+                        // The archive endpoint does not validate its platform parameter;
+                        // an unrecognized value yields zero rows. The platform is enforced
+                        // client-side from each row's platform slugs, so an unfiltered
+                        // retry stays safe.
+                        games = await _apiClient.SearchGamesAsync(normalizedName, null, ct).ConfigureAwait(false);
+                    }
+
+                    var match = ExophaseGameNameMatcher.SelectBestSearchMatch(normalizedName, games, candidatePlatformSlug);
+                    if (match == null && games.Count > 0)
+                    {
+                        var observedPlatforms = games
+                            .SelectMany(row => row?.Platforms ?? Enumerable.Empty<ExophasePlatform>())
+                            .Select(platform => platform?.Slug)
+                            .Where(slug => !string.IsNullOrWhiteSpace(slug))
+                            .Distinct(StringComparer.OrdinalIgnoreCase)
+                            .ToList();
+                        _logger?.Debug(
+                            $"[ExophaseMetadata] Search for '{normalizedName}' ({candidatePlatformSlug}) matched none of " +
+                            $"{games.Count} rows; platforms seen: [{string.Join(", ", observedPlatforms)}].");
+                    }
+
                     var resolvedSlug = ExophaseApiClient.ExtractSlugFromUrl(match?.EndpointAwards);
                     if (!string.IsNullOrWhiteSpace(resolvedSlug))
                     {
@@ -207,12 +229,21 @@ namespace PlayniteAchievements.Providers.Exophase
                 }
             }
 
+            // PSN slugs on Exophase carry no platform suffix and regional variants get
+            // opaque dedup suffixes, so a generated slug can never be right there; skip
+            // the guess instead of fetching a guaranteed 404 every refresh.
             return platformSlugs
+                .Where(candidatePlatformSlug => !PsnPlatformSlugs.Contains(candidatePlatformSlug))
                 .Select(candidatePlatformSlug => GenerateDefaultSlug(game, candidatePlatformSlug))
                 .Where(defaultSlug => !string.IsNullOrWhiteSpace(defaultSlug))
                 .Distinct(StringComparer.OrdinalIgnoreCase)
                 .ToList();
         }
+
+        private static readonly HashSet<string> PsnPlatformSlugs = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
+        {
+            "psn", "ps3", "ps4", "ps5", "psvita", "vita"
+        };
 
         private bool TryGetCachedSlug(string cacheKey, out string slug)
         {
@@ -239,58 +270,6 @@ namespace PlayniteAchievements.Providers.Exophase
             }
 
             _slugMemo[cacheKey] = slug;
-        }
-
-        private static ExophaseGame FindBestSearchMatch(string gameName, IList<ExophaseGame> games, string platformSlug)
-        {
-            if (games == null || games.Count == 0 || string.IsNullOrWhiteSpace(gameName))
-            {
-                return null;
-            }
-
-            var normalizedSearch = ExophaseGameNameMatcher.NormalizeGameName(gameName);
-            var scored = games
-                .Where(game => game != null && !string.IsNullOrWhiteSpace(game.EndpointAwards))
-                .Select(game =>
-                {
-                    var score = ScoreSearchMatch(normalizedSearch, game, platformSlug);
-                    return new { Game = game, Score = score };
-                })
-                .Where(item => item.Score > 0)
-                .OrderByDescending(item => item.Score)
-                .ToList();
-
-            if (scored.Count == 0)
-            {
-                return null;
-            }
-
-            if (scored.Count > 1 && scored[0].Score == scored[1].Score)
-            {
-                return null;
-            }
-
-            return scored[0].Score >= 60 ? scored[0].Game : null;
-        }
-
-        private static int ScoreSearchMatch(string normalizedSearch, ExophaseGame game, string platformSlug)
-        {
-            var title = ExophaseGameNameMatcher.NormalizeGameName(game?.Title);
-            if (string.IsNullOrWhiteSpace(title))
-            {
-                return 0;
-            }
-
-            var score = ExophaseGameNameMatcher.ComputeMatchScore(normalizedSearch, title);
-
-            if (score > 0 &&
-                !string.IsNullOrWhiteSpace(platformSlug) &&
-                (game.EndpointAwards ?? string.Empty).IndexOf($"-{platformSlug}", StringComparison.OrdinalIgnoreCase) >= 0)
-            {
-                score += 20;
-            }
-
-            return score;
         }
 
         private static int ApplyMetadata(
