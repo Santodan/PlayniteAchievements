@@ -3172,11 +3172,8 @@ namespace PlayniteAchievements.Services.Refresh
             // provider-only rows surface as repair candidates for interrupted probes); Custom
             // provider-only targets are explicit. All provider-only candidates discovered this run are
             // de-duplicated against the probe via ProbedProviderOnlyAchievementKeys upstream.
-            var fullScanExcludedIds = FriendRefreshWorkPolicy.HasExplicitFriendTargets(options)
-                ? null
-                : _settings?.Persisted?.GetFullScanExcludedFriendIds(providerKey);
             return (candidates ?? new List<FriendRefreshCandidate>())
-                .Where(candidate => ShouldRefreshFriendGameAchievements(providerKey, candidate, options, fullScanExcludedIds))
+                .Where(candidate => ShouldRefreshFriendGameAchievements(providerKey, candidate, options))
                 .ToList();
         }
 
@@ -3261,8 +3258,7 @@ namespace PlayniteAchievements.Services.Refresh
         private bool ShouldRefreshFriendGameAchievements(
             string providerKey,
             FriendRefreshCandidate candidate,
-            FriendRefreshOptions options,
-            HashSet<string> fullScanExcludedIds)
+            FriendRefreshOptions options)
         {
             if (candidate?.Friend == null || !FriendRefreshWorkPolicy.HasProviderGameIdentity(candidate.AppId, candidate.ProviderGameKey))
             {
@@ -3277,15 +3273,6 @@ namespace PlayniteAchievements.Services.Refresh
             if (FriendRefreshWorkPolicy.IsExplicitProviderGameTarget(options, candidate.AppId, candidate.ProviderGameKey))
             {
                 return true;
-            }
-
-            // Friends opted out of Full scans keep their mapped games (returned above) but never
-            // surface provider-only work from the cache loader either (Recent's provider-only
-            // repair path included). The caller passes null when the refresh explicitly names
-            // friends, which bypasses the opt-out.
-            if (fullScanExcludedIds?.Contains(candidate.Friend.ExternalUserId ?? string.Empty) == true)
-            {
-                return false;
             }
 
             // Cache-sourced candidates carry no unlock hint (the hint is a live-scrape-only signal), so
