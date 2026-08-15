@@ -594,5 +594,49 @@ namespace PlayniteAchievements.Tests.ViewModels
             Assert.IsFalse(viewModel.ToastRarityText.IsBottomLine);
             Assert.AreEqual(0, viewModel.ToastRarityText.DescenderSlack);
         }
+
+        [TestMethod]
+        public void ScaleVignetteStopAlpha_DefaultAndFiftyReturnTheOriginalAlpha()
+        {
+            var baseAlphas = new[] { 0x73 / 255.0, 0xF2 / 255.0, 0xD0 / 255.0 };
+            foreach (var alpha in baseAlphas)
+            {
+                Assert.AreEqual(alpha, AchievementToastViewModel.ScaleVignetteStopAlpha(alpha, null));
+                Assert.AreEqual(alpha, AchievementToastViewModel.ScaleVignetteStopAlpha(alpha, 50));
+            }
+        }
+
+        [TestMethod]
+        public void ScaleVignetteStopAlpha_LowerHalfFadesLinearlyToNothing()
+        {
+            const double baseAlpha = 0xD0 / 255.0;
+            Assert.AreEqual(0, AchievementToastViewModel.ScaleVignetteStopAlpha(baseAlpha, 0));
+            Assert.AreEqual(baseAlpha / 2, AchievementToastViewModel.ScaleVignetteStopAlpha(baseAlpha, 25), 1e-12);
+        }
+
+        [TestMethod]
+        public void ScaleVignetteStopAlpha_UpperHalfScreenStacksWithoutClipping()
+        {
+            // 100 = the original layer composited over itself: 1 - (1 - a)^2.
+            var baseAlphas = new[] { 0x73 / 255.0, 0xF2 / 255.0, 0xD0 / 255.0 };
+            foreach (var alpha in baseAlphas)
+            {
+                var stacked = 1.0 - Math.Pow(1.0 - alpha, 2.0);
+                Assert.AreEqual(stacked, AchievementToastViewModel.ScaleVignetteStopAlpha(alpha, 100), 1e-12);
+                Assert.IsTrue(AchievementToastViewModel.ScaleVignetteStopAlpha(alpha, 100) < 1.0);
+            }
+        }
+
+        [TestMethod]
+        public void ScaleVignetteStopAlpha_OutOfRangeStrengthClamps()
+        {
+            const double baseAlpha = 0x73 / 255.0;
+            Assert.AreEqual(
+                AchievementToastViewModel.ScaleVignetteStopAlpha(baseAlpha, 0),
+                AchievementToastViewModel.ScaleVignetteStopAlpha(baseAlpha, -20));
+            Assert.AreEqual(
+                AchievementToastViewModel.ScaleVignetteStopAlpha(baseAlpha, 100),
+                AchievementToastViewModel.ScaleVignetteStopAlpha(baseAlpha, 250));
+        }
     }
 }
