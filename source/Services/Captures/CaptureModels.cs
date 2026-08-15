@@ -23,12 +23,18 @@ namespace PlayniteAchievements.Services.Captures
     /// </summary>
     public sealed class CaptureItem
     {
-        public CaptureItem(string filePath, CaptureVariant variant, int number, string achievementStem)
+        public CaptureItem(
+            string filePath,
+            CaptureVariant variant,
+            int number,
+            string achievementStem,
+            int dedupCounter = 0)
         {
             FilePath = filePath;
             Variant = variant;
             Number = number;
             AchievementStem = achievementStem;
+            DedupCounter = dedupCounter;
         }
 
         /// <summary>Absolute path to the capture file.</summary>
@@ -41,6 +47,9 @@ namespace PlayniteAchievements.Services.Captures
 
         /// <summary>Sanitized achievement-name stem parsed from the filename (variant suffix removed).</summary>
         public string AchievementStem { get; }
+
+        /// <summary>The " (n)" collision counter parsed from the filename; 0 for the original file.</summary>
+        public int DedupCounter { get; }
 
         public bool IsVideo => Variant == CaptureVariant.Video;
     }
