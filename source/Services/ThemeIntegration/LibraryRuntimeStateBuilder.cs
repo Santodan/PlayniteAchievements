@@ -12,6 +12,7 @@ using System.Linq;
 using System.Threading;
 using PlayniteAchievements.Services.Achievements;
 using PlayniteAchievements.Services.Cache;
+using PlayniteAchievements.Services.Captures;
 using PlayniteAchievements.Services.GameCustomData;
 using PlayniteAchievements.Services.Images;
 using PlayniteAchievements.ViewModels;
@@ -380,6 +381,7 @@ namespace PlayniteAchievements.Services.ThemeIntegration
                         continue;
                     }
 
+                    var captureSet = AchievementCapturePathResolver.ResolveGameSet(data.GameName ?? data.Game?.Name);
                     foreach (var achievement in data.Achievements)
                     {
                         if (achievement == null)
@@ -387,7 +389,7 @@ namespace PlayniteAchievements.Services.ThemeIntegration
                             continue;
                         }
 
-                        ApplyAchievementPresentation(achievement, data);
+                        ApplyAchievementPresentation(achievement, data, captureSet);
                         allAchievements.Add(achievement);
                     }
                 }
@@ -437,6 +439,7 @@ namespace PlayniteAchievements.Services.ThemeIntegration
                     continue;
                 }
 
+                var captureSet = AchievementCapturePathResolver.ResolveGameSet(data.GameName ?? data.Game?.Name);
                 foreach (var achievement in data.Achievements)
                 {
                     if (achievement == null ||
@@ -446,7 +449,7 @@ namespace PlayniteAchievements.Services.ThemeIntegration
                         continue;
                     }
 
-                    ApplyAchievementPresentation(achievement, data);
+                    ApplyAchievementPresentation(achievement, data, captureSet);
                     unlockedRecent.Add(achievement);
                 }
             }
@@ -454,7 +457,10 @@ namespace PlayniteAchievements.Services.ThemeIntegration
             PopulateRecentLists(state, unlockedRecent, includeFullLists: false);
         }
 
-        private static void ApplyAchievementPresentation(AchievementDetail achievement, GameAchievementData data)
+        private static void ApplyAchievementPresentation(
+            AchievementDetail achievement,
+            GameAchievementData data,
+            GameCaptureSet captureSet)
         {
             if (achievement == null)
             {
@@ -464,6 +470,7 @@ namespace PlayniteAchievements.Services.ThemeIntegration
             achievement.Game = data?.Game;
             achievement.ProviderKey = ResolveEffectiveProviderKey(data?.ProviderKey, data?.ProviderPlatformKey);
             ApplyCategoryImagePresentation(achievement, data);
+            AchievementCapturePathResolver.Apply(achievement, captureSet);
         }
 
         private static void ApplyCategoryImagePresentation(AchievementDetail achievement, GameAchievementData data)
