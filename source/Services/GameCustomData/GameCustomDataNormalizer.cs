@@ -44,6 +44,7 @@ namespace PlayniteAchievements.Services.GameCustomData
             normalized.ForceUseExophase = normalized.ForceUseExophase == true ? true : (bool?)null;
             normalized.ManualCapstoneApiName = NormalizeString(normalized.ManualCapstoneApiName);
             normalized.ExophaseSlugOverride = NormalizeString(normalized.ExophaseSlugOverride);
+            normalized.ExophaseEnrichmentSlugOverride = NormalizeString(normalized.ExophaseEnrichmentSlugOverride);
             normalized.XeniaTitleIdOverride = XeniaTitleIdHelper.Normalize(normalized.XeniaTitleIdOverride);
             normalized.ShadPS4MatchIdOverride = ShadPS4MatchIdHelper.Normalize(normalized.ShadPS4MatchIdOverride);
             normalized.RetroAchievementsGameIdOverride =
@@ -86,6 +87,7 @@ namespace PlayniteAchievements.Services.GameCustomData
             normalized.ForceUseExophase = normalized.ForceUseExophase == true ? true : (bool?)null;
             normalized.ManualCapstoneApiName = NormalizeString(normalized.ManualCapstoneApiName);
             normalized.ExophaseSlugOverride = NormalizeString(normalized.ExophaseSlugOverride);
+            normalized.ExophaseEnrichmentSlugOverride = NormalizeString(normalized.ExophaseEnrichmentSlugOverride);
             normalized.XeniaTitleIdOverride = XeniaTitleIdHelper.Normalize(normalized.XeniaTitleIdOverride);
             normalized.ShadPS4MatchIdOverride = ShadPS4MatchIdHelper.Normalize(normalized.ShadPS4MatchIdOverride);
             normalized.RetroAchievementsGameIdOverride =
@@ -138,6 +140,7 @@ namespace PlayniteAchievements.Services.GameCustomData
                    (data.AchievementLockedIconOverrides != null && data.AchievementLockedIconOverrides.Count > 0) ||
                    (data.AchievementNotes != null && data.AchievementNotes.Count > 0) ||
                    data.ProviderOverride != null ||
+                   !string.IsNullOrWhiteSpace(data.ExophaseEnrichmentSlugOverride) ||
                    (data.RetroAchievementsGameIdOverride.HasValue && data.RetroAchievementsGameIdOverride.Value > 0) ||
                    !string.IsNullOrWhiteSpace(data.XeniaTitleIdOverride) ||
                    !string.IsNullOrWhiteSpace(data.ShadPS4MatchIdOverride) ||
@@ -174,6 +177,7 @@ namespace PlayniteAchievements.Services.GameCustomData
                    (data.AchievementLockedIconOverrides != null && data.AchievementLockedIconOverrides.Count > 0) ||
                    (data.AchievementNotes != null && data.AchievementNotes.Count > 0) ||
                    data.ProviderOverride != null ||
+                   !string.IsNullOrWhiteSpace(data.ExophaseEnrichmentSlugOverride) ||
                    (data.RetroAchievementsGameIdOverride.HasValue && data.RetroAchievementsGameIdOverride.Value > 0) ||
                    !string.IsNullOrWhiteSpace(data.XeniaTitleIdOverride) ||
                    !string.IsNullOrWhiteSpace(data.ShadPS4MatchIdOverride) ||
@@ -205,6 +209,7 @@ namespace PlayniteAchievements.Services.GameCustomData
                    (data.AchievementLockedIconOverrides != null && data.AchievementLockedIconOverrides.Count > 0) ||
                    (data.AchievementNotes != null && data.AchievementNotes.Count > 0) ||
                    data.ProviderOverride != null ||
+                   !string.IsNullOrWhiteSpace(data.ExophaseEnrichmentSlugOverride) ||
                    (data.RetroAchievementsGameIdOverride.HasValue && data.RetroAchievementsGameIdOverride.Value > 0) ||
                    !string.IsNullOrWhiteSpace(data.XeniaTitleIdOverride) ||
                    !string.IsNullOrWhiteSpace(data.ShadPS4MatchIdOverride) ||
@@ -297,6 +302,9 @@ namespace PlayniteAchievements.Services.GameCustomData
                     NormalizeNotificationAppearanceOverride(legacy.NotificationAppearanceOverride),
                 ProviderOverride = ResolveEffectiveProviderOverride(existing) ??
                     ResolveEffectiveProviderOverride(legacy),
+                ExophaseEnrichmentSlugOverride = !string.IsNullOrWhiteSpace(existing.ExophaseEnrichmentSlugOverride)
+                    ? existing.ExophaseEnrichmentSlugOverride
+                    : legacy.ExophaseEnrichmentSlugOverride,
                 ManualLink = existing.ManualLink?.Clone() ?? legacy.ManualLink?.Clone()
             };
         }
