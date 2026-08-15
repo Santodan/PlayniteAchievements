@@ -15,22 +15,14 @@ namespace PlayniteAchievements.Services.Tests.Captures
     [TestClass]
     public class AchievementCapturePathResolverTests
     {
-        private string _root;
+        private CaptureTestDirectory _captures;
         private PersistedSettings _settings;
 
         [TestInitialize]
         public void Setup()
         {
-            _root = Path.Combine(
-                Path.GetTempPath(),
-                "PlayAchCapturePathTests",
-                Guid.NewGuid().ToString("N"));
-            Directory.CreateDirectory(_root);
-            _settings = new PersistedSettings
-            {
-                UnlockScreenshotDirectory = _root,
-                UnlockRecordingDirectory = _root
-            };
+            _captures = new CaptureTestDirectory();
+            _settings = _captures.Settings;
             AchievementCapturePathResolver.CaptureLibraryAccessor = null;
         }
 
@@ -38,30 +30,13 @@ namespace PlayniteAchievements.Services.Tests.Captures
         public void Cleanup()
         {
             AchievementCapturePathResolver.CaptureLibraryAccessor = null;
-            try
-            {
-                if (Directory.Exists(_root))
-                {
-                    Directory.Delete(_root, recursive: true);
-                }
-            }
-            catch (IOException)
-            {
-                // A leftover temp folder must never fail a test run.
-            }
+            _captures.Dispose();
         }
 
-        private CaptureLibraryService CreateService() =>
-            new CaptureLibraryService(() => _settings, null);
+        private CaptureLibraryService CreateService() => _captures.CreateService();
 
-        private string WriteCapture(string gameName, string fileName)
-        {
-            var folder = Path.Combine(_root, UnlockScreenshotService.SanitizeCaptureGameName(gameName));
-            Directory.CreateDirectory(folder);
-            var path = Path.Combine(folder, fileName);
-            File.WriteAllText(path, "x");
-            return path;
-        }
+        private string WriteCapture(string gameName, string fileName) =>
+            _captures.WriteCapture(gameName, fileName);
 
         [TestMethod]
         public void ResolvePaths_ResolvesEachVariant_AndNullsTheAbsentOne()
