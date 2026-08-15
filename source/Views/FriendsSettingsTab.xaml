@@ -20,6 +20,10 @@
                  account rows line up across the grid. Adjust here to retune row density. -->
             <sys:Double x:Key="FriendAccountItemHeight">38</sys:Double>
 
+            <!-- DataGrid columns are not in the visual tree, so column-level bindings (the
+                 Skip Full Scans visibility) reach the tab's DataContext through this proxy. -->
+            <helpers:BindingProxy x:Key="FriendsTabContext" Data="{Binding}"/>
+
             <!-- Themed like the achievement grids, but with a compact settings-row height and no
                  achievement-style hand cursor. -->
             <Style x:Key="FriendsSettingsGridRowStyle"
@@ -472,6 +476,28 @@
                                                 </DataTemplate>
                                             </ItemsControl.ItemTemplate>
                                         </ItemsControl>
+                                    </DataTemplate>
+                                </DataGridTemplateColumn.CellTemplate>
+                            </DataGridTemplateColumn>
+
+                            <!-- Person-level Full-scan opt-out. Only meaningful while unowned games
+                                 are included in refreshes (otherwise Full is clamped to Shared
+                                 globally), so the column hides with that setting. -->
+                            <DataGridTemplateColumn Width="Auto"
+                                                    MinWidth="64"
+                                                    IsReadOnly="True"
+                                                    Visibility="{Binding Data.IncludeUnownedFriendGames, Source={StaticResource FriendsTabContext}, Converter={StaticResource BoolToVis}}">
+                                <DataGridTemplateColumn.Header>
+                                    <TextBlock Text="{DynamicResource LOCPlayAch_Column_SkipFullScans}"
+                                               ToolTip="{DynamicResource LOCPlayAch_Column_SkipFullScansHint}"/>
+                                </DataGridTemplateColumn.Header>
+                                <DataGridTemplateColumn.CellTemplate>
+                                    <DataTemplate>
+                                        <CheckBox IsChecked="{Binding ExcludeFromFullScans, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                                  ToolTip="{DynamicResource LOCPlayAch_Column_SkipFullScansHint}"
+                                                  HorizontalAlignment="Center"
+                                                  VerticalAlignment="Center"
+                                                  Margin="0,4"/>
                                     </DataTemplate>
                                 </DataGridTemplateColumn.CellTemplate>
                             </DataGridTemplateColumn>
