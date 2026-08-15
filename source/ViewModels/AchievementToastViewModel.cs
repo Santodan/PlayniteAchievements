@@ -291,6 +291,78 @@ namespace PlayniteAchievements.ViewModels
         public bool FrameShowRadialVignette => _style.Frame.FrameVignette == FrameVignetteStyle.Full;
         public bool FrameShowBottomWash => _style.Frame.FrameVignette != FrameVignetteStyle.None;
 
+        // Original stop alphas of the built-in frame vignette gradients (what strength 50
+        // reproduces); scaled per-stop by the surface's vignette strength setting.
+        private const double RadialVignetteMidAlpha = 0x73 / 255.0;
+        private const double RadialVignetteEdgeAlpha = 0xF2 / 255.0;
+        private const double BottomWashAlpha = 0xD0 / 255.0;
+
+        /// <summary>
+        /// Fill of the frame's circular edge vignette, shaped by the vignette strength setting.
+        /// Relative radial gradients stretch to the bounds, so the radii undo the 16:9 aspect
+        /// (radius = half-diagonal: 0.57 of width, 1.02 of height) and the fade stays a circle
+        /// through the corners instead of an edge-hugging ellipse.
+        /// </summary>
+        public Brush FrameRadialVignetteBrush
+        {
+            get
+            {
+                var strength = _style.Frame.FrameVignetteStrength;
+                var brush = new RadialGradientBrush
+                {
+                    Center = new Point(0.5, 0.5),
+                    GradientOrigin = new Point(0.5, 0.5),
+                    RadiusX = 0.57,
+                    RadiusY = 1.02
+                };
+                brush.GradientStops.Add(new GradientStop(Colors.Transparent, 0));
+                brush.GradientStops.Add(new GradientStop(Colors.Transparent, 0.38));
+                brush.GradientStops.Add(new GradientStop(VignetteStopColor(RadialVignetteMidAlpha, strength), 0.72));
+                brush.GradientStops.Add(new GradientStop(VignetteStopColor(RadialVignetteEdgeAlpha, strength), 1));
+                brush.Freeze();
+                return brush;
+            }
+        }
+
+        /// <summary>
+        /// Fill of the frame's bottom contrast wash, shaped by the vignette strength setting.
+        /// </summary>
+        public Brush FrameBottomWashBrush
+        {
+            get
+            {
+                var strength = _style.Frame.FrameVignetteStrength;
+                var brush = new LinearGradientBrush
+                {
+                    StartPoint = new Point(0, 0),
+                    EndPoint = new Point(0, 1)
+                };
+                brush.GradientStops.Add(new GradientStop(Colors.Transparent, 0));
+                brush.GradientStops.Add(new GradientStop(VignetteStopColor(BottomWashAlpha, strength), 1));
+                brush.Freeze();
+                return brush;
+            }
+        }
+
+        private static Color VignetteStopColor(double baseAlpha, double? strengthPercent) =>
+            Color.FromArgb(
+                (byte)Math.Round(ScaleVignetteStopAlpha(baseAlpha, strengthPercent) * 255.0),
+                0, 0, 0);
+
+        /// <summary>
+        /// Maps the 0-100 vignette strength onto a gradient stop's alpha. 50 returns the
+        /// original alpha exactly; below it the vignette fades linearly to nothing; above it
+        /// the original layer is screen-stacked over itself (100 = applied twice), darkening
+        /// asymptotically toward solid without clipping the gradient's shape.
+        /// </summary>
+        internal static double ScaleVignetteStopAlpha(double baseAlpha, double? strengthPercent)
+        {
+            var factor = NormalizePercent(strengthPercent, DefaultFrameVignetteStrength) * 2.0;
+            return factor <= 1.0
+                ? baseAlpha * factor
+                : 1.0 - Math.Pow(1.0 - baseAlpha, factor);
+        }
+
         // Mirrors TitleBrush but honors the frame's own rarity-colored-name toggle.
         public Brush FrameTitleBrush => _style.Frame.RarityColoredName
             ? AccentBrush
@@ -822,6 +894,9 @@ namespace PlayniteAchievements.ViewModels
         // The percent values that map to the built-in shadow; shared with the settings editor.
         public const double DefaultTextShadowOpacity = 50;
         public const double DefaultTextShadowOffset = 25;
+
+        // The percent value that maps to the built-in frame vignette; shared with the editor.
+        public const double DefaultFrameVignetteStrength = 50;
 
         // Image shadows are single-layer (artwork has no thin glyph edges to solidify), so
         // 100 is both the default and the darkest the layer can go.
