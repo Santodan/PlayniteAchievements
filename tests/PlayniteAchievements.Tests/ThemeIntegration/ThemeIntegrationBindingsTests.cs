@@ -141,30 +141,14 @@ namespace PlayniteAchievements.ThemeIntegration.Tests
         [TestMethod]
         public void SelectedGameBuilder_CarriesCapturePathsIntoThemeDisplayItems()
         {
-            var root = System.IO.Path.Combine(
-                System.IO.Path.GetTempPath(),
-                "PlayAchCaptureBindingTests",
-                Guid.NewGuid().ToString("N"));
+            var captures = new PlayniteAchievements.Services.Tests.Captures.CaptureTestDirectory();
             try
             {
                 var gameName = "Capture Game";
-                var folder = System.IO.Path.Combine(
-                    root,
-                    UnlockScreenshotService.SanitizeCaptureGameName(gameName));
-                System.IO.Directory.CreateDirectory(folder);
-                var cleanPath = System.IO.Path.Combine(folder, "001_DLC Achievement_clean.png");
-                var videoPath = System.IO.Path.Combine(folder, "001_DLC Achievement.mp4");
-                System.IO.File.WriteAllText(cleanPath, "x");
-                System.IO.File.WriteAllText(videoPath, "x");
+                var cleanPath = captures.WriteCapture(gameName, "001_DLC Achievement_clean.png");
+                var videoPath = captures.WriteCapture(gameName, "001_DLC Achievement.mp4");
 
-                var persisted = new PersistedSettings
-                {
-                    UnlockScreenshotDirectory = root,
-                    UnlockRecordingDirectory = root
-                };
-                var captureLibrary = new PlayniteAchievements.Services.Captures.CaptureLibraryService(
-                    () => persisted,
-                    null);
+                var captureLibrary = captures.CreateService();
                 PlayniteAchievements.Services.Captures.AchievementCapturePathResolver.CaptureLibraryAccessor =
                     () => captureLibrary;
 
@@ -209,17 +193,7 @@ namespace PlayniteAchievements.ThemeIntegration.Tests
             finally
             {
                 PlayniteAchievements.Services.Captures.AchievementCapturePathResolver.CaptureLibraryAccessor = null;
-                try
-                {
-                    if (System.IO.Directory.Exists(root))
-                    {
-                        System.IO.Directory.Delete(root, recursive: true);
-                    }
-                }
-                catch (System.IO.IOException)
-                {
-                    // A leftover temp folder must never fail a test run.
-                }
+                captures.Dispose();
             }
         }
 
