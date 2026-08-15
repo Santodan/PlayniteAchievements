@@ -302,6 +302,15 @@ namespace PlayniteAchievements.ViewModels
         // dark stops would tint the whole vignette whitish.
         private static readonly Color TransparentBlack = Color.FromArgb(0, 0, 0, 0);
 
+        // Original stop offsets of the radial vignette (where the clear center ends and the
+        // mid darkening sits), and how far each is pulled toward the center at full strength:
+        // alpha stacking alone saturates near-opaque stops, so the upper half of the range
+        // also grows the vignette's coverage inward to keep every step visibly stronger.
+        private const double RadialVignetteInnerOffset = 0.38;
+        private const double RadialVignetteMidOffset = 0.72;
+        private const double RadialVignetteInnerOffsetAtFull = 0.15;
+        private const double RadialVignetteMidOffsetAtFull = 0.50;
+
         /// <summary>
         /// Fill of the frame's circular edge vignette, shaped by the vignette strength setting.
         /// Relative radial gradients stretch to the bounds, so the radii undo the 16:9 aspect
@@ -313,6 +322,9 @@ namespace PlayniteAchievements.ViewModels
             get
             {
                 var strength = _style.Frame.FrameVignetteStrength;
+                var reach = VignetteUpperProgress(strength);
+                var innerOffset = Lerp(RadialVignetteInnerOffset, RadialVignetteInnerOffsetAtFull, reach);
+                var midOffset = Lerp(RadialVignetteMidOffset, RadialVignetteMidOffsetAtFull, reach);
                 var brush = new RadialGradientBrush
                 {
                     Center = new Point(0.5, 0.5),
@@ -321,8 +333,8 @@ namespace PlayniteAchievements.ViewModels
                     RadiusY = 1.02
                 };
                 brush.GradientStops.Add(new GradientStop(TransparentBlack, 0));
-                brush.GradientStops.Add(new GradientStop(TransparentBlack, 0.38));
-                brush.GradientStops.Add(new GradientStop(VignetteStopColor(RadialVignetteMidAlpha, strength), 0.72));
+                brush.GradientStops.Add(new GradientStop(TransparentBlack, innerOffset));
+                brush.GradientStops.Add(new GradientStop(VignetteStopColor(RadialVignetteMidAlpha, strength), midOffset));
                 brush.GradientStops.Add(new GradientStop(VignetteStopColor(RadialVignetteEdgeAlpha, strength), 1));
                 brush.Freeze();
                 return brush;
@@ -331,28 +343,52 @@ namespace PlayniteAchievements.ViewModels
 
         /// <summary>
         /// Fill of the frame's bottom contrast wash, shaped by the vignette strength setting.
+        /// The intermediate stops follow the end alpha's stacking exponent, so at the built-in
+        /// strength they sit exactly on the original linear ramp (adding nothing), and above it
+        /// they bow the ramp upward, pulling the darkness higher into the fixed-height band.
         /// </summary>
         public Brush FrameBottomWashBrush
         {
             get
             {
                 var strength = _style.Frame.FrameVignetteStrength;
+                var endAlpha = ScaleVignetteStopAlpha(BottomWashAlpha, strength);
+                var gamma = 1.0 / VignetteExponent(strength);
                 var brush = new LinearGradientBrush
                 {
                     StartPoint = new Point(0, 0),
                     EndPoint = new Point(0, 1)
                 };
                 brush.GradientStops.Add(new GradientStop(TransparentBlack, 0));
-                brush.GradientStops.Add(new GradientStop(VignetteStopColor(BottomWashAlpha, strength), 1));
+                foreach (var offset in new[] { 0.25, 0.5, 0.75 })
+                {
+                    brush.GradientStops.Add(new GradientStop(
+                        VignetteAlphaColor(endAlpha * Math.Pow(offset, gamma)), offset));
+                }
+
+                brush.GradientStops.Add(new GradientStop(VignetteAlphaColor(endAlpha), 1));
                 brush.Freeze();
                 return brush;
             }
         }
 
+        private static double Lerp(double from, double to, double t) => from + (to - from) * t;
+
         private static Color VignetteStopColor(double baseAlpha, double? strengthPercent) =>
-            Color.FromArgb(
-                (byte)Math.Round(ScaleVignetteStopAlpha(baseAlpha, strengthPercent) * 255.0),
-                0, 0, 0);
+            VignetteAlphaColor(ScaleVignetteStopAlpha(baseAlpha, strengthPercent));
+
+        private static Color VignetteAlphaColor(double alpha) =>
+            Color.FromArgb((byte)Math.Round(alpha * 255.0), 0, 0, 0);
+
+        // How far the strength sits into the upper half of its range: 0 at or below the
+        // built-in 50, 1 at full strength.
+        private static double VignetteUpperProgress(double? strengthPercent) =>
+            Math.Max(0.0, NormalizePercent(strengthPercent, DefaultFrameVignetteStrength) * 2.0 - 1.0);
+
+        // Screen-stacking exponent for the upper half: 1 at or below the built-in strength
+        // (the original single layer), ramping to 3 at full strength (two extra layers).
+        private static double VignetteExponent(double? strengthPercent) =>
+            1.0 + VignetteUpperProgress(strengthPercent) * 2.0;
 
         /// <summary>
         /// Maps the 0-100 vignette strength onto a gradient stop's alpha. 50 returns the
@@ -363,14 +399,9 @@ namespace PlayniteAchievements.ViewModels
         internal static double ScaleVignetteStopAlpha(double baseAlpha, double? strengthPercent)
         {
             var factor = NormalizePercent(strengthPercent, DefaultFrameVignetteStrength) * 2.0;
-            if (factor <= 1.0)
-            {
-                return baseAlpha * factor;
-            }
-
-            // The exponent ramps 1..3 across the upper half, so 100 stacks two extra layers.
-            var exponent = 1.0 + (factor - 1.0) * 2.0;
-            return 1.0 - Math.Pow(1.0 - baseAlpha, exponent);
+            return factor <= 1.0
+                ? baseAlpha * factor
+                : 1.0 - Math.Pow(1.0 - baseAlpha, VignetteExponent(strengthPercent));
         }
 
         // Mirrors TitleBrush but honors the frame's own rarity-colored-name toggle.
