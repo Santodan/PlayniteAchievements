@@ -752,7 +752,7 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
                     currentCustomData?.UseSeparateLockedIconsOverride == true);
                 OnPropertyChanged(nameof(SeparateLockedIconsStatusText));
                 ReloadProviderOverrideState(currentCustomData);
-                ReloadExophaseEnrichmentSlugState(currentCustomData, game);
+                ReloadExophaseEnrichmentSlugState(currentCustomData, game, gameData?.ProviderGameKey);
 
                 ManualAchievementLink manualLink;
                 var hasManualLink = ManualAchievementsProvider.TryGetManualLink(_gameId, out manualLink);
@@ -1513,7 +1513,10 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
             }
         }
 
-        private void ReloadExophaseEnrichmentSlugState(GameCustomDataFile currentCustomData, Playnite.SDK.Models.Game game)
+        private void ReloadExophaseEnrichmentSlugState(
+            GameCustomDataFile currentCustomData,
+            Playnite.SDK.Models.Game game,
+            string providerGameKey)
         {
             var slug = (currentCustomData?.ExophaseEnrichmentSlugOverride ?? string.Empty).Trim();
             _exophaseEnrichmentSlugValue = slug;
@@ -1521,7 +1524,7 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
             ExophaseEnrichmentSlugInput = slug;
             OnPropertyChanged(nameof(ExophaseEnrichmentSlugStatusText));
             ExophaseEnrichmentSlugPlaceholder =
-                ExophaseRarityEnrichment.GetCandidateSlug(_cachedProviderKey, game) ?? string.Empty;
+                ExophaseRarityEnrichment.GetCandidateSlug(_cachedProviderKey, game, providerGameKey) ?? string.Empty;
 
             // Raw ProviderKey (not EffectiveProviderKey): Exophase-serviced games report their
             // proxied platform as the effective key but never run the enricher.
