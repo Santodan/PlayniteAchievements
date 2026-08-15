@@ -526,6 +526,16 @@ namespace PlayniteAchievements.Models.Settings
                 StringComparer.OrdinalIgnoreCase);
         }
 
+        public HashSet<string> GetFullScanExcludedFriendIds(string providerKey)
+        {
+            return new HashSet<string>(
+                GetFriendSettings(providerKey)
+                    .Where(entry => entry.ExcludeFromFullScans)
+                    .Select(entry => entry.ExternalUserId)
+                    .Where(id => !string.IsNullOrWhiteSpace(id)),
+                StringComparer.OrdinalIgnoreCase);
+        }
+
         public bool SetFriendIgnored(string providerKey, string externalUserId, bool ignored)
         {
             var entry = GetFriendSetting(providerKey, externalUserId);
