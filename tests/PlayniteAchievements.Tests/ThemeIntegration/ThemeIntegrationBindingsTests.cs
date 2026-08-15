@@ -139,6 +139,91 @@ namespace PlayniteAchievements.ThemeIntegration.Tests
         }
 
         [TestMethod]
+        public void SelectedGameBuilder_CarriesCapturePathsIntoThemeDisplayItems()
+        {
+            var root = System.IO.Path.Combine(
+                System.IO.Path.GetTempPath(),
+                "PlayAchCaptureBindingTests",
+                Guid.NewGuid().ToString("N"));
+            try
+            {
+                var gameName = "Capture Game";
+                var folder = System.IO.Path.Combine(
+                    root,
+                    UnlockScreenshotService.SanitizeCaptureGameName(gameName));
+                System.IO.Directory.CreateDirectory(folder);
+                var cleanPath = System.IO.Path.Combine(folder, "001_DLC Achievement_clean.png");
+                var videoPath = System.IO.Path.Combine(folder, "001_DLC Achievement.mp4");
+                System.IO.File.WriteAllText(cleanPath, "x");
+                System.IO.File.WriteAllText(videoPath, "x");
+
+                var persisted = new PersistedSettings
+                {
+                    UnlockScreenshotDirectory = root,
+                    UnlockRecordingDirectory = root
+                };
+                var captureLibrary = new PlayniteAchievements.Services.Captures.CaptureLibraryService(
+                    () => persisted,
+                    null);
+                PlayniteAchievements.Services.Captures.AchievementCapturePathResolver.CaptureLibraryAccessor =
+                    () => captureLibrary;
+
+                var gameId = Guid.NewGuid();
+                var achievement = Achievement("DLC Achievement", 12.0, unlocked: true);
+                var data = new GameAchievementData
+                {
+                    PlayniteGameId = gameId,
+                    Game = new Game { Id = gameId, Name = gameName },
+                    HasAchievements = true,
+                    Achievements = new List<AchievementDetail> { achievement }
+                };
+
+                var state = SelectedGameRuntimeStateBuilder.Build(gameId, data);
+                var detail = state.AllAchievements.Single();
+
+                Assert.AreEqual(cleanPath, detail.CleanCapturePath);
+                Assert.IsNull(detail.NotificationCapturePath);
+                Assert.IsNull(detail.FramedCapturePath);
+                Assert.AreEqual(videoPath, detail.VideoCapturePath);
+                Assert.IsTrue(detail.HasAnyCapture);
+
+                var displayItem = new AchievementDisplayItem();
+                displayItem.UpdateFrom(
+                    detail,
+                    gameName,
+                    gameId,
+                    showHiddenIcon: false,
+                    showHiddenTitle: false,
+                    showHiddenDescription: false,
+                    showHiddenSuffix: true,
+                    showLockedIcon: true,
+                    useSeparateLockedIconsWhenAvailable: false,
+                    showRarityBar: true);
+
+                Assert.AreEqual(cleanPath, displayItem.CleanCapturePath);
+                Assert.IsNull(displayItem.NotificationCapturePath);
+                Assert.IsNull(displayItem.FramedCapturePath);
+                Assert.AreEqual(videoPath, displayItem.VideoCapturePath);
+                Assert.IsTrue(displayItem.HasCaptures);
+            }
+            finally
+            {
+                PlayniteAchievements.Services.Captures.AchievementCapturePathResolver.CaptureLibraryAccessor = null;
+                try
+                {
+                    if (System.IO.Directory.Exists(root))
+                    {
+                        System.IO.Directory.Delete(root, recursive: true);
+                    }
+                }
+                catch (System.IO.IOException)
+                {
+                    // A leftover temp folder must never fail a test run.
+                }
+            }
+        }
+
+        [TestMethod]
         public void SelectedGameBuilder_DefaultCanonicalOrderMatchesSharedDefaultSorting()
         {
             var gameId = Guid.NewGuid();
