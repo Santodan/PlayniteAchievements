@@ -53,11 +53,18 @@ namespace PlayniteAchievements.Providers.Exophase
         /// The name-derived slug the enricher would try for this game, mirroring
         /// <see cref="ExophaseMetadataEnricher"/>'s default-slug generation and the scanners'
         /// platform slug choices. PSN slugs carry no platform suffix, so RPCS3/ShadPS4 candidates
-        /// are the bare normalized name.
+        /// are the bare normalized name. RPCS3 multipack collections (a '+'-joined provider game
+        /// key) have no collection-level Exophase page and enrich per trophy set instead, so no
+        /// candidate is offered.
         /// </summary>
-        public static string GetCandidateSlug(string providerKey, Game game)
+        public static string GetCandidateSlug(string providerKey, Game game, string providerGameKey = null)
         {
             if (game == null || string.IsNullOrWhiteSpace(game.Name))
+            {
+                return null;
+            }
+
+            if (providerGameKey?.IndexOf('+') >= 0)
             {
                 return null;
             }
