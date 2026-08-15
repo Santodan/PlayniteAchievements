@@ -121,11 +121,19 @@ namespace PlayniteAchievements.Providers.Tests
         }
 
         [TestMethod]
-        public void BuildSearchUrl_NonPsnPlatform_KeepsGenericEndpoint()
+        public void BuildSearchUrl_Xbox360_RoutesThroughXboxArchiveWithPlatformId()
         {
             Assert.AreEqual(
-                "https://api.exophase.com/public/archive/games?q=game&sort=added&platform=xbox-360",
+                "https://api.exophase.com/public/archive/xbox?q=game&sort=added&platforms=41",
                 ExophaseApiClient.BuildSearchUrl("game", "xbox-360"));
+        }
+
+        [TestMethod]
+        public void BuildSearchUrl_NonMappedPlatform_KeepsGenericEndpoint()
+        {
+            Assert.AreEqual(
+                "https://api.exophase.com/public/archive/games?q=game&sort=added&platform=xbox-one",
+                ExophaseApiClient.BuildSearchUrl("game", "xbox-one"));
             Assert.AreEqual(
                 "https://api.exophase.com/public/archive/games?q=game&sort=added",
                 ExophaseApiClient.BuildSearchUrl("game", null));

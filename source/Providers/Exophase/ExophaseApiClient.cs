@@ -23,6 +23,7 @@ namespace PlayniteAchievements.Providers.Exophase
     {
         private const string SearchUrl = "https://api.exophase.com/public/archive/games";
         private const string PsnSearchUrl = "https://api.exophase.com/public/archive/psn";
+        private const string XboxSearchUrl = "https://api.exophase.com/public/archive/xbox";
         private const string AchievementPageBaseUrl = "https://www.exophase.com/game/{0}/achievements/";
         internal const string ExophaseApiNamePrefix = "exophase_";
         // Stable-id key format keyed on the award's master id (the li's data-master attribute,
@@ -293,9 +294,10 @@ namespace PlayniteAchievements.Providers.Exophase
         /// <summary>
         /// Builds the archive search URL for a query and optional platform slug. The
         /// generic archive endpoint's platform parameter matches nothing for PSN
-        /// platforms, so those route through the PSN archive endpoint the site's own
-        /// browse pages use; PS3 additionally filters server-side via Exophase's
-        /// numeric platform id. Other platforms keep the legacy generic-endpoint URL.
+        /// platforms, so those route through the environment archive endpoints the
+        /// site's own browse pages use, filtered server-side via Exophase's numeric
+        /// platform ids where known (PS3 = 7, PS4 = 8, Xbox 360 = 41). Other
+        /// platforms keep the legacy generic-endpoint URL.
         /// </summary>
         internal static string BuildSearchUrl(string query, string platformSlug)
         {
@@ -313,6 +315,8 @@ namespace PlayniteAchievements.Providers.Exophase
                 case "psvita":
                 case "vita":
                     return $"{PsnSearchUrl}?q={escapedQuery}&sort=added";
+                case "xbox-360":
+                    return $"{XboxSearchUrl}?q={escapedQuery}&sort=added&platforms=41";
                 default:
                     var url = $"{SearchUrl}?q={escapedQuery}&sort=added";
                     if (!string.IsNullOrWhiteSpace(normalizedPlatform))
