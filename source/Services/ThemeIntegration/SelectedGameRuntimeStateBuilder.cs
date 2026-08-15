@@ -56,7 +56,7 @@ namespace PlayniteAchievements.Services.ThemeIntegration
             }
 
             var game = data.Game;
-            var captureSet = AchievementCapturePathResolver.ResolveGameSet(data.GameName ?? data.Game?.Name);
+            var captureSet = AchievementCapturePathResolver.ResolveGameSet(data);
             for (int i = 0; i < achievements.Count; i++)
             {
                 if (achievements[i] != null)
