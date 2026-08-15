@@ -466,6 +466,125 @@ namespace PlayniteAchievements.Providers.Tests
         }
 
         [TestMethod]
+        public async Task RefreshAsync_Collection_EnrichesRarityPerTrophySetTitle()
+        {
+            var tempDir = CreateTempDirectory();
+            var rpcs3Root = Path.Combine(tempDir, "rpcs3");
+            var gameRoot = Path.Combine(tempDir, "Sly Collection");
+
+            try
+            {
+                Exophase.ExophaseMetadataEnricher.EnrichCalls.Clear();
+
+                CreateRpcs3TrophyData(rpcs3Root, "NPWR01435_00", "Sly 1", "Sly 1 Trophy");
+                CreateRpcs3TrophyData(rpcs3Root, "NPWR01433_00", "Sly 2", "Sly 2 Trophy");
+
+                Directory.CreateDirectory(gameRoot);
+                File.WriteAllText(Path.Combine(gameRoot, "PS3_DISC.SFB"), "SFB");
+                CreateTrpFile(
+                    Path.Combine(gameRoot, "PS3_GAME", "TROPDIR", "NPWR01435_00", "TROPHY.TRP"),
+                    "NPWR01435_00",
+                    "Sly 1",
+                    "Sly 1 Disc Trophy");
+                CreateTrpFile(
+                    Path.Combine(gameRoot, "PS3_GAME", "TROPDIR", "NPWR01433_00", "TROPHY.TRP"),
+                    "NPWR01433_00",
+                    "Sly 2",
+                    "Sly 2 Disc Trophy");
+
+                var provider = CreateProvider(rpcs3Root, useExophaseForRarity: true);
+                var game = new Game
+                {
+                    Id = Guid.NewGuid(),
+                    Name = "The Sly Collection",
+                    InstallDirectory = gameRoot
+                };
+
+                var data = await RefreshSingleGameAsync(provider, game).ConfigureAwait(false);
+
+                Assert.IsNotNull(data);
+                Assert.AreEqual(2, data.Achievements.Count);
+
+                var calls = Exophase.ExophaseMetadataEnricher.EnrichCalls;
+                Assert.AreEqual(2, calls.Count);
+                CollectionAssert.AreEquivalent(
+                    new[] { "Sly 1", "Sly 2" },
+                    calls.Select(call => call.SearchName).ToArray());
+                Assert.IsTrue(calls.All(call => call.AchievementCount == 1));
+            }
+            finally
+            {
+                DeleteDirectory(tempDir);
+            }
+        }
+
+        [TestMethod]
+        public async Task RefreshAsync_CollectionWithEnrichmentSlugOverride_EnrichesMergedListOnce()
+        {
+            var tempDir = CreateTempDirectory();
+            var rpcs3Root = Path.Combine(tempDir, "rpcs3");
+            var gameRoot = Path.Combine(tempDir, "Sly Collection");
+            var gameId = Guid.NewGuid();
+            var previousPlugin = PlayniteAchievementsPlugin.Instance;
+
+            try
+            {
+                Exophase.ExophaseMetadataEnricher.EnrichCalls.Clear();
+
+                CreateRpcs3TrophyData(rpcs3Root, "NPWR01435_00", "Sly 1", "Sly 1 Trophy");
+                CreateRpcs3TrophyData(rpcs3Root, "NPWR01433_00", "Sly 2", "Sly 2 Trophy");
+
+                Directory.CreateDirectory(gameRoot);
+                File.WriteAllText(Path.Combine(gameRoot, "PS3_DISC.SFB"), "SFB");
+                CreateTrpFile(
+                    Path.Combine(gameRoot, "PS3_GAME", "TROPDIR", "NPWR01435_00", "TROPHY.TRP"),
+                    "NPWR01435_00",
+                    "Sly 1",
+                    "Sly 1 Disc Trophy");
+                CreateTrpFile(
+                    Path.Combine(gameRoot, "PS3_GAME", "TROPDIR", "NPWR01433_00", "TROPHY.TRP"),
+                    "NPWR01433_00",
+                    "Sly 2",
+                    "Sly 2 Disc Trophy");
+
+                var store = new GameCustomDataStore(Path.Combine(tempDir, "store"));
+                store.Save(gameId, new GameCustomDataFile
+                {
+                    PlayniteGameId = gameId,
+                    ExophaseEnrichmentSlugOverride = "sly-cooper-and-the-thievius-raccoonus"
+                });
+
+                PlayniteAchievementsPlugin.Instance = new PlayniteAchievementsPlugin
+                {
+                    GameCustomDataStore = store
+                };
+
+                var provider = CreateProvider(rpcs3Root, useExophaseForRarity: true);
+                var game = new Game
+                {
+                    Id = gameId,
+                    Name = "The Sly Collection",
+                    InstallDirectory = gameRoot
+                };
+
+                var data = await RefreshSingleGameAsync(provider, game).ConfigureAwait(false);
+
+                Assert.IsNotNull(data);
+                Assert.AreEqual(2, data.Achievements.Count);
+
+                var calls = Exophase.ExophaseMetadataEnricher.EnrichCalls;
+                Assert.AreEqual(1, calls.Count);
+                Assert.IsNull(calls[0].SearchName);
+                Assert.AreEqual(2, calls[0].AchievementCount);
+            }
+            finally
+            {
+                PlayniteAchievementsPlugin.Instance = previousPlugin;
+                DeleteDirectory(tempDir);
+            }
+        }
+
+        [TestMethod]
         public async Task RefreshAsync_SinglePs3GameTropdirUsrdirCandidate_AggregatesAsCollection()
         {
             var tempDir = CreateTempDirectory();
@@ -2644,12 +2763,17 @@ BCUS98246: 'D:\RPCS3\Other Collection.iso' # trailing comment
             return captured;
         }
 
-        private static Rpcs3DataProvider CreateProvider(string rpcs3Root, string extensionsDataPath = null, string pluginUserDataPath = null)
+        private static Rpcs3DataProvider CreateProvider(
+            string rpcs3Root,
+            string extensionsDataPath = null,
+            string pluginUserDataPath = null,
+            bool useExophaseForRarity = false)
         {
             var settings = new PlayniteAchievementsSettings();
             var registry = new ProviderRegistry(settings, new[] { "RPCS3" });
             var providerSettings = registry.GetSettings<Rpcs3Settings>();
             providerSettings.ExecutablePath = Path.Combine(rpcs3Root, "rpcs3.exe");
+            providerSettings.UseExophaseForRarity = useExophaseForRarity;
             registry.Save(providerSettings);
 
             return new Rpcs3DataProvider(
