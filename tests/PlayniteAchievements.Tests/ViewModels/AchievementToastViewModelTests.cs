@@ -8,6 +8,7 @@ using PlayniteAchievements.ViewModels;
 using System;
 using System.IO;
 using System.Windows;
+using System.Windows.Media;
 using System.Windows.Media.Imaging;
 
 namespace PlayniteAchievements.Tests.ViewModels
@@ -624,6 +625,44 @@ namespace PlayniteAchievements.Tests.ViewModels
                 var stacked = 1.0 - Math.Pow(1.0 - alpha, 3.0);
                 Assert.AreEqual(stacked, AchievementToastViewModel.ScaleVignetteStopAlpha(alpha, 100), 1e-12);
                 Assert.IsTrue(AchievementToastViewModel.ScaleVignetteStopAlpha(alpha, 100) < 1.0);
+            }
+        }
+
+        [TestMethod]
+        public void FrameVignetteBrushes_UpperHalfGrowsCoverageBeyondAlphaStacking()
+        {
+            var strongSettings = new PersistedSettings();
+            strongSettings.NotificationStyle.Frame.FrameVignetteStrength = 100;
+            var strong = new AchievementToastViewModel(new AchievementUnlockedEventArgs(), strongSettings);
+            var builtIn = new AchievementToastViewModel(new AchievementUnlockedEventArgs(), new PersistedSettings());
+
+            // The radial's clear center shrinks and the mid darkening moves inward.
+            var strongRadial = (RadialGradientBrush)strong.FrameRadialVignetteBrush;
+            var builtInRadial = (RadialGradientBrush)builtIn.FrameRadialVignetteBrush;
+            Assert.IsTrue(strongRadial.GradientStops[1].Offset < builtInRadial.GradientStops[1].Offset);
+            Assert.IsTrue(strongRadial.GradientStops[2].Offset < builtInRadial.GradientStops[2].Offset);
+
+            // The wash's mid stop bows above the linear ramp, pulling darkness up the band.
+            var strongWash = (LinearGradientBrush)strong.FrameBottomWashBrush;
+            var strongMid = strongWash.GradientStops[2];
+            var strongEnd = strongWash.GradientStops[strongWash.GradientStops.Count - 1];
+            Assert.AreEqual(0.5, strongMid.Offset);
+            Assert.IsTrue(strongMid.Color.A > strongEnd.Color.A * 0.5);
+        }
+
+        [TestMethod]
+        public void FrameBottomWashBrush_BuiltInStrengthKeepsTheOriginalLinearRamp()
+        {
+            // At the default strength the intermediate stops must sit exactly on the original
+            // two-stop linear ramp (0 -> 0xD0), changing nothing about the classic look.
+            var wash = (LinearGradientBrush)new AchievementToastViewModel(
+                new AchievementUnlockedEventArgs(), new PersistedSettings()).FrameBottomWashBrush;
+
+            var end = wash.GradientStops[wash.GradientStops.Count - 1];
+            Assert.AreEqual(0xD0, end.Color.A);
+            foreach (var stop in wash.GradientStops)
+            {
+                Assert.AreEqual((byte)Math.Round(0xD0 * stop.Offset), stop.Color.A);
             }
         }
 
