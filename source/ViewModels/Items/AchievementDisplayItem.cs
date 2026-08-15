@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Runtime.CompilerServices;
 using System.Runtime.Serialization;
 using System.Windows.Input;
 using Playnite.SDK.Data;
@@ -115,13 +116,7 @@ namespace PlayniteAchievements.ViewModels.Items
         public string CleanCapturePath
         {
             get => _cleanCapturePath;
-            set
-            {
-                if (SetValueAndReturn(ref _cleanCapturePath, value))
-                {
-                    OnPropertyChanged(nameof(HasCaptures));
-                }
-            }
+            set => SetCapturePath(ref _cleanCapturePath, value);
         }
 
         [DontSerialize]
@@ -129,13 +124,7 @@ namespace PlayniteAchievements.ViewModels.Items
         public string NotificationCapturePath
         {
             get => _notificationCapturePath;
-            set
-            {
-                if (SetValueAndReturn(ref _notificationCapturePath, value))
-                {
-                    OnPropertyChanged(nameof(HasCaptures));
-                }
-            }
+            set => SetCapturePath(ref _notificationCapturePath, value);
         }
 
         [DontSerialize]
@@ -143,13 +132,7 @@ namespace PlayniteAchievements.ViewModels.Items
         public string FramedCapturePath
         {
             get => _framedCapturePath;
-            set
-            {
-                if (SetValueAndReturn(ref _framedCapturePath, value))
-                {
-                    OnPropertyChanged(nameof(HasCaptures));
-                }
-            }
+            set => SetCapturePath(ref _framedCapturePath, value);
         }
 
         [DontSerialize]
@@ -157,12 +140,15 @@ namespace PlayniteAchievements.ViewModels.Items
         public string VideoCapturePath
         {
             get => _videoCapturePath;
-            set
+            set => SetCapturePath(ref _videoCapturePath, value);
+        }
+
+        // Called from the capture-path setters; CallerMemberName resolves to the property name.
+        private void SetCapturePath(ref string field, string value, [CallerMemberName] string propertyName = null)
+        {
+            if (SetValueAndReturn(ref field, value, propertyName))
             {
-                if (SetValueAndReturn(ref _videoCapturePath, value))
-                {
-                    OnPropertyChanged(nameof(HasCaptures));
-                }
+                OnPropertyChanged(nameof(HasCaptures));
             }
         }
 
