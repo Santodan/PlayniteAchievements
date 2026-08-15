@@ -973,6 +973,7 @@ namespace PlayniteAchievements.ViewModels
         private readonly Action<FriendSettingsPersonRowItem> _onSelectionChanged;
         private bool _isSelected;
         private bool _isFavorite;
+        private bool _excludeFromFullScans;
         private string _nickname;
 
         public FriendSettingsPersonRowItem(
@@ -1009,6 +1010,7 @@ namespace PlayniteAchievements.ViewModels
             }
 
             _isFavorite = Accounts.Any(account => account.Entry.IsFavorite);
+            _excludeFromFullScans = Accounts.Any(account => account.Entry.ExcludeFromFullScans);
 
             RefreshDerivedProperties();
         }
@@ -1048,6 +1050,20 @@ namespace PlayniteAchievements.ViewModels
             set
             {
                 if (SetValueAndReturn(ref _isFavorite, value))
+                {
+                    _onChanged?.Invoke(this);
+                }
+            }
+        }
+
+        // Person-level Full-scan opt-out. Persisted onto every underlying account entry via
+        // WritePersonSettings so merged people opt out as a unit.
+        public bool ExcludeFromFullScans
+        {
+            get => _excludeFromFullScans;
+            set
+            {
+                if (SetValueAndReturn(ref _excludeFromFullScans, value))
                 {
                     _onChanged?.Invoke(this);
                 }
@@ -1128,6 +1144,7 @@ namespace PlayniteAchievements.ViewModels
             foreach (var account in Accounts)
             {
                 account.Entry.IsFavorite = IsFavorite;
+                account.Entry.ExcludeFromFullScans = ExcludeFromFullScans;
             }
 
             settings.Friends = settings.Friends;
