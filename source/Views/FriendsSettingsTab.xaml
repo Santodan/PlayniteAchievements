@@ -173,6 +173,14 @@
                                 VerticalAlignment="Top"
                                 Margin="0,0,8,0"
                                 Padding="{StaticResource PlayAch.Thickness.ButtonPadding.Wide}"/>
+                        <Button DockPanel.Dock="Right"
+                                Content="{Binding SkipFullScansSelectedLabel}"
+                                Command="{Binding SkipFullScansSelectedCommand}"
+                                ToolTip="{DynamicResource LOCPlayAch_Column_SkipFullScansHint}"
+                                Visibility="{Binding IncludeUnownedFriendGames, Converter={StaticResource BoolToVis}}"
+                                VerticalAlignment="Top"
+                                Margin="0,0,8,0"
+                                Padding="{StaticResource PlayAch.Thickness.ButtonPadding.Wide}"/>
                         <Grid DockPanel.Dock="Right"
                               Width="200"
                               Margin="0,0,8,0"
@@ -483,14 +491,16 @@
                             <!-- Person-level Full-scan opt-out. Only meaningful while unowned games
                                  are included in refreshes (otherwise Full is clamped to Shared
                                  globally), so the column hides with that setting. -->
-                            <DataGridTemplateColumn Width="Auto"
+                            <DataGridTemplateColumn Header="{DynamicResource LOCPlayAch_Column_SkipFullScans}"
+                                                    Width="Auto"
                                                     MinWidth="64"
                                                     IsReadOnly="True"
                                                     Visibility="{Binding Data.IncludeUnownedFriendGames, Source={StaticResource FriendsTabContext}, Converter={StaticResource BoolToVis}}">
-                                <DataGridTemplateColumn.Header>
-                                    <TextBlock Text="{DynamicResource LOCPlayAch_Column_SkipFullScans}"
-                                               ToolTip="{DynamicResource LOCPlayAch_Column_SkipFullScansHint}"/>
-                                </DataGridTemplateColumn.Header>
+                                <DataGridTemplateColumn.HeaderStyle>
+                                    <Style TargetType="DataGridColumnHeader" BasedOn="{StaticResource AchievementColumnHeaderStyle}">
+                                        <Setter Property="ToolTip" Value="{DynamicResource LOCPlayAch_Column_SkipFullScansHint}"/>
+                                    </Style>
+                                </DataGridTemplateColumn.HeaderStyle>
                                 <DataGridTemplateColumn.CellTemplate>
                                     <DataTemplate>
                                         <CheckBox IsChecked="{Binding ExcludeFromFullScans, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
