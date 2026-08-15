@@ -150,23 +150,47 @@
                     </Grid>
                 </StackPanel>
 
-                <!-- Frame vignette (frame surface only): the darkening drawn around the screenshot. -->
+                <!-- Frame vignette (frame surface only): the darkening drawn around the
+                     screenshot. The dropdown picks the shape; strength scales both layers
+                     (50 = built-in, higher stacks darker, 0 = none). -->
                 <Grid HorizontalAlignment="Left"
                       Visibility="{Binding IsFrameSurface, Converter={StaticResource BoolToVis}}">
                     <Grid.ColumnDefinitions>
                         <ColumnDefinition Width="Auto" MinWidth="90"/>
+                        <ColumnDefinition Width="160"/>
                         <ColumnDefinition Width="Auto"/>
                     </Grid.ColumnDefinitions>
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="Auto"/>
+                    </Grid.RowDefinitions>
 
-                    <TextBlock Grid.Column="0"
+                    <TextBlock Grid.Row="0" Grid.Column="0"
                                Text="{DynamicResource LOCPlayAch_Settings_Style_FrameVignette}"
                                Style="{StaticResource EditorRowLabelStyle}"
-                               Margin="0,0,8,0"/>
-                    <ComboBox Grid.Column="1"
+                               Margin="0,0,8,8"/>
+                    <ComboBox Grid.Row="0" Grid.Column="1" Grid.ColumnSpan="2"
+                              HorizontalAlignment="Left"
                               ItemsSource="{Binding FrameVignetteOptions}"
                               SelectedItem="{Binding SelectedFrameVignette, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
                               DisplayMemberPath="Display"
-                              MinWidth="190"/>
+                              MinWidth="190"
+                              Margin="0,0,0,8"/>
+
+                    <TextBlock Grid.Row="1" Grid.Column="0"
+                               Text="{DynamicResource LOCPlayAch_Settings_Style_VignetteStrength}"
+                               Style="{StaticResource EditorRowLabelStyle}"
+                               Margin="0,0,8,0"/>
+                    <Slider Grid.Row="1" Grid.Column="1"
+                            Minimum="0" Maximum="100"
+                            SmallChange="1" LargeChange="10" TickFrequency="1" IsSnapToTickEnabled="True"
+                            Value="{Binding FrameVignetteStrengthSlider, Mode=TwoWay}"
+                            VerticalAlignment="Center"
+                            Margin="0,0,8,0"/>
+                    <TextBox Grid.Row="1" Grid.Column="2"
+                             Text="{Binding FrameVignetteStrengthText, Mode=TwoWay, UpdateSourceTrigger=LostFocus}"
+                             Width="70"
+                             TextAlignment="Right"/>
                 </Grid>
             </StackPanel>
         </Border>
