@@ -189,8 +189,9 @@ namespace PlayniteAchievements.Services.Recording
             public long LastKnownBufferBytes;
             public bool BufferBudgetClampLogged;
             public AudioLoopbackRecorder AudioRecorder;
-            // The Playnite-only sidecar track (chm_*.wav): the main track excludes Playnite's
-            // process tree, so unlock chimes exist only here for the per-clip chime mix.
+            // The Playnite process-tree sidecar (chm_*.wav). For a Playnite-launched game this
+            // overlaps the game's audio, so the main recorder's tee (gam_*.wav), or the game-only
+            // main track itself, is cancelled from it before the per-clip chime mix.
             public AudioLoopbackRecorder ChimeRecorder;
             public CancellationTokenSource Cts;
             public Timer PruneTimer;
@@ -490,7 +491,8 @@ namespace PlayniteAchievements.Services.Recording
                         _logger,
                         persisted.RecordingAudioSource,
                         persisted.RecordingIncludeMicrophone,
-                        () => _getGameProcessId?.Invoke(session.OwnerGameId));
+                        () => _getGameProcessId?.Invoke(session.OwnerGameId),
+                        pid => _windowTracker?.IsInPlayniteProcessTree(pid));
                     if (recorder.Start())
                     {
                         session.AudioRecorder = recorder;
@@ -500,8 +502,9 @@ namespace PlayniteAchievements.Services.Recording
                         recorder.Dispose();
                     }
 
+                    var chimeMode = session.AudioRecorder?.ChimeCaptureMode ?? PlayniteChimeCaptureMode.Unavailable;
                     if (session.AudioRecorder != null &&
-                        session.AudioRecorder.ExcludesPlayniteAudio &&
+                        chimeMode != PlayniteChimeCaptureMode.Unavailable &&
                         AudioLoopbackRecorder.IsChimeCaptureSupported)
                     {
                         var chimeRecorder = new AudioLoopbackRecorder(
@@ -1285,9 +1288,10 @@ namespace PlayniteAchievements.Services.Recording
         }
 
         /// <summary>
-        /// Reads this request's chime from the Playnite-only sidecar chunks at the moment its
-        /// wave sound actually played. Null (clip audio ships without a chime) when the sidecar
-        /// isn't running, the wave never sounded, or the chunks are gone.
+        /// Reads this request's chime from the Playnite-tree sidecar chunks at the moment its wave
+        /// sound actually played. When the game is a Playnite descendant, its same-time game-only
+        /// reference is aligned and cancelled first; this is what prevents the sidecar from adding
+        /// a delayed second copy of emulator audio at the composited toast.
         ///
         /// Waits for the chunk covering the end of the chime window to close first, the same way
         /// the base clip waits for its last video segment. A chunk still being written carries
@@ -1317,23 +1321,62 @@ namespace PlayniteAchievements.Services.Recording
                 await Task.Delay(wait).ConfigureAwait(false);
             }
 
-            var chunks = SegmentTimeline.ParseSegments(
-                ListBufferFiles(
-                    session.BufferDirectory,
-                    RecordingPaths.ChimeChunkFilePrefix,
-                    RecordingPaths.AudioChunkFileExtension),
-                TimeZoneInfo.Local,
+            var pcm = TryReadAudioWindow(
+                session.BufferDirectory,
                 RecordingPaths.ChimeChunkFilePrefix,
-                RecordingPaths.AudioChunkFileExtension);
-            var plan = SegmentTimeline.PlanClip(
-                chunks, ownSound.Value, chimeWindowEndUtc, SegmentSeconds);
-            var pcm = plan == null ? null : MediaFoundationClipExporter.TryReadPcmWindow(plan, _logger);
+                ownSound.Value,
+                chimeWindowEndUtc);
+            if (pcm != null &&
+                session.AudioRecorder?.ChimeCaptureMode == PlayniteChimeCaptureMode.CancelGameReference)
+            {
+                var referencePcm = TryReadAudioWindow(
+                    session.BufferDirectory,
+                    RecordingPaths.GameReferenceChunkFilePrefix,
+                    ownSound.Value,
+                    chimeWindowEndUtc);
+
+                if (referencePcm == null ||
+                    !PcmAudio.TryCancelCorrelated(
+                        pcm, referencePcm, out var lagFrames, out var correlation))
+                {
+                    _logger?.Warn(
+                        "[Recording] Chime sidecar could not be separated from the game reference; " +
+                        "the clip keeps its game audio without a re-timed chime.");
+                    return null;
+                }
+
+                _logger?.Debug(
+                    $"[Recording] Chime game-audio cancellation: lag={lagFrames / 48.0:0.###}ms " +
+                    $"correlation={correlation:0.000}.");
+            }
+
             if (pcm != null)
             {
                 PcmAudio.FadeOutTail(pcm, ChimeFadeOutSeconds);
             }
 
             return pcm;
+        }
+
+        private byte[] TryReadAudioWindow(
+            string bufferDirectory,
+            string prefix,
+            DateTime startUtc,
+            DateTime endUtc)
+        {
+            var chunks = SegmentTimeline.ParseSegments(
+                ListBufferFiles(
+                    bufferDirectory,
+                    prefix,
+                    RecordingPaths.AudioChunkFileExtension),
+                TimeZoneInfo.Local,
+                prefix,
+                RecordingPaths.AudioChunkFileExtension);
+            var plan = SegmentTimeline.PlanClip(chunks, startUtc, endUtc, SegmentSeconds);
+            return plan == null
+                ? null
+                : MediaFoundationClipExporter.TryReadPcmWindow(
+                    plan, startUtc, endUtc, _logger);
         }
 
         /// <summary>
@@ -1455,7 +1498,12 @@ namespace PlayniteAchievements.Services.Recording
                 // over one window, and both count against the user's budget, so the cutoff is
                 // resolved once over every file in the buffer.
                 var audioByPrefix = new Dictionary<string, List<SegmentTimeline.SegmentInfo>>();
-                foreach (var prefix in new[] { RecordingPaths.AudioChunkFilePrefix, RecordingPaths.ChimeChunkFilePrefix })
+                foreach (var prefix in new[]
+                {
+                    RecordingPaths.AudioChunkFilePrefix,
+                    RecordingPaths.ChimeChunkFilePrefix,
+                    RecordingPaths.GameReferenceChunkFilePrefix
+                })
                 {
                     audioByPrefix[prefix] = SegmentTimeline.ParseSegments(
                         ListBufferFiles(

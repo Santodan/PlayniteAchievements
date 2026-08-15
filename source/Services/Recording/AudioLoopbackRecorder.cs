@@ -11,6 +11,13 @@ using PlayniteAchievements.Models.Settings;
 
 namespace PlayniteAchievements.Services.Recording
 {
+    internal enum PlayniteChimeCaptureMode
+    {
+        Unavailable,
+        Clean,
+        CancelGameReference
+    }
+
     /// <summary>
     /// Best-effort rolling capture of audio into short WAV chunks written next to the video segments,
     /// so clip export can mux matching sound. The source is chosen by settings: all system audio
@@ -40,16 +47,20 @@ namespace PlayniteAchievements.Services.Recording
         private readonly RecordingAudioSource _source;
         private readonly bool _includeMicrophone;
         private readonly Func<int?> _gameProcessId;
+        private readonly Func<int, bool?> _isGameInPlayniteTree;
         private readonly object _gate = new object();
 
         private IWaveIn _systemCapture;
+        private IWaveIn _restoredGameCapture;
         private IWaveIn _micCapture;
         private BufferedWaveProvider _systemBuffer;
+        private BufferedWaveProvider _restoredGameBuffer;
         private BufferedWaveProvider _micBuffer;
         private ISampleProvider _mix;
         private WaveFormat _outputFormat;
 
         private WaveFileWriter _writer;
+        private WaveFileWriter _gameReferenceWriter;
         private long _chunkSamplesWritten;
         private double _chunkStartWallClockSamples;
         private DateTime _pumpStartUtc;
@@ -60,6 +71,8 @@ namespace PlayniteAchievements.Services.Recording
 
         // Audio the ring buffer never accepted, in bytes of the capture format; see Append.
         private long _discardedBytes;
+        private bool _restoreGameIntoFullSystem;
+        private bool _writeGameReference;
 
         public AudioLoopbackRecorder(
             string bufferDirectory,
@@ -67,6 +80,7 @@ namespace PlayniteAchievements.Services.Recording
             RecordingAudioSource source = RecordingAudioSource.FullSystem,
             bool includeMicrophone = false,
             Func<int?> gameProcessId = null,
+            Func<int, bool?> isGameInPlayniteTree = null,
             bool capturePlayniteChimes = false)
         {
             _bufferDirectory = bufferDirectory;
@@ -74,13 +88,14 @@ namespace PlayniteAchievements.Services.Recording
             _source = source;
             _includeMicrophone = includeMicrophone;
             _gameProcessId = gameProcessId;
+            _isGameInPlayniteTree = isGameInPlayniteTree;
             _capturePlayniteChimes = capturePlayniteChimes;
         }
 
-        // When true this instance is the chime sidecar: it records ONLY Playnite's process tree
-        // (where UniPlaySong plays the unlock chimes) into chm_*.wav chunks. The main track
-        // excludes that same tree, so the clip re-encode can mix exactly this wave's chime back
-        // in at the composited toast without other waves' chimes or any game-audio damage.
+        // When true this instance is the chime sidecar: it records Playnite's process tree (where
+        // UniPlaySong plays the unlock chimes) into chm_*.wav chunks. That tree can also contain a
+        // game launched by Playnite; in that case the main recorder tees its restored game signal
+        // to a reference WAV so the game can be cancelled before the chime is re-timed.
         private readonly bool _capturePlayniteChimes;
 
         /// <summary>
@@ -90,17 +105,11 @@ namespace PlayniteAchievements.Services.Recording
         public static bool IsChimeCaptureSupported => ProcessLoopbackCapture.IsSupported;
 
         /// <summary>
-        /// Whether this track is guaranteed to carry none of Playnite's own audio — true when the
-        /// source is per-process loopback scoped to the game, or full system with Playnite's tree
-        /// excluded; false when activation failed and the capture degraded to plain system
-        /// loopback, which includes the unlock chimes. Only meaningful after <see cref="Start"/>.
-        /// <para>
-        /// The chime sidecar may only run alongside a track that excludes Playnite. Mixing the
-        /// sidecar's chime into a clip whose main track already contains that chime plays it
-        /// twice — once where it really sounded, once re-timed to the composited toast.
-        /// </para>
+        /// How the Playnite-tree sidecar can be made into a chime-only signal for this main track.
+        /// A game launched beneath Playnite requires a simultaneous game-only reference to be
+        /// cancelled from that sidecar; a separate process tree is already clean.
         /// </summary>
-        public bool ExcludesPlayniteAudio { get; private set; }
+        public PlayniteChimeCaptureMode ChimeCaptureMode { get; private set; }
 
         /// <summary>
         /// Builds the capture graph and starts the pump. Returns false (after one Warn log) when audio
@@ -122,6 +131,57 @@ namespace PlayniteAchievements.Services.Recording
                     _systemCapture.DataAvailable += (s, e) => Append(_systemBuffer, e);
 
                     ISampleProvider systemSamples = _systemBuffer.ToSampleProvider();
+
+                    if (_restoreGameIntoFullSystem)
+                    {
+                        try
+                        {
+                            var pid = _gameProcessId?.Invoke();
+                            if (!pid.HasValue || pid.Value <= 0)
+                            {
+                                throw new InvalidOperationException("No game process is available for audio restoration.");
+                            }
+
+                            _restoredGameCapture = new ProcessLoopbackCapture(pid.Value, includeProcessTree: true);
+                            _restoredGameBuffer = NewBuffer(_restoredGameCapture.WaveFormat);
+                            _restoredGameCapture.DataAvailable += (s, e) => Append(_restoredGameBuffer, e);
+                            var gameSamples = new ReferenceTeeSampleProvider(
+                                _restoredGameBuffer.ToSampleProvider(),
+                                WriteGameReferenceSamples);
+                            systemSamples = new MixingSampleProvider(new[] { systemSamples, gameSamples })
+                            {
+                                ReadFully = true,
+                            };
+                        }
+                        catch (Exception ex)
+                        {
+                            // An excluded Playnite-tree track without the game restored is worse than
+                            // no isolation: it silently removes the very audio the user asked to keep.
+                            // Fall back to ordinary system loopback and leave its live chime alone.
+                            _logger?.Warn(
+                                ex,
+                                "[Recording] Game audio could not be restored into full-system capture; " +
+                                "using plain full-system audio without chime re-timing.");
+                            DisposeCapture(ref _restoredGameCapture);
+                            _restoredGameBuffer = null;
+                            DisposeCapture(ref _systemCapture);
+                            _systemCapture = new WasapiLoopbackCapture();
+                            _systemBuffer = NewBuffer(_systemCapture.WaveFormat);
+                            _systemCapture.DataAvailable += (s, e) => Append(_systemBuffer, e);
+                            systemSamples = _systemBuffer.ToSampleProvider();
+                            _restoreGameIntoFullSystem = false;
+                            _writeGameReference = false;
+                            ChimeCaptureMode = PlayniteChimeCaptureMode.Unavailable;
+                        }
+                    }
+                    else if (_writeGameReference)
+                    {
+                        // Tap the raw game signal before microphone mixing. Using the finished aud_
+                        // track here would also subtract the microphone from the chime sidecar.
+                        systemSamples = new ReferenceTeeSampleProvider(
+                            systemSamples,
+                            WriteGameReferenceSamples);
+                    }
 
                     if (_includeMicrophone)
                     {
@@ -154,6 +214,7 @@ namespace PlayniteAchievements.Services.Recording
                     _outputFormat = _mix.WaveFormat;
 
                     _systemCapture.StartRecording();
+                    _restoredGameCapture?.StartRecording();
                     _micCapture?.StartRecording();
 
                     // The timeline is anchored, and the first chunk opened, by the pump once it
@@ -163,7 +224,7 @@ namespace PlayniteAchievements.Services.Recording
                     _pumpThread.Start();
 
                     _logger?.Info(
-                        $"[Recording] Audio capture started (source={(_capturePlayniteChimes ? "PlayniteChimes" : _source.ToString())}, mic={_includeMicrophone}, {_outputFormat}).");
+                        $"[Recording] Audio capture started (source={CaptureSourceName()}, mic={_includeMicrophone}, {_outputFormat}).");
                     return true;
                 }
                 catch (Exception ex)
@@ -190,16 +251,23 @@ namespace PlayniteAchievements.Services.Recording
                     System.Diagnostics.Process.GetCurrentProcess().Id, includeProcessTree: true);
             }
 
+            var gamePid = _gameProcessId?.Invoke();
+            var playnitePid = System.Diagnostics.Process.GetCurrentProcess().Id;
+            var gameInPlayniteTree = gamePid.HasValue && gamePid.Value > 0
+                ? _isGameInPlayniteTree?.Invoke(gamePid.Value)
+                : null;
+
             if (_source == RecordingAudioSource.GameOnly)
             {
-                var pid = _gameProcessId?.Invoke();
-                if (pid.HasValue && pid.Value > 0 && ProcessLoopbackCapture.IsSupported)
+                if (gamePid.HasValue && gamePid.Value > 0 && ProcessLoopbackCapture.IsSupported)
                 {
                     try
                     {
                         // Scoped to the game's tree, so Playnite's chimes are outside it.
-                        var gameOnly = new ProcessLoopbackCapture(pid.Value, includeProcessTree: true);
-                        ExcludesPlayniteAudio = true;
+                        var gameOnly = new ProcessLoopbackCapture(gamePid.Value, includeProcessTree: true);
+                        ChimeCaptureMode = ResolveChimeCaptureMode(gameInPlayniteTree);
+                        _writeGameReference = gameInPlayniteTree == true;
+
                         return gameOnly;
                     }
                     catch (Exception ex)
@@ -216,15 +284,30 @@ namespace PlayniteAchievements.Services.Recording
             // Full system audio minus Playnite's own process tree: the plugin's unlock chimes
             // (UniPlaySong plays inside Playnite) never land in clip audio — clips composite
             // their toast at the unlock moment, so the real chime rarely aligns with the card
-            // and other waves' chimes would pollute the clip. Game and desktop audio are
-            // untouched. Degrades to plain loopback on older Windows or activation failure.
-            if (ProcessLoopbackCapture.IsSupported)
+            // and other waves' chimes would pollute the clip. When the game is inside Playnite's
+            // tree, its game-only process signal is restored into the main mix before it is written
+            // and tee'd as the sidecar-cancellation reference. Unknown relationships deliberately
+            // keep plain full-system audio and forego re-timing rather than risk removing the game.
+            if (ProcessLoopbackCapture.IsSupported && gameInPlayniteTree.HasValue)
             {
                 try
                 {
                     var excluded = new ProcessLoopbackCapture(
-                        System.Diagnostics.Process.GetCurrentProcess().Id, includeProcessTree: false);
-                    ExcludesPlayniteAudio = true;
+                        playnitePid, includeProcessTree: false);
+                    if (gameInPlayniteTree.Value)
+                    {
+                        // Excluding Playnite's tree also excludes a Playnite-launched game. Restore
+                        // that game before the main WAV is written and tee the exact same samples to
+                        // gam_*.wav for sidecar cancellation.
+                        _restoreGameIntoFullSystem = true;
+                        _writeGameReference = true;
+                        ChimeCaptureMode = PlayniteChimeCaptureMode.CancelGameReference;
+                    }
+                    else
+                    {
+                        ChimeCaptureMode = PlayniteChimeCaptureMode.Clean;
+                    }
+
                     return excluded;
                 }
                 catch (Exception ex)
@@ -232,10 +315,40 @@ namespace PlayniteAchievements.Services.Recording
                     _logger?.Warn(ex, "[Recording] Playnite-excluded audio capture failed; using full system audio.");
                 }
             }
+            else if (ProcessLoopbackCapture.IsSupported)
+            {
+                _logger?.Info(
+                    "[Recording] The game/Playnite process-tree relationship is unknown; " +
+                    "using plain full-system audio so excluding Playnite cannot remove the game.");
+            }
 
-            // Plain system loopback carries Playnite's chimes, so ExcludesPlayniteAudio stays
-            // false and the caller must not run the chime sidecar against this track.
+            // Plain system loopback is the last resort after process-scope setup fails. It carries
+            // the live chime and has no lossless pre-encode way to remove it, so leave that audio
+            // untouched rather than re-time a second copy.
+            ChimeCaptureMode = PlayniteChimeCaptureMode.Unavailable;
             return new WasapiLoopbackCapture();
+        }
+
+        private static PlayniteChimeCaptureMode ResolveChimeCaptureMode(bool? gameInPlayniteTree)
+        {
+            if (!gameInPlayniteTree.HasValue)
+            {
+                return PlayniteChimeCaptureMode.Unavailable;
+            }
+
+            return gameInPlayniteTree.Value
+                ? PlayniteChimeCaptureMode.CancelGameReference
+                : PlayniteChimeCaptureMode.Clean;
+        }
+
+        private string CaptureSourceName()
+        {
+            if (_capturePlayniteChimes)
+            {
+                return "PlayniteChimes";
+            }
+
+            return _source.ToString();
         }
 
         private static BufferedWaveProvider NewBuffer(WaveFormat format)
@@ -298,10 +411,14 @@ namespace PlayniteAchievements.Services.Recording
         /// Reports whatever this track lost or stood in for. Silent when nothing did, so a line here
         /// always means the recorded audio does not represent an unbroken stretch of real time.
         /// </summary>
-        private void LogTimelineNotices(IWaveIn systemCapture)
+        private void LogTimelineNotices(params IWaveIn[] captures)
         {
             var discarded = Interlocked.Read(ref _discardedBytes);
-            var paddedFrames = (systemCapture as ProcessLoopbackCapture)?.PaddedGapFrames ?? 0;
+            var paddedFrames = 0L;
+            foreach (var capture in captures ?? new IWaveIn[0])
+            {
+                paddedFrames += (capture as ProcessLoopbackCapture)?.PaddedGapFrames ?? 0;
+            }
             if (discarded == 0 && paddedFrames == 0)
             {
                 return;
@@ -396,11 +513,16 @@ namespace PlayniteAchievements.Services.Recording
         private bool AwaitAnchor()
         {
             var stamped = _systemCapture as ProcessLoopbackCapture;
+            var restoredGame = _restoredGameCapture as ProcessLoopbackCapture;
             var deadline = CaptureTimelineClock.UtcNow.AddMilliseconds(AnchorTimeoutMs);
 
             while (_running)
             {
-                var packetUtc = stamped?.FirstPacketCaptureUtc;
+                var primaryUtc = stamped?.FirstPacketCaptureUtc;
+                var gameUtc = restoredGame?.FirstPacketCaptureUtc;
+                var packetUtc = primaryUtc.HasValue && gameUtc.HasValue
+                    ? (primaryUtc.Value <= gameUtc.Value ? primaryUtc : gameUtc)
+                    : primaryUtc ?? gameUtc;
                 if (stamped == null || packetUtc.HasValue || CaptureTimelineClock.UtcNow >= deadline)
                 {
                     lock (_gate)
@@ -432,7 +554,7 @@ namespace PlayniteAchievements.Services.Recording
         /// <summary>Stops capture and closes the current chunk cleanly. Idempotent.</summary>
         public void Stop()
         {
-            IWaveIn system, mic;
+            IWaveIn system, restoredGame, mic;
             lock (_gate)
             {
                 if (_stopped)
@@ -443,18 +565,21 @@ namespace PlayniteAchievements.Services.Recording
                 _stopped = true;
                 _running = false;
                 system = _systemCapture;
+                restoredGame = _restoredGameCapture;
                 mic = _micCapture;
             }
 
             // Outside the gate: capture Dispose joins its thread, which may be delivering data.
             StopCapture(system);
+            StopCapture(restoredGame);
             StopCapture(mic);
 
             lock (_gate)
             {
                 CloseChunkLocked();
-                LogTimelineNotices(system);
+                LogTimelineNotices(system, restoredGame);
                 _systemCapture = null;
+                _restoredGameCapture = null;
                 _micCapture = null;
             }
         }
@@ -497,6 +622,14 @@ namespace PlayniteAchievements.Services.Recording
             var name = RecordingPaths.BuildAudioChunkFileName(prefix, startUtc);
 
             _writer = new WaveFileWriter(Path.Combine(_bufferDirectory, name), _outputFormat);
+            if (_writeGameReference)
+            {
+                var referenceName = RecordingPaths.BuildAudioChunkFileName(
+                    RecordingPaths.GameReferenceChunkFilePrefix, startUtc);
+                _gameReferenceWriter = new WaveFileWriter(
+                    Path.Combine(_bufferDirectory, referenceName), _outputFormat);
+            }
+
             _chunkSamplesWritten = 0;
         }
 
@@ -509,6 +642,8 @@ namespace PlayniteAchievements.Services.Recording
 
             try { _writer.Dispose(); } catch { }
             _writer = null;
+            try { _gameReferenceWriter?.Dispose(); } catch { }
+            _gameReferenceWriter = null;
         }
 
         private void FailLocked(Exception ex, string message)
@@ -528,10 +663,47 @@ namespace PlayniteAchievements.Services.Recording
             _running = false;
             CloseChunkLocked();
             DisposeCapture(ref _systemCapture);
+            DisposeCapture(ref _restoredGameCapture);
             DisposeCapture(ref _micCapture);
             _systemBuffer = null;
+            _restoredGameBuffer = null;
             _micBuffer = null;
             _mix = null;
+        }
+
+        private void WriteGameReferenceSamples(float[] samples, int offset, int count)
+        {
+            _gameReferenceWriter?.WriteSamples(samples, offset, count);
+        }
+
+        /// <summary>
+        /// Copies exactly the raw game samples consumed by the main mixer into the reference WAV.
+        /// Tapping the same read, rather than running another pump, keeps microphone and unrelated
+        /// system audio out of the cancellation reference.
+        /// </summary>
+        private sealed class ReferenceTeeSampleProvider : ISampleProvider
+        {
+            private readonly ISampleProvider _source;
+            private readonly Action<float[], int, int> _tap;
+
+            public ReferenceTeeSampleProvider(ISampleProvider source, Action<float[], int, int> tap)
+            {
+                _source = source;
+                _tap = tap;
+            }
+
+            public WaveFormat WaveFormat => _source.WaveFormat;
+
+            public int Read(float[] buffer, int offset, int count)
+            {
+                var read = _source.Read(buffer, offset, count);
+                if (read > 0)
+                {
+                    _tap(buffer, offset, read);
+                }
+
+                return read;
+            }
         }
     }
 }

@@ -80,12 +80,18 @@ namespace PlayniteAchievements.Services.Recording
         public const string AudioChunkFilePrefix = "aud_";
 
         /// <summary>
-        /// Chime chunk filenames: chm_yyyyMMdd-HHmmss.wav — the Playnite-only sidecar audio
-        /// track. The main track excludes Playnite's process tree, so unlock chimes live only
-        /// here; the clip re-encode mixes this wave's chime back in aligned with the composited
-        /// toast.
+        /// Chime chunk filenames: chm_yyyyMMdd-HHmmssfffZ.wav — the Playnite process-tree
+        /// sidecar. When the game is also in that tree, its matching game-reference window is
+        /// cancelled from this track before the isolated chime is re-timed to the toast.
         /// </summary>
         public const string ChimeChunkFilePrefix = "chm_";
+
+        /// <summary>
+        /// Game-reference chunk filenames: gam_yyyyMMdd-HHmmssfffZ.wav. Capture uses this only when
+        /// Playnite's process tree contains the game, providing the raw game-only signal that must
+        /// be removed from the overlapping chime sidecar.
+        /// </summary>
+        public const string GameReferenceChunkFilePrefix = "gam_";
 
         public const string AudioChunkFileExtension = ".wav";
     }

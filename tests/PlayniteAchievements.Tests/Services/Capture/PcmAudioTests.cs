@@ -1,4 +1,5 @@
 using System;
+using System.Linq;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
 using PlayniteAchievements.Services.Capture;
 
@@ -110,5 +111,89 @@ namespace PlayniteAchievements.Services.Tests.Capture
             var bytes = PcmAudio.TicksToAlignedBytes(12_345);
             Assert.AreEqual(0, bytes % PcmAudio.BlockAlign);
         }
+
+        [TestMethod]
+        public void TryCancelCorrelated_AlignsAndRemovesGameReference()
+        {
+            const int frames = 36000;
+            const int lag = 17;
+            var referenceSamples = new short[frames * 2];
+            var mixtureSamples = new short[frames * 2];
+            var expectedChime = new short[frames * 2];
+            var random = new Random(1234);
+            // The sound request precedes the audible chime. Leave the first half-second silent to
+            // verify alignment chooses an audible portion instead of rejecting a valid reference.
+            for (var frame = 26000; frame < frames; frame++)
+            {
+                var left = (short)random.Next(-6000, 6001);
+                var right = (short)random.Next(-6000, 6001);
+                referenceSamples[frame * 2] = left;
+                referenceSamples[frame * 2 + 1] = right;
+            }
+
+            for (var frame = 0; frame + lag < frames; frame++)
+            {
+                mixtureSamples[frame * 2] = referenceSamples[(frame + lag) * 2];
+                mixtureSamples[frame * 2 + 1] = referenceSamples[(frame + lag) * 2 + 1];
+            }
+
+            for (var frame = 30000; frame < 30300; frame++)
+            {
+                expectedChime[frame * 2] = 1200;
+                expectedChime[frame * 2 + 1] = -900;
+                mixtureSamples[frame * 2] += 1200;
+                mixtureSamples[frame * 2 + 1] -= 900;
+            }
+
+            var mixture = Samples(mixtureSamples);
+            var reference = Samples(referenceSamples);
+
+            var cancelledOk = PcmAudio.TryCancelCorrelated(
+                mixture, reference, out var actualLag, out var correlation);
+            Assert.IsTrue(
+                cancelledOk,
+                $"lag={actualLag}, correlation={correlation}");
+            Assert.AreEqual(lag, actualLag);
+            Assert.IsTrue(correlation > 0.99, $"correlation was {correlation}");
+
+            var cancelled = ToShorts(mixture);
+            for (var frame = 100; frame < frames - lag; frame++)
+            {
+                Assert.AreEqual(expectedChime[frame * 2], cancelled[frame * 2], $"left frame {frame}");
+                Assert.AreEqual(expectedChime[frame * 2 + 1], cancelled[frame * 2 + 1], $"right frame {frame}");
+            }
+        }
+
+        [TestMethod]
+        public void TryCancelCorrelated_UnrelatedReferenceLeavesMixtureUntouched()
+        {
+            var random = new Random(17);
+            var mixtureSamples = Enumerable.Range(0, 20000)
+                .Select(_ => (short)random.Next(-8000, 8001))
+                .ToArray();
+            var referenceSamples = Enumerable.Range(0, 20000)
+                .Select(_ => (short)random.Next(-8000, 8001))
+                .ToArray();
+            var mixture = Samples(mixtureSamples);
+            var before = (byte[])mixture.Clone();
+
+            Assert.IsFalse(PcmAudio.TryCancelCorrelated(
+                mixture, Samples(referenceSamples), out _, out _));
+            CollectionAssert.AreEqual(before, mixture);
+        }
+
+        [TestMethod]
+        public void TryCancelCorrelated_SilentGameReferenceKeepsChime()
+        {
+            var chime = Samples(1000, -1000, 500, -500);
+            var before = (byte[])chime.Clone();
+
+            Assert.IsTrue(PcmAudio.TryCancelCorrelated(
+                chime, new byte[chime.Length], out var lag, out var correlation));
+            Assert.AreEqual(0, lag);
+            Assert.AreEqual(1, correlation);
+            CollectionAssert.AreEqual(before, chime);
+        }
+
     }
 }

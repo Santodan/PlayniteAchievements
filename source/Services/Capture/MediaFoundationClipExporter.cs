@@ -173,14 +173,25 @@ namespace PlayniteAchievements.Services.Capture
         }
 
         /// <summary>
-        /// Reads a planned audio window (e.g. the chime sidecar chunks around one wave's unlock
-        /// sound) into one contiguous 48 kHz stereo 16-bit PCM buffer. Returns null on failure or
-        /// when nothing overlaps.
+        /// Reads a plan onto an exact caller-supplied UTC window, placing decoded samples by their
+        /// timestamps and zero-padding uncovered spans. Separate process-loopback clients rotate
+        /// chunks at different instants; appending their samples would erase that difference and
+        /// make sample-wise game cancellation leave an echo.
         /// </summary>
         [HandleProcessCorruptedStateExceptions, System.Security.SecurityCritical]
-        public static byte[] TryReadPcmWindow(SegmentTimeline.ClipPlan plan, ILogger logger)
+        public static byte[] TryReadPcmWindow(
+            SegmentTimeline.ClipPlan plan,
+            DateTime outputStartUtc,
+            DateTime outputEndUtc,
+            ILogger logger)
         {
-            if (plan?.Segments == null || plan.Segments.Count == 0)
+            if (plan?.Segments == null || plan.Segments.Count == 0 || outputEndUtc <= outputStartUtc)
+            {
+                return null;
+            }
+
+            var outputBytes = PcmAudio.TicksToAlignedBytes((outputEndUtc - outputStartUtc).Ticks);
+            if (outputBytes <= 0 || outputBytes > int.MaxValue)
             {
                 return null;
             }
@@ -190,8 +201,11 @@ namespace PlayniteAchievements.Services.Capture
                 try
                 {
                     using (var pcmType = CreatePcmType())
-                    using (var stream = new System.IO.MemoryStream())
                     {
+                        var output = new byte[(int)outputBytes];
+                        var planStartUtc = plan.Segments[0].StartUtc.AddSeconds(plan.StartOffsetSeconds);
+                        var planOffsetTicks = (planStartUtc - outputStartUtc).Ticks;
+                        var wroteAny = false;
                         foreach (var timed in AudioSamples(plan, pcmType, videoLead: 0))
                         {
                             using (var sample = timed.Sample)
@@ -202,7 +216,21 @@ namespace PlayniteAchievements.Services.Capture
                                 {
                                     var bytes = new byte[length];
                                     System.Runtime.InteropServices.Marshal.Copy(ptr, bytes, 0, length);
-                                    stream.Write(bytes, 0, length);
+                                    var sampleTicks = planOffsetTicks + timed.Time;
+                                    var destOffset = PcmAudio.TicksToAlignedBytes(Math.Max(0, sampleTicks));
+                                    var sourceOffset = PcmAudio.TicksToAlignedBytes(Math.Max(0, -sampleTicks));
+                                    var count = Math.Min(
+                                        bytes.Length - sourceOffset,
+                                        output.Length - destOffset);
+                                    count &= ~(long)(PcmAudio.BlockAlign - 1);
+                                    if (count > 0)
+                                    {
+                                        Buffer.BlockCopy(
+                                            bytes, (int)sourceOffset,
+                                            output, (int)destOffset,
+                                            (int)count);
+                                        wroteAny = true;
+                                    }
                                 }
                                 finally
                                 {
@@ -211,7 +239,7 @@ namespace PlayniteAchievements.Services.Capture
                             }
                         }
 
-                        return stream.Length > 0 ? stream.ToArray() : null;
+                        return wroteAny ? output : null;
                     }
                 }
                 catch (Exception ex)
