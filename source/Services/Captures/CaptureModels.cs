@@ -90,6 +90,7 @@ namespace PlayniteAchievements.Services.Captures
             new GameCaptureSet(Array.Empty<AchievementCaptureGroup>());
 
         private readonly HashSet<string> _stems;
+        private readonly Dictionary<string, AchievementCaptureGroup> _groupsByStem;
 
         public GameCaptureSet(IReadOnlyList<AchievementCaptureGroup> groups)
         {
@@ -97,6 +98,15 @@ namespace PlayniteAchievements.Services.Captures
             _stems = new HashSet<string>(
                 Groups.Select(g => g.AchievementStem),
                 StringComparer.OrdinalIgnoreCase);
+            _groupsByStem = new Dictionary<string, AchievementCaptureGroup>(StringComparer.OrdinalIgnoreCase);
+            foreach (var group in Groups)
+            {
+                if (!string.IsNullOrEmpty(group.AchievementStem) &&
+                    !_groupsByStem.ContainsKey(group.AchievementStem))
+                {
+                    _groupsByStem[group.AchievementStem] = group;
+                }
+            }
             AvailableVariants = Groups
                 .SelectMany(g => g.Items.Select(i => i.Variant))
                 .Distinct()
@@ -113,6 +123,12 @@ namespace PlayniteAchievements.Services.Captures
 
         public bool ContainsAchievementStem(string sanitizedStem) =>
             !string.IsNullOrEmpty(sanitizedStem) && _stems.Contains(sanitizedStem);
+
+        /// <summary>The group for one achievement's sanitized name stem, or null when it has no captures.</summary>
+        public AchievementCaptureGroup FindGroup(string sanitizedStem) =>
+            !string.IsNullOrEmpty(sanitizedStem) && _groupsByStem.TryGetValue(sanitizedStem, out var group)
+                ? group
+                : null;
 
         /// <summary>Achievement groups that have at least one capture of the given variant, in order.</summary>
         public IReadOnlyList<AchievementCaptureGroup> GroupsWithVariant(CaptureVariant variant) =>
