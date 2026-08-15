@@ -88,6 +88,7 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
         private string _exophaseEnrichmentSlugInput;
         private bool _hasExophaseEnrichmentSlugOverride;
         private string _exophaseEnrichmentSlugValue;
+        private string _exophaseEnrichmentSlugPlaceholder;
         private bool _isExophaseEnrichmentSlugSectionVisible;
         private bool _canExportCustomJson;
         private bool _canClearCustomData;
@@ -404,6 +405,12 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
         {
             get => _isExophaseEnrichmentSlugSectionVisible;
             private set => SetValue(ref _isExophaseEnrichmentSlugSectionVisible, value);
+        }
+
+        public string ExophaseEnrichmentSlugPlaceholder
+        {
+            get => _exophaseEnrichmentSlugPlaceholder;
+            private set => SetValue(ref _exophaseEnrichmentSlugPlaceholder, value);
         }
 
         public string ExophaseEnrichmentSlugStatusText =>
@@ -745,7 +752,7 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
                     currentCustomData?.UseSeparateLockedIconsOverride == true);
                 OnPropertyChanged(nameof(SeparateLockedIconsStatusText));
                 ReloadProviderOverrideState(currentCustomData);
-                ReloadExophaseEnrichmentSlugState(currentCustomData);
+                ReloadExophaseEnrichmentSlugState(currentCustomData, game);
 
                 ManualAchievementLink manualLink;
                 var hasManualLink = ManualAchievementsProvider.TryGetManualLink(_gameId, out manualLink);
@@ -1506,13 +1513,15 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
             }
         }
 
-        private void ReloadExophaseEnrichmentSlugState(GameCustomDataFile currentCustomData)
+        private void ReloadExophaseEnrichmentSlugState(GameCustomDataFile currentCustomData, Playnite.SDK.Models.Game game)
         {
             var slug = (currentCustomData?.ExophaseEnrichmentSlugOverride ?? string.Empty).Trim();
             _exophaseEnrichmentSlugValue = slug;
             HasExophaseEnrichmentSlugOverride = !string.IsNullOrWhiteSpace(slug);
             ExophaseEnrichmentSlugInput = slug;
             OnPropertyChanged(nameof(ExophaseEnrichmentSlugStatusText));
+            ExophaseEnrichmentSlugPlaceholder =
+                ExophaseRarityEnrichment.GetCandidateSlug(_cachedProviderKey, game) ?? string.Empty;
 
             // Raw ProviderKey (not EffectiveProviderKey): Exophase-serviced games report their
             // proxied platform as the effective key but never run the enricher.
