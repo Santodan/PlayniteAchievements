@@ -14,7 +14,7 @@ namespace PlayniteAchievements.Services.Captures
     /// </summary>
     internal static class CaptureFileNameParser
     {
-        private static readonly Regex DedupMarker = new Regex(@"\s\(\d+\)$", RegexOptions.Compiled);
+        private static readonly Regex DedupMarker = new Regex(@"\s\((\d+)\)$", RegexOptions.Compiled);
         private static readonly Regex LeadingNumber = new Regex(@"^(\d+)_", RegexOptions.Compiled);
 
         public static SuffixResolver CreateResolver(
@@ -45,9 +45,20 @@ namespace PlayniteAchievements.Services.Captures
                 return false;
             }
 
-            // A filename collision appends " (2)", " (3)" before the extension; drop it so the
-            // variant suffix ends the string and the achievement stem groups correctly.
-            name = DedupMarker.Replace(name, string.Empty);
+            // A filename collision appends " (2)", " (3)" before the extension; keep the counter
+            // (0 = original file) and drop the marker so the variant suffix ends the string and
+            // the achievement stem groups correctly.
+            var dedupCounter = 0;
+            var dedupMatch = DedupMarker.Match(name);
+            if (dedupMatch.Success)
+            {
+                int.TryParse(
+                    dedupMatch.Groups[1].Value,
+                    NumberStyles.None,
+                    CultureInfo.InvariantCulture,
+                    out dedupCounter);
+                name = name.Substring(0, dedupMatch.Index);
+            }
 
             var number = 0;
             var remainder = name;
@@ -79,7 +90,7 @@ namespace PlayniteAchievements.Services.Captures
                 return false;
             }
 
-            item = new CaptureItem(filePath, variant, number, stem);
+            item = new CaptureItem(filePath, variant, number, stem, dedupCounter);
             return true;
         }
 
