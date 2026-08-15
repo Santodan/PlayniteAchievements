@@ -109,6 +109,7 @@
     <Compile Include="..\..\source\Services\Captures\CaptureModels.cs" Link="Source\Services\Captures\CaptureModels.cs" />
     <Compile Include="..\..\source\Services\Captures\CaptureFileNameParser.cs" Link="Source\Services\Captures\CaptureFileNameParser.cs" />
     <Compile Include="..\..\source\Services\Captures\CaptureLibraryService.cs" Link="Source\Services\Captures\CaptureLibraryService.cs" />
+    <Compile Include="..\..\source\Services\Captures\AchievementCapturePathResolver.cs" Link="Source\Services\Captures\AchievementCapturePathResolver.cs" />
     <Compile Include="..\..\source\Services\Images\CategoryDefaultImageResolver.cs" Link="Source\Services\Images\CategoryDefaultImageResolver.cs" />
     <Compile Include="..\..\source\Services\Images\DiskImageService.cs" Link="Source\Services\Images\DiskImageService.cs" />
     <Compile Include="..\..\source\Services\Images\ImageCompressionPlan.cs" Link="Source\Services\Images\ImageCompressionPlan.cs" />
