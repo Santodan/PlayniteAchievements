@@ -168,9 +168,14 @@
                             <ColumnDefinition Width="Auto" />
                         </Grid.ColumnDefinitions>
 
-                        <TextBox Grid.Column="0"
-                                 Text="{Binding ExophaseEnrichmentSlugInput, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
-                                 Padding="8,6" />
+                        <Grid Grid.Column="0">
+                            <TextBox x:Name="ExophaseEnrichmentSlugTextBox"
+                                     Text="{Binding ExophaseEnrichmentSlugInput, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                     Padding="8,6" />
+                            <TextBlock Text="{Binding ExophaseEnrichmentSlugPlaceholder}"
+                                       Tag="{Binding Text, ElementName=ExophaseEnrichmentSlugTextBox}"
+                                       Style="{StaticResource ManageAchievementsSearchPlaceholderTextStyle}" />
+                        </Grid>
                         <Button Grid.Column="1"
                                 Content="{DynamicResource LOCPlayAch_Button_Apply}"
                                 Command="{Binding ApplyExophaseEnrichmentSlugCommand}"
