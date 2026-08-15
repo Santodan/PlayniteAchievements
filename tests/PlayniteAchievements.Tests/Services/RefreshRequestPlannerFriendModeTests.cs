@@ -601,6 +601,77 @@ namespace PlayniteAchievements.Services.Tests
             Assert.IsFalse(resolved.FriendOptions.DiscoversProviderOnlyGames());
         }
 
+        [DataTestMethod]
+        [DataRow(RefreshModeType.FriendsFull, true)]
+        [DataRow(RefreshModeType.FriendsRecent, true)]
+        [DataRow(RefreshModeType.FriendsShared, false)]
+        [DataRow(RefreshModeType.FriendsInstalled, false)]
+        public void Resolve_FriendModes_StampLastPlayedCutoffOnlyForFullAndRecent(
+            RefreshModeType mode,
+            bool expectCutoff)
+        {
+            var planner = CreatePlanner(
+                new[] { new Game { Id = Guid.NewGuid(), Name = "Installed", IsInstalled = true } },
+                lastPlayedThreshold: FriendLastPlayedThreshold.ThisYear);
+            var friendProvider = new FakeProvider("Steam", new FakeFriendsProvider("Steam"));
+
+            var resolved = planner.Resolve(
+                new RefreshRequest { Mode = mode },
+                new IDataProvider[] { friendProvider });
+
+            Assert.IsTrue(resolved.ShouldExecute);
+            Assert.AreEqual(expectCutoff, resolved.FriendOptions.LastPlayedCutoffUtc.HasValue);
+        }
+
+        [TestMethod]
+        public void Resolve_FriendsFull_AllTimeThreshold_LeavesCutoffNull()
+        {
+            var planner = CreatePlanner(
+                Array.Empty<Game>(),
+                lastPlayedThreshold: FriendLastPlayedThreshold.AllTime);
+            var friendProvider = new FakeProvider("Steam", new FakeFriendsProvider("Steam"));
+
+            var resolved = planner.Resolve(
+                new RefreshRequest { Mode = RefreshModeType.FriendsFull },
+                new IDataProvider[] { friendProvider });
+
+            Assert.IsTrue(resolved.ShouldExecute);
+            Assert.IsNull(resolved.FriendOptions.LastPlayedCutoffUtc);
+        }
+
+        [TestMethod]
+        public void Resolve_FriendsFull_ClampedToShared_LeavesCutoffNull()
+        {
+            // The Full->Shared clamp resolves before the cutoff is stamped, so a clamped request
+            // behaves exactly like a Shared one (no cutoff).
+            var planner = CreatePlanner(
+                Array.Empty<Game>(),
+                includeUnownedFriendGames: false,
+                lastPlayedThreshold: FriendLastPlayedThreshold.ThisYear);
+            var friendProvider = new FakeProvider("Steam", new FakeFriendsProvider("Steam"));
+
+            var resolved = planner.Resolve(
+                new RefreshRequest { Mode = RefreshModeType.FriendsFull },
+                new IDataProvider[] { friendProvider });
+
+            Assert.IsTrue(resolved.ShouldExecute);
+            Assert.AreEqual(FriendRefreshScope.Shared, resolved.FriendOptions.Scope);
+            Assert.IsNull(resolved.FriendOptions.LastPlayedCutoffUtc);
+        }
+
+        [TestMethod]
+        public void FriendRefreshOptions_Clone_PreservesLastPlayedCutoff()
+        {
+            var cutoff = new DateTime(2026, 1, 1, 0, 0, 0, DateTimeKind.Utc);
+            var options = new FriendRefreshOptions
+            {
+                Scope = FriendRefreshScope.Full,
+                LastPlayedCutoffUtc = cutoff
+            };
+
+            Assert.AreEqual(cutoff, options.Clone().LastPlayedCutoffUtc);
+        }
+
         [TestMethod]
         public void Resolve_FriendMode_WithNoFriendProviders_DoesNotExecute()
         {
@@ -616,11 +687,13 @@ namespace PlayniteAchievements.Services.Tests
 
         private static RefreshRequestPlanner CreatePlanner(
             IEnumerable<Game> games,
-            bool includeUnownedFriendGames = true)
+            bool includeUnownedFriendGames = true,
+            FriendLastPlayedThreshold lastPlayedThreshold = FriendLastPlayedThreshold.AllTime)
         {
             var settings = new PlayniteAchievementsSettings();
             settings.Persisted.IncludeUnplayedGames = true;
             settings.Persisted.IncludeUnownedFriendGames = includeUnownedFriendGames;
+            settings.Persisted.FriendLastPlayedFetchThreshold = lastPlayedThreshold;
             var api = new FakePlayniteApi(games ?? Enumerable.Empty<Game>());
             var resolver = new TargetSelectionResolver(
                 api,

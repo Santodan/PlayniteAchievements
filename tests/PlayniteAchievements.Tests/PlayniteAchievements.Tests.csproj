@@ -332,6 +332,7 @@
     <Compile Include="..\..\source\Models\Settings\GridAlignment.cs" Link="Source\Models\Settings\GridAlignment.cs" />
     <Compile Include="..\..\source\Models\Settings\DateDisplayMode.cs" Link="Source\Models\Settings\DateDisplayMode.cs" />
     <Compile Include="..\..\source\Models\Settings\FriendNameDisplayMode.cs" Link="Source\Models\Settings\FriendNameDisplayMode.cs" />
+    <Compile Include="..\..\source\Models\Settings\FriendLastPlayedThreshold.cs" Link="Source\Models\Settings\FriendLastPlayedThreshold.cs" />
     <Compile Include="..\..\source\Models\Settings\PlaytimeDisplayMode.cs" Link="Source\Models\Settings\PlaytimeDisplayMode.cs" />
     <Compile Include="..\..\source\Models\Settings\ToastScreenCorner.cs" Link="Source\Models\Settings\ToastScreenCorner.cs" />
     <Compile Include="..\..\source\Models\Settings\GridVerticalAlignment.cs" Link="Source\Models\Settings\GridVerticalAlignment.cs" />
