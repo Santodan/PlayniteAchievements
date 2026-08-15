@@ -688,7 +688,8 @@ namespace PlayniteAchievements
                         _friendsOverviewDataCoordinator,
                         _achievementHotkeyTargetResolver.ResolveRunningGame,
                         ToggleAchievementCapstoneFromTheme,
-                        target => _achievementMarkerToggle.ToggleGoal(target));
+                        target => _achievementMarkerToggle.ToggleGoal(target),
+                        _captureLibraryService);
 
                     // A friend-consuming theme is a plugin-lifetime consumer: it keeps the
                     // friends snapshot alive when the last friends view closes.
@@ -699,15 +700,6 @@ namespace PlayniteAchievements
                         _friendsOverviewDataCoordinator.SnapshotReleased += FriendsOverviewDataCoordinator_SnapshotReleased;
                         _eventSubscriptions.Add(() =>
                             _friendsOverviewDataCoordinator.SnapshotReleased -= FriendsOverviewDataCoordinator_SnapshotReleased);
-                    }
-
-                    if (_captureLibraryService != null)
-                    {
-                        EventHandler<Services.Captures.CapturesChangedEventArgs> capturesChangedForThemes =
-                            (s, e) => _themeIntegrationService?.NotifyCapturesChanged(e?.FolderName);
-                        _captureLibraryService.CapturesChanged += capturesChangedForThemes;
-                        _eventSubscriptions.Add(() =>
-                            _captureLibraryService.CapturesChanged -= capturesChangedForThemes);
                     }
 
                     SubscribeDatabaseEventHandlers();
