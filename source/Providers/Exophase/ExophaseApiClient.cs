@@ -22,6 +22,7 @@ namespace PlayniteAchievements.Providers.Exophase
     public sealed class ExophaseApiClient
     {
         private const string SearchUrl = "https://api.exophase.com/public/archive/games";
+        private const string PsnSearchUrl = "https://api.exophase.com/public/archive/psn";
         private const string AchievementPageBaseUrl = "https://www.exophase.com/game/{0}/achievements/";
         internal const string ExophaseApiNamePrefix = "exophase_";
         // Stable-id key format keyed on the award's master id (the li's data-master attribute,
@@ -250,11 +251,7 @@ namespace PlayniteAchievements.Providers.Exophase
 
             try
             {
-                var url = $"{SearchUrl}?q={Uri.EscapeDataString(query)}&sort=added";
-                if (!string.IsNullOrWhiteSpace(platformSlug))
-                {
-                    url += $"&platform={Uri.EscapeDataString(platformSlug)}";
-                }
+                var url = BuildSearchUrl(query, platformSlug);
 
                 // Use WebView to bypass Cloudflare protection
                 var json = await FetchJsonViaWebViewAsync(url, ct).ConfigureAwait(false);
@@ -290,6 +287,40 @@ namespace PlayniteAchievements.Providers.Exophase
             {
                 _logger?.Error(ex, "Exophase search failed");
                 return new List<ExophaseGame>();
+            }
+        }
+
+        /// <summary>
+        /// Builds the archive search URL for a query and optional platform slug. The
+        /// generic archive endpoint's platform parameter matches nothing for PSN
+        /// platforms, so those route through the PSN archive endpoint the site's own
+        /// browse pages use; PS3 additionally filters server-side via Exophase's
+        /// numeric platform id. Other platforms keep the legacy generic-endpoint URL.
+        /// </summary>
+        internal static string BuildSearchUrl(string query, string platformSlug)
+        {
+            var escapedQuery = Uri.EscapeDataString(query ?? string.Empty);
+            var normalizedPlatform = platformSlug?.Trim().ToLowerInvariant();
+
+            switch (normalizedPlatform)
+            {
+                case "ps3":
+                    return $"{PsnSearchUrl}?q={escapedQuery}&sort=added&platforms=7";
+                case "ps4":
+                    return $"{PsnSearchUrl}?q={escapedQuery}&sort=added&platforms=8";
+                case "psn":
+                case "ps5":
+                case "psvita":
+                case "vita":
+                    return $"{PsnSearchUrl}?q={escapedQuery}&sort=added";
+                default:
+                    var url = $"{SearchUrl}?q={escapedQuery}&sort=added";
+                    if (!string.IsNullOrWhiteSpace(normalizedPlatform))
+                    {
+                        url += $"&platform={Uri.EscapeDataString(normalizedPlatform)}";
+                    }
+
+                    return url;
             }
         }
 
@@ -1488,6 +1519,13 @@ namespace PlayniteAchievements.Providers.Exophase
 
         [DataMember(Name = "images")]
         public ExophaseImages Images { get; set; }
+
+        // Regional release marker Exophase renders after same-title entries
+        // (NA/EU/JP/AS). Optional: absent for single-release games and for
+        // endpoints that omit the field, in which case region preference in
+        // matching silently degrades to the base-region tie-break.
+        [DataMember(Name = "region", IsRequired = false, EmitDefaultValue = false)]
+        public string Region { get; set; }
     }
 
     [DataContract]

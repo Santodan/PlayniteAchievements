@@ -172,7 +172,8 @@ namespace PlayniteAchievements.Providers.Exophase
             string fallbackPlatformSlug,
             string providerPlatformKey,
             CancellationToken ct,
-            ExophaseMetadataFields fields = ExophaseMetadataFields.Rarity)
+            ExophaseMetadataFields fields = ExophaseMetadataFields.Rarity,
+            string regionHint = null)
         {
             return Task.CompletedTask;
         }

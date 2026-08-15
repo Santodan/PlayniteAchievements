@@ -172,7 +172,61 @@ namespace PlayniteAchievements.Providers.RPCS3
                 return;
             }
 
-            await rarityEnricher.EnrichAsync(game, data.Achievements, "ps3", "PSN", cancel).ConfigureAwait(false);
+            await rarityEnricher
+                .EnrichAsync(game, data.Achievements, "ps3", "PSN", cancel, regionHint: ResolveExophaseRegionHint(game))
+                .ConfigureAwait(false);
+        }
+
+        /// <summary>
+        /// Best-effort Exophase region hint from a PS3 serial in the game's paths.
+        /// The serial's third letter encodes the release region (BLES -> EU,
+        /// BLUS -> NA, BLJS -> JP, ...), which selects the matching regional entry
+        /// when Exophase lists one game once per region. Null when no serial is found.
+        /// </summary>
+        private static string ResolveExophaseRegionHint(Game game)
+        {
+            foreach (var text in EnumerateSerialSourceTexts(game))
+            {
+                foreach (var serial in Rpcs3SerialNpwrBridge.ExtractSerials(text))
+                {
+                    var regionHint = ExophaseGameNameMatcher.MapPsnSerialToRegionHint(serial);
+                    if (!string.IsNullOrWhiteSpace(regionHint))
+                    {
+                        return regionHint;
+                    }
+                }
+            }
+
+            return null;
+        }
+
+        private static IEnumerable<string> EnumerateSerialSourceTexts(Game game)
+        {
+            if (game == null)
+            {
+                yield break;
+            }
+
+            yield return game.InstallDirectory;
+
+            if (game.Roms != null)
+            {
+                foreach (var rom in game.Roms)
+                {
+                    yield return rom?.Path;
+                }
+            }
+
+            if (game.GameActions != null)
+            {
+                foreach (var action in game.GameActions)
+                {
+                    yield return action?.Path;
+                    yield return action?.Arguments;
+                    yield return action?.AdditionalArguments;
+                    yield return action?.WorkingDir;
+                }
+            }
         }
 
         private Task<GameAchievementData> FetchGameDataAsync(

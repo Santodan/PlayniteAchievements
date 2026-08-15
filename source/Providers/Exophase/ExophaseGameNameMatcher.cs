@@ -89,9 +89,11 @@ namespace PlayniteAchievements.Providers.Exophase
         /// Returns null when nothing reaches the score threshold, or when rows carry
         /// platform data but none lists the target platform. Rows without platform data
         /// keep the legacy URL-suffix platform heuristic and the conservative rule that
-        /// an exact score tie yields no match.
+        /// an exact score tie yields no match. A region hint (na/eu/jp/as/kr), when
+        /// given and present on rows, outranks the shortest-slug tie-break so a game is
+        /// matched to its own release region's entry.
         /// </summary>
-        public static ExophaseGame SelectBestSearchMatch(string gameName, IList<ExophaseGame> games, string platformSlug)
+        public static ExophaseGame SelectBestSearchMatch(string gameName, IList<ExophaseGame> games, string platformSlug, string regionHint = null)
         {
             if (games == null || games.Count == 0 || string.IsNullOrWhiteSpace(gameName))
             {
@@ -149,6 +151,7 @@ namespace PlayniteAchievements.Providers.Exophase
                 {
                     return platformMatched
                         .OrderByDescending(candidate => candidate.Score)
+                        .ThenByDescending(candidate => RegionHintMatches(candidate.Game.Region, regionHint))
                         .ThenBy(candidate => candidate.Slug.Length)
                         .ThenBy(candidate => candidate.Slug, StringComparer.OrdinalIgnoreCase)
                         .First().Game;
@@ -174,6 +177,73 @@ namespace PlayniteAchievements.Providers.Exophase
             }
 
             return ordered[0].Game;
+        }
+
+        /// <summary>
+        /// Maps a PS3/PSN serial to the Exophase region token its third letter encodes:
+        /// BLES/BCES/NPEB -> eu, BLUS/BCUS/NPUB -> na, BLJS/BCJS/NPJB -> jp,
+        /// BLAS/BCAS -> as, NPHB -> as (Hong Kong), BLKS -> kr. Null for anything else.
+        /// </summary>
+        public static string MapPsnSerialToRegionHint(string serial)
+        {
+            var normalized = serial?.Trim();
+            if (string.IsNullOrWhiteSpace(normalized) || normalized.Length < 4)
+            {
+                return null;
+            }
+
+            return MapRegionLetter(normalized[2]);
+        }
+
+        /// <summary>
+        /// Maps a PSN content id (e.g. UP9000-NPWR05784_00 or EP9000-CUSA00552_00,
+        /// as PS4 trophy bindings carry) to the Exophase region token its first
+        /// letter encodes: U -> na, E -> eu, J -> jp, H/A -> as, K -> kr.
+        /// Null for anything not shaped like a content id prefix.
+        /// </summary>
+        public static string MapPsnContentIdToRegionHint(string contentId)
+        {
+            var normalized = contentId?.Trim();
+            if (string.IsNullOrWhiteSpace(normalized) ||
+                normalized.Length < 2 ||
+                char.ToUpperInvariant(normalized[1]) != 'P')
+            {
+                return null;
+            }
+
+            return MapRegionLetter(normalized[0]);
+        }
+
+        private static string MapRegionLetter(char letter)
+        {
+            switch (char.ToUpperInvariant(letter))
+            {
+                case 'E': return "eu";
+                case 'U': return "na";
+                case 'J': return "jp";
+                case 'A': return "as";
+                case 'H': return "as";
+                case 'K': return "kr";
+                default: return null;
+            }
+        }
+
+        private static bool RegionHintMatches(string rowRegion, string regionHint)
+        {
+            if (string.IsNullOrWhiteSpace(rowRegion) || string.IsNullOrWhiteSpace(regionHint))
+            {
+                return false;
+            }
+
+            var row = rowRegion.Trim().ToLowerInvariant();
+            var hint = regionHint.Trim().ToLowerInvariant();
+            if (string.Equals(row, hint, StringComparison.Ordinal))
+            {
+                return true;
+            }
+
+            // Exophase renders the Americas region as NA; PSN serials encode it as U(S).
+            return (row == "us" && hint == "na") || (row == "na" && hint == "us");
         }
     }
 }

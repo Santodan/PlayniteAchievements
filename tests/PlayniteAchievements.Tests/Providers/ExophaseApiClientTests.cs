@@ -97,6 +97,41 @@ namespace PlayniteAchievements.Providers.Tests
         }
 
         [TestMethod]
+        public void BuildSearchUrl_Ps3_RoutesThroughPsnArchiveWithPlatformId()
+        {
+            Assert.AreEqual(
+                "https://api.exophase.com/public/archive/psn?q=demon%20souls&sort=added&platforms=7",
+                ExophaseApiClient.BuildSearchUrl("demon souls", "ps3"));
+        }
+
+        [TestMethod]
+        public void BuildSearchUrl_Ps4_RoutesThroughPsnArchiveWithPlatformId()
+        {
+            Assert.AreEqual(
+                "https://api.exophase.com/public/archive/psn?q=game&sort=added&platforms=8",
+                ExophaseApiClient.BuildSearchUrl("game", "ps4"));
+        }
+
+        [TestMethod]
+        public void BuildSearchUrl_OtherPsnPlatforms_RouteThroughPsnArchiveUnfiltered()
+        {
+            Assert.AreEqual(
+                "https://api.exophase.com/public/archive/psn?q=game&sort=added",
+                ExophaseApiClient.BuildSearchUrl("game", "psvita"));
+        }
+
+        [TestMethod]
+        public void BuildSearchUrl_NonPsnPlatform_KeepsGenericEndpoint()
+        {
+            Assert.AreEqual(
+                "https://api.exophase.com/public/archive/games?q=game&sort=added&platform=xbox-360",
+                ExophaseApiClient.BuildSearchUrl("game", "xbox-360"));
+            Assert.AreEqual(
+                "https://api.exophase.com/public/archive/games?q=game&sort=added",
+                ExophaseApiClient.BuildSearchUrl("game", null));
+        }
+
+        [TestMethod]
         public void ExtractSlugFromUrl_ProfileAchievementLinkWithFragment_ReturnsSlug()
         {
             var slug = ExophaseApiClient.ExtractSlugFromUrl(

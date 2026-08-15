@@ -107,7 +107,8 @@ namespace PlayniteAchievements.Providers.Exophase
             string platformSlugHint,
             string providerPlatformKey,
             CancellationToken ct,
-            ExophaseMetadataFields fields = ExophaseMetadataFields.Rarity)
+            ExophaseMetadataFields fields = ExophaseMetadataFields.Rarity,
+            string regionHint = null)
         {
             if (!_isReady ||
                 fields == ExophaseMetadataFields.None ||
@@ -121,7 +122,7 @@ namespace PlayniteAchievements.Providers.Exophase
             try
             {
                 var platformSlug = ResolvePlatformSlug(game, platformSlugHint);
-                var slugs = await ResolveSlugsAsync(game, platformSlug, ct).ConfigureAwait(false);
+                var slugs = await ResolveSlugsAsync(game, platformSlug, regionHint, ct).ConfigureAwait(false);
                 if (slugs.Count == 0)
                 {
                     _logger?.Debug($"[ExophaseMetadata] No Exophase slug resolved for '{game.Name}'.");
@@ -173,7 +174,7 @@ namespace PlayniteAchievements.Providers.Exophase
             }
         }
 
-        private async Task<List<string>> ResolveSlugsAsync(Game game, string platformSlug, CancellationToken ct)
+        private async Task<List<string>> ResolveSlugsAsync(Game game, string platformSlug, string regionHint, CancellationToken ct)
         {
             if (GameCustomDataLookup.TryGetExophaseSlugOverride(
                     game.Id,
@@ -206,7 +207,7 @@ namespace PlayniteAchievements.Providers.Exophase
                         games = await _apiClient.SearchGamesAsync(normalizedName, null, ct).ConfigureAwait(false);
                     }
 
-                    var match = ExophaseGameNameMatcher.SelectBestSearchMatch(normalizedName, games, candidatePlatformSlug);
+                    var match = ExophaseGameNameMatcher.SelectBestSearchMatch(normalizedName, games, candidatePlatformSlug, regionHint);
                     if (match == null && games.Count > 0)
                     {
                         var observedPlatforms = games

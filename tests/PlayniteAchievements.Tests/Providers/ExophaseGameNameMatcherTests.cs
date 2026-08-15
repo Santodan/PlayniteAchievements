@@ -165,6 +165,86 @@ namespace PlayniteAchievements.Tests.Providers
             Assert.IsNull(ExophaseGameNameMatcher.SelectBestSearchMatch("Demon's Souls", games, "ps3"));
         }
 
+        [TestMethod]
+        public void SelectBestSearchMatch_RegionHint_PicksMatchingRegionOverBaseSlug()
+        {
+            var games = new[]
+            {
+                RegionRow("Demon's Souls", "demons-souls", "NA", "ps3"),
+                RegionRow("Demon's Souls", "demons-souls-2", "EU", "ps3"),
+                RegionRow("Demon's Souls", "demons-souls-3", "AS", "ps3")
+            };
+
+            var match = ExophaseGameNameMatcher.SelectBestSearchMatch("Demon's Souls", games, "ps3", "eu");
+
+            Assert.IsNotNull(match);
+            StringAssert.Contains(match.EndpointAwards, "/game/demons-souls-2/");
+        }
+
+        [TestMethod]
+        public void SelectBestSearchMatch_RegionHint_TreatsUsAndNaAsEquivalent()
+        {
+            var games = new[]
+            {
+                RegionRow("Demon's Souls", "demons-souls-2", "EU", "ps3"),
+                RegionRow("Demon's Souls", "demons-souls", "US", "ps3")
+            };
+
+            var match = ExophaseGameNameMatcher.SelectBestSearchMatch("Demon's Souls", games, "ps3", "na");
+
+            Assert.IsNotNull(match);
+            StringAssert.Contains(match.EndpointAwards, "/game/demons-souls/");
+        }
+
+        [TestMethod]
+        public void SelectBestSearchMatch_RegionHintAbsentFromRows_FallsBackToBaseSlug()
+        {
+            // Rows without region data keep the shortest-slug (base region) pick.
+            var games = new[]
+            {
+                SearchRow("Demon's Souls", "demons-souls-2", "ps3"),
+                SearchRow("Demon's Souls", "demons-souls", "ps3")
+            };
+
+            var match = ExophaseGameNameMatcher.SelectBestSearchMatch("Demon's Souls", games, "ps3", "jp");
+
+            Assert.IsNotNull(match);
+            StringAssert.Contains(match.EndpointAwards, "/game/demons-souls/");
+        }
+
+        [TestMethod]
+        public void MapPsnSerialToRegionHint_MapsRegionLetter()
+        {
+            Assert.AreEqual("eu", ExophaseGameNameMatcher.MapPsnSerialToRegionHint("BLES01234"));
+            Assert.AreEqual("eu", ExophaseGameNameMatcher.MapPsnSerialToRegionHint("NPEB00033"));
+            Assert.AreEqual("na", ExophaseGameNameMatcher.MapPsnSerialToRegionHint("BLUS30443"));
+            Assert.AreEqual("na", ExophaseGameNameMatcher.MapPsnSerialToRegionHint("BCUS98246"));
+            Assert.AreEqual("jp", ExophaseGameNameMatcher.MapPsnSerialToRegionHint("BLJS10012"));
+            Assert.AreEqual("as", ExophaseGameNameMatcher.MapPsnSerialToRegionHint("BCAS20120"));
+            Assert.AreEqual("kr", ExophaseGameNameMatcher.MapPsnSerialToRegionHint("BLKS20345"));
+            Assert.IsNull(ExophaseGameNameMatcher.MapPsnSerialToRegionHint("BLQS00000"));
+            Assert.IsNull(ExophaseGameNameMatcher.MapPsnSerialToRegionHint(null));
+            Assert.IsNull(ExophaseGameNameMatcher.MapPsnSerialToRegionHint("BL"));
+        }
+
+        [TestMethod]
+        public void MapPsnContentIdToRegionHint_MapsPrefixLetter()
+        {
+            Assert.AreEqual("na", ExophaseGameNameMatcher.MapPsnContentIdToRegionHint("UP9000-NPWR05784_00"));
+            Assert.AreEqual("eu", ExophaseGameNameMatcher.MapPsnContentIdToRegionHint("EP9000-CUSA00552_00"));
+            Assert.AreEqual("jp", ExophaseGameNameMatcher.MapPsnContentIdToRegionHint("JP0082-NPWR12345_00"));
+            Assert.AreEqual("as", ExophaseGameNameMatcher.MapPsnContentIdToRegionHint("HP9000-NPWR12345_00"));
+            Assert.IsNull(ExophaseGameNameMatcher.MapPsnContentIdToRegionHint("XX9000-NPWR12345_00"));
+            Assert.IsNull(ExophaseGameNameMatcher.MapPsnContentIdToRegionHint(null));
+        }
+
+        private static ExophaseGame RegionRow(string title, string slug, string region, params string[] platformSlugs)
+        {
+            var row = SearchRow(title, slug, platformSlugs);
+            row.Region = region;
+            return row;
+        }
+
         private static ExophaseGame SearchRow(string title, string slug, params string[] platformSlugs)
         {
             return new ExophaseGame

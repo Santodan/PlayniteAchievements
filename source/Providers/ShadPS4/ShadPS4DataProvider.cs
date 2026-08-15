@@ -3,6 +3,7 @@ using PlayniteAchievements.Models.Achievements;
 using PlayniteAchievements.Models.Settings;
 using PlayniteAchievements.Providers;
 using PlayniteAchievements.Providers.EmuLibrary;
+using PlayniteAchievements.Providers.Exophase;
 using PlayniteAchievements.Providers.Overrides;
 using PlayniteAchievements.Providers.Settings;
 using Playnite.SDK;
@@ -678,6 +679,45 @@ namespace PlayniteAchievements.Providers.ShadPS4
         /// </summary>
         internal string ResolveNpCommIdForGame(Game game)
         {
+            var npbindPath = FindNpbindPath(game);
+            return npbindPath == null ? null : ExtractNpCommIdFromNpbind(npbindPath);
+        }
+
+        /// <summary>
+        /// Best-effort Exophase region hint for a game, from the region-prefixed
+        /// trophy content id in its sce_sys/npbind.dat (e.g. UP9000-NPWR05784_00:
+        /// the first letter encodes the release region). PS4 title ids (CUSA) are
+        /// region-agnostic, so the content id is the only regional marker. Null
+        /// when no npbind or no region-prefixed content id is found.
+        /// </summary>
+        internal string ResolveRegionHintForGame(Game game)
+        {
+            var npbindPath = FindNpbindPath(game);
+            if (npbindPath == null)
+            {
+                return null;
+            }
+
+            try
+            {
+                var content = Encoding.ASCII.GetString(File.ReadAllBytes(npbindPath));
+                var match = System.Text.RegularExpressions.Regex.Match(
+                    content,
+                    @"([A-Z]P)\d{4}-NPWR\d{5}_\d{2}",
+                    System.Text.RegularExpressions.RegexOptions.IgnoreCase);
+                return match.Success
+                    ? ExophaseGameNameMatcher.MapPsnContentIdToRegionHint(match.Groups[1].Value)
+                    : null;
+            }
+            catch (Exception ex)
+            {
+                _logger?.Debug(ex, $"[ShadPS4] Failed to read region hint from '{npbindPath}'");
+                return null;
+            }
+        }
+
+        private string FindNpbindPath(Game game)
+        {
             var installDir = ExpandGamePath(game, game?.InstallDirectory);
             if (string.IsNullOrWhiteSpace(installDir) &&
                 !EmuLibraryPathResolver.TryResolveSourceDirectory(_playniteApi, game, out installDir))
@@ -699,7 +739,7 @@ namespace PlayniteAchievements.Providers.ShadPS4
                 var npbindPath = Path.Combine(dir, "sce_sys", "npbind.dat");
                 if (File.Exists(npbindPath))
                 {
-                    return ExtractNpCommIdFromNpbind(npbindPath);
+                    return npbindPath;
                 }
             }
 

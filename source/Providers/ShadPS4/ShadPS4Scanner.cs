@@ -121,7 +121,7 @@ namespace PlayniteAchievements.Providers.ShadPS4
             return enricher;
         }
 
-        private static async Task EnrichRarityAsync(
+        private async Task EnrichRarityAsync(
             Game game,
             GameAchievementData data,
             ExophaseMetadataEnricher rarityEnricher,
@@ -132,7 +132,9 @@ namespace PlayniteAchievements.Providers.ShadPS4
                 return;
             }
 
-            await rarityEnricher.EnrichAsync(game, data.Achievements, "ps4", "PSN", cancel).ConfigureAwait(false);
+            await rarityEnricher
+                .EnrichAsync(game, data.Achievements, "ps4", "PSN", cancel, regionHint: _provider?.ResolveRegionHintForGame(game))
+                .ConfigureAwait(false);
         }
 
         private async Task<Dictionary<string, string>> BuildTitleIdCacheAsync(CancellationToken cancel)
