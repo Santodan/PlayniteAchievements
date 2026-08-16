@@ -44,9 +44,9 @@ internal static class HapticProbe
             return 0;
         }
 
-        if (args[0] != "--measure" || args.Length < 2)
+        if ((args[0] != "--measure" && args[0] != "--check") || args.Length < 2)
         {
-            Console.WriteLine("usage: HapticProbe.exe [--measure <index>]");
+            Console.WriteLine("usage: HapticProbe.exe [--check <index>] [--measure <index>]");
             return 2;
         }
 
@@ -63,7 +63,46 @@ internal static class HapticProbe
             return 2;
         }
 
-        return Measure(devices[index]);
+        return args[0] == "--check" ? Check(devices[index]) : Measure(devices[index]);
+    }
+
+    /// <summary>
+    /// Activates the endpoint capture and reports what it delivered, without rendering anything.
+    /// Answers the only question the recorder cares about on an unfamiliar machine: whether this
+    /// endpoint can be captured at all, in the 48 kHz stereo float the reference track needs.
+    /// </summary>
+    private static int Check(MMDevice device)
+    {
+        Console.WriteLine($"activating endpoint loopback on '{device.FriendlyName}'...");
+        ProcessLoopbackCapture capture;
+        try
+        {
+            capture = ProcessLoopbackCapture.ForEndpoint(device.ID);
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine("FAIL activation: " + ex.Message);
+            return 1;
+        }
+
+        long bytes = 0;
+        capture.DataAvailable += (s, e) => bytes += e.BytesRecorded;
+        try
+        {
+            capture.StartRecording();
+            Thread.Sleep(2000);
+        }
+        finally
+        {
+            try { capture.StopRecording(); } catch { }
+            capture.Dispose();
+        }
+
+        Console.WriteLine($"PASS activated as {capture.WaveFormat}");
+        Console.WriteLine(bytes > 0
+            ? $"     delivered {bytes / 8 / (double)SampleRate:0.00}s of audio"
+            : "     delivered no packets (the endpoint was silent, which is expected when nothing plays to it)");
+        return 0;
     }
 
     /// <summary>
