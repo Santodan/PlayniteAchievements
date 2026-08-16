@@ -61,7 +61,7 @@ internal static class ChimeSeparationProbe
         var child = Process.Start(new ProcessStartInfo
         {
             FileName = exe,
-            Arguments = string.Format(CultureInfo.InvariantCulture, "--tone {0} 16 0.3 3", GameToneHz),
+            Arguments = string.Format(CultureInfo.InvariantCulture, "--tone {0} 16 0.005 3", GameToneHz),
             UseShellExecute = false,
             CreateNoWindow = true,
         });
@@ -87,7 +87,7 @@ internal static class ChimeSeparationProbe
 
             Console.WriteLine("playing the chime tone from this process...");
             var chimeStartUtc = DateTime.UtcNow;
-            PlayTone(ChimeToneHz, 2.5, 0.25, 0);
+            PlayTone(ChimeToneHz, 2.5, 0.005, 0);
             var chimeEndUtc = DateTime.UtcNow;
 
             Thread.Sleep(1000);

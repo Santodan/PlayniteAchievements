@@ -44,6 +44,8 @@ New-Item -ItemType Directory -Force $out | Out-Null
 # without probing paths. NAudio is for ChimeSeparationProbe (tone render + IWaveIn plumbing).
 Copy-Item (Join-Path $pluginBin 'SharpDX*.dll') $out -Force
 Copy-Item (Join-Path $pluginBin 'NAudio.dll') $out -Force
+# Playnite.SDK is for ChimeBurstProbe, whose compiled-in AudioLoopbackRecorder takes an ILogger.
+Copy-Item (Join-Path $repo 'source\packages\PlayniteSDK.6.14.0\lib\net462\Playnite.SDK.dll') $out -Force
 $valueTuple = Get-ChildItem (Join-Path $repo 'source\packages') -Recurse -Filter 'System.ValueTuple.dll' |
     Where-Object { $_.FullName -match 'net4' } | Select-Object -First 1
 if ($valueTuple) { Copy-Item $valueTuple.FullName $out -Force }
@@ -56,13 +58,14 @@ $framework = @(
 ) | ForEach-Object { "/r:$refDir\$_.dll" }
 $sharp = Get-ChildItem $out -Filter 'SharpDX*.dll' | ForEach-Object { "/r:$($_.FullName)" }
 $sharp += "/r:$out\NAudio.dll"
+$sharp += "/r:$out\Playnite.SDK.dll"
 $tuple = if (Test-Path (Join-Path $out 'System.ValueTuple.dll')) { @("/r:$out\System.ValueTuple.dll") } else { @() }
 $refs = $framework + $sharp + $tuple
 
 $tools = @(
     'CaptureHarness', 'FrameDump', 'AttributeBisect', 'PacerProbe', 'GenerationLoss',
     'SlideProbe', 'SlideStoryboardProbe', 'SlideCadenceProbe', 'ChimeCancelProbe',
-    'ChimeSeparationProbe')
+    'ChimeSeparationProbe', 'ChimeBurstProbe')
 # Tools that compile plugin source files in directly, so they always test the current algorithm
 # rather than a built DLL.
 $extraSources = @{
@@ -71,10 +74,17 @@ $extraSources = @{
         (Join-Path $repo 'source\Services\Capture\PcmAudio.cs'),
         (Join-Path $repo 'source\Services\Recording\ProcessLoopbackCapture.cs'),
         (Join-Path $repo 'source\Common\MonotonicUtcClock.cs'))
+    ChimeBurstProbe = @(
+        (Join-Path $repo 'source\Services\Capture\PcmAudio.cs'),
+        (Join-Path $repo 'source\Services\Recording\ProcessLoopbackCapture.cs'),
+        (Join-Path $repo 'source\Services\Recording\AudioLoopbackRecorder.cs'),
+        (Join-Path $repo 'source\Services\Recording\RecordingPaths.cs'),
+        (Join-Path $repo 'source\Models\Settings\RecordingEnums.cs'),
+        (Join-Path $repo 'source\Common\MonotonicUtcClock.cs'))
 }
 # Tools that need Environment.OSVersion to report the real Windows version (the manifest opts out
 # of the 6.2 compatibility shim); ProcessLoopbackCapture.IsSupported depends on it.
-$manifestTools = @('ChimeSeparationProbe')
+$manifestTools = @('ChimeSeparationProbe', 'ChimeBurstProbe')
 $failed = @()
 foreach ($tool in $tools) {
     $source = Join-Path $here ($tool + '.cs')
