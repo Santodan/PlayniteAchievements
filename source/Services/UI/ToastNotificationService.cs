@@ -724,6 +724,12 @@ namespace PlayniteAchievements.Services.UI
 
             /// <summary>Track time of the last ray-layer capture, for the capture budget.</summary>
             public double LastRayCaptureMs = double.NegativeInfinity;
+
+            /// <summary>
+            /// Whether this card has contributed at least one pixel frame. A card must have one
+            /// before its samples can repeat it, so the first tick of a slide still rasterizes.
+            /// </summary>
+            public bool HasPixelFrame;
         }
 
         /// <summary>
@@ -1172,7 +1178,17 @@ namespace PlayniteAchievements.Services.UI
                 // interpolates), so only pixel freshness divides by the card count. The same
                 // repeat path covers the worker's backlog refusal.
                 var rendersThisTick = toastItems.Count == 1 || tickIndex % toastItems.Count == i;
-                if (!rendersThisTick || !recorder.CanAcceptFrame(vm))
+
+                // While a slide runs, the card holds the one frame it already has and only its
+                // position keeps being recorded. The slide is the moment smoothness is most
+                // visible, and rasterizing through it was what capped it: the composition rate
+                // measured 17.5 ms per frame on a 165 Hz display, i.e. the sampler's own budget
+                // rather than the monitor's. Freeing those frames speeds the motion up on both
+                // sides at once — the live slide gets the UI thread back, and the clip gets denser
+                // position samples to interpolate between. The card's appearance is deliberately
+                // treated as static for the slide's span.
+                var slideFrozen = _runningSlideStoryboard != null && scratch.HasPixelFrame;
+                if (!rendersThisTick || slideFrozen || !recorder.CanAcceptFrame(vm))
                 {
                     recorder.Sample(
                         vm, null, 0, 0, scratch.LastCardWPhys, scratch.LastCardHPhys,
@@ -1215,6 +1231,7 @@ namespace PlayniteAchievements.Services.UI
 
                 scratch.LastCardWPhys = cardWPhys;
                 scratch.LastCardHPhys = cardHPhys;
+                scratch.HasPixelFrame = true;
 
                 // (Re)capture the halo when its inputs changed: the card's pixel size, or the set
                 // of effect instances (a trigger swapping the neutral shadow for the rarity glow).
@@ -1239,6 +1256,7 @@ namespace PlayniteAchievements.Services.UI
                 var rayW = 0;
                 var rayH = 0;
                 if (rayBursts.Count > 0 && hostOpacity >= 0.999 &&
+                    _runningSlideStoryboard == null &&
                     elapsedMs - scratch.LastRayCaptureMs >= RayLayerBaseIntervalMs * toastItems.Count)
                 {
                     rayDelta = ComputeRayLayerDelta(
