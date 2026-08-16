@@ -84,12 +84,14 @@ namespace PlayniteAchievements.Services.Recording
         private const double ToastTailSeconds = 1.0;
         private const double PostFadeTailSeconds = 0.5;
         // The chime mix: the sidecar read spans the toast display duration plus this tail — long
-        // chimes ring for as long as their toast shows. Bounded (with a fade-out) because the
-        // NEXT sequential wave's chime fires ~duration+1s after this one and must never bleed
-        // into the window. ChimeLeadBeforeToastSeconds is how far the chime onset precedes the
-        // toast reveal in the clip (sound fires, then the 450ms sound-align delay plus ~300ms of
-        // slide-in precede the settled card).
+        // chimes ring for as long as their toast shows — but is hard-capped at
+        // ChimeMaxSliceSeconds. The cap keeps the NEXT sequential wave's chime (which fires
+        // ~duration+1s after this one) out of the window with real margin, and shortens the span
+        // the cancellation's drift tracker must cover. ChimeLeadBeforeToastSeconds is how far the
+        // chime onset precedes the toast reveal in the clip (sound fires, then the 450ms
+        // sound-align delay plus ~300ms of slide-in precede the settled card).
         private const double ChimeTailBeyondToastSeconds = 0.5;
+        private const double ChimeMaxSliceSeconds = 4.0;
         private const double ChimeFadeOutSeconds = 0.15;
         private const double ChimeLeadBeforeToastSeconds = 0.75;
         private const int PruneIntervalSeconds = 30;
@@ -1314,7 +1316,7 @@ namespace PlayniteAchievements.Services.Recording
             }
 
             var chimeWindowEndUtc = ownSound.Value.AddSeconds(
-                request.EffectiveToastSeconds + ChimeTailBeyondToastSeconds);
+                Math.Min(request.EffectiveToastSeconds, ChimeMaxSliceSeconds) + ChimeTailBeyondToastSeconds);
             var wait = chimeWindowEndUtc.AddSeconds(SegmentSeconds + 2) - CaptureTimelineClock.UtcNow;
             if (wait > TimeSpan.Zero)
             {
@@ -1335,9 +1337,7 @@ namespace PlayniteAchievements.Services.Recording
                     ownSound.Value,
                     chimeWindowEndUtc);
 
-                if (referencePcm == null ||
-                    !PcmAudio.TryCancelCorrelated(
-                        pcm, referencePcm, out var lagFrames, out var correlation))
+                if (referencePcm == null)
                 {
                     _logger?.Warn(
                         "[Recording] Chime sidecar could not be separated from the game reference; " +
@@ -1345,9 +1345,22 @@ namespace PlayniteAchievements.Services.Recording
                     return null;
                 }
 
+                var outcome = PcmAudio.CancelCorrelated(pcm, referencePcm, out var cancellation);
+                if (outcome == PcmCancellationOutcome.Unseparable)
+                {
+                    _logger?.Warn(
+                        "[Recording] Chime sidecar could not be verifiably separated from the game " +
+                        $"reference (correlation={cancellation.Correlation:0.000} " +
+                        $"gain={cancellation.Gain:0.00} suppression={cancellation.SuppressionDb:0.0}dB); " +
+                        "the clip is mixed without a re-timed chime.");
+                    return null;
+                }
+
                 _logger?.Debug(
-                    $"[Recording] Chime game-audio cancellation: lag={lagFrames / 48.0:0.###}ms " +
-                    $"correlation={correlation:0.000}.");
+                    $"[Recording] Chime game-audio cancellation: outcome={outcome} " +
+                    $"lag={cancellation.StartLagMs:0.###}->{cancellation.EndLagMs:0.###}ms " +
+                    $"gain={cancellation.Gain:0.00} correlation={cancellation.Correlation:0.000} " +
+                    $"suppression={cancellation.SuppressionDb:0.0}dB.");
             }
 
             if (pcm != null)
