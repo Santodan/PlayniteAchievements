@@ -50,6 +50,17 @@ namespace PlayniteAchievements.Services.Capture
         /// <summary>The anchor monitor's scale, for turning <see cref="GapDip"/> physical.</summary>
         public double MonitorScale { get; set; }
 
+        /// <summary>
+        /// The card's shadow/glow halo as a difference layer: with-effects render minus
+        /// effects-stripped render, premultiplied BGRA, captured once per wave at full effect
+        /// opacity. The halo's shape is the blur of the card's static alpha silhouette, so it never
+        /// changes across ticks — only its opacity animates, recorded per sample as
+        /// <see cref="Sample.GlowScale"/> and composited at export as frame + layer × scale. This
+        /// is what lets the per-tick capture skip the software blur (the dominant render cost).
+        /// Null when the card carries no effects.
+        /// </summary>
+        public Frame ShadowLayer { get; set; }
+
         /// <summary>Time-ordered samples; consecutive identical pixels share one frame.</summary>
         public List<Sample> Samples { get; } = new List<Sample>();
 
@@ -73,6 +84,14 @@ namespace PlayniteAchievements.Services.Capture
 
             /// <summary>See <see cref="SlideXPhys"/>.</summary>
             public double SlideYPhys;
+
+            /// <summary>
+            /// Multiplier for <see cref="ToastOverlayTrack.ShadowLayer"/> at this tick: the glow
+            /// effect's animated opacity relative to the opacity the layer was captured at, times
+            /// the slide host's opacity. Interpolated at export, so the glow pulse plays at the
+            /// clip's full frame rate even when pixel frames repeat.
+            /// </summary>
+            public double GlowScale;
 
             /// <summary>Game client width at this tick, physical pixels (scales rects into video frames).</summary>
             public int ClientW;

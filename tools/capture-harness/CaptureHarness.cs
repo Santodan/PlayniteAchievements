@@ -851,6 +851,7 @@ internal static class CaptureHarness
             sampleType.GetField("FrameIndex").SetValue(sample, 0);
             sampleType.GetField("SlideXPhys").SetValue(sample, 0.0);
             sampleType.GetField("SlideYPhys").SetValue(sample, 0.0);
+            sampleType.GetField("GlowScale").SetValue(sample, 1.0);
             sampleType.GetField("ClientW").SetValue(sample, 1920);
             sampleType.GetField("ClientH").SetValue(sample, 1080);
             add.Invoke(samples, new[] { sample });

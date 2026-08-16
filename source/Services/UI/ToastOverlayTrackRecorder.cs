@@ -82,6 +82,7 @@ namespace PlayniteAchievements.Services.UI
             public int Height;
             public double SlideXPhys;
             public double SlideYPhys;
+            public double GlowScale;
             public int ClientW;
             public int ClientH;
             public double ElapsedMs;
@@ -197,7 +198,8 @@ namespace PlayniteAchievements.Services.UI
         /// </param>
         public void Sample(
             AchievementToastViewModel vm, byte[] premulBgra, int width, int height,
-            double slideXPhys, double slideYPhys, int clientW, int clientH, double elapsedMs)
+            double slideXPhys, double slideYPhys, double glowScale,
+            int clientW, int clientH, double elapsedMs)
         {
             if (vm == null || (premulBgra != null && (width <= 0 || height <= 0)))
             {
@@ -225,6 +227,7 @@ namespace PlayniteAchievements.Services.UI
                     Height = height,
                     SlideXPhys = slideXPhys,
                     SlideYPhys = slideYPhys,
+                    GlowScale = glowScale,
                     ClientW = clientW,
                     ClientH = clientH,
                     ElapsedMs = elapsedMs,
@@ -233,6 +236,33 @@ namespace PlayniteAchievements.Services.UI
                 {
                     _worker = Task.Run(() => DrainQueue());
                 }
+            }
+        }
+
+        /// <summary>
+        /// Stores the card's shadow/glow difference layer (with-effects render minus
+        /// effects-stripped render, premultiplied BGRA at the card's pixel size). Compressed here,
+        /// once per capture — a few milliseconds, paid before the wave's slide begins. UI thread
+        /// only, and safe against the worker: the layer lives on the track object, which the
+        /// worker never reads, and export runs only after the drain.
+        /// </summary>
+        public void SetShadowLayer(AchievementToastViewModel vm, byte[] premulBgraDelta, int width, int height)
+        {
+            if (vm == null || premulBgraDelta == null || width <= 0 || height <= 0)
+            {
+                return;
+            }
+
+            var state = GetOrCreateState(vm);
+            try
+            {
+                state.Track.ShadowLayer =
+                    ToastOverlayTrack.Frame.Compress(premulBgraDelta, width, height, isDelta: false);
+            }
+            catch (Exception ex)
+            {
+                // The clip then shows the card without its halo rather than failing the track.
+                _logger?.Debug(ex, "Toast shadow layer compression failed.");
             }
         }
 
@@ -408,6 +438,7 @@ namespace PlayniteAchievements.Services.UI
                 FrameIndex = frameIndex,
                 SlideXPhys = job.SlideXPhys,
                 SlideYPhys = job.SlideYPhys,
+                GlowScale = job.GlowScale,
                 ClientW = job.ClientW,
                 ClientH = job.ClientH,
             });

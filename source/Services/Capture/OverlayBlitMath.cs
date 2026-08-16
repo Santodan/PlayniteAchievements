@@ -47,6 +47,29 @@ namespace PlayniteAchievements.Services.Capture
         }
 
         /// <summary>
+        /// Adds a premultiplied-BGRA difference layer into <paramref name="target"/>, scaled:
+        /// target = clamp(target + layer × scale), all four channels (the layer's alpha is the
+        /// halo's alpha). Reconstructs an effect's contribution on top of an effect-stripped card
+        /// render — the layer is non-negative by construction (with-effect minus without), so this
+        /// only ever brightens. A non-positive scale is a no-op.
+        /// </summary>
+        public static void AddScaled(byte[] target, byte[] layer, double scale)
+        {
+            if (target == null || layer == null || target.Length != layer.Length || scale <= 0)
+            {
+                return;
+            }
+
+            // Fixed-point 8.8 multiplier; clamped well past any sane pulse overshoot.
+            var factor = (int)Math.Round(Math.Min(scale, 4.0) * 256.0);
+            for (var i = 0; i < target.Length; i++)
+            {
+                var value = target[i] + ((layer[i] * factor) >> 8);
+                target[i] = value > 255 ? (byte)255 : (byte)value;
+            }
+        }
+
+        /// <summary>
         /// Blends a premultiplied-BGRA overlay onto a top-down BGRA/RGB32 frame buffer at
         /// <paramref name="destRect"/> (nearest-neighbor scaled), clipping to the frame bounds.
         /// Premultiplied source-over per channel: dst = src + dst * (255 - srcA) / 255. The

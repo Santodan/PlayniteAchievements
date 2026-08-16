@@ -288,6 +288,14 @@ namespace PlayniteAchievements.Services.Capture
             byte[] inflated = null;
             var inflatedIndex = -1;
 
+            // The card's shadow/glow halo, captured effect-free at record time and re-applied here
+            // per output frame as frame + layer × interpolated scale (the recorded pixels carry no
+            // effects). Inflated once for the whole export; composited into a scratch so the XOR
+            // reconstruction buffer stays pristine.
+            var shadowLayer = track.ShadowLayer;
+            var shadowPixels = shadowLayer?.Inflate();
+            byte[] glowScratch = null;
+
             var pendingAudio = audioStream >= 0 ? ReadNextAudio(audioReader, trimLead) : null;
 
             var counts = default(CompositeCounts);
@@ -341,8 +349,27 @@ namespace PlayniteAchievements.Services.Capture
                             var destRect = ToastOverlayExportMath.ComputeDestRect(
                                 track, sampleIndex, secondsIntoTrack,
                                 overlayFrame.Width, overlayFrame.Height, frameW, frameH);
+
+                            var overlayPixels = inflated;
+                            if (shadowPixels != null &&
+                                shadowLayer.Width == overlayFrame.Width &&
+                                shadowLayer.Height == overlayFrame.Height &&
+                                shadowPixels.Length == inflated.Length)
+                            {
+                                if (glowScratch == null || glowScratch.Length != inflated.Length)
+                                {
+                                    glowScratch = new byte[inflated.Length];
+                                }
+
+                                Buffer.BlockCopy(inflated, 0, glowScratch, 0, inflated.Length);
+                                OverlayBlitMath.AddScaled(
+                                    glowScratch, shadowPixels,
+                                    ToastOverlayExportMath.GetGlowScale(track, sampleIndex, secondsIntoTrack));
+                                overlayPixels = glowScratch;
+                            }
+
                             outSample = compositor.Compose(
-                                sample, inflated, overlayFrame.Width, overlayFrame.Height, destRect);
+                                sample, overlayPixels, overlayFrame.Width, overlayFrame.Height, destRect);
                             if (outSample != null)
                             {
                                 counts.Composited++;

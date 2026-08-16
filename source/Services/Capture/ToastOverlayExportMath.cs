@@ -46,6 +46,32 @@ namespace PlayniteAchievements.Services.Capture
         }
 
         /// <summary>
+        /// The shadow-layer multiplier at <paramref name="secondsIntoTrack"/>: linearly
+        /// interpolated between the sample at <paramref name="sampleIndex"/> and the next, clamped
+        /// at the track's ends — the same treatment the slide offset gets, so the glow pulse plays
+        /// at the clip's full frame rate even where pixel frames repeat.
+        /// </summary>
+        public static double GetGlowScale(ToastOverlayTrack track, int sampleIndex, double secondsIntoTrack)
+        {
+            var s0 = track.Samples[sampleIndex];
+            if (sampleIndex + 1 >= track.Samples.Count)
+            {
+                return s0.GlowScale;
+            }
+
+            var s1 = track.Samples[sampleIndex + 1];
+            var span = s1.ElapsedMs - s0.ElapsedMs;
+            if (span <= 0)
+            {
+                return s0.GlowScale;
+            }
+
+            var t = (secondsIntoTrack * 1000.0 - s0.ElapsedMs) / span;
+            t = Math.Max(0.0, Math.Min(1.0, t));
+            return s0.GlowScale + ((s1.GlowScale - s0.GlowScale) * t);
+        }
+
+        /// <summary>
         /// The frame-space rect to blit the overlay into: the lone-toast corner for a card of the
         /// overlay's own pixel size (the frame is the card, so its dims stay exact under backlog
         /// reuse and mid-slide layout growth) plus the interpolated slide offset, scaled from

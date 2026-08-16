@@ -24,7 +24,8 @@ namespace PlayniteAchievements.Services.Tests.Capture
         }
 
         private static void AddSample(
-            ToastOverlayTrack track, int elapsedMs, double slideX = 0, double slideY = 0)
+            ToastOverlayTrack track, int elapsedMs, double slideX = 0, double slideY = 0,
+            double glowScale = 0)
         {
             track.Samples.Add(new ToastOverlayTrack.Sample
             {
@@ -32,6 +33,7 @@ namespace PlayniteAchievements.Services.Tests.Capture
                 FrameIndex = 0,
                 SlideXPhys = slideX,
                 SlideYPhys = slideY,
+                GlowScale = glowScale,
                 ClientW = ClientW,
                 ClientH = ClientH,
             });
@@ -198,6 +200,58 @@ namespace PlayniteAchievements.Services.Tests.Capture
             Assert.AreEqual(
                 Rectangle.Empty,
                 ToastOverlayExportMath.ComputeDestRect(track, 0, 0.0, CardW, CardH, 1920, 1080));
+        }
+
+        // === Glow scale interpolation ===
+
+        [TestMethod]
+        public void GetGlowScale_BetweenSamples_InterpolatesLinearly()
+        {
+            var track = BottomRightTrack();
+            AddSample(track, 0, glowScale: 1.0);
+            AddSample(track, 40, glowScale: 0.5);
+
+            Assert.AreEqual(0.75, ToastOverlayExportMath.GetGlowScale(track, 0, 0.020), 1e-9);
+        }
+
+        [TestMethod]
+        public void GetGlowScale_PastNextSample_ClampsToNextSample()
+        {
+            var track = BottomRightTrack();
+            AddSample(track, 0, glowScale: 1.0);
+            AddSample(track, 40, glowScale: 0.5);
+
+            Assert.AreEqual(0.5, ToastOverlayExportMath.GetGlowScale(track, 0, 0.100), 1e-9);
+            Assert.AreEqual(0.5, ToastOverlayExportMath.GetGlowScale(track, 1, 9.0), 1e-9);
+        }
+
+        // === Shadow layer composition ===
+
+        [TestMethod]
+        public void AddScaled_ScalesAndSaturates()
+        {
+            var target = new byte[] { 10, 200, 255, 0 };
+            var layer = new byte[] { 100, 100, 100, 100 };
+
+            OverlayBlitMath.AddScaled(target, layer, 0.5);
+
+            Assert.AreEqual(60, target[0]);
+            Assert.AreEqual(250, target[1]);
+            Assert.AreEqual(255, target[2], "an already-saturated channel must clamp");
+            Assert.AreEqual(50, target[3], "the layer's alpha participates like any channel");
+        }
+
+        [TestMethod]
+        public void AddScaled_NonPositiveScaleOrMismatch_IsNoOp()
+        {
+            var target = new byte[] { 10, 20 };
+            var layer = new byte[] { 100, 100 };
+
+            OverlayBlitMath.AddScaled(target, layer, 0.0);
+            OverlayBlitMath.AddScaled(target, new byte[3], 1.0);
+
+            Assert.AreEqual(10, target[0]);
+            Assert.AreEqual(20, target[1]);
         }
 
         // === ScaleRect double overload ===
