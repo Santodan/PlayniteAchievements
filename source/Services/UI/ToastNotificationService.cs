@@ -1294,6 +1294,7 @@ namespace PlayniteAchievements.Services.UI
 
             if (!rendered || rw != pw || rh != ph || withRays.Length != barePixels.Length)
             {
+                recorder.ReturnRentedBuffer(vm, withRays);
                 return null;
             }
 
@@ -2337,6 +2338,13 @@ namespace PlayniteAchievements.Services.UI
                 try
                 {
                     AnimateCountdownBars(window, remainingMs);
+
+                    // Sampling starts at the slide, the countdown at the settle snap, so in track
+                    // time the bar stops here. Lets the track line separate identical renders that
+                    // prove a static card from those that only follow the bar reaching zero.
+                    var countdownVisible = cardItems.Count > 0 && cardItems[0].ShowCountdownBar;
+                    trackRecorder?.SetCountdownWindow(
+                        countdownVisible ? captureDelayMs + remainingMs : 0);
                 }
                 catch (Exception ex)
                 {

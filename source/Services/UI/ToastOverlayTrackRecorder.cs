@@ -61,6 +61,9 @@ namespace PlayniteAchievements.Services.UI
 
             // Worker-only state below.
             public int DedupTicks;
+
+            /// <summary>Dedup ticks recorded after the countdown bar finished animating.</summary>
+            public int DedupTicksAfterCountdown;
             public int RefusedTicks;
             public byte[] LastRaw;
             public int LastFrameIndex = -1;
@@ -113,6 +116,16 @@ namespace PlayniteAchievements.Services.UI
         private readonly object _queueLock = new object();
         private readonly Queue<SampleJob> _pending = new Queue<SampleJob>();
         private Task _worker;
+
+        /// <summary>
+        /// Track time the countdown bar stops animating, or -1 when it never ran. The bar's
+        /// antialiased edge moves sub-pixel every frame, so it dirties the card on essentially
+        /// every tick while it runs — splitting the dedup count on this boundary is what says
+        /// whether identical renders come from a genuinely static card or only from the tail
+        /// after the bar reached zero. Set once per wave before sampling starts.
+        /// </summary>
+        private volatile int _countdownEndsAtMs = -1;
+
         private int _pendingPixelJobs;
         private long _totalCompressedBytes;
         private bool _capLogged;
@@ -250,6 +263,24 @@ namespace PlayniteAchievements.Services.UI
         }
 
         /// <summary>
+        /// Declares when the countdown bar stops animating, in track time (see
+        /// <see cref="_countdownEndsAtMs"/>). Negative means the bar never ran.
+        /// </summary>
+        public void SetCountdownWindow(double endsAtMs)
+        {
+            _countdownEndsAtMs = endsAtMs >= 0 ? (int)Math.Round(endsAtMs) : -1;
+        }
+
+        /// <summary>Returns a buffer the caller rented but did not hand to <see cref="Sample"/>.</summary>
+        public void ReturnRentedBuffer(AchievementToastViewModel vm, byte[] buffer)
+        {
+            if (vm != null && buffer != null && _items.TryGetValue(vm, out var state))
+            {
+                ReturnBuffer(state, buffer);
+            }
+        }
+
+        /// <summary>
         /// Records one ray-burst difference layer at this tick's time. UI thread only; must be
         /// called after this tick's <see cref="Sample"/> for the same item (FIFO order is what
         /// guarantees the item's time epoch exists when the worker stamps the layer). Compression
@@ -369,7 +400,8 @@ namespace PlayniteAchievements.Services.UI
                 _logger?.Info(string.Format(
                     System.Globalization.CultureInfo.InvariantCulture,
                     "[Recording] Toast track '{0}': {1:0.00}s, {2} samples ({3:0.0}/s), {4} unique frames " +
-                    "({5:0.0}/s), {6} unchanged, {7} pixel-less, {8} ray layers, capped={9}",
+                    "({5:0.0}/s), {6} unchanged ({7} after countdown, ends {8} ms), {9} pixel-less, " +
+                    "{10} ray layers, capped={11}",
                     state.Track.AchievementName,
                     duration,
                     samples.Count,
@@ -377,6 +409,8 @@ namespace PlayniteAchievements.Services.UI
                     state.Track.Frames.Count,
                     duration > 0 ? state.Track.Frames.Count / duration : 0,
                     state.DedupTicks,
+                    state.DedupTicksAfterCountdown,
+                    _countdownEndsAtMs,
                     state.RefusedTicks,
                     state.Track.RayLayers.Count,
                     state.FramesCapped));
@@ -464,6 +498,12 @@ namespace PlayniteAchievements.Services.UI
                 if (capped || RawEquals(state.LastRaw, job.Pixels))
                 {
                     state.DedupTicks++;
+                    if (_countdownEndsAtMs >= 0 &&
+                        job.ElapsedMs - state.FirstSampleMs > _countdownEndsAtMs)
+                    {
+                        state.DedupTicksAfterCountdown++;
+                    }
+
                     ReturnBuffer(state, job.Pixels);
                 }
                 else
