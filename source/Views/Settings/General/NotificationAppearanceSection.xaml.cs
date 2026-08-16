@@ -769,6 +769,11 @@ namespace PlayniteAchievements.Views.Settings.General
             ToastMockupHost.ContentTemplate = null;
             ToastMockupHost.Content = ToastSurfaceFactory.BuildToastSurface(toastItems, toastTemplate);
 
+            // The host may already have published its animated source — before this control
+            // loaded, or while this very method was setting the URI — in which case no further
+            // SourceReady is coming and the VM above captured a stale object.
+            SyncToastBackgroundRenderSource();
+
             // The frame surface already shares one ContentControl path with its offscreen capture
             // pipeline, so it stays a single-VM host; only the sample kind is mirrored here.
             var frameKind = FrameSampleSelector?.SelectedValue as string ?? "rare";
@@ -804,15 +809,33 @@ namespace PlayniteAchievements.Views.Settings.General
             // AsyncImage raises this only when the source object is replaced. Listening to the
             // raw Source dependency property here would also receive every mutable GIF frame and
             // rebuild the whole toast repeatedly, which presents as flicker and severe stutter.
+            //
+            // Deliberately not gated on IsLoaded: with warm image caches the whole load completes
+            // inline, so this can arrive before the control is loaded. Dropping it then left the
+            // mockup on whatever it had captured, which is why the background animated on the
+            // first settings open of a session and never again.
+            SyncToastBackgroundRenderSource();
+        }
+
+        /// <summary>
+        /// Points the toast mockup at the animation host's current render source.
+        ///
+        /// The mockup's brush reuses the host's <c>Source</c> object, which the native GIF decoder
+        /// mutates in place — so holding the live object is what makes the mockup animate, and
+        /// holding a stale one freezes it. The host publishes a new object at most once per URI,
+        /// and that can land either side of the mockup being rebuilt, so both sides call this.
+        /// </summary>
+        private void SyncToastBackgroundRenderSource()
+        {
             var renderSource = ToastBackgroundAnimationHost?.Source;
-            if (!IsLoaded || renderSource == null ||
+            if (renderSource == null || _toastPreviewViewModel == null ||
                 ReferenceEquals(_lastToastBackgroundRenderSource, renderSource))
             {
                 return;
             }
 
             _lastToastBackgroundRenderSource = renderSource;
-            _toastPreviewViewModel?.SetToastBackgroundRenderSourceOverride(renderSource);
+            _toastPreviewViewModel.SetToastBackgroundRenderSourceOverride(renderSource);
         }
 
         // Both sample-kind dropdowns refresh the inline mockups through one handler so the preview
