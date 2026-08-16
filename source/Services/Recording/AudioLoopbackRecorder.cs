@@ -381,17 +381,19 @@ namespace PlayniteAchievements.Services.Recording
             var providers = new List<ISampleProvider>();
             foreach (var endpoint in endpoints)
             {
+                IWaveIn capture = null;
                 try
                 {
-                    var capture = ProcessLoopbackCapture.ForEndpoint(endpoint.DeviceId);
+                    capture = ProcessLoopbackCapture.ForEndpoint(endpoint.DeviceId);
                     var buffer = NewBuffer(capture.WaveFormat);
                     capture.DataAvailable += (s, e) => Append(buffer, e);
-                    _hapticCaptures.Add(capture);
                     providers.Add(MatchFormat(buffer.ToSampleProvider(), _outputFormat));
                     names.Add(endpoint.Name);
+                    _hapticCaptures.Add(capture);
                 }
                 catch (Exception ex)
                 {
+                    DisposeCapture(ref capture);
                     _logger?.Warn(
                         ex,
                         $"[Recording] Controller endpoint '{endpoint.Name}' could not be captured; " +
@@ -401,12 +403,25 @@ namespace PlayniteAchievements.Services.Recording
 
             if (providers.Count == 0)
             {
+                DisposeHapticCaptures();
                 return string.Empty;
             }
 
-            _hapticSamples = providers.Count == 1
-                ? providers[0]
-                : new MixingSampleProvider(providers) { ReadFully = true };
+            try
+            {
+                _hapticSamples = providers.Count == 1
+                    ? providers[0]
+                    : new MixingSampleProvider(providers) { ReadFully = true };
+            }
+            catch (Exception ex)
+            {
+                // Nothing here may cost the session its audio: the reference improves the recorded
+                // track, it is never a precondition for it.
+                _logger?.Warn(ex, "[Recording] The haptic reference could not be assembled; clip audio keeps its haptics.");
+                DisposeHapticCaptures();
+                return string.Empty;
+            }
+
             _writeHapticReference = true;
             return ", haptics=" + string.Join("+", names.ToArray());
         }
@@ -688,6 +703,17 @@ namespace PlayniteAchievements.Services.Recording
             capture = null;
         }
 
+        private void DisposeHapticCaptures()
+        {
+            foreach (var capture in _hapticCaptures)
+            {
+                try { capture?.Dispose(); } catch { }
+            }
+
+            _hapticCaptures.Clear();
+            _hapticSamples = null;
+        }
+
         private void OpenChunkLocked()
         {
             var prefix = _capturePlayniteChimes
@@ -757,12 +783,7 @@ namespace PlayniteAchievements.Services.Recording
             DisposeCapture(ref _systemCapture);
             DisposeCapture(ref _restoredGameCapture);
             DisposeCapture(ref _micCapture);
-            foreach (var capture in _hapticCaptures)
-            {
-                try { capture?.Dispose(); } catch { }
-            }
-
-            _hapticCaptures.Clear();
+            DisposeHapticCaptures();
             _systemBuffer = null;
             _restoredGameBuffer = null;
             _micBuffer = null;

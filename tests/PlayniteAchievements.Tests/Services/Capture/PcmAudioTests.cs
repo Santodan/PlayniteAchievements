@@ -1,5 +1,7 @@
 using System;
+using System.IO;
 using System.Linq;
+using System.Text;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
 using PlayniteAchievements.Services.Capture;
 
@@ -452,6 +454,81 @@ namespace PlayniteAchievements.Services.Tests.Capture
             Assert.IsTrue(
                 tornResidual < tornOriginal * 0.01,
                 $"torn block residual ratio was {tornResidual / tornOriginal:0.0000}");
+        }
+
+        [TestMethod]
+        public void CancelCorrelated_KeepsUnverifiedBlocksWhenMutingIsOff()
+        {
+            // Same tear as above, but on the track that IS the clip's audio (the haptic pass). A
+            // hole punched in the game's own sound is worse than the residual it would remove, so
+            // an unverifiable block has to survive the pass intact.
+            const int frames = 216000;
+            const int lag = 480;
+            const int tornStart = 96000;
+            const int tornEnd = 120000;
+            var referenceSamples = BandLimitedNoise(frames, 31, 8000);
+            var tornSamples = BandLimitedNoise(frames, 77, 8000);
+            var mixtureSamples = new short[frames * 2];
+            for (var frame = 0; frame < frames; frame++)
+            {
+                var torn = frame >= tornStart && frame < tornEnd;
+                for (var channel = 0; channel < 2; channel++)
+                {
+                    mixtureSamples[frame * 2 + channel] = torn
+                        ? tornSamples[frame * 2 + channel]
+                        : frame + lag < frames
+                            ? (short)Math.Round(0.9 * referenceSamples[(frame + lag) * 2 + channel])
+                            : (short)0;
+                }
+            }
+
+            var mixture = Samples(mixtureSamples);
+            var tornOriginal = Energy(mixtureSamples, tornStart + 2400, tornEnd - 2400);
+
+            var outcome = PcmAudio.CancelCorrelated(
+                mixture, Samples(referenceSamples), out var diagnostics, muteUnverifiedBlocks: false);
+
+            Assert.AreEqual(
+                PcmCancellationOutcome.CancelledVerified,
+                outcome,
+                $"correlation={diagnostics.Correlation}, suppression={diagnostics.SuppressionDb}dB");
+            Assert.AreEqual(0, diagnostics.MutedBlocks);
+            var tornResidual = Energy(ToShorts(mixture), tornStart + 2400, tornEnd - 2400);
+            Assert.IsTrue(
+                tornResidual > tornOriginal * 0.5,
+                $"unverified block kept {tornResidual / tornOriginal:0.0000} of its energy");
+        }
+
+        [TestMethod]
+        public void WriteWav_WritesAReadableHeaderForTheExportFormat()
+        {
+            // The cleaned clip audio goes back to the exporter as an ordinary chunk file, so the
+            // header has to describe exactly the format the rest of the pipeline assumes.
+            var path = Path.Combine(Path.GetTempPath(), $"pa_wav_{Guid.NewGuid():N}.wav");
+            var pcm = Samples(BandLimitedNoise(1200, 3, 4000));
+            try
+            {
+                PcmAudio.WriteWav(path, pcm);
+                var written = File.ReadAllBytes(path);
+
+                Assert.AreEqual(44 + pcm.Length, written.Length);
+                Assert.AreEqual("RIFF", Encoding.ASCII.GetString(written, 0, 4));
+                Assert.AreEqual("WAVE", Encoding.ASCII.GetString(written, 8, 4));
+                Assert.AreEqual("fmt ", Encoding.ASCII.GetString(written, 12, 4));
+                Assert.AreEqual(1, BitConverter.ToInt16(written, 20));                       // PCM
+                Assert.AreEqual(PcmAudio.Channels, BitConverter.ToInt16(written, 22));
+                Assert.AreEqual(PcmAudio.SampleRate, BitConverter.ToInt32(written, 24));
+                Assert.AreEqual(PcmAudio.BytesPerSecond, BitConverter.ToInt32(written, 28));
+                Assert.AreEqual(PcmAudio.BlockAlign, BitConverter.ToInt16(written, 32));
+                Assert.AreEqual(PcmAudio.BitsPerSample, BitConverter.ToInt16(written, 34));
+                Assert.AreEqual("data", Encoding.ASCII.GetString(written, 36, 4));
+                Assert.AreEqual(pcm.Length, BitConverter.ToInt32(written, 40));
+                CollectionAssert.AreEqual(pcm, written.Skip(44).ToArray());
+            }
+            finally
+            {
+                try { File.Delete(path); } catch { }
+            }
         }
 
         [TestMethod]
