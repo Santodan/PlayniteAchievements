@@ -105,8 +105,6 @@ namespace PlayniteAchievements.Services.UI
         // Shadow-layer captures this wave (each costs two with-effect renders); reported in the
         // sampling summary — a number near the sample count means the recapture guard failed.
         private int _waveShadowCaptureCount;
-        // One confirmation line per session for the wave-scoped timer resolution boost.
-        private bool _timerBoostLogged;
         private FrameworkElement _activeSlideHost;
         private TranslateTransform _activeSlideTransform;
         // Frame counter attached for a running slide's span. It does no work beyond counting: the slide
@@ -1954,23 +1952,6 @@ namespace PlayniteAchievements.Services.UI
             var trackRenderMaxMs = 0d;
             try
             {
-                // 1 ms timer resolution for the wave's on-screen span: the GIF decoder paces its
-                // frames with Task.Delay, and Windows 11 coarsens a background process's timers —
-                // Playnite is background whenever a game runs — which uniformly slows GIF playback
-                // by up to a timer quantum per frame. Logged once per session to confirm the boost
-                // took on this system.
-                var resolutionBefore = Common.TimerResolutionBoost.CurrentResolutionMs();
-                Common.TimerResolutionBoost.Begin();
-                if (!_timerBoostLogged)
-                {
-                    _timerBoostLogged = true;
-                    _logger?.Info(string.Format(
-                        System.Globalization.CultureInfo.InvariantCulture,
-                        "[Toast] Timer resolution {0:0.##} ms -> {1:0.##} ms for the wave's span (GIF frame pacing).",
-                        resolutionBefore,
-                        Common.TimerResolutionBoost.CurrentResolutionMs()));
-                }
-
                 // Realize the toast HWND under Per-Monitor-V2 so Windows does not bitmap-rescale it on
                 // a monitor whose scale differs from the process's system DPI. A window's DPI awareness
                 // is fixed at HWND creation; all HWND-affecting props were set in
@@ -2295,8 +2276,6 @@ namespace PlayniteAchievements.Services.UI
             }
             finally
             {
-                Common.TimerResolutionBoost.End();
-
                 // Null after the save pipeline takes ownership; disposes the pending capture when
                 // the wave aborts (dispose, exception) before the hand-off.
                 DisposeCaptureTask(baseCaptureTask);
