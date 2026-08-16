@@ -40,8 +40,10 @@ Write-Output "  compiler $csc"
 
 New-Item -ItemType Directory -Force $out | Out-Null
 
-# SharpDX travels with the plugin's output; copy it next to the tools so they run without probing paths.
+# SharpDX and NAudio travel with the plugin's output; copy them next to the tools so they run
+# without probing paths. NAudio is for ChimeSeparationProbe (tone render + IWaveIn plumbing).
 Copy-Item (Join-Path $pluginBin 'SharpDX*.dll') $out -Force
+Copy-Item (Join-Path $pluginBin 'NAudio.dll') $out -Force
 $valueTuple = Get-ChildItem (Join-Path $repo 'source\packages') -Recurse -Filter 'System.ValueTuple.dll' |
     Where-Object { $_.FullName -match 'net4' } | Select-Object -First 1
 if ($valueTuple) { Copy-Item $valueTuple.FullName $out -Force }
@@ -53,28 +55,38 @@ $framework = @(
     'PresentationCore', 'PresentationFramework', 'WindowsBase', 'System.Xaml'
 ) | ForEach-Object { "/r:$refDir\$_.dll" }
 $sharp = Get-ChildItem $out -Filter 'SharpDX*.dll' | ForEach-Object { "/r:$($_.FullName)" }
+$sharp += "/r:$out\NAudio.dll"
 $tuple = if (Test-Path (Join-Path $out 'System.ValueTuple.dll')) { @("/r:$out\System.ValueTuple.dll") } else { @() }
 $refs = $framework + $sharp + $tuple
 
 $tools = @(
     'CaptureHarness', 'FrameDump', 'AttributeBisect', 'PacerProbe', 'GenerationLoss',
-    'SlideProbe', 'SlideStoryboardProbe', 'SlideCadenceProbe', 'ChimeCancelProbe')
+    'SlideProbe', 'SlideStoryboardProbe', 'SlideCadenceProbe', 'ChimeCancelProbe',
+    'ChimeSeparationProbe')
 # Tools that compile plugin source files in directly, so they always test the current algorithm
 # rather than a built DLL.
 $extraSources = @{
     ChimeCancelProbe = @((Join-Path $repo 'source\Services\Capture\PcmAudio.cs'))
+    ChimeSeparationProbe = @(
+        (Join-Path $repo 'source\Services\Capture\PcmAudio.cs'),
+        (Join-Path $repo 'source\Services\Recording\ProcessLoopbackCapture.cs'),
+        (Join-Path $repo 'source\Common\MonotonicUtcClock.cs'))
 }
+# Tools that need Environment.OSVersion to report the real Windows version (the manifest opts out
+# of the 6.2 compatibility shim); ProcessLoopbackCapture.IsSupported depends on it.
+$manifestTools = @('ChimeSeparationProbe')
 $failed = @()
 foreach ($tool in $tools) {
     $source = Join-Path $here ($tool + '.cs')
     if (-not (Test-Path $source)) { Write-Output "  skip    $tool (no source)"; continue }
     $sources = @($source) + @($extraSources[$tool])  | Where-Object { $_ }
+    $manifest = if ($manifestTools -contains $tool) { @("/win32manifest:$(Join-Path $here 'win10.manifest')") } else { @() }
 
     $exe = Join-Path $out ($tool + '.exe')
     # CaptureHarness loads the plugin into the process and therefore must match Playnite's x86
     # runtime. Keep the standalone analysis tools x64 so large frame dumps are not VA-constrained.
     $platform = if ($tool -eq 'CaptureHarness') { 'x86' } else { 'x64' }
-    $messages = & $csc /nologo /t:exe /langversion:preview /nostdlib+ "/platform:$platform" $refs "/out:$exe" $sources 2>&1 |
+    $messages = & $csc /nologo /t:exe /langversion:preview /nostdlib+ "/platform:$platform" $manifest $refs "/out:$exe" $sources 2>&1 |
         Where-Object { $_ -match 'error CS' }
     if ($messages) {
         $failed += $tool
