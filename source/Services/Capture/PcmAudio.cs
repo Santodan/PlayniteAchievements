@@ -39,6 +39,9 @@ namespace PlayniteAchievements.Services.Capture
 
         /// <summary>Upper-quartile per-block energy suppression achieved by the subtraction.</summary>
         public double SuppressionDb;
+
+        /// <summary>Blocks whose game removal could not be verified and were silenced instead.</summary>
+        public int MutedBlocks;
     }
 
     /// <summary>
@@ -59,12 +62,15 @@ namespace PlayniteAchievements.Services.Capture
         private const int MaxCancellationLagFrames = 2400; // 50 ms at 48 kHz
         private const int CorrelationStrideFrames = 8;
         private const int CorrelationWindowFrames = 24000; // score 0.5 s at the loudest passage
-        private const double MinimumCancellationCorrelation = 0.55;
         private const double SilentReferenceRms = 16.0; // about -66 dBFS
 
-        // The subtraction scales the reference by the fitted gain, so the accept range only needs
-        // to reject fits that are not plausibly the same signal chain.
-        private const double MinimumCancellationGain = 0.5;
+        // ATTEMPT gate, not the accept gate: real recorder chunks can be fractured by pump timing
+        // steps inside the global scoring window, which dilutes the single-lag correlation and
+        // gain of a genuine leak well below unity. This only needs to screen out "clearly not the
+        // same audio" (unrelated content scores ~0.05); the per-block re-lock and the projection
+        // verification make the actual accept/reject decision.
+        private const double MinimumCancellationCorrelation = 0.30;
+        private const double MinimumCancellationGain = 0.30;
         private const double MaximumCancellationGain = 1.5;
 
         // A loud reference that barely projects onto the mixture is not leaking into it at all
@@ -79,6 +85,13 @@ namespace PlayniteAchievements.Services.Capture
         private const int BlockLagSearchFrames = 96; // +/- 2 ms around the tracked lag
         private const int CrossfadeFrames = 240; // 5 ms across block parameter steps
         private const double BlockGainFloor = 0.05; // below this the block has no game to remove
+
+        // The recorder pumps can step the inter-track offset by more than the narrow search width
+        // (observed 1-2 ms steps every few seconds on real chunks). When the tracked-lag search
+        // comes back weak, re-lock that block with a full-width search; the wide result is adopted
+        // only when clearly stronger, so a genuinely absent reference cannot fake a lock.
+        private const double BlockRelockCorrelation = 0.60;
+        private const double BlockRelockMargin = 0.10;
 
         // Subtraction must demonstrably remove the game, not merely correlate with it: require
         // this much energy suppression in the blocks where subtraction ran. Upper-quartile, so a
@@ -185,14 +198,24 @@ namespace PlayniteAchievements.Services.Capture
             var maxLag = Math.Min(
                 MaxCancellationLagFrames,
                 Math.Max(0, Math.Min(mixtureFrames, referenceFrames) / 4));
-            var analysisStart = FindLoudestWindowStart(gameReference, referenceFrames);
+            var loudestStart = FindLoudestWindowStart(gameReference, referenceFrames);
 
-            var best = default(CorrelationScore);
-            best.Value = double.NegativeInfinity;
-            for (var lag = -maxLag; lag <= maxLag; lag++)
+            // Score several candidate windows spread across the slice, not just the loudest one:
+            // the recorder streams can carry an alignment tear (a pump timing step, observed to
+            // coincide with a render stream starting — i.e. the chime itself), and a single window
+            // that straddles the tear reads a fractured correlation for a perfectly separable
+            // slice. A tear cannot fracture every window.
+            var loudestScore = ScanWindow(mixture, gameReference, loudestStart, maxLag);
+            var best = loudestScore;
+            foreach (var candidateStart in new[] { 0, (int)((long)referenceFrames / 3), (int)(2L * referenceFrames / 3) })
             {
-                var score = ScoreCorrelation(mixture, gameReference, lag, analysisStart);
-                if (score.Value > best.Value)
+                if (Math.Abs(candidateStart - loudestStart) < CorrelationWindowFrames / 2)
+                {
+                    continue;
+                }
+
+                var score = ScanWindow(mixture, gameReference, candidateStart, maxLag);
+                if (score.Count > 0 && score.Value > best.Value)
                 {
                     best = score;
                 }
@@ -203,9 +226,9 @@ namespace PlayniteAchievements.Services.Capture
                 return PcmCancellationOutcome.Unseparable;
             }
 
-            var referenceRms = best.ReferenceEnergy <= 0
+            var referenceRms = loudestScore.Count <= 0 || loudestScore.ReferenceEnergy <= 0
                 ? 0
-                : Math.Sqrt(best.ReferenceEnergy / best.Count);
+                : Math.Sqrt(loudestScore.ReferenceEnergy / loudestScore.Count);
             if (referenceRms <= SilentReferenceRms)
             {
                 // There is no audible game signal to leak out of the sidecar. Treat it as already
@@ -234,6 +257,7 @@ namespace PlayniteAchievements.Services.Capture
             // Subtract into a copy so a failed verification leaves the caller's mixture pristine.
             var working = (byte[])mixture.Clone();
             var suppressionsDb = new List<double>();
+            var measuredBlocks = new List<MeasuredBlock>();
             var previousLag = (double)best.LagFrames;
             var previousGain = 0.0;
             var firstBlock = true;
@@ -245,9 +269,15 @@ namespace PlayniteAchievements.Services.Capture
 
                 var blockGain = block.Gain;
                 var blockLag = block.LagFrames;
+                var tornBlock = false;
                 if (!block.HasSignal || blockGain < BlockGainFloor)
                 {
-                    // Nothing (or nothing audible) to remove here; ramp any previous subtraction out.
+                    // A silent reference means nothing to remove. A LOUD reference that cannot be
+                    // projected onto the mixture at any lag is different: the global gate already
+                    // proved the game leaks into this sidecar, so this block's audio is unexplained
+                    // (a recorder timing tear) — score it as zero-suppression so it is muted on an
+                    // otherwise-verified pass and sinks the quartile on a badly torn one.
+                    tornBlock = block.HasSignal;
                     blockGain = 0;
                     blockLag = previousLag;
                 }
@@ -265,8 +295,26 @@ namespace PlayniteAchievements.Services.Capture
 
                 if (blockGain > 0)
                 {
-                    suppressionsDb.Add(MeasureSuppressionDb(mixture, working, blockStart, blockEnd));
+                    var blockSuppression = MeasureSuppressionDb(
+                        mixture, working, gameReference, blockStart, blockEnd, (int)Math.Round(blockLag));
+                    suppressionsDb.Add(blockSuppression);
+                    measuredBlocks.Add(new MeasuredBlock
+                    {
+                        StartFrame = blockStart,
+                        EndFrame = blockEnd,
+                        SuppressionDb = blockSuppression,
+                    });
                     previousLag = blockLag;
+                }
+                else if (tornBlock)
+                {
+                    suppressionsDb.Add(0);
+                    measuredBlocks.Add(new MeasuredBlock
+                    {
+                        StartFrame = blockStart,
+                        EndFrame = blockEnd,
+                        SuppressionDb = 0,
+                    });
                 }
 
                 previousGain = blockGain;
@@ -289,8 +337,60 @@ namespace PlayniteAchievements.Services.Capture
                 return PcmCancellationOutcome.Unseparable;
             }
 
+            // A pump timing tear can leave an isolated block where the game demonstrably survived
+            // the subtraction. Shipping it would composite a burst of wrong-time game audio into
+            // the chime — the exact artifact this pass exists to remove — so silence those blocks
+            // (ramped, so no clicks) rather than let the quartile pass carry them through.
+            foreach (var measured in measuredBlocks)
+            {
+                if (measured.SuppressionDb < MinimumSuppressionDb)
+                {
+                    MuteBlock(working, measured.StartFrame, measured.EndFrame);
+                    diagnostics.MutedBlocks++;
+                }
+            }
+
             Buffer.BlockCopy(working, 0, mixture, 0, mixture.Length);
             return PcmCancellationOutcome.CancelledVerified;
+        }
+
+        /// <summary>Silences one block in place, ramping over CrossfadeFrames at both edges.</summary>
+        private static void MuteBlock(byte[] working, int blockStartFrame, int blockEndFrame)
+        {
+            var blockFrames = blockEndFrame - blockStartFrame;
+            var ramp = Math.Min(CrossfadeFrames, blockFrames / 2);
+            for (var frame = blockStartFrame; frame < blockEndFrame; frame++)
+            {
+                var intoBlock = frame - blockStartFrame;
+                var untilEnd = blockEndFrame - 1 - frame;
+                double scale = 0;
+                if (intoBlock < ramp)
+                {
+                    scale = 1.0 - intoBlock / (double)ramp;
+                }
+                else if (untilEnd < ramp)
+                {
+                    scale = 1.0 - untilEnd / (double)ramp;
+                }
+
+                if (scale >= 1)
+                {
+                    continue;
+                }
+
+                for (var channel = 0; channel < 2; channel++)
+                {
+                    var offset = frame * BlockAlign + channel * 2;
+                    WriteInt16(working, offset, (short)(ReadInt16(working, offset) * scale));
+                }
+            }
+        }
+
+        private struct MeasuredBlock
+        {
+            public int StartFrame;
+            public int EndFrame;
+            public double SuppressionDb;
         }
 
         /// <summary>
@@ -304,17 +404,24 @@ namespace PlayniteAchievements.Services.Capture
             int blockEndFrame,
             int centerLagFrames)
         {
-            var scores = new CorrelationScore[2 * BlockLagSearchFrames + 1];
-            var bestIndex = -1;
-            var bestValue = double.NegativeInfinity;
-            for (var i = 0; i < scores.Length; i++)
+            var search = SearchLags(
+                mixture, reference, blockStartFrame, blockEndFrame,
+                centerLagFrames, BlockLagSearchFrames);
+            var scores = search.Scores;
+            var bestIndex = search.BestIndex;
+            var bestValue = bestIndex >= 0 ? scores[bestIndex].Value : double.NegativeInfinity;
+
+            if (bestIndex < 0 || bestValue < BlockRelockCorrelation)
             {
-                var lag = centerLagFrames - BlockLagSearchFrames + i;
-                scores[i] = ScoreBlock(mixture, reference, lag, blockStartFrame, blockEndFrame);
-                if (scores[i].Count > 0 && scores[i].Value > bestValue)
+                var wide = SearchLags(
+                    mixture, reference, blockStartFrame, blockEndFrame,
+                    0, MaxCancellationLagFrames);
+                if (wide.BestIndex >= 0 &&
+                    wide.Scores[wide.BestIndex].Value >
+                        Math.Max(bestValue + BlockRelockMargin, BlockRelockCorrelation))
                 {
-                    bestValue = scores[i].Value;
-                    bestIndex = i;
+                    scores = wide.Scores;
+                    bestIndex = wide.BestIndex;
                 }
             }
 
@@ -353,6 +460,37 @@ namespace PlayniteAchievements.Services.Capture
                 MaximumCancellationGain,
                 bestScore.ReferenceEnergy <= 0 ? 0 : bestScore.Dot / bestScore.ReferenceEnergy));
             return fit;
+        }
+
+        private struct LagSearch
+        {
+            public CorrelationScore[] Scores;
+            public int BestIndex;
+        }
+
+        private static LagSearch SearchLags(
+            byte[] mixture,
+            byte[] reference,
+            int blockStartFrame,
+            int blockEndFrame,
+            int centerLagFrames,
+            int halfWidthFrames)
+        {
+            var scores = new CorrelationScore[2 * halfWidthFrames + 1];
+            var bestIndex = -1;
+            var bestValue = double.NegativeInfinity;
+            for (var i = 0; i < scores.Length; i++)
+            {
+                var lag = centerLagFrames - halfWidthFrames + i;
+                scores[i] = ScoreBlock(mixture, reference, lag, blockStartFrame, blockEndFrame);
+                if (scores[i].Count > 0 && scores[i].Value > bestValue)
+                {
+                    bestValue = scores[i].Value;
+                    bestIndex = i;
+                }
+            }
+
+            return new LagSearch { Scores = scores, BestIndex = bestIndex };
         }
 
         /// <summary>
@@ -422,27 +560,27 @@ namespace PlayniteAchievements.Services.Capture
             return first + (second - first) * fraction;
         }
 
-        /// <summary>Strided energy ratio of a block before and after subtraction, in dB.</summary>
+        // Misalignment leaves the surviving game correlated at lags a frame or two off the
+        // estimate, so the projection peak searches this neighbourhood on both sides.
+        private const int SuppressionProbeLagFrames = 8;
+
+        /// <summary>
+        /// Suppression of the reference-correlated (game) component of one block, in dB: the peak
+        /// squared projection onto the reference near the block lag, before vs after subtraction.
+        /// A raw energy ratio would be bounded by whatever legitimately shares the block — a loud
+        /// chime over quiet game audio caps it near 0 dB and fails good passes — whereas the chime
+        /// is uncorrelated with the reference and cannot bias a projection.
+        /// </summary>
         private static double MeasureSuppressionDb(
             byte[] original,
             byte[] working,
+            byte[] reference,
             int blockStartFrame,
-            int blockEndFrame)
+            int blockEndFrame,
+            int lagFrames)
         {
-            double before = 0;
-            double after = 0;
-            for (var frame = blockStartFrame; frame < blockEndFrame; frame += CorrelationStrideFrames)
-            {
-                var offset = frame * BlockAlign;
-                for (var channel = 0; channel < 2; channel++)
-                {
-                    var b = (double)ReadInt16(original, offset + channel * 2);
-                    var a = (double)ReadInt16(working, offset + channel * 2);
-                    before += b * b;
-                    after += a * a;
-                }
-            }
-
+            var before = ProjectionPeak(original, reference, blockStartFrame, blockEndFrame, lagFrames);
+            var after = ProjectionPeak(working, reference, blockStartFrame, blockEndFrame, lagFrames);
             if (before <= 0)
             {
                 return 0;
@@ -454,6 +592,54 @@ namespace PlayniteAchievements.Services.Capture
             }
 
             return Math.Min(FullSuppressionDb, 10.0 * Math.Log10(before / after));
+        }
+
+        /// <summary>Largest normalized squared projection onto the reference near a lag.</summary>
+        private static double ProjectionPeak(
+            byte[] signal,
+            byte[] reference,
+            int blockStartFrame,
+            int blockEndFrame,
+            int centerLagFrames)
+        {
+            double peak = 0;
+            for (var lag = centerLagFrames - SuppressionProbeLagFrames;
+                 lag <= centerLagFrames + SuppressionProbeLagFrames;
+                 lag++)
+            {
+                var score = ScoreBlock(signal, reference, lag, blockStartFrame, blockEndFrame);
+                if (score.Count > 0 && score.ReferenceEnergy > 0)
+                {
+                    var projection = score.Dot * score.Dot / score.ReferenceEnergy;
+                    if (projection > peak)
+                    {
+                        peak = projection;
+                    }
+                }
+            }
+
+            return peak;
+        }
+
+        /// <summary>Best lag for one analysis window over the full search range.</summary>
+        private static CorrelationScore ScanWindow(
+            byte[] mixture,
+            byte[] reference,
+            int analysisStart,
+            int maxLag)
+        {
+            var best = default(CorrelationScore);
+            best.Value = double.NegativeInfinity;
+            for (var lag = -maxLag; lag <= maxLag; lag++)
+            {
+                var score = ScoreCorrelation(mixture, reference, lag, analysisStart);
+                if (score.Value > best.Value)
+                {
+                    best = score;
+                }
+            }
+
+            return best;
         }
 
         private static int FindLoudestWindowStart(byte[] reference, int referenceFrames)
