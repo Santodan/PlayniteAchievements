@@ -263,10 +263,15 @@ namespace PlayniteAchievements.Services.Recording
                 {
                     try
                     {
-                        // Scoped to the game's tree, so Playnite's chimes are outside it.
+                        // Scoped to the game's tree, so Playnite's chimes are outside it. The
+                        // Playnite-tree sidecar can still contain the game (an emulator Playnite
+                        // launched is inside both trees), and the tree probe can be wrong in either
+                        // direction, so always tee the game reference and require verified
+                        // cancellation instead of trusting the probe: a genuinely clean sidecar
+                        // passes through as CleanNoGameDetected.
                         var gameOnly = new ProcessLoopbackCapture(gamePid.Value, includeProcessTree: true);
-                        ChimeCaptureMode = ResolveChimeCaptureMode(gameInPlayniteTree);
-                        _writeGameReference = gameInPlayniteTree == true;
+                        ChimeCaptureMode = PlayniteChimeCaptureMode.CancelGameReference;
+                        _writeGameReference = true;
 
                         return gameOnly;
                     }
@@ -327,18 +332,6 @@ namespace PlayniteAchievements.Services.Recording
             // untouched rather than re-time a second copy.
             ChimeCaptureMode = PlayniteChimeCaptureMode.Unavailable;
             return new WasapiLoopbackCapture();
-        }
-
-        private static PlayniteChimeCaptureMode ResolveChimeCaptureMode(bool? gameInPlayniteTree)
-        {
-            if (!gameInPlayniteTree.HasValue)
-            {
-                return PlayniteChimeCaptureMode.Unavailable;
-            }
-
-            return gameInPlayniteTree.Value
-                ? PlayniteChimeCaptureMode.CancelGameReference
-                : PlayniteChimeCaptureMode.Clean;
         }
 
         private string CaptureSourceName()
