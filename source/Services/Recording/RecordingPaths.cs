@@ -93,6 +93,14 @@ namespace PlayniteAchievements.Services.Recording
         /// </summary>
         public const string GameReferenceChunkFilePrefix = "gam_";
 
+        /// <summary>
+        /// Haptic-reference chunk filenames: hap_yyyyMMdd-HHmmssfffZ.wav — everything rendered to a
+        /// controller's own audio endpoint. Process loopback mixes every endpoint the game renders
+        /// to, so this is the copy of its haptic waveform that the clip's audio is cleaned against.
+        /// Written only while such an endpoint exists.
+        /// </summary>
+        public const string HapticReferenceChunkFilePrefix = "hap_";
+
         public const string AudioChunkFileExtension = ".wav";
     }
 }
