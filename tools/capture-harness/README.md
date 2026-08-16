@@ -269,6 +269,27 @@ number.
   and reports PSNR against the source, for sizing the export-time bitrate headroom. Slow: each rate costs a
   decode plus an encode plus two comparison decodes.
 
+## The chime cancellation probe
+
+```powershell
+tools\capture-harness\bin\ChimeCancelProbe.exe <sessionDir> [--start yyyyMMdd-HHmmssfff[Z]] [--seconds 4.5] [--wav-out dir]
+tools\capture-harness\bin\ChimeCancelProbe.exe --selftest
+```
+
+Runs the plugin's real game-audio cancellation (`PcmAudio.CancelCorrelated`, compiled in from
+`source\Services\Capture\PcmAudio.cs` so it always reflects the current algorithm, not a built DLL)
+against the `chm_`/`gam_` WAV chunks of a `RecordingBuffer\<session>` directory.
+With no `--start` it sweeps the whole overlap of the two tracks in consecutive windows and prints one
+line per window: RMS of both tracks, the outcome (`CancelledVerified` / `CleanNoGameDetected` /
+`Unseparable`), the tracked lag range, fitted gain, correlation, and achieved suppression in dB.
+`--wav-out` writes `<stamp>_mixture.wav`, `_cancelled.wav`, and `_reference.wav` per window so the
+residual can be listened to directly — the fastest way to judge whether a reported "duplicated game
+audio in the chime" case is a cancellation failure or something upstream.
+Buffers are pruned when a session ends, so copy the session directory out while Playnite is still
+running (or ask a reporting user to zip theirs before closing Playnite).
+`--selftest` replays the field-shaped fixtures (drifting lag at gain 0.9, unrelated-reference clean
+pass) without needing any capture data.
+
 ## Limits
 
 - Runs against a GDI window at whatever size the window is, not a real game at 2560x1440. Anything that
