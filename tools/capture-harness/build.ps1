@@ -65,7 +65,7 @@ $refs = $framework + $sharp + $tuple
 $tools = @(
     'CaptureHarness', 'FrameDump', 'AttributeBisect', 'PacerProbe', 'GenerationLoss',
     'SlideProbe', 'SlideStoryboardProbe', 'SlideCadenceProbe', 'ChimeCancelProbe',
-    'ChimeSeparationProbe', 'ChimeBurstProbe')
+    'ChimeSeparationProbe', 'ChimeBurstProbe', 'HapticProbe')
 # Tools that compile plugin source files in directly, so they always test the current algorithm
 # rather than a built DLL.
 $extraSources = @{
@@ -78,13 +78,23 @@ $extraSources = @{
         (Join-Path $repo 'source\Services\Capture\PcmAudio.cs'),
         (Join-Path $repo 'source\Services\Recording\ProcessLoopbackCapture.cs'),
         (Join-Path $repo 'source\Services\Recording\AudioLoopbackRecorder.cs'),
+        (Join-Path $repo 'source\Services\Recording\RenderEndpointScan.cs'),
+        (Join-Path $repo 'source\Services\Recording\HapticEndpointClassifier.cs'),
+        (Join-Path $repo 'source\Services\UI\ControllerPadIds.cs'),
         (Join-Path $repo 'source\Services\Recording\RecordingPaths.cs'),
         (Join-Path $repo 'source\Models\Settings\RecordingEnums.cs'),
+        (Join-Path $repo 'source\Common\MonotonicUtcClock.cs'))
+    HapticProbe = @(
+        (Join-Path $repo 'source\Services\Capture\PcmAudio.cs'),
+        (Join-Path $repo 'source\Services\Recording\ProcessLoopbackCapture.cs'),
+        (Join-Path $repo 'source\Services\Recording\RenderEndpointScan.cs'),
+        (Join-Path $repo 'source\Services\Recording\HapticEndpointClassifier.cs'),
+        (Join-Path $repo 'source\Services\UI\ControllerPadIds.cs'),
         (Join-Path $repo 'source\Common\MonotonicUtcClock.cs'))
 }
 # Tools that need Environment.OSVersion to report the real Windows version (the manifest opts out
 # of the 6.2 compatibility shim); ProcessLoopbackCapture.IsSupported depends on it.
-$manifestTools = @('ChimeSeparationProbe', 'ChimeBurstProbe')
+$manifestTools = @('ChimeSeparationProbe', 'ChimeBurstProbe', 'HapticProbe')
 $failed = @()
 foreach ($tool in $tools) {
     $source = Join-Path $here ($tool + '.cs')
