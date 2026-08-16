@@ -892,23 +892,9 @@ namespace PlayniteAchievements.Services.UI
 
             for (var i = 0; i < toastItems.Count; i++)
             {
+                var vm = toastItems[i];
                 var container = itemsControl.ItemContainerGenerator.ContainerFromIndex(i) as FrameworkElement;
                 if (container == null)
-                {
-                    continue;
-                }
-
-                var scratchByVm = _trackRenderScratch;
-                CardRenderScratch scratch = null;
-                if (scratchByVm != null && !scratchByVm.TryGetValue(toastItems[i], out scratch))
-                {
-                    scratch = new CardRenderScratch();
-                    scratchByVm[toastItems[i]] = scratch;
-                }
-
-                if (!TryRenderToastItemBytes(
-                        window, container, scratch, len => new byte[len],
-                        out var pixels, out var pw, out var ph))
                 {
                     continue;
                 }
@@ -920,8 +906,34 @@ namespace PlayniteAchievements.Services.UI
                 var origin = container.TransformToAncestor(window).Transform(new Point(0, 0));
                 var relX = windowPhys.X + (int)Math.Round(origin.X * pxPerDipX) - clientPhys.X;
                 var relY = windowPhys.Y + (int)Math.Round(origin.Y * pxPerDipY) - clientPhys.Y;
+
+                // Worker backlog or frame budget spent: skip the rasterization entirely and record
+                // a repeat of the previous frame at this tick's position, so the timeline never
+                // gaps — only pixel freshness degrades.
+                if (!recorder.CanAcceptFrame(vm))
+                {
+                    recorder.Sample(
+                        vm, null, 0, 0, relX, relY, clientPhys.Width, clientPhys.Height, elapsedMs);
+                    continue;
+                }
+
+                var scratchByVm = _trackRenderScratch;
+                CardRenderScratch scratch = null;
+                if (scratchByVm != null && !scratchByVm.TryGetValue(vm, out scratch))
+                {
+                    scratch = new CardRenderScratch();
+                    scratchByVm[vm] = scratch;
+                }
+
+                if (!TryRenderToastItemBytes(
+                        window, container, scratch, len => recorder.RentBuffer(vm, len),
+                        out var pixels, out var pw, out var ph))
+                {
+                    continue;
+                }
+
                 recorder.Sample(
-                    toastItems[i], pixels, pw, ph, relX, relY, clientPhys.Width, clientPhys.Height, elapsedMs);
+                    vm, pixels, pw, ph, relX, relY, clientPhys.Width, clientPhys.Height, elapsedMs);
             }
         }
 
