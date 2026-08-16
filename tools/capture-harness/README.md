@@ -315,6 +315,30 @@ processes; inside Playnite the plugin never sees this.
 The two include-tree captures are immune to other applications' audio by construction; only the
 exclude-tree check is informational when something else is playing.
 
+## The chime burst probe
+
+```powershell
+tools\capture-harness\bin\ChimeBurstProbe.exe [--keep]
+```
+
+The burst scenario — two toast waves of three achievements — on the REAL recorder plumbing.
+Unlike the separation probe's raw loopback clients, this drives two actual `AudioLoopbackRecorder`
+instances (the GameOnly main recorder and the chime sidecar, wired exactly as
+`UnlockRecordingService` wires them), so the mixer graph, `ReferenceTeeSampleProvider`, wall-clock
+pump, gap padding, and chunk rotation are all exercised.
+A wave plays one chime regardless of its card count, so two waves of three means two chimes at wave
+cadence (~7.5 s apart with the default 6 s toast), each at a distinct frequency (440 / 587 Hz) so
+the wrong wave's chime appearing in a slice is directly measurable.
+Per wave it replicates the production sidecar slice (ownSound + min(toast, 4 s cap) + 0.5 s), runs
+the real cancellation against the tee'd `gam_` chunks, and asserts: the main track carries no chime,
+`gam_` exists even with an unknown tree probe, each slice holds only its own wave's chime, the game
+is suppressed, and the chime survives.
+The run takes ~25 s and plays whisper-level tones; `--keep` retains the chunk directory (failures
+keep it automatically) so `ChimeCancelProbe` can map lag over time on the same data.
+This probe is what surfaced the recorder pump's 1-2 ms alignment tears (correlated with a render
+stream starting — i.e. the chime itself) that motivated the per-block wide re-lock, the
+multi-window global alignment, and torn-block muting in `PcmAudio.CancelCorrelated`.
+
 ## Limits
 
 - Runs against a GDI window at whatever size the window is, not a real game at 2560x1440. Anything that
