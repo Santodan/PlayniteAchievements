@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.Threading;
 using System.Threading.Tasks;
 using System.Windows;
@@ -429,15 +430,15 @@ namespace PlayniteAchievements.Views.Helpers
                 // keep it blank until the live bitmap is attached, retaining bmp only as the
                 // corrupt/unsupported fallback.
                 var applyGray = GetGray(d) || AnimatedImageHelper.HasGrayPrefix(uriString);
-                if (d is System.Windows.Controls.Image image &&
-                    await TryStartNativeGifAsync(
-                        image,
-                        uriString,
-                        bmp,
-                        applyGray,
-                        cts.Token))
+                if (d is System.Windows.Controls.Image image)
                 {
-                    return;
+                    if (await TryStartNativeGifAsync(image, uriString, bmp, applyGray, cts.Token))
+                    {
+                        LogGifPath(uriString, "native");
+                        return;
+                    }
+
+                    LogGifPath(uriString, "frames");
                 }
 
                 ApplySource(d, bmp);
@@ -636,6 +637,40 @@ namespace PlayniteAchievements.Views.Helpers
         private static void RaiseSourceReady(System.Windows.Controls.Image image)
         {
             image?.RaiseEvent(new RoutedEventArgs(SourceReadyEvent, image));
+        }
+
+        // GIF-candidate URIs whose chosen playback path has already been reported, so the line is
+        // one per source per session rather than one per element per reload.
+        private static readonly HashSet<string> LoggedGifPaths =
+            new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+
+        /// <summary>
+        /// Reports which playback path a GIF took. The two behave differently for anyone reusing
+        /// the Image's Source: "native" mutates one bitmap in place, so an ImageBrush holding that
+        /// object animates with it, while "frames" replaces Source per frame, leaving such a brush
+        /// on whichever frame it captured. The settings background mockup depends on the former.
+        /// </summary>
+        private static void LogGifPath(string uriString, string path)
+        {
+            try
+            {
+                var normalized = AnimatedImageHelper.NormalizeSourceUri(uriString);
+                if (string.IsNullOrWhiteSpace(normalized) ||
+                    !Services.Images.ImageFormats.IsGifExtension(
+                        Services.Images.ImageFormats.GetExtension(normalized)) ||
+                    !LoggedGifPaths.Add(normalized + "|" + path))
+                {
+                    return;
+                }
+
+                Logger?.Info(
+                    $"[Image] GIF '{normalized}' plays via the {path} path " +
+                    $"(rooted={System.IO.Path.IsPathRooted(normalized)}, " +
+                    $"exists={System.IO.File.Exists(normalized)}).");
+            }
+            catch
+            {
+            }
         }
 
         private static object GetEffectiveSourceIdentity(DependencyObject d)
