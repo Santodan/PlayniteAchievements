@@ -80,6 +80,8 @@ namespace PlayniteAchievements.Services.UI
 
             public int Width;
             public int Height;
+            public int CardWPhys;
+            public int CardHPhys;
             public double SlideXPhys;
             public double SlideYPhys;
             public double GlowScale;
@@ -198,7 +200,7 @@ namespace PlayniteAchievements.Services.UI
         /// </param>
         public void Sample(
             AchievementToastViewModel vm, byte[] premulBgra, int width, int height,
-            double slideXPhys, double slideYPhys, double glowScale,
+            int cardWPhys, int cardHPhys, double slideXPhys, double slideYPhys, double glowScale,
             int clientW, int clientH, double elapsedMs)
         {
             if (vm == null || (premulBgra != null && (width <= 0 || height <= 0)))
@@ -225,6 +227,8 @@ namespace PlayniteAchievements.Services.UI
                     Pixels = premulBgra,
                     Width = width,
                     Height = height,
+                    CardWPhys = cardWPhys,
+                    CardHPhys = cardHPhys,
                     SlideXPhys = slideXPhys,
                     SlideYPhys = slideYPhys,
                     GlowScale = glowScale,
@@ -436,6 +440,8 @@ namespace PlayniteAchievements.Services.UI
             {
                 ElapsedMs = (int)Math.Round(job.ElapsedMs - state.FirstSampleMs),
                 FrameIndex = frameIndex,
+                CardWPhys = job.CardWPhys,
+                CardHPhys = job.CardHPhys,
                 SlideXPhys = job.SlideXPhys,
                 SlideYPhys = job.SlideYPhys,
                 GlowScale = job.GlowScale,

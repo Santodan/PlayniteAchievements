@@ -31,6 +31,8 @@ namespace PlayniteAchievements.Services.Tests.Capture
             {
                 ElapsedMs = elapsedMs,
                 FrameIndex = 0,
+                CardWPhys = CardW,
+                CardHPhys = CardH,
                 SlideXPhys = slideX,
                 SlideYPhys = slideY,
                 GlowScale = glowScale,
@@ -113,7 +115,7 @@ namespace PlayniteAchievements.Services.Tests.Capture
             AddSample(track, 0);
 
             var rect = ToastOverlayExportMath.ComputeDestRect(
-                track, 0, 0.0, CardW, CardH, ClientW, ClientH);
+                track, 0, 0.0, ClientW, ClientH);
 
             // Corner math: right/bottom edge less the gap less the card size.
             Assert.AreEqual(ClientW - CardW - 24, rect.X);
@@ -134,13 +136,13 @@ namespace PlayniteAchievements.Services.Tests.Capture
             }
 
             var expected = ToastOverlayExportMath.ComputeDestRect(
-                track, 0, 0.0, CardW, CardH, ClientW, ClientH);
+                track, 0, 0.0, ClientW, ClientH);
             for (var frame = 0; frame < 240; frame++)
             {
                 var t = frame / 60.0;
                 var index = track.FindSampleIndexAtOrBefore(t);
                 var rect = ToastOverlayExportMath.ComputeDestRect(
-                    track, index, t, CardW, CardH, ClientW, ClientH);
+                    track, index, t, ClientW, ClientH);
                 Assert.AreEqual(expected, rect, $"rect moved at t={t:0.000}s");
             }
         }
@@ -155,9 +157,9 @@ namespace PlayniteAchievements.Services.Tests.Capture
             AddSample(atRest, 0);
 
             var slid = ToastOverlayExportMath.ComputeDestRect(
-                track, 0, 0.0, CardW, CardH, ClientW, ClientH);
+                track, 0, 0.0, ClientW, ClientH);
             var rest = ToastOverlayExportMath.ComputeDestRect(
-                atRest, 0, 0.0, CardW, CardH, ClientW, ClientH);
+                atRest, 0, 0.0, ClientW, ClientH);
 
             Assert.AreEqual(rest.X, slid.X);
             Assert.AreEqual(rest.Y + 150, slid.Y);
@@ -170,7 +172,7 @@ namespace PlayniteAchievements.Services.Tests.Capture
             AddSample(track, 0);
 
             var rect = ToastOverlayExportMath.ComputeDestRect(
-                track, 0, 0.0, CardW, CardH, ClientW, ClientH);
+                track, 0, 0.0, ClientW, ClientH);
 
             Assert.AreEqual(ClientW - CardW - 36, rect.X);
             Assert.AreEqual(ClientH - CardH - 36, rect.Y);
@@ -183,7 +185,7 @@ namespace PlayniteAchievements.Services.Tests.Capture
             AddSample(track, 0);
 
             var rect = ToastOverlayExportMath.ComputeDestRect(
-                track, 0, 0.0, CardW, CardH, ClientW / 2, ClientH / 2);
+                track, 0, 0.0, ClientW / 2, ClientH / 2);
 
             Assert.AreEqual((ClientW - CardW - 24) / 2, rect.X);
             Assert.AreEqual((ClientH - CardH - 24) / 2, rect.Y);
@@ -199,7 +201,7 @@ namespace PlayniteAchievements.Services.Tests.Capture
 
             Assert.AreEqual(
                 Rectangle.Empty,
-                ToastOverlayExportMath.ComputeDestRect(track, 0, 0.0, CardW, CardH, 1920, 1080));
+                ToastOverlayExportMath.ComputeDestRect(track, 0, 0.0, 1920, 1080));
         }
 
         // === Glow scale interpolation ===

@@ -73,27 +73,29 @@ namespace PlayniteAchievements.Services.Capture
 
         /// <summary>
         /// The frame-space rect to blit the overlay into: the lone-toast corner for a card of the
-        /// overlay's own pixel size (the frame is the card, so its dims stay exact under backlog
-        /// reuse and mid-slide layout growth) plus the interpolated slide offset, scaled from
-        /// client space into the video frame with one final rounding.
+        /// sample's recorded physical size plus the interpolated slide offset, scaled from client
+        /// space into the video frame with one final rounding. The referenced pixel frame may be
+        /// smaller than the card (captured at the clip's scale, or lower under load); the blit
+        /// stretches it into this rect.
         /// </summary>
         public static Rectangle ComputeDestRect(
             ToastOverlayTrack track, int sampleIndex, double secondsIntoTrack,
-            int overlayW, int overlayH, int frameW, int frameH)
+            int frameW, int frameH)
         {
             var sample = track.Samples[sampleIndex];
-            if (sample.ClientW <= 0 || sample.ClientH <= 0)
+            if (sample.ClientW <= 0 || sample.ClientH <= 0 ||
+                sample.CardWPhys <= 0 || sample.CardHPhys <= 0)
             {
                 return Rectangle.Empty;
             }
 
             ToastWindowPlacer.ComputeCorner(
-                new Rectangle(0, 0, sample.ClientW, sample.ClientH), overlayW, overlayH,
+                new Rectangle(0, 0, sample.ClientW, sample.ClientH), sample.CardWPhys, sample.CardHPhys,
                 track.MonitorScale, track.AlignRight, track.AlignBottom, track.GapDip,
                 out var cornerX, out var cornerY);
             GetSlideOffset(track, sampleIndex, secondsIntoTrack, out var slideX, out var slideY);
             return OverlayBlitMath.ScaleRect(
-                cornerX + slideX, cornerY + slideY, overlayW, overlayH,
+                cornerX + slideX, cornerY + slideY, sample.CardWPhys, sample.CardHPhys,
                 sample.ClientW, sample.ClientH, frameW, frameH);
         }
     }

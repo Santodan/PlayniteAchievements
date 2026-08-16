@@ -93,6 +93,17 @@ namespace PlayniteAchievements.Services.Capture
             /// </summary>
             public double GlowScale;
 
+            /// <summary>
+            /// The card's on-screen size in physical pixels. This, not the referenced frame's
+            /// bitmap size, is what the corner math and the destination rect use: pixels may be
+            /// captured at a reduced scale (the clip's own scale, or lower under load) and are
+            /// stretched back to this size at the blit.
+            /// </summary>
+            public int CardWPhys;
+
+            /// <summary>See <see cref="CardWPhys"/>.</summary>
+            public int CardHPhys;
+
             /// <summary>Game client width at this tick, physical pixels (scales rects into video frames).</summary>
             public int ClientW;
 

@@ -105,6 +105,14 @@ namespace PlayniteAchievements.Services.UI
         // Shadow-layer captures this wave (each costs two with-effect renders); reported in the
         // sampling summary — a number near the sample count means the recapture guard failed.
         private int _waveShadowCaptureCount;
+        // Smoothed per-render cost and the stacked-wave capture-scale it drives. A lone card always
+        // captures at the clip's own scale (no quality tradeoff); a stacked wave lowers its capture
+        // scale — in quantized steps, floored — until a render fits half the sample interval, so
+        // pixel freshness and position cadence survive templates that are expensive to rasterize.
+        private double _sampleRenderEmaMs;
+        private double _stackCaptureScale = 1.0;
+        private const double StackCaptureScaleStep = 0.15;
+        private const double StackCaptureScaleFloor = 0.55;
         private FrameworkElement _activeSlideHost;
         private TranslateTransform _activeSlideTransform;
         // Frame counter attached for a running slide's span. It does no work beyond counting: the slide
@@ -713,6 +721,13 @@ namespace PlayniteAchievements.Services.UI
 
             /// <summary>Track time of the last shadow capture, for the recapture rate limit.</summary>
             public double LastShadowCaptureMs = double.NegativeInfinity;
+
+            /// <summary>
+            /// The card's physical size from its last pixel render, carried onto the pixel-less
+            /// repeat samples between renders (stagger, backlog) so their corner math stays right.
+            /// </summary>
+            public int LastCardWPhys;
+            public int LastCardHPhys;
         }
 
         /// <summary>
@@ -771,11 +786,15 @@ namespace PlayniteAchievements.Services.UI
         private bool TryRenderToastItemBytes(
             Window window, FrameworkElement container,
             CardRenderScratch scratch, Func<int, byte[]> takeBuffer, bool applyHostOpacity,
-            out byte[] pixels, out int width, out int height)
+            double captureScale,
+            out byte[] pixels, out int width, out int height,
+            out int cardWPhys, out int cardHPhys)
         {
             pixels = null;
             width = 0;
             height = 0;
+            cardWPhys = 0;
+            cardHPhys = 0;
             try
             {
                 if (window == null || container == null ||
@@ -796,8 +815,16 @@ namespace PlayniteAchievements.Services.UI
                 var local = container.RenderSize;
                 var bounds = container.TransformToAncestor(window)
                     .TransformBounds(new Rect(local));
-                var pw = Math.Max(1, (int)Math.Ceiling(bounds.Width * pxPerDipX));
-                var ph = Math.Max(1, (int)Math.Ceiling(bounds.Height * pxPerDipY));
+                cardWPhys = Math.Max(1, (int)Math.Ceiling(bounds.Width * pxPerDipX));
+                cardHPhys = Math.Max(1, (int)Math.Ceiling(bounds.Height * pxPerDipY));
+
+                // Rasterize at the consumption scale, not the screen's: the clip downscales the
+                // card anyway, so capturing smaller costs proportionally less and loses nothing —
+                // WPF's filtered render here beats the export blit's nearest-neighbor. The card's
+                // physical size is reported separately for the corner math.
+                var scale = captureScale > 0 && captureScale < 1 ? captureScale : 1.0;
+                var pw = Math.Max(1, (int)Math.Ceiling(cardWPhys * scale));
+                var ph = Math.Max(1, (int)Math.Ceiling(cardHPhys * scale));
 
                 // Opacity animated on the slide host (a theme may fade the notification in or out
                 // instead of sliding it) lives above the card, so rendering the card alone would miss
@@ -897,7 +924,7 @@ namespace PlayniteAchievements.Services.UI
             physSize = System.Drawing.Size.Empty;
             if (!TryRenderToastItemBytes(
                     window, container, scratch: null, len => new byte[len], applyHostOpacity: true,
-                    out var pixels, out var pw, out var ph))
+                    captureScale: 1.0, out var pixels, out var pw, out var ph, out _, out _))
             {
                 return null;
             }
@@ -992,10 +1019,13 @@ namespace PlayniteAchievements.Services.UI
                 if (!rendersThisTick || !recorder.CanAcceptFrame(vm))
                 {
                     recorder.Sample(
-                        vm, null, 0, 0, slideXPhys, slideYPhys, glowScale,
+                        vm, null, 0, 0, scratch.LastCardWPhys, scratch.LastCardHPhys,
+                        slideXPhys, slideYPhys, glowScale,
                         clientPhys.Width, clientPhys.Height, elapsedMs);
                     continue;
                 }
+
+                var captureScale = CurrentCaptureScale(clientPhys, toastItems.Count);
 
                 // Effects are detached for the render: the software blur they cost per tick is the
                 // dominant sampler expense (measured ~6x the whole rest of the card), and their
@@ -1005,13 +1035,15 @@ namespace PlayniteAchievements.Services.UI
                 CollectEffects(container, effects);
                 StripEffects(effects);
                 byte[] pixels;
-                int pw, ph;
+                int pw, ph, cardWPhys, cardHPhys;
                 bool rendered;
+                var renderStart = Stopwatch.GetTimestamp();
                 try
                 {
                     rendered = TryRenderToastItemBytes(
                         window, container, scratch, len => recorder.RentBuffer(vm, len),
-                        applyHostOpacity: true, out pixels, out pw, out ph);
+                        applyHostOpacity: true, captureScale,
+                        out pixels, out pw, out ph, out cardWPhys, out cardHPhys);
                 }
                 finally
                 {
@@ -1023,6 +1055,18 @@ namespace PlayniteAchievements.Services.UI
                     continue;
                 }
 
+                var renderMs = (Stopwatch.GetTimestamp() - renderStart) * 1000.0 / Stopwatch.Frequency;
+                _sampleRenderEmaMs = _sampleRenderEmaMs <= 0
+                    ? renderMs
+                    : (0.8 * _sampleRenderEmaMs) + (0.2 * renderMs);
+                if (toastItems.Count > 1)
+                {
+                    UpdateStackCaptureScale();
+                }
+
+                scratch.LastCardWPhys = cardWPhys;
+                scratch.LastCardHPhys = cardHPhys;
+
                 // (Re)capture the halo when its inputs changed: the card's pixel size, or the set
                 // of effect instances (a trigger swapping the neutral shadow for the rarity glow).
                 // Rate-limited — the capture is the expensive path this design exists to avoid.
@@ -1032,12 +1076,58 @@ namespace PlayniteAchievements.Services.UI
                      !SameEffectSignature(scratch.ShadowEffectSignature, effects)))
                 {
                     scratch.LastShadowCaptureMs = elapsedMs;
-                    CaptureShadowLayer(recorder, window, container, vm, scratch, effects);
+                    CaptureShadowLayer(recorder, window, container, vm, scratch, effects, captureScale);
                 }
 
                 recorder.Sample(
-                    vm, pixels, pw, ph, slideXPhys, slideYPhys, glowScale,
+                    vm, pixels, pw, ph, cardWPhys, cardHPhys, slideXPhys, slideYPhys, glowScale,
                     clientPhys.Width, clientPhys.Height, elapsedMs);
+            }
+        }
+
+        /// <summary>
+        /// The scale card pixels are rasterized at: the clip's own scale (its encode height over
+        /// the client height — capturing above it is cost without benefit), lowered further for
+        /// stacked waves by the adaptive factor when renders overrun the tick budget.
+        /// </summary>
+        private double CurrentCaptureScale(System.Drawing.Rectangle clientPhys, int cardCount)
+        {
+            var scale = 1.0;
+            if (clientPhys.Height > 0)
+            {
+                var cap = ResolutionCapMath.CapHeightFor(
+                    _settings?.Persisted?.RecordingResolution ?? RecordingResolution.Native);
+                var size = ResolutionCapMath.Apply(
+                    clientPhys.Width, clientPhys.Height, cap, evenDimensions: true);
+                scale = Math.Min(1.0, size.Height / (double)clientPhys.Height);
+            }
+
+            return cardCount > 1 ? scale * _stackCaptureScale : scale;
+        }
+
+        /// <summary>
+        /// Steps the stacked-wave capture scale toward the value whose render cost fits half the
+        /// sample interval (cost scales with area, so the adjustment is the square root of the
+        /// overrun). Quantized and floored so the pixel dims do not churn — every dims change
+        /// costs a keyframe and a shadow recapture — and the EMA resets on a step so the next
+        /// adjustment measures the new scale rather than the old one.
+        /// </summary>
+        private void UpdateStackCaptureScale()
+        {
+            if (_sampleRenderEmaMs <= 0)
+            {
+                return;
+            }
+
+            var budgetMs = TrackSampleIntervalMs() * 0.5;
+            var desired = _stackCaptureScale * Math.Sqrt(budgetMs / _sampleRenderEmaMs);
+            var quantized = Math.Max(
+                StackCaptureScaleFloor,
+                Math.Min(1.0, Math.Round(desired / StackCaptureScaleStep) * StackCaptureScaleStep));
+            if (Math.Abs(quantized - _stackCaptureScale) >= StackCaptureScaleStep - 0.001)
+            {
+                _stackCaptureScale = quantized;
+                _sampleRenderEmaMs = 0;
             }
         }
 
@@ -1102,11 +1192,12 @@ namespace PlayniteAchievements.Services.UI
             IReadOnlyList<AchievementToastViewModel> toastItems)
         {
             if (recorder == null ||
-                !TryGetTrackGeometry(window, out var itemsControl, out _, out _, out _, out _))
+                !TryGetTrackGeometry(window, out var itemsControl, out var clientPhys, out _, out _, out _))
             {
                 return;
             }
 
+            var captureScale = CurrentCaptureScale(clientPhys, toastItems.Count);
             for (var i = 0; i < toastItems.Count; i++)
             {
                 var container = itemsControl.ItemContainerGenerator.ContainerFromIndex(i) as FrameworkElement;
@@ -1121,7 +1212,8 @@ namespace PlayniteAchievements.Services.UI
                 {
                     var scratch = GetCardScratch(toastItems[i]);
                     scratch.LastShadowCaptureMs = 0;
-                    CaptureShadowLayer(recorder, window, container, toastItems[i], scratch, effects);
+                    CaptureShadowLayer(
+                        recorder, window, container, toastItems[i], scratch, effects, captureScale);
                 }
             }
         }
@@ -1137,12 +1229,13 @@ namespace PlayniteAchievements.Services.UI
         private void CaptureShadowLayer(
             ToastOverlayTrackRecorder recorder, Window window, FrameworkElement container,
             AchievementToastViewModel vm, CardRenderScratch scratch,
-            List<KeyValuePair<FrameworkElement, Effect>> effects)
+            List<KeyValuePair<FrameworkElement, Effect>> effects, double captureScale)
         {
             _waveShadowCaptureCount++;
             if (!TryRenderToastItemBytes(
                     window, container, scratch: null, len => new byte[len], applyHostOpacity: false,
-                    out var withEffects, out var pw1, out var ph1))
+                    captureScale, out var withEffects, out var pw1, out var ph1,
+                    out var cardWPhys, out var cardHPhys))
             {
                 return;
             }
@@ -1155,7 +1248,7 @@ namespace PlayniteAchievements.Services.UI
             {
                 rendered = TryRenderToastItemBytes(
                     window, container, scratch: null, len => new byte[len], applyHostOpacity: false,
-                    out withoutEffects, out pw0, out ph0);
+                    captureScale, out withoutEffects, out pw0, out ph0, out _, out _);
             }
             finally
             {
@@ -1178,6 +1271,10 @@ namespace PlayniteAchievements.Services.UI
             recorder.SetShadowLayer(vm, withEffects, pw1, ph1);
             scratch.ShadowW = pw1;
             scratch.ShadowH = ph1;
+            // Primes the repeat-sample dims too: with staggering, a card's first samples can
+            // precede its first tick render.
+            scratch.LastCardWPhys = cardWPhys;
+            scratch.LastCardHPhys = cardHPhys;
             var signature = new List<Effect>(effects.Count);
             foreach (var pair in effects)
             {
@@ -1880,6 +1977,8 @@ namespace PlayniteAchievements.Services.UI
                     _trackRenderScratch = new Dictionary<AchievementToastViewModel, CardRenderScratch>();
                     trackSampleCount = 0;
                     _waveShadowCaptureCount = 0;
+                    _sampleRenderEmaMs = 0;
+                    _stackCaptureScale = 1.0;
                     CaptureWaveShadowLayers(trackRecorder, window, cardItems);
                 }
 
@@ -2080,12 +2179,13 @@ namespace PlayniteAchievements.Services.UI
                     _logger?.Info(string.Format(
                         System.Globalization.CultureInfo.InvariantCulture,
                         "[Recording] Toast sampling: {0} samples, card render avg {1:0.0} ms, max {2:0.0} ms " +
-                        "(sample interval {3:0.0} ms), shadow captures {4}",
+                        "(sample interval {3:0.0} ms), shadow captures {4}, stack scale {5:0.00}",
                         trackSampleCount,
                         trackRenderWatch.Elapsed.TotalMilliseconds / trackSampleCount,
                         trackRenderMaxMs,
                         TrackSampleIntervalMs(),
-                        _waveShadowCaptureCount));
+                        _waveShadowCaptureCount,
+                        _stackCaptureScale));
                 }
 
                 LogWaveCadence(trackTicks, trackSampleCount);

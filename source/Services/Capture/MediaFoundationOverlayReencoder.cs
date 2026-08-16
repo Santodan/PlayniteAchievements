@@ -347,8 +347,7 @@ namespace PlayniteAchievements.Services.Capture
                             // (lone-toast corner + slide offset) and interpolated to this frame's
                             // instant, so motion stays smooth even where pixel frames repeat.
                             var destRect = ToastOverlayExportMath.ComputeDestRect(
-                                track, sampleIndex, secondsIntoTrack,
-                                overlayFrame.Width, overlayFrame.Height, frameW, frameH);
+                                track, sampleIndex, secondsIntoTrack, frameW, frameH);
 
                             var overlayPixels = inflated;
                             if (shadowPixels != null &&
