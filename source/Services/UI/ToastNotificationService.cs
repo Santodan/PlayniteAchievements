@@ -1573,6 +1573,11 @@ namespace PlayniteAchievements.Services.UI
                         }
                     };
                     CompositionTarget.Rendering += onTrackSample;
+
+                    // The ray-burst glow invalidates at its own fixed default rate; sampling above it
+                    // stores duplicate ray frames with beat-dependent phase, which plays back as
+                    // judder. Raise the driver to the sampling rate for the recording's span.
+                    RayAnimationDriver.SetSamplingFps(1000.0 / sampleIntervalMs);
                 }
 
                 // Let the cards finish sliding in and paint so each renders at its final laid-out
@@ -1685,6 +1690,7 @@ namespace PlayniteAchievements.Services.UI
                 {
                     CompositionTarget.Rendering -= onTrackSample;
                     onTrackSample = null;
+                    RayAnimationDriver.ClearSamplingFps();
                 }
 
                 LogWaveCadence(trackTicks, trackSampleCount);
@@ -1713,6 +1719,9 @@ namespace PlayniteAchievements.Services.UI
                 {
                     CompositionTarget.Rendering -= onTrackSample;
                 }
+
+                // Unconditional: waves are sequential, so this only ever clears this wave's rate.
+                RayAnimationDriver.ClearSamplingFps();
 
                 // Finalize and hand the recorded card tracks to the recording service. The raw
                 // pixels are already captured, so this safely outlives window.Close() below.
