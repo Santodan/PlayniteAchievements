@@ -316,6 +316,55 @@ namespace PlayniteAchievements.Services.Tests.Capture
         }
 
         [TestMethod]
+        public void CancelCorrelated_RelocksAfterALagStep()
+        {
+            // Real recorder chunks showed the inter-track offset STEPPING 1-2 ms every few
+            // seconds (pump pacing), not just drifting; a step larger than the narrow per-block
+            // search must trigger the wide re-lock instead of losing the rest of the slice.
+            const int frames = 216000; // 4.5 s, the production slice length
+            const int lagBefore = 250; // ~5.2 ms
+            const int lagAfter = 340; // ~7.1 ms: a +1.9 ms step at half-way
+            var referenceSamples = BandLimitedNoise(frames, 23, 8000);
+            var mixtureSamples = new short[frames * 2];
+            for (var frame = 0; frame < frames; frame++)
+            {
+                var lag = frame < frames / 2 ? lagBefore : lagAfter;
+                for (var channel = 0; channel < 2; channel++)
+                {
+                    var referenceFrame = frame + lag;
+                    if (referenceFrame < frames)
+                    {
+                        mixtureSamples[frame * 2 + channel] =
+                            (short)Math.Round(0.9 * referenceSamples[referenceFrame * 2 + channel]);
+                    }
+                }
+            }
+
+            for (var frame = 4800; frame < 14400; frame++)
+            {
+                var tone = (short)((frame / 24) % 2 == 0 ? 1500 : -1500);
+                mixtureSamples[frame * 2] += tone;
+                mixtureSamples[frame * 2 + 1] += tone;
+            }
+
+            var mixture = Samples(mixtureSamples);
+            var tailOriginal = Energy(mixtureSamples, frames * 3 / 5, frames - 1000);
+
+            var outcome = PcmAudio.CancelCorrelated(mixture, Samples(referenceSamples), out var diagnostics);
+
+            Assert.AreEqual(
+                PcmCancellationOutcome.CancelledVerified,
+                outcome,
+                $"gain={diagnostics.Gain}, correlation={diagnostics.Correlation}, suppression={diagnostics.SuppressionDb}dB");
+            // The blocks after the step must have re-locked: the tail is well past the step, so
+            // it must be strongly suppressed rather than left behind at the stale lag.
+            var tailResidual = Energy(ToShorts(mixture), frames * 3 / 5, frames - 1000);
+            Assert.IsTrue(
+                tailResidual < tailOriginal * 0.1,
+                $"tail residual ratio was {tailResidual / tailOriginal:0.0000}");
+        }
+
+        [TestMethod]
         public void CancelCorrelated_UnrelatedReferenceIsCleanAndUntouched()
         {
             // A loud reference that does not appear in the mixture means the game is not leaking
@@ -363,10 +412,55 @@ namespace PlayniteAchievements.Services.Tests.Capture
         }
 
         [TestMethod]
-        public void CancelCorrelated_UnverifiableResidualIsUnseparableAndUntouched()
+        public void CancelCorrelated_MutesTheBlockWhereRemovalCannotBeVerified()
         {
-            // The game is present, but so is loud unidentified audio the reference cannot
-            // explain; subtraction cannot verifiably clean the slice, so nothing may ship.
+            // A pump tear can leave one block whose audio the reference no longer explains at any
+            // findable lag. The pass must still verify overall, but that block must ship as
+            // silence, never as wrong-time game audio inside the chime.
+            const int frames = 216000; // 4.5 s slice, nine 0.5 s blocks
+            const int lag = 480;
+            const int tornStart = 96000; // block 4
+            const int tornEnd = 120000;
+            var referenceSamples = BandLimitedNoise(frames, 31, 8000);
+            var tornSamples = BandLimitedNoise(frames, 77, 8000);
+            var mixtureSamples = new short[frames * 2];
+            for (var frame = 0; frame < frames; frame++)
+            {
+                var torn = frame >= tornStart && frame < tornEnd;
+                for (var channel = 0; channel < 2; channel++)
+                {
+                    mixtureSamples[frame * 2 + channel] = torn
+                        ? tornSamples[frame * 2 + channel]
+                        : frame + lag < frames
+                            ? (short)Math.Round(0.9 * referenceSamples[(frame + lag) * 2 + channel])
+                            : (short)0;
+                }
+            }
+
+            var mixture = Samples(mixtureSamples);
+            var tornOriginal = Energy(mixtureSamples, tornStart + 2400, tornEnd - 2400);
+
+            var outcome = PcmAudio.CancelCorrelated(mixture, Samples(referenceSamples), out var diagnostics);
+
+            Assert.AreEqual(
+                PcmCancellationOutcome.CancelledVerified,
+                outcome,
+                $"correlation={diagnostics.Correlation}, suppression={diagnostics.SuppressionDb}dB");
+            Assert.IsTrue(diagnostics.MutedBlocks >= 1, $"muted {diagnostics.MutedBlocks} blocks");
+            // Inside the torn block (edges excluded for the ramps) the output is silence.
+            var tornResidual = Energy(ToShorts(mixture), tornStart + 2400, tornEnd - 2400);
+            Assert.IsTrue(
+                tornResidual < tornOriginal * 0.01,
+                $"torn block residual ratio was {tornResidual / tornOriginal:0.0000}");
+        }
+
+        [TestMethod]
+        public void CancelCorrelated_RemovesGameComponentAndKeepsUncorrelatedAudio()
+        {
+            // The mixture holds the game plus loud audio the reference cannot explain (in
+            // production: the chime itself, at any loudness). Verification measures suppression of
+            // the reference-CORRELATED component, so the pass must remove the game and keep the
+            // rest — a raw energy gate here would wrongly drop every chime-dominated slice.
             const int frames = 96000;
             var referenceSamples = BandLimitedNoise(frames, 11, 8000);
             var otherSamples = BandLimitedNoise(frames, 99, 8000);
@@ -383,15 +477,19 @@ namespace PlayniteAchievements.Services.Tests.Capture
             }
 
             var mixture = Samples(mixtureSamples);
-            var before = (byte[])mixture.Clone();
+            var otherEnergy = Energy(otherSamples, 1000, frames - 1000);
 
             var outcome = PcmAudio.CancelCorrelated(mixture, Samples(referenceSamples), out var diagnostics);
 
             Assert.AreEqual(
-                PcmCancellationOutcome.Unseparable,
+                PcmCancellationOutcome.CancelledVerified,
                 outcome,
                 $"gain={diagnostics.Gain}, correlation={diagnostics.Correlation}, suppression={diagnostics.SuppressionDb}dB");
-            CollectionAssert.AreEqual(before, mixture);
+            // The residual is the uncorrelated audio, near-unchanged: the game's share is gone.
+            var residualEnergy = Energy(ToShorts(mixture), 1000, frames - 1000);
+            Assert.IsTrue(
+                residualEnergy > otherEnergy * 0.7 && residualEnergy < otherEnergy * 1.3,
+                $"residual/other energy ratio was {residualEnergy / otherEnergy:0.000}");
         }
 
         [TestMethod]
