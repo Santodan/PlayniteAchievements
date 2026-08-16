@@ -7,14 +7,17 @@ namespace PlayniteAchievements.Services.Capture
 {
     /// <summary>
     /// The recorded animation of one toast card across its on-screen lifetime: time-ordered
-    /// samples (card rect relative to the game client rect, physical pixels) referencing deduped
-    /// Deflate-compressed premultiplied-BGRA frames. Recorded live by the toast pipeline while the
-    /// wave displays and blitted into that achievement's unlock clip at export time, re-timed to
-    /// the clip's unlock anchor — so the clip shows only this card, with its genuine slide-in,
-    /// GIF, countdown and slide-out motion, regardless of what the on-screen wave stacked around
-    /// it. Rects are client-relative because the toast follows the game window on screen while
-    /// the game content never moves inside the captured frame; relative coordinates cancel window
-    /// motion but keep the slide animation.
+    /// samples referencing deduped Deflate-compressed premultiplied-BGRA frames. Recorded live by
+    /// the toast pipeline while the wave displays and blitted into that achievement's unlock clip
+    /// at export time, re-timed to the clip's unlock anchor — so the clip shows only this card,
+    /// with its genuine slide-in, GIF, countdown and slide-out motion, regardless of what the
+    /// on-screen wave stacked around it.
+    ///
+    /// The composited position is synthesized at export rather than replayed from measured screen
+    /// geometry: the card sits at the corner a genuine lone toast would occupy (computed from the
+    /// stored alignment, gap, and the current frame's own pixel size) plus the slide transform's
+    /// recorded per-sample offset. Live window motion — placement corrections, the follow loop,
+    /// stacking — therefore cannot reach the clip; only the intended slide motion does.
     /// </summary>
     internal sealed class ToastOverlayTrack
     {
@@ -32,15 +35,20 @@ namespace PlayniteAchievements.Services.Capture
         /// <summary>Track length: last sample time plus one sample interval.</summary>
         public double DurationSeconds { get; set; }
 
-        /// <summary>
-        /// Constant translation (client-relative physical pixels) that moves the card's settled
-        /// on-screen position to the synthetic single-toast corner, so the recorded motion of a
-        /// stacked card lands where a genuine lone toast would sit.
-        /// </summary>
-        public int OffsetX { get; set; }
+        /// <summary>Whether the toast corner is on the client rect's right edge.</summary>
+        public bool AlignRight { get; set; }
 
-        /// <summary>See <see cref="OffsetX"/>.</summary>
-        public int OffsetY { get; set; }
+        /// <summary>Whether the toast corner is on the client rect's bottom edge.</summary>
+        public bool AlignBottom { get; set; }
+
+        /// <summary>
+        /// The corner inset in DIPs (the visible-body gap less the card's glow margin), as the live
+        /// placer uses it; scaled by <see cref="MonitorScale"/> in the corner math.
+        /// </summary>
+        public double GapDip { get; set; }
+
+        /// <summary>The anchor monitor's scale, for turning <see cref="GapDip"/> physical.</summary>
+        public double MonitorScale { get; set; }
 
         /// <summary>Time-ordered samples; consecutive identical pixels share one frame.</summary>
         public List<Sample> Samples { get; } = new List<Sample>();
@@ -57,11 +65,14 @@ namespace PlayniteAchievements.Services.Capture
             /// <summary>Index into <see cref="Frames"/>; -1 when the frame was dropped (memory cap).</summary>
             public int FrameIndex;
 
-            /// <summary>Card top-left relative to the game client rect, physical pixels.</summary>
-            public int RelX;
+            /// <summary>
+            /// The slide transform's value at this tick, physical pixels, sub-pixel precision.
+            /// Zero while the card rests; the slide-in and slide-out are the only nonzero spans.
+            /// </summary>
+            public double SlideXPhys;
 
-            /// <summary>See <see cref="RelX"/>.</summary>
-            public int RelY;
+            /// <summary>See <see cref="SlideXPhys"/>.</summary>
+            public double SlideYPhys;
 
             /// <summary>Game client width at this tick, physical pixels (scales rects into video frames).</summary>
             public int ClientW;

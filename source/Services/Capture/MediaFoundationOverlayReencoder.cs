@@ -330,15 +330,17 @@ namespace PlayniteAchievements.Services.Capture
                 {
                     if (time >= toastStart && time <= toastEnd)
                     {
-                        var sampleIndex = track.FindSampleIndexAtOrBefore((time - toastStart) / (double)OneSecond100ns);
+                        var secondsIntoTrack = (time - toastStart) / (double)OneSecond100ns;
+                        var sampleIndex = track.FindSampleIndexAtOrBefore(secondsIntoTrack);
                         if (sampleIndex >= 0 &&
                             TryGetOverlay(track, sampleIndex, ref inflated, ref inflatedIndex, out var overlayFrame))
                         {
-                            var trackSample = track.Samples[sampleIndex];
-                            var destRect = OverlayBlitMath.ScaleRect(
-                                trackSample.RelX + track.OffsetX, trackSample.RelY + track.OffsetY,
-                                overlayFrame.Width, overlayFrame.Height,
-                                trackSample.ClientW, trackSample.ClientH, frameW, frameH);
+                            // Pixels hold at the nearest-previous sample; the position is synthesized
+                            // (lone-toast corner + slide offset) and interpolated to this frame's
+                            // instant, so motion stays smooth even where pixel frames repeat.
+                            var destRect = ToastOverlayExportMath.ComputeDestRect(
+                                track, sampleIndex, secondsIntoTrack,
+                                overlayFrame.Width, overlayFrame.Height, frameW, frameH);
                             outSample = compositor.Compose(
                                 sample, inflated, overlayFrame.Width, overlayFrame.Height, destRect);
                             if (outSample != null)

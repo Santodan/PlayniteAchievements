@@ -872,12 +872,14 @@ namespace PlayniteAchievements.Services.UI
 
         /// <summary>
         /// Records one animation tick of every toast card into the wave's overlay track recorder:
-        /// per item, the card's rendered pixels plus its client-relative physical rect. The
-        /// per-item tracks are re-timed into each achievement's unlock clip at export (WGC's
-        /// per-window video capture can't see the separate toast window). Called by the caller once per
-        /// recording frame, with that frame's composition time; a no-op when not a game anchor. The
-        /// window may never be revealed — rendering a card reads layout, not visibility. UI thread
-        /// only.
+        /// per item, the card's rendered pixels plus the slide transform's current value in
+        /// physical pixels. The composited position is synthesized at export as the lone-toast
+        /// corner plus that slide offset — measured screen geometry never reaches the track, so
+        /// live window moves and stacking cannot reach the clip. The per-item tracks are re-timed
+        /// into each achievement's unlock clip at export (WGC's per-window video capture can't see
+        /// the separate toast window). Called by the caller once per recording frame, with that
+        /// frame's composition time; a no-op when not a game anchor. The window may never be
+        /// revealed — rendering a card reads layout, not visibility. UI thread only.
         /// </summary>
         private void SampleWaveTracks(
             ToastOverlayTrackRecorder recorder, Window window,
@@ -890,6 +892,12 @@ namespace PlayniteAchievements.Services.UI
                 return;
             }
 
+            // The slide transform lives on the slide host, outside the surface's LayoutTransform,
+            // so its value is plain window DIPs; the window's own DIP-to-physical ratio converts
+            // it. One read covers every card — the whole surface slides as one.
+            var slideXPhys = (_activeSlideTransform?.X ?? 0d) * pxPerDipX;
+            var slideYPhys = (_activeSlideTransform?.Y ?? 0d) * pxPerDipY;
+
             for (var i = 0; i < toastItems.Count; i++)
             {
                 var vm = toastItems[i];
@@ -899,21 +907,13 @@ namespace PlayniteAchievements.Services.UI
                     continue;
                 }
 
-                // Card origin in window DIPs (includes the LayoutTransform) -> screen physical ->
-                // client-relative. Relative rects cancel game-window motion (the toast follows the
-                // window on screen while the game content never moves inside the captured frame)
-                // but keep the slide animation.
-                var origin = container.TransformToAncestor(window).Transform(new Point(0, 0));
-                var relX = windowPhys.X + (int)Math.Round(origin.X * pxPerDipX) - clientPhys.X;
-                var relY = windowPhys.Y + (int)Math.Round(origin.Y * pxPerDipY) - clientPhys.Y;
-
                 // Worker backlog or frame budget spent: skip the rasterization entirely and record
                 // a repeat of the previous frame at this tick's position, so the timeline never
                 // gaps — only pixel freshness degrades.
                 if (!recorder.CanAcceptFrame(vm))
                 {
                     recorder.Sample(
-                        vm, null, 0, 0, relX, relY, clientPhys.Width, clientPhys.Height, elapsedMs);
+                        vm, null, 0, 0, slideXPhys, slideYPhys, clientPhys.Width, clientPhys.Height, elapsedMs);
                     continue;
                 }
 
@@ -933,66 +933,58 @@ namespace PlayniteAchievements.Services.UI
                 }
 
                 recorder.Sample(
-                    vm, pixels, pw, ph, relX, relY, clientPhys.Width, clientPhys.Height, elapsedMs);
+                    vm, pixels, pw, ph, slideXPhys, slideYPhys, clientPhys.Width, clientPhys.Height, elapsedMs);
             }
         }
 
         /// <summary>
-        /// Computes, for every toast card, the constant translation from its settled stacked
-        /// position to the synthetic single-toast corner — where a genuine lone toast would sit —
-        /// and stores it on the card's track. Called once at the placement snap, when layout and
-        /// position are final. UI thread only.
+        /// Measures where a single-card wave's card settled against the corner the placement math
+        /// says it belongs on, feeding <see cref="WarnOnSettledCardDrift"/>. Purely diagnostic:
+        /// the clip's composited position is synthesized at export and never reads this. Called
+        /// once at the placement snap, when layout and position are final. UI thread only.
         /// </summary>
-        private void SetTrackCornerOffsets(
-            ToastOverlayTrackRecorder recorder, Window window,
-            IReadOnlyList<AchievementToastViewModel> toastItems)
+        private void ReportSettledCornerDrift(
+            Window window, IReadOnlyList<AchievementToastViewModel> toastItems)
         {
-            if (recorder == null ||
+            if (toastItems == null || toastItems.Count != 1 ||
                 !TryGetTrackGeometry(window, out var itemsControl, out var clientPhys, out var windowPhys,
                     out var pxPerDipX, out var pxPerDipY))
             {
                 return;
             }
 
-            foreach (var vm in toastItems)
+            var container = itemsControl.ItemContainerGenerator.ContainerFromItem(toastItems[0]) as FrameworkElement;
+            if (container == null || container.RenderSize.Width <= 0 || container.RenderSize.Height <= 0)
             {
-                var container = itemsControl.ItemContainerGenerator.ContainerFromItem(vm) as FrameworkElement;
-                if (container == null || container.RenderSize.Width <= 0 || container.RenderSize.Height <= 0)
-                {
-                    continue;
-                }
-
-                var bounds = container.TransformToAncestor(window)
-                    .TransformBounds(new Rect(container.RenderSize));
-                var physW = Math.Max(1, (int)Math.Ceiling(bounds.Width * pxPerDipX));
-                var physH = Math.Max(1, (int)Math.Ceiling(bounds.Height * pxPerDipY));
-                var settledRelX = windowPhys.X + (int)Math.Round(bounds.X * pxPerDipX) - clientPhys.X;
-                var settledRelY = windowPhys.Y + (int)Math.Round(bounds.Y * pxPerDipY) - clientPhys.Y;
-
-                ToastWindowPlacer.ComputeCorner(
-                    clientPhys, physW, physH, _activeMonitorScale,
-                    AlignRight(), AlignBottom(), EffectiveGapDip(), out var cornerX, out var cornerY);
-                WarnOnSettledCardDrift(toastItems.Count, cornerX - clientPhys.X, cornerY - clientPhys.Y,
-                    settledRelX, settledRelY);
-                recorder.SetCornerOffset(
-                    vm,
-                    (cornerX - clientPhys.X) - settledRelX,
-                    (cornerY - clientPhys.Y) - settledRelY);
+                return;
             }
+
+            var bounds = container.TransformToAncestor(window)
+                .TransformBounds(new Rect(container.RenderSize));
+            var physW = Math.Max(1, (int)Math.Ceiling(bounds.Width * pxPerDipX));
+            var physH = Math.Max(1, (int)Math.Ceiling(bounds.Height * pxPerDipY));
+            var settledRelX = windowPhys.X + (int)Math.Round(bounds.X * pxPerDipX) - clientPhys.X;
+            var settledRelY = windowPhys.Y + (int)Math.Round(bounds.Y * pxPerDipY) - clientPhys.Y;
+
+            ToastWindowPlacer.ComputeCorner(
+                clientPhys, physW, physH, _activeMonitorScale,
+                AlignRight(), AlignBottom(), EffectiveGapDip(), out var cornerX, out var cornerY);
+            WarnOnSettledCardDrift(toastItems.Count, cornerX - clientPhys.X, cornerY - clientPhys.Y,
+                settledRelX, settledRelY);
         }
 
         /// <summary>
         /// Warns when a lone card did not settle where the corner math says it belongs.
         ///
         /// The toast window is larger than the card — it reserves the slide's travel — so the card's
-        /// resting position is now the window's position plus a measured offset rather than the window's
+        /// resting position is the window's position plus a measured offset rather than the window's
         /// position itself. If those two measurements ever disagree, the card lands off the corner, and
-        /// on the clip side that is invisible: the stored corner offset is exactly this difference, so it
-        /// silently absorbs the drift and the composited toast looks fine while the on-screen one is
-        /// wrong. This makes it a log line instead.
+        /// on the clip side that is invisible: the composited position is synthesized from the same
+        /// corner math, so the clip looks fine while the on-screen card is wrong. This makes it a log
+        /// line instead.
         ///
-        /// Only for a single-card wave. A stacked wave's cards are legitimately away from the corner —
-        /// that is what the offset exists to translate — so the difference carries no information there.
+        /// Only for a single-card wave. A stacked wave's cards are legitimately away from the corner,
+        /// so the difference carries no information there.
         /// </summary>
         private void WarnOnSettledCardDrift(int cardCount, int cornerRelX, int cornerRelY, int settledRelX, int settledRelY)
         {
@@ -1602,10 +1594,11 @@ namespace PlayniteAchievements.Services.UI
                     (_settings?.Persisted?.EnableUnlockRecordings ?? false))
                 {
                     var sampleIntervalMs = TrackSampleIntervalMs();
-                    trackRecorder = new ToastOverlayTrackRecorder(_logger, sampleIntervalMs);
+                    trackRecorder = new ToastOverlayTrackRecorder(
+                        _logger, sampleIntervalMs,
+                        AlignRight(), AlignBottom(), EffectiveGapDip(), _activeMonitorScale);
                     _trackRenderScratch = new Dictionary<AchievementToastViewModel, CardRenderScratch>();
-                    SampleWaveTracks(trackRecorder, window, cardItems, 0d);
-                    trackSampleCount = 1;
+                    trackSampleCount = 0;
                     // The unconditional resample also carries animation frames into the tracks — a
                     // GIF advances on whatever per-frame delays its own file declares — so do not
                     // reduce this to sample-on-position-change.
@@ -1616,7 +1609,11 @@ namespace PlayniteAchievements.Services.UI
                     // aliasing. When the two rates match, every tick is a sample; when the recording rate
                     // is the lower one, ticks are skipped evenly.
                     var dueTolerance = MonitorFramePeriodMs() / 2d;
-                    var nextDueMs = sampleIntervalMs;
+                    // The first sample rides the first composed frame rather than running here
+                    // synchronously: the slide storyboard has just begun, and its animated value is
+                    // not applied until that frame, so a synchronous read would record the seeded
+                    // rest value — one frame of the card sitting at its corner before the slide.
+                    var nextDueMs = 0d;
                     trackTicks = new RenderTickCounter();
                     var counter = trackTicks;
                     onTrackSample = (s, e) =>
@@ -1676,9 +1673,8 @@ namespace PlayniteAchievements.Services.UI
                 // chime time, so its clips are mixed without one.
                 RaiseWaveDisplayed(cardItems, soundPlayedUtc);
 
-                // Layout and placement are final: pin each card's synthetic single-toast corner so
-                // its recorded motion lands where a genuine lone toast would sit.
-                SetTrackCornerOffsets(trackRecorder, window, cardItems);
+                // Layout and placement are final: verify a lone card actually settled on its corner.
+                ReportSettledCornerDrift(window, cardItems);
 
                 // The with-notification composites happen here: the toast has slid in and settled,
                 // so each item's card renders at its final laid-out size. Cards render on the UI

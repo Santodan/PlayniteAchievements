@@ -849,16 +849,18 @@ internal static class CaptureHarness
             var sample = Activator.CreateInstance(sampleType);
             sampleType.GetField("ElapsedMs").SetValue(sample, ms);
             sampleType.GetField("FrameIndex").SetValue(sample, 0);
-            sampleType.GetField("RelX").SetValue(sample, 60);
-            sampleType.GetField("RelY").SetValue(sample, 820);
+            sampleType.GetField("SlideXPhys").SetValue(sample, 0.0);
+            sampleType.GetField("SlideYPhys").SetValue(sample, 0.0);
             sampleType.GetField("ClientW").SetValue(sample, 1920);
             sampleType.GetField("ClientH").SetValue(sample, 1080);
             add.Invoke(samples, new[] { sample });
         }
 
         trackType.GetProperty("DurationSeconds").SetValue(track, 4.0);
-        trackType.GetProperty("OffsetX").SetValue(track, 0);
-        trackType.GetProperty("OffsetY").SetValue(track, 0);
+        trackType.GetProperty("AlignRight").SetValue(track, false);
+        trackType.GetProperty("AlignBottom").SetValue(track, true);
+        trackType.GetProperty("GapDip").SetValue(track, 24.0);
+        trackType.GetProperty("MonitorScale").SetValue(track, 1.0);
         trackType.GetProperty("AchievementName").SetValue(track, "Harness");
         trackType.GetProperty("ProviderKey").SetValue(track, "harness");
         return track;

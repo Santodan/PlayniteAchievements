@@ -20,6 +20,18 @@ namespace PlayniteAchievements.Services.Capture
             int relX, int relY, int cardW, int cardH,
             int clientW, int clientH, int frameW, int frameH)
         {
+            return ScaleRect((double)relX, relY, cardW, cardH, clientW, clientH, frameW, frameH);
+        }
+
+        /// <summary>
+        /// Sub-pixel position variant: the synthesized corner-plus-slide position carries fractional
+        /// physical pixels, and rounding once here — after the frame scaling — is what keeps a slide
+        /// smooth instead of stair-stepped by an early integer snap.
+        /// </summary>
+        public static Rectangle ScaleRect(
+            double relX, double relY, int cardW, int cardH,
+            int clientW, int clientH, int frameW, int frameH)
+        {
             if (clientW <= 0 || clientH <= 0 || frameW <= 0 || frameH <= 0)
             {
                 return Rectangle.Empty;

@@ -78,8 +78,8 @@ namespace PlayniteAchievements.Services.UI
 
             public int Width;
             public int Height;
-            public int RelX;
-            public int RelY;
+            public double SlideXPhys;
+            public double SlideYPhys;
             public int ClientW;
             public int ClientH;
             public double ElapsedMs;
@@ -87,6 +87,10 @@ namespace PlayniteAchievements.Services.UI
 
         private readonly ILogger _logger;
         private readonly double _sampleIntervalMs;
+        private readonly bool _alignRight;
+        private readonly bool _alignBottom;
+        private readonly double _gapDip;
+        private readonly double _monitorScale;
 
         /// <summary>
         /// Pixel-carrying jobs allowed in flight before <see cref="CanAcceptFrame"/> asks the caller
@@ -109,11 +113,20 @@ namespace PlayniteAchievements.Services.UI
         /// and pads the last sample, so a track's duration covers the frame its final sample
         /// represents.
         /// </param>
-        public ToastOverlayTrackRecorder(ILogger logger, double sampleIntervalMs)
+        /// <param name="alignRight">Wave placement geometry, stamped on every track: the corner
+        /// alignment and the DIP gap/monitor scale the export uses to compute where a lone toast of
+        /// each frame's size would sit. Resolved once per wave, like the live placement.</param>
+        public ToastOverlayTrackRecorder(
+            ILogger logger, double sampleIntervalMs,
+            bool alignRight, bool alignBottom, double gapDip, double monitorScale)
         {
             _logger = logger;
             _sampleIntervalMs = sampleIntervalMs > 0 ? sampleIntervalMs : 1;
             _maxQueuedPixelJobs = Math.Max(16, (int)Math.Round(1000.0 / _sampleIntervalMs / 2.0));
+            _alignRight = alignRight;
+            _alignBottom = alignBottom;
+            _gapDip = gapDip;
+            _monitorScale = monitorScale > 0 ? monitorScale : 1.0;
         }
 
         /// <summary>
@@ -170,8 +183,8 @@ namespace PlayniteAchievements.Services.UI
         }
 
         /// <summary>
-        /// Records one tick of one card's animation. UI thread only. The rect is the card's
-        /// top-left relative to the game client rect plus the client size, all physical pixels.
+        /// Records one tick of one card's animation: its rendered pixels, the slide transform's
+        /// current value (physical pixels, sub-pixel), and the game client size. UI thread only.
         /// Null pixels record a repeat of the item's previous frame at this tick's position.
         /// </summary>
         /// <param name="elapsedMs">
@@ -182,7 +195,7 @@ namespace PlayniteAchievements.Services.UI
         /// </param>
         public void Sample(
             AchievementToastViewModel vm, byte[] premulBgra, int width, int height,
-            int relX, int relY, int clientW, int clientH, double elapsedMs)
+            double slideXPhys, double slideYPhys, int clientW, int clientH, double elapsedMs)
         {
             if (vm == null || (premulBgra != null && (width <= 0 || height <= 0)))
             {
@@ -208,8 +221,8 @@ namespace PlayniteAchievements.Services.UI
                     Pixels = premulBgra,
                     Width = width,
                     Height = height,
-                    RelX = relX,
-                    RelY = relY,
+                    SlideXPhys = slideXPhys,
+                    SlideYPhys = slideYPhys,
                     ClientW = clientW,
                     ClientH = clientH,
                     ElapsedMs = elapsedMs,
@@ -218,19 +231,6 @@ namespace PlayniteAchievements.Services.UI
                 {
                     _worker = Task.Run(() => DrainQueue());
                 }
-            }
-        }
-
-        /// <summary>
-        /// Stores the constant translation that moves this card's settled on-screen position to
-        /// its synthetic single-toast corner (client-relative physical pixels).
-        /// </summary>
-        public void SetCornerOffset(AchievementToastViewModel vm, int offsetX, int offsetY)
-        {
-            if (vm != null && _items.TryGetValue(vm, out var state))
-            {
-                state.Track.OffsetX = offsetX;
-                state.Track.OffsetY = offsetY;
             }
         }
 
@@ -300,6 +300,10 @@ namespace PlayniteAchievements.Services.UI
                         ProviderKey = vm.ProviderKey,
                         AchievementName = vm.AchievementName,
                         StartUtc = CaptureTimelineClock.UtcNow,
+                        AlignRight = _alignRight,
+                        AlignBottom = _alignBottom,
+                        GapDip = _gapDip,
+                        MonitorScale = _monitorScale,
                     },
                 };
                 _items[vm] = state;
@@ -375,8 +379,8 @@ namespace PlayniteAchievements.Services.UI
             {
                 ElapsedMs = (int)Math.Round(job.ElapsedMs - state.FirstSampleMs),
                 FrameIndex = frameIndex,
-                RelX = job.RelX,
-                RelY = job.RelY,
+                SlideXPhys = job.SlideXPhys,
+                SlideYPhys = job.SlideYPhys,
                 ClientW = job.ClientW,
                 ClientH = job.ClientH,
             });
