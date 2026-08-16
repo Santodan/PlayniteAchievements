@@ -34,31 +34,6 @@ namespace PlayniteAchievements.Services.UI
             return family != PadFamily.SteamController;
         }
 
-        private enum PadFamily
-        {
-            DualSense,
-            DualShock4,
-            SteamController,
-        }
-
-        private static readonly IReadOnlyDictionary<int, PadFamily> KnownPads = new Dictionary<int, PadFamily>
-        {
-            // Sony, vendor 0x054c.
-            { Key(0x054c, 0x0ce6), PadFamily.DualSense },   // DualSense
-            { Key(0x054c, 0x0df2), PadFamily.DualSense },   // DualSense Edge
-            { Key(0x054c, 0x05c4), PadFamily.DualShock4 },  // DualShock 4
-            { Key(0x054c, 0x09cc), PadFamily.DualShock4 },  // DualShock 4 slim
-            { Key(0x054c, 0x0ba0), PadFamily.DualShock4 },  // DualShock 4 wireless dongle
-            { Key(0x054c, 0x05c5), PadFamily.DualShock4 },  // DualShock 4 strikepad
-
-            // Valve, vendor 0x28de. 0x1302/0x1303 are the 2026 controller itself (wired and BLE);
-            // 0x1304/0x1305 are its Proteus and Nereid dongles.
-            { Key(0x28de, 0x1302), PadFamily.SteamController },
-            { Key(0x28de, 0x1303), PadFamily.SteamController },
-            { Key(0x28de, 0x1304), PadFamily.SteamController },
-            { Key(0x28de, 0x1305), PadFamily.SteamController },
-        };
-
         // Two different lengths matter, and conflating them is why an earlier attempt failed.
         //
         // The transmit length is whatever OutputReportByteLength says, and Windows rejects any write
@@ -221,8 +196,10 @@ namespace PlayniteAchievements.Services.UI
                     return null;
                 }
 
-                var isKnownVendor = attributes.VendorId == 0x054c || attributes.VendorId == 0x28de;
-                if (!KnownPads.TryGetValue(Key(attributes.VendorId, attributes.ProductId), out var family))
+                var isKnownVendor = attributes.VendorId == ControllerPadIds.SonyVendorId ||
+                                    attributes.VendorId == ControllerPadIds.ValveVendorId;
+                if (!ControllerPadIds.KnownPads.TryGetValue(
+                        ControllerPadIds.Key(attributes.VendorId, attributes.ProductId), out var family))
                 {
                     if (isKnownVendor)
                     {
@@ -800,11 +777,6 @@ namespace PlayniteAchievements.Services.UI
         private static string Describe(ushort vendorId, ushort productId)
         {
             return string.Format(CultureInfo.InvariantCulture, "{0:x4}:{1:x4}", vendorId, productId);
-        }
-
-        private static int Key(int vendorId, int productId)
-        {
-            return (vendorId << 16) | productId;
         }
 
         private sealed class Pad : IDisposable
