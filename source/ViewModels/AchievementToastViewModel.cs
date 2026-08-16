@@ -660,6 +660,15 @@ namespace PlayniteAchievements.ViewModels
         // the border-glow option is on). Toast surface only. Completion uses the completed glow.
         public bool HasBorderGlow => _style.Toast.NotificationBorderGlow;
 
+        /// <summary>
+        /// True when the card itself carries the rotating sunburst behind its border glow: this
+        /// unlock's tier is selected for rays and the surface draws the notification-level glow.
+        /// Gated on the border-glow flag rather than the icon's, so the card's halo and its rays
+        /// appear together. Hardcore is not excluded here as it is for the icon: the crisp border
+        /// substitution is an icon-level treatment, which the card glow likewise ignores.
+        /// </summary>
+        public bool ShowCardRayBurst => HasRaySelection && HasBorderGlow;
+
         // The card border glow is larger than the icon glow (blur 20) so it reads as a halo
         // around the whole card.
         private const double BorderGlowBlurRadius = 36;
@@ -684,7 +693,7 @@ namespace PlayniteAchievements.ViewModels
             get
             {
                 var glow = HasBorderGlow ? BorderGlowBlurRadius + 6 : 16;
-                if (!ShowRayBurst)
+                if (!ShowCardRayBurst)
                 {
                     return new Thickness(glow);
                 }
