@@ -122,6 +122,19 @@ namespace PlayniteAchievements.Services.Recording
         // One overlay re-encode at a time so a burst wave doesn't saturate the encoder while the
         // game is running.
         private readonly SemaphoreSlim _reencodeGate = new SemaphoreSlim(1, 1);
+        // Base extractions run per request and were otherwise unbounded: a burst of unlocks put
+        // one Media Foundation concat/mux per achievement on the thread pool at once, which
+        // competes for CPU with the toast sampler's rasterization on the UI thread and shows up as
+        // the live notification stuttering while clips are written. Bounded rather than serialized
+        // because each one also waits on file I/O, and because a clip's base must still land
+        // promptly — the segment buffer suspends pruning for every outstanding window until it does.
+        private readonly SemaphoreSlim _baseExportGate = new SemaphoreSlim(MaxConcurrentBaseExports);
+
+        /// <summary>
+        /// Concurrent base extractions allowed. Two, plus the single re-encode, keeps heavy media
+        /// work to three operations while a wave is composing.
+        /// </summary>
+        private const int MaxConcurrentBaseExports = 2;
         // Buffer directories owned by a live or still-draining session (guarded by _gate). A new
         // session's stale-buffer cleanup must not delete a previous session's buffer while its
         // pending clips are still being produced.
@@ -1263,8 +1276,18 @@ namespace PlayniteAchievements.Services.Recording
             // any) re-encodes in a separate pass.
             var exporter = new MediaFoundationClipExporter(_logger);
             double videoLeadSeconds = 0;
-            var ok = await Task.Run(() => exporter.Export(plan, audioPlan, tempPath, out videoLeadSeconds))
-                .ConfigureAwait(false);
+            bool ok;
+            await _baseExportGate.WaitAsync().ConfigureAwait(false);
+            try
+            {
+                ok = await Task.Run(() => exporter.Export(plan, audioPlan, tempPath, out videoLeadSeconds))
+                    .ConfigureAwait(false);
+            }
+            finally
+            {
+                _baseExportGate.Release();
+            }
+
             if (!ok)
             {
                 _logger?.Warn($"[Recording] Clip export failed for '{request.AchievementName}'.");
