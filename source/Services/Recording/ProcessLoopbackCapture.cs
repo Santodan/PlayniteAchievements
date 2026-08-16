@@ -48,6 +48,9 @@ namespace PlayniteAchievements.Services.Recording
         // The most dropped audio one gap will stand silence in for.
         private const int MaxGapSeconds = 5;
 
+        private const int CLSCTX_ALL = 23;
+
+        private static readonly Guid MMDeviceEnumeratorClsid = new Guid("BCDE0395-E52F-467C-8E3D-C4579291692E");
         private static readonly Guid IID_IAudioClient = new Guid("1CB9AD4C-DBFA-4C32-B178-C2F568A703B2");
         private static readonly Guid IID_IAudioCaptureClient = new Guid("C8ADBD64-E71E-48A0-A4DE-185C395CD317");
 
@@ -241,12 +244,47 @@ namespace PlayniteAchievements.Services.Recording
         }
 
         /// <summary>
-        /// Activates a real endpoint by its id. No activation params: an empty PROPVARIANT
-        /// (VT_EMPTY) is what a plain endpoint activation takes.
+        /// Activates a real endpoint through the device enumerator. Not
+        /// <c>ActivateAudioInterfaceAsync</c>: that one takes a device INTERFACE PATH
+        /// (<c>\\?\SWD#MMDEVAPI#...</c>), and handing it an endpoint id fails with
+        /// ERROR_FILE_NOT_FOUND. <c>IMMDevice::Activate</c> takes the endpoint itself, needs no
+        /// path translation, and is not gated on a Windows build.
         /// </summary>
         private static IAudioClient ActivateEndpointClient(string deviceId)
         {
-            return ActivateAudioClient(deviceId, default(PROPVARIANT));
+            // Created from the CLSID rather than through a [ComImport] coclass: NAudio declares its
+            // own class for the same CLSID, and two managed types claiming one CLSID make the
+            // activation hand back whichever was registered first — which then fails to cast.
+            var enumerator = (IMMDeviceEnumerator)Activator.CreateInstance(
+                Type.GetTypeFromCLSID(MMDeviceEnumeratorClsid));
+            try
+            {
+                var hr = enumerator.GetDevice(deviceId, out var device);
+                if (hr != 0 || device == null)
+                {
+                    Marshal.ThrowExceptionForHR(hr != 0 ? hr : unchecked((int)0x80004005));
+                }
+
+                try
+                {
+                    var iid = IID_IAudioClient;
+                    hr = device.Activate(ref iid, CLSCTX_ALL, IntPtr.Zero, out var client);
+                    if (hr != 0 || client == null)
+                    {
+                        Marshal.ThrowExceptionForHR(hr != 0 ? hr : unchecked((int)0x80004005));
+                    }
+
+                    return (IAudioClient)client;
+                }
+                finally
+                {
+                    Marshal.ReleaseComObject(device);
+                }
+            }
+            finally
+            {
+                Marshal.ReleaseComObject(enumerator);
+            }
         }
 
         private static IAudioClient ActivateAudioClient(string devicePath, PROPVARIANT activationParams)
@@ -526,6 +564,45 @@ namespace PlayniteAchievements.Services.Recording
             public ushort nBlockAlign;
             public ushort wBitsPerSample;
             public ushort cbSize;
+        }
+
+        [ComImport, Guid("A95664D2-9614-4F35-A746-DE8DB63617E6"),
+         InterfaceType(ComInterfaceType.InterfaceIsIUnknown)]
+        private interface IMMDeviceEnumerator
+        {
+            [PreserveSig]
+            int EnumAudioEndpoints(int dataFlow, int stateMask, out IntPtr devices);
+
+            [PreserveSig]
+            int GetDefaultAudioEndpoint(int dataFlow, int role, out IMMDevice device);
+
+            [PreserveSig]
+            int GetDevice([MarshalAs(UnmanagedType.LPWStr)] string id, out IMMDevice device);
+
+            [PreserveSig]
+            int RegisterEndpointNotificationCallback(IntPtr client);
+
+            [PreserveSig]
+            int UnregisterEndpointNotificationCallback(IntPtr client);
+        }
+
+        [ComImport, Guid("D666063F-1587-4E43-81F1-B948E807363F"),
+         InterfaceType(ComInterfaceType.InterfaceIsIUnknown)]
+        private interface IMMDevice
+        {
+            [PreserveSig]
+            int Activate(
+                ref Guid interfaceId, int classContext, IntPtr activationParams,
+                [MarshalAs(UnmanagedType.IUnknown)] out object instance);
+
+            [PreserveSig]
+            int OpenPropertyStore(int access, out IntPtr properties);
+
+            [PreserveSig]
+            int GetId([MarshalAs(UnmanagedType.LPWStr)] out string id);
+
+            [PreserveSig]
+            int GetState(out int state);
         }
 
         [ComImport, Guid("41D949AB-9862-444A-80F6-C261334DA5EB"),
