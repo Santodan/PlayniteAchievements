@@ -319,13 +319,13 @@ namespace PlayniteAchievements.Services.UI
                 // One line per track per wave: how the animation's freshness survived capture. A
                 // unique-frame rate far below the sample rate is what "slow" animation in a clip
                 // is made of, and this line says which stage lost it — unchanged pixels mean the
-                // live card itself wasn't animating any faster, refused ticks mean the worker's
-                // backlog throttled rasterization.
+                // live card itself wasn't animating any faster; pixel-less ticks are the caller's
+                // multi-card stagger plus any worker-backlog refusals.
                 var duration = state.Track.DurationSeconds;
                 _logger?.Info(string.Format(
                     System.Globalization.CultureInfo.InvariantCulture,
                     "[Recording] Toast track '{0}': {1:0.00}s, {2} samples ({3:0.0}/s), {4} unique frames " +
-                    "({5:0.0}/s), {6} unchanged, {7} refused, capped={8}",
+                    "({5:0.0}/s), {6} unchanged, {7} pixel-less, capped={8}",
                     state.Track.AchievementName,
                     duration,
                     samples.Count,

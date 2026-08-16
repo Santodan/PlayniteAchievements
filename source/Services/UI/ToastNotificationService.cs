@@ -102,6 +102,9 @@ namespace PlayniteAchievements.Services.UI
         // Per-wave rasterization surfaces for the track sampler, one per card; created with the
         // recorder, dropped in the wave's finally. Null while no wave is recording tracks.
         private Dictionary<AchievementToastViewModel, CardRenderScratch> _trackRenderScratch;
+        // Shadow-layer captures this wave (each costs two with-effect renders); reported in the
+        // sampling summary — a number near the sample count means the recapture guard failed.
+        private int _waveShadowCaptureCount;
         private FrameworkElement _activeSlideHost;
         private TranslateTransform _activeSlideTransform;
         // Frame counter attached for a running slide's span. It does no work beyond counting: the slide
@@ -707,7 +710,18 @@ namespace PlayniteAchievements.Services.UI
             /// <summary>The effect whose animated opacity drives the per-sample glow scale.</summary>
             public DropShadowEffect GlowEffect;
             public double GlowRefOpacity = 1.0;
+
+            /// <summary>Track time of the last shadow capture, for the recapture rate limit.</summary>
+            public double LastShadowCaptureMs = double.NegativeInfinity;
         }
+
+        /// <summary>
+        /// Floor between shadow-layer recaptures. The capture costs two with-effect renders (the
+        /// software blur both times), so even a pathological invalidation source — an effect
+        /// swapped by a trigger every frame, a binding handing out fresh instances — can never
+        /// drag the heavy path back onto every tick.
+        /// </summary>
+        private const double ShadowRecaptureMinIntervalMs = 150;
 
         /// <summary>
         /// Every effect-carrying element under <paramref name="root"/>, in visual-tree order.
@@ -728,45 +742,29 @@ namespace PlayniteAchievements.Services.UI
         }
 
         /// <summary>
-        /// Detaches the given effects for the span of a synchronous render, returning what each
-        /// element's local Effect value was so <see cref="RestoreEffects"/> can put provenance
-        /// back exactly: a style/trigger-supplied effect is restored by clearing the local value
-        /// (a lingering local null would permanently override the trigger), a locally-set one by
-        /// setting it back. Elements whose local value is an expression are left alone — stripping
-        /// them would break the binding — at the cost of rendering that element's effect.
-        /// Everything happens inside one dispatcher callback, so composition never sees the gap.
+        /// Detaches the given effects for the span of a synchronous render, via
+        /// <see cref="DependencyObject.SetCurrentValue"/> on both sides: it changes the effective
+        /// value without writing a local value and without re-evaluating the style or binding that
+        /// supplied the effect. That matters twice over — a local write would permanently override
+        /// the template's trigger setters, and a ClearValue restore re-runs the setter's Binding,
+        /// which can hand back a different effect instance every tick (defeating the shadow
+        /// layer's identity check, and detaching the pulse animation from the instance it targets).
+        /// The exact instances collected are put back. Everything happens inside one dispatcher
+        /// callback, so composition never sees the gap.
         /// </summary>
-        private static List<(FrameworkElement Element, object LocalValue)> StripEffects(
-            List<KeyValuePair<FrameworkElement, Effect>> effects)
+        private static void StripEffects(List<KeyValuePair<FrameworkElement, Effect>> effects)
         {
-            var stripped = new List<(FrameworkElement, object)>(effects.Count);
             foreach (var pair in effects)
             {
-                var local = pair.Key.ReadLocalValue(UIElement.EffectProperty);
-                if (local != DependencyProperty.UnsetValue && !(local is Effect))
-                {
-                    continue;
-                }
-
-                stripped.Add((pair.Key, local));
-                pair.Key.Effect = null;
+                pair.Key.SetCurrentValue(UIElement.EffectProperty, null);
             }
-
-            return stripped;
         }
 
-        private static void RestoreEffects(List<(FrameworkElement Element, object LocalValue)> stripped)
+        private static void RestoreEffects(List<KeyValuePair<FrameworkElement, Effect>> effects)
         {
-            foreach (var (element, local) in stripped)
+            foreach (var pair in effects)
             {
-                if (local == DependencyProperty.UnsetValue)
-                {
-                    element.ClearValue(UIElement.EffectProperty);
-                }
-                else
-                {
-                    element.SetValue(UIElement.EffectProperty, local);
-                }
+                pair.Key.SetCurrentValue(UIElement.EffectProperty, pair.Value);
             }
         }
 
@@ -1005,7 +1003,7 @@ namespace PlayniteAchievements.Services.UI
                 // re-applied at export as layer x glowScale.
                 var effects = new List<KeyValuePair<FrameworkElement, Effect>>();
                 CollectEffects(container, effects);
-                var stripped = StripEffects(effects);
+                StripEffects(effects);
                 byte[] pixels;
                 int pw, ph;
                 bool rendered;
@@ -1017,7 +1015,7 @@ namespace PlayniteAchievements.Services.UI
                 }
                 finally
                 {
-                    RestoreEffects(stripped);
+                    RestoreEffects(effects);
                 }
 
                 if (!rendered)
@@ -1027,10 +1025,13 @@ namespace PlayniteAchievements.Services.UI
 
                 // (Re)capture the halo when its inputs changed: the card's pixel size, or the set
                 // of effect instances (a trigger swapping the neutral shadow for the rarity glow).
+                // Rate-limited — the capture is the expensive path this design exists to avoid.
                 if (effects.Count > 0 &&
+                    elapsedMs - scratch.LastShadowCaptureMs >= ShadowRecaptureMinIntervalMs &&
                     (pw != scratch.ShadowW || ph != scratch.ShadowH ||
                      !SameEffectSignature(scratch.ShadowEffectSignature, effects)))
                 {
+                    scratch.LastShadowCaptureMs = elapsedMs;
                     CaptureShadowLayer(recorder, window, container, vm, scratch, effects);
                 }
 
@@ -1118,8 +1119,9 @@ namespace PlayniteAchievements.Services.UI
                 CollectEffects(container, effects);
                 if (effects.Count > 0)
                 {
-                    CaptureShadowLayer(
-                        recorder, window, container, toastItems[i], GetCardScratch(toastItems[i]), effects);
+                    var scratch = GetCardScratch(toastItems[i]);
+                    scratch.LastShadowCaptureMs = 0;
+                    CaptureShadowLayer(recorder, window, container, toastItems[i], scratch, effects);
                 }
             }
         }
@@ -1137,6 +1139,7 @@ namespace PlayniteAchievements.Services.UI
             AchievementToastViewModel vm, CardRenderScratch scratch,
             List<KeyValuePair<FrameworkElement, Effect>> effects)
         {
+            _waveShadowCaptureCount++;
             if (!TryRenderToastItemBytes(
                     window, container, scratch: null, len => new byte[len], applyHostOpacity: false,
                     out var withEffects, out var pw1, out var ph1))
@@ -1144,7 +1147,7 @@ namespace PlayniteAchievements.Services.UI
                 return;
             }
 
-            var stripped = StripEffects(effects);
+            StripEffects(effects);
             byte[] withoutEffects;
             int pw0, ph0;
             bool rendered;
@@ -1156,7 +1159,7 @@ namespace PlayniteAchievements.Services.UI
             }
             finally
             {
-                RestoreEffects(stripped);
+                RestoreEffects(effects);
             }
 
             if (!rendered || pw0 != pw1 || ph0 != ph1)
@@ -1183,18 +1186,37 @@ namespace PlayniteAchievements.Services.UI
 
             scratch.ShadowEffectSignature = signature;
 
-            // The pulse animates a DropShadowEffect's opacity; the first one found is the scale
-            // driver. Its opacity right now is what the layer baked, so it is the reference.
+            // The scale driver is the effect the pulse actually animates — the one on an element
+            // opted into RarityGlowPulse with Target=Effect — falling back to the first
+            // DropShadowEffect (a static neutral shadow then keeps scale at the host opacity).
+            // Its opacity right now is what the layer baked, so it is the reference.
             scratch.GlowEffect = null;
             scratch.GlowRefOpacity = 1.0;
             foreach (var pair in effects)
             {
-                if (pair.Value is DropShadowEffect dropShadow)
+                if (!(pair.Value is DropShadowEffect dropShadow))
+                {
+                    continue;
+                }
+
+                var pulsed = RarityGlowPulse.GetIsActive(pair.Key) &&
+                    RarityGlowPulse.GetTarget(pair.Key) == RarityGlowPulseTarget.Effect;
+                if (scratch.GlowEffect == null || pulsed)
                 {
                     scratch.GlowEffect = dropShadow;
                     scratch.GlowRefOpacity = Math.Max(0.05, dropShadow.Opacity);
-                    break;
+                    if (pulsed)
+                    {
+                        break;
+                    }
                 }
+            }
+
+            if (Common.PerfScope.PerfTracingEnabled)
+            {
+                _logger?.Info(
+                    $"[Recording] Toast shadow layer captured: '{vm.AchievementName}' " +
+                    $"{pw1}x{ph1}, effects={effects.Count}, refOpacity={scratch.GlowRefOpacity:0.##}");
             }
         }
 
@@ -1857,6 +1879,7 @@ namespace PlayniteAchievements.Services.UI
                         AlignRight(), AlignBottom(), EffectiveGapDip(), _activeMonitorScale);
                     _trackRenderScratch = new Dictionary<AchievementToastViewModel, CardRenderScratch>();
                     trackSampleCount = 0;
+                    _waveShadowCaptureCount = 0;
                     CaptureWaveShadowLayers(trackRecorder, window, cardItems);
                 }
 
@@ -2057,11 +2080,12 @@ namespace PlayniteAchievements.Services.UI
                     _logger?.Info(string.Format(
                         System.Globalization.CultureInfo.InvariantCulture,
                         "[Recording] Toast sampling: {0} samples, card render avg {1:0.0} ms, max {2:0.0} ms " +
-                        "(sample interval {3:0.0} ms)",
+                        "(sample interval {3:0.0} ms), shadow captures {4}",
                         trackSampleCount,
                         trackRenderWatch.Elapsed.TotalMilliseconds / trackSampleCount,
                         trackRenderMaxMs,
-                        TrackSampleIntervalMs()));
+                        TrackSampleIntervalMs(),
+                        _waveShadowCaptureCount));
                 }
 
                 LogWaveCadence(trackTicks, trackSampleCount);
