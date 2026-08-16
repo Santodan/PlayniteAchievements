@@ -98,6 +98,9 @@ namespace PlayniteAchievements.Services.UI
         // side; the card itself moves inside that room via _activeSlideTransform. Placement therefore
         // measures the card, not the window — see ToastWindowPlacer.TryMeasureCardPhysical.
         private ItemsControl _activeCardSurface;
+        // Per-wave rasterization surfaces for the track sampler, one per card; created with the
+        // recorder, dropped in the wave's finally. Null while no wave is recording tracks.
+        private Dictionary<AchievementToastViewModel, CardRenderScratch> _trackRenderScratch;
         private FrameworkElement _activeSlideHost;
         private TranslateTransform _activeSlideTransform;
         // Frame counter attached for a running slide's span. It does no work beyond counting: the slide
@@ -679,8 +682,23 @@ namespace PlayniteAchievements.Services.UI
         /// dimensionally identical to a single-toast window's content. Must be called on the UI
         /// thread (renders the live visual). Returns false when the container can't be rendered.
         /// </summary>
+        /// <summary>
+        /// One card's reusable rasterization surface for the track sampler: the RenderTargetBitmap is
+        /// re-rendered in place every tick while the card's pixel size and DPI stay put, instead of
+        /// allocating a fresh one per sample. Recreated on any size or DPI change.
+        /// </summary>
+        private sealed class CardRenderScratch
+        {
+            public System.Windows.Media.Imaging.RenderTargetBitmap Rtb;
+            public int PixelW;
+            public int PixelH;
+            public double DpiX;
+            public double DpiY;
+        }
+
         private bool TryRenderToastItemBytes(
             Window window, FrameworkElement container,
+            CardRenderScratch scratch, Func<int, byte[]> takeBuffer,
             out byte[] pixels, out int width, out int height)
         {
             pixels = null;
@@ -748,14 +766,40 @@ namespace PlayniteAchievements.Services.UI
 
                 // The physical/local DPI ratio carries both the LayoutTransform scale and the
                 // window's physical render scale in one factor.
-                var rtb = new System.Windows.Media.Imaging.RenderTargetBitmap(
-                    pw, ph, 96.0 * pw / local.Width, 96.0 * ph / local.Height,
-                    PixelFormats.Pbgra32);
-                rtb.Render(visual);
-                rtb.Freeze();
+                var dpiX = 96.0 * pw / local.Width;
+                var dpiY = 96.0 * ph / local.Height;
+                System.Windows.Media.Imaging.RenderTargetBitmap rtb;
+                if (scratch != null && scratch.Rtb != null &&
+                    scratch.PixelW == pw && scratch.PixelH == ph &&
+                    scratch.DpiX == dpiX && scratch.DpiY == dpiY)
+                {
+                    rtb = scratch.Rtb;
+                    rtb.Clear();
+                    rtb.Render(visual);
+                }
+                else
+                {
+                    rtb = new System.Windows.Media.Imaging.RenderTargetBitmap(
+                        pw, ph, dpiX, dpiY, PixelFormats.Pbgra32);
+                    rtb.Render(visual);
+                    if (scratch != null)
+                    {
+                        // Not frozen: the sampler re-renders this surface next tick. CopyPixels below
+                        // is an immediate same-thread read, so nothing outlives the mutation.
+                        scratch.Rtb = rtb;
+                        scratch.PixelW = pw;
+                        scratch.PixelH = ph;
+                        scratch.DpiX = dpiX;
+                        scratch.DpiY = dpiY;
+                    }
+                    else
+                    {
+                        rtb.Freeze();
+                    }
+                }
 
                 var stride = pw * 4;
-                var buffer = new byte[stride * ph];
+                var buffer = takeBuffer(stride * ph);
                 rtb.CopyPixels(buffer, stride, 0);
 
                 pixels = buffer;
@@ -779,7 +823,9 @@ namespace PlayniteAchievements.Services.UI
             Window window, FrameworkElement container, out System.Drawing.Size physSize)
         {
             physSize = System.Drawing.Size.Empty;
-            if (!TryRenderToastItemBytes(window, container, out var pixels, out var pw, out var ph))
+            if (!TryRenderToastItemBytes(
+                    window, container, scratch: null, len => new byte[len],
+                    out var pixels, out var pw, out var ph))
             {
                 return null;
             }
@@ -847,8 +893,22 @@ namespace PlayniteAchievements.Services.UI
             for (var i = 0; i < toastItems.Count; i++)
             {
                 var container = itemsControl.ItemContainerGenerator.ContainerFromIndex(i) as FrameworkElement;
-                if (container == null ||
-                    !TryRenderToastItemBytes(window, container, out var pixels, out var pw, out var ph))
+                if (container == null)
+                {
+                    continue;
+                }
+
+                var scratchByVm = _trackRenderScratch;
+                CardRenderScratch scratch = null;
+                if (scratchByVm != null && !scratchByVm.TryGetValue(toastItems[i], out scratch))
+                {
+                    scratch = new CardRenderScratch();
+                    scratchByVm[toastItems[i]] = scratch;
+                }
+
+                if (!TryRenderToastItemBytes(
+                        window, container, scratch, len => new byte[len],
+                        out var pixels, out var pw, out var ph))
                 {
                     continue;
                 }
@@ -1531,6 +1591,7 @@ namespace PlayniteAchievements.Services.UI
                 {
                     var sampleIntervalMs = TrackSampleIntervalMs();
                     trackRecorder = new ToastOverlayTrackRecorder(_logger, sampleIntervalMs);
+                    _trackRenderScratch = new Dictionary<AchievementToastViewModel, CardRenderScratch>();
                     SampleWaveTracks(trackRecorder, window, cardItems, 0d);
                     trackSampleCount = 1;
                     // The unconditional resample also carries animation frames into the tracks — a
@@ -1729,6 +1790,7 @@ namespace PlayniteAchievements.Services.UI
 
                 StopActiveSlide();
                 _activeCardSurface = null;
+                _trackRenderScratch = null;
                 _activeSlideHost = null;
                 _activeSlideTransform = null;
                 _activeReferenceHwnd = IntPtr.Zero;
