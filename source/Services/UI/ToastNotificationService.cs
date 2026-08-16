@@ -678,13 +678,14 @@ namespace PlayniteAchievements.Services.UI
         /// <summary>
         /// Renders one live toast card (its item container inside the wave's ItemsControl) to a
         /// tightly-packed premultiplied-BGRA buffer at the physical pixel size it renders on screen.
-        /// The card is drawn through a VisualBrush into a DrawingVisual at the origin: rendering the
-        /// container directly would bake in its stacked offset within the window, and cropping a
-        /// whole-window render would bleed the neighbouring cards' glow into the crop (stacked
-        /// containers overlap via negative margins). The card's own glow room is part of the
-        /// container's RenderSize (the template root carries the ToastGlowMargin), so the result is
-        /// dimensionally identical to a single-toast window's content. Must be called on the UI
-        /// thread (renders the live visual). Returns false when the container can't be rendered.
+        /// A card at its parent's origin rasterizes straight into the target; one carrying a stacked
+        /// offset goes through a VisualBrush, which is the only way to pull it back to the origin
+        /// (see <see cref="RenderCardDirect"/> and <see cref="CanRenderDirect"/>). Either way only
+        /// this container's subtree is drawn, so a neighbour's overlapping glow cannot bleed in. The
+        /// card's own glow room is part of the container's RenderSize (the template root carries the
+        /// ToastGlowMargin), so the result is dimensionally identical to a single-toast window's
+        /// content. Must be called on the UI thread (renders the live visual). Returns false when
+        /// the container can't be rendered.
         /// </summary>
         /// <summary>
         /// One card's reusable sampler state: the RenderTargetBitmap re-rendered in place every
@@ -823,7 +824,7 @@ namespace PlayniteAchievements.Services.UI
         private bool TryRenderToastItemBytes(
             Window window, FrameworkElement container,
             CardRenderScratch scratch, Func<int, byte[]> takeBuffer, bool applyHostOpacity,
-            double captureScale,
+            double captureScale, string probeCase,
             out byte[] pixels, out int width, out int height,
             out int cardWPhys, out int cardHPhys)
         {
@@ -865,78 +866,35 @@ namespace PlayniteAchievements.Services.UI
 
                 // Opacity animated on the slide host (a theme may fade the notification in or out
                 // instead of sliding it) lives above the card, so rendering the card alone would miss
-                // it and the clip would show an opaque card while the screen showed a fade. Folded in
-                // here as a draw-time push, which the rasteriser applies for free — rather than as a
-                // second pass over the pixel buffer.
+                // it and the clip would show an opaque card while the screen showed a fade.
                 var hostOpacity = applyHostOpacity ? _activeSlideHost?.Opacity ?? 1d : 1d;
-                var fading = hostOpacity < 1d;
 
-                var visual = new DrawingVisual();
-                using (var dc = visual.RenderOpen())
-                {
-                    if (fading)
-                    {
-                        dc.PushOpacity(Math.Max(0d, hostOpacity));
-                    }
-
-                    // Absolute viewbox pins the mapping to the layout bounds so effect bleed can't
-                    // inflate the brush content; clipping matches where the live window edge clips.
-                    // The viewbox coordinate space includes the container's offset within its
-                    // parent panel (a stacked card's offset is non-zero), so the viewbox must be
-                    // anchored at that offset — at (0,0) a stacked card renders shifted down and
-                    // cropped out of the bitmap.
-                    var offset = VisualTreeHelper.GetOffset(container);
-                    var brush = new VisualBrush(container)
-                    {
-                        Stretch = Stretch.Fill,
-                        ViewboxUnits = BrushMappingMode.Absolute,
-                        Viewbox = new Rect(offset.X, offset.Y, local.Width, local.Height),
-                    };
-                    dc.DrawRectangle(brush, null, new Rect(0, 0, local.Width, local.Height));
-
-                    if (fading)
-                    {
-                        dc.Pop();
-                    }
-                }
+                // The container's offset within its parent panel: zero for a single-card wave and
+                // for the first card of a stack, non-zero below that. Read before any temporary
+                // transform is installed, so the measurement above stays untouched.
+                var offset = VisualTreeHelper.GetOffset(container);
 
                 // The physical/local DPI ratio carries both the LayoutTransform scale and the
-                // window's physical render scale in one factor.
+                // window's physical render scale in one factor. The ancestor LayoutTransform is
+                // never applied by the render itself — this is what substitutes for it — so a
+                // transform must NOT be added to reproduce the scale, which would double-apply it.
                 var dpiX = 96.0 * pw / local.Width;
                 var dpiY = 96.0 * ph / local.Height;
-                System.Windows.Media.Imaging.RenderTargetBitmap rtb;
-                if (scratch != null && scratch.Rtb != null &&
-                    scratch.PixelW == pw && scratch.PixelH == ph &&
-                    scratch.DpiX == dpiX && scratch.DpiY == dpiY)
-                {
-                    rtb = scratch.Rtb;
-                    rtb.Clear();
-                    rtb.Render(visual);
-                }
-                else
-                {
-                    rtb = new System.Windows.Media.Imaging.RenderTargetBitmap(
-                        pw, ph, dpiX, dpiY, PixelFormats.Pbgra32);
-                    rtb.Render(visual);
-                    if (scratch != null)
-                    {
-                        // Not frozen: the sampler re-renders this surface next tick. CopyPixels below
-                        // is an immediate same-thread read, so nothing outlives the mutation.
-                        scratch.Rtb = rtb;
-                        scratch.PixelW = pw;
-                        scratch.PixelH = ph;
-                        scratch.DpiX = dpiX;
-                        scratch.DpiY = dpiY;
-                    }
-                    else
-                    {
-                        rtb.Freeze();
-                    }
-                }
-
                 var stride = pw * 4;
+
+                var rtb = ResolveRenderTarget(scratch, pw, ph, dpiX, dpiY);
                 var buffer = takeBuffer(stride * ph);
-                rtb.CopyPixels(buffer, stride, 0);
+                var direct = CanRenderDirect(offset);
+                var renderMs = direct
+                    ? RenderCardDirect(rtb, container, hostOpacity, buffer, stride)
+                    : RenderCardViaBrush(rtb, container, local, offset, hostOpacity, buffer, stride);
+
+                if (ToastCaptureProbe.Enabled && direct)
+                {
+                    ProbeAgainstBrushRender(
+                        container, local, offset, hostOpacity, pw, ph, dpiX, dpiY, stride,
+                        buffer, renderMs, probeCase);
+                }
 
                 pixels = buffer;
                 width = pw;
@@ -951,6 +909,166 @@ namespace PlayniteAchievements.Services.UI
         }
 
         /// <summary>
+        /// The RenderTargetBitmap to draw into: the scratch's own when its size and DPI still
+        /// match, else a fresh one (cached on the scratch, or frozen when there is none).
+        /// </summary>
+        private static System.Windows.Media.Imaging.RenderTargetBitmap ResolveRenderTarget(
+            CardRenderScratch scratch, int pw, int ph, double dpiX, double dpiY)
+        {
+            if (scratch != null && scratch.Rtb != null &&
+                scratch.PixelW == pw && scratch.PixelH == ph &&
+                scratch.DpiX == dpiX && scratch.DpiY == dpiY)
+            {
+                return scratch.Rtb;
+            }
+
+            var created = new System.Windows.Media.Imaging.RenderTargetBitmap(
+                pw, ph, dpiX, dpiY, PixelFormats.Pbgra32);
+            if (scratch != null)
+            {
+                // Not frozen: the sampler re-renders this surface next tick. The CopyPixels that
+                // follows each render is an immediate same-thread read, so nothing outlives it.
+                scratch.Rtb = created;
+                scratch.PixelW = pw;
+                scratch.PixelH = ph;
+                scratch.DpiX = dpiX;
+                scratch.DpiY = dpiY;
+            }
+
+            return created;
+        }
+
+        /// <summary>
+        /// Rasterizes the card straight into the target — no VisualBrush, no DrawingVisual — and
+        /// copies it out. Cheaper than going through a brush, which is pure indirection here: the
+        /// brush mapped 1:1 in DIP space and all the scaling came from the target's DPI either way.
+        ///
+        /// Only valid when the container sits at its parent's origin, which
+        /// <see cref="CanRenderDirect"/> enforces: <c>RenderTargetBitmap.Render</c> bakes in a
+        /// visual's own offset and — verified by probe, not assumed — ignores that visual's
+        /// <c>RenderTransform</c>, so a stacked card cannot be pulled back to the origin this way
+        /// and has to keep using the brush.
+        ///
+        /// The slide host's opacity has no DrawingContext to be pushed into here, so it is applied
+        /// as a temporary on the container through SetCurrentValue — the idiom the caller already
+        /// uses to strip effects and hide ray bursts, and byte-identical to the brush path's
+        /// PushOpacity (both are one rasterizer multiply with a single quantization; probe-verified
+        /// at zero difference). Returns the render's cost in milliseconds.
+        /// </summary>
+        private static double RenderCardDirect(
+            System.Windows.Media.Imaging.RenderTargetBitmap rtb, FrameworkElement container,
+            double hostOpacity, byte[] buffer, int stride)
+        {
+            var fading = hostOpacity < 1d;
+            var previousOpacity = container.Opacity;
+            if (fading)
+            {
+                container.SetCurrentValue(
+                    UIElement.OpacityProperty, Math.Max(0d, hostOpacity) * previousOpacity);
+            }
+
+            var started = Stopwatch.GetTimestamp();
+            try
+            {
+                rtb.Clear();
+                rtb.Render(container);
+            }
+            finally
+            {
+                if (fading)
+                {
+                    container.SetCurrentValue(UIElement.OpacityProperty, previousOpacity);
+                }
+            }
+
+            var elapsedMs = (Stopwatch.GetTimestamp() - started) * 1000.0 / Stopwatch.Frequency;
+            rtb.CopyPixels(buffer, stride, 0);
+            return elapsedMs;
+        }
+
+        /// <summary>
+        /// Whether the cheap direct render can stand in for the brush: only at the parent's origin.
+        /// True for every single-card wave and for the first card of a stack (the item container
+        /// style that offsets the rest is installed only when the wave has more than one card).
+        /// </summary>
+        private static bool CanRenderDirect(Vector offset)
+        {
+            return offset.X == 0 && offset.Y == 0;
+        }
+
+        /// <summary>
+        /// The original VisualBrush rasterization, kept only so <see cref="ToastCaptureProbe"/> can
+        /// compare the direct render against it on the real card. Returns its cost in milliseconds.
+        /// </summary>
+        private static double RenderCardViaBrush(
+            System.Windows.Media.Imaging.RenderTargetBitmap rtb, FrameworkElement container,
+            Size local, Vector offset, double hostOpacity, byte[] buffer, int stride)
+        {
+            var fading = hostOpacity < 1d;
+            var started = Stopwatch.GetTimestamp();
+            var visual = new DrawingVisual();
+            using (var dc = visual.RenderOpen())
+            {
+                if (fading)
+                {
+                    dc.PushOpacity(Math.Max(0d, hostOpacity));
+                }
+
+                // Absolute viewbox anchored at the container's offset; at (0,0) a stacked card
+                // renders shifted down and cropped out of the bitmap.
+                var brush = new VisualBrush(container)
+                {
+                    Stretch = Stretch.Fill,
+                    ViewboxUnits = BrushMappingMode.Absolute,
+                    Viewbox = new Rect(offset.X, offset.Y, local.Width, local.Height),
+                };
+                dc.DrawRectangle(brush, null, new Rect(0, 0, local.Width, local.Height));
+
+                if (fading)
+                {
+                    dc.Pop();
+                }
+            }
+
+            rtb.Clear();
+            rtb.Render(visual);
+            var elapsedMs = (Stopwatch.GetTimestamp() - started) * 1000.0 / Stopwatch.Frequency;
+            rtb.CopyPixels(buffer, stride, 0);
+            return elapsedMs;
+        }
+
+        /// <summary>
+        /// Renders the same card through the brush path into a throwaway target and hands both
+        /// buffers to the probe. Diagnostic only: this triples the tick's render cost, so it runs
+        /// solely while <see cref="ToastCaptureProbe.Enabled"/> is compiled on.
+        /// </summary>
+        private void ProbeAgainstBrushRender(
+            FrameworkElement container, Size local, Vector offset, double hostOpacity,
+            int pw, int ph, double dpiX, double dpiY, int stride, byte[] directPixels,
+            double directMs, string probeCase)
+        {
+            try
+            {
+                var probeTarget = new System.Windows.Media.Imaging.RenderTargetBitmap(
+                    pw, ph, dpiX, dpiY, PixelFormats.Pbgra32);
+                var brushPixels = new byte[stride * ph];
+                var brushMs = RenderCardViaBrush(
+                    probeTarget, container, local, offset, hostOpacity, brushPixels, stride);
+
+                var caseTag = probeCase ?? (hostOpacity < 1d
+                    ? "fade"
+                    : (offset.X != 0 || offset.Y != 0 ? "stacked" : "single"));
+                ToastCaptureProbe.Record(
+                    _logger, caseTag, brushPixels, directPixels, pw, ph, brushMs, directMs,
+                    _settings?.Persisted?.UnlockScreenshotDirectory);
+            }
+            catch (Exception ex)
+            {
+                _logger?.Debug(ex, "Toast capture probe comparison failed.");
+            }
+        }
+
+        /// <summary>
         /// Renders one live toast card to a premultiplied-alpha GDI bitmap at its physical pixel
         /// size (see <see cref="TryRenderToastItemBytes"/>). Returns null (the caller degrades to
         /// the plain game capture) when the card can't be rendered.
@@ -961,7 +1079,8 @@ namespace PlayniteAchievements.Services.UI
             physSize = System.Drawing.Size.Empty;
             if (!TryRenderToastItemBytes(
                     window, container, scratch: null, len => new byte[len], applyHostOpacity: true,
-                    captureScale: 1.0, out var pixels, out var pw, out var ph, out _, out _))
+                    captureScale: 1.0, probeCase: "screenshot",
+                    out var pixels, out var pw, out var ph, out _, out _))
             {
                 return null;
             }
@@ -1080,7 +1199,7 @@ namespace PlayniteAchievements.Services.UI
                 {
                     rendered = TryRenderToastItemBytes(
                         window, container, scratch, len => recorder.RentBuffer(vm, len),
-                        applyHostOpacity: true, captureScale,
+                        applyHostOpacity: true, captureScale, probeCase: null,
                         out pixels, out pw, out ph, out cardWPhys, out cardHPhys);
                 }
                 finally
@@ -1165,7 +1284,7 @@ namespace PlayniteAchievements.Services.UI
             {
                 rendered = TryRenderToastItemBytes(
                     window, container, scratch: null, len => recorder.RentBuffer(vm, len),
-                    applyHostOpacity: true, captureScale,
+                    applyHostOpacity: true, captureScale, probeCase: "rays",
                     out withRays, out rw, out rh, out _, out _);
             }
             finally
@@ -1312,7 +1431,7 @@ namespace PlayniteAchievements.Services.UI
             _waveShadowCaptureCount++;
             if (!TryRenderToastItemBytes(
                     window, container, scratch: null, len => new byte[len], applyHostOpacity: false,
-                    captureScale, out var withEffects, out var pw1, out var ph1,
+                    captureScale, probeCase: "shadow", out var withEffects, out var pw1, out var ph1,
                     out var cardWPhys, out var cardHPhys))
             {
                 return;
@@ -1326,7 +1445,8 @@ namespace PlayniteAchievements.Services.UI
             {
                 rendered = TryRenderToastItemBytes(
                     window, container, scratch: null, len => new byte[len], applyHostOpacity: false,
-                    captureScale, out withoutEffects, out pw0, out ph0, out _, out _);
+                    captureScale, probeCase: "shadow-bare",
+                    out withoutEffects, out pw0, out ph0, out _, out _);
             }
             finally
             {
@@ -2263,6 +2383,7 @@ namespace PlayniteAchievements.Services.UI
                         _waveShadowCaptureCount));
                 }
 
+                ToastCaptureProbe.ReportWave(_logger);
                 LogWaveCadence(trackTicks, trackSampleCount);
             }
             catch (Exception ex) when (previewSource.HasValue)
