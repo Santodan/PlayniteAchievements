@@ -1267,6 +1267,15 @@ namespace PlayniteAchievements.Services.Recording
                 audioPlan = SegmentTimeline.PlanClip(audioChunks, window.StartUtc, plan.EndUtc, SegmentSeconds);
             }
 
+            // Remove any controller haptic waveform the process-loopback capture swept up along with
+            // the game's audio. Replaces the plan with one over a single cleaned chunk, so the
+            // exporter's concatenation and A/V alignment are untouched either way.
+            var cleanedAudioDirectory = (string)null;
+            if (audioPlan != null)
+            {
+                audioPlan = TryRemoveHapticAudio(session, audioPlan, out cleanedAudioDirectory);
+            }
+
             LogRecordingTiming(session, request, window, plan.Segments.Count, audioPlan != null);
 
             var tempPath = Path.Combine(session.BufferDirectory, $"clip_{Guid.NewGuid():N}.mp4");
@@ -1286,6 +1295,7 @@ namespace PlayniteAchievements.Services.Recording
             finally
             {
                 _baseExportGate.Release();
+                TryDeleteCleanedAudio(cleanedAudioDirectory);
             }
 
             if (!ok)
@@ -1392,6 +1402,127 @@ namespace PlayniteAchievements.Services.Recording
             }
 
             return pcm;
+        }
+
+        /// <summary>
+        /// Removes a controller's haptic waveform from the clip's own audio, returning the plan the
+        /// exporter should use: one over a single cleaned chunk when the removal was verified, and
+        /// the original plan in every other case.
+        /// <para>
+        /// A DualSense plays haptics as audio through its own render endpoint, and process loopback
+        /// mixes every endpoint the game renders to, so the buzz is inside <c>aud_</c>. The recorder
+        /// captures that endpoint into <c>hap_</c> over the same paced writes; cancelling the one
+        /// from the other is the only way to separate them, because Windows offers no way to scope a
+        /// process capture to a device.
+        /// </para>
+        /// <para>
+        /// Fail-open throughout: no reference, no verified subtraction, or any error at all leaves
+        /// the recorded audio exactly as captured. Unverified blocks are kept rather than silenced —
+        /// a hole in the clip's own audio is worse than a little residual buzz.
+        /// </para>
+        /// </summary>
+        private SegmentTimeline.ClipPlan TryRemoveHapticAudio(
+            CaptureSession session,
+            SegmentTimeline.ClipPlan audioPlan,
+            out string cleanedDirectory)
+        {
+            cleanedDirectory = null;
+            if (audioPlan?.Segments == null || audioPlan.Segments.Count == 0)
+            {
+                return audioPlan;
+            }
+
+            try
+            {
+                var startUtc = audioPlan.Segments[0].StartUtc.AddSeconds(audioPlan.StartOffsetSeconds);
+                var endUtc = startUtc.AddSeconds(audioPlan.DurationSeconds);
+                var reference = TryReadAudioWindow(
+                    session.BufferDirectory,
+                    RecordingPaths.HapticReferenceChunkFilePrefix,
+                    startUtc,
+                    endUtc);
+                if (reference == null)
+                {
+                    // No controller endpoint existed while this window was recorded.
+                    return audioPlan;
+                }
+
+                var mixture = TryReadAudioWindow(
+                    session.BufferDirectory,
+                    RecordingPaths.AudioChunkFilePrefix,
+                    startUtc,
+                    endUtc);
+                if (mixture == null)
+                {
+                    return audioPlan;
+                }
+
+                var outcome = PcmAudio.CancelCorrelated(
+                    mixture, reference, out var cancellation, muteUnverifiedBlocks: false);
+                _logger?.Debug(
+                    $"[Recording] Haptic cancellation: outcome={outcome} " +
+                    $"lag={cancellation.StartLagMs:0.###}->{cancellation.EndLagMs:0.###}ms " +
+                    $"gain={cancellation.Gain:0.00} correlation={cancellation.Correlation:0.000} " +
+                    $"suppression={cancellation.SuppressionDb:0.0}dB.");
+                if (outcome != PcmCancellationOutcome.CancelledVerified)
+                {
+                    return audioPlan;
+                }
+
+                var directory = Path.Combine(session.BufferDirectory, $"clean_{Guid.NewGuid():N}");
+                Directory.CreateDirectory(directory);
+                var name = RecordingPaths.BuildAudioChunkFileName(
+                    RecordingPaths.AudioChunkFilePrefix, startUtc);
+                PcmAudio.WriteWav(Path.Combine(directory, name), mixture);
+
+                var cleanedChunks = SegmentTimeline.ParseSegments(
+                    ListBufferFiles(
+                        directory,
+                        RecordingPaths.AudioChunkFilePrefix,
+                        RecordingPaths.AudioChunkFileExtension),
+                    TimeZoneInfo.Local,
+                    RecordingPaths.AudioChunkFilePrefix,
+                    RecordingPaths.AudioChunkFileExtension);
+
+                // The cleaned window is one chunk spanning the whole clip, so the implied chunk
+                // length has to cover it rather than the recorder's rotation interval.
+                var cleanedPlan = SegmentTimeline.PlanClip(
+                    cleanedChunks,
+                    startUtc,
+                    endUtc,
+                    Math.Max(SegmentSeconds, (int)Math.Ceiling(audioPlan.DurationSeconds) + 1));
+                if (cleanedPlan == null)
+                {
+                    TryDeleteCleanedAudio(directory);
+                    return audioPlan;
+                }
+
+                cleanedDirectory = directory;
+                return cleanedPlan;
+            }
+            catch (Exception ex)
+            {
+                _logger?.Debug(ex, "[Recording] Haptic audio could not be removed; the clip keeps its recorded audio.");
+                return audioPlan;
+            }
+        }
+
+        /// <summary>Removes the temporary cleaned-audio chunk once the exporter has read it.</summary>
+        private void TryDeleteCleanedAudio(string directory)
+        {
+            if (string.IsNullOrEmpty(directory))
+            {
+                return;
+            }
+
+            try
+            {
+                Directory.Delete(directory, true);
+            }
+            catch (Exception ex)
+            {
+                _logger?.Debug(ex, "[Recording] A cleaned-audio temp directory could not be removed.");
+            }
         }
 
         private byte[] TryReadAudioWindow(
@@ -1538,7 +1669,8 @@ namespace PlayniteAchievements.Services.Recording
                 {
                     RecordingPaths.AudioChunkFilePrefix,
                     RecordingPaths.ChimeChunkFilePrefix,
-                    RecordingPaths.GameReferenceChunkFilePrefix
+                    RecordingPaths.GameReferenceChunkFilePrefix,
+                    RecordingPaths.HapticReferenceChunkFilePrefix
                 })
                 {
                     audioByPrefix[prefix] = SegmentTimeline.ParseSegments(
