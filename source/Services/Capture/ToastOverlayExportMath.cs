@@ -72,6 +72,48 @@ namespace PlayniteAchievements.Services.Capture
         }
 
         /// <summary>
+        /// The slide host's opacity at <paramref name="secondsIntoTrack"/>, interpolated like the
+        /// slide offset. Scales the ray layers at export.
+        /// </summary>
+        public static double GetHostOpacity(ToastOverlayTrack track, int sampleIndex, double secondsIntoTrack)
+        {
+            var s0 = track.Samples[sampleIndex];
+            if (sampleIndex + 1 >= track.Samples.Count)
+            {
+                return s0.HostOpacity;
+            }
+
+            var s1 = track.Samples[sampleIndex + 1];
+            var span = s1.ElapsedMs - s0.ElapsedMs;
+            if (span <= 0)
+            {
+                return s0.HostOpacity;
+            }
+
+            var t = (secondsIntoTrack * 1000.0 - s0.ElapsedMs) / span;
+            t = Math.Max(0.0, Math.Min(1.0, t));
+            return s0.HostOpacity + ((s1.HostOpacity - s0.HostOpacity) * t);
+        }
+
+        /// <summary>
+        /// Index of the last ray layer at or before <paramref name="secondsIntoTrack"/>; -1 before
+        /// the first. Linear from <paramref name="fromIndex"/> — export time only moves forward,
+        /// so the caller passes its previous result as the cursor.
+        /// </summary>
+        public static int FindRayLayerAtOrBefore(
+            ToastOverlayTrack track, double secondsIntoTrack, int fromIndex)
+        {
+            var targetMs = (long)Math.Round(secondsIntoTrack * 1000.0);
+            var index = fromIndex;
+            while (index + 1 < track.RayLayers.Count && track.RayLayers[index + 1].ElapsedMs <= targetMs)
+            {
+                index++;
+            }
+
+            return index;
+        }
+
+        /// <summary>
         /// The frame-space rect to blit the overlay into: the lone-toast corner for a card of the
         /// sample's recorded physical size plus the interpolated slide offset, scaled from client
         /// space into the video frame with one final rounding. The referenced pixel frame may be

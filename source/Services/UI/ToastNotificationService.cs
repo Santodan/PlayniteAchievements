@@ -105,14 +105,6 @@ namespace PlayniteAchievements.Services.UI
         // Shadow-layer captures this wave (each costs two with-effect renders); reported in the
         // sampling summary — a number near the sample count means the recapture guard failed.
         private int _waveShadowCaptureCount;
-        // Smoothed per-render cost and the stacked-wave capture-scale it drives. A lone card always
-        // captures at the clip's own scale (no quality tradeoff); a stacked wave lowers its capture
-        // scale — in quantized steps, floored — until a render fits half the sample interval, so
-        // pixel freshness and position cadence survive templates that are expensive to rasterize.
-        private double _sampleRenderEmaMs;
-        private double _stackCaptureScale = 1.0;
-        private const double StackCaptureScaleStep = 0.15;
-        private const double StackCaptureScaleFloor = 0.55;
         private FrameworkElement _activeSlideHost;
         private TranslateTransform _activeSlideTransform;
         // Frame counter attached for a running slide's span. It does no work beyond counting: the slide
@@ -728,6 +720,9 @@ namespace PlayniteAchievements.Services.UI
             /// </summary>
             public int LastCardWPhys;
             public int LastCardHPhys;
+
+            /// <summary>Pixel renders so far, for the alternating ray-layer capture cadence.</summary>
+            public int RenderIndex;
         }
 
         /// <summary>
@@ -739,20 +734,54 @@ namespace PlayniteAchievements.Services.UI
         private const double ShadowRecaptureMinIntervalMs = 150;
 
         /// <summary>
-        /// Every effect-carrying element under <paramref name="root"/>, in visual-tree order.
+        /// Every effect-carrying element under <paramref name="root"/> in visual-tree order, and
+        /// (when a list is supplied) every visible ray-burst control. Both are what the sample
+        /// render excludes: effects for their software blur, ray bursts for their fixed
+        /// per-rasterization geometry-flattening cost — each measured at multiples of the whole
+        /// rest of the card.
         /// </summary>
         private static void CollectEffects(
-            DependencyObject root, List<KeyValuePair<FrameworkElement, Effect>> results)
+            DependencyObject root, List<KeyValuePair<FrameworkElement, Effect>> results,
+            List<Views.Controls.RarityRayBurst> rayBursts = null)
         {
             if (root is FrameworkElement fe && fe.Effect != null)
             {
                 results.Add(new KeyValuePair<FrameworkElement, Effect>(fe, fe.Effect));
             }
 
+            if (rayBursts != null &&
+                root is Views.Controls.RarityRayBurst burst &&
+                burst.Visibility == Visibility.Visible)
+            {
+                rayBursts.Add(burst);
+            }
+
             var count = VisualTreeHelper.GetChildrenCount(root);
             for (var i = 0; i < count; i++)
             {
-                CollectEffects(VisualTreeHelper.GetChild(root, i), results);
+                CollectEffects(VisualTreeHelper.GetChild(root, i), results, rayBursts);
+            }
+        }
+
+        /// <summary>
+        /// Hides/restores the ray bursts around a sample render, via SetCurrentValue for the same
+        /// reasons the effects use it (see <see cref="StripEffects"/>): the Visibility binding
+        /// that gates the burst stays attached and keeps ownership. Both sides run inside one
+        /// dispatcher callback, so the screen never sees the gap.
+        /// </summary>
+        private static void HideRayBursts(List<Views.Controls.RarityRayBurst> rayBursts)
+        {
+            foreach (var burst in rayBursts)
+            {
+                burst.SetCurrentValue(UIElement.VisibilityProperty, Visibility.Collapsed);
+            }
+        }
+
+        private static void RestoreRayBursts(List<Views.Controls.RarityRayBurst> rayBursts)
+        {
+            foreach (var burst in rayBursts)
+            {
+                burst.SetCurrentValue(UIElement.VisibilityProperty, Visibility.Visible);
             }
         }
 
@@ -1020,24 +1049,25 @@ namespace PlayniteAchievements.Services.UI
                 {
                     recorder.Sample(
                         vm, null, 0, 0, scratch.LastCardWPhys, scratch.LastCardHPhys,
-                        slideXPhys, slideYPhys, glowScale,
+                        slideXPhys, slideYPhys, glowScale, hostOpacity,
                         clientPhys.Width, clientPhys.Height, elapsedMs);
                     continue;
                 }
 
-                var captureScale = CurrentCaptureScale(clientPhys, toastItems.Count);
+                var captureScale = CurrentCaptureScale(clientPhys);
 
-                // Effects are detached for the render: the software blur they cost per tick is the
-                // dominant sampler expense (measured ~6x the whole rest of the card), and their
-                // halo is static apart from opacity — captured once as the shadow layer and
-                // re-applied at export as layer x glowScale.
+                // Effects and ray bursts are detached for the render: the blur's software raster
+                // and the rays' geometry flattening are each multiples of the whole rest of the
+                // card per rasterization. The blur halo returns at export as the shadow layer x
+                // glowScale; the rays return as timed layers captured below.
                 var effects = new List<KeyValuePair<FrameworkElement, Effect>>();
-                CollectEffects(container, effects);
+                var rayBursts = new List<Views.Controls.RarityRayBurst>();
+                CollectEffects(container, effects, rayBursts);
                 StripEffects(effects);
+                HideRayBursts(rayBursts);
                 byte[] pixels;
                 int pw, ph, cardWPhys, cardHPhys;
                 bool rendered;
-                var renderStart = Stopwatch.GetTimestamp();
                 try
                 {
                     rendered = TryRenderToastItemBytes(
@@ -1047,21 +1077,13 @@ namespace PlayniteAchievements.Services.UI
                 }
                 finally
                 {
+                    RestoreRayBursts(rayBursts);
                     RestoreEffects(effects);
                 }
 
                 if (!rendered)
                 {
                     continue;
-                }
-
-                var renderMs = (Stopwatch.GetTimestamp() - renderStart) * 1000.0 / Stopwatch.Frequency;
-                _sampleRenderEmaMs = _sampleRenderEmaMs <= 0
-                    ? renderMs
-                    : (0.8 * _sampleRenderEmaMs) + (0.2 * renderMs);
-                if (toastItems.Count > 1)
-                {
-                    UpdateStackCaptureScale();
                 }
 
                 scratch.LastCardWPhys = cardWPhys;
@@ -1079,56 +1101,100 @@ namespace PlayniteAchievements.Services.UI
                     CaptureShadowLayer(recorder, window, container, vm, scratch, effects, captureScale);
                 }
 
+                // Every other render of this card refreshes its ray layer: rays drift slowly, so
+                // half the pixel cadence reads smoothly, and the with-rays render this costs would
+                // otherwise have been paid on every tick. Skipped mid-fade — the layer must carry
+                // no host opacity of its own, since the export scales it by the sample's. Computed
+                // before the Sample call (which passes the bare buffer's ownership to the worker),
+                // attached after it (the item's time epoch must exist first).
+                byte[] rayDelta = null;
+                var rayW = 0;
+                var rayH = 0;
+                if (rayBursts.Count > 0 && scratch.RenderIndex % 2 == 0 && hostOpacity >= 0.999)
+                {
+                    rayDelta = ComputeRayLayerDelta(
+                        recorder, window, container, vm, pixels, pw, ph, captureScale,
+                        out rayW, out rayH);
+                }
+
                 recorder.Sample(
-                    vm, pixels, pw, ph, cardWPhys, cardHPhys, slideXPhys, slideYPhys, glowScale,
+                    vm, pixels, pw, ph, cardWPhys, cardHPhys, slideXPhys, slideYPhys,
+                    glowScale, hostOpacity,
                     clientPhys.Width, clientPhys.Height, elapsedMs);
+                if (rayDelta != null)
+                {
+                    recorder.AttachRayLayer(vm, rayDelta, rayW, rayH, elapsedMs);
+                }
+
+                scratch.RenderIndex++;
             }
         }
 
         /// <summary>
-        /// The scale card pixels are rasterized at: the clip's own scale (its encode height over
-        /// the client height — capturing above it is cost without benefit), lowered further for
-        /// stacked waves by the adaptive factor when renders overrun the tick budget.
+        /// Computes one ray-burst difference layer: the card rendered with rays visible (effects
+        /// stripped) minus this tick's bare render, in the same dispatcher callback so the content
+        /// matches. Non-negative in premultiplied space: rays only add light over the bare card.
+        /// Null when the render fails or the sizes disagree.
         /// </summary>
-        private double CurrentCaptureScale(System.Drawing.Rectangle clientPhys, int cardCount)
+        private byte[] ComputeRayLayerDelta(
+            ToastOverlayTrackRecorder recorder, Window window, FrameworkElement container,
+            AchievementToastViewModel vm, byte[] barePixels, int pw, int ph, double captureScale,
+            out int rayW, out int rayH)
         {
-            var scale = 1.0;
-            if (clientPhys.Height > 0)
+            rayW = 0;
+            rayH = 0;
+            var effects = new List<KeyValuePair<FrameworkElement, Effect>>();
+            CollectEffects(container, effects);
+            StripEffects(effects);
+            byte[] withRays;
+            int rw, rh;
+            bool rendered;
+            try
             {
-                var cap = ResolutionCapMath.CapHeightFor(
-                    _settings?.Persisted?.RecordingResolution ?? RecordingResolution.Native);
-                var size = ResolutionCapMath.Apply(
-                    clientPhys.Width, clientPhys.Height, cap, evenDimensions: true);
-                scale = Math.Min(1.0, size.Height / (double)clientPhys.Height);
+                rendered = TryRenderToastItemBytes(
+                    window, container, scratch: null, len => recorder.RentBuffer(vm, len),
+                    applyHostOpacity: true, captureScale,
+                    out withRays, out rw, out rh, out _, out _);
+            }
+            finally
+            {
+                RestoreEffects(effects);
             }
 
-            return cardCount > 1 ? scale * _stackCaptureScale : scale;
+            if (!rendered || rw != pw || rh != ph || withRays.Length != barePixels.Length)
+            {
+                return null;
+            }
+
+            for (var i = 0; i < withRays.Length; i++)
+            {
+                var delta = withRays[i] - barePixels[i];
+                withRays[i] = delta > 0 ? (byte)delta : (byte)0;
+            }
+
+            rayW = rw;
+            rayH = rh;
+            return withRays;
         }
 
         /// <summary>
-        /// Steps the stacked-wave capture scale toward the value whose render cost fits half the
-        /// sample interval (cost scales with area, so the adjustment is the square root of the
-        /// overrun). Quantized and floored so the pixel dims do not churn — every dims change
-        /// costs a keyframe and a shadow recapture — and the EMA resets on a step so the next
-        /// adjustment measures the new scale rather than the old one.
+        /// The scale card pixels are rasterized at: the clip's own scale — its encode height over
+        /// the client height. Capturing above it is cost without benefit (the export blit would
+        /// downscale with nearest-neighbor); capturing below it is what "super compressed" cards
+        /// look like, so nothing here ever goes lower.
         /// </summary>
-        private void UpdateStackCaptureScale()
+        private double CurrentCaptureScale(System.Drawing.Rectangle clientPhys)
         {
-            if (_sampleRenderEmaMs <= 0)
+            if (clientPhys.Height <= 0)
             {
-                return;
+                return 1.0;
             }
 
-            var budgetMs = TrackSampleIntervalMs() * 0.5;
-            var desired = _stackCaptureScale * Math.Sqrt(budgetMs / _sampleRenderEmaMs);
-            var quantized = Math.Max(
-                StackCaptureScaleFloor,
-                Math.Min(1.0, Math.Round(desired / StackCaptureScaleStep) * StackCaptureScaleStep));
-            if (Math.Abs(quantized - _stackCaptureScale) >= StackCaptureScaleStep - 0.001)
-            {
-                _stackCaptureScale = quantized;
-                _sampleRenderEmaMs = 0;
-            }
+            var cap = ResolutionCapMath.CapHeightFor(
+                _settings?.Persisted?.RecordingResolution ?? RecordingResolution.Native);
+            var size = ResolutionCapMath.Apply(
+                clientPhys.Width, clientPhys.Height, cap, evenDimensions: true);
+            return Math.Min(1.0, size.Height / (double)clientPhys.Height);
         }
 
         private CardRenderScratch GetCardScratch(AchievementToastViewModel vm)
@@ -1197,7 +1263,7 @@ namespace PlayniteAchievements.Services.UI
                 return;
             }
 
-            var captureScale = CurrentCaptureScale(clientPhys, toastItems.Count);
+            var captureScale = CurrentCaptureScale(clientPhys);
             for (var i = 0; i < toastItems.Count; i++)
             {
                 var container = itemsControl.ItemContainerGenerator.ContainerFromIndex(i) as FrameworkElement;
@@ -1977,8 +2043,6 @@ namespace PlayniteAchievements.Services.UI
                     _trackRenderScratch = new Dictionary<AchievementToastViewModel, CardRenderScratch>();
                     trackSampleCount = 0;
                     _waveShadowCaptureCount = 0;
-                    _sampleRenderEmaMs = 0;
-                    _stackCaptureScale = 1.0;
                     CaptureWaveShadowLayers(trackRecorder, window, cardItems);
                 }
 
@@ -2179,13 +2243,12 @@ namespace PlayniteAchievements.Services.UI
                     _logger?.Info(string.Format(
                         System.Globalization.CultureInfo.InvariantCulture,
                         "[Recording] Toast sampling: {0} samples, card render avg {1:0.0} ms, max {2:0.0} ms " +
-                        "(sample interval {3:0.0} ms), shadow captures {4}, stack scale {5:0.00}",
+                        "(sample interval {3:0.0} ms), shadow captures {4}",
                         trackSampleCount,
                         trackRenderWatch.Elapsed.TotalMilliseconds / trackSampleCount,
                         trackRenderMaxMs,
                         TrackSampleIntervalMs(),
-                        _waveShadowCaptureCount,
-                        _stackCaptureScale));
+                        _waveShadowCaptureCount));
                 }
 
                 LogWaveCadence(trackTicks, trackSampleCount);

@@ -61,6 +61,27 @@ namespace PlayniteAchievements.Services.Capture
         /// </summary>
         public Frame ShadowLayer { get; set; }
 
+        /// <summary>
+        /// The card's ray-burst flourish as time-ordered difference layers: with-rays render minus
+        /// the bare card render, premultiplied BGRA, captured at a fraction of the sample rate
+        /// (the rays are a slow drift, so a lower cadence reads smoothly). Export composites the
+        /// nearest-previous layer, scaled by the sample's host opacity, between the card pixels
+        /// and the shadow layer. Empty when the card shows no ray burst. Excluding the rays from
+        /// the per-tick render matters because their layered arrow geometry costs a fixed
+        /// flattening price per software rasterization — measured about twice the whole rest of
+        /// the card.
+        /// </summary>
+        public List<TimedLayer> RayLayers { get; } = new List<TimedLayer>();
+
+        /// <summary>One captured difference layer and the track time it was captured at.</summary>
+        public struct TimedLayer
+        {
+            /// <summary>Milliseconds since the track's first sample.</summary>
+            public int ElapsedMs;
+
+            public Frame Layer;
+        }
+
         /// <summary>Time-ordered samples; consecutive identical pixels share one frame.</summary>
         public List<Sample> Samples { get; } = new List<Sample>();
 
@@ -103,6 +124,13 @@ namespace PlayniteAchievements.Services.Capture
 
             /// <summary>See <see cref="CardWPhys"/>.</summary>
             public int CardHPhys;
+
+            /// <summary>
+            /// The slide host's opacity at this tick. Scales the ray layers at export (a fade
+            /// theme's fade must reach them; the card pixels carry it already, and the shadow
+            /// layer's <see cref="GlowScale"/> folds it in with the pulse).
+            /// </summary>
+            public double HostOpacity;
 
             /// <summary>Game client width at this tick, physical pixels (scales rects into video frames).</summary>
             public int ClientW;

@@ -854,6 +854,7 @@ internal static class CaptureHarness
             sampleType.GetField("GlowScale").SetValue(sample, 1.0);
             sampleType.GetField("CardWPhys").SetValue(sample, CardW);
             sampleType.GetField("CardHPhys").SetValue(sample, CardH);
+            sampleType.GetField("HostOpacity").SetValue(sample, 1.0);
             sampleType.GetField("ClientW").SetValue(sample, 1920);
             sampleType.GetField("ClientH").SetValue(sample, 1080);
             add.Invoke(samples, new[] { sample });

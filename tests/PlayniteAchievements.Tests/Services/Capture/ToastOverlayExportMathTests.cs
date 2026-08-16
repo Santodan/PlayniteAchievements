@@ -227,6 +227,35 @@ namespace PlayniteAchievements.Services.Tests.Capture
             Assert.AreEqual(0.5, ToastOverlayExportMath.GetGlowScale(track, 1, 9.0), 1e-9);
         }
 
+        // === Host opacity and ray layers ===
+
+        [TestMethod]
+        public void GetHostOpacity_BetweenSamples_InterpolatesLinearly()
+        {
+            var track = BottomRightTrack();
+            track.Samples.Add(new ToastOverlayTrack.Sample { ElapsedMs = 0, HostOpacity = 1.0 });
+            track.Samples.Add(new ToastOverlayTrack.Sample { ElapsedMs = 40, HostOpacity = 0.0 });
+
+            Assert.AreEqual(0.5, ToastOverlayExportMath.GetHostOpacity(track, 0, 0.020), 1e-9);
+            Assert.AreEqual(0.0, ToastOverlayExportMath.GetHostOpacity(track, 1, 9.0), 1e-9);
+        }
+
+        [TestMethod]
+        public void FindRayLayerAtOrBefore_AdvancesCursorAndClamps()
+        {
+            var track = BottomRightTrack();
+            track.RayLayers.Add(new ToastOverlayTrack.TimedLayer { ElapsedMs = 0 });
+            track.RayLayers.Add(new ToastOverlayTrack.TimedLayer { ElapsedMs = 100 });
+            track.RayLayers.Add(new ToastOverlayTrack.TimedLayer { ElapsedMs = 200 });
+
+            Assert.AreEqual(-1, ToastOverlayExportMath.FindRayLayerAtOrBefore(track, -0.001, -1));
+            Assert.AreEqual(0, ToastOverlayExportMath.FindRayLayerAtOrBefore(track, 0.050, -1));
+            Assert.AreEqual(1, ToastOverlayExportMath.FindRayLayerAtOrBefore(track, 0.150, 0));
+            Assert.AreEqual(2, ToastOverlayExportMath.FindRayLayerAtOrBefore(track, 9.0, 1));
+            // The cursor never regresses; a caller passing its previous result keeps it.
+            Assert.AreEqual(2, ToastOverlayExportMath.FindRayLayerAtOrBefore(track, 0.050, 2));
+        }
+
         // === Shadow layer composition ===
 
         [TestMethod]

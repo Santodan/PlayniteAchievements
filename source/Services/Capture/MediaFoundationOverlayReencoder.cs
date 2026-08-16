@@ -291,10 +291,16 @@ namespace PlayniteAchievements.Services.Capture
             // The card's shadow/glow halo, captured effect-free at record time and re-applied here
             // per output frame as frame + layer × interpolated scale (the recorded pixels carry no
             // effects). Inflated once for the whole export; composited into a scratch so the XOR
-            // reconstruction buffer stays pristine.
+            // reconstruction buffer stays pristine. The ray-burst layers work the same way but are
+            // timed: the cursor advances with output time and the current layer is inflated on
+            // change.
             var shadowLayer = track.ShadowLayer;
             var shadowPixels = shadowLayer?.Inflate();
             byte[] glowScratch = null;
+            var rayCursor = -1;
+            byte[] rayPixels = null;
+            var rayW = 0;
+            var rayH = 0;
 
             var pendingAudio = audioStream >= 0 ? ReadNextAudio(audioReader, trimLead) : null;
 
@@ -349,11 +355,27 @@ namespace PlayniteAchievements.Services.Capture
                             var destRect = ToastOverlayExportMath.ComputeDestRect(
                                 track, sampleIndex, secondsIntoTrack, frameW, frameH);
 
-                            var overlayPixels = inflated;
-                            if (shadowPixels != null &&
+                            var nextRay = ToastOverlayExportMath.FindRayLayerAtOrBefore(
+                                track, secondsIntoTrack, rayCursor);
+                            if (nextRay != rayCursor && nextRay >= 0)
+                            {
+                                rayCursor = nextRay;
+                                var layer = track.RayLayers[rayCursor].Layer;
+                                rayPixels = layer?.Inflate();
+                                rayW = layer?.Width ?? 0;
+                                rayH = layer?.Height ?? 0;
+                            }
+
+                            var composeRays = rayPixels != null &&
+                                rayW == overlayFrame.Width && rayH == overlayFrame.Height &&
+                                rayPixels.Length == inflated.Length;
+                            var composeShadow = shadowPixels != null &&
                                 shadowLayer.Width == overlayFrame.Width &&
                                 shadowLayer.Height == overlayFrame.Height &&
-                                shadowPixels.Length == inflated.Length)
+                                shadowPixels.Length == inflated.Length;
+
+                            var overlayPixels = inflated;
+                            if (composeRays || composeShadow)
                             {
                                 if (glowScratch == null || glowScratch.Length != inflated.Length)
                                 {
@@ -361,9 +383,20 @@ namespace PlayniteAchievements.Services.Capture
                                 }
 
                                 Buffer.BlockCopy(inflated, 0, glowScratch, 0, inflated.Length);
-                                OverlayBlitMath.AddScaled(
-                                    glowScratch, shadowPixels,
-                                    ToastOverlayExportMath.GetGlowScale(track, sampleIndex, secondsIntoTrack));
+                                if (composeRays)
+                                {
+                                    OverlayBlitMath.AddScaled(
+                                        glowScratch, rayPixels,
+                                        ToastOverlayExportMath.GetHostOpacity(track, sampleIndex, secondsIntoTrack));
+                                }
+
+                                if (composeShadow)
+                                {
+                                    OverlayBlitMath.AddScaled(
+                                        glowScratch, shadowPixels,
+                                        ToastOverlayExportMath.GetGlowScale(track, sampleIndex, secondsIntoTrack));
+                                }
+
                                 overlayPixels = glowScratch;
                             }
 

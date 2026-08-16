@@ -78,6 +78,9 @@ namespace PlayniteAchievements.Services.UI
             /// <summary>Rendered pixels, or null for a repeat tick (backlog or cap skip).</summary>
             public byte[] Pixels;
 
+            /// <summary>True for a ray-layer job: Pixels hold the difference layer, no sample.</summary>
+            public bool IsRayLayer;
+
             public int Width;
             public int Height;
             public int CardWPhys;
@@ -85,6 +88,7 @@ namespace PlayniteAchievements.Services.UI
             public double SlideXPhys;
             public double SlideYPhys;
             public double GlowScale;
+            public double HostOpacity;
             public int ClientW;
             public int ClientH;
             public double ElapsedMs;
@@ -200,7 +204,8 @@ namespace PlayniteAchievements.Services.UI
         /// </param>
         public void Sample(
             AchievementToastViewModel vm, byte[] premulBgra, int width, int height,
-            int cardWPhys, int cardHPhys, double slideXPhys, double slideYPhys, double glowScale,
+            int cardWPhys, int cardHPhys, double slideXPhys, double slideYPhys,
+            double glowScale, double hostOpacity,
             int clientW, int clientH, double elapsedMs)
         {
             if (vm == null || (premulBgra != null && (width <= 0 || height <= 0)))
@@ -232,8 +237,43 @@ namespace PlayniteAchievements.Services.UI
                     SlideXPhys = slideXPhys,
                     SlideYPhys = slideYPhys,
                     GlowScale = glowScale,
+                    HostOpacity = hostOpacity,
                     ClientW = clientW,
                     ClientH = clientH,
+                    ElapsedMs = elapsedMs,
+                });
+                if (_worker == null || _worker.IsCompleted)
+                {
+                    _worker = Task.Run(() => DrainQueue());
+                }
+            }
+        }
+
+        /// <summary>
+        /// Records one ray-burst difference layer at this tick's time. UI thread only; must be
+        /// called after this tick's <see cref="Sample"/> for the same item (FIFO order is what
+        /// guarantees the item's time epoch exists when the worker stamps the layer). Compression
+        /// happens on the worker like any frame; layer bytes count toward the memory caps.
+        /// </summary>
+        public void AttachRayLayer(
+            AchievementToastViewModel vm, byte[] premulBgraDelta, int width, int height, double elapsedMs)
+        {
+            if (vm == null || premulBgraDelta == null || width <= 0 || height <= 0)
+            {
+                return;
+            }
+
+            var state = GetOrCreateState(vm);
+            lock (_queueLock)
+            {
+                _pendingPixelJobs++;
+                _pending.Enqueue(new SampleJob
+                {
+                    State = state,
+                    Pixels = premulBgraDelta,
+                    IsRayLayer = true,
+                    Width = width,
+                    Height = height,
                     ElapsedMs = elapsedMs,
                 });
                 if (_worker == null || _worker.IsCompleted)
@@ -329,7 +369,7 @@ namespace PlayniteAchievements.Services.UI
                 _logger?.Info(string.Format(
                     System.Globalization.CultureInfo.InvariantCulture,
                     "[Recording] Toast track '{0}': {1:0.00}s, {2} samples ({3:0.0}/s), {4} unique frames " +
-                    "({5:0.0}/s), {6} unchanged, {7} pixel-less, capped={8}",
+                    "({5:0.0}/s), {6} unchanged, {7} pixel-less, {8} ray layers, capped={9}",
                     state.Track.AchievementName,
                     duration,
                     samples.Count,
@@ -338,6 +378,7 @@ namespace PlayniteAchievements.Services.UI
                     duration > 0 ? state.Track.Frames.Count / duration : 0,
                     state.DedupTicks,
                     state.RefusedTicks,
+                    state.Track.RayLayers.Count,
                     state.FramesCapped));
             }
 
@@ -397,6 +438,12 @@ namespace PlayniteAchievements.Services.UI
 
         private void ProcessJob(SampleJob job)
         {
+            if (job.IsRayLayer)
+            {
+                ProcessRayLayer(job);
+                return;
+            }
+
             var state = job.State;
             if (!state.HasFirstTick)
             {
@@ -445,9 +492,69 @@ namespace PlayniteAchievements.Services.UI
                 SlideXPhys = job.SlideXPhys,
                 SlideYPhys = job.SlideYPhys,
                 GlowScale = job.GlowScale,
+                HostOpacity = job.HostOpacity,
                 ClientW = job.ClientW,
                 ClientH = job.ClientH,
             });
+        }
+
+        /// <summary>
+        /// Compresses and appends one ray-burst difference layer. Worker thread only. A layer that
+        /// arrives after the memory cap, before the item's epoch, or fails to compress is dropped
+        /// — export then holds the previous layer, which reads as the rays pausing briefly.
+        /// </summary>
+        private void ProcessRayLayer(SampleJob job)
+        {
+            var state = job.State;
+            bool capped;
+            lock (_queueLock)
+            {
+                _pendingPixelJobs--;
+                capped = state.FramesCapped;
+            }
+
+            if (capped || !state.HasFirstTick)
+            {
+                ReturnBuffer(state, job.Pixels);
+                return;
+            }
+
+            ToastOverlayTrack.Frame layer;
+            try
+            {
+                layer = ToastOverlayTrack.Frame.Compress(job.Pixels, job.Width, job.Height, isDelta: false);
+            }
+            catch (Exception ex)
+            {
+                _logger?.Debug(ex, "Toast ray layer compression failed.");
+                ReturnBuffer(state, job.Pixels);
+                return;
+            }
+
+            ReturnBuffer(state, job.Pixels);
+            state.Track.RayLayers.Add(new ToastOverlayTrack.TimedLayer
+            {
+                ElapsedMs = (int)Math.Round(job.ElapsedMs - state.FirstSampleMs),
+                Layer = layer,
+            });
+
+            state.CompressedBytes += layer.Deflated.Length;
+            lock (_queueLock)
+            {
+                _totalCompressedBytes += layer.Deflated.Length;
+                if (!state.FramesCapped &&
+                    (state.CompressedBytes >= PerTrackCompressedCapBytes ||
+                     _totalCompressedBytes >= TotalCompressedCapBytes))
+                {
+                    state.FramesCapped = true;
+                    if (!_capLogged)
+                    {
+                        _capLogged = true;
+                        _logger?.Warn(
+                            "Toast overlay track memory cap reached; the card freezes at its last frame in the clip.");
+                    }
+                }
+            }
         }
 
         /// <summary>
