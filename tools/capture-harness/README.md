@@ -290,6 +290,31 @@ running (or ask a reporting user to zip theirs before closing Playnite).
 `--selftest` replays the field-shaped fixtures (drifting lag at gain 0.9, unrelated-reference clean
 pass) without needing any capture data.
 
+## The chime separation probe
+
+```powershell
+tools\capture-harness\bin\ChimeSeparationProbe.exe          # plays two quiet tones for ~7 s
+tools\capture-harness\bin\ChimeSeparationProbe.exe --tone <freqHz> <seconds> [amp] [amHz]
+```
+
+End-to-end proof that Playnite-chime vs emulator audio separation works on real WASAPI sessions,
+without Playnite.
+The probe recreates the process topology of a Playnite-launched emulator — it plays a 440 Hz "chime"
+from its own process (UniPlaySong's role) while a spawned child process plays an AM-warbled 1320 Hz
+"game" tone (RetroArch's role) — then captures three streams with the plugin's real
+`ProcessLoopbackCapture` (compiled in from source, like the cancellation): include-tree on the child
+(the GameOnly main track), include-tree on itself (the `chm_` sidecar; the child is inside that
+tree), and exclude-tree on itself (the FullSystem main track).
+Goertzel power at the two frequencies then verifies each scope (child-scoped capture must not carry
+the parent's chime; the excluded capture must carry neither tone), and `PcmAudio.CancelCorrelated`
+runs across the two *independent* loopback clients — real inter-client clock offset and drift — with
+the assertion that the game tone is suppressed >= 10 dB while the chime survives within 3 dB.
+The exe carries a Win10 `supportedOS` manifest (`win10.manifest`) because
+`ProcessLoopbackCapture.IsSupported` reads `Environment.OSVersion`, which lies (6.2) in unmanifested
+processes; inside Playnite the plugin never sees this.
+The two include-tree captures are immune to other applications' audio by construction; only the
+exclude-tree check is informational when something else is playing.
+
 ## Limits
 
 - Runs against a GDI window at whatever size the window is, not a real game at 2560x1440. Anything that
