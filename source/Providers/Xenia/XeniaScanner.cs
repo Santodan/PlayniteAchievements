@@ -14,7 +14,6 @@ using PlayniteAchievements.Services.Refresh;
 using System;
 using System.Collections.Generic;
 using System.IO;
-using System.IO.MemoryMappedFiles;
 using System.Linq;
 using System.Text;
 using System.Threading;
@@ -309,86 +308,60 @@ namespace PlayniteAchievements.Providers.Xenia
 
                 if (path.EndsWith(".iso") || path.EndsWith(".xex") || string.IsNullOrEmpty(Path.GetExtension(path)))
                 {
-                    using var mmf = MemoryMappedFile.CreateFromFile(path, FileMode.Open);
-
-                    Int64 accessoroffset = 0;
-                    var filesize = new FileInfo(path).Length;
-                    bool filecomplete = false;
-
-                    // Place this outside of loop to combat potential edge-case where .exe/.pe is found at the start of
-                    // the 1.5gb chunk but titleID is in the previous 1.5GB chunk that has been wiped
                     var chunksize = 8 * 1024; // 8 KB buffer
                     var buffer = new byte[chunksize];
+                    // Carries the tail of the previous read so a marker straddling a read boundary is still found
                     var previousbuffer = new byte[chunksize];
+                    byte[] combinedbuffer = new byte[chunksize * 2];
+                    byte[] exeChunk = new byte[exeAreaSize];
+                    byte[] exeMarker = Encoding.UTF8.GetBytes(".exe");
+                    byte[] peMarker = Encoding.UTF8.GetBytes(".pe");
 
-                    // Accessor needs to be split into sub 2GB chunks due to virtual address max size on 32bit
-                    // This didn't need chunking in my testing on .NET8 but we are on .NET4
-                    do
+                    // Playnite is a 32-bit process; the file must be streamed, never memory-mapped,
+                    // because a large contiguous view reservation exhausts virtual address space
+                    using var stream = new FileStream(path, FileMode.Open, FileAccess.Read, FileShare.Read, chunksize, FileOptions.SequentialScan);
+
+                    int bytesRead;
+                    while ((bytesRead = stream.Read(buffer, 0, buffer.Length)) > 0)
                     {
-                        Int64 filechunk = 1500000000;
-                        if(filechunk + accessoroffset > filesize)
+                        Array.Copy(previousbuffer, combinedbuffer, previousbuffer.Length);
+                        Array.Copy(buffer, 0, combinedbuffer, chunksize, bytesRead);
+
+                        var combinedLength = previousbuffer.Length + bytesRead;
+                        var foundexe = IndexOf(combinedbuffer, combinedLength, exeMarker);
+                        var foundpe = IndexOf(combinedbuffer, combinedLength, peMarker);
+
+                        if (foundexe >= exeAreaSize)
                         {
-                            filechunk = filesize - accessoroffset;
-                            filecomplete = true;
+                            // Pull the previous 300 characters and convert to char array (300 is arbitry just to account for possible lots of data between titleID and .exe entry)
+                            Array.Copy(combinedbuffer, foundexe - exeAreaSize, exeChunk, 0, exeAreaSize);
+
+                            var temptitleID = CheckChunk(ref exeChunk);
+                            if (!string.IsNullOrEmpty(temptitleID))
+                            {
+                                titleID = temptitleID;
+                                CacheTitleId(game.Id, temptitleID);
+                                return true;
+
+                            }
+                        }
+                        if (foundpe >= exeAreaSize)
+                        {
+                            Array.Copy(combinedbuffer, foundpe - exeAreaSize, exeChunk, 0, exeAreaSize);
+
+                            var temptitleID = CheckChunk(ref exeChunk);
+                            if (!string.IsNullOrEmpty(temptitleID))
+                            {
+                                titleID = temptitleID;
+                                CacheTitleId(game.Id, temptitleID);
+                                return true;
+                            }
                         }
 
-                        using var accessor = mmf.CreateViewStream(accessoroffset, filechunk, MemoryMappedFileAccess.Read);
-                        accessoroffset += filechunk;
-                        var position = 0;
-                        var bytesRead = 0;
-                        byte[] combinedbuffer = new byte[chunksize * 2];
-                        byte[] exeChunk = new byte[exeAreaSize];
-
-                        while (accessor.Position < accessor.Length)
-                        {
-                            bytesRead = accessor.Read(buffer, 0, buffer.Length);
-                            if (bytesRead == 0) break;
-
-                            Array.Copy(previousbuffer, combinedbuffer, previousbuffer.Length);
-                            Array.Copy(buffer, 0, combinedbuffer, chunksize, bytesRead);
-
-                            var combinedLength = previousbuffer.Length + bytesRead;
-                            var foundexe = IndexOf(combinedbuffer, combinedLength, Encoding.UTF8.GetBytes(".exe"));
-                            var foundpe = IndexOf(combinedbuffer, combinedLength, Encoding.UTF8.GetBytes(".pe"));
-
-                            if (foundexe >= exeAreaSize)
-                            {
-                                // Pull the previous 300 characters and convert to char array (300 is arbitry just to account for possible lots of data between titleID and .exe entry)
-                                Array.Copy(combinedbuffer, foundexe - exeAreaSize, exeChunk, 0, exeAreaSize);
-
-                                var temptitleID = CheckChunk(ref exeChunk);
-                                if (!string.IsNullOrEmpty(temptitleID))
-                                {
-                                    titleID = temptitleID;
-                                    CacheTitleId(game.Id, temptitleID);
-                                    return true;
-
-                                }
-                            }
-                            if (foundpe >= exeAreaSize)
-                            {
-                                Array.Copy(combinedbuffer, foundpe - exeAreaSize, exeChunk, 0, exeAreaSize);
-
-                                var temptitleID = CheckChunk(ref exeChunk);
-                                if (!string.IsNullOrEmpty(temptitleID))
-                                {
-                                    titleID = temptitleID;
-                                    CacheTitleId(game.Id, temptitleID);
-                                    return true;
-                                }
-                            }
-
-                            position += bytesRead;
-                            Array.Clear(previousbuffer, 0, previousbuffer.Length);
-                            var tailCount = Math.Min(previousbuffer.Length, bytesRead);
-                            Array.Copy(buffer, bytesRead - tailCount, previousbuffer, previousbuffer.Length - tailCount, tailCount);
-                        }
-
-
-
-                    } while (!filecomplete);
-                    
-
+                        Array.Clear(previousbuffer, 0, previousbuffer.Length);
+                        var tailCount = Math.Min(previousbuffer.Length, bytesRead);
+                        Array.Copy(buffer, bytesRead - tailCount, previousbuffer, previousbuffer.Length - tailCount, tailCount);
+                    }
                 }
                 else
                 {
