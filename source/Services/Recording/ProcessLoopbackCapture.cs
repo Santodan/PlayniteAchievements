@@ -16,11 +16,25 @@ namespace PlayniteAchievements.Services.Recording
     /// Windows 10 build 19041+; callers gate on <see cref="IsSupported"/> and fall back to full
     /// system audio when it's unavailable or activation fails. The mixed stream is delivered as
     /// 48 kHz stereo 32-bit float, polled off a background thread.
+    /// <para>
+    /// The same client also captures one render <em>endpoint</em> (<see cref="ForEndpoint"/>):
+    /// an endpoint id is itself a device interface path, so only the activation params and the
+    /// OS requirement differ. Sharing the client is what keeps the two tracks comparable — same
+    /// poll loop, same QPC packet stamps, same gap padding, and the same audio-engine conversion
+    /// into 48 kHz stereo float — which is what lets one be cancelled from the other.
+    /// </para>
     /// </summary>
     internal sealed class ProcessLoopbackCapture : IWaveIn
     {
         private const string VirtualAudioDeviceProcessLoopback = "VAD\\Process_Loopback";
         private const int AUDCLNT_STREAMFLAGS_LOOPBACK = 0x00020000;
+
+        // Let the audio engine convert an endpoint's own mix format (which can be 44.1 kHz, or
+        // multichannel on a controller endpoint) into the format below, instead of failing the
+        // Initialize. The virtual process-loopback device needs neither flag: it mixes to whatever
+        // format is asked for.
+        private const int AUDCLNT_STREAMFLAGS_AUTOCONVERTPCM = unchecked((int)0x80000000);
+        private const int AUDCLNT_STREAMFLAGS_SRC_DEFAULT_QUALITY = 0x08000000;
         private const int AUDCLNT_SHAREMODE_SHARED = 0;
         private const uint WAVE_FORMAT_IEEE_FLOAT = 3;
         // ActivationType: 0 = default, 1 = process loopback. Mode: 0 = include target tree.
@@ -39,6 +53,7 @@ namespace PlayniteAchievements.Services.Recording
 
         private readonly int _processId;
         private readonly int _mode;
+        private readonly bool _endpointCapture;
         private IAudioClient _audioClient;
         private IAudioCaptureClient _captureClient;
         private Thread _pollThread;
@@ -162,6 +177,36 @@ namespace PlayniteAchievements.Services.Recording
             }
         }
 
+        private ProcessLoopbackCapture(string deviceId)
+        {
+            _endpointCapture = true;
+            try
+            {
+                _audioClient = ActivateEndpointClient(deviceId);
+                InitializeClient();
+            }
+            catch
+            {
+                ReleaseClients();
+                throw;
+            }
+        }
+
+        /// <summary>
+        /// Captures everything rendered to one endpoint, by its id (an endpoint id is the device
+        /// interface path <c>ActivateAudioInterfaceAsync</c> takes). Unlike process loopback this
+        /// needs no particular Windows build — plain endpoint loopback is as old as WASAPI.
+        /// </summary>
+        public static ProcessLoopbackCapture ForEndpoint(string deviceId)
+        {
+            if (string.IsNullOrEmpty(deviceId))
+            {
+                throw new ArgumentNullException(nameof(deviceId));
+            }
+
+            return new ProcessLoopbackCapture(deviceId);
+        }
+
         private IAudioClient ActivateProcessLoopbackClient(int processId, int mode)
         {
             var activationParams = new AUDIOCLIENT_ACTIVATION_PARAMS
@@ -187,42 +232,56 @@ namespace PlayniteAchievements.Services.Recording
                     blobData = paramPtr,
                 };
 
-                var handler = new ActivationHandler();
-                IActivateAudioInterfaceAsyncOperation op = null;
-                try
-                {
-                    var iid = IID_IAudioClient;
-                    var hr = ActivateAudioInterfaceAsync(
-                        VirtualAudioDeviceProcessLoopback, ref iid, ref prop, handler, out op);
-                    if (hr != 0)
-                    {
-                        Marshal.ThrowExceptionForHR(hr);
-                    }
-
-                    if (!handler.Completed.WaitOne(TimeSpan.FromSeconds(5)))
-                    {
-                        throw new TimeoutException("ActivateAudioInterfaceAsync did not complete.");
-                    }
-
-                    if (handler.ActivateHr != 0 || handler.Interface == null)
-                    {
-                        Marshal.ThrowExceptionForHR(
-                            handler.ActivateHr != 0 ? handler.ActivateHr : unchecked((int)0x80004005));
-                    }
-
-                    return (IAudioClient)handler.Interface;
-                }
-                finally
-                {
-                    if (op != null)
-                    {
-                        Marshal.ReleaseComObject(op);
-                    }
-                }
+                return ActivateAudioClient(VirtualAudioDeviceProcessLoopback, prop);
             }
             finally
             {
                 Marshal.FreeHGlobal(paramPtr);
+            }
+        }
+
+        /// <summary>
+        /// Activates a real endpoint by its id. No activation params: an empty PROPVARIANT
+        /// (VT_EMPTY) is what a plain endpoint activation takes.
+        /// </summary>
+        private static IAudioClient ActivateEndpointClient(string deviceId)
+        {
+            return ActivateAudioClient(deviceId, default(PROPVARIANT));
+        }
+
+        private static IAudioClient ActivateAudioClient(string devicePath, PROPVARIANT activationParams)
+        {
+            var handler = new ActivationHandler();
+            IActivateAudioInterfaceAsyncOperation op = null;
+            try
+            {
+                var iid = IID_IAudioClient;
+                var hr = ActivateAudioInterfaceAsync(
+                    devicePath, ref iid, ref activationParams, handler, out op);
+                if (hr != 0)
+                {
+                    Marshal.ThrowExceptionForHR(hr);
+                }
+
+                if (!handler.Completed.WaitOne(TimeSpan.FromSeconds(5)))
+                {
+                    throw new TimeoutException("ActivateAudioInterfaceAsync did not complete.");
+                }
+
+                if (handler.ActivateHr != 0 || handler.Interface == null)
+                {
+                    Marshal.ThrowExceptionForHR(
+                        handler.ActivateHr != 0 ? handler.ActivateHr : unchecked((int)0x80004005));
+                }
+
+                return (IAudioClient)handler.Interface;
+            }
+            finally
+            {
+                if (op != null)
+                {
+                    Marshal.ReleaseComObject(op);
+                }
             }
         }
 
@@ -243,9 +302,18 @@ namespace PlayniteAchievements.Services.Recording
             try
             {
                 Marshal.StructureToPtr(format, formatPtr, false);
-                // 200 ms buffer (100-ns units). Process loopback requires shared mode + the loopback flag.
+
+                // 200 ms buffer (100-ns units). Both modes require shared mode + the loopback flag;
+                // an endpoint additionally needs the engine's converter, because its own mix format
+                // is whatever the device runs at.
+                var flags = AUDCLNT_STREAMFLAGS_LOOPBACK;
+                if (_endpointCapture)
+                {
+                    flags |= AUDCLNT_STREAMFLAGS_AUTOCONVERTPCM | AUDCLNT_STREAMFLAGS_SRC_DEFAULT_QUALITY;
+                }
+
                 var hr = _audioClient.Initialize(
-                    AUDCLNT_SHAREMODE_SHARED, AUDCLNT_STREAMFLAGS_LOOPBACK, 2_000_000, 0, formatPtr, IntPtr.Zero);
+                    AUDCLNT_SHAREMODE_SHARED, flags, 2_000_000, 0, formatPtr, IntPtr.Zero);
                 if (hr != 0)
                 {
                     Marshal.ThrowExceptionForHR(hr);
