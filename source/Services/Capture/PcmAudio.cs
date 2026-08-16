@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.IO;
 
 namespace PlayniteAchievements.Services.Capture
 {
@@ -50,8 +51,17 @@ namespace PlayniteAchievements.Services.Capture
     /// </summary>
     internal static class PcmAudio
     {
+        /// <summary>Sample rate of the export PCM format.</summary>
+        public const int SampleRate = 48000;
+
+        /// <summary>Channel count of the export PCM format.</summary>
+        public const int Channels = 2;
+
+        /// <summary>Sample depth of the export PCM format.</summary>
+        public const int BitsPerSample = 16;
+
         /// <summary>Bytes per second of the export PCM format (48 kHz, stereo, 16-bit).</summary>
-        public const int BytesPerSecond = 48000 * 2 * 2;
+        public const int BytesPerSecond = SampleRate * Channels * BitsPerSample / 8;
 
         /// <summary>Sample-frame alignment in bytes (stereo 16-bit).</summary>
         public const int BlockAlign = 4;
@@ -98,6 +108,52 @@ namespace PlayniteAchievements.Services.Capture
         // chime-dominated block (whose residual is legitimately loud) cannot fail a good pass.
         private const double MinimumSuppressionDb = 10.0;
         private const double FullSuppressionDb = 60.0;
+
+        /// <summary>
+        /// Writes a buffer of this format's PCM as a RIFF/WAVE file, so a processed audio window can
+        /// be handed back to the export pipeline as an ordinary chunk. Keeping the exporter on files
+        /// is what leaves its planning and A/V alignment untouched.
+        /// </summary>
+        public static void WriteWav(string path, byte[] pcm)
+        {
+            if (string.IsNullOrEmpty(path) || pcm == null)
+            {
+                throw new ArgumentNullException(pcm == null ? nameof(pcm) : nameof(path));
+            }
+
+            using (var stream = new FileStream(path, FileMode.Create, FileAccess.Write))
+            using (var writer = new BinaryWriter(stream))
+            {
+                writer.Write(Tag("RIFF"));
+                writer.Write(36 + pcm.Length);
+                writer.Write(Tag("WAVE"));
+
+                writer.Write(Tag("fmt "));
+                writer.Write(16);                                   // PCM fmt chunk size
+                writer.Write((short)1);                             // WAVE_FORMAT_PCM
+                writer.Write((short)Channels);
+                writer.Write(SampleRate);
+                writer.Write(BytesPerSecond);
+                writer.Write((short)BlockAlign);
+                writer.Write((short)BitsPerSample);
+
+                writer.Write(Tag("data"));
+                writer.Write(pcm.Length);
+                writer.Write(pcm);
+            }
+        }
+
+        /// <summary>A RIFF four-character chunk id. Written as bytes, never through an encoding.</summary>
+        private static byte[] Tag(string fourCc)
+        {
+            var bytes = new byte[4];
+            for (var i = 0; i < 4; i++)
+            {
+                bytes[i] = (byte)fourCc[i];
+            }
+
+            return bytes;
+        }
 
         /// <summary>Converts a 100-ns tick offset to a block-aligned byte offset.</summary>
         public static long TicksToAlignedBytes(long ticks)
@@ -180,11 +236,18 @@ namespace PlayniteAchievements.Services.Capture
         /// committed only when the residual energy in the processed blocks confirms the game was
         /// actually removed; otherwise the mixture is left untouched and callers must omit the
         /// chime rather than mix unidentified audio into the clip.
+        /// <para>
+        /// <paramref name="muteUnverifiedBlocks"/> decides what happens to a block the subtraction
+        /// could not be verified on, inside an otherwise verified pass. Silencing it is right for a
+        /// sidecar that will be discarded if it is dirty; it is wrong for a track that IS the clip's
+        /// audio, where holes are worse than the residual, so the haptic pass turns it off.
+        /// </para>
         /// </summary>
         public static PcmCancellationOutcome CancelCorrelated(
             byte[] mixture,
             byte[] gameReference,
-            out PcmCancellationDiagnostics diagnostics)
+            out PcmCancellationDiagnostics diagnostics,
+            bool muteUnverifiedBlocks = true)
         {
             diagnostics = default(PcmCancellationDiagnostics);
             if (mixture == null || gameReference == null ||
@@ -341,12 +404,15 @@ namespace PlayniteAchievements.Services.Capture
             // the subtraction. Shipping it would composite a burst of wrong-time game audio into
             // the chime — the exact artifact this pass exists to remove — so silence those blocks
             // (ramped, so no clicks) rather than let the quartile pass carry them through.
-            foreach (var measured in measuredBlocks)
+            if (muteUnverifiedBlocks)
             {
-                if (measured.SuppressionDb < MinimumSuppressionDb)
+                foreach (var measured in measuredBlocks)
                 {
-                    MuteBlock(working, measured.StartFrame, measured.EndFrame);
-                    diagnostics.MutedBlocks++;
+                    if (measured.SuppressionDb < MinimumSuppressionDb)
+                    {
+                        MuteBlock(working, measured.StartFrame, measured.EndFrame);
+                        diagnostics.MutedBlocks++;
+                    }
                 }
             }
 
