@@ -79,9 +79,69 @@ namespace PlayniteAchievements.Services.Recording
         private static bool IsHaptic(MMDevice device)
         {
             return HapticEndpointClassifier.IsHapticEndpoint(
-                TryRead(() => device.InstanceId),
+                IdentityCandidates(device),
                 TryRead(() => device.FriendlyName),
                 TryRead(() => device.DeviceFriendlyName));
+        }
+
+        /// <summary>
+        /// Every string this endpoint publishes that carries a USB vendor id, which is where the
+        /// pad's identity actually lives — as a device instance path, a hardware id, or a device
+        /// interface path, depending on the driver. The whole property store is swept rather than a
+        /// fixed set of keys: <see cref="MMDevice.InstanceId"/> alone reports "Unknown" on plenty of
+        /// real endpoints, and which key is populated is the driver's choice, not a constant.
+        /// </summary>
+        private static IEnumerable<string> IdentityCandidates(MMDevice device)
+        {
+            var candidates = new List<string>();
+            Collect(candidates, TryRead(() => device.InstanceId));
+            try
+            {
+                var properties = device.Properties;
+                for (var i = 0; i < properties.Count; i++)
+                {
+                    try
+                    {
+                        var value = properties.GetValue(i).Value;
+                        if (value is string text)
+                        {
+                            Collect(candidates, text);
+                        }
+                        else if (value is string[] many)
+                        {
+                            foreach (var entry in many)
+                            {
+                                Collect(candidates, entry);
+                            }
+                        }
+                    }
+                    catch
+                    {
+                        // Property types this build cannot marshal are of no interest here.
+                    }
+                }
+            }
+            catch
+            {
+                // An endpoint with no readable property store still gets the name fallback.
+            }
+
+            return candidates;
+        }
+
+        /// <summary>Keeps the strings that carry a vendor id, in either the USB or Bluetooth form.</summary>
+        private static void Collect(List<string> candidates, string value)
+        {
+            if (string.IsNullOrEmpty(value))
+            {
+                return;
+            }
+
+            if (value.IndexOf("VID_", StringComparison.OrdinalIgnoreCase) >= 0 ||
+                value.IndexOf("VID&", StringComparison.OrdinalIgnoreCase) >= 0)
+            {
+                candidates.Add(value);
+            }
         }
 
         private static string Describe(MMDevice device)

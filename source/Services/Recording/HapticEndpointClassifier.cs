@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.Globalization;
 using PlayniteAchievements.Services.UI;
 
@@ -27,14 +28,46 @@ namespace PlayniteAchievements.Services.Recording
         };
 
         /// <summary>
-        /// Whether this endpoint is a controller's own audio device. Any of the three inputs may be
-        /// null; a match on the instance id is preferred because a name can be renamed by the user.
+        /// Whether this endpoint is a controller's own audio device. Any input may be null; a match
+        /// on a hardware identity is preferred because a name can be renamed by the user.
         /// </summary>
         public static bool IsHapticEndpoint(string instanceId, string friendlyName, string deviceDescription)
         {
-            if (TryParseVendorProduct(instanceId, out var vendorId, out var productId))
+            return IsHapticEndpoint(new[] { instanceId }, friendlyName, deviceDescription);
+        }
+
+        /// <summary>
+        /// The same decision over several candidate identity strings, because which property carries
+        /// the underlying hardware id varies by driver: an endpoint may expose it as a device
+        /// instance path, a hardware id, or a device interface path, and some expose none at all.
+        /// Names decide only when no candidate carried a vendor/product pair, so a device that
+        /// positively identifies as something else can never be matched by its name.
+        /// </summary>
+        public static bool IsHapticEndpoint(
+            IEnumerable<string> identityCandidates, string friendlyName, string deviceDescription)
+        {
+            var identified = false;
+            if (identityCandidates != null)
             {
-                return ControllerPadIds.RendersHapticsAsAudio(vendorId, productId);
+                foreach (var candidate in identityCandidates)
+                {
+                    if (!TryParseVendorProduct(candidate, out var vendorId, out var productId))
+                    {
+                        continue;
+                    }
+
+                    if (ControllerPadIds.RendersHapticsAsAudio(vendorId, productId))
+                    {
+                        return true;
+                    }
+
+                    identified = true;
+                }
+            }
+
+            if (identified)
+            {
+                return false;
             }
 
             return MatchesHapticName(friendlyName) || MatchesHapticName(deviceDescription);

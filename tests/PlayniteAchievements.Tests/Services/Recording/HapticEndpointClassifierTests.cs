@@ -81,6 +81,39 @@ namespace PlayniteAchievements.Services.Tests.Recording
         }
 
         [TestMethod]
+        public void AnyCandidateCarryingThePadIdentifiesTheEndpoint()
+        {
+            // Real endpoints publish the hardware id under whichever property the driver chose, so
+            // the whole set is offered and one match is enough.
+            var candidates = new[]
+            {
+                @"SWD\MMDEVAPI\{0.0.0.00000000}.{2b8f4c19-6d1e-4f77-9a2c-5e0d4a6b1c33}",
+                @"{1}.USB\VID_054C&PID_0CE6&MI_03\6&1bcb3ef7&0&0000",
+                @"\\?\usb#vid_054c&pid_0ce6&mi_03#6&1bcb3ef7&0&0000#{6994ad04-93ef-11d0-a3cc-00a0c9223196}",
+            };
+
+            Assert.IsTrue(HapticEndpointClassifier.IsHapticEndpoint(candidates, "Speakers", null));
+        }
+
+        [TestMethod]
+        public void AnIdentifiedNonPadIsNeverMatchedByItsName()
+        {
+            // A device that positively identifies as something else cannot be dragged in by a name,
+            // which the user can change: subtracting a real output device would remove wanted audio.
+            var candidates = new[] { @"{1}.USB\VID_36BC&PID_0001&MI_00\6&1bcb3ef7&0&0000" };
+
+            Assert.IsFalse(HapticEndpointClassifier.IsHapticEndpoint(
+                candidates, "Wireless Controller Dock", null));
+        }
+
+        [TestMethod]
+        public void NoPublishedIdentityFallsBackToTheName()
+        {
+            Assert.IsTrue(HapticEndpointClassifier.IsHapticEndpoint(
+                new string[0], "Speakers (Wireless Controller)", null));
+        }
+
+        [TestMethod]
         public void ShortVendorFieldIsNotParsed()
         {
             // A truncated id must not be read as some other pad by accident.
