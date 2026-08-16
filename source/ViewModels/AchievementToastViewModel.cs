@@ -409,9 +409,11 @@ namespace PlayniteAchievements.ViewModels
             ? AccentBrush
             : Application.Current?.TryFindResource("PlayAch.Brush.Text") as Brush ?? Brushes.White;
 
-        public Effect FrameRarityGlowEffect => _style.Frame.ShowRarityGlow && !HardcoreTakesBorder
-            ? RarityAppearanceHelper.GetGlow(_rarity, 20, _settings)
-            : null;
+        /// <summary>Screenshot-frame counterpart to <see cref="RarityGlowEffect"/>.</summary>
+        public Effect FrameRarityGlowEffect =>
+            _style.Frame.ShowRarityGlow && !HardcoreTakesBorder && HasSoftGlowTier
+                ? RarityAppearanceHelper.GetGlow(_rarity, 20, _settings)
+                : null;
 
         // Header texts honor the surface's user edits with the localized strings as fallback.
         // Stored friend formats that lost their {0} placeholder fall back to the localized
