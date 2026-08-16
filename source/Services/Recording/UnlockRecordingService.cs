@@ -1360,7 +1360,7 @@ namespace PlayniteAchievements.Services.Recording
                     $"[Recording] Chime game-audio cancellation: outcome={outcome} " +
                     $"lag={cancellation.StartLagMs:0.###}->{cancellation.EndLagMs:0.###}ms " +
                     $"gain={cancellation.Gain:0.00} correlation={cancellation.Correlation:0.000} " +
-                    $"suppression={cancellation.SuppressionDb:0.0}dB.");
+                    $"suppression={cancellation.SuppressionDb:0.0}dB mutedBlocks={cancellation.MutedBlocks}.");
             }
 
             if (pcm != null)
