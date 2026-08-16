@@ -1,7 +1,46 @@
 using System;
+using System.Collections.Generic;
 
 namespace PlayniteAchievements.Services.Capture
 {
+    /// <summary>
+    /// How a game-reference cancellation pass ended. Anything but Unseparable leaves the mixture
+    /// safe to composite into a clip.
+    /// </summary>
+    internal enum PcmCancellationOutcome
+    {
+        /// <summary>The game track was subtracted and the residual passed verification.</summary>
+        CancelledVerified,
+
+        /// <summary>The reference does not appear in the mixture; nothing was modified.</summary>
+        CleanNoGameDetected,
+
+        /// <summary>
+        /// The game is (or may be) present but could not be verifiably removed; the mixture is
+        /// unmodified and callers must omit the chime rather than composite audible game bleed.
+        /// </summary>
+        Unseparable,
+    }
+
+    /// <summary>Measurements from a cancellation pass, for logging.</summary>
+    internal struct PcmCancellationDiagnostics
+    {
+        /// <summary>Global alignment lag at the loudest reference passage, in milliseconds.</summary>
+        public double StartLagMs;
+
+        /// <summary>Lag tracked by the final processed block, in milliseconds.</summary>
+        public double EndLagMs;
+
+        /// <summary>Fitted mixture/reference gain at the global alignment.</summary>
+        public double Gain;
+
+        /// <summary>Normalized correlation at the global alignment.</summary>
+        public double Correlation;
+
+        /// <summary>Upper-quartile per-block energy suppression achieved by the subtraction.</summary>
+        public double SuppressionDb;
+    }
+
     /// <summary>
     /// Pure 16-bit PCM helpers for the clip export: mixing the recorded chime into a clip's
     /// audio. Kept free of Media Foundation so it unit-tests directly.
@@ -19,11 +58,33 @@ namespace PlayniteAchievements.Services.Capture
         // sub-packet offset cannot leave the game behind as a comb-filtered echo.
         private const int MaxCancellationLagFrames = 2400; // 50 ms at 48 kHz
         private const int CorrelationStrideFrames = 8;
-        private const int CorrelationWindowFrames = 24000; // score 0.5 s, then cancel the whole window
+        private const int CorrelationWindowFrames = 24000; // score 0.5 s at the loudest passage
         private const double MinimumCancellationCorrelation = 0.55;
-        private const double MinimumCancellationGain = 0.80;
-        private const double MaximumCancellationGain = 1.20;
         private const double SilentReferenceRms = 16.0; // about -66 dBFS
+
+        // The subtraction scales the reference by the fitted gain, so the accept range only needs
+        // to reject fits that are not plausibly the same signal chain.
+        private const double MinimumCancellationGain = 0.5;
+        private const double MaximumCancellationGain = 1.5;
+
+        // A loud reference that barely projects onto the mixture is not leaking into it at all
+        // (the game runs outside the sidecar's process tree); pass the mixture through untouched.
+        private const double CleanGainCeiling = 0.1;
+        private const double CleanCorrelationCeiling = 0.2;
+
+        // The two streams drift tens of ppm apart (observed ~33 ppm in the field), so one global
+        // lag mis-aligns the tail of a multi-second slice. Re-estimate lag and gain per block and
+        // follow the drift with a fractional-delay subtraction.
+        private const int BlockFrames = 24000; // 0.5 s
+        private const int BlockLagSearchFrames = 96; // +/- 2 ms around the tracked lag
+        private const int CrossfadeFrames = 240; // 5 ms across block parameter steps
+        private const double BlockGainFloor = 0.05; // below this the block has no game to remove
+
+        // Subtraction must demonstrably remove the game, not merely correlate with it: require
+        // this much energy suppression in the blocks where subtraction ran. Upper-quartile, so a
+        // chime-dominated block (whose residual is legitimately loud) cannot fail a good pass.
+        private const double MinimumSuppressionDb = 10.0;
+        private const double FullSuppressionDb = 60.0;
 
         /// <summary>Converts a 100-ns tick offset to a block-aligned byte offset.</summary>
         public static long TicksToAlignedBytes(long ticks)
@@ -100,24 +161,23 @@ namespace PlayniteAchievements.Services.Capture
 
         /// <summary>
         /// Removes a simultaneously captured game-only reference from a Playnite-tree mixture in
-        /// place. The two process-loopback clients are aligned by bounded normalized correlation;
-        /// a fitted gain must confirm their shared unity scale before exact subtraction. Returns
-        /// false without modifying the mixture when the signals are not demonstrably the same game
-        /// track; callers must omit the chime rather than risk mixing unidentified audio into the
-        /// clip.
+        /// place. A bounded global correlation search aligns the two process-loopback streams,
+        /// then each half-second block re-fits lag (with fractional-delay interpolation) and gain
+        /// so inter-stream drift cannot leave the slice tail comb-filtered. The subtraction is
+        /// committed only when the residual energy in the processed blocks confirms the game was
+        /// actually removed; otherwise the mixture is left untouched and callers must omit the
+        /// chime rather than mix unidentified audio into the clip.
         /// </summary>
-        public static bool TryCancelCorrelated(
+        public static PcmCancellationOutcome CancelCorrelated(
             byte[] mixture,
             byte[] gameReference,
-            out int lagFrames,
-            out double correlation)
+            out PcmCancellationDiagnostics diagnostics)
         {
-            lagFrames = 0;
-            correlation = 0;
+            diagnostics = default(PcmCancellationDiagnostics);
             if (mixture == null || gameReference == null ||
                 mixture.Length < BlockAlign || gameReference.Length < BlockAlign)
             {
-                return false;
+                return PcmCancellationOutcome.Unseparable;
             }
 
             var mixtureFrames = mixture.Length / BlockAlign;
@@ -138,11 +198,9 @@ namespace PlayniteAchievements.Services.Capture
                 }
             }
 
-            lagFrames = best.LagFrames;
-            correlation = best.Value;
             if (best.Count <= 0)
             {
-                return false;
+                return PcmCancellationOutcome.Unseparable;
             }
 
             var referenceRms = best.ReferenceEnergy <= 0
@@ -152,43 +210,250 @@ namespace PlayniteAchievements.Services.Capture
             {
                 // There is no audible game signal to leak out of the sidecar. Treat it as already
                 // clean so a chime over a silent/loading scene is not discarded for low correlation.
-                correlation = 1;
-                lagFrames = 0;
-                return true;
+                diagnostics.Correlation = 1;
+                return PcmCancellationOutcome.CleanNoGameDetected;
             }
 
-            if (best.ReferenceEnergy <= 0)
+            var globalGain = best.ReferenceEnergy <= 0 ? 0 : best.Dot / best.ReferenceEnergy;
+            diagnostics.Correlation = best.Value;
+            diagnostics.Gain = globalGain;
+            diagnostics.StartLagMs = best.LagFrames * 1000.0 / 48000.0;
+            diagnostics.EndLagMs = diagnostics.StartLagMs;
+
+            if (Math.Abs(globalGain) < CleanGainCeiling && Math.Abs(best.Value) < CleanCorrelationCeiling)
             {
-                return false;
+                return PcmCancellationOutcome.CleanNoGameDetected;
             }
 
-            var measuredGain = best.Dot / best.ReferenceEnergy;
-            if (correlation < MinimumCancellationCorrelation ||
-                measuredGain < MinimumCancellationGain || measuredGain > MaximumCancellationGain)
+            if (best.Value < MinimumCancellationCorrelation ||
+                globalGain < MinimumCancellationGain || globalGain > MaximumCancellationGain)
             {
-                return false;
+                return PcmCancellationOutcome.Unseparable;
             }
 
-            var mixStart = Math.Max(0, -lagFrames);
-            var mixEnd = Math.Min(mixtureFrames, referenceFrames - lagFrames);
-            for (var frame = mixStart; frame < mixEnd; frame++)
+            // Subtract into a copy so a failed verification leaves the caller's mixture pristine.
+            var working = (byte[])mixture.Clone();
+            var suppressionsDb = new List<double>();
+            var previousLag = (double)best.LagFrames;
+            var previousGain = 0.0;
+            var firstBlock = true;
+
+            for (var blockStart = 0; blockStart < mixtureFrames; blockStart += BlockFrames)
             {
-                var referenceFrame = frame + lagFrames;
-                var mixByte = frame * BlockAlign;
-                var referenceByte = referenceFrame * BlockAlign;
-                for (var channel = 0; channel < 2; channel++)
+                var blockEnd = Math.Min(mixtureFrames, blockStart + BlockFrames);
+                var block = FitBlock(mixture, gameReference, blockStart, blockEnd, (int)Math.Round(previousLag));
+
+                var blockGain = block.Gain;
+                var blockLag = block.LagFrames;
+                if (!block.HasSignal || blockGain < BlockGainFloor)
                 {
-                    var mixOffset = mixByte + channel * 2;
-                    var referenceOffset = referenceByte + channel * 2;
-                    var mixed = ReadInt16(mixture, mixOffset);
-                    var reference = ReadInt16(gameReference, referenceOffset);
-                    var cancelled = mixed - reference;
-                    cancelled = Math.Max(short.MinValue, Math.Min(short.MaxValue, cancelled));
-                    WriteInt16(mixture, mixOffset, (short)cancelled);
+                    // Nothing (or nothing audible) to remove here; ramp any previous subtraction out.
+                    blockGain = 0;
+                    blockLag = previousLag;
+                }
+
+                SubtractBlock(
+                    working,
+                    gameReference,
+                    blockStart,
+                    blockEnd,
+                    previousGain,
+                    previousLag,
+                    blockGain,
+                    blockLag,
+                    firstBlock ? 0 : CrossfadeFrames);
+
+                if (blockGain > 0)
+                {
+                    suppressionsDb.Add(MeasureSuppressionDb(mixture, working, blockStart, blockEnd));
+                    previousLag = blockLag;
+                }
+
+                previousGain = blockGain;
+                firstBlock = false;
+            }
+
+            if (suppressionsDb.Count == 0)
+            {
+                // The global fit promised a game track but no block found one to subtract; the
+                // mixture is effectively clean and was not modified beyond ramp no-ops.
+                return PcmCancellationOutcome.CleanNoGameDetected;
+            }
+
+            suppressionsDb.Sort();
+            var suppression = suppressionsDb[(suppressionsDb.Count - 1) * 3 / 4];
+            diagnostics.SuppressionDb = suppression;
+            diagnostics.EndLagMs = previousLag * 1000.0 / 48000.0;
+            if (suppression < MinimumSuppressionDb)
+            {
+                return PcmCancellationOutcome.Unseparable;
+            }
+
+            Buffer.BlockCopy(working, 0, mixture, 0, mixture.Length);
+            return PcmCancellationOutcome.CancelledVerified;
+        }
+
+        /// <summary>
+        /// Refines lag (to fractional precision via parabolic peak interpolation) and least-squares
+        /// gain for one block, searching a small neighbourhood around the tracked lag.
+        /// </summary>
+        private static BlockFit FitBlock(
+            byte[] mixture,
+            byte[] reference,
+            int blockStartFrame,
+            int blockEndFrame,
+            int centerLagFrames)
+        {
+            var scores = new CorrelationScore[2 * BlockLagSearchFrames + 1];
+            var bestIndex = -1;
+            var bestValue = double.NegativeInfinity;
+            for (var i = 0; i < scores.Length; i++)
+            {
+                var lag = centerLagFrames - BlockLagSearchFrames + i;
+                scores[i] = ScoreBlock(mixture, reference, lag, blockStartFrame, blockEndFrame);
+                if (scores[i].Count > 0 && scores[i].Value > bestValue)
+                {
+                    bestValue = scores[i].Value;
+                    bestIndex = i;
                 }
             }
 
-            return true;
+            var fit = default(BlockFit);
+            if (bestIndex < 0)
+            {
+                return fit;
+            }
+
+            var bestScore = scores[bestIndex];
+            var rms = bestScore.ReferenceEnergy <= 0
+                ? 0
+                : Math.Sqrt(bestScore.ReferenceEnergy / bestScore.Count);
+            if (rms <= SilentReferenceRms)
+            {
+                return fit;
+            }
+
+            var fraction = 0.0;
+            if (bestIndex > 0 && bestIndex < scores.Length - 1 &&
+                scores[bestIndex - 1].Count > 0 && scores[bestIndex + 1].Count > 0)
+            {
+                var left = scores[bestIndex - 1].Value;
+                var peak = scores[bestIndex].Value;
+                var right = scores[bestIndex + 1].Value;
+                var denominator = left - 2 * peak + right;
+                if (denominator < -1e-12)
+                {
+                    fraction = Math.Max(-0.5, Math.Min(0.5, 0.5 * (left - right) / denominator));
+                }
+            }
+
+            fit.HasSignal = true;
+            fit.LagFrames = bestScore.LagFrames + fraction;
+            fit.Gain = Math.Max(0, Math.Min(
+                MaximumCancellationGain,
+                bestScore.ReferenceEnergy <= 0 ? 0 : bestScore.Dot / bestScore.ReferenceEnergy));
+            return fit;
+        }
+
+        /// <summary>
+        /// Subtracts the gain-scaled, fractionally delayed reference from one block of the working
+        /// buffer, crossfading from the previous block's parameters over the first
+        /// <paramref name="crossfadeFrames"/> frames so lag/gain steps cannot click.
+        /// </summary>
+        private static void SubtractBlock(
+            byte[] working,
+            byte[] reference,
+            int blockStartFrame,
+            int blockEndFrame,
+            double previousGain,
+            double previousLag,
+            double gain,
+            double lag,
+            int crossfadeFrames)
+        {
+            if (gain <= 0 && previousGain <= 0)
+            {
+                return;
+            }
+
+            for (var frame = blockStartFrame; frame < blockEndFrame; frame++)
+            {
+                var progress = frame - blockStartFrame;
+                var blend = crossfadeFrames > 0 && progress < crossfadeFrames
+                    ? progress / (double)crossfadeFrames
+                    : 1.0;
+                for (var channel = 0; channel < 2; channel++)
+                {
+                    var subtracted = blend >= 1.0
+                        ? gain * SampleAt(reference, frame + lag, channel)
+                        : (1.0 - blend) * previousGain * SampleAt(reference, frame + previousLag, channel)
+                          + blend * gain * SampleAt(reference, frame + lag, channel);
+                    if (subtracted == 0)
+                    {
+                        continue;
+                    }
+
+                    var offset = frame * BlockAlign + channel * 2;
+                    var cancelled = ReadInt16(working, offset) - (int)Math.Round(subtracted);
+                    cancelled = Math.Max(short.MinValue, Math.Min(short.MaxValue, cancelled));
+                    WriteInt16(working, offset, (short)cancelled);
+                }
+            }
+        }
+
+        /// <summary>Reads a linearly interpolated sample at a fractional frame position.</summary>
+        private static double SampleAt(byte[] pcm, double framePosition, int channel)
+        {
+            var frames = pcm.Length / BlockAlign;
+            var lower = (int)Math.Floor(framePosition);
+            var fraction = framePosition - lower;
+            double first = lower >= 0 && lower < frames
+                ? ReadInt16(pcm, lower * BlockAlign + channel * 2)
+                : 0;
+            if (fraction <= 0)
+            {
+                return first;
+            }
+
+            var upper = lower + 1;
+            double second = upper >= 0 && upper < frames
+                ? ReadInt16(pcm, upper * BlockAlign + channel * 2)
+                : 0;
+            return first + (second - first) * fraction;
+        }
+
+        /// <summary>Strided energy ratio of a block before and after subtraction, in dB.</summary>
+        private static double MeasureSuppressionDb(
+            byte[] original,
+            byte[] working,
+            int blockStartFrame,
+            int blockEndFrame)
+        {
+            double before = 0;
+            double after = 0;
+            for (var frame = blockStartFrame; frame < blockEndFrame; frame += CorrelationStrideFrames)
+            {
+                var offset = frame * BlockAlign;
+                for (var channel = 0; channel < 2; channel++)
+                {
+                    var b = (double)ReadInt16(original, offset + channel * 2);
+                    var a = (double)ReadInt16(working, offset + channel * 2);
+                    before += b * b;
+                    after += a * a;
+                }
+            }
+
+            if (before <= 0)
+            {
+                return 0;
+            }
+
+            if (after <= 0)
+            {
+                return FullSuppressionDb;
+            }
+
+            return Math.Min(FullSuppressionDb, 10.0 * Math.Log10(before / after));
         }
 
         private static int FindLoudestWindowStart(byte[] reference, int referenceFrames)
@@ -271,6 +536,52 @@ namespace PlayniteAchievements.Services.Capture
             };
         }
 
+        /// <summary>Correlation over one mixture block, in mixture-frame coordinates.</summary>
+        private static CorrelationScore ScoreBlock(
+            byte[] mixture,
+            byte[] reference,
+            int lagFrames,
+            int blockStartFrame,
+            int blockEndFrame)
+        {
+            var referenceFrames = reference.Length / BlockAlign;
+            double dot = 0;
+            double mixtureEnergy = 0;
+            double referenceEnergy = 0;
+            long count = 0;
+
+            for (var frame = blockStartFrame; frame < blockEndFrame; frame += CorrelationStrideFrames)
+            {
+                var referenceFrame = frame + lagFrames;
+                if (referenceFrame < 0 || referenceFrame >= referenceFrames)
+                {
+                    continue;
+                }
+
+                var mixtureByte = frame * BlockAlign;
+                var referenceByte = referenceFrame * BlockAlign;
+                for (var channel = 0; channel < 2; channel++)
+                {
+                    var mixed = ReadInt16(mixture, mixtureByte + channel * 2);
+                    var source = ReadInt16(reference, referenceByte + channel * 2);
+                    dot += mixed * (double)source;
+                    mixtureEnergy += mixed * (double)mixed;
+                    referenceEnergy += source * (double)source;
+                    count++;
+                }
+            }
+
+            var denominator = Math.Sqrt(mixtureEnergy * referenceEnergy);
+            return new CorrelationScore
+            {
+                LagFrames = lagFrames,
+                Dot = dot,
+                ReferenceEnergy = referenceEnergy,
+                Count = count,
+                Value = denominator > 0 ? dot / denominator : 0,
+            };
+        }
+
         private static short ReadInt16(byte[] bytes, long offset)
         {
             return (short)(bytes[offset] | (bytes[offset + 1] << 8));
@@ -289,6 +600,13 @@ namespace PlayniteAchievements.Services.Capture
             public double ReferenceEnergy;
             public long Count;
             public double Value;
+        }
+
+        private struct BlockFit
+        {
+            public bool HasSignal;
+            public double LagFrames;
+            public double Gain;
         }
     }
 }
