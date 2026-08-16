@@ -115,6 +115,22 @@ namespace PlayniteAchievements.Tests.Services.UI
         }
 
         [TestMethod]
+        public void OverlayTrackSampling_UsesTheCardSurfaceInsideTheSlideHost()
+        {
+            var service = ReadToastService();
+
+            Assert.IsTrue(
+                service.Contains("private ItemsControl _activeCardSurface;"),
+                "The active card surface should retain its ItemsControl type for overlay sampling.");
+            Assert.IsTrue(
+                service.Contains("itemsControl = _activeCardSurface;"),
+                "Overlay sampling must use the card surface wrapped by the slide host.");
+            Assert.IsFalse(
+                service.Contains("itemsControl = window?.Content as ItemsControl;"),
+                "The window content is the slide host, so casting it to ItemsControl drops every sample.");
+        }
+
+        [TestMethod]
         public void SlideTiming_IsResolvedOncePerWaveRatherThanPerSlide()
         {
             var service = ReadToastService();

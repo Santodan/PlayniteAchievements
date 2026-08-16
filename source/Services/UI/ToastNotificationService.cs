@@ -97,7 +97,7 @@ namespace PlayniteAchievements.Services.UI
         // The window is sized to the host, which reserves the slide's travel past the card on the entry
         // side; the card itself moves inside that room via _activeSlideTransform. Placement therefore
         // measures the card, not the window — see ToastWindowPlacer.TryMeasureCardPhysical.
-        private FrameworkElement _activeCardSurface;
+        private ItemsControl _activeCardSurface;
         private FrameworkElement _activeSlideHost;
         private TranslateTransform _activeSlideTransform;
         // Frame counter attached for a running slide's span. It does no work beyond counting: the slide
@@ -212,10 +212,15 @@ namespace PlayniteAchievements.Services.UI
             try
             {
                 var tracks = await recorder.CompleteAsync().ConfigureAwait(false);
-                if (tracks.Count > 0)
+                if (tracks.Count == 0)
                 {
-                    TracksCompleted?.Invoke(this, new ToastTracksCompletedEventArgs(tracks));
+                    _logger?.Warn(
+                        "[Recording] Toast overlay recorder completed without card samples; " +
+                        "unlock videos for this wave cannot composite the notification.");
+                    return;
                 }
+
+                TracksCompleted?.Invoke(this, new ToastTracksCompletedEventArgs(tracks));
             }
             catch (Exception ex)
             {
@@ -566,7 +571,7 @@ namespace PlayniteAchievements.Services.UI
             // by VM identity — the screenshot plan and the wave's realized cards can differ, since
             // each variant carries its own rarity policy; an item with no realized card degrades
             // to the plain base clone.
-            var itemsControl = window?.Content as ItemsControl;
+            var itemsControl = _activeCardSurface;
             var overlays = new List<(AchievementToastViewModel Vm, System.Drawing.Bitmap Overlay, System.Drawing.Rectangle Rect)>();
             foreach (var vm in withToastVms)
             {
@@ -798,7 +803,9 @@ namespace PlayniteAchievements.Services.UI
             out System.Drawing.Rectangle clientPhys, out System.Drawing.Rectangle windowPhys,
             out double pxPerDipX, out double pxPerDipY)
         {
-            itemsControl = window?.Content as ItemsControl;
+            // The card is wrapped in a slide host, so window.Content is no longer the ItemsControl.
+            // Keep sampling the surface itself; otherwise every tick silently produces no track.
+            itemsControl = _activeCardSurface;
             windowPhys = System.Drawing.Rectangle.Empty;
             pxPerDipX = 0;
             pxPerDipY = 0;
@@ -1712,6 +1719,9 @@ namespace PlayniteAchievements.Services.UI
                 _ = CompleteAndRaiseTracksAsync(trackRecorder);
 
                 StopActiveSlide();
+                _activeCardSurface = null;
+                _activeSlideHost = null;
+                _activeSlideTransform = null;
                 _activeReferenceHwnd = IntPtr.Zero;
                 _activeIsGame = false;
                 _activeSuppressZOrder = false;
