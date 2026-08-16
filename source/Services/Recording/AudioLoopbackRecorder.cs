@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.Globalization;
 using System.IO;
 using System.Threading;
@@ -30,7 +31,13 @@ namespace PlayniteAchievements.Services.Recording
     /// A single pump thread reads the (optionally mixed) audio at a wall-clock pace and writes it,
     /// so silence — WASAPI loopback delivers no buffers during digital silence — still advances the
     /// chunk in real time (the buffers zero-fill). Any failure logs one warning and leaves the video
-    /// pipeline untouched; NAudio types are confined to this file and ProcessLoopbackCapture.
+    /// pipeline untouched; NAudio types are confined to this file, ProcessLoopbackCapture and
+    /// RenderEndpointScan.
+    ///
+    /// While a controller audio endpoint exists, everything rendered to it is captured in parallel
+    /// into hap_ chunks on the same paced writes (<see cref="StartHapticReference"/>). Process
+    /// loopback mixes every endpoint a process renders to, so a game's haptic waveform is inside the
+    /// main track; the clip export cancels it out against this reference.
     /// </summary>
     internal sealed class AudioLoopbackRecorder : IDisposable
     {
@@ -53,14 +60,17 @@ namespace PlayniteAchievements.Services.Recording
         private IWaveIn _systemCapture;
         private IWaveIn _restoredGameCapture;
         private IWaveIn _micCapture;
+        private readonly List<IWaveIn> _hapticCaptures = new List<IWaveIn>();
         private BufferedWaveProvider _systemBuffer;
         private BufferedWaveProvider _restoredGameBuffer;
         private BufferedWaveProvider _micBuffer;
         private ISampleProvider _mix;
+        private ISampleProvider _hapticSamples;
         private WaveFormat _outputFormat;
 
         private WaveFileWriter _writer;
         private WaveFileWriter _gameReferenceWriter;
+        private WaveFileWriter _hapticReferenceWriter;
         private long _chunkSamplesWritten;
         private double _chunkStartWallClockSamples;
         private DateTime _pumpStartUtc;
@@ -73,6 +83,7 @@ namespace PlayniteAchievements.Services.Recording
         private long _discardedBytes;
         private bool _restoreGameIntoFullSystem;
         private bool _writeGameReference;
+        private bool _writeHapticReference;
 
         public AudioLoopbackRecorder(
             string bufferDirectory,
@@ -212,10 +223,15 @@ namespace PlayniteAchievements.Services.Recording
                     }
 
                     _outputFormat = _mix.WaveFormat;
+                    var hapticEndpoints = StartHapticReference();
 
                     _systemCapture.StartRecording();
                     _restoredGameCapture?.StartRecording();
                     _micCapture?.StartRecording();
+                    foreach (var capture in _hapticCaptures)
+                    {
+                        capture.StartRecording();
+                    }
 
                     // The timeline is anchored, and the first chunk opened, by the pump once it
                     // knows when the first packet's audio actually played -- see AwaitAnchor.
@@ -224,7 +240,8 @@ namespace PlayniteAchievements.Services.Recording
                     _pumpThread.Start();
 
                     _logger?.Info(
-                        $"[Recording] Audio capture started (source={CaptureSourceName()}, mic={_includeMicrophone}, {_outputFormat}).");
+                        $"[Recording] Audio capture started (source={CaptureSourceName()}, mic={_includeMicrophone}, " +
+                        $"{_outputFormat}{hapticEndpoints}).");
                     return true;
                 }
                 catch (Exception ex)
@@ -334,6 +351,66 @@ namespace PlayniteAchievements.Services.Recording
             return new WasapiLoopbackCapture();
         }
 
+        /// <summary>
+        /// Starts a loopback capture of every controller audio endpoint on the machine, written
+        /// alongside the main track as hap_ chunks. A DualSense plays its haptics as audio through
+        /// its own endpoint, and process loopback mixes every endpoint the game renders to, so that
+        /// waveform is inside the recorded audio; this is the copy the clip export cancels it with.
+        /// <para>
+        /// Returns the text appended to the capture-started log line, empty when no such endpoint
+        /// exists — which is the case on any machine without a wired pad, including a Bluetooth
+        /// DualSense (Bluetooth exposes no controller audio device).
+        /// </para>
+        /// </summary>
+        private string StartHapticReference()
+        {
+            if (_capturePlayniteChimes)
+            {
+                // The sidecar is cancelled against the game reference, which carries the same
+                // haptics; cleaning it separately would subtract them twice.
+                return string.Empty;
+            }
+
+            var endpoints = RenderEndpointScan.FindHapticEndpoints(_logger);
+            if (endpoints.Count == 0)
+            {
+                return string.Empty;
+            }
+
+            var names = new List<string>();
+            var providers = new List<ISampleProvider>();
+            foreach (var endpoint in endpoints)
+            {
+                try
+                {
+                    var capture = ProcessLoopbackCapture.ForEndpoint(endpoint.DeviceId);
+                    var buffer = NewBuffer(capture.WaveFormat);
+                    capture.DataAvailable += (s, e) => Append(buffer, e);
+                    _hapticCaptures.Add(capture);
+                    providers.Add(MatchFormat(buffer.ToSampleProvider(), _outputFormat));
+                    names.Add(endpoint.Name);
+                }
+                catch (Exception ex)
+                {
+                    _logger?.Warn(
+                        ex,
+                        $"[Recording] Controller endpoint '{endpoint.Name}' could not be captured; " +
+                        "its haptics will stay in this session's clip audio.");
+                }
+            }
+
+            if (providers.Count == 0)
+            {
+                return string.Empty;
+            }
+
+            _hapticSamples = providers.Count == 1
+                ? providers[0]
+                : new MixingSampleProvider(providers) { ReadFully = true };
+            _writeHapticReference = true;
+            return ", haptics=" + string.Join("+", names.ToArray());
+        }
+
         private string CaptureSourceName()
         {
             if (_capturePlayniteChimes)
@@ -435,6 +512,7 @@ namespace PlayniteAchievements.Services.Recording
             var channels = _outputFormat.Channels;
             var sampleRate = _outputFormat.SampleRate;
             var buffer = new float[sampleRate * channels]; // up to 1s per read
+            var hapticBuffer = _writeHapticReference ? new float[buffer.Length] : null;
 
             try
             {
@@ -464,6 +542,7 @@ namespace PlayniteAchievements.Services.Recording
                             {
                                 _writer.WriteSamples(buffer, 0, read);
                                 _chunkSamplesWritten += read;
+                                WriteHapticReferenceLocked(hapticBuffer, read);
                             }
 
                             if (_chunkSamplesWritten / channels >= (long)UnlockRecordingService.SegmentSeconds * sampleRate)
@@ -548,6 +627,7 @@ namespace PlayniteAchievements.Services.Recording
         public void Stop()
         {
             IWaveIn system, restoredGame, mic;
+            IWaveIn[] haptics;
             lock (_gate)
             {
                 if (_stopped)
@@ -560,20 +640,29 @@ namespace PlayniteAchievements.Services.Recording
                 system = _systemCapture;
                 restoredGame = _restoredGameCapture;
                 mic = _micCapture;
+                haptics = _hapticCaptures.ToArray();
             }
 
             // Outside the gate: capture Dispose joins its thread, which may be delivering data.
             StopCapture(system);
             StopCapture(restoredGame);
             StopCapture(mic);
+            foreach (var capture in haptics)
+            {
+                StopCapture(capture);
+            }
 
             lock (_gate)
             {
                 CloseChunkLocked();
-                LogTimelineNotices(system, restoredGame);
+                var tracked = new List<IWaveIn> { system, restoredGame };
+                tracked.AddRange(haptics);
+                LogTimelineNotices(tracked.ToArray());
                 _systemCapture = null;
                 _restoredGameCapture = null;
                 _micCapture = null;
+                _hapticCaptures.Clear();
+                _hapticSamples = null;
             }
         }
 
@@ -623,6 +712,14 @@ namespace PlayniteAchievements.Services.Recording
                     Path.Combine(_bufferDirectory, referenceName), _outputFormat);
             }
 
+            if (_writeHapticReference)
+            {
+                var hapticName = RecordingPaths.BuildAudioChunkFileName(
+                    RecordingPaths.HapticReferenceChunkFilePrefix, startUtc);
+                _hapticReferenceWriter = new WaveFileWriter(
+                    Path.Combine(_bufferDirectory, hapticName), _outputFormat);
+            }
+
             _chunkSamplesWritten = 0;
         }
 
@@ -637,6 +734,8 @@ namespace PlayniteAchievements.Services.Recording
             _writer = null;
             try { _gameReferenceWriter?.Dispose(); } catch { }
             _gameReferenceWriter = null;
+            try { _hapticReferenceWriter?.Dispose(); } catch { }
+            _hapticReferenceWriter = null;
         }
 
         private void FailLocked(Exception ex, string message)
@@ -658,15 +757,44 @@ namespace PlayniteAchievements.Services.Recording
             DisposeCapture(ref _systemCapture);
             DisposeCapture(ref _restoredGameCapture);
             DisposeCapture(ref _micCapture);
+            foreach (var capture in _hapticCaptures)
+            {
+                try { capture?.Dispose(); } catch { }
+            }
+
+            _hapticCaptures.Clear();
             _systemBuffer = null;
             _restoredGameBuffer = null;
             _micBuffer = null;
             _mix = null;
+            _hapticSamples = null;
         }
 
         private void WriteGameReferenceSamples(float[] samples, int offset, int count)
         {
             _gameReferenceWriter?.WriteSamples(samples, offset, count);
+        }
+
+        /// <summary>
+        /// Writes exactly as many haptic-reference samples as the main track just took, zero-filling
+        /// any shortfall. Matching the counts sample for sample is what keeps the two tracks on one
+        /// timeline: the export aligns them by chunk name and position, so a reference that ran short
+        /// would drag every later sample out of step with the audio it has to be subtracted from.
+        /// </summary>
+        private void WriteHapticReferenceLocked(float[] hapticBuffer, int samples)
+        {
+            if (_hapticReferenceWriter == null || _hapticSamples == null || hapticBuffer == null)
+            {
+                return;
+            }
+
+            var read = _hapticSamples.Read(hapticBuffer, 0, samples);
+            if (read < samples)
+            {
+                Array.Clear(hapticBuffer, Math.Max(0, read), samples - Math.Max(0, read));
+            }
+
+            _hapticReferenceWriter.WriteSamples(hapticBuffer, 0, samples);
         }
 
         /// <summary>
