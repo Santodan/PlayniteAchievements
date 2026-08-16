@@ -60,6 +60,8 @@ namespace PlayniteAchievements.Services.UI
             public bool FramesCapped;
 
             // Worker-only state below.
+            public int DedupTicks;
+            public int RefusedTicks;
             public byte[] LastRaw;
             public int LastFrameIndex = -1;
             public double FirstSampleMs;
@@ -283,6 +285,26 @@ namespace PlayniteAchievements.Services.UI
 
                 state.Track.DurationSeconds = (samples[samples.Count - 1].ElapsedMs + _sampleIntervalMs) / 1000.0;
                 tracks.Add(state.Track);
+
+                // One line per track per wave: how the animation's freshness survived capture. A
+                // unique-frame rate far below the sample rate is what "slow" animation in a clip
+                // is made of, and this line says which stage lost it — unchanged pixels mean the
+                // live card itself wasn't animating any faster, refused ticks mean the worker's
+                // backlog throttled rasterization.
+                var duration = state.Track.DurationSeconds;
+                _logger?.Info(string.Format(
+                    System.Globalization.CultureInfo.InvariantCulture,
+                    "[Recording] Toast track '{0}': {1:0.00}s, {2} samples ({3:0.0}/s), {4} unique frames " +
+                    "({5:0.0}/s), {6} unchanged, {7} refused, capped={8}",
+                    state.Track.AchievementName,
+                    duration,
+                    samples.Count,
+                    duration > 0 ? samples.Count / duration : 0,
+                    state.Track.Frames.Count,
+                    duration > 0 ? state.Track.Frames.Count / duration : 0,
+                    state.DedupTicks,
+                    state.RefusedTicks,
+                    state.FramesCapped));
             }
 
             return tracks;
@@ -360,12 +382,17 @@ namespace PlayniteAchievements.Services.UI
 
                 if (capped || RawEquals(state.LastRaw, job.Pixels))
                 {
+                    state.DedupTicks++;
                     ReturnBuffer(state, job.Pixels);
                 }
                 else
                 {
                     frameIndex = StoreFrame(state, job);
                 }
+            }
+            else
+            {
+                state.RefusedTicks++;
             }
 
             if (frameIndex < 0)

@@ -1490,6 +1490,8 @@ namespace PlayniteAchievements.Services.UI
             // the recording frame rate asks for it rather than aliasing to half of it.
             RenderTickCounter trackTicks = null;
             var trackSampleCount = 0;
+            Stopwatch trackRenderWatch = null;
+            var trackRenderMaxMs = 0d;
             try
             {
                 // Realize the toast HWND under Per-Monitor-V2 so Windows does not bitmap-rescale it on
@@ -1616,6 +1618,7 @@ namespace PlayniteAchievements.Services.UI
                     var nextDueMs = 0d;
                     trackTicks = new RenderTickCounter();
                     var counter = trackTicks;
+                    var renderWatch = new Stopwatch();
                     onTrackSample = (s, e) =>
                     {
                         try
@@ -1635,13 +1638,24 @@ namespace PlayniteAchievements.Services.UI
                             while (nextDueMs <= elapsedMs);
 
                             trackSampleCount++;
+                            // Accumulated, not per-call: the whole-wave total and worst tick are
+                            // what the sampling summary reports at wave end.
+                            var before = renderWatch.Elapsed.TotalMilliseconds;
+                            renderWatch.Start();
                             SampleWaveTracks(recorder, window, cardItems, elapsedMs);
+                            renderWatch.Stop();
+                            var tickMs = renderWatch.Elapsed.TotalMilliseconds - before;
+                            if (tickMs > trackRenderMaxMs)
+                            {
+                                trackRenderMaxMs = tickMs;
+                            }
                         }
                         catch
                         {
                             // Ignore transient render/placement failures (e.g. window closing).
                         }
                     };
+                    trackRenderWatch = renderWatch;
                     CompositionTarget.Rendering += onTrackSample;
 
                     // The ray-burst glow invalidates at its own fixed default rate; sampling above it
@@ -1760,6 +1774,21 @@ namespace PlayniteAchievements.Services.UI
                     CompositionTarget.Rendering -= onTrackSample;
                     onTrackSample = null;
                     RayAnimationDriver.ClearSamplingFps();
+                }
+
+                // Unconditional (unlike the PerfScope-gated cadence line): the card render is the
+                // sampler's whole per-tick cost, and an average near or past the sample interval is
+                // the UI-thread stall that turns a 60 fps request into a lower effective rate.
+                if (trackRecorder != null && trackSampleCount > 0 && trackRenderWatch != null)
+                {
+                    _logger?.Info(string.Format(
+                        System.Globalization.CultureInfo.InvariantCulture,
+                        "[Recording] Toast sampling: {0} samples, card render avg {1:0.0} ms, max {2:0.0} ms " +
+                        "(sample interval {3:0.0} ms)",
+                        trackSampleCount,
+                        trackRenderWatch.Elapsed.TotalMilliseconds / trackSampleCount,
+                        trackRenderMaxMs,
+                        TrackSampleIntervalMs()));
                 }
 
                 LogWaveCadence(trackTicks, trackSampleCount);
