@@ -105,6 +105,8 @@ namespace PlayniteAchievements.Services.UI
         // Shadow-layer captures this wave (each costs two with-effect renders); reported in the
         // sampling summary — a number near the sample count means the recapture guard failed.
         private int _waveShadowCaptureCount;
+        // One confirmation line per session for the wave-scoped timer resolution boost.
+        private bool _timerBoostLogged;
         private FrameworkElement _activeSlideHost;
         private TranslateTransform _activeSlideTransform;
         // Frame counter attached for a running slide's span. It does no work beyond counting: the slide
@@ -721,9 +723,17 @@ namespace PlayniteAchievements.Services.UI
             public int LastCardWPhys;
             public int LastCardHPhys;
 
-            /// <summary>Pixel renders so far, for the alternating ray-layer capture cadence.</summary>
-            public int RenderIndex;
+            /// <summary>Track time of the last ray-layer capture, for the capture budget.</summary>
+            public double LastRayCaptureMs = double.NegativeInfinity;
         }
+
+        /// <summary>
+        /// Per-card floor between ray-layer captures, multiplied by the wave's card count so the
+        /// whole wave's ray-render budget stays constant: each capture costs a full with-rays
+        /// render, and the export crossfades adjacent layers, so a low capture rate still plays
+        /// back as smooth drift.
+        /// </summary>
+        private const double RayLayerBaseIntervalMs = 80;
 
         /// <summary>
         /// Floor between shadow-layer recaptures. The capture costs two with-effect renders (the
@@ -1101,20 +1111,26 @@ namespace PlayniteAchievements.Services.UI
                     CaptureShadowLayer(recorder, window, container, vm, scratch, effects, captureScale);
                 }
 
-                // Every other render of this card refreshes its ray layer: rays drift slowly, so
-                // half the pixel cadence reads smoothly, and the with-rays render this costs would
-                // otherwise have been paid on every tick. Skipped mid-fade — the layer must carry
-                // no host opacity of its own, since the export scales it by the sample's. Computed
-                // before the Sample call (which passes the bare buffer's ownership to the worker),
-                // attached after it (the item's time epoch must exist first).
+                // Ray layers refresh on a time budget: rays drift slowly and the export
+                // crossfades adjacent layers, so a modest capture rate plays back smoothly while
+                // each capture's full with-rays render stays rare enough to keep the tick healthy.
+                // Skipped mid-fade — the layer must carry no host opacity of its own, since the
+                // export scales it by the sample's. Computed before the Sample call (which passes
+                // the bare buffer's ownership to the worker), attached after it (the item's time
+                // epoch must exist first).
                 byte[] rayDelta = null;
                 var rayW = 0;
                 var rayH = 0;
-                if (rayBursts.Count > 0 && scratch.RenderIndex % 2 == 0 && hostOpacity >= 0.999)
+                if (rayBursts.Count > 0 && hostOpacity >= 0.999 &&
+                    elapsedMs - scratch.LastRayCaptureMs >= RayLayerBaseIntervalMs * toastItems.Count)
                 {
                     rayDelta = ComputeRayLayerDelta(
                         recorder, window, container, vm, pixels, pw, ph, captureScale,
                         out rayW, out rayH);
+                    if (rayDelta != null)
+                    {
+                        scratch.LastRayCaptureMs = elapsedMs;
+                    }
                 }
 
                 recorder.Sample(
@@ -1125,8 +1141,6 @@ namespace PlayniteAchievements.Services.UI
                 {
                     recorder.AttachRayLayer(vm, rayDelta, rayW, rayH, elapsedMs);
                 }
-
-                scratch.RenderIndex++;
             }
         }
 
@@ -1940,6 +1954,23 @@ namespace PlayniteAchievements.Services.UI
             var trackRenderMaxMs = 0d;
             try
             {
+                // 1 ms timer resolution for the wave's on-screen span: the GIF decoder paces its
+                // frames with Task.Delay, and Windows 11 coarsens a background process's timers —
+                // Playnite is background whenever a game runs — which uniformly slows GIF playback
+                // by up to a timer quantum per frame. Logged once per session to confirm the boost
+                // took on this system.
+                var resolutionBefore = Common.TimerResolutionBoost.CurrentResolutionMs();
+                Common.TimerResolutionBoost.Begin();
+                if (!_timerBoostLogged)
+                {
+                    _timerBoostLogged = true;
+                    _logger?.Info(string.Format(
+                        System.Globalization.CultureInfo.InvariantCulture,
+                        "[Toast] Timer resolution {0:0.##} ms -> {1:0.##} ms for the wave's span (GIF frame pacing).",
+                        resolutionBefore,
+                        Common.TimerResolutionBoost.CurrentResolutionMs()));
+                }
+
                 // Realize the toast HWND under Per-Monitor-V2 so Windows does not bitmap-rescale it on
                 // a monitor whose scale differs from the process's system DPI. A window's DPI awareness
                 // is fixed at HWND creation; all HWND-affecting props were set in
@@ -2264,6 +2295,8 @@ namespace PlayniteAchievements.Services.UI
             }
             finally
             {
+                Common.TimerResolutionBoost.End();
+
                 // Null after the save pipeline takes ownership; disposes the pending capture when
                 // the wave aborts (dispose, exception) before the hand-off.
                 DisposeCaptureTask(baseCaptureTask);

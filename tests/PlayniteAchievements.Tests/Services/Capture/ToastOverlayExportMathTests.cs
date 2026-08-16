@@ -256,6 +256,21 @@ namespace PlayniteAchievements.Services.Tests.Capture
             Assert.AreEqual(2, ToastOverlayExportMath.FindRayLayerAtOrBefore(track, 0.050, 2));
         }
 
+        [TestMethod]
+        public void GetRayLayerBlend_BetweenLayers_IsLinearAndClamped()
+        {
+            var track = BottomRightTrack();
+            track.RayLayers.Add(new ToastOverlayTrack.TimedLayer { ElapsedMs = 100 });
+            track.RayLayers.Add(new ToastOverlayTrack.TimedLayer { ElapsedMs = 300 });
+
+            Assert.AreEqual(0.5, ToastOverlayExportMath.GetRayLayerBlend(track, 0, 0.200), 1e-9);
+            Assert.AreEqual(0.0, ToastOverlayExportMath.GetRayLayerBlend(track, 0, 0.050), 1e-9);
+            Assert.AreEqual(1.0, ToastOverlayExportMath.GetRayLayerBlend(track, 0, 9.0), 1e-9);
+            // The last layer has nothing to blend toward.
+            Assert.AreEqual(0.0, ToastOverlayExportMath.GetRayLayerBlend(track, 1, 9.0), 1e-9);
+            Assert.AreEqual(0.0, ToastOverlayExportMath.GetRayLayerBlend(track, -1, 0.0), 1e-9);
+        }
+
         // === Shadow layer composition ===
 
         [TestMethod]

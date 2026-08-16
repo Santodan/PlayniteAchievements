@@ -114,6 +114,32 @@ namespace PlayniteAchievements.Services.Capture
         }
 
         /// <summary>
+        /// How far <paramref name="secondsIntoTrack"/> sits between ray layer
+        /// <paramref name="layerIndex"/> and the next, 0..1. Export crossfades the two layers by
+        /// this weight: the rays drift slowly, so blending adjacent captures reads as smooth
+        /// motion at a fraction of the capture rate. 0 when there is no next layer.
+        /// </summary>
+        public static double GetRayLayerBlend(
+            ToastOverlayTrack track, int layerIndex, double secondsIntoTrack)
+        {
+            if (layerIndex < 0 || layerIndex + 1 >= track.RayLayers.Count)
+            {
+                return 0.0;
+            }
+
+            var current = track.RayLayers[layerIndex];
+            var next = track.RayLayers[layerIndex + 1];
+            var span = next.ElapsedMs - current.ElapsedMs;
+            if (span <= 0)
+            {
+                return 0.0;
+            }
+
+            var t = ((secondsIntoTrack * 1000.0) - current.ElapsedMs) / span;
+            return Math.Max(0.0, Math.Min(1.0, t));
+        }
+
+        /// <summary>
         /// The frame-space rect to blit the overlay into: the lone-toast corner for a card of the
         /// sample's recorded physical size plus the interpolated slide offset, scaled from client
         /// space into the video frame with one final rounding. The referenced pixel frame may be

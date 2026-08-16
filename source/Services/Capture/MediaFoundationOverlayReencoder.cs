@@ -297,10 +297,14 @@ namespace PlayniteAchievements.Services.Capture
             var shadowLayer = track.ShadowLayer;
             var shadowPixels = shadowLayer?.Inflate();
             byte[] glowScratch = null;
+            // Adjacent ray layers are crossfaded by output time — the rays drift slowly, so the
+            // blend reads as smooth motion at a fraction of the capture rate. Two layers stay
+            // inflated: the current one and the next, promoted forward as the cursor advances.
             var rayCursor = -1;
+            var rayIndex = -1;
             byte[] rayPixels = null;
-            var rayW = 0;
-            var rayH = 0;
+            var rayNextIndex = -1;
+            byte[] rayNextPixels = null;
 
             var pendingAudio = audioStream >= 0 ? ReadNextAudio(audioReader, trimLead) : null;
 
@@ -355,19 +359,28 @@ namespace PlayniteAchievements.Services.Capture
                             var destRect = ToastOverlayExportMath.ComputeDestRect(
                                 track, sampleIndex, secondsIntoTrack, frameW, frameH);
 
-                            var nextRay = ToastOverlayExportMath.FindRayLayerAtOrBefore(
+                            rayCursor = ToastOverlayExportMath.FindRayLayerAtOrBefore(
                                 track, secondsIntoTrack, rayCursor);
-                            if (nextRay != rayCursor && nextRay >= 0)
+                            var displayIndex = track.RayLayers.Count > 0 ? Math.Max(0, rayCursor) : -1;
+                            if (displayIndex >= 0 && displayIndex != rayIndex)
                             {
-                                rayCursor = nextRay;
-                                var layer = track.RayLayers[rayCursor].Layer;
-                                rayPixels = layer?.Inflate();
-                                rayW = layer?.Width ?? 0;
-                                rayH = layer?.Height ?? 0;
+                                rayPixels = displayIndex == rayNextIndex
+                                    ? rayNextPixels
+                                    : track.RayLayers[displayIndex].Layer?.Inflate();
+                                rayIndex = displayIndex;
                             }
 
-                            var composeRays = rayPixels != null &&
-                                rayW == overlayFrame.Width && rayH == overlayFrame.Height &&
+                            var followIndex = displayIndex >= 0 && displayIndex + 1 < track.RayLayers.Count
+                                ? displayIndex + 1
+                                : -1;
+                            if (followIndex >= 0 && followIndex != rayNextIndex)
+                            {
+                                rayNextPixels = track.RayLayers[followIndex].Layer?.Inflate();
+                                rayNextIndex = followIndex;
+                            }
+
+                            var composeRays = rayIndex >= 0 && rayPixels != null &&
+                                LayerMatchesFrame(track.RayLayers[rayIndex].Layer, overlayFrame) &&
                                 rayPixels.Length == inflated.Length;
                             var composeShadow = shadowPixels != null &&
                                 shadowLayer.Width == overlayFrame.Width &&
@@ -385,9 +398,19 @@ namespace PlayniteAchievements.Services.Capture
                                 Buffer.BlockCopy(inflated, 0, glowScratch, 0, inflated.Length);
                                 if (composeRays)
                                 {
+                                    var hostOpacity = ToastOverlayExportMath.GetHostOpacity(
+                                        track, sampleIndex, secondsIntoTrack);
+                                    var blend = ToastOverlayExportMath.GetRayLayerBlend(
+                                        track, rayCursor, secondsIntoTrack);
+                                    var blendNext = blend > 0 && followIndex >= 0 && rayNextPixels != null &&
+                                        LayerMatchesFrame(track.RayLayers[followIndex].Layer, overlayFrame) &&
+                                        rayNextPixels.Length == inflated.Length;
                                     OverlayBlitMath.AddScaled(
-                                        glowScratch, rayPixels,
-                                        ToastOverlayExportMath.GetHostOpacity(track, sampleIndex, secondsIntoTrack));
+                                        glowScratch, rayPixels, hostOpacity * (blendNext ? 1.0 - blend : 1.0));
+                                    if (blendNext)
+                                    {
+                                        OverlayBlitMath.AddScaled(glowScratch, rayNextPixels, hostOpacity * blend);
+                                    }
                                 }
 
                                 if (composeShadow)
@@ -714,6 +737,12 @@ namespace PlayniteAchievements.Services.Capture
         private static long ToTicks(double seconds)
         {
             return (long)(Math.Max(0, seconds) * OneSecond100ns);
+        }
+
+        private static bool LayerMatchesFrame(ToastOverlayTrack.Frame layer, ToastOverlayTrack.Frame frame)
+        {
+            return layer != null && frame != null &&
+                layer.Width == frame.Width && layer.Height == frame.Height;
         }
     }
 }
