@@ -75,6 +75,17 @@ namespace PlayniteAchievements.Services.Capture
         private int _segmentCount;
         private DateTime _segmentStartUtc;
 
+        // Synchronous MF writer timing is accumulated with Stopwatch timestamps (no per-frame
+        // allocation) and emitted only with the recorder's already-sampled segment diagnostics.
+        private long _encodeSamples;
+        private long _encodeTotalTicks;
+        private long _encodeMaxTicks;
+        private long _encodeOverBudget;
+        private bool _encoderDescriptionLogged;
+        private bool _gpuPriorityLowered;
+        private DateTime _lastDebtLogUtc = DateTime.MinValue;
+        private int _suppressedDebtLogs;
+
         private Thread _pumpThread;
         private volatile bool _running;
         private bool _disposed;
@@ -157,6 +168,20 @@ namespace PlayniteAchievements.Services.Capture
                 }
                 using (var dxgiDevice = _device.QueryInterface<DXGI.Device>())
                 {
+                    try
+                    {
+                        // Capture is opportunistic background work. A mild relative reduction leaves
+                        // DWM and the game ahead of our copy/scale/tonemap commands under contention;
+                        // unlike idle priority, -1 still has a forward-progress guarantee.
+                        dxgiDevice.GPUThreadPriority = -1;
+                        _gpuPriorityLowered = true;
+                    }
+                    catch (Exception ex)
+                    {
+                        // Unsupported drivers retain the normal priority and keep recording.
+                        _logger?.Debug(ex, "[Recording] Could not lower the capture GPU priority; using normal priority.");
+                    }
+
                     CreateDirect3D11DeviceFromDXGIDevice(dxgiDevice.NativePointer, out var inspectable)
                         .CheckWin32("CreateDirect3D11DeviceFromDXGIDevice");
                     try
@@ -248,6 +273,7 @@ namespace PlayniteAchievements.Services.Capture
             _geometryStale = false;
             _framePool = Direct3D11CaptureFramePool.CreateFreeThreaded(_winrtDevice, pixelFormat, 2, item.Size);
             _session = _framePool.CreateCaptureSession(_item);
+            var updateRateLimited = WgcCaptureBorder.LimitUpdateRate(_session, _fps);
             WgcCaptureBorder.Suppress(_session);
             _session.StartCapture();
             _activeHwnd = hwnd;
@@ -257,6 +283,7 @@ namespace PlayniteAchievements.Services.Capture
             _logger?.Info(
                 $"[Recording] WGC-MF capturing game window 0x{hwnd.ToInt64():X} (hdr={_hdr}, " +
                 $"{item.Size.Width}x{item.Size.Height}@{_fps}, crop={_cropW}x{_cropH}+{_cropX}+{_cropY}, " +
+                $"wgcRateLimited={updateRateLimited}, gpuPriority={(_gpuPriorityLowered ? "-1" : "normal")}, " +
                 $"{DescribeWindow(hwnd, item.Size.Width, item.Size.Height)}).");
         }
 
@@ -317,7 +344,7 @@ namespace PlayniteAchievements.Services.Capture
             // Ticks, not TimeSpan.FromSeconds: that overload rounds to the nearest millisecond, so
             // 1.0/60 became 17 ms and pinned the pump to 58.8 fps — 2% under the rate the segments
             // then declared, which is most of the wall-clock-versus-media gap this loop used to open.
-            var frameInterval = TimeSpan.FromTicks(TimeSpan.TicksPerSecond / _fps);
+            var frameInterval = CaptureWorkloadPolicy.FrameInterval(_fps);
             var next = CaptureTimelineClock.UtcNow;
             var lastResolveUtc = DateTime.MinValue;
             var lastRebuildUtc = DateTime.MinValue;
@@ -374,12 +401,33 @@ namespace PlayniteAchievements.Services.Capture
 
                     if (_latest != null && _framePool != null)
                     {
+                        var encodeNow = CaptureTimelineClock.UtcNow;
+                        var dueBeforeRotation = _encoder == null
+                            ? 0
+                            : DueFrameCount(encodeNow);
+                        // A writer can block when its queue is full. Do not answer a substantial
+                        // block by immediately flooding it with every missed duplicate: close this
+                        // partial segment and let the exporter's wall-clock gap handling hold its
+                        // last frame until a fresh segment begins now. Never resync a writer that has
+                        // not accepted its first frame; an unusually slow constructor would otherwise
+                        // be replaced by another equally expensive constructor in a loop.
+                        var resynchronize = _encoder != null && _segmentFrameIndex > 0 &&
+                            CaptureWorkloadPolicy.ShouldResynchronize(
+                                dueBeforeRotation, _segmentFrameIndex, _fps);
+
                         // Create the first segment once we have a frame (its size), and roll over on
                         // schedule. The encoder can't be built before the first frame, so this — not
                         // a one-time call before the loop — is what starts encoding.
-                        if (_encoder == null || (CaptureTimelineClock.UtcNow - _segmentStartUtc).TotalSeconds >= _segmentSeconds)
+                        if (_encoder == null ||
+                            (encodeNow - _segmentStartUtc).TotalSeconds >= _segmentSeconds ||
+                            resynchronize)
                         {
-                            RotateSegment();
+                            if (resynchronize)
+                            {
+                                LogDebtResynchronization(dueBeforeRotation - _segmentFrameIndex);
+                            }
+
+                            RotateSegment(resynchronize);
                         }
 
                         if (_encoder != null)
@@ -396,7 +444,7 @@ namespace PlayniteAchievements.Services.Capture
                                 // Segments record the clean game frame only; the unlock toast is
                                 // composited into each achievement's clip at export from its
                                 // recorded overlay track.
-                                var due = (long)((CaptureTimelineClock.UtcNow - _segmentStartUtc).TotalSeconds * _fps) + 1;
+                                var due = DueFrameCount(CaptureTimelineClock.UtcNow);
                                 var missing = due - _segmentFrameIndex;
 
                                 // A segment can never hold more than its own length; anything beyond that
@@ -414,8 +462,8 @@ namespace PlayniteAchievements.Services.Capture
                                     for (var repeat = 0L; repeat < missing; repeat++)
                                     {
                                         var pts = PtsForFrame(_segmentFrameIndex);
-                                        _encoder.WriteFrame(
-                                            encodeFrame, pts, PtsForFrame(_segmentFrameIndex + 1) - pts);
+                                        RecordEncodeLatency(_encoder.WriteFrame(
+                                            encodeFrame, pts, PtsForFrame(_segmentFrameIndex + 1) - pts));
                                         _segmentFrameIndex++;
                                     }
                                 }
@@ -587,7 +635,12 @@ namespace PlayniteAchievements.Services.Capture
             return index * TimeSpan.TicksPerSecond / _fps;
         }
 
-        private void RotateSegment()
+        private long DueFrameCount(DateTime nowUtc)
+        {
+            return (long)((nowUtc - _segmentStartUtc).TotalSeconds * _fps) + 1;
+        }
+
+        private void RotateSegment(bool resynchronize = false)
         {
             var rotate = Stopwatch.StartNew();
             var prepared = TakePreparedSegment();
@@ -615,7 +668,7 @@ namespace PlayniteAchievements.Services.Capture
             // makes the pump's catch-up fill the gap with the held frame instead. A gap far larger than
             // rotation cost is a genuine stall, where resyncing beats emitting seconds of duplicates.
             var now = CaptureTimelineClock.UtcNow;
-            if (_segmentCount > 0)
+            if (_segmentCount > 0 && !resynchronize)
             {
                 var previousGridEnd = _segmentStartUtc.AddTicks(PtsForFrame(_segmentFrameIndex));
                 _segmentStartUtc = now - previousGridEnd < MaxRotationCarry && previousGridEnd <= now
@@ -653,6 +706,8 @@ namespace PlayniteAchievements.Services.Capture
                     _device, path, _encW, _encH, _fps, ComputeBitrate(_encW, _encH));
             }
 
+            LogEncoderDescriptionOnce(_encoder);
+
             _segmentFrameIndex = 0;
             _segmentCount++;
             if (_segmentCount <= 2 || _segmentCount % 12 == 0)
@@ -661,8 +716,78 @@ namespace PlayniteAchievements.Services.Capture
                 // whatever is left of it lands as the previous frame held that long, once per segment.
                 _logger?.Debug(
                     $"[Recording] WGC-MF segment #{_segmentCount} started ({Path.GetFileName(path)}, {_encW}x{_encH}, " +
-                    $"rotate={rotate.ElapsedMilliseconds}ms, prepared={reused}).");
+                    $"rotate={rotate.ElapsedMilliseconds}ms, prepared={reused}{TakeEncodeLatencySummary()}).");
             }
+        }
+
+        private void RecordEncodeLatency(long elapsedTicks)
+        {
+            if (elapsedTicks < 0)
+            {
+                return;
+            }
+
+            _encodeSamples++;
+            _encodeTotalTicks += elapsedTicks;
+            if (elapsedTicks > _encodeMaxTicks)
+            {
+                _encodeMaxTicks = elapsedTicks;
+            }
+
+            var frameBudgetTicks = Stopwatch.Frequency / Math.Max(1, _fps);
+            if (elapsedTicks > frameBudgetTicks)
+            {
+                _encodeOverBudget++;
+            }
+        }
+
+        private string TakeEncodeLatencySummary()
+        {
+            if (_encodeSamples <= 0)
+            {
+                return string.Empty;
+            }
+
+            var averageMs = _encodeTotalTicks * 1000d / Stopwatch.Frequency / _encodeSamples;
+            var maximumMs = _encodeMaxTicks * 1000d / Stopwatch.Frequency;
+            var summary =
+                $", encodeAvg={averageMs:0.00}ms, encodeMax={maximumMs:0.00}ms, " +
+                $"overBudget={_encodeOverBudget}/{_encodeSamples}";
+            _encodeSamples = 0;
+            _encodeTotalTicks = 0;
+            _encodeMaxTicks = 0;
+            _encodeOverBudget = 0;
+            return summary;
+        }
+
+        private void LogEncoderDescriptionOnce(MediaFoundationH264Encoder encoder)
+        {
+            if (_encoderDescriptionLogged || encoder == null)
+            {
+                return;
+            }
+
+            _encoderDescriptionLogged = true;
+            _logger?.Debug($"[Recording] Media Foundation transform chain: {encoder.TransformDescription}.");
+        }
+
+        private void LogDebtResynchronization(long overdueFrames)
+        {
+            var now = CaptureTimelineClock.UtcNow;
+            if ((now - _lastDebtLogUtc).TotalSeconds < 30)
+            {
+                _suppressedDebtLogs++;
+                return;
+            }
+
+            var suppressed = _suppressedDebtLogs > 0
+                ? $", suppressedSinceLast={_suppressedDebtLogs}"
+                : string.Empty;
+            _logger?.Debug(
+                $"[Recording] Encoder fell {overdueFrames} frames behind; starting a fresh segment " +
+                $"instead of burst-filling the debt{suppressed}.");
+            _lastDebtLogUtc = now;
+            _suppressedDebtLogs = 0;
         }
 
         /// <summary>

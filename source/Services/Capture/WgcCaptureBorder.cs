@@ -15,6 +15,38 @@ namespace PlayniteAchievements.Services.Capture
     {
         private static int _accessRequested;
 
+        /// <summary>
+        /// Asks newer WGC implementations not to produce frames faster than the recorder consumes
+        /// them. MinUpdateInterval arrived after the Windows 10 contract this project compiles
+        /// against, so reflection is deliberate: unsupported systems retain their existing capture
+        /// path, while Windows 11 24H2+ avoids servicing a high-refresh game at monitor rate only to
+        /// discard the excess frames in the fixed-rate encoder pump.
+        /// </summary>
+        public static bool LimitUpdateRate(GraphicsCaptureSession session, int fps)
+        {
+            if (session == null)
+            {
+                return false;
+            }
+
+            try
+            {
+                var property = session.GetType().GetProperty("MinUpdateInterval");
+                if (property == null || !property.CanWrite || property.PropertyType != typeof(TimeSpan))
+                {
+                    return false;
+                }
+
+                property.SetValue(session, CaptureWorkloadPolicy.CaptureSourceInterval(fps));
+                return true;
+            }
+            catch
+            {
+                // Best effort: failure must never stop capture on an older or unusual projection.
+                return false;
+            }
+        }
+
         public static void Suppress(GraphicsCaptureSession session)
         {
             if (session == null)

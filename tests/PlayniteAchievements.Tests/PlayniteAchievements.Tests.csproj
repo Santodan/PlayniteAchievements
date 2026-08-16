@@ -445,6 +445,7 @@
     <Compile Include="..\..\source\Services\Capture\CaptureCropMath.cs" Link="Source\Services\Capture\CaptureCropMath.cs" />
     <Compile Include="..\..\source\Services\Capture\ResolutionCapMath.cs" Link="Source\Services\Capture\ResolutionCapMath.cs" />
     <Compile Include="..\..\source\Services\Capture\BitrateMath.cs" Link="Source\Services\Capture\BitrateMath.cs" />
+    <Compile Include="..\..\source\Services\Capture\CaptureWorkloadPolicy.cs" Link="Source\Services\Capture\CaptureWorkloadPolicy.cs" />
     <Compile Include="..\..\source\Common\WindowRectangles.cs" Link="Source\Common\WindowRectangles.cs" />
     <Compile Include="..\..\source\Services\Capture\PcmAudio.cs" Link="Source\Services\Capture\PcmAudio.cs" />
     <Compile Include="..\..\source\Services\UI\AchievementHotkeyTargetResolver.cs" Link="Source\Services\UI\AchievementHotkeyTargetResolver.cs" />

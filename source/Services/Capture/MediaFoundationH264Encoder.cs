@@ -1,4 +1,6 @@
 using System;
+using System.Collections.Generic;
+using System.Diagnostics;
 using System.IO;
 using System.Threading;
 using PlayniteAchievements.Models.Settings;
@@ -94,6 +96,16 @@ namespace PlayniteAchievements.Services.Capture
         private readonly DXGIDeviceManager _deviceManager;
         private readonly int _streamIndex;
         private bool _disposed;
+
+        /// <summary>
+        /// Best-effort description of the transforms Media Foundation actually placed between the
+        /// BGRA input and H.264 sink. This distinguishes a hardware encoder from a silent software
+        /// fallback in diagnostics without making transform introspection a recording dependency.
+        /// </summary>
+        private string _transformDescription;
+
+        public string TransformDescription => _transformDescription ??
+            (_transformDescription = DescribeTransforms(_writer, _streamIndex));
 
         private static bool? _available;
 
@@ -209,15 +221,17 @@ namespace PlayniteAchievements.Services.Capture
         }
 
         /// <summary>
-        /// Encodes one frame from a BGRA D3D11 texture. Times are in 100-ns units (MF's unit).
+        /// Encodes one frame from a BGRA D3D11 texture. Times are in 100-ns units (MF's unit), and
+        /// the return value is the synchronous writer latency in Stopwatch ticks.
         /// </summary>
-        public void WriteFrame(D3D11.Texture2D texture, long timestamp100ns, long duration100ns)
+        public long WriteFrame(D3D11.Texture2D texture, long timestamp100ns, long duration100ns)
         {
             if (_disposed)
             {
-                return;
+                return 0;
             }
 
+            var started = Stopwatch.GetTimestamp();
             var iid = IID_ID3D11Texture2D;
             MediaFactory.CreateDXGISurfaceBuffer(iid, texture, 0, false, out var buffer);
             using (buffer)
@@ -234,6 +248,108 @@ namespace PlayniteAchievements.Services.Capture
                     sample.SampleDuration = duration100ns;
                     _writer.WriteSample(_streamIndex, sample);
                 }
+            }
+
+            return Stopwatch.GetTimestamp() - started;
+        }
+
+        private static string DescribeTransforms(SinkWriter writer, int streamIndex)
+        {
+            var descriptions = new List<string>();
+            try
+            {
+                using (var writerEx = writer.QueryInterfaceOrNull<SinkWriterEx>())
+                {
+                    if (writerEx == null)
+                    {
+                        return "transform inspection unavailable";
+                    }
+
+                    // A BGRA -> H.264 chain is normally a color converter plus an encoder. Leave
+                    // headroom for vendor-specific intermediate transforms, but never probe without
+                    // a bound if a driver returns an unexpected success sequence.
+                    for (var index = 0; index < 8; index++)
+                    {
+                        Transform transform = null;
+                        try
+                        {
+                            writerEx.GetTransformForStream(streamIndex, index, out var category, out transform);
+                            descriptions.Add(DescribeTransform(transform, category));
+                        }
+                        catch
+                        {
+                            break;
+                        }
+                        finally
+                        {
+                            transform?.Dispose();
+                        }
+                    }
+                }
+            }
+            catch
+            {
+                // Diagnostics must not make an otherwise valid encoder fail construction.
+            }
+
+            return descriptions.Count == 0
+                ? "transform inspection unavailable"
+                : string.Join(" -> ", descriptions);
+        }
+
+        private static string DescribeTransform(Transform transform, Guid category)
+        {
+            if (transform == null)
+            {
+                return $"unknown [{category}]";
+            }
+
+            string name = null;
+            string hardwareUrl = null;
+            Guid? clsid = null;
+            try
+            {
+                using (var attributes = transform.Attributes)
+                {
+                    name = TryGetString(attributes, TransformAttributeKeys.MftFriendlyNameAttribute);
+                    hardwareUrl = TryGetString(attributes, TransformAttributeKeys.MftEnumHardwareUrlAttribute);
+                    clsid = TryGetValue<Guid>(attributes, TransformAttributeKeys.MftTransformClsidAttribute);
+                }
+            }
+            catch
+            {
+                // Attributes are optional for software MFTs; category/CLSID still provide a clue.
+            }
+
+            var identity = !string.IsNullOrWhiteSpace(name)
+                ? name
+                : clsid.HasValue && clsid.Value != Guid.Empty
+                    ? clsid.Value.ToString("D")
+                    : category.ToString("D");
+            return string.IsNullOrWhiteSpace(hardwareUrl) ? identity : identity + " (hardware)";
+        }
+
+        private static T? TryGetValue<T>(MediaAttributes attributes, MediaAttributeKey<T> key) where T : struct
+        {
+            try
+            {
+                return attributes.Get<T>(key);
+            }
+            catch
+            {
+                return null;
+            }
+        }
+
+        private static string TryGetString(MediaAttributes attributes, MediaAttributeKey<string> key)
+        {
+            try
+            {
+                return attributes.Get<string>(key);
+            }
+            catch
+            {
+                return null;
             }
         }
 
