@@ -25,12 +25,17 @@ namespace PlayniteAchievements.Services.Captures
         }
 
         /// <summary>
-        /// Resolves the capture set for a game's achievement data. The live Playnite game name is
-        /// preferred because the capture writers key the on-disk folder by it; the cached name is
-        /// the fallback for games no longer in the library.
+        /// Resolves the capture set for a game's achievement data.
+        /// <para>
+        /// The name precedence must mirror the writers exactly or captures on disk stop mapping to
+        /// their achievement: the unlock event that names the capture folder resolves the game name
+        /// as <c>data?.GameName ?? game?.Name</c> (see <c>InGameAchievementMonitor</c>), so the
+        /// cached name wins here too. Preferring the live Playnite name instead would miss every
+        /// capture of a game that was renamed in Playnite after its captures were saved.
+        /// </para>
         /// </summary>
         public static GameCaptureSet ResolveGameSet(GameAchievementData data) =>
-            data == null ? null : ResolveGameSet(data.Game?.Name ?? data.GameName);
+            data == null ? null : ResolveGameSet(data.GameName ?? data.Game?.Name);
 
         /// <summary>
         /// Returns the cached capture set for a game, or null when the capture library is
