@@ -243,6 +243,59 @@ namespace PlayniteAchievements.Services.Tests.Captures
         }
 
         [TestMethod]
+        public void ResolveGameSet_PrefersTheCachedGameName_MatchingTheCaptureWriter()
+        {
+            // The unlock event names the capture folder from data.GameName ?? game.Name, so a game
+            // renamed in Playnite still has its captures under the cached name. Resolving by the
+            // live name instead would orphan every one of them.
+            const string cachedName = "Portal";
+            const string renamedInPlaynite = "Portal (Valve)";
+            var clean = WriteCaptureAsWriter(
+                cachedName,
+                "Cake",
+                number: 1,
+                total: 10,
+                variantSuffix: _settings.UnlockScreenshotSuffixClean);
+            var service = CreateService();
+            AchievementCapturePathResolver.CaptureLibraryAccessor = () => service;
+
+            var data = new PlayniteAchievements.Models.Achievements.GameAchievementData
+            {
+                GameName = cachedName,
+                Game = new Playnite.SDK.Models.Game { Name = renamedInPlaynite }
+            };
+
+            var set = AchievementCapturePathResolver.ResolveGameSet(data);
+
+            Assert.IsNotNull(set, "Captures live under the cached game name, not the renamed one.");
+            Assert.AreEqual(clean, AchievementCapturePathResolver.ResolvePaths(set, "Cake").Clean);
+        }
+
+        [TestMethod]
+        public void ResolveGameSet_FallsBackToThePlayniteName_WhenNoCachedNameExists()
+        {
+            var clean = WriteCaptureAsWriter(
+                "Braid",
+                "Cake",
+                number: 1,
+                total: 10,
+                variantSuffix: _settings.UnlockScreenshotSuffixClean);
+            var service = CreateService();
+            AchievementCapturePathResolver.CaptureLibraryAccessor = () => service;
+
+            var data = new PlayniteAchievements.Models.Achievements.GameAchievementData
+            {
+                GameName = null,
+                Game = new Playnite.SDK.Models.Game { Name = "Braid" }
+            };
+
+            var set = AchievementCapturePathResolver.ResolveGameSet(data);
+
+            Assert.IsNotNull(set);
+            Assert.AreEqual(clean, AchievementCapturePathResolver.ResolvePaths(set, "Cake").Clean);
+        }
+
+        [TestMethod]
         public void FindGroup_MatchesStemCaseInsensitively_AndMissesUnknownStems()
         {
             WriteCapture("Portal", "001_Cake_clean.png");
