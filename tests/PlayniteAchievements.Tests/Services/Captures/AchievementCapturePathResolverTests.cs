@@ -38,6 +38,29 @@ namespace PlayniteAchievements.Services.Tests.Captures
         private string WriteCapture(string gameName, string fileName) =>
             _captures.WriteCapture(gameName, fileName);
 
+        /// <summary>
+        /// Writes a capture using the real writer path builder, so the test pins writer/reader
+        /// agreement on sanitization instead of hardcoding an already-sanitized filename.
+        /// </summary>
+        private string WriteCaptureAsWriter(
+            string gameName,
+            string achievementDisplayName,
+            int number,
+            int total,
+            string variantSuffix,
+            string extension = ".png")
+        {
+            var built = UnlockScreenshotService.BuildRelativePath(
+                providerKey: null,
+                gameName: gameName,
+                achievementName: achievementDisplayName,
+                number: number,
+                total: total,
+                variantSuffix: variantSuffix,
+                extension: extension);
+            return _captures.WriteCapture(gameName, built.FileName);
+        }
+
         [TestMethod]
         public void ResolvePaths_ResolvesEachVariant_AndNullsTheAbsentOne()
         {
@@ -149,6 +172,74 @@ namespace PlayniteAchievements.Services.Tests.Captures
             Assert.IsNull(achievement.FramedCapturePath);
             Assert.IsNull(achievement.VideoCapturePath);
             Assert.IsFalse(achievement.HasAnyCapture);
+        }
+
+        [TestMethod]
+        [DataRow("Hero: Rise of the Wolf", DisplayName = "colon")]
+        [DataRow(@"What?! Why\ How/ When*", DisplayName = "wildcards and separators")]
+        [DataRow("Dungeon <Master> | \"Quoted\"", DisplayName = "angle brackets, pipe, quotes")]
+        [DataRow("100% Done — 5,000 pts (finally!)", DisplayName = "punctuation kept verbatim")]
+        [DataRow("Trailing dots...", DisplayName = "trailing dots trimmed")]
+        [DataRow("COM1", DisplayName = "reserved device name")]
+        public void ResolvePaths_RoundTripsNamesWithFilesystemSymbols(string achievementDisplayName)
+        {
+            // Written through the real path builder, then looked up by the RAW display name: the
+            // reader must apply the writer's sanitization, not assume the name is already safe.
+            var clean = WriteCaptureAsWriter(
+                "Portal",
+                achievementDisplayName,
+                number: 7,
+                total: 30,
+                variantSuffix: _settings.UnlockScreenshotSuffixClean);
+            var video = WriteCaptureAsWriter(
+                "Portal",
+                achievementDisplayName,
+                number: 7,
+                total: 30,
+                variantSuffix: null,
+                extension: ".mp4");
+            var set = CreateService().ScanGame("Portal");
+
+            var stamp = AchievementCapturePathResolver.ResolvePaths(set, achievementDisplayName);
+
+            Assert.AreEqual(clean, stamp.Clean, "Clean capture must resolve from the unsanitized display name.");
+            Assert.AreEqual(video, stamp.Video, "Video capture must resolve from the unsanitized display name.");
+        }
+
+        [TestMethod]
+        public void ResolvePaths_RoundTripsNamesLongerThanTheStemCap()
+        {
+            // The writer caps the stem at 96 chars; the reader must cap identically or long
+            // achievement names would never match their own files.
+            var longName = new string('a', 80) + ": " + new string('b', 80);
+            var clean = WriteCaptureAsWriter(
+                "Portal",
+                longName,
+                number: 1,
+                total: 10,
+                variantSuffix: _settings.UnlockScreenshotSuffixClean);
+            var set = CreateService().ScanGame("Portal");
+
+            var stamp = AchievementCapturePathResolver.ResolvePaths(set, longName);
+
+            Assert.AreEqual(clean, stamp.Clean);
+        }
+
+        [TestMethod]
+        public void ResolvePaths_TreatsNamesThatSanitizeIdentically_AsTheSameAchievement()
+        {
+            // Documented consequence of the writer's naming: the on-disk stem is the sanitized
+            // display name, so two names differing only in stripped symbols share capture files.
+            var clean = WriteCaptureAsWriter(
+                "Portal",
+                "Ready: Set",
+                number: 3,
+                total: 10,
+                variantSuffix: _settings.UnlockScreenshotSuffixClean);
+            var set = CreateService().ScanGame("Portal");
+
+            Assert.AreEqual(clean, AchievementCapturePathResolver.ResolvePaths(set, "Ready: Set").Clean);
+            Assert.AreEqual(clean, AchievementCapturePathResolver.ResolvePaths(set, "Ready_ Set").Clean);
         }
 
         [TestMethod]
