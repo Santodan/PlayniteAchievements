@@ -299,6 +299,7 @@ namespace PlayniteAchievements.Services.Capture
             _framePool = Direct3D11CaptureFramePool.CreateFreeThreaded(_winrtDevice, pixelFormat, 2, item.Size);
             _session = _framePool.CreateCaptureSession(_item);
             var updateRateLimited = WgcCaptureBorder.LimitUpdateRate(_session, _fps);
+            var cursorSuppressed = WgcCaptureBorder.SuppressCursor(_session);
             WgcCaptureBorder.Suppress(_session);
             _session.StartCapture();
             _activeHwnd = hwnd;
@@ -308,7 +309,8 @@ namespace PlayniteAchievements.Services.Capture
             _logger?.Info(
                 $"[Recording] WGC-MF capturing game window 0x{hwnd.ToInt64():X} (hdr={_hdr}, " +
                 $"{item.Size.Width}x{item.Size.Height}@{_fps}, crop={_cropW}x{_cropH}+{_cropX}+{_cropY}, " +
-                $"wgcRateLimited={updateRateLimited}, gpuPriority={(_gpuPriorityLowered ? "-1" : "normal")}, " +
+                $"wgcRateLimited={updateRateLimited}, cursorSuppressed={cursorSuppressed}, " +
+                $"gpuPriority={(_gpuPriorityLowered ? "-1" : "normal")}, " +
                 $"{DescribeWindow(hwnd, item.Size.Width, item.Size.Height)}).");
         }
 
