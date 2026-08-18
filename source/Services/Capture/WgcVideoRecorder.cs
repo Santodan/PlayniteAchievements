@@ -93,6 +93,8 @@ namespace PlayniteAchievements.Services.Capture
         private int _prepareSamples;
         private DateTime _lastDebtLogUtc = DateTime.MinValue;
         private int _suppressedDebtLogs;
+        private DateTime _lastRotationFailureUtc = DateTime.MinValue;
+        private int _suppressedRotationFailures;
 
         private Thread _pumpThread;
         private volatile bool _running;
@@ -234,6 +236,16 @@ namespace PlayniteAchievements.Services.Capture
         /// </summary>
         private void SetupCapture(IntPtr hwnd)
         {
+            // A minimized window is parked off-screen at a stub size with an empty client area, and
+            // capturing it yields neither the game's picture nor a size the encoder will accept.
+            // Keep the current target and wait: the resolver is re-run every tick, so this recovers
+            // by itself when the window is restored, whereas retargeting here would tear down a
+            // working capture in exchange for nothing.
+            if (IsIconic(hwnd))
+            {
+                return;
+            }
+
             GraphicsCaptureItem item;
             try
             {
@@ -454,7 +466,20 @@ namespace PlayniteAchievements.Services.Capture
                                 LogDebtResynchronization(dueBeforeRotation - _segmentFrameIndex);
                             }
 
-                            RotateSegment(resynchronize);
+                            try
+                            {
+                                RotateSegment(resynchronize);
+                            }
+                            catch (Exception ex)
+                            {
+                                // Building a segment writer can fail on its own — a window size the
+                                // H.264 encoder refuses, a transient Media Foundation error — and this
+                                // used to escape the loop and end the session's capture silently, so
+                                // every later unlock had no footage at all. Give up this segment, not
+                                // the session: the next boundary tries again, by which point the size
+                                // that caused it has usually changed.
+                                LogRotationFailure(ex);
+                            }
                         }
 
                         if (_encoder != null)
@@ -772,6 +797,30 @@ namespace PlayniteAchievements.Services.Capture
 
             _encoderDescriptionLogged = true;
             _logger?.Debug($"[Recording] Media Foundation transform chain: {encoder.TransformDescription}.");
+        }
+
+        /// <summary>
+        /// Reports a segment rotation that failed, at most once every thirty seconds. A cause that
+        /// persists — a window the encoder will not accept — would otherwise log at the segment rate
+        /// for as long as the game runs.
+        /// </summary>
+        private void LogRotationFailure(Exception ex)
+        {
+            var now = CaptureTimelineClock.UtcNow;
+            if ((now - _lastRotationFailureUtc).TotalSeconds < 30)
+            {
+                _suppressedRotationFailures++;
+                return;
+            }
+
+            var suppressed = _suppressedRotationFailures;
+            _suppressedRotationFailures = 0;
+            _lastRotationFailureUtc = now;
+            _logger?.Warn(
+                ex,
+                $"[Recording] Could not open a capture segment at {_encW}x{_encH}; capture continues and " +
+                $"the next boundary retries" +
+                (suppressed > 0 ? $" ({suppressed} further failures suppressed)" : string.Empty) + ".");
         }
 
         private void LogDebtResynchronization(long overdueFrames)
