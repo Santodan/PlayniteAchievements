@@ -12,9 +12,10 @@ namespace PlayniteAchievements.Services.Capture
     /// sub-rect, tone-maps when the source is scRGB HDR, and scales to the encoder size, all in a
     /// single draw.
     /// <para>
-    /// The path this replaces ran three full-resolution passes — <see cref="GpuHdrToneMapper"/> over
-    /// the whole frame, a <c>CopySubresourceRegion</c> crop, then a <see cref="FrameScaler"/>
-    /// downscale — plus the two intermediate textures between them. At 2560x1440 HDR into 1080p that
+    /// The path this replaces ran three full-resolution passes — a tone-map over the whole frame, a
+    /// <c>CopySubresourceRegion</c> crop, then a downscale — plus the two intermediate textures
+    /// between them. Those two classes now live only as the probe's frozen baseline, in
+    /// <c>tools/capture-harness/ReferenceFramePath.cs</c>. At 2560x1440 HDR into 1080p that
     /// is 96.8 MB of memory traffic per frame against 37.8 MB here, on a GPU shared with the game and
     /// the compositor.
     /// </para>

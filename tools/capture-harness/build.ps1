@@ -84,10 +84,11 @@ $extraSources = @{
         (Join-Path $repo 'source\Services\Recording\RecordingPaths.cs'),
         (Join-Path $repo 'source\Models\Settings\RecordingEnums.cs'),
         (Join-Path $repo 'source\Common\MonotonicUtcClock.cs'))
+    # FrameComposer is the live class under test; ReferenceFramePath is the frozen pre-fold
+    # implementation it must reproduce, and lives here precisely so it does not track the plugin.
     ComposerProbe = @(
         (Join-Path $repo 'source\Services\Capture\FrameComposer.cs'),
-        (Join-Path $repo 'source\Services\Capture\GpuHdrToneMapper.cs'),
-        (Join-Path $repo 'source\Services\Capture\FrameScaler.cs'))
+        (Join-Path $here 'ReferenceFramePath.cs'))
     HapticProbe = @(
         (Join-Path $repo 'source\Services\Capture\PcmAudio.cs'),
         (Join-Path $repo 'source\Services\Recording\ProcessLoopbackCapture.cs'),
