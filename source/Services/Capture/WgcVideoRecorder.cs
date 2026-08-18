@@ -52,7 +52,7 @@ namespace PlayniteAchievements.Services.Capture
         private GraphicsCaptureItem _item;
         private Direct3D11CaptureFramePool _framePool;
         private GraphicsCaptureSession _session;
-        private GpuHdrToneMapper _toneMapper;
+        private FrameComposer _composer;
         private bool _hdr;
         private float _refWhite = 1.0f;
         // The size the frame pool was built at, and the pixel format it was built with. WGC does not
@@ -66,9 +66,10 @@ namespace PlayniteAchievements.Services.Capture
         // yet is logged once instead of once per second for as long as it stays that way.
         private IntPtr _lastItemFailureHwnd;
 
-        private D3D11.Texture2D _latest; // owned, BGRA, the most recent (tone-mapped) clean game frame
-        private D3D11.Texture2D _scaled; // owned, BGRA, downscaled encode frame when a resolution cap applies
-        private FrameScaler _frameScaler;
+        // Owned, BGRA, encoder-sized: the most recent clean game frame, already cropped, tone-mapped
+        // and scaled by the single composer pass, so it is handed to the encoder as-is and a repeat
+        // for a static scene costs nothing but another WriteFrame.
+        private D3D11.Texture2D _latest;
         private int _encW, _encH; // encoder (output) dimensions, after any resolution cap
         private MediaFoundationH264Encoder _encoder;
         private long _segmentFrameIndex;
@@ -270,17 +271,24 @@ namespace PlayniteAchievements.Services.Capture
             // empty instead of recording unrelated footage under the new timeline.
             _latest?.Dispose();
             _latest = null;
-            _scaled?.Dispose();
-            _scaled = null;
 
             _hdr = HdrDisplayDetector.IsHdrActive(hwnd);
             _refWhite = _hdr ? HdrDisplayDetector.GetSdrWhiteScRgb(hwnd) : 1.0f;
-            if (_hdr && _toneMapper == null)
+            if (_composer == null)
             {
-                _toneMapper = new GpuHdrToneMapper(_device);
+                _composer = new FrameComposer(_device);
             }
 
             ComputeClientCrop(hwnd, item.Size.Width, item.Size.Height, out _cropX, out _cropY, out _cropW, out _cropH);
+
+            // The encoder size follows the crop, and is settled here rather than derived from the
+            // held frame: that frame is now already encoder-sized, so reading its dimensions back
+            // would be circular. An empty crop means the whole captured texture.
+            ComputeEncodeSize(
+                _cropW > 0 ? _cropW : item.Size.Width,
+                _cropH > 0 ? _cropH : item.Size.Height,
+                out _encW,
+                out _encH);
 
             var pixelFormat = _hdr
                 ? DirectXPixelFormat.R16G16B16A16Float
@@ -474,8 +482,9 @@ namespace PlayniteAchievements.Services.Capture
 
                                 if (missing > 0)
                                 {
-                                    // Scale once, not once per repeat: duplicates are the same picture.
-                                    var encodeFrame = ScaleForEncode(_latest);
+                                    // Already cropped, tone-mapped and encoder-sized by the composer,
+                                    // so a repeat is the same texture handed over again.
+                                    var encodeFrame = _latest;
                                     for (var repeat = 0L; repeat < missing; repeat++)
                                     {
                                         var pts = PtsForFrame(_segmentFrameIndex);
@@ -562,62 +571,15 @@ namespace PlayniteAchievements.Services.Capture
                 var texPtr = access.GetInterface(ref texIid);
                 using (var frameTexture = new D3D11.Texture2D(texPtr))
                 {
-                    var bgra = _hdr ? _toneMapper.ToneMap(frameTexture, _refWhite) : frameTexture;
-
-                    // Crop to the client area (exclude window chrome) with a GPU sub-region copy.
-                    var w = _cropW > 0 ? _cropW : bgra.Description.Width;
-                    var h = _cropH > 0 ? _cropH : bgra.Description.Height;
-                    EnsureLatest(w, h);
-                    var region = new D3D11.ResourceRegion(_cropX, _cropY, 0, _cropX + w, _cropY + h, 1);
-                    _device.ImmediateContext.CopySubresourceRegion(bgra, 0, region, _latest, 0, 0, 0, 0);
+                    // Crop to the client area (excluding window chrome), tone-map an scRGB HDR frame
+                    // and scale to the encoder size, in one draw straight into the frame the encoder
+                    // reads. ComposerProbe holds this to the three-pass route it replaced.
+                    EnsureLatest(_encW, _encH);
+                    _composer.Compose(
+                        frameTexture, _latest, _cropX, _cropY, _cropW, _cropH, _hdr, _refWhite);
                 }
             }
         }
-
-        /// <summary>
-        /// Returns <paramref name="src"/> unchanged when it already matches the encoder size, else a
-        /// GPU downscale of it to the resolution-capped encoder dimensions.
-        /// </summary>
-        private D3D11.Texture2D ScaleForEncode(D3D11.Texture2D src)
-        {
-            if (src == null || (src.Description.Width == _encW && src.Description.Height == _encH))
-            {
-                return src;
-            }
-
-            EnsureScaled(_encW, _encH);
-            if (_frameScaler == null)
-            {
-                _frameScaler = new FrameScaler(_device);
-            }
-
-            _frameScaler.Scale(src, _scaled);
-            return _scaled;
-        }
-
-        private void EnsureScaled(int width, int height)
-        {
-            if (_scaled != null && _scaled.Description.Width == width && _scaled.Description.Height == height)
-            {
-                return;
-            }
-
-            _scaled?.Dispose();
-            _scaled = new D3D11.Texture2D(_device, new D3D11.Texture2DDescription
-            {
-                Width = width,
-                Height = height,
-                MipLevels = 1,
-                ArraySize = 1,
-                Format = DXGI.Format.B8G8R8A8_UNorm,
-                SampleDescription = new DXGI.SampleDescription(1, 0),
-                Usage = D3D11.ResourceUsage.Default,
-                BindFlags = D3D11.BindFlags.RenderTarget | D3D11.BindFlags.ShaderResource,
-                CpuAccessFlags = D3D11.CpuAccessFlags.None,
-                OptionFlags = D3D11.ResourceOptionFlags.None,
-            });
-        }
-
 
         private void EnsureLatest(int width, int height)
         {
@@ -627,19 +589,7 @@ namespace PlayniteAchievements.Services.Capture
             }
 
             _latest?.Dispose();
-            _latest = new D3D11.Texture2D(_device, new D3D11.Texture2DDescription
-            {
-                Width = width,
-                Height = height,
-                MipLevels = 1,
-                ArraySize = 1,
-                Format = DXGI.Format.B8G8R8A8_UNorm,
-                SampleDescription = new DXGI.SampleDescription(1, 0),
-                Usage = D3D11.ResourceUsage.Default,
-                BindFlags = D3D11.BindFlags.RenderTarget | D3D11.BindFlags.ShaderResource,
-                CpuAccessFlags = D3D11.CpuAccessFlags.None,
-                OptionFlags = D3D11.ResourceOptionFlags.None,
-            });
+            _latest = FrameComposer.CreateTarget(_device, width, height);
         }
 
         /// <summary>
@@ -668,10 +618,6 @@ namespace PlayniteAchievements.Services.Capture
                 DiscardPrepared(prepared);
                 return;
             }
-
-            // Encode at the resolution-capped size; frames are downscaled from the captured client
-            // size in ComposeFrame when a cap applies.
-            ComputeEncodeSize(_latest.Description.Width, _latest.Description.Height, out _encW, out _encH);
 
             // One instant for both the name and the PTS origin. Clip planning maps the name onto a
             // position on the timeline and the frames inside are stamped relative to the origin, so
@@ -1071,12 +1017,8 @@ namespace PlayniteAchievements.Services.Capture
 
             _latest?.Dispose();
             _latest = null;
-            _scaled?.Dispose();
-            _scaled = null;
-            _frameScaler?.Dispose();
-            _frameScaler = null;
-            _toneMapper?.Dispose();
-            _toneMapper = null;
+            _composer?.Dispose();
+            _composer = null;
             TearDownCapture();
             _device?.ImmediateContext?.Dispose();
             _device?.Dispose();
