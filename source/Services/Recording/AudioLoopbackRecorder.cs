@@ -236,7 +236,15 @@ namespace PlayniteAchievements.Services.Recording
                     // The timeline is anchored, and the first chunk opened, by the pump once it
                     // knows when the first packet's audio actually played -- see AwaitAnchor.
                     _running = true;
-                    _pumpThread = new Thread(PumpLoop) { IsBackground = true, Name = "PA-AudioPump" };
+                    _pumpThread = new Thread(PumpLoop)
+                    {
+                        IsBackground = true,
+                        Name = "PA-AudioPump",
+                        // Background capture work: yield to the game and the shell. The pump is
+                        // wall-clock paced and reads whatever accumulated, so a late wake costs
+                        // nothing but a slightly larger read.
+                        Priority = ThreadPriority.BelowNormal,
+                    };
                     _pumpThread.Start();
 
                     _logger?.Info(
