@@ -36,11 +36,99 @@ internal static class HapticProbe
 
     private static int _failures;
 
+    /// <summary>
+    /// Runs the probe, keeping everything it printed. Double-clicking a console app closes the
+    /// window the moment it exits, which reads as a crash, so the output is also written next to
+    /// the exe as HapticProbe-report.txt and the window is held open when this process owns it.
+    /// </summary>
     private static int Main(string[] args)
+    {
+        var transcript = new StringWriter();
+        var console = Console.Out;
+        Console.SetOut(new TeeWriter(console, transcript));
+        try
+        {
+            return Run(args);
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine("FAILED: " + ex);
+            return 1;
+        }
+        finally
+        {
+            Console.SetOut(console);
+            SaveReport(transcript.ToString());
+            HoldWindowOpen();
+        }
+    }
+
+    private static void SaveReport(string text)
+    {
+        try
+        {
+            var path = Path.Combine(
+                Path.GetDirectoryName(Process.GetCurrentProcess().MainModule.FileName) ?? ".",
+                "HapticProbe-report.txt");
+            File.WriteAllText(path, text);
+            Console.WriteLine();
+            Console.WriteLine("Saved this report to " + path);
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine("(could not save a report file: " + ex.Message + ")");
+        }
+    }
+
+    /// <summary>
+    /// Waits for a key only when this process is the console's only client, i.e. it was launched by
+    /// double-click rather than from a shell that will keep the window.
+    /// </summary>
+    private static void HoldWindowOpen()
+    {
+        try
+        {
+            var clients = new uint[4];
+            if (GetConsoleProcessList(clients, (uint)clients.Length) > 1)
+            {
+                return;
+            }
+
+            Console.WriteLine();
+            Console.WriteLine("Press any key to close...");
+            Console.ReadKey(true);
+        }
+        catch
+        {
+            // No console, or input is redirected: nothing to hold open.
+        }
+    }
+
+    [System.Runtime.InteropServices.DllImport("kernel32.dll", SetLastError = true)]
+    private static extern uint GetConsoleProcessList(uint[] processList, uint processCount);
+
+    private static int Run(string[] args)
     {
         var devices = ListDevices();
         if (args.Length == 0)
         {
+            // Double-click path: whoever runs this is answering "why were my clips not cleaned",
+            // so also prove whether the endpoint the recorder picked can actually be captured.
+            // Silent — nothing is rendered.
+            var selected = RenderEndpointScan.FindHapticEndpoints(null);
+            if (selected.Count > 0)
+            {
+                Console.WriteLine();
+                for (var i = 0; i < devices.Count; i++)
+                {
+                    if (devices[i].ID == selected[0].DeviceId)
+                    {
+                        Check(devices[i]);
+                        break;
+                    }
+                }
+            }
+
             return 0;
         }
 
@@ -403,6 +491,39 @@ internal static class HapticProbe
             {
                 Thread.Sleep(50);
             }
+        }
+    }
+
+    /// <summary>Writes to the console and to the saved report at once.</summary>
+    private sealed class TeeWriter : TextWriter
+    {
+        private readonly TextWriter _console;
+        private readonly TextWriter _copy;
+
+        public TeeWriter(TextWriter console, TextWriter copy)
+        {
+            _console = console;
+            _copy = copy;
+        }
+
+        public override System.Text.Encoding Encoding => _console.Encoding;
+
+        public override void Write(char value)
+        {
+            _console.Write(value);
+            _copy.Write(value);
+        }
+
+        public override void Write(string value)
+        {
+            _console.Write(value);
+            _copy.Write(value);
+        }
+
+        public override void WriteLine(string value)
+        {
+            _console.WriteLine(value);
+            _copy.WriteLine(value);
         }
     }
 
