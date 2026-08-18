@@ -636,10 +636,7 @@ namespace PlayniteAchievements.Services.Recording
 
                 var recorder = new WgcVideoRecorder(
                     resolveHwnd, session.BufferDirectory, persisted.RecordingFps, SegmentSeconds,
-                    persisted.RecordingResolution, persisted.RecordingQuality, _logger,
-                    // Where the recorder looks for its diagnostic switch file, read fresh on every
-                    // capture start. Nothing is created here; a user without the file is unaffected.
-                    _pluginUserDataPath);
+                    persisted.RecordingResolution, persisted.RecordingQuality, _logger);
                 if (!recorder.Start())
                 {
                     recorder.Dispose();

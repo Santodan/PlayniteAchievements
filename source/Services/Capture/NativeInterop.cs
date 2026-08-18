@@ -55,11 +55,6 @@ namespace PlayniteAchievements.Services.Capture
         [DllImport("user32.dll")]
         internal static extern IntPtr GetForegroundWindow();
 
-        // The shell's own always-present top-level window, used only as the last-resort substitute
-        // target for the recorder's CaptureNonGameWindow probe.
-        [DllImport("user32.dll", CharSet = CharSet.Unicode, SetLastError = true)]
-        internal static extern IntPtr FindWindowW(string lpClassName, string lpWindowName);
-
         internal delegate bool EnumWindowsProc(IntPtr hWnd, IntPtr lParam);
 
         [DllImport("user32.dll")]

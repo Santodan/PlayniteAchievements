@@ -40,18 +40,8 @@ namespace PlayniteAchievements.Services.Capture
 
         private IntPtr _timer;
 
-        /// <param name="highResolution">
-        /// Whether to use a high-resolution waitable timer. False takes the Thread.Sleep fallback on
-        /// a system that supports the timer, which is what the capture recorder's diagnostic ladder
-        /// uses to take the timer out of the picture.
-        /// </param>
-        public FramePacer(bool highResolution = true)
+        public FramePacer()
         {
-            if (!highResolution)
-            {
-                return;
-            }
-
             try
             {
                 // Returns NULL with ERROR_INVALID_PARAMETER where the high-resolution flag is not

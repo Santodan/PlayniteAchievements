@@ -33,12 +33,6 @@ namespace PlayniteAchievements.Services.Capture
     /// </summary>
     internal sealed class WgcVideoRecorder : IDisposable
     {
-        // Which layers of this pipeline are switched off for a diagnostic run, resolved once per
-        // Start from the plugin's capture-diagnostics.txt over the compiled-in defaults. All false —
-        // the normal case, and the case for every user with no such file — is the shipping pipeline.
-        // See CaptureDiagnostics for the ladder and the file format.
-        private CaptureDiagnostics _diagnostics = CaptureDiagnostics.CompiledIn;
-
         // Resolves the game window to capture, re-checked each second so the recorder follows the
         // learned game window (idle until it's known, re-target if it changes) instead of grabbing
         // whatever is foreground at start.
@@ -47,7 +41,6 @@ namespace PlayniteAchievements.Services.Capture
         // Client-area crop box within the captured window texture (excludes chrome); set per window.
         private int _cropX, _cropY, _cropW, _cropH;
         private readonly string _bufferDirectory;
-        private readonly string _diagnosticsDirectory;
         private readonly int _fps;
         private readonly int _segmentSeconds;
         private readonly RecordingResolution _resolution;
@@ -72,9 +65,6 @@ namespace PlayniteAchievements.Services.Capture
         // Last window handle whose capture-item creation failed, so a window that is not capturable
         // yet is logged once instead of once per second for as long as it stays that way.
         private IntPtr _lastItemFailureHwnd;
-        // Last window the CaptureNonGameWindow probe resolved, so its choice is logged when it
-        // changes rather than once per second.
-        private IntPtr _lastSubstituteHwnd = new IntPtr(-1);
 
         // Owned, BGRA, encoder-sized: the most recent clean game frame, already cropped, tone-mapped
         // and scaled by the single composer pass, so it is handed to the encoder as-is and a repeat
@@ -132,18 +122,12 @@ namespace PlayniteAchievements.Services.Capture
         private Task _prepareTask;
 
 
-        /// <param name="diagnosticsDirectory">
-        /// Where <see cref="CaptureDiagnostics.FileName"/> is looked for (the plugin's user data
-        /// folder). Null or missing simply means the shipping pipeline.
-        /// </param>
         public WgcVideoRecorder(
             Func<IntPtr> resolveHwnd, string bufferDirectory, int fps, int segmentSeconds,
-            RecordingResolution resolution, RecordingQuality quality, ILogger logger,
-            string diagnosticsDirectory = null)
+            RecordingResolution resolution, RecordingQuality quality, ILogger logger)
         {
             _resolveHwnd = resolveHwnd;
             _bufferDirectory = bufferDirectory;
-            _diagnosticsDirectory = diagnosticsDirectory;
             _fps = Math.Max(1, fps);
             _segmentSeconds = Math.Max(1, segmentSeconds);
             _resolution = resolution;
@@ -178,17 +162,10 @@ namespace PlayniteAchievements.Services.Capture
         {
             try
             {
-                // Read fresh here rather than once per process, so selecting a bisect stage costs a
-                // game relaunch instead of a Playnite restart.
-                _diagnostics = CaptureDiagnostics.Resolve(_diagnosticsDirectory, _logger);
-
                 // One process-wide lease for the whole session, around every segment encoder this
                 // recorder builds. Exporters share the same lease count and therefore cannot shut
                 // Media Foundation down while this recorder is still active.
-                if (!_diagnostics.DisableMediaFoundationLease)
-                {
-                    _mediaFoundationLease = MediaFoundationRuntime.Acquire();
-                }
+                _mediaFoundationLease = MediaFoundationRuntime.Acquire();
 
                 _device = new D3D11.Device(SharpDX.Direct3D.DriverType.Hardware,
                     D3D11.DeviceCreationFlags.BgraSupport | D3D11.DeviceCreationFlags.VideoSupport);
@@ -206,11 +183,8 @@ namespace PlayniteAchievements.Services.Capture
                         // Capture is opportunistic background work. A mild relative reduction leaves
                         // DWM and the game ahead of our copy/scale/tonemap commands under contention;
                         // unlike idle priority, -1 still has a forward-progress guarantee.
-                        if (!_diagnostics.DisableGpuPriorityOverride)
-                        {
-                            dxgiDevice.GPUThreadPriority = -1;
-                            _gpuPriorityLowered = true;
-                        }
+                        dxgiDevice.GPUThreadPriority = -1;
+                        _gpuPriorityLowered = true;
                     }
                     catch (Exception ex)
                     {
@@ -232,25 +206,19 @@ namespace PlayniteAchievements.Services.Capture
 
                 Directory.CreateDirectory(_bufferDirectory);
                 _running = true;
-                if (!_diagnostics.DisablePumpThread)
+                _pumpThread = new Thread(PumpLoop)
                 {
-                    _pumpThread = new Thread(PumpLoop)
-                    {
-                        IsBackground = true,
-                        Name = "PlayAch-WgcVideo",
-                        // Capture is opportunistic background work, the same reasoning as the GPU
-                        // priority above. At normal priority this thread competes with the game and the
-                        // shell on equal terms 60 times a second; below normal it yields to both, and
-                        // falling behind degrades into a segment boundary the resync path already
-                        // handles rather than into a lost clip.
-                        Priority = ThreadPriority.BelowNormal,
-                    };
-                    _pumpThread.Start();
-                }
-
-                _logger?.Info(
-                    "[Recording] WGC-MF capture started (following the game window)." +
-                    _diagnostics.Describe());
+                    IsBackground = true,
+                    Name = "PlayAch-WgcVideo",
+                    // Capture is opportunistic background work, the same reasoning as the GPU
+                    // priority above. At normal priority this thread competes with the game and the
+                    // shell on equal terms 60 times a second; below normal it yields to both, and
+                    // falling behind degrades into a segment boundary the resync path already
+                    // handles rather than into a lost clip.
+                    Priority = ThreadPriority.BelowNormal,
+                };
+                _pumpThread.Start();
+                _logger?.Info("[Recording] WGC-MF capture started (following the game window).");
                 return true;
             }
             catch (Exception ex)
@@ -318,9 +286,7 @@ namespace PlayniteAchievements.Services.Capture
 
             _hdr = HdrDisplayDetector.IsHdrActive(hwnd);
             _refWhite = _hdr ? HdrDisplayDetector.GetSdrWhiteScRgb(hwnd) : 1.0f;
-            // Nothing reads the composer when no session delivers frames, so a stage that removes the
-            // session leaves the device holding no shader or pipeline state either.
-            if (!_diagnostics.DisableCaptureSession && _composer == null)
+            if (_composer == null)
             {
                 _composer = new FrameComposer(_device);
             }
@@ -342,26 +308,12 @@ namespace PlayniteAchievements.Services.Capture
             _item = item;
             _poolSize = item.Size;
             _geometryStale = false;
-            var updateRateLimited = false;
-            var cursorSuppressed = false;
-            if (!_diagnostics.DisableCaptureSession)
-            {
-                _framePool = Direct3D11CaptureFramePool.CreateFreeThreaded(
-                    _winrtDevice, pixelFormat, _diagnostics.FramePoolBufferCount, item.Size);
-                _session = _framePool.CreateCaptureSession(_item);
-                updateRateLimited = !_diagnostics.DisableUpdateRateLimit &&
-                    WgcCaptureBorder.LimitUpdateRate(_session, _fps);
-                cursorSuppressed = WgcCaptureBorder.SuppressCursor(_session);
-                if (!_diagnostics.DisableBorderSuppression)
-                {
-                    WgcCaptureBorder.Suppress(_session);
-                }
-
-                _session.StartCapture();
-            }
-
-            // Set whether or not a session was created: the pump re-targets on a changed handle, so
-            // leaving it clear would re-run this every second for as long as the game runs.
+            _framePool = Direct3D11CaptureFramePool.CreateFreeThreaded(_winrtDevice, pixelFormat, 2, item.Size);
+            _session = _framePool.CreateCaptureSession(_item);
+            var updateRateLimited = WgcCaptureBorder.LimitUpdateRate(_session, _fps);
+            var cursorSuppressed = WgcCaptureBorder.SuppressCursor(_session);
+            WgcCaptureBorder.Suppress(_session);
+            _session.StartCapture();
             _activeHwnd = hwnd;
             // The captured size, the crop derived from it and the monitor's scale together explain any
             // later "the clip is cropped/zoomed" report, which is otherwise indistinguishable from the
@@ -401,66 +353,6 @@ namespace PlayniteAchievements.Services.Capture
             }
         }
 
-        /// <summary>
-        /// A window that is deliberately not the game, for the CaptureNonGameWindow probe: Playnite's
-        /// own main window, else the foreground window when it is not the game's, else the shell's
-        /// taskbar. Everything downstream — pool, session, frame pulls, composition, encoding — runs
-        /// exactly as it does for the game, so a pointer that is smooth here and heavy on the game
-        /// says the cost is in capturing the game's presentation specifically rather than in holding
-        /// a capture session at all.
-        /// <para>
-        /// Returns zero when no substitute qualifies, which leaves the pump idle rather than quietly
-        /// capturing the game and reporting a probe that never ran. Never throws.
-        /// </para>
-        /// </summary>
-        private IntPtr ResolveSubstituteWindow()
-        {
-            var game = _resolveHwnd?.Invoke() ?? IntPtr.Zero;
-            IntPtr playnite;
-            try
-            {
-                using (var current = Process.GetCurrentProcess())
-                {
-                    playnite = current.MainWindowHandle;
-                }
-            }
-            catch
-            {
-                playnite = IntPtr.Zero;
-            }
-
-            var chosen = IntPtr.Zero;
-            foreach (var candidate in new[] { playnite, GetForegroundWindow(), FindWindowW("Shell_TrayWnd", null) })
-            {
-                if (candidate != IntPtr.Zero && candidate != game &&
-                    IsWindow(candidate) && IsWindowVisible(candidate) && !IsIconic(candidate))
-                {
-                    chosen = candidate;
-                    break;
-                }
-            }
-
-            if (chosen != _lastSubstituteHwnd)
-            {
-                _lastSubstituteHwnd = chosen;
-                if (chosen == IntPtr.Zero)
-                {
-                    _logger?.Warn(
-                        "[Recording] CaptureNonGameWindow found no window to capture instead of the game " +
-                        "(Playnite's window and the foreground window are the game, hidden or minimized); " +
-                        "capture stays idle until one appears.");
-                }
-                else
-                {
-                    _logger?.Info(
-                        $"[Recording] CaptureNonGameWindow is targeting 0x{chosen.ToInt64():X} instead of the " +
-                        $"game ({DescribeWindow(chosen, 0, 0)}).");
-                }
-            }
-
-            return chosen;
-        }
-
         private void TearDownCapture()
         {
             try { _session?.Dispose(); } catch { }
@@ -495,7 +387,7 @@ namespace PlayniteAchievements.Services.Capture
             var next = CaptureTimelineClock.UtcNow;
             var lastResolveUtc = DateTime.MinValue;
             var lastRebuildUtc = DateTime.MinValue;
-            var pacer = new FramePacer(highResolution: !_diagnostics.DisablePacerHighResolution);
+            var pacer = new FramePacer();
             if (!pacer.IsHighResolution)
             {
                 _logger?.Debug(
@@ -519,9 +411,7 @@ namespace PlayniteAchievements.Services.Capture
                     if (activeDead || (CaptureTimelineClock.UtcNow - lastResolveUtc).TotalSeconds >= 1)
                     {
                         lastResolveUtc = CaptureTimelineClock.UtcNow;
-                        var hwnd = _diagnostics.CaptureNonGameWindow
-                            ? ResolveSubstituteWindow()
-                            : (_resolveHwnd?.Invoke() ?? IntPtr.Zero);
+                        var hwnd = _resolveHwnd?.Invoke() ?? IntPtr.Zero;
                         if (hwnd != IntPtr.Zero && hwnd != _activeHwnd)
                         {
                             SetupCapture(hwnd);
@@ -530,10 +420,7 @@ namespace PlayniteAchievements.Services.Capture
 
                     if (_activeHwnd != IntPtr.Zero && _framePool != null)
                     {
-                        if (!_diagnostics.DisableFrameConsumption)
-                        {
-                            PullLatestFrame();
-                        }
+                        PullLatestFrame();
 
                         // The window changed size under a pool built for the old one. Rebuild the
                         // capture at the new size (which also re-measures the crop and re-detects
@@ -551,7 +438,7 @@ namespace PlayniteAchievements.Services.Capture
                         }
                     }
 
-                    if (!_diagnostics.DisableEncoding && _latest != null && _framePool != null)
+                    if (_latest != null && _framePool != null)
                     {
                         var encodeNow = CaptureTimelineClock.UtcNow;
                         var dueBeforeRotation = _encoder == null
@@ -715,14 +602,8 @@ namespace PlayniteAchievements.Services.Capture
                     // and scale to the encoder size, in one draw straight into the frame the encoder
                     // reads. ComposerProbe holds this to the three-pass route it replaced.
                     EnsureLatest(_encW, _encH);
-                    // The target is still allocated when the draw is skipped, so the pump keeps its
-                    // shape and the encoder — if it is still on — writes an undrawn frame rather than
-                    // taking a different code path.
-                    if (!_diagnostics.DisableFrameComposition)
-                    {
-                        _composer.Compose(
-                            frameTexture, _latest, _cropX, _cropY, _cropW, _cropH, _hdr, _refWhite);
-                    }
+                    _composer.Compose(
+                        frameTexture, _latest, _cropX, _cropY, _cropW, _cropH, _hdr, _refWhite);
                 }
             }
         }
