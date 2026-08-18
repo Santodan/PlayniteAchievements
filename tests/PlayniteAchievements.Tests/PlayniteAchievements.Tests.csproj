@@ -172,6 +172,7 @@
     <Compile Include="..\..\source\Providers\BattleNet\BattleNetSupport.cs" Link="Source\Providers\BattleNet\BattleNetSupport.cs" />
     <Compile Include="..\..\source\Providers\BattleNet\BattleNetSettings.cs" Link="Source\Providers\BattleNet\BattleNetSettings.cs" />
     <Compile Include="..\..\source\Providers\BattleNet\WowGameStrategy.cs" Link="Source\Providers\BattleNet\WowGameStrategy.cs" />
+    <Compile Include="..\..\source\Providers\BattleNet\DataForAzerothClient.cs" Link="Source\Providers\BattleNet\DataForAzerothClient.cs" />
     <Compile Include="..\..\source\Providers\BattleNet\Models\BattleNetSc2Models.cs" Link="Source\Providers\BattleNet\Models\BattleNetSc2Models.cs" />
     <Compile Include="..\..\source\Providers\BattleNet\Models\BattleNetWowModels.cs" Link="Source\Providers\BattleNet\Models\BattleNetWowModels.cs" />
     <Compile Include="..\..\source\Providers\ShadPS4\ShadPS4PathResolver.cs" Link="Source\Providers\ShadPS4\ShadPS4PathResolver.cs" />
@@ -277,6 +278,8 @@
     <Compile Include="..\..\source\Common\RelativeDateFormatter.cs" Link="Source\Common\RelativeDateFormatter.cs" />
     <Compile Include="..\..\source\Common\RelayCommand.cs" Link="Source\Common\RelayCommand.cs" />
     <Compile Include="..\..\source\Common\WebViewExtensions.cs" Link="Source\Common\WebViewExtensions.cs" />
+    <Compile Include="..\..\source\Common\AsyncPoll.cs" Link="Source\Common\AsyncPoll.cs" />
+    <Compile Include="..\..\source\Common\CefCookieReader.cs" Link="Source\Common\CefCookieReader.cs" />
     <Compile Include="..\..\source\ViewModels\Items\FriendAchievementDisplayItem.cs" Link="Source\ViewModels\Items\FriendAchievementDisplayItem.cs" />
     <Compile Include="..\..\source\ViewModels\Items\FriendGameSummaryItem.cs" Link="Source\ViewModels\Items\FriendGameSummaryItem.cs" />
     <Compile Include="..\..\source\ViewModels\Items\FriendSummaryItem.cs" Link="Source\ViewModels\Items\FriendSummaryItem.cs" />
