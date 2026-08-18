@@ -40,6 +40,13 @@ namespace PlayniteAchievements.Services.Recording
         /// <summary>Rolling capture segment length in seconds (K).</summary>
         internal const int SegmentSeconds = 5;
 
+        /// <summary>
+        /// Alignment search width for removing controller haptics, in 48 kHz frames (250 ms). Wide
+        /// because the reference comes from a separate endpoint client whose engine latency is
+        /// unrelated to the main capture's.
+        /// </summary>
+        private const int HapticCancellationMaxLagFrames = 12000;
+
         private const string BufferRootFolderName = "RecordingBuffer";
         private const long MinFreeBytesToStart = 2L * 1024 * 1024 * 1024;
         private const long MinFreeBytesToContinue = 500L * 1024 * 1024;
@@ -1520,13 +1527,23 @@ namespace PlayniteAchievements.Services.Recording
                     return audioPlan;
                 }
 
+                // A controller endpoint and a process-loopback client can sit much further apart
+                // than the chime's two process clients do — field logs show the alignment drifting
+                // to 47 ms against the default 50 ms search, i.e. right at the edge of not being
+                // findable at all. Give this pass room, which the coarse-to-fine search makes cheap.
                 var outcome = PcmAudio.CancelCorrelated(
-                    mixture, reference, out var cancellation, muteUnverifiedBlocks: false);
-                _logger?.Debug(
+                    mixture,
+                    reference,
+                    out var cancellation,
+                    muteUnverifiedBlocks: false,
+                    maxLagFrames: HapticCancellationMaxLagFrames);
+                _logger?.Info(
                     $"[Recording] Haptic cancellation: outcome={outcome} " +
                     $"lag={cancellation.StartLagMs:0.###}->{cancellation.EndLagMs:0.###}ms " +
                     $"gain={cancellation.Gain:0.00} correlation={cancellation.Correlation:0.000} " +
-                    $"suppression={cancellation.SuppressionDb:0.0}dB.");
+                    $"suppression={cancellation.SuppressionDb:0.0}dB " +
+                    $"blocks={cancellation.SubtractedBlocks}/{cancellation.TotalBlocks} " +
+                    $"residual={cancellation.ResidualCorrelation:0.000}.");
                 if (outcome != PcmCancellationOutcome.CancelledVerified)
                 {
                     return audioPlan;
