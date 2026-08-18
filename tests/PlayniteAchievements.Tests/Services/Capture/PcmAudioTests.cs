@@ -500,6 +500,65 @@ namespace PlayniteAchievements.Services.Tests.Capture
         }
 
         [TestMethod]
+        public void CancelCorrelated_FindsAReferenceBeyondTheDefaultSearchWhenAllowed()
+        {
+            // A controller endpoint's capture client can sit far further from the main capture than
+            // the chime's two process clients do — field logs showed 47 ms against a 50 ms search.
+            // Past that edge the reference is simply not found and the buzz ships untouched, so the
+            // haptic pass asks for a wider search; this pins that the width is what decides it.
+            const int frames = 192000; // 4 s
+            const int lag = 5760; // 120 ms
+            var referenceSamples = BandLimitedNoise(frames, 31, 8000);
+            var otherSamples = BandLimitedNoise(frames, 77, 3000);
+            var mixtureSamples = new short[frames * 2];
+            for (var frame = 0; frame < frames; frame++)
+            {
+                for (var channel = 0; channel < 2; channel++)
+                {
+                    var value = (int)otherSamples[frame * 2 + channel];
+                    if (frame + lag < frames)
+                    {
+                        value += (int)Math.Round(0.9 * referenceSamples[(frame + lag) * 2 + channel]);
+                    }
+
+                    mixtureSamples[frame * 2 + channel] =
+                        (short)Math.Max(short.MinValue, Math.Min(short.MaxValue, value));
+                }
+            }
+
+            var reference = Samples(referenceSamples);
+
+            var narrow = Samples(mixtureSamples);
+            var narrowOutcome = PcmAudio.CancelCorrelated(narrow, reference, out _);
+            Assert.AreNotEqual(
+                PcmCancellationOutcome.CancelledVerified,
+                narrowOutcome,
+                "the default search must not reach a 120 ms lag");
+
+            var wide = Samples(mixtureSamples);
+            var outcome = PcmAudio.CancelCorrelated(
+                wide, reference, out var diagnostics, muteUnverifiedBlocks: false, maxLagFrames: 12000);
+
+            Assert.AreEqual(
+                PcmCancellationOutcome.CancelledVerified,
+                outcome,
+                $"lag={diagnostics.StartLagMs}ms correlation={diagnostics.Correlation}");
+            Assert.AreEqual(lag * 1000.0 / 48000.0, diagnostics.StartLagMs, 1.0);
+            Assert.IsTrue(
+                diagnostics.ResidualCorrelation < 0.15,
+                $"residual correlation was {diagnostics.ResidualCorrelation:0.000}");
+            Assert.AreEqual(0, diagnostics.MutedBlocks);
+            Assert.IsTrue(diagnostics.SubtractedBlocks > 0, "no block was subtracted");
+
+            // The audio that was not the reference has to come through untouched.
+            var keptBefore = Energy(otherSamples, 2000, frames - 8000);
+            var keptAfter = Energy(ToShorts(wide), 2000, frames - 8000);
+            Assert.IsTrue(
+                keptAfter > keptBefore * 0.7 && keptAfter < keptBefore * 1.3,
+                $"kept-audio energy ratio was {keptAfter / keptBefore:0.000}");
+        }
+
+        [TestMethod]
         public void WriteWav_WritesAReadableHeaderForTheExportFormat()
         {
             // The cleaned clip audio goes back to the exporter as an ordinary chunk file, so the
