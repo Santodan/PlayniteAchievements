@@ -1443,7 +1443,12 @@ namespace PlayniteAchievements.Services.Recording
                     endUtc);
                 if (reference == null)
                 {
-                    // No controller endpoint existed while this window was recorded.
+                    // No controller endpoint existed while this window was recorded. Said out loud:
+                    // silence here reads exactly like a cancellation that ran and did nothing, and
+                    // the two have completely different causes.
+                    _logger?.Debug(
+                        "[Recording] No haptic reference track covers this clip's audio window; " +
+                        "nothing to remove (see the render-endpoint line from capture start).");
                     return audioPlan;
                 }
 
