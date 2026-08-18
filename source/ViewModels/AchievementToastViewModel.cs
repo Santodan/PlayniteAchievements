@@ -38,7 +38,12 @@ namespace PlayniteAchievements.ViewModels
         private const double FrameBodyFontFallback = 19;
         private const double FrameGameCategoryFontFallback = 19;
 
-        // Built-in size fallbacks used when the style stores null.
+        // Built-in size fallbacks used when the style stores null. The two font sizes are
+        // deliberately independent of theme font sizes, like the frame fallbacks above: the
+        // notification card is a fixed-geometry overlay, and Playnite defines much larger font
+        // constants in fullscreen mode than on the desktop, so deriving from the theme sized the
+        // same card differently per mode. Shared with the settings editor so its sliders rest on
+        // the values the renderer applies.
         public const double DefaultToastIconSize = 55;
         public const double DefaultFrameIconSize = 84;
         public const double DefaultToastProviderIconSize = 24;
@@ -896,21 +901,18 @@ namespace PlayniteAchievements.ViewModels
         public FontFamily FrameFontFamily => ResolveFontFamily(_style.Frame.FontFamily);
 
         // Effective caption/header size per surface.
-        public double ToastHeaderFontSize => _style.Toast.HeaderFontSize
-            ?? ResolveFontSizeResource("PlayAch.FontSize.Caption", DefaultToastCaptionFontSize);
+        public double ToastHeaderFontSize => _style.Toast.HeaderFontSize ?? DefaultToastCaptionFontSize;
         public double FrameHeaderFontSize => _style.Frame.HeaderFontSize ?? FrameHeaderFontFallback;
 
         // Effective rarity percent text size per surface. Decoupled from the header size; when
         // unset it falls back to the same caption/header default so the out-of-the-box look is
         // unchanged.
-        public double ToastRarityFontSize => _style.Toast.RarityFontSize
-            ?? ResolveFontSizeResource("PlayAch.FontSize.Caption", DefaultToastCaptionFontSize);
+        public double ToastRarityFontSize => _style.Toast.RarityFontSize ?? DefaultToastCaptionFontSize;
         public double FrameRarityFontSize => _style.Frame.RarityFontSize ?? FrameHeaderFontFallback;
 
         // Effective title size per surface: the single source of truth for both the title line
         // and the badge size, so the inline and footer badges always match.
-        public double ToastTitleFontSize => _style.Toast.TitleFontSize
-            ?? ResolveFontSizeResource("PlayAch.FontSize.Title", DefaultToastTitleFontSize);
+        public double ToastTitleFontSize => _style.Toast.TitleFontSize ?? DefaultToastTitleFontSize;
         public double FrameTitleFontSize => _style.Frame.TitleFontSize ?? FrameTitleFontFallback;
 
         // Rarity badge render size per surface, identical across every rarity display mode
@@ -1089,9 +1091,9 @@ namespace PlayniteAchievements.ViewModels
             var headerSize = isFrame ? FrameHeaderFontSize : ToastHeaderFontSize;
             var titleSize = isFrame ? FrameTitleFontSize : ToastTitleFontSize;
             var bodySize = surface.BodyFontSize ??
-                (isFrame ? FrameBodyFontFallback : ResolveFontSizeResource("PlayAch.FontSize.Caption", DefaultToastCaptionFontSize));
+                (isFrame ? FrameBodyFontFallback : DefaultToastCaptionFontSize);
             var gameCategorySize = surface.GameCategoryFontSize ??
-                (isFrame ? FrameGameCategoryFontFallback : ResolveFontSizeResource("PlayAch.FontSize.Caption", DefaultToastCaptionFontSize));
+                (isFrame ? FrameGameCategoryFontFallback : DefaultToastCaptionFontSize);
 
             var showGameName = isFrame ? FrameShowGameName : ShowGameName;
             var showCategory = isFrame ? FrameShowCategory : ShowCategory;
@@ -1341,13 +1343,6 @@ namespace PlayniteAchievements.ViewModels
             }
 
             return decorations;
-        }
-
-        private static double ResolveFontSizeResource(string key, double fallback)
-        {
-            return Application.Current?.TryFindResource(key) is double size && size > 0
-                ? size
-                : fallback;
         }
 
         private static FontFamily ResolveFontFamily(string familyName)
