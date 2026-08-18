@@ -283,7 +283,7 @@
                             Padding="16"
                             BorderThickness="{StaticResource PlayAch.Thickness.Border}"
                             Margin="24,12,0,0"
-                            IsEnabled="{Binding Settings.UseDataForAzerothForWowRarity, RelativeSource={RelativeSource AncestorType=UserControl}}">
+                            IsEnabled="{Binding Settings.UseDataForAzerothForWowRarity}">
                         <Border.Style>
                             <Style TargetType="Border">
                                 <Setter Property="BorderBrush" Value="{StaticResource PlayAch.Brush.AuthError}"/>
