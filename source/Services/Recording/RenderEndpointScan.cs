@@ -31,6 +31,7 @@ namespace PlayniteAchievements.Services.Recording
         public static IReadOnlyList<HapticEndpointInfo> FindHapticEndpoints(ILogger logger)
         {
             var found = new List<HapticEndpointInfo>();
+            var inventory = new List<string>();
             try
             {
                 using (var enumerator = new MMDeviceEnumerator())
@@ -40,12 +41,26 @@ namespace PlayniteAchievements.Services.Recording
                     {
                         try
                         {
-                            if (!IsHaptic(device))
+                            var identities = IdentityCandidates(device);
+                            var isDefault = string.Equals(device.ID, defaultId, StringComparison.OrdinalIgnoreCase);
+                            var haptic = HapticEndpointClassifier.IsHapticEndpoint(
+                                identities,
+                                TryRead(() => device.FriendlyName),
+                                TryRead(() => device.DeviceFriendlyName));
+
+                            // One line per session naming what was seen and how it was judged. Without
+                            // it a machine that still records haptics is indistinguishable from one
+                            // that has no controller endpoint at all, which is most of them.
+                            inventory.Add(
+                                $"'{Describe(device)}'{(isDefault ? " default" : string.Empty)}" +
+                                $"{(haptic ? " HAPTIC" : string.Empty)} [{FirstIdentity(identities)}]");
+
+                            if (!haptic)
                             {
                                 continue;
                             }
 
-                            if (string.Equals(device.ID, defaultId, StringComparison.OrdinalIgnoreCase))
+                            if (isDefault)
                             {
                                 logger?.Info(
                                     $"[Recording] '{Describe(device)}' is a controller audio device but also the " +
@@ -69,19 +84,23 @@ namespace PlayniteAchievements.Services.Recording
             }
             catch (Exception ex)
             {
-                logger?.Debug(ex, "[Recording] Render endpoints could not be enumerated; no haptic reference will be captured.");
+                logger?.Warn(ex, "[Recording] Render endpoints could not be enumerated; no haptic reference will be captured.");
                 return new List<HapticEndpointInfo>();
             }
 
+            logger?.Info("[Recording] Render endpoints: " + string.Join(", ", inventory.ToArray()));
             return found;
         }
 
-        private static bool IsHaptic(MMDevice device)
+        /// <summary>The identity the classifier judged by, for the log; endpoints publish none at all.</summary>
+        private static string FirstIdentity(IEnumerable<string> identities)
         {
-            return HapticEndpointClassifier.IsHapticEndpoint(
-                IdentityCandidates(device),
-                TryRead(() => device.FriendlyName),
-                TryRead(() => device.DeviceFriendlyName));
+            foreach (var identity in identities)
+            {
+                return identity;
+            }
+
+            return "no vendor id published";
         }
 
         /// <summary>

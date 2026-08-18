@@ -96,14 +96,15 @@ namespace PlayniteAchievements.Services.Tests.Recording
         }
 
         [TestMethod]
-        public void AnIdentifiedNonPadIsNeverMatchedByItsName()
+        public void AnUnrelatedVendorIdDoesNotVetoTheName()
         {
-            // A device that positively identifies as something else cannot be dragged in by a name,
-            // which the user can change: subtracting a real output device would remove wanted audio.
-            var candidates = new[] { @"{1}.USB\VID_36BC&PID_0001&MI_00\6&1bcb3ef7&0&0000" };
+            // An endpoint can publish the vendor id of a hub, a dongle or a composite parent rather
+            // than the pad's own, so an unrecognised id must not override a name that says it is a
+            // controller: a pad the scan misses makes the whole feature dead.
+            var candidates = new[] { @"{1}.USB\VID_8087&PID_0026\6&1bcb3ef7&0&0000" };
 
-            Assert.IsFalse(HapticEndpointClassifier.IsHapticEndpoint(
-                candidates, "Wireless Controller Dock", null));
+            Assert.IsTrue(HapticEndpointClassifier.IsHapticEndpoint(
+                candidates, "Speakers (Wireless Controller)", null));
         }
 
         [TestMethod]

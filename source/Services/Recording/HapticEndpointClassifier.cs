@@ -40,34 +40,27 @@ namespace PlayniteAchievements.Services.Recording
         /// The same decision over several candidate identity strings, because which property carries
         /// the underlying hardware id varies by driver: an endpoint may expose it as a device
         /// instance path, a hardware id, or a device interface path, and some expose none at all.
-        /// Names decide only when no candidate carried a vendor/product pair, so a device that
-        /// positively identifies as something else can never be matched by its name.
+        /// <para>
+        /// Either signal is enough. An endpoint can publish a vendor id that belongs to a hub, a
+        /// dongle or a composite parent rather than the pad, so an id that is not a known pad must
+        /// not veto a name that plainly says "Wireless Controller" — a pad the scan fails to
+        /// recognise makes the whole feature dead, while a false positive only costs a device the
+        /// user is not listening on (the default output is never offered here).
+        /// </para>
         /// </summary>
         public static bool IsHapticEndpoint(
             IEnumerable<string> identityCandidates, string friendlyName, string deviceDescription)
         {
-            var identified = false;
             if (identityCandidates != null)
             {
                 foreach (var candidate in identityCandidates)
                 {
-                    if (!TryParseVendorProduct(candidate, out var vendorId, out var productId))
-                    {
-                        continue;
-                    }
-
-                    if (ControllerPadIds.RendersHapticsAsAudio(vendorId, productId))
+                    if (TryParseVendorProduct(candidate, out var vendorId, out var productId) &&
+                        ControllerPadIds.RendersHapticsAsAudio(vendorId, productId))
                     {
                         return true;
                     }
-
-                    identified = true;
                 }
-            }
-
-            if (identified)
-            {
-                return false;
             }
 
             return MatchesHapticName(friendlyName) || MatchesHapticName(deviceDescription);
