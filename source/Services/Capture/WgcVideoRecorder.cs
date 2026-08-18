@@ -196,7 +196,17 @@ namespace PlayniteAchievements.Services.Capture
 
                 Directory.CreateDirectory(_bufferDirectory);
                 _running = true;
-                _pumpThread = new Thread(PumpLoop) { IsBackground = true, Name = "PlayAch-WgcVideo" };
+                _pumpThread = new Thread(PumpLoop)
+                {
+                    IsBackground = true,
+                    Name = "PlayAch-WgcVideo",
+                    // Capture is opportunistic background work, the same reasoning as the GPU
+                    // priority above. At normal priority this thread competes with the game and the
+                    // shell on equal terms 60 times a second; below normal it yields to both, and
+                    // falling behind degrades into a segment boundary the resync path already
+                    // handles rather than into a lost clip.
+                    Priority = ThreadPriority.BelowNormal,
+                };
                 _pumpThread.Start();
                 _logger?.Info("[Recording] WGC-MF capture started (following the game window).");
                 return true;
