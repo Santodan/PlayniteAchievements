@@ -49,6 +49,9 @@ namespace PlayniteAchievements.Services.Recording
         // instead. Only reached when the source is silent from the moment capture starts.
         private const int AnchorTimeoutMs = 750;
 
+        // How often to look for a controller audio endpoint that was not there at capture start.
+        private const int HapticRescanIntervalMs = 5000;
+
         private readonly string _bufferDirectory;
         private readonly ILogger _logger;
         private readonly RecordingAudioSource _source;
@@ -60,7 +63,14 @@ namespace PlayniteAchievements.Services.Recording
         private IWaveIn _systemCapture;
         private IWaveIn _restoredGameCapture;
         private IWaveIn _micCapture;
-        private readonly List<IWaveIn> _hapticCaptures = new List<IWaveIn>();
+        private readonly Dictionary<string, HapticEndpointCapture> _hapticCaptures =
+            new Dictionary<string, HapticEndpointCapture>(StringComparer.OrdinalIgnoreCase);
+        private readonly List<HapticEndpointCapture> _hapticPendingInstall = new List<HapticEndpointCapture>();
+        private readonly HashSet<string> _hapticFailedDeviceIds = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        private MixingSampleProvider _hapticMixer;
+        private Thread _hapticWatchThread;
+        private long _hapticFramesWritten;
+        private float _hapticPeak;
         private BufferedWaveProvider _systemBuffer;
         private BufferedWaveProvider _restoredGameBuffer;
         private BufferedWaveProvider _micBuffer;
@@ -225,18 +235,23 @@ namespace PlayniteAchievements.Services.Recording
                     _outputFormat = _mix.WaveFormat;
                     var hapticEndpoints = StartHapticReference();
 
+                    // Haptic captures start as they are opened, in AttachHapticEndpoints.
                     _systemCapture.StartRecording();
                     _restoredGameCapture?.StartRecording();
                     _micCapture?.StartRecording();
-                    foreach (var capture in _hapticCaptures)
-                    {
-                        capture.StartRecording();
-                    }
 
                     // The timeline is anchored, and the first chunk opened, by the pump once it
                     // knows when the first packet's audio actually played -- see AwaitAnchor.
                     _running = true;
-                    _pumpThread = new Thread(PumpLoop) { IsBackground = true, Name = "PA-AudioPump" };
+                    _pumpThread = new Thread(PumpLoop)
+                    {
+                        IsBackground = true,
+                        Name = "PA-AudioPump",
+                        // Background capture work: yield to the game and the shell. The pump is
+                        // wall-clock paced and reads whatever accumulated, so a late wake costs
+                        // nothing but a slightly larger read.
+                        Priority = ThreadPriority.BelowNormal,
+                    };
                     _pumpThread.Start();
 
                     _logger?.Info(
@@ -371,59 +386,152 @@ namespace PlayniteAchievements.Services.Recording
                 return string.Empty;
             }
 
-            var endpoints = RenderEndpointScan.FindHapticEndpoints(_logger);
-            if (endpoints.Count == 0)
-            {
-                return string.Empty;
-            }
+            // An empty mixer that reads as silence, so an endpoint arriving later can simply be
+            // added to it: the reference track's format and identity never change mid-session.
+            _hapticMixer = new MixingSampleProvider(_outputFormat) { ReadFully = true };
+            _hapticSamples = _hapticMixer;
 
-            var names = new List<string>();
-            var providers = new List<ISampleProvider>();
-            foreach (var endpoint in endpoints)
+            var attached = AttachHapticEndpoints();
+            StartHapticWatcher();
+            return attached.Count == 0 ? string.Empty : ", haptics=" + string.Join("+", attached.ToArray());
+        }
+
+        /// <summary>
+        /// Opens a capture for every controller endpoint not already attached, and returns the names
+        /// of the ones opened. Endpoints that vanish are deliberately left attached: a dead capture
+        /// contributes silence, which is harmless, while disposing one means joining its poll thread
+        /// on whichever thread noticed.
+        /// </summary>
+        private List<string> AttachHapticEndpoints()
+        {
+            var opened = new List<string>();
+            foreach (var endpoint in RenderEndpointScan.FindHapticEndpoints(_logger))
             {
+                lock (_gate)
+                {
+                    if (_stopped || _hapticCaptures.ContainsKey(endpoint.DeviceId))
+                    {
+                        continue;
+                    }
+                }
+
+                // Activation and StartRecording are COM work, kept off the gate so the pump thread
+                // is never blocked behind a driver.
                 IWaveIn capture = null;
                 try
                 {
                     capture = ProcessLoopbackCapture.ForEndpoint(endpoint.DeviceId);
                     var buffer = NewBuffer(capture.WaveFormat);
                     capture.DataAvailable += (s, e) => Append(buffer, e);
-                    providers.Add(MatchFormat(buffer.ToSampleProvider(), _outputFormat));
-                    names.Add(endpoint.Name);
-                    _hapticCaptures.Add(capture);
+                    var entry = new HapticEndpointCapture
+                    {
+                        DeviceId = endpoint.DeviceId,
+                        Name = endpoint.Name,
+                        Capture = capture,
+                        Buffer = buffer,
+                        Provider = MatchFormat(buffer.ToSampleProvider(), _outputFormat),
+                    };
+
+                    capture.StartRecording();
+                    lock (_gate)
+                    {
+                        _hapticCaptures[endpoint.DeviceId] = entry;
+                        _hapticPendingInstall.Add(entry);
+                    }
+
+                    opened.Add(endpoint.Name);
                 }
                 catch (Exception ex)
                 {
                     DisposeCapture(ref capture);
-                    _logger?.Warn(
-                        ex,
-                        $"[Recording] Controller endpoint '{endpoint.Name}' could not be captured; " +
-                        "its haptics will stay in this session's clip audio.");
+
+                    // Retried on every later tick — an endpoint can be busy for a moment — but
+                    // reported once per device, or a stuck one would fill the log at rescan cadence.
+                    if (_hapticFailedDeviceIds.Add(endpoint.DeviceId))
+                    {
+                        _logger?.Warn(
+                            ex,
+                            $"[Recording] Controller endpoint '{endpoint.Name}' could not be captured; " +
+                            "its haptics will stay in this session's clip audio.");
+                    }
                 }
             }
 
-            if (providers.Count == 0)
+            return opened;
+        }
+
+        /// <summary>
+        /// Re-checks for controller endpoints for the life of the session. Detecting once at capture
+        /// start is not enough: a pad connected after the game launched has no endpoint yet, and a
+        /// pad that re-enumerates (Windows names the new instance "2-", "3-", …) leaves the original
+        /// endpoint id dead while the game renders its haptics to the new one.
+        /// </summary>
+        private void StartHapticWatcher()
+        {
+            _hapticWatchThread = new Thread(() =>
             {
-                DisposeHapticCaptures();
-                return string.Empty;
+                while (true)
+                {
+                    Thread.Sleep(HapticRescanIntervalMs);
+                    lock (_gate)
+                    {
+                        if (_stopped || _failed)
+                        {
+                            return;
+                        }
+                    }
+
+                    try
+                    {
+                        var opened = AttachHapticEndpoints();
+                        if (opened.Count > 0)
+                        {
+                            _logger?.Info(
+                                "[Recording] Controller endpoint appeared mid-session; capturing " +
+                                string.Join("+", opened.ToArray()) + " as a haptic reference.");
+                        }
+                    }
+                    catch (Exception ex)
+                    {
+                        _logger?.Debug(ex, "[Recording] A haptic endpoint re-scan failed.");
+                    }
+                }
+            })
+            {
+                IsBackground = true,
+                Name = "PA-HapticWatch",
+            };
+            _hapticWatchThread.Start();
+        }
+
+        /// <summary>
+        /// Adds newly opened endpoints to the reference mix, at a chunk boundary so the reference
+        /// track's sample positions keep matching the main track's. Their buffers are dropped first:
+        /// whatever accumulated since activation belongs before this chunk, and mixing it in here
+        /// would place the reference ahead of the audio it has to be subtracted from.
+        /// </summary>
+        private void InstallPendingHapticCapturesLocked()
+        {
+            if (_hapticPendingInstall.Count == 0)
+            {
+                return;
             }
 
-            try
+            foreach (var entry in _hapticPendingInstall)
             {
-                _hapticSamples = providers.Count == 1
-                    ? providers[0]
-                    : new MixingSampleProvider(providers) { ReadFully = true };
-            }
-            catch (Exception ex)
-            {
-                // Nothing here may cost the session its audio: the reference improves the recorded
-                // track, it is never a precondition for it.
-                _logger?.Warn(ex, "[Recording] The haptic reference could not be assembled; clip audio keeps its haptics.");
-                DisposeHapticCaptures();
-                return string.Empty;
+                try
+                {
+                    entry.Buffer.ClearBuffer();
+                    _hapticMixer.AddMixerInput(entry.Provider);
+                }
+                catch (Exception ex)
+                {
+                    _logger?.Warn(ex, $"[Recording] Controller endpoint '{entry.Name}' could not join the haptic reference.");
+                }
             }
 
+            _hapticPendingInstall.Clear();
             _writeHapticReference = true;
-            return ", haptics=" + string.Join("+", names.ToArray());
         }
 
         private string CaptureSourceName()
@@ -527,7 +635,9 @@ namespace PlayniteAchievements.Services.Recording
             var channels = _outputFormat.Channels;
             var sampleRate = _outputFormat.SampleRate;
             var buffer = new float[sampleRate * channels]; // up to 1s per read
-            var hapticBuffer = _writeHapticReference ? new float[buffer.Length] : null;
+            // Allocated whether or not an endpoint is attached yet: one can appear mid-session, and
+            // the pump must be able to write its reference the moment it joins.
+            var hapticBuffer = _capturePlayniteChimes ? null : new float[buffer.Length];
 
             try
             {
@@ -655,7 +765,8 @@ namespace PlayniteAchievements.Services.Recording
                 system = _systemCapture;
                 restoredGame = _restoredGameCapture;
                 mic = _micCapture;
-                haptics = _hapticCaptures.ToArray();
+                haptics = HapticCapturesLocked();
+                LogHapticReferenceLocked();
             }
 
             // Outside the gate: capture Dispose joins its thread, which may be delivering data.
@@ -677,8 +788,49 @@ namespace PlayniteAchievements.Services.Recording
                 _restoredGameCapture = null;
                 _micCapture = null;
                 _hapticCaptures.Clear();
+                _hapticPendingInstall.Clear();
+                _hapticMixer = null;
                 _hapticSamples = null;
             }
+        }
+
+        private IWaveIn[] HapticCapturesLocked()
+        {
+            var captures = new IWaveIn[_hapticCaptures.Count];
+            var index = 0;
+            foreach (var entry in _hapticCaptures.Values)
+            {
+                captures[index++] = entry.Capture;
+            }
+
+            return captures;
+        }
+
+        /// <summary>
+        /// Reports what the haptic reference actually recorded. A track that ran for the whole
+        /// session but peaked at zero is the difference between "no controller endpoint" and "the
+        /// endpoint we captured was not the one the game plays haptics to" — a distinction no other
+        /// line in the log can make, and the one that decides where to look next.
+        /// </summary>
+        private void LogHapticReferenceLocked()
+        {
+            if (_hapticCaptures.Count == 0)
+            {
+                return;
+            }
+
+            var seconds = _hapticFramesWritten / (double)Math.Max(1, _outputFormat?.SampleRate ?? 1);
+            var names = new List<string>();
+            foreach (var entry in _hapticCaptures.Values)
+            {
+                names.Add(entry.Name);
+            }
+
+            _logger?.Info(
+                $"[Recording] Haptic reference: {seconds.ToString("0.0", CultureInfo.InvariantCulture)}s from " +
+                string.Join("+", names.ToArray()) +
+                $", peak {_hapticPeak.ToString("0.0000", CultureInfo.InvariantCulture)}" +
+                (_hapticPeak <= 0 ? " (silent — nothing was rendered to it)" : string.Empty) + ".");
         }
 
         public void Dispose()
@@ -705,17 +857,23 @@ namespace PlayniteAchievements.Services.Recording
 
         private void DisposeHapticCaptures()
         {
-            foreach (var capture in _hapticCaptures)
+            foreach (var entry in _hapticCaptures.Values)
             {
-                try { capture?.Dispose(); } catch { }
+                try { entry.Capture?.Dispose(); } catch { }
             }
 
             _hapticCaptures.Clear();
+            _hapticPendingInstall.Clear();
+            _hapticMixer = null;
             _hapticSamples = null;
         }
 
         private void OpenChunkLocked()
         {
+            // A chunk boundary is the only place a new endpoint may join the reference, so the two
+            // tracks stay sample-aligned; see InstallPendingHapticCapturesLocked.
+            InstallPendingHapticCapturesLocked();
+
             var prefix = _capturePlayniteChimes
                 ? RecordingPaths.ChimeChunkFilePrefix
                 : RecordingPaths.AudioChunkFilePrefix;
@@ -815,7 +973,27 @@ namespace PlayniteAchievements.Services.Recording
                 Array.Clear(hapticBuffer, Math.Max(0, read), samples - Math.Max(0, read));
             }
 
+            for (var i = 0; i < samples; i++)
+            {
+                var magnitude = Math.Abs(hapticBuffer[i]);
+                if (magnitude > _hapticPeak)
+                {
+                    _hapticPeak = magnitude;
+                }
+            }
+
             _hapticReferenceWriter.WriteSamples(hapticBuffer, 0, samples);
+            _hapticFramesWritten += samples / Math.Max(1, _outputFormat.Channels);
+        }
+
+        /// <summary>One controller endpoint's capture and its place in the reference mix.</summary>
+        private sealed class HapticEndpointCapture
+        {
+            public string DeviceId;
+            public string Name;
+            public IWaveIn Capture;
+            public BufferedWaveProvider Buffer;
+            public ISampleProvider Provider;
         }
 
         /// <summary>

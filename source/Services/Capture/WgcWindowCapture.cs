@@ -149,6 +149,9 @@ namespace PlayniteAchievements.Services.Capture
             var framePool = Direct3D11CaptureFramePool.CreateFreeThreaded(
                 _winrtDevice, pixelFormat, 2, item.Size);
             var session = framePool.CreateCaptureSession(item);
+            // The desktop pointer was never part of what the game drew, so it does not belong in an
+            // unlock screenshot any more than it belongs in a clip.
+            WgcCaptureBorder.SuppressCursor(session);
             WgcCaptureBorder.Suppress(session);
 
             var gate = new object();
