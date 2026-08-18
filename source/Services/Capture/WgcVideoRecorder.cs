@@ -83,6 +83,13 @@ namespace PlayniteAchievements.Services.Capture
         private long _encodeOverBudget;
         private bool _encoderDescriptionLogged;
         private bool _gpuPriorityLowered;
+        // Cost of building the next segment's writer, accumulated on the prepare thread. One Media
+        // Foundation sink writer plus hardware encoder session is created per segment for the whole
+        // session, so this is what the segment length is actually buying. Written on the prepare
+        // thread and read at rotation: a torn count only skews a diagnostic line.
+        private long _prepareTotalTicks;
+        private long _prepareMaxTicks;
+        private int _prepareSamples;
         private DateTime _lastDebtLogUtc = DateTime.MinValue;
         private int _suppressedDebtLogs;
 
@@ -726,7 +733,8 @@ namespace PlayniteAchievements.Services.Capture
                 // whatever is left of it lands as the previous frame held that long, once per segment.
                 _logger?.Debug(
                     $"[Recording] WGC-MF segment #{_segmentCount} started ({Path.GetFileName(path)}, {_encW}x{_encH}, " +
-                    $"rotate={rotate.ElapsedMilliseconds}ms, prepared={reused}{TakeEncodeLatencySummary()}).");
+                    $"rotate={rotate.ElapsedMilliseconds}ms, prepared={reused}" +
+                    $"{TakeEncodeLatencySummary()}{TakePrepareLatencySummary()}).");
             }
         }
 
@@ -749,6 +757,43 @@ namespace PlayniteAchievements.Services.Capture
             {
                 _encodeOverBudget++;
             }
+        }
+
+        /// <summary>
+        /// Records how long one background segment-writer build took. It runs off the pump thread,
+        /// so it costs no frames, but it is a Media Foundation sink writer and a hardware encoder
+        /// session created and torn down once per segment for as long as the game runs.
+        /// </summary>
+        private void RecordPrepareLatency(long elapsedTicks)
+        {
+            if (elapsedTicks < 0)
+            {
+                return;
+            }
+
+            _prepareSamples++;
+            _prepareTotalTicks += elapsedTicks;
+            if (elapsedTicks > _prepareMaxTicks)
+            {
+                _prepareMaxTicks = elapsedTicks;
+            }
+        }
+
+        private string TakePrepareLatencySummary()
+        {
+            if (_prepareSamples <= 0)
+            {
+                return string.Empty;
+            }
+
+            var averageMs = _prepareTotalTicks * 1000d / Stopwatch.Frequency / _prepareSamples;
+            var maximumMs = _prepareMaxTicks * 1000d / Stopwatch.Frequency;
+            var summary =
+                $", prepareAvg={averageMs:0.0}ms, prepareMax={maximumMs:0.0}ms, builds={_prepareSamples}";
+            _prepareSamples = 0;
+            _prepareTotalTicks = 0;
+            _prepareMaxTicks = 0;
+            return summary;
         }
 
         private string TakeEncodeLatencySummary()
@@ -836,8 +881,10 @@ namespace PlayniteAchievements.Services.Capture
             {
                 try
                 {
+                    var build = Stopwatch.StartNew();
                     var encoder = new MediaFoundationH264Encoder(
                         _device, path, width, height, _fps, ComputeBitrate(width, height));
+                    RecordPrepareLatency(build.ElapsedTicks);
                     lock (_prepareGate)
                     {
                         _prepared = new PreparedSegment
