@@ -12,6 +12,7 @@ using PlayniteAchievements.Models;
 using PlayniteAchievements.Models.Achievements;
 using PlayniteAchievements.Models.Settings;
 using PlayniteAchievements.Services.Capture;
+using PlayniteAchievements.Services.GameCustomData;
 using PlayniteAchievements.Services.UI;
 
 namespace PlayniteAchievements.Services.Recording
@@ -109,6 +110,9 @@ namespace PlayniteAchievements.Services.Recording
         // Resolves the started process id for a game (null game id: most recently started game).
         private readonly Func<Guid?, int?> _getGameProcessId;
         private readonly Func<string, bool> _isProviderRecordingEnabled;
+        // Whether any enabled provider can service a game. A delegate, since the plugin owns the
+        // registry, so capture is never started for a game that can never report an unlock.
+        private readonly Func<Playnite.SDK.Models.Game, bool> _isAnyProviderCapable;
         private readonly ToastNotificationService _toastNotifications;
         // Optional foreground tracker: supplies learned game window handles and drives capture
         // ownership switches when the user moves between running games.
@@ -163,7 +167,8 @@ namespace PlayniteAchievements.Services.Recording
             Func<Guid?, int?> getGameProcessId,
             ToastNotificationService toastNotifications = null,
             Func<string, bool> isProviderRecordingEnabled = null,
-            ActiveGameWindowTracker windowTracker = null)
+            ActiveGameWindowTracker windowTracker = null,
+            Func<Playnite.SDK.Models.Game, bool> isAnyProviderCapable = null)
         {
             _api = api;
             _settings = settings;
@@ -172,6 +177,7 @@ namespace PlayniteAchievements.Services.Recording
             _getGameProcessId = getGameProcessId;
             _toastNotifications = toastNotifications;
             _isProviderRecordingEnabled = isProviderRecordingEnabled;
+            _isAnyProviderCapable = isAnyProviderCapable;
             _windowTracker = windowTracker;
             _screenshotService = new UnlockScreenshotService(logger);
 
@@ -266,6 +272,11 @@ namespace PlayniteAchievements.Services.Recording
                 return;
             }
 
+            if (!ShouldCaptureGame(game, persisted, logReason: true))
+            {
+                return;
+            }
+
             var outputDir = ResolveOutputDirectory(persisted);
             if (string.IsNullOrWhiteSpace(outputDir))
             {
@@ -302,6 +313,45 @@ namespace PlayniteAchievements.Services.Recording
             }
 
             _ = Task.Run(() => StartCaptureWhenWindowResolvesAsync(session));
+        }
+
+        /// <summary>
+        /// Whether a game may be captured at all. Mirrors the gates the rest of the plugin applies
+        /// before it acts on a game: a user exclusion, and at least one enabled provider able to
+        /// service it. Capturing a game that can report no unlock is pure background cost - video,
+        /// audio and a rolling buffer maintained for a clip that can never be requested.
+        /// </summary>
+        private bool ShouldCaptureGame(
+            Playnite.SDK.Models.Game game, PersistedSettings persisted, bool logReason)
+        {
+            if (game == null)
+            {
+                return false;
+            }
+
+            if (GameCustomDataLookup.GetExcludedRefreshGameIds(persisted)?.Contains(game.Id) == true)
+            {
+                if (logReason)
+                {
+                    _logger?.Debug($"[Recording] Skipped: {game.Name} is excluded from refreshes.");
+                }
+
+                return false;
+            }
+
+            // No delegate (older wiring) fails open, capturing as before rather than silently
+            // stopping: a missing capability check must never cost the user a clip.
+            if (_isAnyProviderCapable != null && !_isAnyProviderCapable(game))
+            {
+                if (logReason)
+                {
+                    _logger?.Debug($"[Recording] Skipped: no effective provider for {game.Name}.");
+                }
+
+                return false;
+            }
+
+            return true;
         }
 
         /// <summary>
@@ -365,6 +415,14 @@ namespace PlayniteAchievements.Services.Recording
                 }
 
                 if (session == null || session.Stopping || session.OwnerGameId == e.Game.Id)
+                {
+                    return;
+                }
+
+                // Do not retarget onto a game we may not capture. The session stays with its
+                // current owner, which is still running and can still unlock; the alternative
+                // (stopping) would cost that game its buffer for the sake of an ineligible one.
+                if (!ShouldCaptureGame(e.Game, _settings?.Persisted, logReason: true))
                 {
                     return;
                 }
