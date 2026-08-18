@@ -593,7 +593,8 @@ namespace PlayniteAchievements
                         GetProcessIdForGame,
                         _toastNotifications,
                         key => Services.UI.ProviderNotificationPolicy.Resolve(settings?.Persisted, key).Recordings,
-                        _windowTracker);
+                        _windowTracker,
+                        AnyProviderCapable);
                     _captureLibraryService = new Services.Captures.CaptureLibraryService(
                         () => _settingsViewModel?.Settings?.Persisted,
                         _logger);
