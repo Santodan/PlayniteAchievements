@@ -94,6 +94,7 @@ namespace PlayniteAchievements.Services.Recording
         private bool _restoreGameIntoFullSystem;
         private bool _writeGameReference;
         private bool _writeHapticReference;
+        private string _micName;
 
         public AudioLoopbackRecorder(
             string bufferDirectory,
@@ -208,7 +209,15 @@ namespace PlayniteAchievements.Services.Recording
                     {
                         try
                         {
-                            _micCapture = new WasapiCapture(); // default capture endpoint (microphone)
+                            // Not simply the default input: connecting a DualSense makes Windows
+                            // switch the default to the pad's own microphone, which records the
+                            // haptics acoustically — audible in the clip, and beyond the reach of
+                            // any render-side cancellation. See MicrophoneSelector.
+                            var micDevice = MicrophoneSelector.TryChoose(_logger);
+                            _micName = micDevice == null ? "default" : micDevice.FriendlyName;
+                            _micCapture = micDevice == null
+                                ? new WasapiCapture()
+                                : new WasapiCapture(micDevice);
                             _micBuffer = NewBuffer(_micCapture.WaveFormat);
                             _micCapture.DataAvailable += (s, e) => Append(_micBuffer, e);
 
@@ -255,7 +264,8 @@ namespace PlayniteAchievements.Services.Recording
                     _pumpThread.Start();
 
                     _logger?.Info(
-                        $"[Recording] Audio capture started (source={CaptureSourceName()}, mic={_includeMicrophone}, " +
+                        $"[Recording] Audio capture started (source={CaptureSourceName()}, " +
+                        $"mic={(_micCapture == null ? "False" : "'" + _micName + "'")}, " +
                         $"{_outputFormat}{hapticEndpoints}).");
                     return true;
                 }
