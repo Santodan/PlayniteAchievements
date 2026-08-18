@@ -28,6 +28,14 @@ namespace PlayniteAchievements.Services.Recording
     /// </summary>
     internal static class RenderEndpointScan
     {
+        // The recorder re-scans for the life of a session (a pad can be connected late, or
+        // re-enumerate), so the inventory is logged only when it changes and each endpoint's
+        // identity is read from its property store once.
+        private static readonly object InventoryGate = new object();
+        private static readonly Dictionary<string, EndpointVerdict> Classified =
+            new Dictionary<string, EndpointVerdict>(StringComparer.OrdinalIgnoreCase);
+        private static string _lastInventory;
+
         public static IReadOnlyList<HapticEndpointInfo> FindHapticEndpoints(ILogger logger)
         {
             var found = new List<HapticEndpointInfo>();
@@ -41,30 +49,25 @@ namespace PlayniteAchievements.Services.Recording
                     {
                         try
                         {
-                            var identities = IdentityCandidates(device);
                             var isDefault = string.Equals(device.ID, defaultId, StringComparison.OrdinalIgnoreCase);
-                            var haptic = HapticEndpointClassifier.IsHapticEndpoint(
-                                identities,
-                                TryRead(() => device.FriendlyName),
-                                TryRead(() => device.DeviceFriendlyName));
+                            var verdict = Classify(device);
+                            var haptic = verdict.IsHaptic;
 
-                            // One line per session naming what was seen and how it was judged. Without
-                            // it a machine that still records haptics is indistinguishable from one
-                            // that has no controller endpoint at all, which is most of them.
+                            // Logged whenever the set changes, naming what was seen and how it was
+                            // judged. Without it a machine that still records haptics is
+                            // indistinguishable from one that has no controller endpoint at all.
+                            // A controller that is also the default output is the user's listening
+                            // device, so its audio is kept and its haptics cannot be removed. Said
+                            // in the inventory rather than its own line: the scan repeats, and a
+                            // per-endpoint log line would repeat with it.
+                            var keptAsOutput = haptic && isDefault;
                             inventory.Add(
                                 $"'{Describe(device)}'{(isDefault ? " default" : string.Empty)}" +
-                                $"{(haptic ? " HAPTIC" : string.Empty)} [{FirstIdentity(identities)}]");
+                                $"{(haptic ? " HAPTIC" : string.Empty)}" +
+                                $"{(keptAsOutput ? " kept-as-output" : string.Empty)} [{verdict.Identity}]");
 
-                            if (!haptic)
+                            if (!haptic || keptAsOutput)
                             {
-                                continue;
-                            }
-
-                            if (isDefault)
-                            {
-                                logger?.Info(
-                                    $"[Recording] '{Describe(device)}' is a controller audio device but also the " +
-                                    "default output, so its audio is kept: haptics cannot be removed from this session's clips.");
                                 continue;
                             }
 
@@ -88,8 +91,58 @@ namespace PlayniteAchievements.Services.Recording
                 return new List<HapticEndpointInfo>();
             }
 
-            logger?.Info("[Recording] Render endpoints: " + string.Join(", ", inventory.ToArray()));
+            var line = string.Join(", ", inventory.ToArray());
+            lock (InventoryGate)
+            {
+                if (!string.Equals(line, _lastInventory, StringComparison.Ordinal))
+                {
+                    _lastInventory = line;
+                    logger?.Info("[Recording] Render endpoints: " + line);
+                }
+            }
+
             return found;
+        }
+
+        /// <summary>What an endpoint id was judged to be, and the identity it was judged by.</summary>
+        private struct EndpointVerdict
+        {
+            public bool IsHaptic;
+            public string Identity;
+        }
+
+        /// <summary>
+        /// Classifies one endpoint, reusing the verdict for an id already seen. An id cannot change
+        /// what hardware it belongs to, and the identity sweep reads the endpoint's whole property
+        /// store — far too much work to repeat at rescan cadence.
+        /// </summary>
+        private static EndpointVerdict Classify(MMDevice device)
+        {
+            var id = device.ID ?? string.Empty;
+            lock (InventoryGate)
+            {
+                if (Classified.TryGetValue(id, out var cached))
+                {
+                    return cached;
+                }
+            }
+
+            var identities = IdentityCandidates(device);
+            var verdict = new EndpointVerdict
+            {
+                Identity = FirstIdentity(identities),
+                IsHaptic = HapticEndpointClassifier.IsHapticEndpoint(
+                    identities,
+                    TryRead(() => device.FriendlyName),
+                    TryRead(() => device.DeviceFriendlyName)),
+            };
+
+            lock (InventoryGate)
+            {
+                Classified[id] = verdict;
+            }
+
+            return verdict;
         }
 
         /// <summary>The identity the classifier judged by, for the log; endpoints publish none at all.</summary>
