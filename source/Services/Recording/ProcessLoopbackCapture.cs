@@ -384,7 +384,14 @@ namespace PlayniteAchievements.Services.Recording
             _nextDevicePosition = -1;
             _audioClient.Start();
             _capturing = true;
-            _pollThread = new Thread(PollLoop) { IsBackground = true, Name = "PA-ProcLoopback" };
+            _pollThread = new Thread(PollLoop)
+            {
+                IsBackground = true,
+                Name = "PA-ProcLoopback",
+                // Background capture work. WASAPI buffers the packets this loop drains, so yielding
+                // to the game and the shell costs latency here, not audio.
+                Priority = ThreadPriority.BelowNormal,
+            };
             _pollThread.Start();
         }
 
