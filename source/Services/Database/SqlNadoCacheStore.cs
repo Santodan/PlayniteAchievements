@@ -6681,20 +6681,12 @@ namespace PlayniteAchievements.Services.Database
                 var incomingStoredRarity = incomingRarity;
                 var incomingProgressMax = achievement.ProgressDenom;
 
-                // Rarity is the one field a provider can fail to learn without saying so: the tier is
-                // derived from the global percent, and RarityTier's default is Common, so "no percent
-                // plus Common" is indistinguishable from "not filled in". Overwriting stored rarity
-                // with that pair relabels every achievement as Common whenever the rarity source is
-                // unavailable - which is what a gated Data for Azeroth used to do to World of Warcraft.
-                // Providers that genuinely assert a tier without a percent (GameJolt derives one from
-                // trophy difficulty) still overwrite freely, because their tier is not the default.
-                var incomingRarityUnknown = !incomingGlobalPercent.HasValue &&
-                    achievement.Rarity == RarityTier.Common;
-                var existingHasRarity = existing.GlobalPercentUnlocked.HasValue ||
-                    (!string.IsNullOrWhiteSpace(existing.Rarity) &&
-                     !string.Equals(existing.Rarity, RarityTier.Common.ToString(), StringComparison.OrdinalIgnoreCase));
-
-                if (incomingRarityUnknown && existingHasRarity)
+                // A payload that does not know the rarity must not blank what is already stored.
+                if (SqlNadoCacheBehavior.ShouldKeepStoredRarity(
+                        incomingGlobalPercent,
+                        achievement.Rarity,
+                        existing.GlobalPercentUnlocked,
+                        existing.Rarity))
                 {
                     incomingGlobalPercent = existing.GlobalPercentUnlocked;
                     incomingStoredRarity = existing.Rarity;
