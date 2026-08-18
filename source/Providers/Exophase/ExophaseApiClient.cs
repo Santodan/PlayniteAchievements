@@ -783,24 +783,14 @@ namespace PlayniteAchievements.Providers.Exophase
         /// Polls a value factory until a predicate is satisfied or max attempts are exhausted.
         /// Returns the last value regardless of whether the predicate was met.
         /// </summary>
-        internal static async Task<T> PollAsync<T>(
+        internal static Task<T> PollAsync<T>(
             Func<CancellationToken, Task<T>> valueFactory,
             Func<T, bool> readyPredicate,
             int maxAttempts,
             int delayMs,
             CancellationToken ct)
         {
-            for (var attempt = 0; attempt < maxAttempts; attempt++)
-            {
-                ct.ThrowIfCancellationRequested();
-                var value = await valueFactory(ct);
-                if (readyPredicate(value))
-                    return value;
-                if (attempt < maxAttempts - 1)
-                    await Task.Delay(delayMs, ct).ConfigureAwait(false);
-            }
-
-            return await valueFactory(ct);
+            return AsyncPoll.UntilAsync(valueFactory, readyPredicate, maxAttempts, delayMs, ct);
         }
 
         /// <summary>
