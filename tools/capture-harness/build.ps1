@@ -65,7 +65,7 @@ $refs = $framework + $sharp + $tuple
 $tools = @(
     'CaptureHarness', 'FrameDump', 'AttributeBisect', 'PacerProbe', 'GenerationLoss',
     'SlideProbe', 'SlideStoryboardProbe', 'SlideCadenceProbe', 'ChimeCancelProbe',
-    'ChimeSeparationProbe', 'ChimeBurstProbe', 'HapticProbe')
+    'ChimeSeparationProbe', 'ChimeBurstProbe', 'HapticProbe', 'ComposerProbe')
 # Tools that compile plugin source files in directly, so they always test the current algorithm
 # rather than a built DLL.
 $extraSources = @{
@@ -84,6 +84,10 @@ $extraSources = @{
         (Join-Path $repo 'source\Services\Recording\RecordingPaths.cs'),
         (Join-Path $repo 'source\Models\Settings\RecordingEnums.cs'),
         (Join-Path $repo 'source\Common\MonotonicUtcClock.cs'))
+    ComposerProbe = @(
+        (Join-Path $repo 'source\Services\Capture\FrameComposer.cs'),
+        (Join-Path $repo 'source\Services\Capture\GpuHdrToneMapper.cs'),
+        (Join-Path $repo 'source\Services\Capture\FrameScaler.cs'))
     HapticProbe = @(
         (Join-Path $repo 'source\Services\Capture\PcmAudio.cs'),
         (Join-Path $repo 'source\Services\Recording\ProcessLoopbackCapture.cs'),

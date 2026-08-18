@@ -250,6 +250,50 @@ Counting the animation's own value changes would prove nothing: a WPF timeline a
 frame by construction, so that only re-measures the render loop. The rate the loop itself holds is the
 number.
 
+## The composer probe
+
+```powershell
+tools\capture-harness\bin\ComposerProbe.exe
+```
+
+A/B pixel comparison of the recorder's frame path: the shipped three-pass route
+(`GpuHdrToneMapper` -> `CopySubresourceRegion` crop -> `FrameScaler` downscale) against the single
+`FrameComposer` pass meant to replace it, over identical synthetic input. All three classes are
+compiled in from `source\Services\Capture\`, so it always compares the current code.
+
+It exists because the two defects the fold can introduce are both invisible in a plausible-looking
+clip: a crop that lands on the wrong pixels, and a sampler that pulls window chrome into the frame
+edge. Every pixel of the SDR fixture states its own coordinates, so an off-by-one crop produces a
+numerically different image rather than a similar-looking one.
+
+Geometry and colour are judged separately, and that separation is the point:
+
+- **Geometry** is proven only by the 1:1 cases and by SDR, where the two paths must be *bit-identical*.
+- **Colour** differs by design on HDR. The shipped route tone-maps at full resolution and then
+  averages the sRGB-encoded result; the fold averages linear scRGB and then tone-maps. Averaging in
+  linear light before the transfer curve is the correct order, so the fold differs from the reference
+  exactly where the reference is wrong.
+
+The luminance centroid locates the picture, but **only while the two paths agree on colour**. An
+earlier version judged geometry by centroid on every case and failed the production shape at
+1.24 px — not a crop error, but linear-light averaging brightening every dark-side checker edge and
+moving the centroid photometrically. Cases with a deliberately extreme order difference are marked
+`GeometryCheck = false` for that reason.
+
+Measured (all ten cases pass):
+
+| case | maxDelta | meanDelta |
+|---|---|---|
+| every SDR case, incl. sub-rect, odd-size and downscale | **0.0** | 0.000 |
+| HDR identity 1:1, HDR sub-rect crop 1:1 | **0.0** | 0.000 |
+| HDR production 2544x1401 -> 1920x1080, realistic ramp | 1.0 | 0.020 |
+| HDR blown-highlight checker at the same non-integer ratio | 160.0 | 13.333 |
+
+So the fold is geometrically exact and, on realistic content, within one 8-bit step of the path that
+ships. The 160 is the worst case by construction: a 4x4 checker alternating linear 4.0 and 0.02
+straddles the tone-map shoulder, where averaging before the curve gives 255 and averaging after it
+gives 147. Real frames do not look like that; the ramp case is the representative number.
+
 ## Supporting tools
 
 - **`Show-Mp4Timeline.ps1 <file.mp4>`** — dumps `mdhd` durations and the `stts` table per track. A single
