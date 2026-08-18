@@ -33,6 +33,23 @@ namespace PlayniteAchievements.Services.Capture
     /// </summary>
     internal sealed class WgcVideoRecorder : IDisposable
     {
+        // === Diagnostic switches ===
+        //
+        // Two things this recorder sets on every capture are binary rather than proportional: either
+        // applied or not, with no middle setting. That matters because a desktop-responsiveness cost
+        // was measured here that did NOT change between 30 and 60 fps, did not depend on which window
+        // had focus, and survived turning HDR off — a cost with that shape cannot come from how much
+        // work we do per frame, only from a mode we switch on.
+        //
+        // Both are optimizations, neither is required for correct capture, and OBS sets neither.
+        // Flip them to true to take them out of the picture, then bisect.
+        //
+        // MinUpdateInterval is the stronger suspect: it is a Windows 11 24H2 API that changes WGC's
+        // frame-delivery mode, and the interval it is given is exactly the knob that was already shown
+        // not to matter.
+        private const bool DisableUpdateRateLimit = false;
+        private const bool DisableGpuPriorityOverride = false;
+
         // Resolves the game window to capture, re-checked each second so the recorder follows the
         // learned game window (idle until it's known, re-target if it changes) instead of grabbing
         // whatever is foreground at start.
@@ -183,8 +200,11 @@ namespace PlayniteAchievements.Services.Capture
                         // Capture is opportunistic background work. A mild relative reduction leaves
                         // DWM and the game ahead of our copy/scale/tonemap commands under contention;
                         // unlike idle priority, -1 still has a forward-progress guarantee.
-                        dxgiDevice.GPUThreadPriority = -1;
-                        _gpuPriorityLowered = true;
+                        if (!DisableGpuPriorityOverride)
+                        {
+                            dxgiDevice.GPUThreadPriority = -1;
+                            _gpuPriorityLowered = true;
+                        }
                     }
                     catch (Exception ex)
                     {
@@ -310,7 +330,8 @@ namespace PlayniteAchievements.Services.Capture
             _geometryStale = false;
             _framePool = Direct3D11CaptureFramePool.CreateFreeThreaded(_winrtDevice, pixelFormat, 2, item.Size);
             _session = _framePool.CreateCaptureSession(_item);
-            var updateRateLimited = WgcCaptureBorder.LimitUpdateRate(_session, _fps);
+            var updateRateLimited = !DisableUpdateRateLimit &&
+                WgcCaptureBorder.LimitUpdateRate(_session, _fps);
             var cursorSuppressed = WgcCaptureBorder.SuppressCursor(_session);
             WgcCaptureBorder.Suppress(_session);
             _session.StartCapture();
