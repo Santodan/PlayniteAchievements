@@ -79,6 +79,7 @@ $extraSources = @{
         (Join-Path $repo 'source\Services\Recording\ProcessLoopbackCapture.cs'),
         (Join-Path $repo 'source\Services\Recording\AudioLoopbackRecorder.cs'),
         (Join-Path $repo 'source\Services\Recording\RenderEndpointScan.cs'),
+        (Join-Path $repo 'source\Services\Recording\MicrophoneSelector.cs'),
         (Join-Path $repo 'source\Services\Recording\HapticEndpointClassifier.cs'),
         (Join-Path $repo 'source\Services\UI\ControllerPadIds.cs'),
         (Join-Path $repo 'source\Services\Recording\RecordingPaths.cs'),
@@ -93,6 +94,7 @@ $extraSources = @{
         (Join-Path $repo 'source\Services\Capture\PcmAudio.cs'),
         (Join-Path $repo 'source\Services\Recording\ProcessLoopbackCapture.cs'),
         (Join-Path $repo 'source\Services\Recording\RenderEndpointScan.cs'),
+        (Join-Path $repo 'source\Services\Recording\MicrophoneSelector.cs'),
         (Join-Path $repo 'source\Services\Recording\HapticEndpointClassifier.cs'),
         (Join-Path $repo 'source\Services\UI\ControllerPadIds.cs'),
         (Join-Path $repo 'source\Common\MonotonicUtcClock.cs'))

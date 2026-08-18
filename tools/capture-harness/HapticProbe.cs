@@ -25,6 +25,7 @@ using System.IO;
 using System.Threading;
 using NAudio.CoreAudioApi;
 using NAudio.Wave;
+using Playnite.SDK;
 using PlayniteAchievements.Services.Capture;
 using PlayniteAchievements.Services.Recording;
 
@@ -110,6 +111,7 @@ internal static class HapticProbe
     private static int Run(string[] args)
     {
         var devices = ListDevices();
+        ListMicrophones();
         if (args.Length == 0)
         {
             // Double-click path: whoever runs this is answering "why were my clips not cleaned",
@@ -226,6 +228,35 @@ internal static class HapticProbe
             : "the recorder would capture: " + string.Join(", ", Describe(selected)));
         Console.WriteLine();
         return devices;
+    }
+
+    /// <summary>
+    /// Shows which input device the recorder would mix in when "include microphone" is on, and why.
+    /// A DualSense makes Windows switch the default recording device to the pad's own microphone,
+    /// which records the haptics acoustically — the one copy no render-side cancellation can reach.
+    /// Nothing is recorded here; the selection only enumerates.
+    /// </summary>
+    private static void ListMicrophones()
+    {
+        Console.WriteLine("microphone the recorder would use:");
+        var chosen = MicrophoneSelector.TryChoose(new ProbeLogger());
+        Console.WriteLine("  -> " + (chosen == null ? "the Windows default" : "'" + chosen.FriendlyName + "'"));
+        Console.WriteLine();
+    }
+
+    /// <summary>Prints what the plugin would log, so probe output and log lines read the same.</summary>
+    private sealed class ProbeLogger : ILogger
+    {
+        public void Info(string message) => Console.WriteLine("  " + message);
+        public void Info(Exception ex, string message) => Console.WriteLine("  " + message + " :: " + ex.Message);
+        public void Debug(string message) => Console.WriteLine("  " + message);
+        public void Debug(Exception ex, string message) => Console.WriteLine("  " + message + " :: " + ex.Message);
+        public void Warn(string message) => Console.WriteLine("  " + message);
+        public void Warn(Exception ex, string message) => Console.WriteLine("  " + message + " :: " + ex.Message);
+        public void Error(string message) => Console.WriteLine("  " + message);
+        public void Error(Exception ex, string message) => Console.WriteLine("  " + message + " :: " + ex.Message);
+        public void Trace(string message) => Console.WriteLine("  " + message);
+        public void Trace(Exception ex, string message) => Console.WriteLine("  " + message + " :: " + ex.Message);
     }
 
     /// <summary>The vendor-carrying strings this endpoint publishes, the same sweep the scan does.</summary>
