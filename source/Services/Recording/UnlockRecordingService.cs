@@ -1943,23 +1943,27 @@ namespace PlayniteAchievements.Services.Recording
             var result = new List<(string, long)>();
             try
             {
-                if (!Directory.Exists(bufferDirectory))
+                var directory = new DirectoryInfo(bufferDirectory);
+                if (!directory.Exists)
                 {
                     return result;
                 }
 
-                foreach (var file in Directory.GetFiles(bufferDirectory, prefix + "*" + extension))
+                // DirectoryInfo.GetFiles carries each entry's length from the directory enumeration
+                // itself. Path-plus-FileInfo would re-stat every file, which the prune tick pays for
+                // five prefixes across the whole buffer every thirty seconds for the whole session.
+                foreach (var file in directory.GetFiles(prefix + "*" + extension))
                 {
                     long size = 0;
                     try
                     {
-                        size = new FileInfo(file).Length;
+                        size = file.Length;
                     }
                     catch
                     {
                     }
 
-                    result.Add((file, size));
+                    result.Add((file.FullName, size));
                 }
             }
             catch
