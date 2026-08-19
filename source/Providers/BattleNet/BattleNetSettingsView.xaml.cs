@@ -77,6 +77,25 @@ namespace PlayniteAchievements.Providers.BattleNet
             set => SetValue(DataForAzerothStatusProperty, value);
         }
 
+        public static readonly DependencyProperty DataForAzerothPendingProperty =
+            DependencyProperty.Register(nameof(DataForAzerothPending), typeof(bool), typeof(BattleNetSettingsView), new PropertyMetadata(true));
+
+        /// <summary>Nothing probed yet, so the card claims neither success nor failure.</summary>
+        public bool DataForAzerothPending
+        {
+            get => (bool)GetValue(DataForAzerothPendingProperty);
+            set => SetValue(DataForAzerothPendingProperty, value);
+        }
+
+        public static readonly DependencyProperty DataForAzerothCheckingProperty =
+            DependencyProperty.Register(nameof(DataForAzerothChecking), typeof(bool), typeof(BattleNetSettingsView), new PropertyMetadata(false));
+
+        public bool DataForAzerothChecking
+        {
+            get => (bool)GetValue(DataForAzerothCheckingProperty);
+            set => SetValue(DataForAzerothCheckingProperty, value);
+        }
+
         public new BattleNetSettings Settings => _battleNetSettings;
 
         public BattleNetSettingsView(
@@ -129,6 +148,8 @@ namespace PlayniteAchievements.Providers.BattleNet
             SetAuthStatusVisualState(pending: true, success: false);
             AuthStatus = ResourceProvider.GetString("LOCPlayAch_Auth_NotChecked");
             DataForAzerothChecked = false;
+            DataForAzerothChecking = false;
+            DataForAzerothPending = true;
             DataForAzerothStatus = ResourceProvider.GetString("LOCPlayAch_Auth_NotChecked");
         }
 
@@ -199,10 +220,13 @@ namespace PlayniteAchievements.Providers.BattleNet
             if (_dataForAzerothSession == null || _battleNetSettings?.UseDataForAzerothForWowRarity != true)
             {
                 DataForAzerothChecked = false;
+                DataForAzerothChecking = false;
+                DataForAzerothPending = true;
                 DataForAzerothStatus = ResourceProvider.GetString("LOCPlayAch_Auth_NotChecked");
                 return;
             }
 
+            DataForAzerothChecking = true;
             DataForAzerothStatus = ResourceProvider.GetString("LOCPlayAch_Auth_Checking");
 
             AuthProbeResult result;
@@ -223,10 +247,19 @@ namespace PlayniteAchievements.Providers.BattleNet
         {
             var cleared = result?.IsSuccess ?? false;
             DataForAzerothChecked = cleared;
+            DataForAzerothChecking = false;
+            DataForAzerothPending = false;
 
             if (cleared)
             {
-                DataForAzerothStatus = ResourceProvider.GetString("LOCPlayAch_Auth_Authenticated");
+                // Same "Authenticated as {0}" treatment the Blizzard card gets, falling back to the
+                // plain label when the site session carries no name we can show.
+                var authenticatedAsFormat = ResourceProvider.GetString("LOCPlayAch_Auth_AuthenticatedAs");
+                DataForAzerothStatus = string.IsNullOrWhiteSpace(result.UserId) ||
+                    string.IsNullOrWhiteSpace(authenticatedAsFormat) ||
+                    string.Equals(authenticatedAsFormat, "LOCPlayAch_Auth_AuthenticatedAs", StringComparison.Ordinal)
+                    ? ResourceProvider.GetString("LOCPlayAch_Auth_Authenticated")
+                    : string.Format(authenticatedAsFormat, result.UserId);
                 return;
             }
 
@@ -239,10 +272,10 @@ namespace PlayniteAchievements.Providers.BattleNet
 
             DataForAzerothStatus = ResourceProvider.GetString(indeterminate
                 ? "LOCPlayAch_Auth_TemporaryFailure"
-                : "LOCPlayAch_Settings_BattleNet_DataForAzerothBlocked");
+                : "LOCPlayAch_Settings_BattleNet_DataForAzerothSignInHint");
         }
 
-        private async void DataForAzeroth_Verify_Click(object sender, RoutedEventArgs e)
+        private async void DataForAzeroth_Login_Click(object sender, RoutedEventArgs e)
         {
             if (_dataForAzerothSession == null)
             {

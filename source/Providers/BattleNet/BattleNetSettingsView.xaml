@@ -5,6 +5,7 @@
              xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
              xmlns:settings="clr-namespace:PlayniteAchievements.Providers.Settings"
              xmlns:helpers="clr-namespace:PlayniteAchievements.Views.Helpers"
+             xmlns:controls="clr-namespace:PlayniteAchievements.Views.Controls"
              mc:Ignorable="d"
              d:DesignHeight="600"
              d:DesignWidth="700">
@@ -278,69 +279,27 @@
                                Margin="24,8,0,0"
                                TextWrapping="Wrap"/>
 
-                    <Border Background="{DynamicResource PlayAch.Brush.Panel}"
-                            CornerRadius="8"
-                            Padding="16"
-                            BorderThickness="{StaticResource PlayAch.Thickness.Border}"
-                            Margin="24,12,0,0"
-                            IsEnabled="{Binding Settings.UseDataForAzerothForWowRarity}">
-                        <Border.Style>
-                            <Style TargetType="Border">
-                                <Setter Property="BorderBrush" Value="{StaticResource PlayAch.Brush.AuthError}"/>
-                                <Style.Triggers>
-                                    <DataTrigger Binding="{Binding DataForAzerothChecked, RelativeSource={RelativeSource AncestorType=UserControl}}"
-                                                 Value="True">
-                                        <Setter Property="BorderBrush" Value="{StaticResource PlayAch.Brush.AuthSuccess}"/>
-                                    </DataTrigger>
-                                </Style.Triggers>
-                            </Style>
-                        </Border.Style>
-
-                        <StackPanel>
-                            <Grid Margin="{StaticResource PlayAch.Thickness.Bottom.Md}">
-                                <Grid.ColumnDefinitions>
-                                    <ColumnDefinition Width="Auto"/>
-                                    <ColumnDefinition Width="*"/>
-                                </Grid.ColumnDefinitions>
-
-                                <TextBlock Grid.Column="0">
-                                    <TextBlock.RenderTransform>
-                                        <ScaleTransform ScaleX="1.5" ScaleY="1.5"/>
-                                    </TextBlock.RenderTransform>
-                                    <TextBlock.Style>
-                                        <Style TargetType="TextBlock" BasedOn="{StaticResource BattleNetStatusIconStyle}">
-                                            <Style.Triggers>
-                                                <DataTrigger Binding="{Binding DataForAzerothChecked, RelativeSource={RelativeSource AncestorType=UserControl}}"
-                                                             Value="True">
-                                                    <Setter Property="Text" Value="&#xE73E;"/>
-                                                    <Setter Property="Foreground" Value="{StaticResource PlayAch.Brush.AuthSuccess}"/>
-                                                </DataTrigger>
-                                            </Style.Triggers>
-                                        </Style>
-                                    </TextBlock.Style>
-                                </TextBlock>
-
-                                <TextBlock Grid.Column="1"
-                                           Text="{Binding DataForAzerothStatus, RelativeSource={RelativeSource AncestorType=UserControl}}"
-                                           VerticalAlignment="Center"
-                                           TextWrapping="Wrap"/>
-                            </Grid>
-
-                            <StackPanel Orientation="Horizontal">
-                                <Button Content="{DynamicResource LOCPlayAch_Settings_BattleNet_DataForAzerothVerify}"
-                                        Click="DataForAzeroth_Verify_Click"
-                                        Style="{StaticResource AuthActionButtonStyle}"
-                                        Margin="{StaticResource PlayAch.Thickness.Right.Sm}"/>
-                                <Button Content="{DynamicResource LOCPlayAch_Common_Check}"
-                                        Click="DataForAzeroth_Check_Click"
-                                        Style="{StaticResource AuthActionButtonStyle}"
-                                        Margin="{StaticResource PlayAch.Thickness.Right.Sm}"/>
-                                <Button Content="{DynamicResource LOCPlayAch_Button_SignOut}"
-                                        Click="DataForAzeroth_Clear_Click"
-                                        Style="{StaticResource AuthActionButtonStyle}"/>
-                            </StackPanel>
+                    <controls:AuthStatusCard Margin="24,12,0,0"
+                                             IsEnabled="{Binding Settings.UseDataForAzerothForWowRarity}"
+                                             AuthStatus="{Binding DataForAzerothStatus, RelativeSource={RelativeSource AncestorType=UserControl}}"
+                                             IsAuthStatusPending="{Binding DataForAzerothPending, RelativeSource={RelativeSource AncestorType=UserControl}}"
+                                             IsAuthStatusSuccess="{Binding DataForAzerothChecked, RelativeSource={RelativeSource AncestorType=UserControl}}"
+                                             IsAuthStatusChecking="{Binding DataForAzerothChecking, RelativeSource={RelativeSource AncestorType=UserControl}}"
+                                             AuthBusy="{Binding AuthBusy, RelativeSource={RelativeSource AncestorType=UserControl}}">
+                        <StackPanel Orientation="Horizontal">
+                            <Button Content="{DynamicResource LOCPlayAch_Button_Login}"
+                                    Click="DataForAzeroth_Login_Click"
+                                    Style="{StaticResource AuthActionButtonStyle}"
+                                    Margin="{StaticResource PlayAch.Thickness.Right.Sm}"/>
+                            <Button Content="{DynamicResource LOCPlayAch_Common_Check}"
+                                    Click="DataForAzeroth_Check_Click"
+                                    Style="{StaticResource AuthActionButtonStyle}"
+                                    Margin="{StaticResource PlayAch.Thickness.Right.Sm}"/>
+                            <Button Content="{DynamicResource LOCPlayAch_Button_SignOut}"
+                                    Click="DataForAzeroth_Clear_Click"
+                                    Style="{StaticResource AuthActionButtonStyle}"/>
                         </StackPanel>
-                    </Border>
+                    </controls:AuthStatusCard>
                 </StackPanel>
             </Border>
         </StackPanel>
