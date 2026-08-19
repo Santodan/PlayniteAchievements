@@ -335,7 +335,7 @@ namespace PlayniteAchievements.Providers.BattleNet
             try
             {
                 SetAuthBusy(true);
-                _dataForAzerothSession.ClearSession();
+                await _dataForAzerothSession.ClearSessionAsync(CancellationToken.None);
                 await RefreshDataForAzerothStatusAsync();
             }
             catch (Exception ex)
