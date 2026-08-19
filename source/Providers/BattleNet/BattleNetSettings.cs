@@ -27,6 +27,7 @@ namespace PlayniteAchievements.Providers.BattleNet
         private string _wowCharacter;
         private bool _wowAggregateAccountCharacters = true;
         private bool _useDataForAzerothForWowRarity = true;
+        private string _dataForAzerothUserId;
 
         public string BattleNetClientId
         {
@@ -131,6 +132,17 @@ namespace PlayniteAchievements.Providers.BattleNet
         {
             get => _useDataForAzerothForWowRarity;
             set => SetValue(ref _useDataForAzerothForWowRarity, value);
+        }
+
+        /// <summary>
+        /// The Data for Azeroth account the user signed in as, from the site session's subject claim.
+        /// Present means signed in, the same cheap settings-only check the other providers use for
+        /// <see cref="IDataProvider.IsAuthenticated"/>; the live session still lives in the browser.
+        /// </summary>
+        public string DataForAzerothUserId
+        {
+            get => _dataForAzerothUserId;
+            set => SetValue(ref _dataForAzerothUserId, value);
         }
 
         public static bool IsLegacyDefaultRedirectUri(string redirectUri)
