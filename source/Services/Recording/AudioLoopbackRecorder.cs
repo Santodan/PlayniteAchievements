@@ -52,6 +52,10 @@ namespace PlayniteAchievements.Services.Recording
         // How often to look for a controller audio endpoint that was not there at capture start.
         private const int HapticRescanIntervalMs = 5000;
 
+        // Largest alignment correction trusted from a packet stamp; beyond this the stamp is on
+        // a timebase we do not understand.
+        private const double MaxHapticAlignmentSeconds = 5.0;
+
         private readonly string _bufferDirectory;
         private readonly ILogger _logger;
         private readonly RecordingAudioSource _source;
@@ -67,7 +71,6 @@ namespace PlayniteAchievements.Services.Recording
             new Dictionary<string, HapticEndpointCapture>(StringComparer.OrdinalIgnoreCase);
         private readonly List<HapticEndpointCapture> _hapticPendingInstall = new List<HapticEndpointCapture>();
         private readonly HashSet<string> _hapticFailedDeviceIds = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-        private MixingSampleProvider _hapticMixer;
         private Thread _hapticWatchThread;
         private long _hapticFramesWritten;
         private float _hapticPeak;
@@ -75,12 +78,10 @@ namespace PlayniteAchievements.Services.Recording
         private BufferedWaveProvider _restoredGameBuffer;
         private BufferedWaveProvider _micBuffer;
         private ISampleProvider _mix;
-        private ISampleProvider _hapticSamples;
         private WaveFormat _outputFormat;
 
         private WaveFileWriter _writer;
         private WaveFileWriter _gameReferenceWriter;
-        private WaveFileWriter _hapticReferenceWriter;
         private long _chunkSamplesWritten;
         private double _chunkStartWallClockSamples;
         private DateTime _pumpStartUtc;
@@ -396,11 +397,6 @@ namespace PlayniteAchievements.Services.Recording
                 return string.Empty;
             }
 
-            // An empty mixer that reads as silence, so an endpoint arriving later can simply be
-            // added to it: the reference track's format and identity never change mid-session.
-            _hapticMixer = new MixingSampleProvider(_outputFormat) { ReadFully = true };
-            _hapticSamples = _hapticMixer;
-
             var attached = AttachHapticEndpoints();
             StartHapticWatcher();
             return attached.Count == 0 ? string.Empty : ", haptics=" + string.Join("+", attached.ToArray());
@@ -417,10 +413,25 @@ namespace PlayniteAchievements.Services.Recording
             var opened = new List<string>();
             foreach (var endpoint in RenderEndpointScan.FindHapticEndpoints(_logger))
             {
+                var index = 0;
                 lock (_gate)
                 {
                     if (_stopped || _hapticCaptures.ContainsKey(endpoint.DeviceId))
                     {
+                        continue;
+                    }
+
+                    index = _hapticCaptures.Count;
+                    if (index >= RecordingPaths.MaxHapticReferences)
+                    {
+                        // Said once, because the rescan would otherwise repeat it forever.
+                        if (_hapticFailedDeviceIds.Add(endpoint.DeviceId))
+                        {
+                            _logger?.Info(
+                                $"[Recording] Already capturing {index} controller endpoints; " +
+                                $"'{endpoint.Name}' is left out of the haptic references.");
+                        }
+
                         continue;
                     }
                 }
@@ -432,14 +443,24 @@ namespace PlayniteAchievements.Services.Recording
                 {
                     capture = ProcessLoopbackCapture.ForEndpoint(endpoint.DeviceId);
                     var buffer = NewBuffer(capture.WaveFormat);
-                    capture.DataAvailable += (s, e) => Append(buffer, e);
                     var entry = new HapticEndpointCapture
                     {
                         DeviceId = endpoint.DeviceId,
                         Name = endpoint.Name,
+                        Index = index,
                         Capture = capture,
                         Buffer = buffer,
-                        Provider = MatchFormat(buffer.ToSampleProvider(), _outputFormat),
+                        Provider = new PaddedSampleProvider(
+                            MatchFormat(buffer.ToSampleProvider(), _outputFormat)),
+                    };
+
+                    // Counted here rather than read back off the buffer: alignment needs to know how
+                    // much audio has arrived, including anything the ring buffer refused.
+                    var blockAlign = Math.Max(1, capture.WaveFormat.BlockAlign);
+                    capture.DataAvailable += (s, e) =>
+                    {
+                        Interlocked.Add(ref entry.DeliveredFrames, e.BytesRecorded / blockAlign);
+                        Append(buffer, e);
                     };
 
                     capture.StartRecording();
@@ -515,10 +536,16 @@ namespace PlayniteAchievements.Services.Recording
         }
 
         /// <summary>
-        /// Adds newly opened endpoints to the reference mix, at a chunk boundary so the reference
-        /// track's sample positions keep matching the main track's. Their buffers are dropped first:
-        /// whatever accumulated since activation belongs before this chunk, and mixing it in here
-        /// would place the reference ahead of the audio it has to be subtracted from.
+        /// Brings newly opened endpoints into the reference tracks at a chunk boundary, each aligned
+        /// onto the pump's timeline from its own first-packet stamp.
+        /// <para>
+        /// This is what the chime pair gets for free: its two recorders each anchor their own pump to
+        /// their own capture's first packet, so the clients' differing latencies cancel out. The
+        /// haptic reference rides the main pump instead, anchored to the *system* capture's first
+        /// packet, so an endpoint client's own latency is otherwise unmodelled — field logs showed it
+        /// putting the reference 31-47 ms out, right at the edge of being findable at all. Correcting
+        /// it here leaves the correlation search as a safety net rather than the load-bearing part.
+        /// </para>
         /// </summary>
         private void InstallPendingHapticCapturesLocked()
         {
@@ -527,12 +554,14 @@ namespace PlayniteAchievements.Services.Recording
                 return;
             }
 
+            var timelineNow = _pumpStartUtc.AddSeconds(
+                _chunkStartWallClockSamples / (double)_outputFormat.SampleRate);
             foreach (var entry in _hapticPendingInstall)
             {
                 try
                 {
-                    entry.Buffer.ClearBuffer();
-                    _hapticMixer.AddMixerInput(entry.Provider);
+                    AlignHapticReferenceLocked(entry, timelineNow);
+                    entry.Installed = true;
                 }
                 catch (Exception ex)
                 {
@@ -542,6 +571,76 @@ namespace PlayniteAchievements.Services.Recording
 
             _hapticPendingInstall.Clear();
             _writeHapticReference = true;
+        }
+
+        /// <summary>
+        /// Puts the front of this endpoint's buffered audio at <paramref name="timelineNow"/>: drops
+        /// what is already too old, and arms leading silence when the capture is ahead of the pump.
+        /// A capture whose driver reports no usable packet stamp falls back to dropping the backlog,
+        /// which is where this started.
+        /// </summary>
+        private void AlignHapticReferenceLocked(HapticEndpointCapture entry, DateTime timelineNow)
+        {
+            var rate = _outputFormat.SampleRate;
+            var firstPacketUtc = (entry.Capture as ProcessLoopbackCapture)?.FirstPacketCaptureUtc;
+            if (!firstPacketUtc.HasValue)
+            {
+                entry.Buffer.ClearBuffer();
+                _logger?.Info(
+                    $"[Recording] Haptic reference '{entry.Name}' has no packet stamp to align by; " +
+                    "its backlog was dropped instead.");
+                return;
+            }
+
+            // Where the oldest buffered sample sits in real time: everything delivered, less what is
+            // still waiting, measured from the instant the first packet's audio was rendered.
+            var deliveredFrames = Interlocked.Read(ref entry.DeliveredFrames);
+            var bufferedFrames = entry.Buffer.BufferedBytes / Math.Max(1, entry.Buffer.WaveFormat.BlockAlign);
+            var frontUtc = firstPacketUtc.Value.AddSeconds((deliveredFrames - bufferedFrames) / (double)rate);
+            var offsetSeconds = (timelineNow - frontUtc).TotalSeconds;
+
+            // A stamp on an unrelated timebase would otherwise ask for an absurd correction.
+            if (Math.Abs(offsetSeconds) > MaxHapticAlignmentSeconds)
+            {
+                entry.Buffer.ClearBuffer();
+                _logger?.Info(
+                    $"[Recording] Haptic reference '{entry.Name}' reported an implausible " +
+                    $"{offsetSeconds.ToString("0.0", CultureInfo.InvariantCulture)}s offset; " +
+                    "its backlog was dropped instead.");
+                return;
+            }
+
+            var offsetFrames = (int)Math.Round(offsetSeconds * rate);
+            if (offsetFrames > 0)
+            {
+                DiscardFrames(entry.Buffer, offsetFrames);
+            }
+            else if (offsetFrames < 0)
+            {
+                entry.Provider.PadWith(-offsetFrames * (long)_outputFormat.Channels);
+            }
+
+            _logger?.Info(
+                $"[Recording] Haptic reference '{entry.Name}' aligned by " +
+                $"{(offsetSeconds * 1000).ToString("0.0", CultureInfo.InvariantCulture)}ms.");
+        }
+
+        /// <summary>Reads and throws away whole frames from a capture buffer.</summary>
+        private static void DiscardFrames(BufferedWaveProvider buffer, int frames)
+        {
+            var blockAlign = Math.Max(1, buffer.WaveFormat.BlockAlign);
+            var remaining = Math.Min((long)frames * blockAlign, buffer.BufferedBytes);
+            var scratch = new byte[Math.Min(remaining, 64 * 1024)];
+            while (remaining > 0 && scratch.Length > 0)
+            {
+                var read = buffer.Read(scratch, 0, (int)Math.Min(scratch.Length, remaining));
+                if (read <= 0)
+                {
+                    return;
+                }
+
+                remaining -= read;
+            }
         }
 
         private string CaptureSourceName()
@@ -799,8 +898,6 @@ namespace PlayniteAchievements.Services.Recording
                 _micCapture = null;
                 _hapticCaptures.Clear();
                 _hapticPendingInstall.Clear();
-                _hapticMixer = null;
-                _hapticSamples = null;
             }
         }
 
@@ -874,8 +971,6 @@ namespace PlayniteAchievements.Services.Recording
 
             _hapticCaptures.Clear();
             _hapticPendingInstall.Clear();
-            _hapticMixer = null;
-            _hapticSamples = null;
         }
 
         private void OpenChunkLocked()
@@ -908,10 +1003,20 @@ namespace PlayniteAchievements.Services.Recording
 
             if (_writeHapticReference)
             {
-                var hapticName = RecordingPaths.BuildAudioChunkFileName(
-                    RecordingPaths.HapticReferenceChunkFilePrefix, startUtc);
-                _hapticReferenceWriter = new WaveFileWriter(
-                    Path.Combine(_bufferDirectory, hapticName), _outputFormat);
+                // One track per endpoint: cancellation fits a single gain and lag per reference, so
+                // two endpoints mixed together could not both be removed.
+                foreach (var entry in _hapticCaptures.Values)
+                {
+                    if (!entry.Installed)
+                    {
+                        continue;
+                    }
+
+                    var hapticName = RecordingPaths.BuildAudioChunkFileName(
+                        RecordingPaths.HapticReferenceChunkFilePrefix(entry.Index), startUtc);
+                    entry.Writer = new WaveFileWriter(
+                        Path.Combine(_bufferDirectory, hapticName), _outputFormat);
+                }
             }
 
             _chunkSamplesWritten = 0;
@@ -928,8 +1033,11 @@ namespace PlayniteAchievements.Services.Recording
             _writer = null;
             try { _gameReferenceWriter?.Dispose(); } catch { }
             _gameReferenceWriter = null;
-            try { _hapticReferenceWriter?.Dispose(); } catch { }
-            _hapticReferenceWriter = null;
+            foreach (var entry in _hapticCaptures.Values)
+            {
+                try { entry.Writer?.Dispose(); } catch { }
+                entry.Writer = null;
+            }
         }
 
         private void FailLocked(Exception ex, string message)
@@ -956,7 +1064,6 @@ namespace PlayniteAchievements.Services.Recording
             _restoredGameBuffer = null;
             _micBuffer = null;
             _mix = null;
-            _hapticSamples = null;
         }
 
         private void WriteGameReferenceSamples(float[] samples, int offset, int count)
@@ -972,38 +1079,97 @@ namespace PlayniteAchievements.Services.Recording
         /// </summary>
         private void WriteHapticReferenceLocked(float[] hapticBuffer, int samples)
         {
-            if (_hapticReferenceWriter == null || _hapticSamples == null || hapticBuffer == null)
+            if (!_writeHapticReference || hapticBuffer == null)
             {
                 return;
             }
 
-            var read = _hapticSamples.Read(hapticBuffer, 0, samples);
-            if (read < samples)
+            var wroteAny = false;
+            foreach (var entry in _hapticCaptures.Values)
             {
-                Array.Clear(hapticBuffer, Math.Max(0, read), samples - Math.Max(0, read));
-            }
-
-            for (var i = 0; i < samples; i++)
-            {
-                var magnitude = Math.Abs(hapticBuffer[i]);
-                if (magnitude > _hapticPeak)
+                if (entry.Writer == null || !entry.Installed)
                 {
-                    _hapticPeak = magnitude;
+                    continue;
                 }
+
+                var read = entry.Provider.Read(hapticBuffer, 0, samples);
+                if (read < samples)
+                {
+                    Array.Clear(hapticBuffer, Math.Max(0, read), samples - Math.Max(0, read));
+                }
+
+                for (var i = 0; i < samples; i++)
+                {
+                    var magnitude = Math.Abs(hapticBuffer[i]);
+                    if (magnitude > _hapticPeak)
+                    {
+                        _hapticPeak = magnitude;
+                    }
+                }
+
+                entry.Writer.WriteSamples(hapticBuffer, 0, samples);
+                wroteAny = true;
             }
 
-            _hapticReferenceWriter.WriteSamples(hapticBuffer, 0, samples);
-            _hapticFramesWritten += samples / Math.Max(1, _outputFormat.Channels);
+            if (wroteAny)
+            {
+                _hapticFramesWritten += samples / Math.Max(1, _outputFormat.Channels);
+            }
         }
 
-        /// <summary>One controller endpoint's capture and its place in the reference mix.</summary>
+        /// <summary>One controller endpoint's capture and the reference track it writes.</summary>
         private sealed class HapticEndpointCapture
         {
             public string DeviceId;
             public string Name;
+            public int Index;
             public IWaveIn Capture;
             public BufferedWaveProvider Buffer;
-            public ISampleProvider Provider;
+            public PaddedSampleProvider Provider;
+            public WaveFileWriter Writer;
+            public bool Installed;
+
+            /// <summary>Frames handed to the buffer, including any the buffer refused.</summary>
+            public long DeliveredFrames;
+        }
+
+        /// <summary>
+        /// Emits a run of silence before its source, so a reference that starts ahead of the pump's
+        /// timeline can be pushed back onto it. Set once, as the capture joins.
+        /// </summary>
+        private sealed class PaddedSampleProvider : ISampleProvider
+        {
+            private readonly ISampleProvider _source;
+            private long _padSamples;
+
+            public PaddedSampleProvider(ISampleProvider source)
+            {
+                _source = source;
+            }
+
+            public WaveFormat WaveFormat => _source.WaveFormat;
+
+            public void PadWith(long samples)
+            {
+                _padSamples = Math.Max(0, samples);
+            }
+
+            public int Read(float[] buffer, int offset, int count)
+            {
+                var written = 0;
+                if (_padSamples > 0)
+                {
+                    written = (int)Math.Min(count, _padSamples);
+                    Array.Clear(buffer, offset, written);
+                    _padSamples -= written;
+                    if (written == count)
+                    {
+                        return written;
+                    }
+                }
+
+                return written + _source.Read(buffer, offset + written, count - written);
+            }
         }
 
         /// <summary>
