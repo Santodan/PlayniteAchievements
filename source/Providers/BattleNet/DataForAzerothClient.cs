@@ -421,10 +421,9 @@ namespace PlayniteAchievements.Providers.BattleNet
             _gatedUntilUtc = DateTime.UtcNow.Add(GateBackoff);
 
             var detail =
-                $"{LogPrefix} {SiteDomain} answered with its bot check (HTTP {ex.StatusCode}) instead of rarity data. " +
+                $"{LogPrefix} {SiteDomain} answered with its human check (HTTP {ex.StatusCode}) instead of rarity data. " +
                 $"WoW achievements still synced; global rarity was skipped. cookieSent={ex.CookieSent}, cookies={ex.CookieNames}. " +
-                "Open plugin settings > Battle.net and use the Data for Azeroth verify button to clear the check in a " +
-                "browser window; it lasts about 7 days. Signing in to Data for Azeroth does not satisfy it.";
+                "Sign in to Data for Azeroth from plugin settings > Battle.net; the site stops asking signed-in visitors.";
 
             if (Interlocked.CompareExchange(ref _gateWarned, 1, 0) == 0)
             {
