@@ -33,7 +33,8 @@ internal static class HapticProbe
 {
     private const int SampleRate = 48000;
     private const double GameToneHz = 1320;  // the audio that must survive
-    private const double HapticToneHz = 180; // stands in for the pad's rumble waveform
+    private const double HapticToneHz = 180; // stands in for the pad's rumble waveform (AM, so the
+                                             // correlation peak is unique rather than one of many)
 
     private static int _failures;
 
@@ -312,7 +313,7 @@ internal static class HapticProbe
             "reference(endpoint loopback)         ");
 
         var game = new Thread(() => PlayTone(null, GameToneHz, 8, 0.02, 3)) { IsBackground = true };
-        var haptic = new Thread(() => PlayTone(hapticDevice, HapticToneHz, 8, 0.05, 0)) { IsBackground = true };
+        var haptic = new Thread(() => PlayTone(hapticDevice, HapticToneHz, 8, 0.05, 7)) { IsBackground = true };
 
         mixture.Start();
         reference.Start();
@@ -363,8 +364,9 @@ internal static class HapticProbe
             "the endpoint capture carries the haptic tone and not the game tone",
             $"haptic {referenceHaptic:0.0}dB vs game {referenceGame:0.0}dB");
 
+        // Same policy and search width the recorder uses, so the probe measures production.
         var outcome = PcmAudio.CancelCorrelated(
-            mixturePcm, referencePcm, out var d, muteUnverifiedBlocks: false);
+            mixturePcm, referencePcm, out var d, muteUnverifiedBlocks: false, maxLagFrames: 12000, minimumGain: 0.05, maximumGain: 20.0);
         Console.WriteLine();
         Console.WriteLine($"cancellation: outcome={outcome} lag={d.StartLagMs:0.000}->{d.EndLagMs:0.000}ms " +
                           $"gain={d.Gain:0.00} corr={d.Correlation:0.000} supp={d.SuppressionDb:0.0}dB muted={d.MutedBlocks}");
